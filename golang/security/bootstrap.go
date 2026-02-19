@@ -57,15 +57,12 @@ var bootstrapAllowedMethods = map[string]bool{
 	"/grpc.health.v1.Health/Check": true,
 	"/grpc.health.v1.Health/Watch": true,
 
-	// RBAC setup (required for creating first admin account)
-	// Security Issue #3: These methods are powerful and could be abused
-	// TODO: Ideally replace with purpose-built rbac.SeedBootstrapPolicy (idempotent)
-	// OR add request validation to ensure only seed admin/roles can be created
-	// For now: Rely on 30-min window + loopback-only + audit logging
-	"/rbac.RbacService/CreateAccount": true,
-	"/rbac.RbacService/CreateRole":    true,
-	"/rbac.RbacService/SetAccountRole": true,
-	"/rbac.RbacService/GetAccount":     true, // needed to check if account exists
+	// RBAC role-binding setup (required for seeding operator/SA roles during Day-0)
+	// Protected by 30-min window + loopback-only + audit logging.
+	// Full management-method protection is a v1.1 item.
+	"/rbac.RbacService/SetRoleBinding":   true,
+	"/rbac.RbacService/GetRoleBinding":   true,
+	"/rbac.RbacService/ListRoleBindings": true,
 
 	// Authentication (required for getting initial tokens)
 	"/authentication.AuthenticationService/Authenticate": true,

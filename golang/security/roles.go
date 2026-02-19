@@ -1,5 +1,7 @@
 package security
 
+import "strings"
+
 // Role name constants used across Globular services.
 // These are the canonical role identifiers stored in the RBAC service.
 const (
@@ -125,6 +127,65 @@ var RolePermissions = map[string][]string{
 		"/clustercontroller.ClusterControllerService/GetClusterInfo",
 		"/clustercontroller.ResourcesService/GetClusterNetwork",
 	},
+}
+
+// methodSet is the set of exact gRPC methods listed in RolePermissions
+// (excluding global "/*" wildcard, but including service-wildcard prefixes).
+var (
+	methodSet    map[string]bool
+	methodPrefix []string
+)
+
+func init() {
+	methodSet = make(map[string]bool)
+	for _, methods := range RolePermissions {
+		for _, m := range methods {
+			if m == "/*" {
+				continue // global wildcard: don't add every method in existence
+			} else if strings.HasSuffix(m, "/*") {
+				// service wildcard — record the prefix
+				prefix := strings.TrimSuffix(m, "*")
+				methodPrefix = append(methodPrefix, prefix)
+			} else {
+				methodSet[m] = true
+			}
+		}
+	}
+}
+
+// IsRoleBasedMethod returns true if the gRPC full method is explicitly managed
+// by the role-binding system (i.e. appears in at least one non-global entry in
+// RolePermissions, either by exact match or service-wildcard prefix).
+func IsRoleBasedMethod(method string) bool {
+	if methodSet[method] {
+		return true
+	}
+	for _, p := range methodPrefix {
+		if strings.HasPrefix(method, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasRolePermission returns true if any of the given roles grants access to
+// the specified gRPC method.  Supports exact, global "/*", and service
+// wildcard "/pkg.Service/*" patterns.
+func HasRolePermission(roles []string, method string) bool {
+	for _, role := range roles {
+		for _, perm := range RolePermissions[role] {
+			if perm == "/*" || perm == method {
+				return true
+			}
+			if strings.HasSuffix(perm, "/*") {
+				prefix := strings.TrimSuffix(perm, "*")
+				if strings.HasPrefix(method, prefix) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // DefaultServiceAccountNames returns the service account identities for

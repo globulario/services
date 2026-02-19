@@ -543,6 +543,23 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			"authentication required: provide --token or configure client certificates")
 	}
 
+	// Role-binding check: applies to all explicitly role-mapped gRPC methods.
+	// Skip the RBAC service itself (would cause a circular RPC call).
+	// Only fires for authenticated subjects post-cluster-initialization.
+	if clusterInitialized && security.IsRoleBasedMethod(method) &&
+		!strings.HasPrefix(method, "/rbac.RbacService/") &&
+		authCtx != nil && authCtx.Subject != "" {
+
+		allowed, _ := checkRoleBinding(authCtx.Subject, method, address)
+		if !allowed {
+			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
+			return nil, status.Errorf(codes.PermissionDenied,
+				"permission denied: %s — assign a role with 'globular rbac bind'", method)
+		}
+		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
+		return handler(ctx, rqst)
+	}
+
 	// 3) Only consult RBAC if there are resource mappings for this method.
 	needAuthz := false
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
@@ -903,6 +920,22 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
 		return status.Errorf(codes.Unauthenticated,
 			"authentication required: provide --token or configure client certificates")
+	}
+
+	// Role-binding check for streaming RPCs: mirrors the unary interceptor check.
+	// Skip the RBAC service itself (would cause a circular RPC call).
+	if streamInitialized && security.IsRoleBasedMethod(method) &&
+		!strings.HasPrefix(method, "/rbac.RbacService/") &&
+		authCtx != nil && authCtx.Subject != "" {
+
+		allowed, _ := checkRoleBinding(authCtx.Subject, method, address)
+		if !allowed {
+			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
+			return status.Errorf(codes.PermissionDenied,
+				"permission denied: %s — assign a role with 'globular rbac bind'", method)
+		}
+		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
+		return handler(srv, stream)
 	}
 
 	uuid := Utility.RandomUUID()

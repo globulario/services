@@ -228,6 +228,51 @@ func (client *Rbac_Client) SetCaFile(caFile string) {
 
 ////////////////////////////////////  Api  /////////////////////////////////////
 
+// SetRoleBinding creates or replaces the role binding for a subject.
+func (client *Rbac_Client) SetRoleBinding(subject string, roles []string) error {
+	rqst := &rbacpb.SetRoleBindingRqst{
+		Binding: &rbacpb.RoleBinding{Subject: subject, Roles: roles},
+	}
+	_, err := client.c.SetRoleBinding(client.GetCtx(), rqst)
+	return err
+}
+
+// GetRoleBinding fetches the role binding for a subject.
+// Returns an empty RoleBinding (not an error) if no binding exists.
+func (client *Rbac_Client) GetRoleBinding(subject string) (*rbacpb.RoleBinding, error) {
+	return client.GetRoleBindingWithCtx(client.GetCtx(), subject)
+}
+
+// GetRoleBindingWithCtx fetches the role binding using an explicit context (for timeouts).
+func (client *Rbac_Client) GetRoleBindingWithCtx(ctx context.Context, subject string) (*rbacpb.RoleBinding, error) {
+	rqst := &rbacpb.GetRoleBindingRqst{Subject: subject}
+	rsp, err := client.c.GetRoleBinding(ctx, rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.GetBinding(), nil
+}
+
+// ListRoleBindings streams all stored role bindings via a callback.
+func (client *Rbac_Client) ListRoleBindings(handler func(*rbacpb.RoleBinding) error) error {
+	stream, err := client.c.ListRoleBindings(client.GetCtx(), &rbacpb.ListRoleBindingsRqst{})
+	if err != nil {
+		return err
+	}
+	for {
+		rsp, err := stream.Recv()
+		if err != nil {
+			if err.Error() == "EOF" {
+				return nil
+			}
+			return err
+		}
+		if err := handler(rsp.GetBinding()); err != nil {
+			return err
+		}
+	}
+}
+
 /** Set resource permissions this method will replace existing permission at once **/
 func (client *Rbac_Client) SetResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
 	// set value if not already set...

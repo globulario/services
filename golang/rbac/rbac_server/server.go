@@ -54,6 +54,9 @@ var (
 // -----------------------------------------------------------------------------
 
 type server struct {
+	// Embed UnimplementedRbacServiceServer for forward-compatible gRPC registration.
+	rbacpb.UnimplementedRbacServiceServer
+
 	// Core metadata
 	Id           string
 	Mac          string

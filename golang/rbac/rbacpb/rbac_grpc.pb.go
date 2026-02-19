@@ -41,6 +41,9 @@ const (
 	RbacService_GetSharedResource_FullMethodName                    = "/rbac.RbacService/GetSharedResource"
 	RbacService_RemoveSubjectFromShare_FullMethodName               = "/rbac.RbacService/RemoveSubjectFromShare"
 	RbacService_DeleteSubjectShare_FullMethodName                   = "/rbac.RbacService/DeleteSubjectShare"
+	RbacService_SetRoleBinding_FullMethodName                       = "/rbac.RbacService/SetRoleBinding"
+	RbacService_GetRoleBinding_FullMethodName                       = "/rbac.RbacService/GetRoleBinding"
+	RbacService_ListRoleBindings_FullMethodName                     = "/rbac.RbacService/ListRoleBindings"
 )
 
 // RbacServiceClient is the client API for RbacService service.
@@ -120,6 +123,17 @@ type RbacServiceClient interface {
 	// DeleteSubjectShare removes all shares associated with a subject.
 	// Typically used when a subject is deleted from the system.
 	DeleteSubjectShare(ctx context.Context, in *DeleteSubjectShareRqst, opts ...grpc.CallOption) (*DeleteSubjectShareRsp, error)
+	// *
+	// SetRoleBinding creates or replaces the role binding for a subject.
+	// Protected by the bootstrap gate during Day-0; management access is a v1.1 item.
+	SetRoleBinding(ctx context.Context, in *SetRoleBindingRqst, opts ...grpc.CallOption) (*SetRoleBindingRsp, error)
+	// *
+	// GetRoleBinding fetches the role binding for a subject.
+	// Returns an empty binding (not an error) if no binding exists.
+	GetRoleBinding(ctx context.Context, in *GetRoleBindingRqst, opts ...grpc.CallOption) (*GetRoleBindingRsp, error)
+	// *
+	// ListRoleBindings streams all stored role bindings.
+	ListRoleBindings(ctx context.Context, in *ListRoleBindingsRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRoleBindingsRsp], error)
 }
 
 type rbacServiceClient struct {
@@ -368,8 +382,47 @@ func (c *rbacServiceClient) DeleteSubjectShare(ctx context.Context, in *DeleteSu
 	return out, nil
 }
 
+func (c *rbacServiceClient) SetRoleBinding(ctx context.Context, in *SetRoleBindingRqst, opts ...grpc.CallOption) (*SetRoleBindingRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetRoleBindingRsp)
+	err := c.cc.Invoke(ctx, RbacService_SetRoleBinding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) GetRoleBinding(ctx context.Context, in *GetRoleBindingRqst, opts ...grpc.CallOption) (*GetRoleBindingRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRoleBindingRsp)
+	err := c.cc.Invoke(ctx, RbacService_GetRoleBinding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) ListRoleBindings(ctx context.Context, in *ListRoleBindingsRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRoleBindingsRsp], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RbacService_ServiceDesc.Streams[2], RbacService_ListRoleBindings_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ListRoleBindingsRqst, ListRoleBindingsRsp]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RbacService_ListRoleBindingsClient = grpc.ServerStreamingClient[ListRoleBindingsRsp]
+
 // RbacServiceServer is the server API for RbacService service.
-// All implementations should embed UnimplementedRbacServiceServer
+// All implementations must embed UnimplementedRbacServiceServer
 // for forward compatibility.
 //
 // *
@@ -445,9 +498,21 @@ type RbacServiceServer interface {
 	// DeleteSubjectShare removes all shares associated with a subject.
 	// Typically used when a subject is deleted from the system.
 	DeleteSubjectShare(context.Context, *DeleteSubjectShareRqst) (*DeleteSubjectShareRsp, error)
+	// *
+	// SetRoleBinding creates or replaces the role binding for a subject.
+	// Protected by the bootstrap gate during Day-0; management access is a v1.1 item.
+	SetRoleBinding(context.Context, *SetRoleBindingRqst) (*SetRoleBindingRsp, error)
+	// *
+	// GetRoleBinding fetches the role binding for a subject.
+	// Returns an empty binding (not an error) if no binding exists.
+	GetRoleBinding(context.Context, *GetRoleBindingRqst) (*GetRoleBindingRsp, error)
+	// *
+	// ListRoleBindings streams all stored role bindings.
+	ListRoleBindings(*ListRoleBindingsRqst, grpc.ServerStreamingServer[ListRoleBindingsRsp]) error
+	mustEmbedUnimplementedRbacServiceServer()
 }
 
-// UnimplementedRbacServiceServer should be embedded to have
+// UnimplementedRbacServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -520,7 +585,17 @@ func (UnimplementedRbacServiceServer) RemoveSubjectFromShare(context.Context, *R
 func (UnimplementedRbacServiceServer) DeleteSubjectShare(context.Context, *DeleteSubjectShareRqst) (*DeleteSubjectShareRsp, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteSubjectShare not implemented")
 }
-func (UnimplementedRbacServiceServer) testEmbeddedByValue() {}
+func (UnimplementedRbacServiceServer) SetRoleBinding(context.Context, *SetRoleBindingRqst) (*SetRoleBindingRsp, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetRoleBinding not implemented")
+}
+func (UnimplementedRbacServiceServer) GetRoleBinding(context.Context, *GetRoleBindingRqst) (*GetRoleBindingRsp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRoleBinding not implemented")
+}
+func (UnimplementedRbacServiceServer) ListRoleBindings(*ListRoleBindingsRqst, grpc.ServerStreamingServer[ListRoleBindingsRsp]) error {
+	return status.Error(codes.Unimplemented, "method ListRoleBindings not implemented")
+}
+func (UnimplementedRbacServiceServer) mustEmbedUnimplementedRbacServiceServer() {}
+func (UnimplementedRbacServiceServer) testEmbeddedByValue()                     {}
 
 // UnsafeRbacServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to RbacServiceServer will
@@ -922,6 +997,53 @@ func _RbacService_DeleteSubjectShare_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RbacService_SetRoleBinding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetRoleBindingRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).SetRoleBinding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RbacService_SetRoleBinding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).SetRoleBinding(ctx, req.(*SetRoleBindingRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_GetRoleBinding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRoleBindingRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).GetRoleBinding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RbacService_GetRoleBinding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).GetRoleBinding(ctx, req.(*GetRoleBindingRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_ListRoleBindings_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListRoleBindingsRqst)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RbacServiceServer).ListRoleBindings(m, &grpc.GenericServerStream[ListRoleBindingsRqst, ListRoleBindingsRsp]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RbacService_ListRoleBindingsServer = grpc.ServerStreamingServer[ListRoleBindingsRsp]
+
 // RbacService_ServiceDesc is the grpc.ServiceDesc for RbacService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1009,6 +1131,14 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteSubjectShare",
 			Handler:    _RbacService_DeleteSubjectShare_Handler,
 		},
+		{
+			MethodName: "SetRoleBinding",
+			Handler:    _RbacService_SetRoleBinding_Handler,
+		},
+		{
+			MethodName: "GetRoleBinding",
+			Handler:    _RbacService_GetRoleBinding_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1019,6 +1149,11 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetResourcePermissionsBySubject",
 			Handler:       _RbacService_GetResourcePermissionsBySubject_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListRoleBindings",
+			Handler:       _RbacService_ListRoleBindings_Handler,
 			ServerStreams: true,
 		},
 	},

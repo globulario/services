@@ -2696,6 +2696,315 @@ func (x *ValidateSubjectSpaceRsp) GetHasSpace() bool {
 	return false
 }
 
+// *
+// RoleBinding maps a principal (subject) to a set of named roles.
+// Roles are resolved against security.RolePermissions to determine method access.
+type RoleBinding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Subject       string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"` // principal ID: user, SA name, or mTLS cert CN
+	Roles         []string               `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`     // role names from security constants (e.g. "globular-admin")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoleBinding) Reset() {
+	*x = RoleBinding{}
+	mi := &file_rbac_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoleBinding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoleBinding) ProtoMessage() {}
+
+func (x *RoleBinding) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoleBinding.ProtoReflect.Descriptor instead.
+func (*RoleBinding) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RoleBinding) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *RoleBinding) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+// * SetRoleBinding request: creates or replaces the role binding for a subject.
+type SetRoleBindingRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Binding       *RoleBinding           `protobuf:"bytes,1,opt,name=binding,proto3" json:"binding,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetRoleBindingRqst) Reset() {
+	*x = SetRoleBindingRqst{}
+	mi := &file_rbac_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetRoleBindingRqst) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetRoleBindingRqst) ProtoMessage() {}
+
+func (x *SetRoleBindingRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetRoleBindingRqst.ProtoReflect.Descriptor instead.
+func (*SetRoleBindingRqst) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *SetRoleBindingRqst) GetBinding() *RoleBinding {
+	if x != nil {
+		return x.Binding
+	}
+	return nil
+}
+
+// * SetRoleBinding response (empty).
+type SetRoleBindingRsp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetRoleBindingRsp) Reset() {
+	*x = SetRoleBindingRsp{}
+	mi := &file_rbac_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetRoleBindingRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetRoleBindingRsp) ProtoMessage() {}
+
+func (x *SetRoleBindingRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetRoleBindingRsp.ProtoReflect.Descriptor instead.
+func (*SetRoleBindingRsp) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{50}
+}
+
+// * GetRoleBinding request: fetch the role binding for a subject.
+type GetRoleBindingRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Subject       string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRoleBindingRqst) Reset() {
+	*x = GetRoleBindingRqst{}
+	mi := &file_rbac_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRoleBindingRqst) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRoleBindingRqst) ProtoMessage() {}
+
+func (x *GetRoleBindingRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRoleBindingRqst.ProtoReflect.Descriptor instead.
+func (*GetRoleBindingRqst) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetRoleBindingRqst) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+// * GetRoleBinding response: the binding (empty roles if no binding exists).
+type GetRoleBindingRsp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Binding       *RoleBinding           `protobuf:"bytes,1,opt,name=binding,proto3" json:"binding,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRoleBindingRsp) Reset() {
+	*x = GetRoleBindingRsp{}
+	mi := &file_rbac_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRoleBindingRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRoleBindingRsp) ProtoMessage() {}
+
+func (x *GetRoleBindingRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRoleBindingRsp.ProtoReflect.Descriptor instead.
+func (*GetRoleBindingRsp) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *GetRoleBindingRsp) GetBinding() *RoleBinding {
+	if x != nil {
+		return x.Binding
+	}
+	return nil
+}
+
+// * ListRoleBindings request: enumerate all stored role bindings.
+type ListRoleBindingsRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRoleBindingsRqst) Reset() {
+	*x = ListRoleBindingsRqst{}
+	mi := &file_rbac_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRoleBindingsRqst) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRoleBindingsRqst) ProtoMessage() {}
+
+func (x *ListRoleBindingsRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRoleBindingsRqst.ProtoReflect.Descriptor instead.
+func (*ListRoleBindingsRqst) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{53}
+}
+
+// * ListRoleBindingsRsp streams one binding per message.
+type ListRoleBindingsRsp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Binding       *RoleBinding           `protobuf:"bytes,1,opt,name=binding,proto3" json:"binding,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRoleBindingsRsp) Reset() {
+	*x = ListRoleBindingsRsp{}
+	mi := &file_rbac_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRoleBindingsRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRoleBindingsRsp) ProtoMessage() {}
+
+func (x *ListRoleBindingsRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_rbac_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRoleBindingsRsp.ProtoReflect.Descriptor instead.
+func (*ListRoleBindingsRsp) Descriptor() ([]byte, []int) {
+	return file_rbac_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ListRoleBindingsRsp) GetBinding() *RoleBinding {
+	if x != nil {
+		return x.Binding
+	}
+	return nil
+}
+
 var File_rbac_proto protoreflect.FileDescriptor
 
 const file_rbac_proto_rawDesc = "" +
@@ -2851,7 +3160,20 @@ const file_rbac_proto_rawDesc = "" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12%\n" +
 	"\x0erequired_space\x18\x03 \x01(\x04R\rrequiredSpace\"5\n" +
 	"\x17ValidateSubjectSpaceRsp\x12\x1a\n" +
-	"\bhasSpace\x18\x01 \x01(\bR\bhasSpace*)\n" +
+	"\bhasSpace\x18\x01 \x01(\bR\bhasSpace\"=\n" +
+	"\vRoleBinding\x12\x18\n" +
+	"\asubject\x18\x01 \x01(\tR\asubject\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\"A\n" +
+	"\x12SetRoleBindingRqst\x12+\n" +
+	"\abinding\x18\x01 \x01(\v2\x11.rbac.RoleBindingR\abinding\"\x13\n" +
+	"\x11SetRoleBindingRsp\".\n" +
+	"\x12GetRoleBindingRqst\x12\x18\n" +
+	"\asubject\x18\x01 \x01(\tR\asubject\"@\n" +
+	"\x11GetRoleBindingRsp\x12+\n" +
+	"\abinding\x18\x01 \x01(\v2\x11.rbac.RoleBindingR\abinding\"\x16\n" +
+	"\x14ListRoleBindingsRqst\"B\n" +
+	"\x13ListRoleBindingsRsp\x12+\n" +
+	"\abinding\x18\x01 \x01(\v2\x11.rbac.RoleBindingR\abinding*)\n" +
 	"\x0ePermissionType\x12\n" +
 	"\n" +
 	"\x06DENIED\x10\x00\x12\v\n" +
@@ -2862,7 +3184,7 @@ const file_rbac_proto_rawDesc = "" +
 	"\x05GROUP\x10\x02\x12\x10\n" +
 	"\fORGANIZATION\x10\x03\x12\x0f\n" +
 	"\vAPPLICATION\x10\x04\x12\b\n" +
-	"\x04ROLE\x10\x052\x84\x10\n" +
+	"\x04ROLE\x10\x052\xdb\x11\n" +
 	"\vRbacService\x12[\n" +
 	"\x16SetResourcePermissions\x12 .rbac.SetResourcePermissionsRqst\x1a\x1f.rbac.SetResourcePermissionsRsp\x12d\n" +
 	"\x19DeleteResourcePermissions\x12#.rbac.DeleteResourcePermissionsRqst\x1a\".rbac.DeleteResourcePermissionsRsp\x12a\n" +
@@ -2885,7 +3207,10 @@ const file_rbac_proto_rawDesc = "" +
 	"\x18SetSubjectAllocatedSpace\x12\".rbac.SetSubjectAllocatedSpaceRqst\x1a!.rbac.SetSubjectAllocatedSpaceRsp\x12L\n" +
 	"\x11GetSharedResource\x12\x1b.rbac.GetSharedResourceRqst\x1a\x1a.rbac.GetSharedResourceRsp\x12[\n" +
 	"\x16RemoveSubjectFromShare\x12 .rbac.RemoveSubjectFromShareRqst\x1a\x1f.rbac.RemoveSubjectFromShareRsp\x12O\n" +
-	"\x12DeleteSubjectShare\x12\x1c.rbac.DeleteSubjectShareRqst\x1a\x1b.rbac.DeleteSubjectShareRspB3Z1github.com/globulario/services/golang/rbac/rbacpbb\x06proto3"
+	"\x12DeleteSubjectShare\x12\x1c.rbac.DeleteSubjectShareRqst\x1a\x1b.rbac.DeleteSubjectShareRsp\x12C\n" +
+	"\x0eSetRoleBinding\x12\x18.rbac.SetRoleBindingRqst\x1a\x17.rbac.SetRoleBindingRsp\x12C\n" +
+	"\x0eGetRoleBinding\x12\x18.rbac.GetRoleBindingRqst\x1a\x17.rbac.GetRoleBindingRsp\x12K\n" +
+	"\x10ListRoleBindings\x12\x1a.rbac.ListRoleBindingsRqst\x1a\x19.rbac.ListRoleBindingsRsp0\x01B3Z1github.com/globulario/services/golang/rbac/rbacpbb\x06proto3"
 
 var (
 	file_rbac_proto_rawDescOnce sync.Once
@@ -2900,7 +3225,7 @@ func file_rbac_proto_rawDescGZIP() []byte {
 }
 
 var file_rbac_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_rbac_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
+var file_rbac_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_rbac_proto_goTypes = []any{
 	(PermissionType)(0),                              // 0: rbac.PermissionType
 	(SubjectType)(0),                                 // 1: rbac.SubjectType
@@ -2952,7 +3277,14 @@ var file_rbac_proto_goTypes = []any{
 	(*GetSubjectAvailableSpaceRsp)(nil),              // 47: rbac.GetSubjectAvailableSpaceRsp
 	(*ValidateSubjectSpaceRqst)(nil),                 // 48: rbac.ValidateSubjectSpaceRqst
 	(*ValidateSubjectSpaceRsp)(nil),                  // 49: rbac.ValidateSubjectSpaceRsp
-	(*structpb.Struct)(nil),                          // 50: google.protobuf.Struct
+	(*RoleBinding)(nil),                              // 50: rbac.RoleBinding
+	(*SetRoleBindingRqst)(nil),                       // 51: rbac.SetRoleBindingRqst
+	(*SetRoleBindingRsp)(nil),                        // 52: rbac.SetRoleBindingRsp
+	(*GetRoleBindingRqst)(nil),                       // 53: rbac.GetRoleBindingRqst
+	(*GetRoleBindingRsp)(nil),                        // 54: rbac.GetRoleBindingRsp
+	(*ListRoleBindingsRqst)(nil),                     // 55: rbac.ListRoleBindingsRqst
+	(*ListRoleBindingsRsp)(nil),                      // 56: rbac.ListRoleBindingsRsp
+	(*structpb.Struct)(nil),                          // 57: google.protobuf.Struct
 }
 var file_rbac_proto_depIdxs = []int32{
 	2,  // 0: rbac.Permissions.owners:type_name -> rbac.Permission
@@ -2976,7 +3308,7 @@ var file_rbac_proto_depIdxs = []int32{
 	29, // 18: rbac.GetActionResourceInfosRsp.infos:type_name -> rbac.ResourceInfos
 	1,  // 19: rbac.ValidateActionRqst.type:type_name -> rbac.SubjectType
 	29, // 20: rbac.ValidateActionRqst.infos:type_name -> rbac.ResourceInfos
-	50, // 21: rbac.SetActionResourcesPermissionsRqst.permissions:type_name -> google.protobuf.Struct
+	57, // 21: rbac.SetActionResourcesPermissionsRqst.permissions:type_name -> google.protobuf.Struct
 	1,  // 22: rbac.GetSharedResourceRqst.type:type_name -> rbac.SubjectType
 	35, // 23: rbac.GetSharedResourceRsp.sharedResource:type_name -> rbac.Share
 	1,  // 24: rbac.RemoveSubjectFromShareRqst.type:type_name -> rbac.SubjectType
@@ -2985,55 +3317,64 @@ var file_rbac_proto_depIdxs = []int32{
 	1,  // 27: rbac.GetSubjectAllocatedSpaceRqst.type:type_name -> rbac.SubjectType
 	1,  // 28: rbac.GetSubjectAvailableSpaceRqst.type:type_name -> rbac.SubjectType
 	1,  // 29: rbac.ValidateSubjectSpaceRqst.type:type_name -> rbac.SubjectType
-	14, // 30: rbac.RbacService.SetResourcePermissions:input_type -> rbac.SetResourcePermissionsRqst
-	10, // 31: rbac.RbacService.DeleteResourcePermissions:input_type -> rbac.DeleteResourcePermissionsRqst
-	12, // 32: rbac.RbacService.DeleteResourcePermission:input_type -> rbac.DeleteResourcePermissionRqst
-	16, // 33: rbac.RbacService.GetResourcePermission:input_type -> rbac.GetResourcePermissionRqst
-	18, // 34: rbac.RbacService.SetResourcePermission:input_type -> rbac.SetResourcePermissionRqst
-	4,  // 35: rbac.RbacService.GetResourcePermissions:input_type -> rbac.GetResourcePermissionsRqst
-	6,  // 36: rbac.RbacService.GetResourcePermissionsByResourceType:input_type -> rbac.GetResourcePermissionsByResourceTypeRqst
-	8,  // 37: rbac.RbacService.GetResourcePermissionsBySubject:input_type -> rbac.GetResourcePermissionsBySubjectRqst
-	20, // 38: rbac.RbacService.AddResourceOwner:input_type -> rbac.AddResourceOwnerRqst
-	22, // 39: rbac.RbacService.RemoveResourceOwner:input_type -> rbac.RemoveResourceOwnerRqst
-	24, // 40: rbac.RbacService.DeleteAllAccess:input_type -> rbac.DeleteAllAccessRqst
-	26, // 41: rbac.RbacService.ValidateAccess:input_type -> rbac.ValidateAccessRqst
-	33, // 42: rbac.RbacService.SetActionResourcesPermissions:input_type -> rbac.SetActionResourcesPermissionsRqst
-	28, // 43: rbac.RbacService.GetActionResourceInfos:input_type -> rbac.GetActionResourceInfosRqst
-	31, // 44: rbac.RbacService.ValidateAction:input_type -> rbac.ValidateActionRqst
-	48, // 45: rbac.RbacService.ValidateSubjectSpace:input_type -> rbac.ValidateSubjectSpaceRqst
-	46, // 46: rbac.RbacService.GetSubjectAvailableSpace:input_type -> rbac.GetSubjectAvailableSpaceRqst
-	44, // 47: rbac.RbacService.GetSubjectAllocatedSpace:input_type -> rbac.GetSubjectAllocatedSpaceRqst
-	42, // 48: rbac.RbacService.SetSubjectAllocatedSpace:input_type -> rbac.SetSubjectAllocatedSpaceRqst
-	36, // 49: rbac.RbacService.GetSharedResource:input_type -> rbac.GetSharedResourceRqst
-	38, // 50: rbac.RbacService.RemoveSubjectFromShare:input_type -> rbac.RemoveSubjectFromShareRqst
-	40, // 51: rbac.RbacService.DeleteSubjectShare:input_type -> rbac.DeleteSubjectShareRqst
-	15, // 52: rbac.RbacService.SetResourcePermissions:output_type -> rbac.SetResourcePermissionsRsp
-	11, // 53: rbac.RbacService.DeleteResourcePermissions:output_type -> rbac.DeleteResourcePermissionsRsp
-	13, // 54: rbac.RbacService.DeleteResourcePermission:output_type -> rbac.DeleteResourcePermissionRsp
-	17, // 55: rbac.RbacService.GetResourcePermission:output_type -> rbac.GetResourcePermissionRsp
-	19, // 56: rbac.RbacService.SetResourcePermission:output_type -> rbac.SetResourcePermissionRsp
-	5,  // 57: rbac.RbacService.GetResourcePermissions:output_type -> rbac.GetResourcePermissionsRsp
-	7,  // 58: rbac.RbacService.GetResourcePermissionsByResourceType:output_type -> rbac.GetResourcePermissionsByResourceTypeRsp
-	9,  // 59: rbac.RbacService.GetResourcePermissionsBySubject:output_type -> rbac.GetResourcePermissionsBySubjectRsp
-	21, // 60: rbac.RbacService.AddResourceOwner:output_type -> rbac.AddResourceOwnerRsp
-	23, // 61: rbac.RbacService.RemoveResourceOwner:output_type -> rbac.RemoveResourceOwnerRsp
-	25, // 62: rbac.RbacService.DeleteAllAccess:output_type -> rbac.DeleteAllAccessRsp
-	27, // 63: rbac.RbacService.ValidateAccess:output_type -> rbac.ValidateAccessRsp
-	34, // 64: rbac.RbacService.SetActionResourcesPermissions:output_type -> rbac.SetActionResourcesPermissionsRsp
-	30, // 65: rbac.RbacService.GetActionResourceInfos:output_type -> rbac.GetActionResourceInfosRsp
-	32, // 66: rbac.RbacService.ValidateAction:output_type -> rbac.ValidateActionRsp
-	49, // 67: rbac.RbacService.ValidateSubjectSpace:output_type -> rbac.ValidateSubjectSpaceRsp
-	47, // 68: rbac.RbacService.GetSubjectAvailableSpace:output_type -> rbac.GetSubjectAvailableSpaceRsp
-	45, // 69: rbac.RbacService.GetSubjectAllocatedSpace:output_type -> rbac.GetSubjectAllocatedSpaceRsp
-	43, // 70: rbac.RbacService.SetSubjectAllocatedSpace:output_type -> rbac.SetSubjectAllocatedSpaceRsp
-	37, // 71: rbac.RbacService.GetSharedResource:output_type -> rbac.GetSharedResourceRsp
-	39, // 72: rbac.RbacService.RemoveSubjectFromShare:output_type -> rbac.RemoveSubjectFromShareRsp
-	41, // 73: rbac.RbacService.DeleteSubjectShare:output_type -> rbac.DeleteSubjectShareRsp
-	52, // [52:74] is the sub-list for method output_type
-	30, // [30:52] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	50, // 30: rbac.SetRoleBindingRqst.binding:type_name -> rbac.RoleBinding
+	50, // 31: rbac.GetRoleBindingRsp.binding:type_name -> rbac.RoleBinding
+	50, // 32: rbac.ListRoleBindingsRsp.binding:type_name -> rbac.RoleBinding
+	14, // 33: rbac.RbacService.SetResourcePermissions:input_type -> rbac.SetResourcePermissionsRqst
+	10, // 34: rbac.RbacService.DeleteResourcePermissions:input_type -> rbac.DeleteResourcePermissionsRqst
+	12, // 35: rbac.RbacService.DeleteResourcePermission:input_type -> rbac.DeleteResourcePermissionRqst
+	16, // 36: rbac.RbacService.GetResourcePermission:input_type -> rbac.GetResourcePermissionRqst
+	18, // 37: rbac.RbacService.SetResourcePermission:input_type -> rbac.SetResourcePermissionRqst
+	4,  // 38: rbac.RbacService.GetResourcePermissions:input_type -> rbac.GetResourcePermissionsRqst
+	6,  // 39: rbac.RbacService.GetResourcePermissionsByResourceType:input_type -> rbac.GetResourcePermissionsByResourceTypeRqst
+	8,  // 40: rbac.RbacService.GetResourcePermissionsBySubject:input_type -> rbac.GetResourcePermissionsBySubjectRqst
+	20, // 41: rbac.RbacService.AddResourceOwner:input_type -> rbac.AddResourceOwnerRqst
+	22, // 42: rbac.RbacService.RemoveResourceOwner:input_type -> rbac.RemoveResourceOwnerRqst
+	24, // 43: rbac.RbacService.DeleteAllAccess:input_type -> rbac.DeleteAllAccessRqst
+	26, // 44: rbac.RbacService.ValidateAccess:input_type -> rbac.ValidateAccessRqst
+	33, // 45: rbac.RbacService.SetActionResourcesPermissions:input_type -> rbac.SetActionResourcesPermissionsRqst
+	28, // 46: rbac.RbacService.GetActionResourceInfos:input_type -> rbac.GetActionResourceInfosRqst
+	31, // 47: rbac.RbacService.ValidateAction:input_type -> rbac.ValidateActionRqst
+	48, // 48: rbac.RbacService.ValidateSubjectSpace:input_type -> rbac.ValidateSubjectSpaceRqst
+	46, // 49: rbac.RbacService.GetSubjectAvailableSpace:input_type -> rbac.GetSubjectAvailableSpaceRqst
+	44, // 50: rbac.RbacService.GetSubjectAllocatedSpace:input_type -> rbac.GetSubjectAllocatedSpaceRqst
+	42, // 51: rbac.RbacService.SetSubjectAllocatedSpace:input_type -> rbac.SetSubjectAllocatedSpaceRqst
+	36, // 52: rbac.RbacService.GetSharedResource:input_type -> rbac.GetSharedResourceRqst
+	38, // 53: rbac.RbacService.RemoveSubjectFromShare:input_type -> rbac.RemoveSubjectFromShareRqst
+	40, // 54: rbac.RbacService.DeleteSubjectShare:input_type -> rbac.DeleteSubjectShareRqst
+	51, // 55: rbac.RbacService.SetRoleBinding:input_type -> rbac.SetRoleBindingRqst
+	53, // 56: rbac.RbacService.GetRoleBinding:input_type -> rbac.GetRoleBindingRqst
+	55, // 57: rbac.RbacService.ListRoleBindings:input_type -> rbac.ListRoleBindingsRqst
+	15, // 58: rbac.RbacService.SetResourcePermissions:output_type -> rbac.SetResourcePermissionsRsp
+	11, // 59: rbac.RbacService.DeleteResourcePermissions:output_type -> rbac.DeleteResourcePermissionsRsp
+	13, // 60: rbac.RbacService.DeleteResourcePermission:output_type -> rbac.DeleteResourcePermissionRsp
+	17, // 61: rbac.RbacService.GetResourcePermission:output_type -> rbac.GetResourcePermissionRsp
+	19, // 62: rbac.RbacService.SetResourcePermission:output_type -> rbac.SetResourcePermissionRsp
+	5,  // 63: rbac.RbacService.GetResourcePermissions:output_type -> rbac.GetResourcePermissionsRsp
+	7,  // 64: rbac.RbacService.GetResourcePermissionsByResourceType:output_type -> rbac.GetResourcePermissionsByResourceTypeRsp
+	9,  // 65: rbac.RbacService.GetResourcePermissionsBySubject:output_type -> rbac.GetResourcePermissionsBySubjectRsp
+	21, // 66: rbac.RbacService.AddResourceOwner:output_type -> rbac.AddResourceOwnerRsp
+	23, // 67: rbac.RbacService.RemoveResourceOwner:output_type -> rbac.RemoveResourceOwnerRsp
+	25, // 68: rbac.RbacService.DeleteAllAccess:output_type -> rbac.DeleteAllAccessRsp
+	27, // 69: rbac.RbacService.ValidateAccess:output_type -> rbac.ValidateAccessRsp
+	34, // 70: rbac.RbacService.SetActionResourcesPermissions:output_type -> rbac.SetActionResourcesPermissionsRsp
+	30, // 71: rbac.RbacService.GetActionResourceInfos:output_type -> rbac.GetActionResourceInfosRsp
+	32, // 72: rbac.RbacService.ValidateAction:output_type -> rbac.ValidateActionRsp
+	49, // 73: rbac.RbacService.ValidateSubjectSpace:output_type -> rbac.ValidateSubjectSpaceRsp
+	47, // 74: rbac.RbacService.GetSubjectAvailableSpace:output_type -> rbac.GetSubjectAvailableSpaceRsp
+	45, // 75: rbac.RbacService.GetSubjectAllocatedSpace:output_type -> rbac.GetSubjectAllocatedSpaceRsp
+	43, // 76: rbac.RbacService.SetSubjectAllocatedSpace:output_type -> rbac.SetSubjectAllocatedSpaceRsp
+	37, // 77: rbac.RbacService.GetSharedResource:output_type -> rbac.GetSharedResourceRsp
+	39, // 78: rbac.RbacService.RemoveSubjectFromShare:output_type -> rbac.RemoveSubjectFromShareRsp
+	41, // 79: rbac.RbacService.DeleteSubjectShare:output_type -> rbac.DeleteSubjectShareRsp
+	52, // 80: rbac.RbacService.SetRoleBinding:output_type -> rbac.SetRoleBindingRsp
+	54, // 81: rbac.RbacService.GetRoleBinding:output_type -> rbac.GetRoleBindingRsp
+	56, // 82: rbac.RbacService.ListRoleBindings:output_type -> rbac.ListRoleBindingsRsp
+	58, // [58:83] is the sub-list for method output_type
+	33, // [33:58] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_rbac_proto_init() }
@@ -3047,7 +3388,7 @@ func file_rbac_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rbac_proto_rawDesc), len(file_rbac_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   48,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -3306,9 +3306,21 @@ type NodeStatus struct {
 	LastError     string                 `protobuf:"bytes,5,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
 	ReportedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
 	AgentEndpoint string                 `protobuf:"bytes,7,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
-	// SHA256 of sorted "service_name=version;" pairs; used for drift detection.
+	// SHA256 (lowercase hex) of a canonicalized, sorted representation of installed services.
+	// P2 canonical form per service entry: "<publisher_id>/<service_name>=<version>;"
+	// Entries are sorted deterministically by canonical key "<publisher_id>/<service_name>".
+	// Config key/value pairs are excluded from P2 hashes (to be reintroduced in P3 once
+	// config distribution is normalized).
+	// NOTE: The hash algorithm and canonicalization rules are part of the
+	// cluster-controller/node-agent compatibility contract and must not change without versioning.
 	AppliedServicesHash string `protobuf:"bytes,8,opt,name=applied_services_hash,json=appliedServicesHash,proto3" json:"applied_services_hash,omitempty"`
-	// service_name -> installed version, read from version marker files.
+	// Installed service versions reported by the node.
+	// Key MUST be the canonical service identifier: "<publisher_id>/<service_name>"
+	//
+	//	(publisher_id normalized to "unknown" if not discoverable; service_name is
+	//	 lower-case, no "globular-" prefix, no ".service" suffix).
+	//
+	// Value MUST be the resolved version string read from the version marker file.
 	InstalledVersions map[string]string `protobuf:"bytes,9,rep,name=installed_versions,json=installedVersions,proto3" json:"installed_versions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache

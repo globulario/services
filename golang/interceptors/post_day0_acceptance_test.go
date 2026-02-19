@@ -127,8 +127,10 @@ func TestAcceptance_BeforeClusterInit_AnonymousMutating_NotBlockedByPostDay0Gate
 func TestAcceptance_BootstrapAllowlistMethodsWork(t *testing.T) {
 	bootstrapMethods := []string{
 		"/grpc.health.v1.Health/Check",
-		"/rbac.RbacService/CreateAccount",
-		"/rbac.RbacService/CreateRole",
+		// Role-binding management (replaces the removed CreateAccount/CreateRole stubs)
+		"/rbac.RbacService/SetRoleBinding",
+		"/rbac.RbacService/GetRoleBinding",
+		"/rbac.RbacService/ListRoleBindings",
 		"/authentication.AuthenticationService/Authenticate",
 		"/dns.DnsService/CreateZone",
 	}
@@ -151,6 +153,139 @@ func TestAcceptance_BootstrapAllowlistMethodsWork(t *testing.T) {
 			}
 			t.Logf("✓ bootstrap method %s → allowed (%s)", method, reason)
 		})
+	}
+}
+
+// --- Role-binding acceptance tests -------------------------------------------
+
+// simulateRoleBindingCheck mirrors the enforcement logic added in the interceptors.
+// Returns (denied, reason).
+func simulateRoleBindingCheck(clusterInitialized bool, method, subject string, roles []string) (bool, string) {
+	if !clusterInitialized {
+		return false, "cluster_not_initialized"
+	}
+	if !security.IsRoleBasedMethod(method) {
+		return false, "not_role_based"
+	}
+	if subject == "" {
+		return false, "no_subject" // would have been caught by auth check earlier
+	}
+	allowed := security.HasRolePermission(roles, method)
+	if !allowed {
+		return true, "role_binding_denied"
+	}
+	return false, "role_binding_granted"
+}
+
+// TestAcceptance_WithRoleBinding_Operator_CanApplyRelease verifies that an
+// operator with the globular-operator role can call ApplyServiceRelease.
+func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
+	method := "/clustercontroller.ResourcesService/ApplyServiceRelease"
+	roles := []string{"globular-operator"}
+
+	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
+	if denied {
+		t.Errorf("operator should be allowed to ApplyServiceRelease, got denied (%s)", reason)
+	}
+	if reason != "role_binding_granted" {
+		t.Errorf("expected role_binding_granted, got %q", reason)
+	}
+	t.Logf("✓ operator can ApplyServiceRelease: %s", reason)
+}
+
+// TestAcceptance_WithoutRoleBinding_GetsDenied verifies that an authenticated
+// user with NO roles is denied access to role-based methods.
+func TestAcceptance_WithoutRoleBinding_GetsDenied(t *testing.T) {
+	method := "/clustercontroller.ResourcesService/ApplyServiceRelease"
+	roles := []string{} // no roles assigned
+
+	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
+	if !denied {
+		t.Errorf("user with no roles should be denied, got allowed (%s)", reason)
+	}
+	if reason != "role_binding_denied" {
+		t.Errorf("expected role_binding_denied, got %q", reason)
+	}
+	t.Logf("✓ user with no roles is denied: %s", reason)
+}
+
+// TestAcceptance_ControllerSA_CanReportStatus_CannotUploadArtifact verifies
+// least-privilege scoping of the controller SA role.
+func TestAcceptance_ControllerSA_CanReportStatus_CannotUploadArtifact(t *testing.T) {
+	roles := []string{"globular-controller-sa"}
+	subject := "globular-controller"
+
+	reportStatus := "/clustercontroller.ClusterControllerService/ReportNodeStatus"
+	uploadArtifact := "/repository.PackageRepository/UploadArtifact"
+
+	denied, reason := simulateRoleBindingCheck(true, reportStatus, subject, roles)
+	if denied {
+		t.Errorf("controller SA should be allowed to ReportNodeStatus, got denied (%s)", reason)
+	}
+	t.Logf("✓ ControllerSA can ReportNodeStatus: %s", reason)
+
+	denied, reason = simulateRoleBindingCheck(true, uploadArtifact, subject, roles)
+	if !denied {
+		t.Errorf("controller SA should NOT be allowed to UploadArtifact, got allowed (%s)", reason)
+	}
+	t.Logf("✓ ControllerSA cannot UploadArtifact: %s", reason)
+}
+
+// TestAcceptance_AdminRole_HasAccessToAllRoleBasedMethods verifies that the
+// globular-admin role (with "/*" wildcard) grants access to all role-based methods.
+func TestAcceptance_AdminRole_HasAccessToAllRoleBasedMethods(t *testing.T) {
+	roles := []string{"globular-admin"}
+	subject := "admin@localhost"
+
+	methods := []string{
+		"/clustercontroller.ResourcesService/ApplyServiceRelease",
+		"/repository.PackageRepository/UploadArtifact",
+		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
+		"/dns.DnsService/SetA",
+	}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			denied, reason := simulateRoleBindingCheck(true, method, subject, roles)
+			if denied {
+				t.Errorf("admin should have access to %s, got denied (%s)", method, reason)
+			}
+			t.Logf("✓ admin can call %s: %s", method, reason)
+		})
+	}
+}
+
+// TestAcceptance_IsRoleBasedMethod_DNSWildcard verifies that DNS methods
+// are correctly identified as role-based (via service wildcard).
+func TestAcceptance_IsRoleBasedMethod_DNSWildcard(t *testing.T) {
+	dnsMethods := []string{
+		"/dns.DnsService/SetA",
+		"/dns.DnsService/GetA",
+		"/dns.DnsService/CreateZone",
+	}
+	for _, m := range dnsMethods {
+		if !security.IsRoleBasedMethod(m) {
+			t.Errorf("IsRoleBasedMethod(%q) = false, expected true (via /dns.DnsService/* wildcard)", m)
+		}
+		t.Logf("✓ %s is role-based", m)
+	}
+}
+
+// TestAcceptance_RBAC_Methods_NotRoleBased verifies that RBAC management
+// methods are NOT classified as role-based (they're excluded from the check
+// to prevent circular RPC calls).
+func TestAcceptance_RBAC_Methods_NotRoleBased(t *testing.T) {
+	rbacMethods := []string{
+		"/rbac.RbacService/SetRoleBinding",
+		"/rbac.RbacService/GetRoleBinding",
+		"/rbac.RbacService/ListRoleBindings",
+		"/rbac.RbacService/SetResourcePermissions",
+	}
+	for _, m := range rbacMethods {
+		if security.IsRoleBasedMethod(m) {
+			t.Errorf("IsRoleBasedMethod(%q) = true, expected false (RBAC methods are excluded)", m)
+		}
+		t.Logf("✓ %s is NOT role-based (correct: excluded from role-binding check)", m)
 	}
 }
 

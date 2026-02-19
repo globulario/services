@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -26,6 +29,20 @@ var rootCfg = struct {
 var rootCmd = &cobra.Command{
 	Use:   "globular",
 	Short: "Globular control-plane CLI",
+	// Auto-load cached token when --token is not explicitly provided.
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if rootCfg.token == "" {
+			home := os.Getenv("HOME")
+			if home == "" {
+				home, _ = os.UserHomeDir()
+			}
+			tokenFile := filepath.Join(home, ".config", "globular", "token")
+			if data, err := os.ReadFile(tokenFile); err == nil {
+				rootCfg.token = strings.TrimSpace(string(data))
+			}
+		}
+		return nil
+	},
 }
 
 func init() {

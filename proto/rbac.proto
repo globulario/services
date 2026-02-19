@@ -403,7 +403,34 @@ message ValidateSubjectSpaceRsp {
 }
 
 /**
- * RbacService is a service for controlling actions and managing access to resources 
+ * RoleBinding maps a principal (subject) to a set of named roles.
+ * Roles are resolved against security.RolePermissions to determine method access.
+ */
+message RoleBinding {
+  string subject = 1;        // principal ID: user, SA name, or mTLS cert CN
+  repeated string roles = 2; // role names from security constants (e.g. "globular-admin")
+}
+
+/** SetRoleBinding request: creates or replaces the role binding for a subject. */
+message SetRoleBindingRqst { RoleBinding binding = 1; }
+
+/** SetRoleBinding response (empty). */
+message SetRoleBindingRsp {}
+
+/** GetRoleBinding request: fetch the role binding for a subject. */
+message GetRoleBindingRqst { string subject = 1; }
+
+/** GetRoleBinding response: the binding (empty roles if no binding exists). */
+message GetRoleBindingRsp { RoleBinding binding = 1; }
+
+/** ListRoleBindings request: enumerate all stored role bindings. */
+message ListRoleBindingsRqst {}
+
+/** ListRoleBindingsRsp streams one binding per message. */
+message ListRoleBindingsRsp { RoleBinding binding = 1; }
+
+/**
+ * RbacService is a service for controlling actions and managing access to resources
  * based on Role-Based Access Control (RBAC) principles.
  */
  service RbacService {
@@ -520,4 +547,21 @@ message ValidateSubjectSpaceRsp {
 	 * Typically used when a subject is deleted from the system.
 	 */
 	rpc DeleteSubjectShare(DeleteSubjectShareRqst) returns(DeleteSubjectShareRsp);
+
+	/**
+	 * SetRoleBinding creates or replaces the role binding for a subject.
+	 * Protected by the bootstrap gate during Day-0; management access is a v1.1 item.
+	 */
+	rpc SetRoleBinding(SetRoleBindingRqst) returns(SetRoleBindingRsp);
+
+	/**
+	 * GetRoleBinding fetches the role binding for a subject.
+	 * Returns an empty binding (not an error) if no binding exists.
+	 */
+	rpc GetRoleBinding(GetRoleBindingRqst) returns(GetRoleBindingRsp);
+
+	/**
+	 * ListRoleBindings streams all stored role bindings.
+	 */
+	rpc ListRoleBindings(ListRoleBindingsRqst) returns(stream ListRoleBindingsRsp);
 }
