@@ -179,6 +179,10 @@ type server struct {
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
 	// trigger release re-evaluation when a node's AppliedServicesHash changes.
 	releaseEnqueue func(releaseName string)
+
+	// test seams
+	testHasActivePlanWithLock func(context.Context, string, string) bool
+	testDispatchReleasePlan   func(context.Context, *clustercontrollerpb.ServiceRelease, string) (*planpb.NodePlan, error)
 }
 
 var testHookBeforeReportNodeStatusApply func()

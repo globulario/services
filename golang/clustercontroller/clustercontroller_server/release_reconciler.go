@@ -392,8 +392,8 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *clusterco
 		} else {
 			issues++
 			// Drift detection: enqueue plan if not already running with the same lock.
-			if srv.planStore != nil && !srv.hasActivePlanWithLock(ctx, nodeID, targetLock) {
-				if plan, err := srv.dispatchReleasePlan(ctx, rel, nodeID); err == nil && plan != nil {
+			if srv.planStore != nil && !srv.hasActivePlanWithLockFn(ctx, nodeID, targetLock) {
+				if plan, err := srv.dispatchReleasePlanFn(ctx, rel, nodeID); err == nil && plan != nil {
 					nCopy.PlanID = plan.GetPlanId()
 					nCopy.Phase = clustercontrollerpb.ReleasePhaseApplying
 					nCopy.UpdatedUnixMs = time.Now().UnixMilli()
@@ -473,6 +473,20 @@ func (srv *server) dispatchReleasePlan(ctx context.Context, rel *clustercontroll
 		_ = appendable.AppendHistory(ctx, nodeID, plan)
 	}
 	return plan, nil
+}
+
+func (srv *server) hasActivePlanWithLockFn(ctx context.Context, nodeID, lock string) bool {
+	if srv.testHasActivePlanWithLock != nil {
+		return srv.testHasActivePlanWithLock(ctx, nodeID, lock)
+	}
+	return srv.hasActivePlanWithLock(ctx, nodeID, lock)
+}
+
+func (srv *server) dispatchReleasePlanFn(ctx context.Context, rel *clustercontrollerpb.ServiceRelease, nodeID string) (*planpb.NodePlan, error) {
+	if srv.testDispatchReleasePlan != nil {
+		return srv.testDispatchReleasePlan(ctx, rel, nodeID)
+	}
+	return srv.dispatchReleasePlan(ctx, rel, nodeID)
 }
 
 // patchReleaseStatus loads the latest copy of a ServiceRelease, applies f to its status,
