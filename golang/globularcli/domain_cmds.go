@@ -292,38 +292,36 @@ func runDomainStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	// Connect to etcd
+	// Connect to etcd using domain store
 	etcdClient, err := config.GetEtcdClient()
 	if err != nil {
 		return fmt.Errorf("failed to connect to etcd: %w", err)
 	}
 	defer etcdClient.Close()
 
-	// Query domains
-	var resp *clientv3.GetResponse
+	store := domain.NewEtcdDomainStore(etcdClient)
+
+	// Query domain specs
+	var specs []*domain.ExternalDomainSpec
 	if domainFQDN != "" {
 		// Specific domain
-		resp, err = etcdClient.Get(ctx, domain.DomainKey(domainFQDN))
-	} else {
-		// All domains
-		resp, err = etcdClient.Get(ctx, domain.EtcdDomainPrefix, clientv3.WithPrefix())
-	}
-	if err != nil {
-		return fmt.Errorf("failed to query domains: %w", err)
-	}
-
-	if resp.Count == 0 {
-		if domainFQDN != "" {
-			// Specific domain not found - this is an error
+		spec, _, err := store.GetSpec(ctx, domainFQDN)
+		if err != nil {
 			if rootCfg.output == "json" {
-				// Output valid JSON error for scripts
 				fmt.Fprintf(os.Stderr, `{"error": "domain not found", "fqdn": %q}`+"\n", domainFQDN)
 			} else {
 				fmt.Fprintf(os.Stderr, "Domain %q not found.\n", domainFQDN)
 			}
 			return fmt.Errorf("domain %s not found", domainFQDN)
-		} else {
-			// No domains registered - not an error, just empty result
+		}
+		specs = append(specs, spec)
+	} else {
+		// All domains
+		specs, err = store.ListSpecs(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list domains: %w", err)
+		}
+		if len(specs) == 0 {
 			if rootCfg.output == "json" {
 				fmt.Println("[]")
 			} else {
@@ -333,13 +331,23 @@ func runDomainStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Fetch status for each spec and merge
+	for _, spec := range specs {
+		status, _, err := store.GetStatus(ctx, spec.FQDN)
+		if err == nil && status != nil {
+			// Merge current status into spec for display
+			spec.Status = *status
+		}
+		// If status not found, keep the embedded status from spec (shows "Pending")
+	}
+
 	// Parse and display
 	if rootCfg.output == "json" {
-		return displayDomainsJSON(resp)
+		return displayDomainsJSONFromSpecs(specs)
 	} else if rootCfg.output == "yaml" {
-		return displayDomainsYAML(resp)
+		return displayDomainsYAMLFromSpecs(specs)
 	}
-	return displayDomainsTable(resp)
+	return displayDomainsTableFromSpecs(specs)
 }
 
 func displayDomainsTable(resp *clientv3.GetResponse) error {
@@ -393,6 +401,47 @@ func displayDomainsJSON(resp *clientv3.GetResponse) error {
 }
 
 func displayDomainsYAML(resp *clientv3.GetResponse) error {
+	// TODO: Implement YAML output if gopkg.in/yaml.v3 is available
+	return fmt.Errorf("YAML output not implemented yet, use --output json")
+}
+
+// New display functions that work with spec lists (with merged status)
+func displayDomainsTableFromSpecs(specs []*domain.ExternalDomainSpec) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "FQDN\tPHASE\tDNS\tCERT\tINGRESS\tUPDATED")
+
+	for _, spec := range specs {
+		// Extract condition statuses
+		dnsStatus := getConditionStatus(spec, "DNSRecordCreated")
+		certStatus := getConditionStatus(spec, "CertificateValid")
+		ingressStatus := getConditionStatus(spec, "IngressConfigured")
+
+		// Format last reconcile time
+		updated := "never"
+		if !spec.Status.LastReconcile.IsZero() {
+			updated = formatDuration(time.Since(spec.Status.LastReconcile))
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			spec.FQDN,
+			spec.Status.Phase,
+			formatCondition(dnsStatus),
+			formatCondition(certStatus),
+			formatCondition(ingressStatus),
+			updated,
+		)
+	}
+
+	return w.Flush()
+}
+
+func displayDomainsJSONFromSpecs(specs []*domain.ExternalDomainSpec) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(specs)
+}
+
+func displayDomainsYAMLFromSpecs(specs []*domain.ExternalDomainSpec) error {
 	// TODO: Implement YAML output if gopkg.in/yaml.v3 is available
 	return fmt.Errorf("YAML output not implemented yet, use --output json")
 }

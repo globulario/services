@@ -339,7 +339,7 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	certFile := filepath.Join(domainDir, "fullchain.pem")
 
 	// Check if certificate exists and is still valid
-	if r.isCertificateValid(certFile, spec.FQDN) {
+	if r.isCertificateValid(certFile, spec.FQDN, spec.UseWildcardCert, spec.Zone) {
 		r.logger.Debug("certificate still valid", "fqdn", spec.FQDN)
 		return nil
 	}
@@ -393,12 +393,12 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 
 	// Obtain certificate
 	// INV-DNS-EXT-1: Support wildcard cert issuance (*.zone)
-	// CRITICAL: Wildcard certs (*.zone) do NOT match apex domain (zone)
-	// Solution: Request multi-domain SAN certificate with BOTH apex and wildcard
+	// IMPORTANT: Wildcard certificates (*.zone) do NOT cover the apex domain (zone)!
+	// We must request BOTH the apex domain AND the wildcard in the same certificate.
 	var certDomains []string
 	if spec.UseWildcardCert {
-		// Request both apex domain and wildcard subdomain in same certificate
-		// This allows the certificate to work for both globular.cloud AND *.globular.cloud
+		// Request certificate with BOTH apex domain and wildcard
+		// This allows the certificate to cover both "globular.app" and "*.globular.app"
 		certDomains = []string{spec.Zone, "*." + spec.Zone}
 		r.logger.Info("requesting wildcard certificate with apex domain",
 			"domains", certDomains)
@@ -430,7 +430,8 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 }
 
 // isCertificateValid checks if a certificate file exists and is valid.
-func (r *Reconciler) isCertificateValid(certFile string, domain string) bool {
+// For wildcard certificates, validates against the wildcard pattern (*.zone).
+func (r *Reconciler) isCertificateValid(certFile string, domain string, useWildcard bool, zone string) bool {
 	// Read certificate
 	data, err := os.ReadFile(certFile)
 	if err != nil {
@@ -450,10 +451,17 @@ func (r *Reconciler) isCertificateValid(certFile string, domain string) bool {
 	}
 
 	// Check domain matches
-	if err := cert.VerifyHostname(domain); err != nil {
+	// For wildcard certificates, validate against the wildcard pattern
+	checkDomain := domain
+	if useWildcard {
+		checkDomain = "*." + zone
+	}
+
+	if err := cert.VerifyHostname(checkDomain); err != nil {
 		r.logger.Warn("certificate domain mismatch",
-			"expected", domain,
-			"cert_cn", cert.Subject.CommonName)
+			"expected", checkDomain,
+			"actual_cn", cert.Subject.CommonName,
+			"useWildcard", useWildcard)
 		return false
 	}
 

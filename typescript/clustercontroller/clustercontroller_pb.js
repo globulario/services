@@ -12001,7 +12001,9 @@ unitsList: jspb.Message.toObjectList(msg.getUnitsList(),
     proto.clustercontroller.NodeUnitStatus.toObject, includeInstance),
 lastError: jspb.Message.getFieldWithDefault(msg, 5, ""),
 reportedAt: (f = msg.getReportedAt()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
-agentEndpoint: jspb.Message.getFieldWithDefault(msg, 7, "")
+agentEndpoint: jspb.Message.getFieldWithDefault(msg, 7, ""),
+appliedServicesHash: jspb.Message.getFieldWithDefault(msg, 8, ""),
+installedVersionsMap: (f = msg.getInstalledVersionsMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -12068,6 +12070,16 @@ proto.clustercontroller.NodeStatus.deserializeBinaryFromReader = function(msg, r
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setAgentEndpoint(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAppliedServicesHash(value);
+      break;
+    case 9:
+      var value = msg.getInstalledVersionsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
       break;
     default:
       reader.skipField();
@@ -12149,6 +12161,17 @@ proto.clustercontroller.NodeStatus.serializeBinaryToWriter = function(message, w
       7,
       f
     );
+  }
+  f = message.getAppliedServicesHash();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getInstalledVersionsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(9, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -12353,6 +12376,47 @@ proto.clustercontroller.NodeStatus.prototype.getAgentEndpoint = function() {
  */
 proto.clustercontroller.NodeStatus.prototype.setAgentEndpoint = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string applied_services_hash = 8;
+ * @return {string}
+ */
+proto.clustercontroller.NodeStatus.prototype.getAppliedServicesHash = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeStatus} returns this
+ */
+proto.clustercontroller.NodeStatus.prototype.setAppliedServicesHash = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * map<string, string> installed_versions = 9;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.clustercontroller.NodeStatus.prototype.getInstalledVersionsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 9, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.clustercontroller.NodeStatus} returns this
+ */
+proto.clustercontroller.NodeStatus.prototype.clearInstalledVersionsMap = function() {
+  this.getInstalledVersionsMap().clear();
+  return this;
 };
 
 
