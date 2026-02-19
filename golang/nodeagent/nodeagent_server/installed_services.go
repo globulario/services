@@ -186,6 +186,15 @@ func loadServiceConfigs(ctx context.Context, byService map[string]*InstalledServ
 	}
 }
 
+// computeAppliedServicesHash returns a SHA256 (lowercase hex) over the installed service set.
+//
+// P2 canonical format per entry: "<publisher_id>/<canonical_service_name>=<version>;"
+// Entries are sorted by canonical key (ServiceKey.String()).
+// Config is excluded from the P2 hash to avoid false drift due to config source-of-truth
+// mismatches between controller spec and node config files. Config normalization is P3.
+//
+// NOTE: This algorithm is part of the cluster-controller/node-agent compatibility contract.
+// Do not change without versioning.
 func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) string {
 	if len(installed) == 0 {
 		return ""
@@ -201,25 +210,11 @@ func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) s
 	var b strings.Builder
 	for _, k := range keys {
 		info := installed[k]
-		b.WriteString("publisher=")
-		b.WriteString(strings.TrimSpace(info.PublisherID))
-		b.WriteString(";service=")
-		b.WriteString(canonicalServiceName(info.ServiceName))
-		b.WriteString(";version=")
+		// Format: "<publisher_id>/<canonical_service_name>=<version>;"
+		b.WriteString(k.String()) // already "publisher/canonical_service"
+		b.WriteString("=")
 		b.WriteString(strings.TrimSpace(info.Version))
-
-		cfgKeys := make([]string, 0, len(info.Config))
-		for ck := range info.Config {
-			cfgKeys = append(cfgKeys, ck)
-		}
-		sort.Strings(cfgKeys)
-		for _, ck := range cfgKeys {
-			b.WriteString(";")
-			b.WriteString(ck)
-			b.WriteString("=")
-			b.WriteString(info.Config[ck])
-		}
-		b.WriteString("|")
+		b.WriteString(";")
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])

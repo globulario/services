@@ -339,9 +339,19 @@ message NodeStatus {
   string last_error = 5;
   google.protobuf.Timestamp reported_at = 6;
   string agent_endpoint = 7;
-  // SHA256 of sorted "service_name=version;" pairs; used for drift detection.
+  // SHA256 (lowercase hex) of a canonicalized, sorted representation of installed services.
+  // P2 canonical form per service entry: "<publisher_id>/<service_name>=<version>;"
+  // Entries are sorted deterministically by canonical key "<publisher_id>/<service_name>".
+  // Config key/value pairs are excluded from P2 hashes (to be reintroduced in P3 once
+  // config distribution is normalized).
+  // NOTE: The hash algorithm and canonicalization rules are part of the
+  // cluster-controller/node-agent compatibility contract and must not change without versioning.
   string applied_services_hash = 8;
-  // service_name -> installed version, read from version marker files.
+  // Installed service versions reported by the node.
+  // Key MUST be the canonical service identifier: "<publisher_id>/<service_name>"
+  //   (publisher_id normalized to "unknown" if not discoverable; service_name is
+  //    lower-case, no "globular-" prefix, no ".service" suffix).
+  // Value MUST be the resolved version string read from the version marker file.
   map<string, string> installed_versions = 9;
 }
 

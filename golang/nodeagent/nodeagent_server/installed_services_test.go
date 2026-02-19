@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -107,6 +109,39 @@ func TestAppliedHashChangesWhenPublisherDiffers(t *testing.T) {
 
 	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 == h2 {
 		t.Fatalf("hash should differ when publisher differs even if name+version match")
+	}
+}
+
+// TestAppliedHashNotAffectedByConfig verifies that config differences do not change
+// the P2 applied services hash (config excluded until P3).
+func TestAppliedHashNotAffectedByConfig(t *testing.T) {
+	withCfg := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0", Config: map[string]string{"key": "value"}},
+	}
+	withoutCfg := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0"},
+	}
+	if h1, h2 := computeAppliedServicesHash(withCfg), computeAppliedServicesHash(withoutCfg); h1 != h2 {
+		t.Fatalf("P2 hash must not depend on config; got %q vs %q", h1, h2)
+	}
+}
+
+// TestAppliedHashCanonicalFormat verifies the exact canonical string format so that
+// controller and node-agent can be independently validated to produce the same hash
+// for a single service: SHA256("<publisher_id>/<canonical_service_name>=<version>;").
+func TestAppliedHashCanonicalFormat(t *testing.T) {
+	installed := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "pub", ServiceName: "gateway"}: {PublisherID: "pub", ServiceName: "gateway", Version: "1.0.0"},
+	}
+	got := computeAppliedServicesHash(installed)
+
+	// Manually compute expected: "pub/gateway=1.0.0;"
+	raw := "pub/gateway=1.0.0;"
+	sum := sha256.Sum256([]byte(raw))
+	want := hex.EncodeToString(sum[:])
+
+	if got != want {
+		t.Fatalf("applied hash format mismatch\n  got:  %q\n  want: %q\n  (raw string: %q)", got, want, raw)
 	}
 }
 

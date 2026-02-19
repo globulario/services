@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -154,5 +156,32 @@ func TestCompileReleasePlan_expectedSHA256InFetchAndVerifyArgs(t *testing.T) {
 	}
 	if verifySHA != expected {
 		t.Fatalf("expected_sha256 in verify step: want %q got %q", expected, verifySHA)
+	}
+}
+
+// ── Hash contract tests ───────────────────────────────────────────────────────
+
+// TestDesiredHashNotAffectedByConfig confirms that P2 desired hash excludes config,
+// so changing the config map does not cause false drift.
+func TestDesiredHashNotAffectedByConfig(t *testing.T) {
+	h1 := ComputeReleaseDesiredHash("pub", "gateway", "1.0.0", map[string]string{"key": "val"})
+	h2 := ComputeReleaseDesiredHash("pub", "gateway", "1.0.0", nil)
+	if h1 != h2 {
+		t.Fatalf("P2 desired hash must not depend on config; got %q vs %q", h1, h2)
+	}
+}
+
+// TestDesiredHashCanonicalFormat verifies the exact canonical string so the controller
+// and node-agent can be independently confirmed to produce the same hash for a single
+// service: SHA256("<publisher_id>/<canonical_service_name>=<version>;").
+func TestDesiredHashCanonicalFormat(t *testing.T) {
+	got := ComputeReleaseDesiredHash("pub", "gateway", "1.0.0", nil)
+
+	raw := "pub/gateway=1.0.0;"
+	sum := sha256.Sum256([]byte(raw))
+	want := hex.EncodeToString(sum[:])
+
+	if got != want {
+		t.Fatalf("desired hash format mismatch\n  got:  %q\n  want: %q\n  (raw: %q)", got, want, raw)
 	}
 }

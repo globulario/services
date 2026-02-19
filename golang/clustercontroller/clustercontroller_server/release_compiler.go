@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -175,34 +174,31 @@ func CompileReleasePlan(
 	}, nil
 }
 
-// ComputeReleaseDesiredHash returns a stable SHA256 over
-// (publisherID, canonicalServiceName, resolvedVersion, sorted config entries).
+// ComputeReleaseDesiredHash returns a SHA256 (lowercase hex) fingerprint for one service release.
+//
+// P2 canonical format: "<publisherID>/<serviceName>=<resolvedVersion>;"
 //
 // serviceName MUST be the canonical form (lower-case, no "globular-" prefix, no ".service" suffix)
-// so that the output matches the per-service contribution used by node-agent's
-// computeAppliedServicesHash. Controllers that compare desired vs applied hashes depend on this.
+// so the output is byte-identical to the per-entry contribution in node-agent's
+// computeAppliedServicesHash. Drift detection relies on this alignment.
+//
+// Config is excluded from the P2 hash to avoid false drift due to config source-of-truth
+// mismatches between controller spec and node config files. Config normalization is P3.
+// NOTE: P2 hash excludes config to avoid false drift. Config normalization will be introduced in P3.
 //
 // Determinism invariant: identical inputs → identical output across restarts and nodes.
 // Used as NodePlan.DesiredHash and stored in ServiceReleaseStatus.DesiredHash.
+// NOTE: This algorithm is part of the cluster-controller/node-agent compatibility contract.
+// Do not change without versioning.
 func ComputeReleaseDesiredHash(publisherID, serviceName, resolvedVersion string, config map[string]string) string {
-	keys := make([]string, 0, len(config))
-	for k := range config {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 	var b strings.Builder
-	b.WriteString("publisher=")
+	// Format: "<publisher_id>/<canonical_service_name>=<version>;"
 	b.WriteString(publisherID)
-	b.WriteString(";service=")
+	b.WriteString("/")
 	b.WriteString(serviceName)
-	b.WriteString(";version=")
+	b.WriteString("=")
 	b.WriteString(resolvedVersion)
-	for _, k := range keys {
-		b.WriteString(";")
-		b.WriteString(k)
-		b.WriteString("=")
-		b.WriteString(config[k])
-	}
+	b.WriteString(";")
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])
 }
