@@ -21,6 +21,7 @@ import (
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/healthchecks"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/identity"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions"
@@ -1007,6 +1008,19 @@ func (srv *NodeAgentServer) ApplyPlanV1(ctx context.Context, req *nodeagentpb.Ap
 	if srv.nodeID != "" && plan.GetNodeId() != "" && plan.GetNodeId() != srv.nodeID {
 		return nil, status.Error(codes.InvalidArgument, "plan node_id does not match this agent")
 	}
+	// Validate cluster_id: reject plans targeting a different cluster.
+	// This prevents cross-cluster plan injection where a controller from
+	// cluster A could instruct a node in cluster B.
+	if planClusterID := strings.TrimSpace(plan.GetClusterId()); planClusterID != "" {
+		localClusterID, err := security.GetLocalClusterID()
+		if err == nil && localClusterID != "" && planClusterID != localClusterID {
+			return nil, status.Errorf(codes.InvalidArgument,
+				"plan cluster_id %q does not match local cluster %q", planClusterID, localClusterID)
+		}
+	}
+	// IssuedBy records the RBAC principal that dispatched this plan.
+	// Authorization for the ApplyPlan RPC itself is enforced upstream by the
+	// gRPC interceptor; IssuedBy is preserved here for audit trail purposes.
 	planID := strings.TrimSpace(plan.GetPlanId())
 	if planID == "" {
 		planID = uuid.NewString()

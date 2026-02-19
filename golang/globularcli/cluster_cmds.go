@@ -1108,6 +1108,11 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 		// Default: load CA + client certificates for full mTLS.
 		creds, err := getTLSCredentials()
 		if err != nil {
+			// If no token is set either, neither auth mechanism is configured.
+			// Surface a clear, actionable message instead of the raw TLS error.
+			if rootCfg.token == "" {
+				return nil, fmt.Errorf("authentication required: provide --token or configure client certificates")
+			}
 			return nil, err
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))

@@ -95,3 +95,18 @@ func GetLocalClusterID() (string, error) {
 
 	return defaultValidator.GetLocalClusterID(), nil
 }
+
+// OverrideLocalClusterID temporarily sets the local cluster ID to the given
+// value for the duration of a test, and registers a cleanup function to
+// restore the original state.
+//
+// This function is intended for testing only.
+func OverrideLocalClusterID(t interface{ Cleanup(func()) }, clusterID string) {
+	saved := defaultValidator
+	defaultValidator = &ClusterValidator{localClusterID: clusterID}
+	InvalidateClusterInitCache()
+	t.Cleanup(func() {
+		defaultValidator = saved
+		InvalidateClusterInitCache()
+	})
+}
