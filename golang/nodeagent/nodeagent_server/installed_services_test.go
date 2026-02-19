@@ -115,14 +115,14 @@ func TestAppliedHashChangesWhenPublisherDiffers(t *testing.T) {
 // TestAppliedHashNotAffectedByConfig verifies that config differences do not change
 // the P2 applied services hash (config excluded until P3).
 func TestAppliedHashNotAffectedByConfig(t *testing.T) {
-	withCfg := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0", Config: map[string]string{"key": "value"}},
+	withDigest := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	}
-	withoutCfg := map[ServiceKey]InstalledServiceInfo{
+	withoutDigest := map[ServiceKey]InstalledServiceInfo{
 		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0"},
 	}
-	if h1, h2 := computeAppliedServicesHash(withCfg), computeAppliedServicesHash(withoutCfg); h1 != h2 {
-		t.Fatalf("P2 hash must not depend on config; got %q vs %q", h1, h2)
+	if h1, h2 := computeAppliedServicesHash(withDigest), computeAppliedServicesHash(withoutDigest); h1 == h2 {
+		t.Fatalf("hash should differ when config digest differs")
 	}
 }
 
@@ -135,13 +135,41 @@ func TestAppliedHashCanonicalFormat(t *testing.T) {
 	}
 	got := computeAppliedServicesHash(installed)
 
-	// Manually compute expected: "pub/gateway=1.0.0;"
-	raw := "pub/gateway=1.0.0;"
+	// Manually compute expected: "pub/gateway=1.0.0@-;"
+	raw := "pub/gateway=1.0.0@-;"
 	sum := sha256.Sum256([]byte(raw))
 	want := hex.EncodeToString(sum[:])
 
 	if got != want {
 		t.Fatalf("applied hash format mismatch\n  got:  %q\n  want: %q\n  (raw string: %q)", got, want, raw)
+	}
+}
+
+func TestConfigDigestChangeChangesHash(t *testing.T) {
+	first := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	}
+	second := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1", ConfigDigest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+	}
+	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 == h2 {
+		t.Fatalf("hash should change when config digest differs")
+	}
+}
+
+func TestInvalidConfigDigestReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	oldBase := versionutil.BaseDir()
+	versionutil.SetBaseDir(tmp)
+	t.Cleanup(func() { versionutil.SetBaseDir(oldBase) })
+	t.Setenv("GLOBULAR_SERVICES_DIR", tmp)
+
+	writeMarker(t, filepath.Join(tmp, "gateway"), "1.0.0")
+	writeConfigDigest(t, filepath.Join(tmp, "gateway"), "not-hex")
+
+	_, _, err := ComputeInstalledServices(context.Background())
+	if err == nil {
+		t.Fatalf("expected error for invalid config digest marker")
 	}
 }
 
@@ -163,5 +191,15 @@ func writeConfig(t *testing.T, path string, data map[string]interface{}) {
 	}
 	if err := os.WriteFile(path, enc, 0o644); err != nil {
 		t.Fatalf("write config %s: %v", path, err)
+	}
+}
+
+func writeConfigDigest(t *testing.T, dir, digest string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.sha256"), []byte(digest), 0o644); err != nil {
+		t.Fatalf("write config digest: %v", err)
 	}
 }

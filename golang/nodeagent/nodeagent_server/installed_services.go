@@ -33,10 +33,11 @@ func (k ServiceKey) String() string {
 
 // InstalledServiceInfo captures what the node knows about an installed service.
 type InstalledServiceInfo struct {
-	PublisherID string
-	ServiceName string
-	Version     string
-	Config      map[string]string
+	PublisherID  string
+	ServiceName  string
+	Version      string
+	Config       map[string]string
+	ConfigDigest string
 }
 
 // ComputeInstalledServices returns the installed services on this node and a deterministic hash.
@@ -70,10 +71,11 @@ func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServ
 		}
 		key := ServiceKey{PublisherID: entry.PublisherID, ServiceName: entry.ServiceName}
 		inst[key] = InstalledServiceInfo{
-			PublisherID: entry.PublisherID,
-			ServiceName: entry.ServiceName,
-			Version:     entry.Version,
-			Config:      entry.Config,
+			PublisherID:  entry.PublisherID,
+			ServiceName:  entry.ServiceName,
+			Version:      entry.Version,
+			Config:       entry.Config,
+			ConfigDigest: entry.ConfigDigest,
 		}
 	}
 
@@ -120,6 +122,18 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 		entry := ensureServiceEntry(byService, svc)
 		entry.ServiceName = svc
 		entry.Version = version
+		// Optional config digest marker.
+		digestPath := filepath.Join(markerRoot, name, "config.sha256")
+		if cfgData, err := os.ReadFile(digestPath); err == nil {
+			digest := strings.ToLower(strings.TrimSpace(string(cfgData)))
+			if digest != "" && !isHex64(digest) {
+				recordErr(fmt.Errorf("invalid config digest for %s: %s", svc, digest))
+				continue
+			}
+			entry.ConfigDigest = digest
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			recordErr(fmt.Errorf("read config digest %s: %w", digestPath, err))
+		}
 	}
 }
 
@@ -188,11 +202,9 @@ func loadServiceConfigs(ctx context.Context, byService map[string]*InstalledServ
 
 // computeAppliedServicesHash returns a SHA256 (lowercase hex) over the installed service set.
 //
-// P2 canonical format per entry: "<publisher_id>/<canonical_service_name>=<version>;"
-// Entries are sorted by canonical key (ServiceKey.String()).
-// Config is excluded from the P2 hash to avoid false drift due to config source-of-truth
-// mismatches between controller spec and node config files. Config normalization is P3.
-//
+// P3 canonical format per entry: "<publisher_id>/<canonical_service_name>=<version>@<config_digest>;"
+// - config_digest is "-" if unknown/empty.
+// - Entries are sorted by canonical key (ServiceKey.String()).
 // NOTE: This algorithm is part of the cluster-controller/node-agent compatibility contract.
 // Do not change without versioning.
 func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) string {
@@ -210,10 +222,16 @@ func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) s
 	var b strings.Builder
 	for _, k := range keys {
 		info := installed[k]
-		// Format: "<publisher_id>/<canonical_service_name>=<version>;"
+		// Format: "<publisher_id>/<canonical_service_name>=<version>@<config_digest>;"
+		digest := strings.TrimSpace(info.ConfigDigest)
+		if digest == "" {
+			digest = "-"
+		}
 		b.WriteString(k.String()) // already "publisher/canonical_service"
 		b.WriteString("=")
 		b.WriteString(strings.TrimSpace(info.Version))
+		b.WriteString("@")
+		b.WriteString(digest)
 		b.WriteString(";")
 	}
 	sum := sha256.Sum256([]byte(b.String()))
@@ -227,6 +245,18 @@ func ensureServiceEntry(byService map[string]*InstalledServiceInfo, service stri
 	entry := &InstalledServiceInfo{ServiceName: service}
 	byService[service] = entry
 	return entry
+}
+
+func isHex64(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, r := range s {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 func canonicalServiceName(name string) string {
