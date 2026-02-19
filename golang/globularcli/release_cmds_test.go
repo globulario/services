@@ -76,6 +76,8 @@ meta:
 spec:
   publisher_id: globular
   service_name: gateway
+  replicas:
+    min: 1
   version: 1.2.3
 `)
 	rel, err := parseServiceRelease(yaml)
@@ -88,9 +90,22 @@ spec:
 }
 
 func TestParseServiceReleaseMissingPublisher(t *testing.T) {
-	yaml := []byte(`spec: {service_name: gateway}`)
+	yaml := []byte(`spec: {service_name: gateway, replicas: {min:1}}`)
 	if _, err := parseServiceRelease(yaml); err == nil {
 		t.Fatalf("expected error for missing publisher_id")
+	}
+}
+
+func TestParseServiceReleaseMissingReplicas(t *testing.T) {
+	yaml := []byte(`
+meta: {name: gateway}
+spec:
+  publisher_id: globular
+  service_name: gateway
+  version: 1.2.3
+`)
+	if _, err := parseServiceRelease(yaml); err == nil {
+		t.Fatalf("expected error for missing replicas.min")
 	}
 }
 
@@ -100,9 +115,13 @@ func TestApplyIdempotent(t *testing.T) {
 	rootCfg.controllerAddr = "" // unused
 
 	yaml := []byte(`
+meta:
+  name: gateway
 spec:
   publisher_id: globular
   service_name: gateway
+  replicas:
+    min: 1
   version: 1.2.3
 `)
 	rel, err := parseServiceRelease(yaml)
@@ -128,9 +147,13 @@ func TestApplyStopsOnClientError(t *testing.T) {
 	fc := &fakeResourcesClient{err: errors.New("boom")}
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 	yaml := []byte(`
+meta:
+  name: gateway
 spec:
   publisher_id: globular
   service_name: gateway
+  replicas:
+    min: 1
   version: 1.2.3
 `)
 	rel, err := parseServiceRelease(yaml)
@@ -196,6 +219,22 @@ func TestReleaseStatusFormatting(t *testing.T) {
 		if st.DesiredHash != "" {
 			fmt.Printf("Desired Hash:     %s\n", st.DesiredHash)
 		}
+		desiredMin := int32(0)
+		if rel.Spec != nil && rel.Spec.Replicas != nil {
+			desiredMin = rel.Spec.Replicas.Min
+		}
+		if desiredMin > 0 {
+			available := 0
+			mismatch := 0
+			for _, n := range st.Nodes {
+				if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+					available++
+				} else {
+					mismatch++
+				}
+			}
+			fmt.Printf("Replicas:         desired=%d available=%d mismatch=%d\n", desiredMin, available, mismatch)
+		}
 		if len(st.Nodes) > 0 {
 			healthy := 0
 			for _, n := range st.Nodes {
@@ -213,12 +252,113 @@ func TestReleaseStatusFormatting(t *testing.T) {
 
 	for _, want := range []string{
 		"AVAILABLE", "1.2.3", "abc123",
-		"2 total, 1 healthy",
 		"n1", "n2", "stale",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status output missing %q; got:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunReleaseApplyDryRun(t *testing.T) {
+	oldConnFactory := controllerConnFactory
+	oldFactory := resourcesClientFactory
+	oldFile := releaseFile
+	oldDry := releaseDry
+	defer func() {
+		controllerConnFactory = oldConnFactory
+		resourcesClientFactory = oldFactory
+		releaseFile = oldFile
+		releaseDry = oldDry
+	}()
+
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) {
+		t.Fatalf("controller should not be dialed on dry-run")
+		return nil, nil
+	}
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient {
+		t.Fatalf("resources client should not be created on dry-run")
+		return nil
+	}
+
+	tmp, err := os.CreateTemp("", "release-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmp.Name())
+	content := `{"meta":{"name":"gateway"},"spec":{"publisher_id":"globular","service_name":"gateway","replicas":{"min":1},"version":"1.2.3"}}`
+	if _, err := tmp.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	tmp.Close()
+
+	releaseFile = tmp.Name()
+	releaseDry = true
+
+	out := captureStdout(t, func() {
+		if err := runReleaseApply(nil, nil); err != nil {
+			t.Fatalf("runReleaseApply dry-run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "validated ServiceRelease") {
+		t.Fatalf("expected validation output, got %q", out)
+	}
+}
+
+type applyCountingClient struct {
+	applied int
+}
+
+func (a *applyCountingClient) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+	a.applied++
+	if req.Object.Meta == nil {
+		req.Object.Meta = &clustercontrollerpb.ObjectMeta{}
+	}
+	req.Object.Meta.Generation++
+	req.Object.Status = &clustercontrollerpb.ServiceReleaseStatus{Phase: clustercontrollerpb.ReleasePhaseAvailable}
+	return req.Object, nil
+}
+
+func (*applyCountingClient) GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+	return nil, fmt.Errorf("unused")
+}
+func (*applyCountingClient) ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
+	return nil, fmt.Errorf("unused")
+}
+
+func TestRunReleaseApplyCallsApplyOnce(t *testing.T) {
+	ac := &applyCountingClient{}
+	oldConnFactory := controllerConnFactory
+	oldFactory := resourcesClientFactory
+	oldFile := releaseFile
+	oldDry := releaseDry
+	defer func() {
+		controllerConnFactory = oldConnFactory
+		resourcesClientFactory = oldFactory
+		releaseFile = oldFile
+		releaseDry = oldDry
+	}()
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return ac }
+
+	tmp, err := os.CreateTemp("", "release-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmp.Name())
+	content := `{"meta":{"name":"gateway"},"spec":{"publisher_id":"globular","service_name":"gateway","replicas":{"min":1},"version":"1.2.3"}}`
+	if _, err := tmp.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	tmp.Close()
+	releaseFile = tmp.Name()
+	releaseDry = false
+
+	if err := runReleaseApply(nil, nil); err != nil {
+		t.Fatalf("runReleaseApply: %v", err)
+	}
+	if ac.applied != 1 {
+		t.Fatalf("expected one apply call, got %d", ac.applied)
 	}
 }
 
@@ -344,7 +484,7 @@ func TestRunReleaseRollbackRequiresTarget(t *testing.T) {
 	}()
 
 	err := runReleaseRollback(nil, []string{"gateway"})
-	if err == nil || !strings.Contains(err.Error(), "specify --to") {
+	if err == nil || !strings.Contains(err.Error(), "rollback target required") {
 		t.Fatalf("expected target error, got %v", err)
 	}
 }

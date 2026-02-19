@@ -77,6 +77,7 @@ var (
 	releaseMin        int
 	releaseMax        int
 	releaseRollbackTo string
+	releaseWatchJSON  bool
 )
 
 // seam for tests
@@ -108,6 +109,7 @@ func init() {
 	releaseApplyCmd.Flags().BoolVar(&releaseDry, "dry-run", false, "Validate only; do not send to controller")
 	releaseShowCmd.Flags().StringVarP(&releaseOutput, "output", "o", "json", "Output format (json|yaml)")
 	releaseWatchCmd.Flags().StringVar(&releaseSince, "since", "", "Start watch from duration ago (e.g. 10m)")
+	releaseWatchCmd.Flags().BoolVar(&releaseWatchJSON, "json", false, "Output watch events as JSON")
 	releaseScaleCmd.Flags().IntVar(&releaseMin, "min", 0, "Minimum replicas (required)")
 	releaseScaleCmd.Flags().IntVar(&releaseMax, "max", 0, "Maximum replicas (optional)")
 	releaseRollbackCmd.Flags().StringVar(&releaseRollbackTo, "to", "", "Rollback to explicit version")
@@ -236,10 +238,26 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	st := rel.Status
+	var desiredMin int32
+	if rel.Spec != nil && rel.Spec.Replicas != nil {
+		desiredMin = rel.Spec.Replicas.Min
+	}
 	fmt.Printf("Phase:            %s\n", st.Phase)
 	fmt.Printf("Resolved Version: %s\n", st.ResolvedVersion)
 	if st.DesiredHash != "" {
 		fmt.Printf("Desired Hash:     %s\n", st.DesiredHash)
+	}
+	if desiredMin > 0 {
+		available := 0
+		mismatch := 0
+		for _, n := range st.Nodes {
+			if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+				available++
+			} else {
+				mismatch++
+			}
+		}
+		fmt.Printf("Replicas:         desired=%d available=%d mismatch=%d\n", desiredMin, available, mismatch)
 	}
 	if len(st.Nodes) > 0 {
 		healthy := 0
@@ -310,7 +328,7 @@ func runReleaseRollback(cmd *cobra.Command, args []string) error {
 	target := strings.TrimSpace(releaseRollbackTo)
 	if target == "" {
 		// No history field available; require explicit target.
-		return errors.New("rollback target not known; specify --to <version>")
+		return errors.New("rollback target required; use --to <version>")
 	}
 	rel.Spec.Version = target
 	rel.Spec.Channel = ""
@@ -337,7 +355,7 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "watch connect error: %v\n", err)
 		} else {
 			client := watchClientFactory(conn)
-			if err := watchReleaseOnce(ctx, name, client); err != nil {
+			if err := watchReleaseOnce(ctx, name, client, releaseWatchJSON); err != nil {
 				fmt.Fprintf(os.Stderr, "watch error: %v\n", err)
 			}
 			if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
@@ -361,13 +379,14 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 // watchReleaseOnce streams events from an already-created client until the
 // stream closes or ctx is cancelled. Accepts client directly to allow testing
 // without a real gRPC connection.
-func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClient) error {
+func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClient, asJSON bool) error {
 	wctx, cancel := ctxWithCLITimeout(ctx)
 	defer cancel()
 	stream, err := client.Watch(wctx, &clustercontrollerpb.WatchRequest{Type: "ServiceRelease", Prefix: name})
 	if err != nil {
 		return err
 	}
+	var lastPhase, lastResolved, lastMessage string
 	for {
 		evt, err := stream.Recv()
 		if err != nil {
@@ -376,7 +395,24 @@ func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClien
 		if evt.ServiceRelease == nil {
 			continue
 		}
-		printReleaseEvent(evt.ServiceRelease)
+		rel := evt.ServiceRelease
+		st := rel.Status
+		if st == nil {
+			continue
+		}
+		phase := st.Phase
+		resolved := st.ResolvedVersion
+		msg := st.Message
+		changed := phase != lastPhase || resolved != lastResolved || msg != lastMessage
+		if !changed {
+			continue
+		}
+		lastPhase, lastResolved, lastMessage = phase, resolved, msg
+		if asJSON {
+			printJSON(rel)
+		} else {
+			printReleaseEvent(rel)
+		}
 	}
 }
 
@@ -385,7 +421,11 @@ func printReleaseEvent(rel *clustercontrollerpb.ServiceRelease) {
 		return
 	}
 	ts := time.Now().Format(time.RFC3339)
-	fmt.Printf("%s phase=%s resolved=%s desired_hash=%s\n", ts, rel.Status.Phase, rel.Status.ResolvedVersion, rel.Status.DesiredHash)
+	msg := rel.Status.Message
+	if msg == "" {
+		msg = rel.Status.Phase
+	}
+	fmt.Printf("%s phase=%s resolved=%s message=%s\n", ts, rel.Status.Phase, rel.Status.ResolvedVersion, msg)
 }
 
 func parseServiceRelease(raw []byte) (*clustercontrollerpb.ServiceRelease, error) {
@@ -409,16 +449,16 @@ func parseServiceRelease(raw []byte) (*clustercontrollerpb.ServiceRelease, error
 	if strings.TrimSpace(rel.Spec.ServiceName) == "" {
 		return nil, errors.New("spec.service_name is required")
 	}
+	if rel.Spec.Replicas == nil || rel.Spec.Replicas.Min < 1 {
+		return nil, errors.New("spec.replicas.min is required and must be >=1")
+	}
 	// Minimal version policy validation: require either version or channel.
 	if strings.TrimSpace(rel.Spec.Version) == "" && strings.TrimSpace(rel.Spec.Channel) == "" {
 		return nil, errors.New("spec.version or spec.channel is required")
 	}
 	// Default name to service name if not provided.
-	if rel.Meta == nil {
-		rel.Meta = &clustercontrollerpb.ObjectMeta{}
-	}
-	if strings.TrimSpace(rel.Meta.Name) == "" {
-		rel.Meta.Name = canonicalServiceName(rel.Spec.ServiceName)
+	if rel.Meta == nil || strings.TrimSpace(rel.Meta.Name) == "" {
+		return nil, errors.New("meta.name is required")
 	}
 	// Strip status on apply.
 	rel.Status = nil

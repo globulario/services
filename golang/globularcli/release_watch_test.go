@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,13 +42,18 @@ func TestWatchReleasePrintsEvents(t *testing.T) {
 	client := &mockResourcesClient{watchStream: fakeStream}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if err := watchReleaseOnce(ctx, "rel1", client); err == nil {
-		// expected error after stream ends
-	} else if err.Error() != "done" {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	buf := captureStdout(t, func() {
+		if err := watchReleaseOnce(ctx, "rel1", client, false); err == nil {
+			// expected error after stream ends
+		} else if err.Error() != "done" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 	if client.watchCalled == 0 {
 		t.Fatalf("expected watch to be called")
+	}
+	if !strings.Contains(buf, "AVAILABLE") || !strings.Contains(buf, "DEGRADED") {
+		t.Fatalf("expected both events in output, got: %s", buf)
 	}
 }
 
