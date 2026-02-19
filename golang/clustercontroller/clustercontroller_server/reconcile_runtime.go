@@ -67,6 +67,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				queue.Enqueue(serviceKeyPrefix + canonicalServiceName(sdv.Meta.Name))
 			}
 		})
+		srv.startReleaseReconciler(ctx, queue)
 	}
 
 	// workers
@@ -86,6 +87,8 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 					srv.reconcileNodes(ctx)
 				case serviceNameFromKey(key) != "":
 					srv.reconcileNodes(ctx)
+				case isReleaseKey(key):
+					srv.reconcileRelease(ctx, releaseNameFromKey(key))
 				default:
 					// unknown key, drop
 				}

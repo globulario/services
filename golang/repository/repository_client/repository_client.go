@@ -295,6 +295,27 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 	return size, nil
 }
 
+// ListArtifacts returns all artifact manifests stored in the repository.
+func (client *Repository_Service_Client) ListArtifacts() ([]*repositorypb.ArtifactManifest, error) {
+	resp, err := client.c.ListArtifacts(client.GetCtx(), &repositorypb.ListArtifactsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetArtifacts(), nil
+}
+
+// GetArtifactManifest returns the manifest for the given artifact reference.
+func (client *Repository_Service_Client) GetArtifactManifest(ref *repositorypb.ArtifactRef) (*repositorypb.ArtifactManifest, error) {
+	if ref == nil {
+		return nil, errors.New("artifact ref required")
+	}
+	resp, err := client.c.GetArtifactManifest(client.GetCtx(), &repositorypb.GetArtifactManifestRequest{Ref: ref})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetManifest(), nil
+}
+
 func (client *Repository_Service_Client) DownloadArtifact(ref *repositorypb.ArtifactRef) ([]byte, error) {
 	if ref == nil {
 		return nil, errors.New("artifact ref required")

@@ -4,6 +4,10 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +23,9 @@ import (
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/ports"
 	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/repository/repositorypb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -37,33 +44,64 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	service := strings.TrimSpace(fields["service"].GetStringValue())
 	version := strings.TrimSpace(fields["version"].GetStringValue())
 	platform := strings.TrimSpace(fields["platform"].GetStringValue())
+	publisherID := strings.TrimSpace(fields["publisher_id"].GetStringValue())
+	repositoryAddr := strings.TrimSpace(fields["repository_addr"].GetStringValue())
+	expectedSHA := strings.TrimSpace(fields["expected_sha256"].GetStringValue())
+
 	if dest == "" {
 		return "", fmt.Errorf("artifact_path is required")
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", fmt.Errorf("create dest dir: %w", err)
 	}
-	if source == "" {
-		if service == "" || version == "" || platform == "" {
-			return "", fmt.Errorf("source is required when artifact not present")
-		}
-		source = resolveArtifactPath(service, version, platform)
-	}
-	if _, err := os.Stat(source); err != nil {
-		return "", fmt.Errorf("artifact not found at %s: %w", source, err)
-	}
+	// Artifact already present and valid — skip fetch.
 	if _, err := os.Stat(dest); err == nil {
 		return "artifact already present", nil
 	}
-	in, err := os.Open(source)
-	if err != nil {
-		return "", fmt.Errorf("open source: %w", err)
+
+	// Resolve local source path if not explicitly provided.
+	if source == "" && (service != "" && version != "" && platform != "") {
+		source = resolveArtifactPath(service, version, platform)
 	}
-	defer in.Close()
-	if err := copyFileAtomic(dest, in); err != nil {
+
+	// Try local copy first.
+	if source != "" {
+		if _, err := os.Stat(source); err == nil {
+			in, err := os.Open(source)
+			if err != nil {
+				return "", fmt.Errorf("open source: %w", err)
+			}
+			defer in.Close()
+			if err := copyFileAtomic(dest, in); err != nil {
+				return "", err
+			}
+			return "artifact fetched (local)", nil
+		}
+	}
+
+	// Fall back to remote repository download.
+	if repositoryAddr == "" {
+		repositoryAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
+	}
+	if repositoryAddr == "" {
+		return "", fmt.Errorf("artifact not found locally and REPOSITORY_ADDRESS is not set")
+	}
+	if service == "" || version == "" || platform == "" {
+		return "", fmt.Errorf("service, version, and platform are required for remote fetch")
+	}
+	ref := &repositorypb.ArtifactRef{
+		Name:     service,
+		Version:  version,
+		Platform: platform,
+		Kind:     repositorypb.ArtifactKind_SERVICE,
+	}
+	if publisherID != "" {
+		ref.PublisherId = publisherID
+	}
+	if err := downloadArtifactFromRepository(ctx, repositoryAddr, ref, dest, expectedSHA); err != nil {
 		return "", err
 	}
-	return "artifact fetched", nil
+	return fmt.Sprintf("artifact fetched (remote) from %s", repositoryAddr), nil
 }
 
 // artifact.verify performs a simple existence/digest check if provided.
@@ -76,14 +114,30 @@ func (artifactVerifyAction) Validate(args *structpb.Struct) error { return nil }
 func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
 	fields := args.GetFields()
 	path := strings.TrimSpace(fields["artifact_path"].GetStringValue())
+	expected := strings.ToLower(strings.TrimSpace(fields["expected_sha256"].GetStringValue()))
 	if path == "" {
 		return "", fmt.Errorf("artifact_path is required")
 	}
 	if _, err := os.Stat(path); err != nil {
 		return "", fmt.Errorf("artifact missing: %w", err)
 	}
-	// TODO: add sha256 verification when digest provided.
-	return "artifact verified", nil
+	if expected == "" {
+		return "artifact verified (no checksum)", nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("open artifact: %w", err)
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("hash artifact: %w", err)
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if got != expected {
+		return "", fmt.Errorf("artifact digest mismatch: want %s got %s", expected, got)
+	}
+	return fmt.Sprintf("artifact verified sha256=%s", got), nil
 }
 
 type serviceInstallPayloadAction struct{}
@@ -242,6 +296,105 @@ func resolveArtifactPath(service, version, platform string) string {
 	}
 	filename := fmt.Sprintf("%s.%s.%s.tgz", service, version, platform)
 	return filepath.Join(root, service, version, platform, filename)
+}
+
+// downloadArtifactFromRepository fetches an artifact from a remote repository gRPC endpoint
+// via streaming DownloadArtifact RPC and writes it atomically to dest.
+//
+// If expectedSHA256 is non-empty, the downloaded bytes are hashed and compared; a mismatch
+// causes the temp file to be deleted and an error to be returned (hard invariant: never
+// accept a corrupted artifact).
+//
+// TLS configuration uses:
+//   - REPOSITORY_CA_PATH env var for the CA certificate (required unless REPOSITORY_INSECURE=true)
+//   - REPOSITORY_INSECURE=true disables TLS (development only)
+func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repositorypb.ArtifactRef, dest, expectedSHA256 string) error {
+	var opts []grpc.DialOption
+	if strings.EqualFold(os.Getenv("REPOSITORY_INSECURE"), "true") {
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))) //nolint:gosec // dev mode only
+	} else {
+		caPath := strings.TrimSpace(os.Getenv("REPOSITORY_CA_PATH"))
+		if caPath == "" {
+			caPath = strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA"))
+		}
+		tlsCfg := &tls.Config{}
+		if caPath != "" {
+			data, err := os.ReadFile(caPath)
+			if err != nil {
+				return fmt.Errorf("read repository CA %s: %w", caPath, err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(data) {
+				return fmt.Errorf("parse repository CA %s: no certificates found", caPath)
+			}
+			tlsCfg.RootCAs = pool
+		}
+		if host, _, err := net.SplitHostPort(addr); err == nil {
+			tlsCfg.ServerName = host
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(dialCtx, addr, opts...)
+	if err != nil {
+		return fmt.Errorf("dial repository %s: %w", addr, err)
+	}
+	defer conn.Close()
+
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	stream, err := client.DownloadArtifact(ctx, &repositorypb.DownloadArtifactRequest{Ref: ref})
+	if err != nil {
+		return fmt.Errorf("download artifact %s/%s@%s: %w", ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), err)
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(dest), "artifact-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	hasher := sha256.New()
+	var hw io.Writer = tmp
+	if expectedSHA256 != "" {
+		hw = io.MultiWriter(tmp, hasher)
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return fmt.Errorf("receive chunk: %w", err)
+		}
+		if _, err := hw.Write(resp.GetData()); err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return fmt.Errorf("write chunk: %w", err)
+		}
+	}
+
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if expectedSHA256 != "" {
+		got := hex.EncodeToString(hasher.Sum(nil))
+		if got != strings.ToLower(expectedSHA256) {
+			os.Remove(tmpPath)
+			return fmt.Errorf("artifact digest mismatch: want %s got %s", expectedSHA256, got)
+		}
+	}
+
+	if err := os.Rename(tmpPath, dest); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename artifact: %w", err)
+	}
+	return nil
 }
 
 func copyFileAtomic(dest string, r io.Reader) error {

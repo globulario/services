@@ -339,6 +339,10 @@ message NodeStatus {
   string last_error = 5;
   google.protobuf.Timestamp reported_at = 6;
   string agent_endpoint = 7;
+  // SHA256 of sorted "service_name=version;" pairs; used for drift detection.
+  string applied_services_hash = 8;
+  // service_name -> installed version, read from version marker files.
+  map<string, string> installed_versions = 9;
 }
 
 message ReportNodeStatusRequest {
@@ -422,3 +426,7 @@ message GetClusterHealthV1Response {
   repeated NodeHealth nodes = 1;
   repeated ServiceSummary services = 2;
 }
+
+// Note: ServiceRelease resource type is defined as a hand-written Go struct in
+// clustercontrollerpb/resources_types.go (JSON-over-gRPC pattern, same as
+// ClusterNetwork and ServiceDesiredVersion). See that file for the full type.

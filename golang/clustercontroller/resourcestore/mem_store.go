@@ -256,6 +256,8 @@ func extractMeta(obj interface{}) *clustercontrollerpb.ObjectMeta {
 		return o.Meta
 	case *clustercontrollerpb.Node:
 		return o.Meta
+	case *clustercontrollerpb.ServiceRelease:
+		return o.Meta
 	default:
 		return nil
 	}
@@ -269,6 +271,12 @@ func extractStatus(obj interface{}) *clustercontrollerpb.ObjectStatus {
 		return o.Status
 	case *clustercontrollerpb.Node:
 		return o.Status
+	case *clustercontrollerpb.ServiceRelease:
+		// ServiceRelease has its own rich status; return a stub for generation tracking.
+		if o.Status != nil {
+			return &clustercontrollerpb.ObjectStatus{ObservedGeneration: o.Status.ObservedGeneration}
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -282,6 +290,12 @@ func setStatus(obj interface{}, st *clustercontrollerpb.ObjectStatus) {
 		o.Status = st
 	case *clustercontrollerpb.Node:
 		o.Status = st
+	case *clustercontrollerpb.ServiceRelease:
+		// ServiceRelease has its own rich status managed by the reconciler.
+		// Initialize to empty if nil so Apply doesn't treat it as absent.
+		if o.Status == nil {
+			o.Status = &clustercontrollerpb.ServiceReleaseStatus{}
+		}
 	}
 }
 
@@ -292,6 +306,8 @@ func specForHash(obj interface{}) interface{} {
 	case *clustercontrollerpb.ServiceDesiredVersion:
 		return o.Spec
 	case *clustercontrollerpb.Node:
+		return o.Spec
+	case *clustercontrollerpb.ServiceRelease:
 		return o.Spec
 	default:
 		return nil
@@ -328,6 +344,10 @@ func deepCopy(obj interface{}) interface{} {
 		dst = tmp
 	case *clustercontrollerpb.Node:
 		tmp := &clustercontrollerpb.Node{}
+		_ = json.Unmarshal(b, tmp)
+		dst = tmp
+	case *clustercontrollerpb.ServiceRelease:
+		tmp := &clustercontrollerpb.ServiceRelease{}
 		_ = json.Unmarshal(b, tmp)
 		dst = tmp
 	default:

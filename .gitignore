@@ -8,7 +8,6 @@ generated/
 
 # Build artifacts
 golang/generated/
-*_server
 golang/globularcli/globularcli
 golang/clustercontroller/clustercontroller_server/clustercontroller_server
 golang/nodeagent/nodeagent_server/nodeagent_server

@@ -125,6 +125,10 @@ func toWatchEvent(typ string, evt resourcestore.Event) *clustercontrollerpb.Watc
 		if obj, ok := evt.Object.(*clustercontrollerpb.ServiceDesiredVersion); ok {
 			we.ServiceDesiredVersion = obj
 		}
+	case "ServiceRelease":
+		if obj, ok := evt.Object.(*clustercontrollerpb.ServiceRelease); ok {
+			we.ServiceRelease = obj
+		}
 	}
 	return we
 }
@@ -1442,6 +1446,84 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *clustercon
 		out.Items = append(out.Items, obj.(*clustercontrollerpb.ServiceDesiredVersion))
 	}
 	return out, nil
+}
+
+func (srv *server) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest) (*clustercontrollerpb.ServiceRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.ServiceName) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.service_name are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &clustercontrollerpb.ObjectMeta{}
+	}
+	// Canonical name: publisher/service to keep it unique across publishers.
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + canonicalServiceName(obj.Spec.ServiceName)
+	}
+	applied, err := srv.resources.Apply(ctx, "ServiceRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply service release: %v", err)
+	}
+	return applied.(*clustercontrollerpb.ServiceRelease), nil
+}
+
+func (srv *server) GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest) (*clustercontrollerpb.ServiceRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get service release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "service release %q not found", name)
+	}
+	return obj.(*clustercontrollerpb.ServiceRelease), nil
+}
+
+func (srv *server) ListServiceReleases(ctx context.Context, _ *clustercontrollerpb.ListServiceReleasesRequest) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list service releases: %v", err)
+	}
+	out := &clustercontrollerpb.ListServiceReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*clustercontrollerpb.ServiceRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteServiceRelease(ctx context.Context, req *clustercontrollerpb.DeleteServiceReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ServiceRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete service release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (srv *server) Watch(req *clustercontrollerpb.WatchRequest, stream clustercontrollerpb.ResourcesService_WatchServer) error {

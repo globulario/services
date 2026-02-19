@@ -332,7 +332,7 @@ func (c *clusterControllerServiceClient) GetClusterHealthV1(ctx context.Context,
 }
 
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
-// All implementations should embed UnimplementedClusterControllerServiceServer
+// All implementations must embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
 type ClusterControllerServiceServer interface {
 	GetClusterInfo(context.Context, *timestamppb.Timestamp) (*ClusterInfo, error)
@@ -358,9 +358,10 @@ type ClusterControllerServiceServer interface {
 	CompleteOperation(context.Context, *CompleteOperationRequest) (*CompleteOperationResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error)
+	mustEmbedUnimplementedClusterControllerServiceServer()
 }
 
-// UnimplementedClusterControllerServiceServer should be embedded to have
+// UnimplementedClusterControllerServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -435,6 +436,8 @@ func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperati
 }
 func (UnimplementedClusterControllerServiceServer) GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetClusterHealthV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) mustEmbedUnimplementedClusterControllerServiceServer() {
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
