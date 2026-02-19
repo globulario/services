@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/spf13/cobra"
@@ -47,9 +49,17 @@ var (
 		RunE:  runReleaseStatus,
 	}
 
+	releaseWatchCmd = &cobra.Command{
+		Use:   "watch <name>",
+		Short: "Watch a service release for changes",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runReleaseWatch,
+	}
+
 	releaseFile   string
 	releaseDry    bool
 	releaseOutput string
+	releaseSince  string
 )
 
 // seam for tests
@@ -63,11 +73,20 @@ var resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient 
 	return clustercontrollerpb.NewResourcesServiceClient(conn)
 }
 
+type releaseWatchClient interface {
+	Watch(ctx context.Context, in *clustercontrollerpb.WatchRequest, opts ...grpc.CallOption) (clustercontrollerpb.ResourcesService_WatchClient, error)
+}
+
+var watchClientFactory = func(conn *grpc.ClientConn) releaseWatchClient {
+	return clustercontrollerpb.NewResourcesServiceClient(conn)
+}
+
 func init() {
 	releaseApplyCmd.Flags().StringVarP(&releaseFile, "file", "f", "", "Path to ServiceRelease YAML/JSON (required)")
 	releaseApplyCmd.Flags().BoolVar(&releaseDry, "dry-run", false, "Validate only; do not send to controller")
 	releaseShowCmd.Flags().StringVarP(&releaseOutput, "output", "o", "json", "Output format (json|yaml)")
-	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd)
+	releaseWatchCmd.Flags().StringVar(&releaseSince, "since", "", "Start watch from duration ago (e.g. 10m)")
+	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd, releaseWatchCmd)
 	rootCmd.AddCommand(releaseCmd)
 }
 
@@ -203,6 +222,70 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+func runReleaseWatch(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	backoff := time.Second
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		conn, err := controllerClient()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "watch connect error: %v\n", err)
+		} else {
+			client := watchClientFactory(conn)
+			if err := watchReleaseOnce(ctx, name, client); err != nil {
+				fmt.Fprintf(os.Stderr, "watch error: %v\n", err)
+			}
+			conn.Close()
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(backoff):
+		}
+		if backoff < 10*time.Second {
+			backoff *= 2
+			if backoff > 10*time.Second {
+				backoff = 10 * time.Second
+			}
+		}
+	}
+}
+
+// watchReleaseOnce streams events from an already-created client until the
+// stream closes or ctx is cancelled. Accepts client directly to allow testing
+// without a real gRPC connection.
+func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClient) error {
+	wctx, cancel := ctxWithCLITimeout(ctx)
+	defer cancel()
+	stream, err := client.Watch(wctx, &clustercontrollerpb.WatchRequest{Type: "ServiceRelease", Prefix: name})
+	if err != nil {
+		return err
+	}
+	for {
+		evt, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		if evt.ServiceRelease == nil {
+			continue
+		}
+		printReleaseEvent(evt.ServiceRelease)
+	}
+}
+
+func printReleaseEvent(rel *clustercontrollerpb.ServiceRelease) {
+	if rel == nil || rel.Status == nil {
+		return
+	}
+	ts := time.Now().Format(time.RFC3339)
+	fmt.Printf("%s phase=%s resolved=%s desired_hash=%s\n", ts, rel.Status.Phase, rel.Status.ResolvedVersion, rel.Status.DesiredHash)
 }
 
 func parseServiceRelease(raw []byte) (*clustercontrollerpb.ServiceRelease, error) {
