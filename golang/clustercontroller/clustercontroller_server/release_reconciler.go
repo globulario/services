@@ -91,12 +91,12 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		if err := srv.reconcileReleaseApplying(ctx, rel); err != nil {
 			log.Printf("release %s: applying: %v", releaseName, err)
 		}
-	case clustercontrollerpb.ReleasePhaseAvailable:
+	case clustercontrollerpb.ReleasePhaseAvailable, clustercontrollerpb.ReleasePhaseDegraded:
 		if err := srv.reconcileReleaseAvailable(ctx, rel); err != nil {
-			log.Printf("release %s: available: %v", releaseName, err)
+			log.Printf("release %s: available/degraded: %v", releaseName, err)
 		}
 	default:
-		// DEGRADED, FAILED, ROLLED_BACK — do not auto-retry; require explicit re-apply.
+		// FAILED, ROLLED_BACK — do not auto-retry; require explicit re-apply.
 	}
 }
 
@@ -349,7 +349,130 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *clusterco
 			s.Phase = clustercontrollerpb.ReleasePhasePending
 		})
 	}
-	return nil
+	name := rel.Meta.Name
+	desiredHash := strings.ToLower(strings.TrimSpace(rel.Status.DesiredHash))
+	nodes := rel.Status.Nodes
+	total := len(nodes)
+	minReplicas := total
+	if rel.Spec != nil && rel.Spec.MaxUnavailable > 0 && int(rel.Spec.MaxUnavailable) < total {
+		minReplicas = total - int(rel.Spec.MaxUnavailable)
+	}
+	if minReplicas < 1 && total > 0 {
+		minReplicas = 1
+	}
+
+	targetLock := fmt.Sprintf("service:%s", canonicalServiceName(rel.Spec.ServiceName))
+	updatedNodes := make([]*clustercontrollerpb.NodeReleaseStatus, 0, total)
+
+	ok := 0
+	issues := 0
+
+	for _, n := range nodes {
+		if n == nil || strings.TrimSpace(n.NodeID) == "" {
+			continue
+		}
+		nodeID := strings.TrimSpace(n.NodeID)
+		nCopy := *n
+		srv.lock("state:snapshot")
+		node := srv.state.Nodes[nodeID]
+		srv.unlock()
+
+		applied := ""
+		healthy := false
+		serviceHealthy := false
+		if node != nil {
+			applied = strings.ToLower(strings.TrimSpace(node.AppliedServicesHash))
+			healthy = strings.EqualFold(node.Status, "ready")
+			serviceHealthy = srv.serviceHealthyForRelease(node, rel)
+		}
+		hashMatch := desiredHash != "" && applied == desiredHash
+		if hashMatch && healthy && serviceHealthy {
+			ok++
+			nCopy.Phase = clustercontrollerpb.ReleasePhaseAvailable
+		} else {
+			issues++
+			// Drift detection: enqueue plan if not already running with the same lock.
+			if srv.planStore != nil && !srv.hasActivePlanWithLock(ctx, nodeID, targetLock) {
+				if plan, err := srv.dispatchReleasePlan(ctx, rel, nodeID); err == nil && plan != nil {
+					nCopy.PlanID = plan.GetPlanId()
+					nCopy.Phase = clustercontrollerpb.ReleasePhaseApplying
+					nCopy.UpdatedUnixMs = time.Now().UnixMilli()
+				} else if err != nil {
+					log.Printf("release %s: node %s drift plan compile failed: %v", name, nodeID, err)
+				}
+			}
+			if nCopy.Phase == "" {
+				nCopy.Phase = clustercontrollerpb.ReleasePhaseDegraded
+			}
+		}
+		updatedNodes = append(updatedNodes, &nCopy)
+	}
+
+	newPhase := rel.Status.Phase
+	switch {
+	case total == 0:
+		newPhase = clustercontrollerpb.ReleasePhaseFailed
+	case ok >= minReplicas && issues == 0:
+		newPhase = clustercontrollerpb.ReleasePhaseAvailable
+	case ok >= minReplicas:
+		newPhase = clustercontrollerpb.ReleasePhaseDegraded
+	default:
+		newPhase = clustercontrollerpb.ReleasePhaseFailed
+	}
+
+	if newPhase == rel.Status.Phase && len(updatedNodes) == len(nodes) {
+		return nil
+	}
+
+	return srv.patchReleaseStatus(ctx, name, func(s *clustercontrollerpb.ServiceReleaseStatus) {
+		s.Phase = newPhase
+		s.Nodes = updatedNodes
+		s.LastTransitionUnixMs = time.Now().UnixMilli()
+	})
+}
+
+func (srv *server) serviceHealthyForRelease(node *nodeState, rel *clustercontrollerpb.ServiceRelease) bool {
+	if node == nil || rel == nil || rel.Spec == nil {
+		return false
+	}
+	unit := serviceUnitForCanonical(canonicalServiceName(rel.Spec.ServiceName))
+	for _, u := range node.Units {
+		if strings.EqualFold(u.Name, unit) {
+			return strings.EqualFold(u.State, "active")
+		}
+	}
+	// Unit missing => unhealthy for this release.
+	return false
+}
+
+func (srv *server) dispatchReleasePlan(ctx context.Context, rel *clustercontrollerpb.ServiceRelease, nodeID string) (*planpb.NodePlan, error) {
+	if srv.planStore == nil {
+		return nil, fmt.Errorf("plan store unavailable")
+	}
+	installedVersion := srv.getInstalledVersionForRelease(rel, nodeID)
+	clusterID := ""
+	if srv.state != nil {
+		clusterID = srv.state.ClusterId
+	}
+	plan, err := CompileReleasePlan(nodeID, rel, installedVersion, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	plan.PlanId = uuid.NewString()
+	plan.Generation = srv.nextPlanGeneration(ctx, nodeID)
+	plan.IssuedBy = "cluster-controller"
+	if plan.GetCreatedUnixMs() == 0 {
+		plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
+	}
+	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
+		return nil, err
+	}
+	if appendable, ok := srv.planStore.(interface {
+		AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
+	}); ok {
+		_ = appendable.AppendHistory(ctx, nodeID, plan)
+	}
+	return plan, nil
 }
 
 // patchReleaseStatus loads the latest copy of a ServiceRelease, applies f to its status,
@@ -375,12 +498,27 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 // the existing release status, used as the candidate prior version for rollback.
 // Returns "" if unknown (first deployment or not yet reported).
 func (srv *server) getInstalledVersionForRelease(rel *clustercontrollerpb.ServiceRelease, nodeID string) string {
-	if rel.Status == nil {
-		return ""
+	if rel.Status != nil {
+		for _, nrs := range rel.Status.Nodes {
+			if nrs != nil && nrs.NodeID == nodeID && nrs.InstalledVersion != "" {
+				return nrs.InstalledVersion
+			}
+		}
 	}
-	for _, nrs := range rel.Status.Nodes {
-		if nrs != nil && nrs.NodeID == nodeID {
-			return nrs.InstalledVersion
+	// Fallback to node-reported installed versions if present.
+	srv.lock("state:snapshot")
+	node := srv.state.Nodes[nodeID]
+	srv.unlock()
+	if node != nil && len(node.InstalledVersions) > 0 {
+		// Accept either "publisher/service" or raw service name keys.
+		canon := canonicalServiceName(rel.Spec.ServiceName)
+		pub := strings.TrimSpace(rel.Spec.PublisherID)
+		keyWithPublisher := fmt.Sprintf("%s/%s", pub, canon)
+		if v := strings.TrimSpace(node.InstalledVersions[keyWithPublisher]); v != "" {
+			return v
+		}
+		if v := strings.TrimSpace(node.InstalledVersions[canon]); v != "" {
+			return v
 		}
 	}
 	return ""

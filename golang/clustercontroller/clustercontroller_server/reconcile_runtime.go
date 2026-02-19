@@ -68,6 +68,11 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 			}
 		})
 		srv.startReleaseReconciler(ctx, queue)
+		// Allow ReportNodeStatus to trigger release re-evaluation (e.g. after
+		// a node finishes a drift-repair plan and its AppliedServicesHash changes).
+		srv.releaseEnqueue = func(releaseName string) {
+			queue.Enqueue(releaseKeyPrefix + releaseName)
+		}
 	}
 
 	// workers

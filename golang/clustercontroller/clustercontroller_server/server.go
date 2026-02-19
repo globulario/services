@@ -176,6 +176,9 @@ type server struct {
 	reconcileRunning     atomic.Bool
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
+	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
+	// trigger release re-evaluation when a node's AppliedServicesHash changes.
+	releaseEnqueue func(releaseName string)
 }
 
 var testHookBeforeReportNodeStatusApply func()
@@ -1148,6 +1151,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 	rawUnits := protoUnitsToStored(ns.GetUnits())
 	units := normalizedUnits(rawUnits)
 	lastError := ns.GetLastError()
+	appliedSvcHash := strings.ToLower(strings.TrimSpace(ns.GetAppliedServicesHash()))
+	installedVersions := ns.GetInstalledVersions()
 
 	// Snapshot existing node for evaluation without holding the lock during compute.
 	srv.lock("ReportNodeStatus:snapshot")
@@ -1198,6 +1203,17 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 		node.LastError = lastError
 		changed = true
 	}
+	hashChanged := node.AppliedServicesHash != appliedSvcHash
+	if hashChanged {
+		node.AppliedServicesHash = appliedSvcHash
+		changed = true
+	}
+	if len(installedVersions) > 0 {
+		if !mapsEqual(node.InstalledVersions, installedVersions) {
+			node.InstalledVersions = installedVersions
+			changed = true
+		}
+	}
 	if oldEndpoint != newEndpoint {
 		changed = true
 	}
@@ -1209,6 +1225,36 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 		if err := srv.persistStateLocked(false); err != nil {
 			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
 		}
+	}
+
+	// When the applied services hash changes, re-enqueue any ServiceReleases that
+	// include this node so drift detection can re-evaluate and potentially recover
+	// DEGRADED releases without waiting for the next spec change.
+	if hashChanged && srv.releaseEnqueue != nil && srv.resources != nil {
+		enqueue := srv.releaseEnqueue
+		resources := srv.resources
+		nID := nodeID
+		go func() {
+			items, _, err := resources.List(context.Background(), "ServiceRelease", "")
+			if err != nil {
+				return
+			}
+			for _, obj := range items {
+				rel, ok := obj.(*clustercontrollerpb.ServiceRelease)
+				if !ok || rel.Meta == nil {
+					continue
+				}
+				if rel.Status == nil {
+					continue
+				}
+				for _, nrs := range rel.Status.Nodes {
+					if nrs != nil && nrs.NodeID == nID {
+						enqueue(rel.Meta.Name)
+						break
+					}
+				}
+			}
+		}()
 	}
 
 	if endpointToClose != "" {
@@ -2925,6 +2971,18 @@ func unitsEqual(a, b []unitStatusRecord) bool {
 	}
 	for i := range an {
 		if an[i].Name != bn[i].Name || an[i].State != bn[i].State || an[i].Details != bn[i].Details {
+			return false
+		}
+	}
+	return true
+}
+
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
 			return false
 		}
 	}
