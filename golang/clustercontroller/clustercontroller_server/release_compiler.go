@@ -202,3 +202,25 @@ func ComputeReleaseDesiredHash(publisherID, serviceName, resolvedVersion string,
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])
 }
+
+// ComputeReleaseDesiredHashV3 returns a SHA256 (lowercase hex) fingerprint that includes a
+// pre-computed config digest. Canonical string format (P3):
+//
+//	"publisher=<p>;service=<s>;version=<v>;config=<digest>;"
+//
+// All fields are included verbatim; caller must pass canonical service name and a
+// deterministic config digest (e.g., produced by configcanon.NormalizeConfig).
+func ComputeReleaseDesiredHashV3(publisherID, serviceName, resolvedVersion, configDigest string) string {
+	var b strings.Builder
+	b.WriteString("publisher=")
+	b.WriteString(publisherID)
+	b.WriteString(";service=")
+	b.WriteString(serviceName)
+	b.WriteString(";version=")
+	b.WriteString(resolvedVersion)
+	b.WriteString(";config=")
+	b.WriteString(configDigest)
+	b.WriteString(";")
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
