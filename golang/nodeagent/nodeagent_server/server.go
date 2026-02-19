@@ -754,6 +754,17 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		ReportedAt:    timestamppb.Now(),
 		AgentEndpoint: srv.advertisedAddr,
 	}
+	installed, appliedHash, err := ComputeInstalledServices(ctx)
+	if err != nil {
+		log.Printf("nodeagent: compute installed services: %v", err)
+	}
+	if len(installed) > 0 {
+		status.InstalledVersions = make(map[string]string, len(installed))
+		for key, info := range installed {
+			status.InstalledVersions[key.String()] = info.Version
+		}
+	}
+	status.AppliedServicesHash = appliedHash
 	return srv.sendStatusWithRetry(ctx, status)
 }
 

@@ -70,7 +70,7 @@ func CompileReleasePlan(
 	marker := versionutil.MarkerPath(svcName)
 	// Staging path scoped by publisher to prevent collisions in multi-tenant clusters.
 	artPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/%s.artifact", spec.PublisherID, svcName, resolvedVersion)
-	desiredHash := ComputeReleaseDesiredHash(spec.PublisherID, svcName, resolvedVersion, spec.Config)
+	desiredHash := ComputeReleaseDesiredHash(spec.PublisherID, svcCanonical, resolvedVersion, spec.Config)
 
 	fetchArgs := map[string]interface{}{
 		"service":         svcName,
@@ -176,7 +176,11 @@ func CompileReleasePlan(
 }
 
 // ComputeReleaseDesiredHash returns a stable SHA256 over
-// (publisherID, serviceName, resolvedVersion, sorted config entries).
+// (publisherID, canonicalServiceName, resolvedVersion, sorted config entries).
+//
+// serviceName MUST be the canonical form (lower-case, no "globular-" prefix, no ".service" suffix)
+// so that the output matches the per-service contribution used by node-agent's
+// computeAppliedServicesHash. Controllers that compare desired vs applied hashes depend on this.
 //
 // Determinism invariant: identical inputs → identical output across restarts and nodes.
 // Used as NodePlan.DesiredHash and stored in ServiceReleaseStatus.DesiredHash.
