@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
@@ -131,6 +132,41 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 		// ClusterID is set to domain by token generator (same as GetLocalClusterID())
 		// Issuer is MAC address, which creates mismatch with cluster validation
 		authCtx.ClusterID = claims.ClusterID
+	}
+
+	// If no JWT identity, try mTLS peer certificate identity.
+	// The TLS handshake already validated the cert; we just extract the principal.
+	if authCtx.Subject == "" {
+		if p, ok := peer.FromContext(ctx); ok {
+			if tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo); ok {
+				if len(tlsInfo.State.PeerCertificates) > 0 {
+					cert := tlsInfo.State.PeerCertificates[0]
+					cn := cert.Subject.CommonName
+					if cn != "" {
+						// Strip @domain suffix if present (e.g. "dave@localhost" → "dave")
+						if idx := strings.Index(cn, "@"); idx > 0 {
+							authCtx.Subject = cn[:idx]
+						} else {
+							authCtx.Subject = cn
+						}
+						authCtx.AuthMethod = "mtls"
+						authCtx.PrincipalType = "application"
+
+						// Use cert Organization as cluster_id hint when available.
+						// Convention: cert.Subject.Organization[0] == cluster domain.
+						if len(cert.Subject.Organization) > 0 {
+							authCtx.ClusterID = cert.Subject.Organization[0]
+						}
+
+						slog.Debug("mTLS identity extracted",
+							"subject", authCtx.Subject,
+							"cluster_id", authCtx.ClusterID,
+							"method", grpcMethod,
+						)
+					}
+				}
+			}
+		}
 	}
 
 	return authCtx, nil

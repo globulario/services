@@ -1,7 +1,6 @@
 package route53
 
 import (
-	"context"
 	"testing"
 
 	"github.com/globulario/services/golang/dnsprovider"

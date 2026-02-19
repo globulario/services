@@ -533,6 +533,16 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		return handler(ctx, rqst)
 	}
 
+	// Post-Day-0: after cluster is initialized, all mutating RPCs MUST be authenticated.
+	// Anonymous callers (no token AND no mTLS cert) receive Unauthenticated.
+	// This check applies regardless of whether an RBAC mapping exists.
+	clusterInitialized, _ := security.IsClusterInitialized(ctx)
+	if clusterInitialized && security.IsMutatingRPC(method) && authCtx.Subject == "" {
+		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
+		return nil, status.Errorf(codes.Unauthenticated,
+			"authentication required: provide --token or configure client certificates")
+	}
+
 	// 3) Only consult RBAC if there are resource mappings for this method.
 	needAuthz := false
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
@@ -541,17 +551,23 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 	if !needAuthz {
+		// Post-Day-0: mutating RPCs with an identity but no RBAC mapping are denied.
+		// This prevents new methods from silently bypassing access control after cluster init.
+		if clusterInitialized && security.IsMutatingRPC(method) {
+			LogAuthzDecisionSimple(authCtx, false, "no_rbac_mapping_post_day0")
+			return nil, status.Errorf(codes.PermissionDenied,
+				"method %s requires an explicit RBAC permission (cluster is secured)", method)
+		}
 		// Phase 4: Conditional deny-by-default for unmapped methods
 		if DenyUnmappedMethods {
 			// Enforcement mode: DENY unmapped methods
 			LogAuthzDecisionSimple(authCtx, false, "no_rbac_mapping_denied")
 			return nil, status.Errorf(codes.PermissionDenied,
 				"method %s has no RBAC mapping (deny-by-default enforced)", method)
-		} else {
-			// Warning mode: ALLOW but log for detection
-			LogAuthzDecisionSimple(authCtx, true, "no_rbac_mapping_warning")
-			return handler(ctx, rqst)
 		}
+		// Warning mode: ALLOW but log for detection
+		LogAuthzDecisionSimple(authCtx, true, "no_rbac_mapping_warning")
+		return handler(ctx, rqst)
 	}
 
 	// 4) We need auth → use AuthContext as single source of truth
@@ -861,9 +877,11 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
 	// Once cluster is initialized, ALL non-bootstrap requests must have matching cluster_id
+	streamInitialized := false
 	if authCtx != nil && !authCtx.IsBootstrap {
 		// Check if cluster is initialized (has local cluster ID)
 		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
+			streamInitialized = true
 			// Cluster initialized - enforce cluster_id matching
 			if authCtx.ClusterID == "" {
 				LogAuthzDecisionSimple(authCtx, false, "cluster_id_missing")
@@ -878,6 +896,13 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 			}
 		}
 		// Cluster not initialized yet OR cluster_id valid - continue
+	}
+
+	// Post-Day-0: mutating streaming RPCs must be authenticated.
+	if streamInitialized && security.IsMutatingRPC(method) && authCtx != nil && authCtx.Subject == "" {
+		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
+		return status.Errorf(codes.Unauthenticated,
+			"authentication required: provide --token or configure client certificates")
 	}
 
 	uuid := Utility.RandomUUID()

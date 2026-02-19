@@ -320,6 +320,16 @@ func (g *BootstrapGate) isMethodAllowed(method string) bool {
 	return bootstrapAllowedMethods[method]
 }
 
+// IsActive returns true when bootstrap mode is currently enabled AND within the time window.
+// This is the public check used by IsClusterInitialized to determine if Day-0 is still in progress.
+func (g *BootstrapGate) IsActive() bool {
+	enabled, _ := g.isEnabled()
+	if !enabled {
+		return false
+	}
+	return g.isWithinTimeWindow()
+}
+
 // GetBootstrapStatus returns a human-readable status of bootstrap mode.
 // Used for diagnostics and troubleshooting.
 func (g *BootstrapGate) GetBootstrapStatus() string {

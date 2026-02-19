@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
@@ -1077,24 +1076,49 @@ func nodeClientWith(override string) (*grpc.ClientConn, error) {
 	return dialGRPC(pick(override, rootCfg.nodeAddr))
 }
 
+// tokenCredentials implements grpc.PerRPCCredentials to attach the auth token
+// on every RPC call (unary and streaming) without callers having to add it to
+// each context manually.
+type tokenCredentials struct {
+	token string
+}
+
+func (t tokenCredentials) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	return map[string]string{"token": t.token}, nil
+}
+
+func (t tokenCredentials) RequireTransportSecurity() bool {
+	// Token must travel over TLS (never plain-text).
+	return !rootCfg.insecure
+}
+
 func dialGRPC(addr string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
 	if rootCfg.insecure {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else if rootCfg.caFile != "" {
+		// NOTE: --ca flag loads only the server CA, which breaks mTLS client cert auth.
+		// Prefer the default path (no --ca flag) for full mTLS support.
 		creds, err := credentials.NewClientTLSFromFile(rootCfg.caFile, "")
 		if err != nil {
 			return nil, err
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
-		// Use default TLS credentials with system CA
+		// Default: load CA + client certificates for full mTLS.
 		creds, err := getTLSCredentials()
 		if err != nil {
 			return nil, err
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
+
+	// Centralized token injection: attach token on every RPC (unary + streaming).
+	// This ensures all commands inherit auth without per-call metadata wiring.
+	if rootCfg.token != "" {
+		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 	conn, err := grpc.DialContext(ctx, addr, opts...)
@@ -1111,12 +1135,12 @@ func pick(override, fallback string) string {
 	return fallback
 }
 
-func ctxWithTimeout() context.Context {
-	ctx := context.Background()
-	if rootCfg.token != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "token", rootCfg.token)
-	}
-	ctx, _ = context.WithTimeout(ctx, rootCfg.timeout)
+// ctxWithTimeout returns a context that expires after rootCfg.timeout.
+// Token injection is handled centrally by dialGRPC via PerRPCCredentials.
+// Callers that need explicit cancellation should use ctxWithCLITimeout instead.
+func ctxWithTimeout() context.Context { //nolint:govet
+	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
+	_ = cancel // caller cannot call cancel; context expires via deadline
 	return ctx
 }
 
@@ -1124,9 +1148,7 @@ func ctxWithCLITimeout(parent context.Context) (context.Context, context.CancelF
 	if parent == nil {
 		parent = context.Background()
 	}
-	if rootCfg.token != "" {
-		parent = metadata.AppendToOutgoingContext(parent, "token", rootCfg.token)
-	}
+	// Token injection is handled centrally by dialGRPC via PerRPCCredentials.
 	return context.WithTimeout(parent, rootCfg.timeout)
 }
 
