@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -102,10 +103,10 @@ func (r *ReleaseResolver) getLatestByChannel(_ context.Context, client *reposito
 		return "", fmt.Errorf("no artifacts found for %s/%s", spec.PublisherID, spec.ServiceName)
 	}
 
-	// Find the latest version tagged with the requested channel.
-	// Filter by publisher_id and service_name, then pick lexicographically greatest version.
+	// Collect candidate versions for this publisher/service/platform, then use semver
+	// ordering so that 1.10.0 beats 1.9.0 (lexicographic comparison is incorrect for semver).
 	// TODO: replace with dedicated GetLatestByChannel RPC when discovery service supports it.
-	best := ""
+	var candidates []string
 	for _, a := range artifacts {
 		if a.GetRef() == nil {
 			continue
@@ -117,16 +118,16 @@ func (r *ReleaseResolver) getLatestByChannel(_ context.Context, client *reposito
 		if spec.Platform != "" && ref.GetPlatform() != spec.Platform {
 			continue
 		}
-		v := ref.GetVersion()
-		if v == "" {
-			continue
-		}
-		if best == "" || v > best {
-			best = v
+		if v := ref.GetVersion(); v != "" {
+			candidates = append(candidates, v)
 		}
 	}
-	if best == "" {
+	if len(candidates) == 0 {
 		return "", fmt.Errorf("no valid version found for %s/%s on channel %q", spec.PublisherID, spec.ServiceName, channel)
+	}
+	best, err := versionutil.PickLatestSemver(candidates)
+	if err != nil {
+		return "", fmt.Errorf("pick latest semver for %s/%s on channel %q: %w", spec.PublisherID, spec.ServiceName, channel, err)
 	}
 	return best, nil
 }

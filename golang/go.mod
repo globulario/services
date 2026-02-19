@@ -9,6 +9,7 @@ require (
 	github.com/alexbrainman/odbc v0.0.0-20230814102256-1421b829acc9
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/anacrolix/torrent v1.56.1
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/barasher/go-exiftool v1.10.0
 	github.com/blevesearch/bleve/v2 v2.4.1
 	github.com/cyruzin/golang-tmdb v1.9.1
@@ -62,6 +63,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/minio/crc64nvme v1.1.0 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
@@ -127,7 +129,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/webp v1.4.0 // indirect
-	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
