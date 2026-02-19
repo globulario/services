@@ -48,20 +48,20 @@ type Node struct {
 
 // RolloutStrategy constants for ServiceReleaseSpec.RolloutStrategy.
 const (
-	RolloutRolling   = "ROLLING"    // One batch at a time; gates on MinReadySeconds
+	RolloutRolling   = "ROLLING"     // One batch at a time; gates on MinReadySeconds
 	RolloutAllAtOnce = "ALL_AT_ONCE" // All nodes concurrently up to MaxParallelNodes
 )
 
 // ReleasePhase constants for ServiceReleaseStatus.Phase and NodeReleaseStatus.Phase.
 const (
-	ReleasePhasePending     = "PENDING"      // Created/updated, awaiting resolution
-	ReleasePhaseResolved    = "RESOLVED"     // Exact version + artifact digest known
-	ReleasePhasePlanned     = "PLANNED"      // NodePlans written to plan store
-	ReleasePhaseApplying    = "APPLYING"     // At least one node plan in progress
-	ReleasePhaseAvailable   = "AVAILABLE"    // All target nodes at desired version
-	ReleasePhaseDegraded    = "DEGRADED"     // Some nodes failed; min replicas still met
-	ReleasePhaseFailed      = "FAILED"       // Cannot reach desired state; retries exhausted
-	ReleasePhaseRolledBack  = "ROLLED_BACK"  // Rollback plans succeeded on all target nodes
+	ReleasePhasePending    = "PENDING"     // Created/updated, awaiting resolution
+	ReleasePhaseResolved   = "RESOLVED"    // Exact version + artifact digest known
+	ReleasePhasePlanned    = "PLANNED"     // NodePlans written to plan store
+	ReleasePhaseApplying   = "APPLYING"    // At least one node plan in progress
+	ReleasePhaseAvailable  = "AVAILABLE"   // All target nodes at desired version
+	ReleasePhaseDegraded   = "DEGRADED"    // Some nodes failed; min replicas still met
+	ReleasePhaseFailed     = "FAILED"      // Cannot reach desired state; retries exhausted
+	ReleasePhaseRolledBack = "ROLLED_BACK" // Rollback plans succeeded on all target nodes
 )
 
 // NodeAssignment is an optional per-node version override within a ServiceRelease.
@@ -76,8 +76,8 @@ type NodeAssignment struct {
 type ServiceReleaseSpec struct {
 	PublisherID      string            `json:"publisher_id,omitempty"`
 	ServiceName      string            `json:"service_name,omitempty"`
-	Version          string            `json:"version,omitempty"`          // Exact; empty = resolve via Channel
-	Channel          string            `json:"channel,omitempty"`          // "stable" | "nightly" | "beta"
+	Version          string            `json:"version,omitempty"` // Exact; empty = resolve via Channel
+	Channel          string            `json:"channel,omitempty"` // "stable" | "nightly" | "beta"
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`         // e.g. "linux_amd64"
 	RolloutStrategy  string            `json:"rollout_strategy,omitempty"` // RolloutRolling | RolloutAllAtOnce
@@ -87,13 +87,20 @@ type ServiceReleaseSpec struct {
 	NodeAssignments  []*NodeAssignment `json:"node_assignments,omitempty"`
 	Config           map[string]string `json:"config,omitempty"`
 	Paused           bool              `json:"paused,omitempty"`
+	Replicas         *ReplicaSpec      `json:"replicas,omitempty"`
+}
+
+// ReplicaSpec declares min/max replicas for a release.
+type ReplicaSpec struct {
+	Min int32 `json:"min,omitempty"`
+	Max int32 `json:"max,omitempty"`
 }
 
 // NodeReleaseStatus tracks per-node progress within a ServiceRelease rollout.
 type NodeReleaseStatus struct {
 	NodeID           string `json:"node_id,omitempty"`
 	PlanID           string `json:"plan_id,omitempty"`
-	Phase            string `json:"phase,omitempty"`             // ReleasePhase* constants
+	Phase            string `json:"phase,omitempty"` // ReleasePhase* constants
 	InstalledVersion string `json:"installed_version,omitempty"`
 	ErrorMessage     string `json:"error_message,omitempty"`
 	UpdatedUnixMs    int64  `json:"updated_unix_ms,omitempty"`

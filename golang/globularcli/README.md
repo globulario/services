@@ -17,6 +17,7 @@
   - [Debug Tools](#debug-tools)
   - [Node Management](#node-management)
   - [Logs](#logs)
+  - [Service Releases](#service-releases)
 - [Common Workflows](#common-workflows)
 - [Troubleshooting](#troubleshooting)
 
@@ -1546,6 +1547,86 @@ Logs are displayed with timestamps and severity levels:
 - Real-time monitoring: Follow logs during deployments
 - Post-mortem analysis: Review historical logs
 - CI/CD integration: Capture logs in pipelines
+
+---
+
+### Service Releases
+
+Manage rollout of Globular services through ServiceRelease objects. All commands talk to the controller (`--controller`).
+
+#### `globular release apply -f <file> [--dry-run]`
+
+**Purpose**: Create or update a ServiceRelease from a YAML/JSON file (idempotent).
+
+**Usage**:
+```bash
+globular release apply -f release.yaml
+globular release apply -f release.json --dry-run
+```
+
+**Notes**:
+- Validates required fields (`spec.publisher_id`, `spec.service_name`, and either `spec.version` or `spec.channel`).
+- Strips `status` before sending.
+- `--dry-run` performs validation only.
+
+#### `globular release list`
+
+**Purpose**: List all ServiceRelease objects.
+
+**Output**: Table with NAME, SERVICE (publisher/service), PHASE, RESOLVED_VERSION, AGE.
+
+#### `globular release show <name>`
+
+**Purpose**: Fetch a single release.
+
+**Usage**:
+```bash
+globular release show gateway
+globular release show gateway -o yaml
+```
+
+**Output**: JSON by default; `-o yaml` supported.
+
+#### `globular release status <name>`
+
+**Purpose**: Concise human summary of a release.
+
+**Displays**: Phase, resolved version, desired hash (if present), node counts, and per-node versions/errors when available.
+
+#### `globular release watch <name> [--since <duration>]`
+
+**Purpose**: Stream updates when phase, resolved version, or conditions change.
+
+**Behavior**:
+- Reconnects with exponential backoff (capped at 10s).
+- Exits cleanly on Ctrl-C.
+- Example: `globular release watch gateway --since 10m`
+
+#### `globular release scale <name> --min N [--max M]`
+
+**Purpose**: Adjust replica targets for a release.
+
+**Usage**:
+```bash
+globular release scale gateway --min 3 --max 5
+```
+
+**Notes**:
+- `--min` is required and must be >0.
+- Updates `spec.replicas.min` (and `max` when provided) via apply semantics.
+
+#### `globular release rollback <name> [--to <version>]`
+
+**Purpose**: Pin a release back to a specific version.
+
+**Usage**:
+```bash
+globular release rollback gateway --to 1.9.4
+```
+
+**Notes**:
+- Clears channel when pinning a version.
+- If no rollback history is available and `--to` is omitted, the command fails with guidance to specify `--to`.
 
 ---
 

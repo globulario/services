@@ -56,10 +56,27 @@ var (
 		RunE:  runReleaseWatch,
 	}
 
-	releaseFile   string
-	releaseDry    bool
-	releaseOutput string
-	releaseSince  string
+	releaseScaleCmd = &cobra.Command{
+		Use:   "scale <name>",
+		Short: "Scale a service release",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runReleaseScale,
+	}
+
+	releaseRollbackCmd = &cobra.Command{
+		Use:   "rollback <name>",
+		Short: "Rollback a service release",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runReleaseRollback,
+	}
+
+	releaseFile       string
+	releaseDry        bool
+	releaseOutput     string
+	releaseSince      string
+	releaseMin        int
+	releaseMax        int
+	releaseRollbackTo string
 )
 
 // seam for tests
@@ -69,7 +86,7 @@ type releaseResourcesClient interface {
 	ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error)
 }
 
-var resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient {
+var resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient {
 	return clustercontrollerpb.NewResourcesServiceClient(conn)
 }
 
@@ -77,8 +94,13 @@ type releaseWatchClient interface {
 	Watch(ctx context.Context, in *clustercontrollerpb.WatchRequest, opts ...grpc.CallOption) (clustercontrollerpb.ResourcesService_WatchClient, error)
 }
 
-var watchClientFactory = func(conn *grpc.ClientConn) releaseWatchClient {
+var watchClientFactory = func(conn grpc.ClientConnInterface) releaseWatchClient {
 	return clustercontrollerpb.NewResourcesServiceClient(conn)
+}
+
+// controllerConnFactory enables testing without dialing real gRPC.
+var controllerConnFactory = func() (grpc.ClientConnInterface, error) {
+	return controllerClient()
 }
 
 func init() {
@@ -86,7 +108,10 @@ func init() {
 	releaseApplyCmd.Flags().BoolVar(&releaseDry, "dry-run", false, "Validate only; do not send to controller")
 	releaseShowCmd.Flags().StringVarP(&releaseOutput, "output", "o", "json", "Output format (json|yaml)")
 	releaseWatchCmd.Flags().StringVar(&releaseSince, "since", "", "Start watch from duration ago (e.g. 10m)")
-	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd, releaseWatchCmd)
+	releaseScaleCmd.Flags().IntVar(&releaseMin, "min", 0, "Minimum replicas (required)")
+	releaseScaleCmd.Flags().IntVar(&releaseMax, "max", 0, "Maximum replicas (optional)")
+	releaseRollbackCmd.Flags().StringVar(&releaseRollbackTo, "to", "", "Rollback to explicit version")
+	releaseCmd.AddCommand(releaseApplyCmd, releaseListCmd, releaseShowCmd, releaseStatusCmd, releaseWatchCmd, releaseScaleCmd, releaseRollbackCmd)
 	rootCmd.AddCommand(releaseCmd)
 }
 
@@ -108,11 +133,13 @@ func runReleaseApply(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	conn, err := controllerClient()
+	conn, err := controllerConnFactory()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
 	client := resourcesClientFactory(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
@@ -131,11 +158,13 @@ func runReleaseApply(cmd *cobra.Command, args []string) error {
 }
 
 func runReleaseList(cmd *cobra.Command, args []string) error {
-	conn, err := controllerClient()
+	conn, err := controllerConnFactory()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
@@ -162,11 +191,13 @@ func runReleaseList(cmd *cobra.Command, args []string) error {
 
 func runReleaseShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	conn, err := controllerClient()
+	conn, err := controllerConnFactory()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
@@ -186,11 +217,13 @@ func runReleaseShow(cmd *cobra.Command, args []string) error {
 
 func runReleaseStatus(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	conn, err := controllerClient()
+	conn, err := controllerConnFactory()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
@@ -224,6 +257,71 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runReleaseScale(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	if releaseMin <= 0 {
+		return errors.New("--min is required and must be >0")
+	}
+	conn, err := controllerConnFactory()
+	if err != nil {
+		return err
+	}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
+	client := resourcesClientFactory(conn)
+	ctx, cancel := ctxWithCLITimeout(context.Background())
+	defer cancel()
+	rel, err := fetchRelease(ctx, name, client)
+	if err != nil {
+		return err
+	}
+	if rel.Spec.Replicas == nil {
+		rel.Spec.Replicas = &clustercontrollerpb.ReplicaSpec{}
+	}
+	rel.Spec.Replicas.Min = int32(releaseMin)
+	if releaseMax > 0 {
+		rel.Spec.Replicas.Max = int32(releaseMax)
+	}
+	updated, err := applyRelease(ctx, rel, client)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("scaled release %s min=%d max=%d gen=%d\n", updated.Meta.Name, releaseMin, updated.Spec.Replicas.Max, updated.Meta.Generation)
+	return nil
+}
+
+func runReleaseRollback(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	conn, err := controllerConnFactory()
+	if err != nil {
+		return err
+	}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
+	client := resourcesClientFactory(conn)
+	ctx, cancel := ctxWithCLITimeout(context.Background())
+	defer cancel()
+	rel, err := fetchRelease(ctx, name, client)
+	if err != nil {
+		return err
+	}
+	target := strings.TrimSpace(releaseRollbackTo)
+	if target == "" {
+		// No history field available; require explicit target.
+		return errors.New("rollback target not known; specify --to <version>")
+	}
+	rel.Spec.Version = target
+	rel.Spec.Channel = ""
+	updated, err := applyRelease(ctx, rel, client)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("rollback initiated name=%s pinned_version=%s gen=%d\n", updated.Meta.Name, target, updated.Meta.Generation)
+	return nil
+}
+
 func runReleaseWatch(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -234,7 +332,7 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		conn, err := controllerClient()
+		conn, err := controllerConnFactory()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "watch connect error: %v\n", err)
 		} else {
@@ -242,7 +340,9 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 			if err := watchReleaseOnce(ctx, name, client); err != nil {
 				fmt.Fprintf(os.Stderr, "watch error: %v\n", err)
 			}
-			conn.Close()
+			if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+				c.Close()
+			}
 		}
 		select {
 		case <-ctx.Done():

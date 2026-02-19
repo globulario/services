@@ -96,7 +96,7 @@ func TestParseServiceReleaseMissingPublisher(t *testing.T) {
 
 func TestApplyIdempotent(t *testing.T) {
 	fc := &fakeResourcesClient{}
-	resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient { return fc }
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 	rootCfg.controllerAddr = "" // unused
 
 	yaml := []byte(`
@@ -126,7 +126,7 @@ spec:
 
 func TestApplyStopsOnClientError(t *testing.T) {
 	fc := &fakeResourcesClient{err: errors.New("boom")}
-	resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient { return fc }
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 	yaml := []byte(`
 spec:
   publisher_id: globular
@@ -161,7 +161,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestReleaseListFormatting(t *testing.T) {
 	fc := &fakeResourcesClient{}
-	resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient { return fc }
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 
 	rows := [][]string{{"NAME", "SERVICE", "PHASE", "RESOLVED_VERSION", "AGE"}}
 	resp, _ := fc.ListServiceReleases(context.Background(), &clustercontrollerpb.ListServiceReleasesRequest{})
@@ -185,7 +185,7 @@ func TestReleaseListFormatting(t *testing.T) {
 
 func TestReleaseStatusFormatting(t *testing.T) {
 	fc := &fakeResourcesClient{}
-	resourcesClientFactory = func(conn *grpc.ClientConn) releaseResourcesClient { return fc }
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 
 	rel, _ := fc.GetServiceRelease(context.Background(), &clustercontrollerpb.GetServiceReleaseRequest{Name: "gateway"})
 	st := rel.Status
@@ -219,5 +219,132 @@ func TestReleaseStatusFormatting(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status output missing %q; got:\n%s", want, out)
 		}
+	}
+}
+
+type memoryReleaseClient struct {
+	rel     *clustercontrollerpb.ServiceRelease
+	applied int
+}
+
+func (m *memoryReleaseClient) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+	m.applied++
+	if req.Object.Meta == nil {
+		req.Object.Meta = &clustercontrollerpb.ObjectMeta{}
+	}
+	req.Object.Meta.Generation++
+	m.rel = req.Object
+	return req.Object, nil
+}
+
+func (m *memoryReleaseClient) GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+	if m.rel == nil {
+		return nil, fmt.Errorf("release %s not found", req.Name)
+	}
+	return m.rel, nil
+}
+
+func (m *memoryReleaseClient) ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
+	return &clustercontrollerpb.ListServiceReleasesResponse{}, nil
+}
+
+type fakeConn struct{}
+
+func (fakeConn) Invoke(ctx context.Context, method string, args any, reply any, opts ...grpc.CallOption) error {
+	return nil
+}
+
+func (fakeConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	return nil, nil
+}
+
+func TestRunReleaseScale(t *testing.T) {
+	mc := &memoryReleaseClient{
+		rel: &clustercontrollerpb.ServiceRelease{
+			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
+			Spec: &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
+		},
+	}
+	oldFactory := resourcesClientFactory
+	oldConnFactory := controllerConnFactory
+	oldMin, oldMax := releaseMin, releaseMax
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	releaseMin = 3
+	releaseMax = 5
+	defer func() {
+		resourcesClientFactory = oldFactory
+		controllerConnFactory = oldConnFactory
+		releaseMin, releaseMax = oldMin, oldMax
+	}()
+
+	if err := runReleaseScale(nil, []string{"gateway"}); err != nil {
+		t.Fatalf("runReleaseScale: %v", err)
+	}
+	if mc.rel.Spec.Replicas == nil || mc.rel.Spec.Replicas.Min != 3 || mc.rel.Spec.Replicas.Max != 5 {
+		t.Fatalf("unexpected replicas: %#v", mc.rel.Spec.Replicas)
+	}
+	if mc.applied != 1 {
+		t.Fatalf("expected 1 apply call, got %d", mc.applied)
+	}
+}
+
+func TestRunReleaseRollback(t *testing.T) {
+	mc := &memoryReleaseClient{
+		rel: &clustercontrollerpb.ServiceRelease{
+			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
+			Spec: &clustercontrollerpb.ServiceReleaseSpec{
+				PublisherID: "globular", ServiceName: "gateway", Version: "1.0.0", Channel: "stable",
+			},
+		},
+	}
+	oldFactory := resourcesClientFactory
+	oldConnFactory := controllerConnFactory
+	oldTo := releaseRollbackTo
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	releaseRollbackTo = "2.0.0"
+	defer func() {
+		resourcesClientFactory = oldFactory
+		controllerConnFactory = oldConnFactory
+		releaseRollbackTo = oldTo
+	}()
+
+	if err := runReleaseRollback(nil, []string{"gateway"}); err != nil {
+		t.Fatalf("runReleaseRollback: %v", err)
+	}
+	if got := mc.rel.Spec.Version; got != "2.0.0" {
+		t.Fatalf("expected version 2.0.0, got %s", got)
+	}
+	if mc.rel.Spec.Channel != "" {
+		t.Fatalf("expected channel cleared, got %s", mc.rel.Spec.Channel)
+	}
+	if mc.applied != 1 {
+		t.Fatalf("expected 1 apply call, got %d", mc.applied)
+	}
+}
+
+func TestRunReleaseRollbackRequiresTarget(t *testing.T) {
+	mc := &memoryReleaseClient{
+		rel: &clustercontrollerpb.ServiceRelease{
+			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
+			Spec: &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway", Version: "1.0.0"},
+		},
+	}
+	oldFactory := resourcesClientFactory
+	oldConnFactory := controllerConnFactory
+	oldTo := releaseRollbackTo
+	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	releaseRollbackTo = ""
+	defer func() {
+		resourcesClientFactory = oldFactory
+		controllerConnFactory = oldConnFactory
+		releaseRollbackTo = oldTo
+	}()
+
+	err := runReleaseRollback(nil, []string{"gateway"})
+	if err == nil || !strings.Contains(err.Error(), "specify --to") {
+		t.Fatalf("expected target error, got %v", err)
 	}
 }
