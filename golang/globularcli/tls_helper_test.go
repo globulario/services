@@ -143,6 +143,36 @@ func TestResolveClientKeypair_NoServiceKeys(t *testing.T) {
 	}
 }
 
+// TestResolveClientKeypair_LegacyTLS verifies that a keypair placed in the
+// legacy Day-0-installer location (~/.config/globular/tls/<domain>/) is found
+// even when the new pki/ dir does not exist.  This ensures 'pkg publish' works
+// out-of-the-box without requiring 'auth install-certs' first.
+func TestResolveClientKeypair_LegacyTLS(t *testing.T) {
+	for _, domain := range []string{"localhost", "globular.internal", "custom.example"} {
+		t.Run(domain, func(t *testing.T) {
+			home := t.TempDir()
+			legacyDir := filepath.Join(home, ".config", "globular", "tls", domain)
+			if err := os.MkdirAll(legacyDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			certFile := writeTmpFile(t, legacyDir, "client.crt", "cert-data")
+			keyFile := writeTmpFile(t, legacyDir, "client.key", "key-data")
+
+			setEnv(t, "HOME", home)
+			unsetEnv(t, "GLOBULAR_CLIENT_CERT")
+			unsetEnv(t, "GLOBULAR_CLIENT_KEY")
+
+			kp, err := resolveClientKeypair(true)
+			if err != nil {
+				t.Fatalf("domain %s: expected success, got %v", domain, err)
+			}
+			if kp.certFile != certFile || kp.keyFile != keyFile {
+				t.Fatalf("domain %s: unexpected keypair: cert=%s key=%s", domain, kp.certFile, kp.keyFile)
+			}
+		})
+	}
+}
+
 // ---------- resolveCAPath tests ----------
 
 func TestResolveCAPath_EnvOverride(t *testing.T) {

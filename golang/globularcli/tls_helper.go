@@ -169,6 +169,43 @@ func resolveClientKeypair(requireClientCert bool) (*clientKeypair, error) {
 		}
 	}
 
+	// Priority 3: legacy per-domain TLS path (~/.config/globular/tls/<domain>/)
+	// Written by generate-user-client-cert.sh during Day-0 installation.
+	// Try common domain names so that 'pkg publish' works before the user
+	// has run 'auth install-certs' (which writes to the pki/ dir).
+	if globularDir, gErr := userGlobularDir(); gErr == nil {
+		legacyTLSDir := filepath.Join(globularDir, "tls")
+		// Collect domains: known names first, then any dir under tls/
+		domains := []string{"localhost", "globular.internal"}
+		if entries, readErr := os.ReadDir(legacyTLSDir); readErr == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					domains = append(domains, e.Name())
+				}
+			}
+		}
+		seen := make(map[string]struct{})
+		for _, domain := range domains {
+			if _, ok := seen[domain]; ok {
+				continue
+			}
+			seen[domain] = struct{}{}
+			cPath := filepath.Join(legacyTLSDir, domain, "client.crt")
+			kPath := filepath.Join(legacyTLSDir, domain, "client.key")
+			certStatErr := func() error { _, e := os.Stat(cPath); return e }()
+			keyStatErr := func() error { _, e := os.Stat(kPath); return e }()
+			if certStatErr != nil && os.IsPermission(certStatErr) {
+				return nil, fmt.Errorf("client cert: permission denied: %s", cPath)
+			}
+			if keyStatErr != nil && os.IsPermission(keyStatErr) {
+				return nil, fmt.Errorf("client key: permission denied: %s", kPath)
+			}
+			if certStatErr == nil && keyStatErr == nil {
+				return &clientKeypair{certFile: cPath, keyFile: kPath}, nil
+			}
+		}
+	}
+
 	// Keypair not found
 	if requireClientCert {
 		return nil, ErrNeedInstallCerts
