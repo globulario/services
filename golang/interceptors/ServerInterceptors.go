@@ -537,6 +537,18 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Anonymous callers (no token AND no mTLS cert) receive Unauthenticated.
 	// This check applies regardless of whether an RBAC mapping exists.
 	clusterInitialized, _ := security.IsClusterInitialized(ctx)
+
+	// Degraded-mode detection: a token is present but the cluster gate returned false.
+	// In normal post-Day-0 operation this should never happen because the local cluster
+	// ID is cached in-memory after first use. Log a warning so it is visible in audit
+	// trails if it ever occurs (e.g. mis-configured or first-boot race).
+	if !clusterInitialized && authCtx != nil && authCtx.AuthMethod == "jwt" {
+		slog.Warn("clusterInitialized=false while JWT token present; authentication enforcement skipped",
+			"method", method,
+			"subject", authCtx.Subject,
+		)
+	}
+
 	if clusterInitialized && security.IsMutatingRPC(method) && authCtx.Subject == "" {
 		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
 		return nil, status.Errorf(codes.Unauthenticated,

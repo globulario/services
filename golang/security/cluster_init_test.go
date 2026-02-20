@@ -40,6 +40,19 @@ func TestIsMutatingRPC(t *testing.T) {
 		{"/dns.DnsService/SetA", true},
 		{"/dns.DnsService/RemoveA", true},
 
+		// Explicit coverage of write RPCs cross-checked against service protos.
+		// These must remain mutating=true so anonymous callers are blocked post-Day-0.
+		{"/repository.PackageRepository/UploadBundle", true},          // publish packages
+		{"/authentication.AuthenticationService/IssueClientCertificate", true}, // issues certs
+		{"/authentication.AuthenticationService/SetPassword", true},
+		{"/authentication.AuthenticationService/SetRootPassword", true},
+		{"/rbac.RbacService/AddRoleBinding", true},
+		{"/rbac.RbacService/RemoveRoleBinding", true},
+		{"/rbac.RbacService/SetPermissions", true},
+		{"/resource.ResourceService/CreateAccount", true},
+		{"/resource.ResourceService/DeleteAccount", true},
+		{"/resource.ResourceService/SetPermissions", true},
+
 		// Edge cases
 		{"", true},          // empty → mutating (fail closed)
 		{"/Foo/Bar", true},  // unknown → mutating (fail closed)
