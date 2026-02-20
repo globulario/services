@@ -222,18 +222,7 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 
 	descriptor, err := resource_client_.GetPackageDescriptor(serviceId, PublisherID, version)
 	if err != nil {
-		// Descriptor not found: auto-register a minimal one so the first publish
-		// of a new package works without requiring a separate registration step.
-		descriptor = &resourcepb.PackageDescriptor{
-			Id:          serviceId,
-			Name:        serviceId,
-			Type:        resourcepb.PackageType_SERVICE_TYPE,
-			PublisherID: PublisherID,
-			Version:     version,
-		}
-		if setErr := resource_client_.SetPackageDescriptor(descriptor); setErr != nil {
-			return -1, fmt.Errorf("package descriptor not found and auto-register failed: get: %w; set: %v", err, setErr)
-		}
+		return -1, err
 	}
 	bundle.PackageDescriptor = descriptor
 

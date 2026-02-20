@@ -9,9 +9,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globularcli/pkgpack"
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
 var (
@@ -291,15 +295,7 @@ func publishPackage(file, token string) PublishResult {
 		return result
 	}
 
-	// Create repository client
-	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
-	if err != nil {
-		result.Err = fmt.Errorf("connect to repository: %w", err)
-		return result
-	}
-	defer client.Close()
-
-	// Determine publisher
+	// Determine publisher before any network calls.
 	publisher := pkgPublishPublisher
 	if publisher == "" {
 		publisher = summary.Publisher
@@ -307,6 +303,22 @@ func publishPackage(file, token string) PublishResult {
 	if publisher == "" {
 		publisher = "core@globular.io"
 	}
+
+	// Step A: Upsert PackageDescriptor in ResourceService using the caller's JWT.
+	// This ensures RBAC is applied under the user's identity, not server credentials.
+	if err := upsertPackageDescriptor(summary.Name, publisher, summary.Version); err != nil {
+		result.Err = err
+		return result
+	}
+
+	// Step B: Upload bundle to RepositoryService.
+	// Create repository client
+	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
+	if err != nil {
+		result.Err = fmt.Errorf("connect to repository: %w", err)
+		return result
+	}
+	defer client.Close()
 
 	// Upload the bundle
 	fmt.Printf("publishing %s (name=%s version=%s platform=%s)...\n",
@@ -328,6 +340,49 @@ func publishPackage(file, token string) PublishResult {
 
 	result.Size = size
 	return result
+}
+
+// defaultResourcePort is the fallback used when service discovery is unavailable.
+// Must match the resource_server binary's own default port.
+const defaultResourcePort = 10010
+
+// upsertPackageDescriptor calls ResourceService.SetPackageDescriptor using the
+// caller's JWT (injected by dialGRPC via WithPerRPCCredentials) so the upsert
+// runs under user identity and RBAC applies correctly.
+// SetPackageDescriptor is idempotent — it creates or updates the descriptor.
+func upsertPackageDescriptor(name, publisherID, version string) error {
+	addr := config.ResolveServiceAddr(
+		"resource.ResourceService",
+		fmt.Sprintf("localhost:%d", defaultResourcePort),
+	)
+	conn, err := dialGRPC(addr)
+	if err != nil {
+		return fmt.Errorf("connect to resource service: %w", err)
+	}
+	defer conn.Close()
+
+	rc := resourcepb.NewResourceServiceClient(conn)
+	desc := &resourcepb.PackageDescriptor{
+		Id:          name,
+		Name:        name,
+		Type:        resourcepb.PackageType_SERVICE_TYPE,
+		PublisherID: publisherID,
+		Version:     version,
+	}
+
+	// Token flows via dialGRPC's WithPerRPCCredentials — just need the timeout context.
+	_, err = rc.SetPackageDescriptor(ctxWithTimeout(), &resourcepb.SetPackageDescriptorRequest{
+		PackageDescriptor: desc,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			if st.Code() == codes.PermissionDenied || st.Code() == codes.Unauthenticated {
+				return fmt.Errorf("publisher %q not registered or you lack permission to publish (role: repo.publisher required): %w", publisherID, err)
+			}
+		}
+		return fmt.Errorf("register package descriptor: %w", err)
+	}
+	return nil
 }
 
 func printPublishSummary(results []PublishResult) {
