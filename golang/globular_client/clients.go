@@ -523,8 +523,14 @@ func pickTLSBaseDir() string {
 }
 
 // tryUseExistingClientCerts attempts to find {key, cert, ca} under baseDir/host.
+// When host is empty the search is performed directly inside baseDir.
 func tryUseExistingClientCerts(baseDir, host string) (keyFile, certFile, caFile string, ok bool) {
-	dir := filepath.Join(baseDir, host)
+	var dir string
+	if host == "" {
+		dir = baseDir
+	} else {
+		dir = filepath.Join(baseDir, host)
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", "", "", false
@@ -534,12 +540,14 @@ func tryUseExistingClientCerts(baseDir, host string) (keyFile, certFile, caFile 
 		name := strings.ToLower(e.Name())
 		p := filepath.Join(dir, e.Name())
 		switch {
+		// CA must be checked before cert: "ca.crt" contains "crt" and would
+		// incorrectly match the cert case if cert is evaluated first.
+		case strings.Contains(name, "ca") && (strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".crt")) && ca == "":
+			ca = p
 		case (strings.Contains(name, "key") && (strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem"))) && k == "":
 			k = p
 		case (strings.Contains(name, "cert") || strings.Contains(name, "crt") || strings.Contains(name, "certificate")) && c == "":
 			c = p
-		case strings.Contains(name, "ca") && (strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".crt")) && ca == "":
-			ca = p
 		}
 	}
 	if k != "" && c != "" && ca != "" {
@@ -561,7 +569,18 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 
 	base := pickTLSBaseDir()
 
-	// 1) Always try user's client certs first at base/effectiveHost (e.g. ~/.config/globular/tls/localhost/)
+	// 0) Highest priority: user PKI directory (~/.config/globular/pki/).
+	// This is where 'globular auth install-certs' stores credentials.
+	// base is ~/.config/globular/tls; pki is a sibling directory.
+	pkiDir := filepath.Join(filepath.Dir(base), "pki")
+	if k, c, ca, ok := tryUseExistingClientCerts(pkiDir, ""); ok {
+		client.SetKeyFile(k)
+		client.SetCertFile(c)
+		client.SetCaFile(ca)
+		return nil
+	}
+
+	// 1) Legacy location: base/effectiveHost (e.g. ~/.config/globular/tls/localhost/)
 	if k, c, ca, ok := tryUseExistingClientCerts(base, effectiveHost); ok {
 		client.SetKeyFile(k)
 		client.SetCertFile(c)
