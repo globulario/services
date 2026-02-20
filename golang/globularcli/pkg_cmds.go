@@ -283,6 +283,14 @@ func publishPackage(file, token string) PublishResult {
 		return result
 	}
 
+	// Require mTLS client credentials before attempting any network connection.
+	// This prevents broken-pipe errors and gives an actionable error message
+	// when the user has not yet run 'globular auth install-certs'.
+	if _, err := getTLSCredentialsWithOptions(true); err != nil {
+		result.Err = err
+		return result
+	}
+
 	// Create repository client
 	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
 	if err != nil {
