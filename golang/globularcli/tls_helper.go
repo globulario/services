@@ -77,7 +77,34 @@ func resolveCAPath() (string, error) {
 		}
 	}
 
-	// Priority 3: canonical system CA path
+	// Priority 3: legacy per-domain CA location used by Day-0 installer
+	// (~/.config/globular/tls/<domain>/ca.crt).  Try common domain names so
+	// that 'auth login' works before the user has run 'auth install-certs'.
+	if globularDir, gErr := userGlobularDir(); gErr == nil {
+		legacyTLSDir := filepath.Join(globularDir, "tls")
+		for _, domain := range []string{"localhost", "globular.internal"} {
+			p := filepath.Join(legacyTLSDir, domain, "ca.crt")
+			if _, statErr := os.Stat(p); statErr == nil {
+				return p, nil
+			} else if os.IsPermission(statErr) {
+				return "", fmt.Errorf("CA certificate: permission denied: %s", p)
+			}
+		}
+		// Also accept any ca.crt found one level under tls/ (covers custom domains).
+		if entries, readErr := os.ReadDir(legacyTLSDir); readErr == nil {
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				p := filepath.Join(legacyTLSDir, e.Name(), "ca.crt")
+				if _, statErr := os.Stat(p); statErr == nil {
+					return p, nil
+				}
+			}
+		}
+	}
+
+	// Priority 4: canonical system CA path
 	if caPath := config.GetCACertificatePath(); caPath != "" {
 		if _, err := os.Stat(caPath); err == nil {
 			return caPath, nil

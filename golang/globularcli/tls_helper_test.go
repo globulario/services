@@ -180,3 +180,31 @@ func TestResolveCAPath_UserPKI(t *testing.T) {
 		t.Fatalf("expected %s, got %s", caFile, got)
 	}
 }
+
+// TestResolveCAPath_LegacyTLS verifies that a CA cert placed in the legacy
+// Day-0-installer location (~/.config/globular/tls/<domain>/ca.crt) is found
+// even when the new PKI dir does not exist.  This ensures 'auth login' works
+// out-of-the-box without requiring 'auth install-certs' first.
+func TestResolveCAPath_LegacyTLS(t *testing.T) {
+	for _, domain := range []string{"localhost", "globular.internal", "custom.example"} {
+		t.Run(domain, func(t *testing.T) {
+			home := t.TempDir()
+			legacyDir := filepath.Join(home, ".config", "globular", "tls", domain)
+			if err := os.MkdirAll(legacyDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			caFile := writeTmpFile(t, legacyDir, "ca.crt", "ca-data")
+
+			setEnv(t, "HOME", home)
+			unsetEnv(t, "GLOBULAR_CA_CERT")
+
+			got, err := resolveCAPath()
+			if err != nil {
+				t.Fatalf("domain %s: expected success, got %v", domain, err)
+			}
+			if got != caFile {
+				t.Fatalf("domain %s: expected %s, got %s", domain, caFile, got)
+			}
+		})
+	}
+}
