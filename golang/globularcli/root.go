@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,12 +32,24 @@ var rootCmd = &cobra.Command{
 	Short: "Globular control-plane CLI",
 	// Auto-load cached token when --token is not explicitly provided.
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Honor --ca for config/etcd TLS via env override (used before RPC dials).
+		// Resolve CA certificate and export as GLOBULAR_CA_CERT so that all
+		// service client code (InitClient → GetEtcdTLS → GetCACertificatePath)
+		// finds the right CA regardless of install layout.
+		//
+		// Priority: --ca flag → GLOBULAR_CA_CERT env → user PKI → legacy tls/ path → system CA.
 		if rootCfg.caFile != "" {
 			if _, err := os.Stat(rootCfg.caFile); err != nil {
 				return fmt.Errorf("--ca: %w", err)
 			}
 			_ = os.Setenv("GLOBULAR_CA_CERT", rootCfg.caFile)
+		} else if os.Getenv("GLOBULAR_CA_CERT") == "" {
+			// Not explicitly provided — try to resolve automatically and export
+			// so downstream library code (config.GetCACertificatePath) can use it.
+			if caPath, err := resolveCAPath(); err == nil {
+				_ = os.Setenv("GLOBULAR_CA_CERT", caPath)
+			}
+			// Failure is non-fatal here; individual commands will surface the error
+			// when they actually attempt a TLS connection.
 		}
 
 		if rootCfg.token == "" {
