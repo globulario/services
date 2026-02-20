@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +34,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (
@@ -722,4 +729,107 @@ func (srv *server) getNodeIdentities() ([]*resourcepb.NodeIdentity, error) {
 // --- Auth helpers ---
 func (srv *server) validatePassword(password, hashed string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(password))
+}
+
+// IssueClientCertificate generates a fresh client certificate signed by the cluster CA
+// for the authenticated caller.
+//
+// Security requirements:
+//   - Caller must be authenticated (non-anonymous AuthContext.Subject).
+//   - Subject CN = normalized caller identity (strip @domain suffix).
+//   - EKU includes ClientAuth only.
+//   - Validity: 30 days.
+//   - Private key is generated server-side and returned in the response; it is NOT persisted.
+func (srv *server) IssueClientCertificate(ctx context.Context, _ *emptypb.Empty) (*authenticationpb.IssueClientCertificateResponse, error) {
+	// Verify caller is authenticated
+	authCtx := security.FromContext(ctx)
+	if authCtx == nil || authCtx.Subject == "" {
+		return nil, status.Error(codes.Unauthenticated, "IssueClientCertificate: authentication required")
+	}
+	subject := authCtx.Subject // already normalized by interceptor (no @domain suffix)
+
+	// Load cluster CA certificate and key
+	caCertPath := config.GetCACertificatePath()
+	caKeyPath := config.GetCAKeyPath()
+
+	caCertPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		slog.Error("IssueClientCertificate: read CA cert", "path", caCertPath, "err", err)
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: read CA: %v", err)
+	}
+	caKeyPEM, err := os.ReadFile(caKeyPath)
+	if err != nil {
+		slog.Error("IssueClientCertificate: read CA key", "path", caKeyPath, "err", err)
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: read CA key: %v", err)
+	}
+
+	// Parse CA cert
+	caBlock, _ := pem.Decode(caCertPEM)
+	if caBlock == nil {
+		return nil, status.Error(codes.Internal, "IssueClientCertificate: invalid CA certificate PEM")
+	}
+	caCert, err := x509.ParseCertificate(caBlock.Bytes)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: parse CA cert: %v", err)
+	}
+
+	// Parse CA key (supports RSA and EC)
+	caKeyBlock, _ := pem.Decode(caKeyPEM)
+	if caKeyBlock == nil {
+		return nil, status.Error(codes.Internal, "IssueClientCertificate: invalid CA key PEM")
+	}
+	var caPrivKey interface{}
+	switch caKeyBlock.Type {
+	case "RSA PRIVATE KEY":
+		caPrivKey, err = x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes)
+	case "EC PRIVATE KEY":
+		caPrivKey, err = x509.ParseECPrivateKey(caKeyBlock.Bytes)
+	default:
+		caPrivKey, err = x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: parse CA key: %v", err)
+	}
+
+	// Generate client RSA private key (2048-bit)
+	clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: generate key: %v", err)
+	}
+
+	// Build certificate serial number
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: serial: %v", err)
+	}
+
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName: subject,
+		},
+		NotBefore:             now,
+		NotAfter:              now.Add(30 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, caCert, &clientKey.PublicKey, caPrivKey)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "IssueClientCertificate: sign cert: %v", err)
+	}
+
+	// PEM-encode outputs
+	clientCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	clientKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey)})
+
+	slog.Info("IssueClientCertificate: issued", "subject", subject, "expires", template.NotAfter)
+	return &authenticationpb.IssueClientCertificateResponse{
+		CaCrtPem:     caCertPEM,
+		ClientCrtPem: clientCertPEM,
+		ClientKeyPem: clientKeyPEM,
+	}, nil
 }

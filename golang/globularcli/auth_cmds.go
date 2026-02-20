@@ -1,9 +1,14 @@
 // auth_cmds.go: authentication helpers for the Globular CLI.
 //
 //   globular auth login --user <email> --password <pass>
+//   globular auth install-certs
 //
-// On success, the token is written to ~/.config/globular/token so that
+// On login success, the token is written to ~/.config/globular/token so that
 // subsequent CLI invocations can auto-load it without repeating --token.
+//
+// install-certs calls IssueClientCertificate on the auth service (requires a
+// valid token from 'auth login') and saves the resulting cluster CA, client
+// certificate and client key to ~/.config/globular/pki/.
 
 package main
 
@@ -17,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
@@ -157,6 +163,77 @@ var (
 	}
 )
 
+var authInstallCertsCmd = &cobra.Command{
+	Use:   "install-certs",
+	Short: "Obtain and install user client certificates from the cluster CA",
+	Long: `Call IssueClientCertificate on the authentication service to obtain a
+fresh client certificate signed by the cluster CA.  A valid authentication
+token is required (run 'globular auth login' first).
+
+Certificates are written to:
+  ~/.config/globular/pki/ca.crt      (cluster CA)
+  ~/.config/globular/pki/client.crt  (client certificate, 30-day validity)
+  ~/.config/globular/pki/client.key  (client private key, mode 0600)
+
+After running this command, 'globular pkg publish' and other commands that
+require mTLS will work without a --ca flag or manual certificate setup.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if rootCfg.token == "" {
+			return errors.New("authentication required: run 'globular auth login' first to obtain a token")
+		}
+
+		conn, closeFn, err := authConnFactory()
+		if err != nil {
+			return err
+		}
+		if closeFn != nil {
+			defer closeFn()
+		}
+
+		client := authInstallCertsClientFactory(conn)
+		resp, err := client.IssueClientCertificate(ctxWithTimeout(), &emptypb.Empty{})
+		if err != nil {
+			return fmt.Errorf("IssueClientCertificate: %w", err)
+		}
+
+		if len(resp.GetCaCrtPem()) == 0 || len(resp.GetClientCrtPem()) == 0 || len(resp.GetClientKeyPem()) == 0 {
+			return errors.New("server returned incomplete certificate data")
+		}
+
+		// Resolve PKI directory
+		pkiDir, err := userPKIPath(".")
+		if err != nil {
+			return fmt.Errorf("resolve PKI dir: %w", err)
+		}
+		if err := os.MkdirAll(pkiDir, 0700); err != nil {
+			return fmt.Errorf("create PKI dir %s: %w", pkiDir, err)
+		}
+
+		type fileEntry struct {
+			name string
+			data []byte
+			mode os.FileMode
+		}
+		files := []fileEntry{
+			{"ca.crt", resp.GetCaCrtPem(), 0644},
+			{"client.crt", resp.GetClientCrtPem(), 0644},
+			{"client.key", resp.GetClientKeyPem(), 0600},
+		}
+		for _, f := range files {
+			path := filepath.Join(pkiDir, f.name)
+			if err := os.WriteFile(path, f.data, f.mode); err != nil {
+				return fmt.Errorf("write %s: %w", path, err)
+			}
+		}
+
+		fmt.Printf("Certificates installed to %s\n", pkiDir)
+		fmt.Printf("  ca.crt     – cluster CA certificate\n")
+		fmt.Printf("  client.crt – client certificate (30-day validity)\n")
+		fmt.Printf("  client.key – client private key (mode 0600)\n")
+		return nil
+	},
+}
+
 func init() {
 	authLoginCmd.Flags().StringVar(&authLoginUser, "user", "", "User email or name")
 	authLoginCmd.Flags().StringVar(&authLoginPassword, "password", "", "User password")
@@ -165,7 +242,7 @@ func init() {
 	authRootPassCmd.Flags().StringVar(&rootNew, "new", "", "New root password")
 	authRootPassCmd.Flags().StringVar(&rootConfirm, "confirm", "", "Confirm new root password")
 
-	authCmd.AddCommand(authLoginCmd, authRootPassCmd)
+	authCmd.AddCommand(authLoginCmd, authRootPassCmd, authInstallCertsCmd)
 	rootCmd.AddCommand(authCmd)
 }
 
@@ -220,5 +297,15 @@ type authServiceClient interface {
 }
 
 var authClientFactory = func(conn grpc.ClientConnInterface) authServiceClient {
+	return authenticationpb.NewAuthenticationServiceClient(conn)
+}
+
+// authInstallCertsClient is the interface for the install-certs command.
+// Kept separate from authServiceClient so existing test fakes are unaffected.
+type authInstallCertsClient interface {
+	IssueClientCertificate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*authenticationpb.IssueClientCertificateResponse, error)
+}
+
+var authInstallCertsClientFactory = func(conn grpc.ClientConnInterface) authInstallCertsClient {
 	return authenticationpb.NewAuthenticationServiceClient(conn)
 }

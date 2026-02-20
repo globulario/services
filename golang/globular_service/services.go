@@ -455,10 +455,20 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 
 	hostname, _ := config.GetHostname()
 	return &tls.Config{
-		ServerName:   hostname, // no SNI
+		ServerName: hostname, // no SNI
 		Certificates: []tls.Certificate{tlsCer},
-		ClientAuth:   tls.RequireAnyClientCert,
+		// RequestClientCert: request a client cert but do not require it.
+		// When a cert is provided it is verified against the cluster CA (below).
+		// When no cert is provided the connection is allowed; authentication
+		// falls back to JWT token validation in the gRPC interceptor.
+		// This is required for the auth bootstrap flow (login → install-certs)
+		// where the client does not yet have a cluster-issued client certificate.
+		ClientAuth: tls.RequestClientCert,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			// Not called when the client sends no certificate (RequestClientCert).
+			if len(rawCerts) == 0 {
+				return nil
+			}
 			opts := x509.VerifyOptions{
 				Roots:         certPool,
 				CurrentTime:   time.Now(),
