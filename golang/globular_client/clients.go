@@ -272,11 +272,15 @@ func InitClient(client Client, address string, id string) error {
 	}
 
 	// --- Local config (used for address normalization, defaults, peers)
+	// Not fatal when unavailable: a regular (non-root) user running the CLI
+	// cannot read /var/lib/globular/config.json.  In that case we fall back to
+	// an empty map so that normalizeControlAddress passes the explicit address
+	// through unchanged.
 	localAddr, _ := config.GetAddress()
 	localCfg, err := config.GetLocalConfig(true)
 	if err != nil || localCfg == nil {
-		slog.Error("InitClient: cannot read local configuration", "err", err)
-		return fmt.Errorf("InitClient: cannot read local configuration: %w", err)
+		slog.Debug("InitClient: local config unavailable, using empty fallback", "err", err)
+		localCfg = make(map[string]interface{})
 	}
 
 	// --- Normalize control-plane address (host:port)

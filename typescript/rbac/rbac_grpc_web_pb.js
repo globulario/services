@@ -1408,5 +1408,183 @@ proto.rbac.RbacServicePromiseClient.prototype.deleteSubjectShare =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.SetRoleBindingRqst,
+ *   !proto.rbac.SetRoleBindingRsp>}
+ */
+const methodDescriptor_RbacService_SetRoleBinding = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/SetRoleBinding',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.SetRoleBindingRqst,
+  proto.rbac.SetRoleBindingRsp,
+  /**
+   * @param {!proto.rbac.SetRoleBindingRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetRoleBindingRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.SetRoleBindingRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.SetRoleBindingRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetRoleBindingRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.setRoleBinding =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/SetRoleBinding',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetRoleBinding,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.SetRoleBindingRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.SetRoleBindingRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.setRoleBinding =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/SetRoleBinding',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetRoleBinding);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetRoleBindingRqst,
+ *   !proto.rbac.GetRoleBindingRsp>}
+ */
+const methodDescriptor_RbacService_GetRoleBinding = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetRoleBinding',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.GetRoleBindingRqst,
+  proto.rbac.GetRoleBindingRsp,
+  /**
+   * @param {!proto.rbac.GetRoleBindingRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetRoleBindingRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetRoleBindingRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.GetRoleBindingRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetRoleBindingRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getRoleBinding =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/GetRoleBinding',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetRoleBinding,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.GetRoleBindingRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.GetRoleBindingRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getRoleBinding =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/GetRoleBinding',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetRoleBinding);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.ListRoleBindingsRqst,
+ *   !proto.rbac.ListRoleBindingsRsp>}
+ */
+const methodDescriptor_RbacService_ListRoleBindings = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/ListRoleBindings',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.rbac.ListRoleBindingsRqst,
+  proto.rbac.ListRoleBindingsRsp,
+  /**
+   * @param {!proto.rbac.ListRoleBindingsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ListRoleBindingsRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.ListRoleBindingsRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.ListRoleBindingsRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.listRoleBindings =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/ListRoleBindings',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ListRoleBindings);
+};
+
+
+/**
+ * @param {!proto.rbac.ListRoleBindingsRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.ListRoleBindingsRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServicePromiseClient.prototype.listRoleBindings =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/ListRoleBindings',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ListRoleBindings);
+};
+
+
 module.exports = proto.rbac;
 

@@ -238,33 +238,18 @@ func etcdEndpointsFromEnv() []string {
 	return mapSanitized(eps)
 }
 
-// GetEtcdTLS returns a tls.Config for etcd using canonical PKI paths only.
-// Migration: Removed legacy fallback logic - uses only /var/lib/globular/pki/issued/etcd/
+// GetEtcdTLS returns a tls.Config for etcd clients.
+//
+// Etcd is configured with client-cert-auth: false, meaning it does NOT require
+// clients to present a certificate. The client only needs to trust the server's
+// TLS certificate (i.e. have the CA). We optionally present the service cert if
+// it happens to be available, but it is NOT required.
 func GetEtcdTLS() (*tls.Config, error) {
-	// Use canonical PKI location only (no fallbacks)
-	certDir := filepath.Join(GetStateRootDir(), "pki", "issued", "etcd")
-	certPath := filepath.Join(certDir, "client.crt")
-	keyPath := filepath.Join(certDir, "client.key")
 	caPath := GetCACertificatePath()
-
-	// Verify all required files exist
-	if !fileExists(certPath) {
-		return nil, fmt.Errorf("etcd client certificate not found at canonical location: %s", certPath)
-	}
-	if !fileExists(keyPath) {
-		return nil, fmt.Errorf("etcd client key not found at canonical location: %s", keyPath)
-	}
 	if !fileExists(caPath) {
-		return nil, fmt.Errorf("CA certificate not found at canonical location: %s", caPath)
+		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): CA certificate not found at canonical location: %s (hint: pass --ca or set GLOBULAR_CA_CERT)", caPath)
 	}
 
-	// Load client certificate
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load etcd client certificate: %w", err)
-	}
-
-	// Load CA
 	caData, err := os.ReadFile(caPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
@@ -275,11 +260,25 @@ func GetEtcdTLS() (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to parse CA certificate")
 	}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      caPool,
-		MinVersion:   tls.VersionTLS13,
-	}, nil
+	cfg := &tls.Config{
+		RootCAs:    caPool,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// Optionally include the service client cert if it exists.
+	// Etcd has client-cert-auth: false so this is never required, but some
+	// deployments may choose to enable mutual TLS in future.
+	svcDir := filepath.Join(GetStateRootDir(), "pki", "issued", "services")
+	certPath := filepath.Join(svcDir, "service.crt")
+	keyPath := filepath.Join(svcDir, "service.key")
+	if fileExists(certPath) && fileExists(keyPath) {
+		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err == nil {
+			cfg.Certificates = []tls.Certificate{cert}
+		}
+	}
+
+	return cfg, nil
 }
 
 func fileExists(p string) bool {
@@ -288,28 +287,12 @@ func fileExists(p string) bool {
 }
 
 // etcdServerTLSExists reports whether the local etcd server is configured for TLS.
+// Etcd uses the canonical service cert at pki/issued/services/service.{crt,key}.
 func etcdServerTLSExists() bool {
-	// Match where StartEtcdServer writes certs:
-	cfgDir := GetConfigDir()
-	canonical := filepath.Join(cfgDir, "tls", "etcd")
-	if hasServerTriplet(canonical) {
+	// INV-PKI-1: etcd server cert lives in the canonical service cert directory.
+	svcDir := filepath.Join(GetStateRootDir(), "pki", "issued", "services")
+	if fileExists(filepath.Join(svcDir, "service.crt")) && fileExists(filepath.Join(svcDir, "service.key")) {
 		return true
-	}
-	if strings.TrimSpace(os.Getenv("GLOBULAR_ALLOW_LEGACY_TLS_DIRS")) == "1" {
-		tlsRoot := filepath.Join(cfgDir, "tls")
-		dirs, err := os.ReadDir(tlsRoot)
-		if err != nil {
-			return false
-		}
-		for _, d := range dirs {
-			if !d.IsDir() {
-				continue
-			}
-			dir := filepath.Join(tlsRoot, d.Name())
-			if hasServerTriplet(dir) {
-				return true
-			}
-		}
 	}
 	return false
 }

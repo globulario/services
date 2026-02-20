@@ -31,6 +31,14 @@ var rootCmd = &cobra.Command{
 	Short: "Globular control-plane CLI",
 	// Auto-load cached token when --token is not explicitly provided.
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Honor --ca for config/etcd TLS via env override (used before RPC dials).
+		if rootCfg.caFile != "" {
+			if _, err := os.Stat(rootCfg.caFile); err != nil {
+				return fmt.Errorf("--ca: %w", err)
+			}
+			_ = os.Setenv("GLOBULAR_CA_CERT", rootCfg.caFile)
+		}
+
 		if rootCfg.token == "" {
 			home := os.Getenv("HOME")
 			if home == "" {

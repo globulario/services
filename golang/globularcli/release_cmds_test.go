@@ -338,7 +338,7 @@ func TestRunReleaseApplyCallsApplyOnce(t *testing.T) {
 		releaseFile = oldFile
 		releaseDry = oldDry
 	}()
-	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return releaseFakeConn{}, nil }
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return ac }
 
 	tmp, err := os.CreateTemp("", "release-*.json")
@@ -388,13 +388,13 @@ func (m *memoryReleaseClient) ListServiceReleases(ctx context.Context, req *clus
 	return &clustercontrollerpb.ListServiceReleasesResponse{}, nil
 }
 
-type fakeConn struct{}
+type releaseFakeConn struct{}
 
-func (fakeConn) Invoke(ctx context.Context, method string, args any, reply any, opts ...grpc.CallOption) error {
+func (releaseFakeConn) Invoke(ctx context.Context, method string, args any, reply any, opts ...grpc.CallOption) error {
 	return nil
 }
 
-func (fakeConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+func (releaseFakeConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 	return nil, nil
 }
 
@@ -409,7 +409,7 @@ func TestRunReleaseScale(t *testing.T) {
 	oldConnFactory := controllerConnFactory
 	oldMin, oldMax := releaseMin, releaseMax
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
-	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return releaseFakeConn{}, nil }
 	releaseMin = 3
 	releaseMax = 5
 	defer func() {
@@ -442,7 +442,7 @@ func TestRunReleaseRollback(t *testing.T) {
 	oldConnFactory := controllerConnFactory
 	oldTo := releaseRollbackTo
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
-	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return releaseFakeConn{}, nil }
 	releaseRollbackTo = "2.0.0"
 	defer func() {
 		resourcesClientFactory = oldFactory
@@ -475,7 +475,7 @@ func TestRunReleaseRollbackRequiresTarget(t *testing.T) {
 	oldConnFactory := controllerConnFactory
 	oldTo := releaseRollbackTo
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return mc }
-	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return fakeConn{}, nil }
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return releaseFakeConn{}, nil }
 	releaseRollbackTo = ""
 	defer func() {
 		resourcesClientFactory = oldFactory

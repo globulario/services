@@ -3,9 +3,14 @@ package config
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -392,4 +397,214 @@ func ResolveDNSResolverEndpoint() string {
 	// TODO: Could query DNS service config for actual resolver port
 	// For now, standard port 53 is the correct default
 	return fallback
+}
+
+// svcPort extracts the Port field from a service config map.
+func svcPort(svc map[string]interface{}) int {
+	switch p := svc["Port"].(type) {
+	case int:
+		return p
+	case float64:
+		return int(p)
+	case string:
+		v, _ := strconv.Atoi(p)
+		return v
+	}
+	return 0
+}
+
+// svcHost extracts the host from a service config map.
+// The Address field may be "host:port" or just "host"; Domain is a fallback.
+func svcHost(svc map[string]interface{}) string {
+	if addr, ok := svc["Address"].(string); ok && addr != "" {
+		if h, _, err := net.SplitHostPort(addr); err == nil {
+			return h
+		}
+		return addr
+	}
+	return "localhost"
+}
+
+// tryLocalServicesDir scans GetServicesConfigDir() for *.json files and returns
+// all "host:port" addresses for services whose Name matches serviceName.
+// This is the authoritative local fallback for standalone and Day-0 deployments.
+func tryLocalServicesDir(serviceName string) []string {
+	dir := GetServicesConfigDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var addrs []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var svc map[string]interface{}
+		if err := json.Unmarshal(data, &svc); err != nil {
+			continue
+		}
+		name, _ := svc["Name"].(string)
+		if !strings.EqualFold(name, serviceName) {
+			continue
+		}
+		port := svcPort(svc)
+		if port == 0 {
+			continue
+		}
+		addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(svc), port))
+	}
+	return addrs
+}
+
+// tryGatewayConfig fetches the gateway's /config endpoint over HTTPS (or HTTP)
+// and returns all endpoints for the named service. This endpoint is accessible
+// to any user who has the CA certificate in their home directory, regardless of
+// group membership on the server. It always reflects the live service state
+// because the gateway updates its config when services register or deregister.
+func tryGatewayConfig(serviceName string) []string {
+	domain, err := GetDomain()
+	if err != nil || domain == "" {
+		domain = "localhost"
+	}
+
+	// Load CA cert from user home dir (written by generate-user-client-cert.sh).
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		homeDir, _ = os.UserHomeDir()
+	}
+	caPath := filepath.Join(homeDir, ".config", "globular", "tls", domain, "ca.crt")
+	caData, err := os.ReadFile(caPath)
+	if err != nil {
+		// Try canonical system path as fallback (may not be readable by regular users).
+		caData, err = os.ReadFile(GetCACertificatePath())
+		if err != nil {
+			return nil
+		}
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caData) {
+		return nil
+	}
+
+	type attempt struct {
+		scheme string
+		port   int
+	}
+	// Try HTTPS (8443) first, then plain HTTP (8080).
+	attempts := []attempt{{"https", 8443}, {"http", 8080}}
+
+	for _, a := range attempts {
+		url := fmt.Sprintf("%s://localhost:%d/config", a.scheme, a.port)
+		var client *http.Client
+		if a.scheme == "https" {
+			client = &http.Client{
+				Timeout: 2 * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						RootCAs:    certPool,
+						ServerName: domain,
+					},
+				},
+			}
+		} else {
+			client = &http.Client{Timeout: 2 * time.Second}
+		}
+
+		resp, err := client.Get(url)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		var cfg map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+			continue
+		}
+
+		// The gateway config has a "Services" map keyed by UUID.
+		services, _ := cfg["Services"].(map[string]interface{})
+		var addrs []string
+		for _, svcRaw := range services {
+			svc, ok := svcRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			name, _ := svc["Name"].(string)
+			if !strings.EqualFold(name, serviceName) {
+				continue
+			}
+			port := svcPort(svc)
+			if port == 0 {
+				continue
+			}
+			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(svc), port))
+		}
+		if len(addrs) > 0 {
+			return addrs
+		}
+	}
+	return nil
+}
+
+// ResolveServiceAddrs returns all available endpoints for a service identified by
+// its fully-qualified name (e.g. "authentication.AuthenticationService").
+//
+// In a cluster, multiple instances may be running on different nodes; this
+// function returns all of them so callers can implement load balancing.
+//
+// Discovery order:
+//  1. Local services directory (/var/lib/globular/services/*.json) — reflects the
+//     actual running state on this node; works when the CLI user is in the
+//     globular group.
+//  2. Gateway /config endpoint — accessible to any user with the CA certificate;
+//     the gateway always reflects the live service state.
+//  3. etcd — authoritative for cross-node cluster discovery, but may contain
+//     stale entries from previous runs or reconfigured services.
+func ResolveServiceAddrs(serviceName string) []string {
+	// 1. Try local service config files first — fastest, always current for this node.
+	if addrs := tryLocalServicesDir(serviceName); len(addrs) > 0 {
+		return addrs
+	}
+
+	// 2. Try gateway config endpoint — no group membership required.
+	if addrs := tryGatewayConfig(serviceName); len(addrs) > 0 {
+		return addrs
+	}
+
+	// 3. Fall back to etcd for cross-node cluster discovery.
+	if svcs, err := GetServicesConfigurationsByName(serviceName); err == nil && len(svcs) > 0 {
+		var addrs []string
+		for _, s := range svcs {
+			port := svcPort(s)
+			if port == 0 {
+				continue
+			}
+			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(s), port))
+		}
+		if len(addrs) > 0 {
+			return addrs
+		}
+	}
+
+	return nil
+}
+
+// ResolveServiceAddr resolves a single endpoint for the named service.
+// When multiple instances are available (cluster deployment), one is chosen at
+// random to distribute load across instances.
+// Returns fallback when no instance can be discovered.
+func ResolveServiceAddr(serviceName, fallback string) string {
+	addrs := ResolveServiceAddrs(serviceName)
+	if len(addrs) == 0 {
+		return fallback
+	}
+	if len(addrs) == 1 {
+		return addrs[0]
+	}
+	// Random load balancing across all available instances.
+	return addrs[rand.Intn(len(addrs))]
 }

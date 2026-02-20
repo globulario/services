@@ -422,7 +422,7 @@ func (c *rbacServiceClient) ListRoleBindings(ctx context.Context, in *ListRoleBi
 type RbacService_ListRoleBindingsClient = grpc.ServerStreamingClient[ListRoleBindingsRsp]
 
 // RbacServiceServer is the server API for RbacService service.
-// All implementations must embed UnimplementedRbacServiceServer
+// All implementations should embed UnimplementedRbacServiceServer
 // for forward compatibility.
 //
 // *
@@ -509,10 +509,9 @@ type RbacServiceServer interface {
 	// *
 	// ListRoleBindings streams all stored role bindings.
 	ListRoleBindings(*ListRoleBindingsRqst, grpc.ServerStreamingServer[ListRoleBindingsRsp]) error
-	mustEmbedUnimplementedRbacServiceServer()
 }
 
-// UnimplementedRbacServiceServer must be embedded to have
+// UnimplementedRbacServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -594,8 +593,7 @@ func (UnimplementedRbacServiceServer) GetRoleBinding(context.Context, *GetRoleBi
 func (UnimplementedRbacServiceServer) ListRoleBindings(*ListRoleBindingsRqst, grpc.ServerStreamingServer[ListRoleBindingsRsp]) error {
 	return status.Error(codes.Unimplemented, "method ListRoleBindings not implemented")
 }
-func (UnimplementedRbacServiceServer) mustEmbedUnimplementedRbacServiceServer() {}
-func (UnimplementedRbacServiceServer) testEmbeddedByValue()                     {}
+func (UnimplementedRbacServiceServer) testEmbeddedByValue() {}
 
 // UnsafeRbacServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to RbacServiceServer will

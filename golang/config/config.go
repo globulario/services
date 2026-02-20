@@ -457,6 +457,9 @@ func GetHostname() (string, error) {
 // GetCACertificatePath returns the ONLY canonical location for the system CA.
 // INV-PKI-1: CA only at /var/lib/globular/pki/
 func GetCACertificatePath() string {
+	if p := strings.TrimSpace(os.Getenv("GLOBULAR_CA_CERT")); p != "" {
+		return p
+	}
 	return filepath.Join(GetStateRootDir(), "pki", "ca.crt")
 }
 

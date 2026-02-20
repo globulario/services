@@ -22,22 +22,14 @@ import (
 // Default RBAC service port (matches rbac_server default).
 const defaultRbacPort = 10000
 
-// resolveRbacAddr discovers the RBAC service endpoint from etcd with a fallback.
+// resolveRbacAddr discovers the RBAC service endpoint.
+// Uses the same multi-strategy discovery as resolveAuthAddr (etcd → local files → fallback).
+// In a cluster, randomly picks one of the running instances for load balancing.
 func resolveRbacAddr() string {
-	svc, err := config.ResolveService("rbac.RbacService")
-	if err == nil && svc != nil {
-		var port int
-		switch p := svc["Port"].(type) {
-		case int:
-			port = p
-		case float64:
-			port = int(p)
-		}
-		if port > 0 {
-			return fmt.Sprintf("localhost:%d", port)
-		}
-	}
-	return fmt.Sprintf("localhost:%d", defaultRbacPort)
+	return config.ResolveServiceAddr(
+		"rbac.RbacService",
+		fmt.Sprintf("localhost:%d", defaultRbacPort),
+	)
 }
 
 var (

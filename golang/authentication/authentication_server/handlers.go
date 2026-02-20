@@ -35,6 +35,47 @@ var (
 	configPath = filepath.Join(config.GetConfigDir(), "config.json")
 )
 
+func normalizeAccountId(id string) string {
+	if i := strings.IndexByte(id, '@'); i >= 0 {
+		return id[:i]
+	}
+	return id
+}
+
+func isBcryptHash(s string) bool {
+	return strings.HasPrefix(s, "$2a$") || strings.HasPrefix(s, "$2b$") || strings.HasPrefix(s, "$2y$") || strings.HasPrefix(s, "$2$")
+}
+
+// validatePasswordPolicy enforces a minimal server-side password policy.
+// Requirements:
+//   - at least 12 characters
+//   - contains at least 3 of 4 classes: lower, upper, digit, special
+//   - no spaces or control characters
+func validatePasswordPolicy(pw string) error {
+	if len(pw) < 12 {
+		return errors.New("password must be at least 12 characters")
+	}
+	hasLower := strings.IndexFunc(pw, func(r rune) bool { return r >= 'a' && r <= 'z' }) >= 0
+	hasUpper := strings.IndexFunc(pw, func(r rune) bool { return r >= 'A' && r <= 'Z' }) >= 0
+	hasDigit := strings.IndexFunc(pw, func(r rune) bool { return r >= '0' && r <= '9' }) >= 0
+	hasSpecial := strings.IndexFunc(pw, func(r rune) bool {
+		return r >= 33 && r <= 126 && !(r >= '0' && r <= '9') && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z')
+	}) >= 0
+	classes := 0
+	for _, ok := range []bool{hasLower, hasUpper, hasDigit, hasSpecial} {
+		if ok {
+			classes++
+		}
+	}
+	if classes < 3 {
+		return errors.New("password must include at least 3 of: lowercase, uppercase, digit, special")
+	}
+	if strings.IndexFunc(pw, func(r rune) bool { return r <= 32 }) >= 0 {
+		return errors.New("password may not contain spaces or control characters")
+	}
+	return nil
+}
+
 // ---- logging helpers (no signature changes to public API) ----
 
 func logInternal(op string, err error, kv ...any) error {
@@ -106,14 +147,15 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 		return nil, err
 	}
 
-	account, err := srv.getAccount(rqst.AccountId)
+	accountId := normalizeAccountId(rqst.AccountId)
+	account, err := srv.getAccount(accountId)
 	if err != nil {
 		return nil, logInternal("SetPassword:getAccount", err, "accountId", rqst.AccountId)
 	}
 
-	domain, _ := config.GetDomain()
-	if account.Id+"@"+account.Domain != clientId {
-		if clientId != "sa@"+domain {
+	if normalizeAccountId(clientId) != account.Id {
+		domain, _ := config.GetDomain()
+		if clientId != "sa@"+domain && normalizeAccountId(clientId) != "sa" {
 			return nil, logInternal("SetPassword:permission", errors.New("you can't change another account's password"))
 		}
 	} else {
@@ -122,7 +164,10 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 		}
 	}
 
-	if err = srv.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword); err != nil {
+	if err = validatePasswordPolicy(rqst.NewPassword); err != nil {
+		return nil, logInternal("SetPassword:policy", err, "accountId", rqst.AccountId)
+	}
+	if err = srv.changeAccountPassword(accountId, token, rqst.OldPassword, rqst.NewPassword); err != nil {
 		return nil, logInternal("SetPassword:change", err, "accountId", rqst.AccountId)
 	}
 
@@ -147,43 +192,13 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 
 // SetRootPassword changes the root ("sa") account password.
 func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
-	// no-op change: old == new
-	if rqst.OldPassword == rqst.NewPassword {
-		slog.Info("SetRootPassword:no-op")
-		// Option A: return a fresh SA token
-		macAddress, err := config.GetMacAddress()
-		if err != nil {
-			return nil, logInternal("SetRootPassword:getMac", err)
-		}
-
-		data, err := os.ReadFile(configPath)
-		if err != nil {
-			return nil, logInternal("SetRootPassword:readConfig", err)
-		}
-		cfg := map[string]any{}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return nil, logInternal("SetRootPassword:parseConfig", err)
-		}
-		adminEmail, _ := cfg["AdminEmail"].(string)
-
-		tok, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail)
-		if err != nil {
-			return nil, logInternal("SetRootPassword:generateToken", err)
-		}
-
-		return &authenticationpb.SetRootPasswordResponse{Token: tok}, nil
-	}
-
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	domain, _ := config.GetDomain()
-	if clientId != "sa@"+domain {
-		if !Utility.Exists(configPath) {
-			return nil, logInternal("SetRootPassword:permission", errors.New("only 'sa' can change root password"))
-		}
+	if normalizeAccountId(clientId) != "sa" {
+		return nil, logInternal("SetRootPassword:permission", errors.New("only 'sa' can change root password"))
 	}
 
 	if !Utility.Exists(configPath) {
@@ -202,30 +217,42 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 
 	password, _ := srvConfig["RootPassword"].(string)
 
-	if password == "adminadmin" {
-		if rqst.OldPassword != password {
-			return nil, logInternal("SetRootPassword:defaultMismatch", errors.New("the given password doesn't match the existing one"))
+	effective := password
+	if effective == "" {
+		effective = "adminadmin"
+	}
+
+	if isBcryptHash(password) {
+		if err = bcrypt.CompareHashAndPassword([]byte(password), []byte(rqst.OldPassword)); err != nil {
+			return nil, logInternal("SetRootPassword:validateOld", errors.New("the given password doesn't match the existing one"))
 		}
 	} else {
-		account, err := srv.getAccount("sa")
-		if err != nil {
-			return nil, logInternal("SetRootPassword:getAccount", err)
+		if rqst.OldPassword != effective {
+			return nil, logInternal("SetRootPassword:defaultMismatch", errors.New("the given password doesn't match the existing one"))
 		}
-		if err = srv.validatePassword(rqst.OldPassword, account.Password); err != nil {
-			return nil, logInternal("SetRootPassword:validateOld", err)
-		}
+	}
+
+	if err = validatePasswordPolicy(rqst.NewPassword); err != nil {
+		return nil, logInternal("SetRootPassword:policy", err)
 	}
 
 	if err = srv.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword); err != nil {
-		return nil, logInternal("SetRootPassword:change", err)
+		if srv.Address != "" {
+			return nil, logInternal("SetRootPassword:change", err)
+		}
+		slog.Warn("SetRootPassword:changeAccountPassword skipped (no address)", "err", err)
 	}
 
-	srvConfig["RootPassword"] = rqst.NewPassword
+	hash, err := bcrypt.GenerateFromPassword([]byte(rqst.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, logInternal("SetRootPassword:hash", err)
+	}
+	srvConfig["RootPassword"] = string(hash)
 	jsonStr, err := Utility.ToJson(srvConfig)
 	if err != nil {
 		return nil, logInternal("SetRootPassword:marshalConfig", err)
 	}
-	if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
+	if err = os.WriteFile(configPath, []byte(jsonStr), 0600); err != nil {
 		return nil, logInternal("SetRootPassword:writeConfig", err)
 	}
 
@@ -234,7 +261,8 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, err
 	}
 
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", srvConfig["AdminEmail"].(string))
+	adminEmail, _ := srvConfig["AdminEmail"].(string)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail)
 	if err != nil {
 		return nil, logInternal("SetRootPassword:generateToken", err)
 	}
@@ -342,37 +370,38 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 		password, _ := cfg["RootPassword"].(string)
 
-		if password == "adminadmin" {
-			if pwd != password {
-				return "", logInternal("authenticate:root:defaultMismatch", errors.New("the given password doesn't match the existing one"))
-			}
-		} else {
+		effective := password
+		if effective == "" {
+			effective = "adminadmin"
+		}
+
+		if isBcryptHash(password) {
 			if err = srv.validatePassword(pwd, password); err != nil {
 				return "", logInternal("authenticate:root:validate", err)
 			}
+		} else {
+			if pwd != effective {
+				return "", logInternal("authenticate:root:defaultMismatch", errors.New("the given password doesn't match the existing one"))
+			}
+			// Upgrade legacy plaintext to bcrypt once authentication succeeds.
+			if hash, herr := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost); herr == nil {
+				cfg["RootPassword"] = string(hash)
+				if jsonStr, merr := Utility.ToJson(cfg); merr == nil {
+					_ = os.WriteFile(configPath, []byte(jsonStr), 0600)
+				}
+			}
 		}
 
-		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", cfg["AdminEmail"].(string))
+		adminEmail, _ := cfg["AdminEmail"].(string)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", adminEmail)
 		if err != nil {
 			return "", logInternal("authenticate:root:generate", err)
 		}
 
-		// prepare home folder if using "sa@domain"
-		if strings.Contains(accountId, "@") {
-			path := "/users/" + accountId
-			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			_ = srv.addResourceOwner(tokenString, path, "sa@"+srv.Domain, "file", rbacpb.SubjectType_ACCOUNT)
-		}
-
-		// persist updated root password (keep current)
-		cfg["RootPassword"] = pwd
-		jsonStr, err := Utility.ToJson(cfg)
-		if err != nil {
-			return "", logInternal("authenticate:root:marshalConfig", err)
-		}
-		if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
-			return "", logInternal("authenticate:root:writeConfig", err)
-		}
+		// prepare home folder and resource owner mapping for sa (domain-free)
+		path := "/users/sa"
+		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+		_ = srv.addResourceOwner(tokenString, path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
 
 		slog.Info("authenticate:root:ok")
 		return tokenString, nil
@@ -442,7 +471,8 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 	// create session + token
 	session := new(resourcepb.Session)
-	session.AccountId = account.Id + "@" + account.Domain
+	sid := normalizeAccountId(account.Id)
+	session.AccountId = sid
 
 	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email)
 	if err != nil {
@@ -450,10 +480,9 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	}
 
 	claims, _ := security.ValidateToken(tokenString)
+	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + sid)
 	owner := claims.ID
-
-	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
-	_ = srv.addResourceOwner(tokenString, "/users/"+account.Id+"@"+account.Domain, owner, "file", rbacpb.SubjectType_ACCOUNT)
+	_ = srv.addResourceOwner(tokenString, "/users/"+sid, "file", owner, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.RegisteredClaims.ExpiresAt.Unix()
 	session.State = resourcepb.SessionState_ONLINE
@@ -494,6 +523,9 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 		err         error
 	)
 
+	// Normalize first so that "sa@domain" inputs are treated identically to "sa".
+	rqst.Name = normalizeAccountId(rqst.Name)
+
 	if rqst.Name == "sa" {
 		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, srv.Mac)
 		if err != nil {
@@ -502,15 +534,10 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 		return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
 	}
 
-	if strings.Contains(rqst.Name, "@") {
-		if domain := strings.Split(rqst.Name, "@")[1]; domain == srv.Domain {
-			rqst.Issuer = srv.Mac
-		}
-	}
-
 	if len(rqst.Issuer) == 0 {
 		rqst.Issuer = srv.Mac
-	} else if rqst.Issuer == srv.Mac {
+	}
+	if rqst.Issuer == srv.Mac {
 		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 		if err == nil {
 			return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
@@ -608,6 +635,9 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 }
 
 func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	if srv.Address == "" {
+		return nil
+	}
 	rbacClient, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
@@ -650,41 +680,24 @@ func (srv *server) updateSession(session *resourcepb.Session) error {
 }
 
 func (srv *server) getSession(accountId string) (*resourcepb.Session, error) {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	resourceClient, err := srv.getResourceClient(domain)
+	resourceClient, err := srv.getResourceClient(srv.GetAddress())
 	if err != nil {
 		return nil, err
 	}
-	return resourceClient.GetSession(accountId)
+	return resourceClient.GetSession(normalizeAccountId(accountId))
 }
 
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	resourceClient, err := srv.getResourceClient(domain)
+	resourceClient, err := srv.getResourceClient(srv.GetAddress())
 	if err != nil {
 		return nil, err
 	}
-	return resourceClient.GetAccount(accountId)
+	return resourceClient.GetAccount(normalizeAccountId(accountId))
 }
 
 func (srv *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	if strings.Contains(accountId, "@") {
-		accountId = strings.Split(accountId, "@")[0]
-	}
-	resourceClient, err := srv.getResourceClient(domain)
+	accountId = normalizeAccountId(accountId)
+	resourceClient, err := srv.getResourceClient(srv.GetAddress())
 	if err != nil {
 		return err
 	}
