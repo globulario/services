@@ -14,6 +14,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -22,13 +23,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthenticationService_Authenticate_FullMethodName      = "/authentication.AuthenticationService/Authenticate"
-	AuthenticationService_ValidateToken_FullMethodName     = "/authentication.AuthenticationService/ValidateToken"
-	AuthenticationService_RefreshToken_FullMethodName      = "/authentication.AuthenticationService/RefreshToken"
-	AuthenticationService_GeneratePeerToken_FullMethodName = "/authentication.AuthenticationService/GeneratePeerToken"
-	AuthenticationService_SetPassword_FullMethodName       = "/authentication.AuthenticationService/SetPassword"
-	AuthenticationService_SetRootPassword_FullMethodName   = "/authentication.AuthenticationService/SetRootPassword"
-	AuthenticationService_SetRootEmail_FullMethodName      = "/authentication.AuthenticationService/SetRootEmail"
+	AuthenticationService_Authenticate_FullMethodName           = "/authentication.AuthenticationService/Authenticate"
+	AuthenticationService_ValidateToken_FullMethodName          = "/authentication.AuthenticationService/ValidateToken"
+	AuthenticationService_RefreshToken_FullMethodName           = "/authentication.AuthenticationService/RefreshToken"
+	AuthenticationService_GeneratePeerToken_FullMethodName      = "/authentication.AuthenticationService/GeneratePeerToken"
+	AuthenticationService_SetPassword_FullMethodName            = "/authentication.AuthenticationService/SetPassword"
+	AuthenticationService_SetRootPassword_FullMethodName        = "/authentication.AuthenticationService/SetRootPassword"
+	AuthenticationService_SetRootEmail_FullMethodName           = "/authentication.AuthenticationService/SetRootEmail"
+	AuthenticationService_IssueClientCertificate_FullMethodName = "/authentication.AuthenticationService/IssueClientCertificate"
 )
 
 // AuthenticationServiceClient is the client API for AuthenticationService service.
@@ -51,6 +53,10 @@ type AuthenticationServiceClient interface {
 	SetRootPassword(ctx context.Context, in *SetRootPasswordRequest, opts ...grpc.CallOption) (*SetRootPasswordResponse, error)
 	// SetRootEmail allows changing the root email address, which is essential for receiving critical system notifications and for account recovery purposes.
 	SetRootEmail(ctx context.Context, in *SetRootEmailRequest, opts ...grpc.CallOption) (*SetRootEmailResponse, error)
+	// IssueClientCertificate generates a fresh client certificate signed by the cluster CA
+	// for the authenticated caller. Caller must be authenticated via JWT token.
+	// The private key is generated server-side and returned in PEM form; it is NOT persisted.
+	IssueClientCertificate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*IssueClientCertificateResponse, error)
 }
 
 type authenticationServiceClient struct {
@@ -131,6 +137,16 @@ func (c *authenticationServiceClient) SetRootEmail(ctx context.Context, in *SetR
 	return out, nil
 }
 
+func (c *authenticationServiceClient) IssueClientCertificate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*IssueClientCertificateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IssueClientCertificateResponse)
+	err := c.cc.Invoke(ctx, AuthenticationService_IssueClientCertificate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthenticationServiceServer is the server API for AuthenticationService service.
 // All implementations should embed UnimplementedAuthenticationServiceServer
 // for forward compatibility.
@@ -151,6 +167,10 @@ type AuthenticationServiceServer interface {
 	SetRootPassword(context.Context, *SetRootPasswordRequest) (*SetRootPasswordResponse, error)
 	// SetRootEmail allows changing the root email address, which is essential for receiving critical system notifications and for account recovery purposes.
 	SetRootEmail(context.Context, *SetRootEmailRequest) (*SetRootEmailResponse, error)
+	// IssueClientCertificate generates a fresh client certificate signed by the cluster CA
+	// for the authenticated caller. Caller must be authenticated via JWT token.
+	// The private key is generated server-side and returned in PEM form; it is NOT persisted.
+	IssueClientCertificate(context.Context, *emptypb.Empty) (*IssueClientCertificateResponse, error)
 }
 
 // UnimplementedAuthenticationServiceServer should be embedded to have
@@ -180,6 +200,9 @@ func (UnimplementedAuthenticationServiceServer) SetRootPassword(context.Context,
 }
 func (UnimplementedAuthenticationServiceServer) SetRootEmail(context.Context, *SetRootEmailRequest) (*SetRootEmailResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetRootEmail not implemented")
+}
+func (UnimplementedAuthenticationServiceServer) IssueClientCertificate(context.Context, *emptypb.Empty) (*IssueClientCertificateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method IssueClientCertificate not implemented")
 }
 func (UnimplementedAuthenticationServiceServer) testEmbeddedByValue() {}
 
@@ -327,6 +350,24 @@ func _AuthenticationService_SetRootEmail_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthenticationService_IssueClientCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthenticationServiceServer).IssueClientCertificate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthenticationService_IssueClientCertificate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthenticationServiceServer).IssueClientCertificate(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthenticationService_ServiceDesc is the grpc.ServiceDesc for AuthenticationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -361,6 +402,10 @@ var AuthenticationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetRootEmail",
 			Handler:    _AuthenticationService_SetRootEmail_Handler,
+		},
+		{
+			MethodName: "IssueClientCertificate",
+			Handler:    _AuthenticationService_IssueClientCertificate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

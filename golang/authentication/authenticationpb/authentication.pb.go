@@ -12,6 +12,7 @@ package authenticationpb
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -710,11 +711,73 @@ func (x *GeneratePeerTokenResponse) GetToken() string {
 	return ""
 }
 
+// IssueClientCertificateResponse carries a newly issued client certificate and its signing CA.
+// The caller must store the private key securely; the server does NOT persist it.
+type IssueClientCertificateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CaCrtPem      []byte                 `protobuf:"bytes,1,opt,name=ca_crt_pem,json=caCrtPem,proto3" json:"ca_crt_pem,omitempty"`             // PEM-encoded cluster CA certificate
+	ClientCrtPem  []byte                 `protobuf:"bytes,2,opt,name=client_crt_pem,json=clientCrtPem,proto3" json:"client_crt_pem,omitempty"` // PEM-encoded client certificate (signed by CA)
+	ClientKeyPem  []byte                 `protobuf:"bytes,3,opt,name=client_key_pem,json=clientKeyPem,proto3" json:"client_key_pem,omitempty"` // PEM-encoded client private key
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueClientCertificateResponse) Reset() {
+	*x = IssueClientCertificateResponse{}
+	mi := &file_authentication_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueClientCertificateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueClientCertificateResponse) ProtoMessage() {}
+
+func (x *IssueClientCertificateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_authentication_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueClientCertificateResponse.ProtoReflect.Descriptor instead.
+func (*IssueClientCertificateResponse) Descriptor() ([]byte, []int) {
+	return file_authentication_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *IssueClientCertificateResponse) GetCaCrtPem() []byte {
+	if x != nil {
+		return x.CaCrtPem
+	}
+	return nil
+}
+
+func (x *IssueClientCertificateResponse) GetClientCrtPem() []byte {
+	if x != nil {
+		return x.ClientCrtPem
+	}
+	return nil
+}
+
+func (x *IssueClientCertificateResponse) GetClientKeyPem() []byte {
+	if x != nil {
+		return x.ClientKeyPem
+	}
+	return nil
+}
+
 var File_authentication_proto protoreflect.FileDescriptor
 
 const file_authentication_proto_rawDesc = "" +
 	"\n" +
-	"\x14authentication.proto\x12\x0eauthentication\"Z\n" +
+	"\x14authentication.proto\x12\x0eauthentication\x1a\x1bgoogle/protobuf/empty.proto\"Z\n" +
 	"\x10AuthenticateRqst\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x16\n" +
@@ -749,7 +812,12 @@ const file_authentication_proto_rawDesc = "" +
 	"\x18GeneratePeerTokenRequest\x12\x10\n" +
 	"\x03mac\x18\x02 \x01(\tR\x03mac\"1\n" +
 	"\x19GeneratePeerTokenResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token2\x94\x05\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\x8a\x01\n" +
+	"\x1eIssueClientCertificateResponse\x12\x1c\n" +
+	"\n" +
+	"ca_crt_pem\x18\x01 \x01(\fR\bcaCrtPem\x12$\n" +
+	"\x0eclient_crt_pem\x18\x02 \x01(\fR\fclientCrtPem\x12$\n" +
+	"\x0eclient_key_pem\x18\x03 \x01(\fR\fclientKeyPem2\xf6\x05\n" +
 	"\x15AuthenticationService\x12Q\n" +
 	"\fAuthenticate\x12 .authentication.AuthenticateRqst\x1a\x1f.authentication.AuthenticateRsp\x12T\n" +
 	"\rValidateToken\x12!.authentication.ValidateTokenRqst\x1a .authentication.ValidateTokenRsp\x12Q\n" +
@@ -757,7 +825,8 @@ const file_authentication_proto_rawDesc = "" +
 	"\x11GeneratePeerToken\x12(.authentication.GeneratePeerTokenRequest\x1a).authentication.GeneratePeerTokenResponse\x12V\n" +
 	"\vSetPassword\x12\".authentication.SetPasswordRequest\x1a#.authentication.SetPasswordResponse\x12b\n" +
 	"\x0fSetRootPassword\x12&.authentication.SetRootPasswordRequest\x1a'.authentication.SetRootPasswordResponse\x12Y\n" +
-	"\fSetRootEmail\x12#.authentication.SetRootEmailRequest\x1a$.authentication.SetRootEmailResponseBGZEgithub.com/globulario/services/golang/authentication/authenticationpbb\x06proto3"
+	"\fSetRootEmail\x12#.authentication.SetRootEmailRequest\x1a$.authentication.SetRootEmailResponse\x12`\n" +
+	"\x16IssueClientCertificate\x12\x16.google.protobuf.Empty\x1a..authentication.IssueClientCertificateResponseBGZEgithub.com/globulario/services/golang/authentication/authenticationpbb\x06proto3"
 
 var (
 	file_authentication_proto_rawDescOnce sync.Once
@@ -771,22 +840,24 @@ func file_authentication_proto_rawDescGZIP() []byte {
 	return file_authentication_proto_rawDescData
 }
 
-var file_authentication_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_authentication_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_authentication_proto_goTypes = []any{
-	(*AuthenticateRqst)(nil),          // 0: authentication.AuthenticateRqst
-	(*AuthenticateRsp)(nil),           // 1: authentication.AuthenticateRsp
-	(*ValidateTokenRqst)(nil),         // 2: authentication.ValidateTokenRqst
-	(*ValidateTokenRsp)(nil),          // 3: authentication.ValidateTokenRsp
-	(*RefreshTokenRqst)(nil),          // 4: authentication.RefreshTokenRqst
-	(*RefreshTokenRsp)(nil),           // 5: authentication.RefreshTokenRsp
-	(*SetPasswordRequest)(nil),        // 6: authentication.SetPasswordRequest
-	(*SetPasswordResponse)(nil),       // 7: authentication.SetPasswordResponse
-	(*SetRootPasswordRequest)(nil),    // 8: authentication.SetRootPasswordRequest
-	(*SetRootPasswordResponse)(nil),   // 9: authentication.SetRootPasswordResponse
-	(*SetRootEmailRequest)(nil),       // 10: authentication.SetRootEmailRequest
-	(*SetRootEmailResponse)(nil),      // 11: authentication.SetRootEmailResponse
-	(*GeneratePeerTokenRequest)(nil),  // 12: authentication.GeneratePeerTokenRequest
-	(*GeneratePeerTokenResponse)(nil), // 13: authentication.GeneratePeerTokenResponse
+	(*AuthenticateRqst)(nil),               // 0: authentication.AuthenticateRqst
+	(*AuthenticateRsp)(nil),                // 1: authentication.AuthenticateRsp
+	(*ValidateTokenRqst)(nil),              // 2: authentication.ValidateTokenRqst
+	(*ValidateTokenRsp)(nil),               // 3: authentication.ValidateTokenRsp
+	(*RefreshTokenRqst)(nil),               // 4: authentication.RefreshTokenRqst
+	(*RefreshTokenRsp)(nil),                // 5: authentication.RefreshTokenRsp
+	(*SetPasswordRequest)(nil),             // 6: authentication.SetPasswordRequest
+	(*SetPasswordResponse)(nil),            // 7: authentication.SetPasswordResponse
+	(*SetRootPasswordRequest)(nil),         // 8: authentication.SetRootPasswordRequest
+	(*SetRootPasswordResponse)(nil),        // 9: authentication.SetRootPasswordResponse
+	(*SetRootEmailRequest)(nil),            // 10: authentication.SetRootEmailRequest
+	(*SetRootEmailResponse)(nil),           // 11: authentication.SetRootEmailResponse
+	(*GeneratePeerTokenRequest)(nil),       // 12: authentication.GeneratePeerTokenRequest
+	(*GeneratePeerTokenResponse)(nil),      // 13: authentication.GeneratePeerTokenResponse
+	(*IssueClientCertificateResponse)(nil), // 14: authentication.IssueClientCertificateResponse
+	(*emptypb.Empty)(nil),                  // 15: google.protobuf.Empty
 }
 var file_authentication_proto_depIdxs = []int32{
 	0,  // 0: authentication.AuthenticationService.Authenticate:input_type -> authentication.AuthenticateRqst
@@ -796,15 +867,17 @@ var file_authentication_proto_depIdxs = []int32{
 	6,  // 4: authentication.AuthenticationService.SetPassword:input_type -> authentication.SetPasswordRequest
 	8,  // 5: authentication.AuthenticationService.SetRootPassword:input_type -> authentication.SetRootPasswordRequest
 	10, // 6: authentication.AuthenticationService.SetRootEmail:input_type -> authentication.SetRootEmailRequest
-	1,  // 7: authentication.AuthenticationService.Authenticate:output_type -> authentication.AuthenticateRsp
-	3,  // 8: authentication.AuthenticationService.ValidateToken:output_type -> authentication.ValidateTokenRsp
-	5,  // 9: authentication.AuthenticationService.RefreshToken:output_type -> authentication.RefreshTokenRsp
-	13, // 10: authentication.AuthenticationService.GeneratePeerToken:output_type -> authentication.GeneratePeerTokenResponse
-	7,  // 11: authentication.AuthenticationService.SetPassword:output_type -> authentication.SetPasswordResponse
-	9,  // 12: authentication.AuthenticationService.SetRootPassword:output_type -> authentication.SetRootPasswordResponse
-	11, // 13: authentication.AuthenticationService.SetRootEmail:output_type -> authentication.SetRootEmailResponse
-	7,  // [7:14] is the sub-list for method output_type
-	0,  // [0:7] is the sub-list for method input_type
+	15, // 7: authentication.AuthenticationService.IssueClientCertificate:input_type -> google.protobuf.Empty
+	1,  // 8: authentication.AuthenticationService.Authenticate:output_type -> authentication.AuthenticateRsp
+	3,  // 9: authentication.AuthenticationService.ValidateToken:output_type -> authentication.ValidateTokenRsp
+	5,  // 10: authentication.AuthenticationService.RefreshToken:output_type -> authentication.RefreshTokenRsp
+	13, // 11: authentication.AuthenticationService.GeneratePeerToken:output_type -> authentication.GeneratePeerTokenResponse
+	7,  // 12: authentication.AuthenticationService.SetPassword:output_type -> authentication.SetPasswordResponse
+	9,  // 13: authentication.AuthenticationService.SetRootPassword:output_type -> authentication.SetRootPasswordResponse
+	11, // 14: authentication.AuthenticationService.SetRootEmail:output_type -> authentication.SetRootEmailResponse
+	14, // 15: authentication.AuthenticationService.IssueClientCertificate:output_type -> authentication.IssueClientCertificateResponse
+	8,  // [8:16] is the sub-list for method output_type
+	0,  // [0:8] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -821,7 +894,7 @@ func file_authentication_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_authentication_proto_rawDesc), len(file_authentication_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

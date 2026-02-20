@@ -3,7 +3,9 @@
  */
  syntax = "proto3";
  package authentication;
- 
+
+ import "google/protobuf/empty.proto";
+
  option go_package = "github.com/globulario/services/golang/authentication/authenticationpb";
  
  // AuthenticateRqst is a request for user authentication.
@@ -84,6 +86,14 @@
  }
 
  
+// IssueClientCertificateResponse carries a newly issued client certificate and its signing CA.
+// The caller must store the private key securely; the server does NOT persist it.
+message IssueClientCertificateResponse {
+    bytes ca_crt_pem     = 1; // PEM-encoded cluster CA certificate
+    bytes client_crt_pem = 2; // PEM-encoded client certificate (signed by CA)
+    bytes client_key_pem = 3; // PEM-encoded client private key
+}
+
 // AuthenticationService provides functionalities related to user authentication and token management.
 service AuthenticationService {
 
@@ -107,4 +117,9 @@ service AuthenticationService {
 
     // SetRootEmail allows changing the root email address, which is essential for receiving critical system notifications and for account recovery purposes.
     rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse);
+
+    // IssueClientCertificate generates a fresh client certificate signed by the cluster CA
+    // for the authenticated caller. Caller must be authenticated via JWT token.
+    // The private key is generated server-side and returned in PEM form; it is NOT persisted.
+    rpc IssueClientCertificate(google.protobuf.Empty) returns(IssueClientCertificateResponse);
 }
