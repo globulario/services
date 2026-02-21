@@ -19,6 +19,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js')
 const proto = {};
 proto.authentication = require('./authentication_pb.js');
 
@@ -498,6 +500,67 @@ proto.authentication.AuthenticationServicePromiseClient.prototype.setRootEmail =
       request,
       metadata || {},
       methodDescriptor_AuthenticationService_SetRootEmail);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.google.protobuf.Empty,
+ *   !proto.authentication.IssueClientCertificateResponse>}
+ */
+const methodDescriptor_AuthenticationService_IssueClientCertificate = new grpc.web.MethodDescriptor(
+  '/authentication.AuthenticationService/IssueClientCertificate',
+  grpc.web.MethodType.UNARY,
+  google_protobuf_empty_pb.Empty,
+  proto.authentication.IssueClientCertificateResponse,
+  /**
+   * @param {!proto.google.protobuf.Empty} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.authentication.IssueClientCertificateResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.google.protobuf.Empty} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.IssueClientCertificateResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.authentication.IssueClientCertificateResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.authentication.AuthenticationServiceClient.prototype.issueClientCertificate =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/authentication.AuthenticationService/IssueClientCertificate',
+      request,
+      metadata || {},
+      methodDescriptor_AuthenticationService_IssueClientCertificate,
+      callback);
+};
+
+
+/**
+ * @param {!proto.google.protobuf.Empty} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.authentication.IssueClientCertificateResponse>}
+ *     Promise that resolves to the response
+ */
+proto.authentication.AuthenticationServicePromiseClient.prototype.issueClientCertificate =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/authentication.AuthenticationService/IssueClientCertificate',
+      request,
+      metadata || {},
+      methodDescriptor_AuthenticationService_IssueClientCertificate);
 };
 
 
