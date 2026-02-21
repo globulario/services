@@ -898,7 +898,18 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", q, "")
+	// Use the generated UUID to count by primary key (id), which is efficient for
+	// all store types. The name/version/publisher query (q) falls back to
+	// estimateTableCount on ScyllaDB — unreliable for newly-created tables — so
+	// we always filter on the canonical primary key instead.
+	countQ := `SELECT * FROM Packages WHERE id = '` + rqst.PackageDescriptor.Id + `'`
+	if p.GetStoreType() == "MONGO" {
+		countQ = `{"_id":"` + rqst.PackageDescriptor.Id + `"}`
+	} else if p.GetStoreType() == "SQL" {
+		countQ = `SELECT * FROM Packages WHERE id='` + rqst.PackageDescriptor.Id + `'`
+	}
+
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", countQ, "")
 	if count == 0 || err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
