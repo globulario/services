@@ -491,7 +491,7 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 	if p.GetStoreType() == "MONGO" {
 		query = `{"name":"` + rqst.ServiceId + `", "PublisherID":"` + rqst.PublisherID + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
-		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND PublisherID='` + rqst.PublisherID + `' ALLOW FILTERING`
+		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisher_id='` + rqst.PublisherID + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND PublisherID='` + rqst.PublisherID + `'`
 	} else {
@@ -531,6 +531,10 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 		}
 		if descriptor["PublisherID"] != nil {
 			descriptors[i].PublisherID = descriptor["PublisherID"].(string)
+		} else if descriptor["publisherId"] != nil {
+			// ScyllaDB: camelToSnake("PublisherID") → "publisher_id",
+			// then initEntity applies snakeToCamel → "publisherId"
+			descriptors[i].PublisherID = descriptor["publisherId"].(string)
 		}
 		if descriptor["version"] != nil {
 			descriptors[i].Version = descriptor["version"].(string)
@@ -862,7 +866,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	if p.GetStoreType() == "MONGO" {
 		q = `{"name":"` + rqst.PackageDescriptor.Name + `", "PublisherID":"` + rqst.PackageDescriptor.PublisherID + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND PublisherID='` + rqst.PackageDescriptor.PublisherID + `' AND version='` + rqst.PackageDescriptor.Version + `' ALLOW FILTERING`
+		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisher_id='` + rqst.PackageDescriptor.PublisherID + `' AND version='` + rqst.PackageDescriptor.Version + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND PublisherID='` + rqst.PackageDescriptor.PublisherID + `' AND version='` + rqst.PackageDescriptor.Version + `'`
 	} else {

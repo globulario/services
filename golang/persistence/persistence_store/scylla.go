@@ -81,10 +81,16 @@ func retryCreateSession(cluster *gocql.ClusterConfig, keyspace string) (*gocql.S
 // ---------- Helpers ----------
 
 func camelToSnake(input string) string {
+	runes := []rune(input)
+	n := len(runes)
 	var result bytes.Buffer
-	for i, r := range input {
+	for i, r := range runes {
 		if i > 0 && unicode.IsUpper(r) {
-			result.WriteRune('_')
+			prevLower := unicode.IsLower(runes[i-1])
+			nextLower := i+1 < n && unicode.IsLower(runes[i+1])
+			if prevLower || nextLower {
+				result.WriteRune('_')
+			}
 		}
 		result.WriteRune(unicode.ToLower(r))
 	}
