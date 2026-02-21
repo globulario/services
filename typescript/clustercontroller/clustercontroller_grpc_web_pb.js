@@ -1471,5 +1471,66 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getClust
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.PreviewNodeProfilesRequest,
+ *   !proto.clustercontroller.PreviewNodeProfilesResponse>}
+ */
+const methodDescriptor_ClusterControllerService_PreviewNodeProfiles = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/PreviewNodeProfiles',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.PreviewNodeProfilesRequest,
+  proto.clustercontroller.PreviewNodeProfilesResponse,
+  /**
+   * @param {!proto.clustercontroller.PreviewNodeProfilesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.PreviewNodeProfilesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.PreviewNodeProfilesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.PreviewNodeProfilesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.PreviewNodeProfilesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.previewNodeProfiles =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/PreviewNodeProfiles',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PreviewNodeProfiles,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.PreviewNodeProfilesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.PreviewNodeProfilesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.previewNodeProfiles =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/PreviewNodeProfiles',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PreviewNodeProfiles);
+};
+
+
 module.exports = proto.clustercontroller;
 

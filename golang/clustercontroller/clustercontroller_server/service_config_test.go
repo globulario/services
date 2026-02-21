@@ -670,6 +670,82 @@ func TestRenderXDSConfigTLSPaths(t *testing.T) {
 	}
 }
 
+func TestValidateRenderers(t *testing.T) {
+	// The default renderer registry must be valid.
+	if err := validateRenderers(); err != nil {
+		t.Errorf("validateRenderers() failed on default registry: %v", err)
+	}
+}
+
+func TestValidateRenderersCollisionDetection(t *testing.T) {
+	// Temporarily inject a duplicate renderer to verify collision detection.
+	original := renderers
+	defer func() { renderers = original }()
+
+	renderers = append(renderers, rendererSpec{
+		name:    "etcd-dup",
+		profiles: profilesForEtcd,
+		outputs: []string{"/var/lib/globular/etcd/etcd.yaml"}, // same as etcd
+		render:  renderEtcdConfig,
+	})
+
+	err := validateRenderers()
+	if err == nil {
+		t.Error("expected collision error for duplicate output path, got nil")
+	}
+}
+
+func TestValidateRenderersUnknownProfile(t *testing.T) {
+	// Temporarily inject a renderer with an unknown profile reference.
+	original := renderers
+	defer func() { renderers = original }()
+
+	renderers = append(renderers, rendererSpec{
+		name:    "bad-renderer",
+		profiles: []string{"nonexistent-profile"},
+		outputs: []string{"/var/lib/globular/bad/config.yaml"},
+		render:  renderEtcdConfig,
+	})
+
+	err := validateRenderers()
+	if err == nil {
+		t.Error("expected error for unknown profile reference, got nil")
+	}
+}
+
+func TestRenderServiceConfigsUsesRegistry(t *testing.T) {
+	// Ensure renderServiceConfigs produces the same outputs as the registry.
+	node := memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}}
+	ctx := &serviceConfigContext{
+		Membership: &clusterMembership{
+			ClusterID: "test-cluster",
+			Nodes:     []memberNode{node},
+		},
+		CurrentNode: &node,
+		ClusterID:   "test-cluster",
+		Domain:      "example.com",
+	}
+
+	configs := renderServiceConfigs(ctx)
+	if configs == nil {
+		t.Fatal("renderServiceConfigs() returned nil for core profile")
+	}
+
+	// Every output path in the registry for core-active renderers should appear.
+	for _, r := range renderers {
+		content, ok := r.render(ctx)
+		if !ok {
+			continue // renderer not applicable for this context
+		}
+		_ = content
+		for _, output := range r.outputs {
+			if _, present := configs[output]; !present {
+				t.Errorf("output %q from renderer %q missing in renderServiceConfigs result", output, r.name)
+			}
+		}
+	}
+}
+
 func TestRenderYAML(t *testing.T) {
 	data := map[string]interface{}{
 		"name":    "test",

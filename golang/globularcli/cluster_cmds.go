@@ -56,7 +56,8 @@ var (
 	requestsApproveRequestID string
 	requestsRejectRequestID  string
 
-	profileSet []string
+	profileSet        []string
+	profilePreviewSet []string
 
 	removeNodeForce bool
 	removeNodeDrain bool
@@ -124,6 +125,7 @@ func init() {
 	requestsRejectCmd.Flags().StringVar(&requestsRejectRequestID, "request-id", "", "Join request ID (overrides positional argument)")
 
 	nodeProfilesCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
+	nodeProfilesPreviewCmd.Flags().StringSliceVar(&profilePreviewSet, "profile", nil, "Profiles to preview (required)")
 
 	nodeRemoveCmd.Flags().BoolVar(&removeNodeForce, "force", false, "Force removal even if node is unreachable")
 	nodeRemoveCmd.Flags().BoolVar(&removeNodeDrain, "drain", true, "Drain node (stop services gracefully) before removal")
@@ -496,6 +498,99 @@ var nodeProfilesCmd = &cobra.Command{
 		fmt.Println("profiles intent recorded")
 		return nil
 	},
+}
+
+// nodeProfilesPreviewCmd shows what WOULD happen if profiles were changed, without applying.
+var nodeProfilesPreviewCmd = &cobra.Command{
+	Use:   "profiles preview <node_id>",
+	Short: "Preview the unit and config changes that would result from a profile change",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(profilePreviewSet) == 0 {
+			return errors.New("--profile is required")
+		}
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.PreviewNodeProfiles(ctxWithTimeout(), &clustercontrollerpb.PreviewNodeProfilesRequest{
+			NodeId:   args[0],
+			Profiles: profilePreviewSet,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Node: %s\n", args[0])
+		fmt.Printf("Normalized profiles: [%s]\n\n", strings.Join(resp.GetNormalizedProfiles(), ", "))
+
+		fmt.Println("Unit diff:")
+		if len(resp.GetUnitDiff()) == 0 {
+			fmt.Println("  (no unit changes)")
+		}
+		for _, a := range resp.GetUnitDiff() {
+			prefix := " "
+			switch a.GetAction() {
+			case "enable", "start", "restart":
+				prefix = "+"
+			case "stop", "disable":
+				prefix = "-"
+			}
+			fmt.Printf("  %s %-10s %s\n", prefix, strings.ToUpper(a.GetAction()), a.GetUnitName())
+		}
+
+		fmt.Println("\nConfig changes:")
+		if len(resp.GetConfigDiff()) == 0 {
+			fmt.Println("  (no config files)")
+		}
+		for _, d := range resp.GetConfigDiff() {
+			status := "unchanged"
+			if d.GetChanged() {
+				if d.GetOldHash() == "" {
+					status = "NEW"
+				} else {
+					status = fmt.Sprintf("CHANGED: %s...→%s...", truncate(d.GetOldHash(), 8), truncate(d.GetNewHash(), 8))
+				}
+			}
+			fmt.Printf("  %-55s %s\n", d.GetPath(), status)
+		}
+
+		if len(resp.GetRestartUnits()) > 0 {
+			fmt.Println("\nUnits that would be restarted due to config changes:")
+			for _, u := range resp.GetRestartUnits() {
+				fmt.Printf("  ~ RESTART  %s\n", u)
+			}
+		}
+
+		if len(resp.GetAffectedNodes()) > 0 {
+			fmt.Println("\nOther nodes whose configs would change (membership impact):")
+			for _, an := range resp.GetAffectedNodes() {
+				fmt.Printf("  Node: %s\n", an.GetNodeId())
+				for _, d := range an.GetConfigDiff() {
+					if !d.GetChanged() {
+						continue
+					}
+					status := "CHANGED"
+					if d.GetOldHash() == "" {
+						status = "NEW"
+					}
+					fmt.Printf("    %-53s %s\n", d.GetPath(), status)
+				}
+			}
+		}
+
+		return nil
+	},
+}
+
+// truncate returns the first n bytes of s, or s if shorter.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }
 
 var nodeRemoveCmd = &cobra.Command{
@@ -1058,7 +1153,7 @@ var watchCmd = &cobra.Command{
 func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
-	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeRemoveCmd)
+	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeProfilesPreviewCmd, nodeRemoveCmd)
 	planCmd.AddCommand(planGetCmd, planApplyCmd)
 	debugCmd.AddCommand(debugAgentCmd)
 	debugAgentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd, debugAgentApplyPlanCmd)

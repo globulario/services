@@ -74,6 +74,10 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 			queue.Enqueue(releaseKeyPrefix + releaseName)
 		}
 	}
+	// Allow SetNodeProfiles to immediately trigger reconciliation.
+	srv.enqueueReconcile = func() {
+		queue.Enqueue(networkReconcileKey)
+	}
 
 	// workers
 	for i := 0; i < workers; i++ {

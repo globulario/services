@@ -179,6 +179,9 @@ type server struct {
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
 	// trigger release re-evaluation when a node's AppliedServicesHash changes.
 	releaseEnqueue func(releaseName string)
+	// enqueueReconcile is set by startControllerRuntime so that SetNodeProfiles
+	// can immediately trigger a reconcile cycle after saving profile changes.
+	enqueueReconcile func()
 
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
@@ -410,11 +413,12 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 		return nil, status.Error(codes.FailedPrecondition, "request not pending")
 	}
 	jr.Status = "approved"
-	profiles := req.GetProfiles()
-	if len(profiles) == 0 {
-		profiles = srv.cfg.DefaultProfiles
+	rawProfiles := req.GetProfiles()
+	if len(rawProfiles) == 0 {
+		rawProfiles = srv.cfg.DefaultProfiles
 	}
-	jr.Profiles = append([]string(nil), profiles...)
+	profiles := normalizeProfiles(rawProfiles)
+	jr.Profiles = profiles
 	nodeID := uuid.NewString()
 	jr.AssignedNodeID = nodeID
 
@@ -422,7 +426,7 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 	node := &nodeState{
 		NodeID:                nodeID,
 		Identity:              jr.Identity,
-		Profiles:              append([]string(nil), profiles...),
+		Profiles:              profiles,
 		LastSeen:              time.Now(),
 		Status:                "converging",
 		Metadata:              copyLabels(jr.Labels),
@@ -519,20 +523,169 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb
 	if req == nil || req.GetNodeId() == "" || len(req.GetProfiles()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "--profile is required")
 	}
+	normalized := normalizeProfiles(req.GetProfiles())
 	srv.lock("unknown")
 	defer srv.unlock()
 	node := srv.state.Nodes[req.GetNodeId()]
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
-	node.Profiles = append([]string(nil), req.GetProfiles()...)
+	node.Profiles = normalized
 	node.LastSeen = time.Now()
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node profiles: %v", err)
 	}
+	if srv.enqueueReconcile != nil {
+		srv.enqueueReconcile()
+	}
 	return &clustercontrollerpb.SetNodeProfilesResponse{
 		OperationId: uuid.NewString(),
 	}, nil
+}
+
+// PreviewNodeProfiles computes what WOULD happen if the given profiles were assigned
+// to the node, without mutating any state. Useful for dry-run before applying.
+func (srv *server) PreviewNodeProfiles(ctx context.Context, req *clustercontrollerpb.PreviewNodeProfilesRequest) (*clustercontrollerpb.PreviewNodeProfilesResponse, error) {
+	if req == nil || req.GetNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	nodeID := strings.TrimSpace(req.GetNodeId())
+	normalized := normalizeProfiles(req.GetProfiles())
+
+	// Snapshot entire cluster state (read-only, no mutation).
+	srv.lock("preview-profiles:snapshot")
+	realNode := srv.state.Nodes[nodeID]
+	if realNode == nil {
+		srv.unlock()
+		return nil, status.Errorf(codes.NotFound, "node %q not found", nodeID)
+	}
+	// Shallow-copy all nodes so we can build a hypothetical membership.
+	previewNode := *realNode
+	otherNodes := make([]*nodeState, 0, len(srv.state.Nodes)-1)
+	for id, n := range srv.state.Nodes {
+		if id == nodeID || n == nil {
+			continue
+		}
+		cp := *n
+		otherNodes = append(otherNodes, &cp)
+	}
+	clusterID := srv.state.ClusterId
+	srv.unlock()
+	previewNode.Profiles = normalized
+
+	// Compute unit actions for the proposed profiles.
+	actions, err := buildPlanActions(normalized)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid profiles: %v", err)
+	}
+
+	// Build hypothetical membership with the target node's new profiles.
+	hypoMembership := &clusterMembership{
+		ClusterID: clusterID,
+		Nodes:     make([]memberNode, 0, len(otherNodes)+1),
+	}
+	var ip string
+	if len(previewNode.Identity.Ips) > 0 {
+		ip = previewNode.Identity.Ips[0]
+	}
+	hypoMembership.Nodes = append(hypoMembership.Nodes, memberNode{
+		NodeID:   previewNode.NodeID,
+		Hostname: previewNode.Identity.Hostname,
+		IP:       ip,
+		Profiles: normalized,
+	})
+	for _, n := range otherNodes {
+		var nip string
+		if len(n.Identity.Ips) > 0 {
+			nip = n.Identity.Ips[0]
+		}
+		hypoMembership.Nodes = append(hypoMembership.Nodes, memberNode{
+			NodeID:   n.NodeID,
+			Hostname: n.Identity.Hostname,
+			IP:       nip,
+			Profiles: append([]string(nil), n.Profiles...),
+		})
+	}
+	sort.Slice(hypoMembership.Nodes, func(i, j int) bool {
+		return hypoMembership.Nodes[i].NodeID < hypoMembership.Nodes[j].NodeID
+	})
+
+	// Render target node's configs using hypothetical membership.
+	rendered := srv.renderServiceConfigsForNodeInMembership(&previewNode, hypoMembership)
+
+	// Compute config diffs for target node.
+	newHashes := HashRenderedConfigs(rendered)
+	oldHashes := realNode.RenderedConfigHashes
+	configDiff := buildConfigDiff(oldHashes, newHashes)
+
+	// Compute restart units for target node.
+	restartActions := restartActionsForChangedConfigs(oldHashes, rendered)
+	restartUnits := make([]string, 0, len(restartActions))
+	for _, a := range restartActions {
+		restartUnits = append(restartUnits, a.GetUnitName())
+	}
+
+	// Compute affected other nodes: re-render with hypothetical membership and compare.
+	var affectedNodes []*clustercontrollerpb.AffectedNodeDiff
+	for _, n := range otherNodes {
+		hypoRendered := srv.renderServiceConfigsForNodeInMembership(n, hypoMembership)
+		hypoNewHashes := HashRenderedConfigs(hypoRendered)
+		diff := buildConfigDiff(n.RenderedConfigHashes, hypoNewHashes)
+		// Only include nodes that actually have config changes.
+		hasChange := false
+		for _, d := range diff {
+			if d.GetChanged() {
+				hasChange = true
+				break
+			}
+		}
+		if hasChange {
+			affectedNodes = append(affectedNodes, &clustercontrollerpb.AffectedNodeDiff{
+				NodeId:     n.NodeID,
+				ConfigDiff: diff,
+			})
+		}
+	}
+	// Sort for deterministic output.
+	sort.Slice(affectedNodes, func(i, j int) bool {
+		return affectedNodes[i].GetNodeId() < affectedNodes[j].GetNodeId()
+	})
+
+	return &clustercontrollerpb.PreviewNodeProfilesResponse{
+		NormalizedProfiles: normalized,
+		UnitDiff:           actions,
+		ConfigDiff:         configDiff,
+		RestartUnits:       restartUnits,
+		AffectedNodes:      affectedNodes,
+	}, nil
+}
+
+// buildConfigDiff produces a sorted list of ConfigFileDiff entries comparing old and new hashes.
+func buildConfigDiff(oldHashes, newHashes map[string]string) []*clustercontrollerpb.ConfigFileDiff {
+	pathSet := make(map[string]struct{})
+	for p := range newHashes {
+		pathSet[p] = struct{}{}
+	}
+	for p := range oldHashes {
+		pathSet[p] = struct{}{}
+	}
+	paths := make([]string, 0, len(pathSet))
+	for p := range pathSet {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	diff := make([]*clustercontrollerpb.ConfigFileDiff, 0, len(paths))
+	for _, p := range paths {
+		newH := newHashes[p]
+		oldH := oldHashes[p]
+		diff = append(diff, &clustercontrollerpb.ConfigFileDiff{
+			Path:    p,
+			OldHash: oldH,
+			NewHash: newH,
+			Changed: newH != oldH,
+		})
+	}
+	return diff
 }
 
 func (srv *server) RemoveNode(ctx context.Context, req *clustercontrollerpb.RemoveNodeRequest) (*clustercontrollerpb.RemoveNodeResponse, error) {
@@ -724,7 +877,10 @@ func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.Get
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
-	plan := srv.computeNodePlan(node)
+	plan, err := srv.computeNodePlan(node)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "compute plan: %v", err)
+	}
 	return &clustercontrollerpb.GetNodePlanResponse{
 		Plan: plan,
 	}, nil
@@ -848,7 +1004,10 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 	if node.AgentEndpoint == "" {
 		return nil, status.Error(codes.FailedPrecondition, "agent endpoint unknown")
 	}
-	plan := srv.computeNodePlan(node)
+	plan, planErr := srv.computeNodePlan(node)
+	if planErr != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "compute plan: %v", planErr)
+	}
 	if plan == nil {
 		return nil, status.Error(codes.FailedPrecondition, "plan is empty")
 	}
@@ -869,6 +1028,15 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 		return nil, status.Errorf(codes.Internal, "dispatch plan: %v", err)
 	}
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
+	// Phase 4b: store pending rendered config hashes on dispatch.
+	// These will be promoted to RenderedConfigHashes only when the agent reports apply success.
+	if len(plan.GetRenderedConfig()) > 0 {
+		srv.lock("rendered-config-hashes")
+		if n := srv.state.Nodes[nodeID]; n != nil {
+			n.PendingRenderedConfigHashes = HashRenderedConfigs(plan.GetRenderedConfig())
+		}
+		srv.unlock()
+	}
 	if srv.recordPlanSent(nodeID, hash) {
 		srv.lock("unknown")
 		if err := srv.persistStateLocked(true); err != nil {
@@ -1157,6 +1325,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 	lastError := ns.GetLastError()
 	appliedSvcHash := strings.ToLower(strings.TrimSpace(ns.GetAppliedServicesHash()))
 	installedVersions := ns.GetInstalledVersions()
+	installedUnitFiles := ns.GetInstalledUnitFiles()
+	inventoryComplete := ns.GetInventoryComplete()
 
 	// Snapshot existing node for evaluation without holding the lock during compute.
 	srv.lock("ReportNodeStatus:snapshot")
@@ -1218,8 +1388,49 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 			changed = true
 		}
 	}
+	// Phase 3: store installed unit file inventory and inventory_complete flag.
+	if inventoryComplete || len(installedUnitFiles) > 0 {
+		// Merge the reported unit files into the node's unit list as "inactive" records
+		// so that missingInstalledUnits can find them. Only add entries not already present.
+		unitMap := make(map[string]string, len(node.Units))
+		for _, u := range node.Units {
+			unitMap[strings.ToLower(u.Name)] = u.State
+		}
+		for _, uf := range installedUnitFiles {
+			name := strings.ToLower(strings.TrimSpace(uf))
+			if name == "" {
+				continue
+			}
+			if _, exists := unitMap[name]; !exists {
+				node.Units = append(node.Units, unitStatusRecord{Name: uf, State: "inactive"})
+				unitMap[name] = "inactive"
+				changed = true
+			}
+		}
+		if node.InventoryComplete != inventoryComplete {
+			node.InventoryComplete = inventoryComplete
+			changed = true
+		}
+	}
 	if oldEndpoint != newEndpoint {
 		changed = true
+	}
+
+	// Phase 4b: commit or discard pending rendered config hashes based on apply outcome.
+	// A report received after the plan was dispatched is our confirmation signal.
+	if len(node.PendingRenderedConfigHashes) > 0 && !node.LastPlanSentAt.IsZero() &&
+		reportedAt.After(node.LastPlanSentAt) {
+		if healthStatus == "ready" {
+			// Agent is healthy after plan dispatch — config files are on disk.
+			node.RenderedConfigHashes = node.PendingRenderedConfigHashes
+			node.PendingRenderedConfigHashes = nil
+			changed = true
+		} else if healthStatus == "error" || healthStatus == "failed" {
+			// Agent explicitly failed — clear pending so next cycle retries.
+			node.PendingRenderedConfigHashes = nil
+			changed = true
+		}
+		// For other states (converging, etc.) keep pending and wait.
 	}
 	endpointToClose := ""
 	if oldEndpoint != "" && oldEndpoint != newEndpoint {
@@ -1807,7 +2018,10 @@ func (srv *server) attemptNodeRecovery(ctx context.Context, node *nodeState) err
 	}
 
 	// If we can connect, dispatch the current plan
-	plan := srv.computeNodePlan(node)
+	plan, planErr := srv.computeNodePlan(node)
+	if planErr != nil {
+		return fmt.Errorf("compute plan: %w", planErr)
+	}
 	if plan == nil || (len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0) {
 		// No plan needed, just mark as recovered
 		return nil
@@ -1821,6 +2035,13 @@ func (srv *server) attemptNodeRecovery(ctx context.Context, node *nodeState) err
 		return fmt.Errorf("dispatch plan: %w", err)
 	}
 
+	// Phase 4b: store pending rendered config hashes on recovery dispatch.
+	// Promoted to RenderedConfigHashes only after agent reports apply success.
+	if len(plan.GetRenderedConfig()) > 0 {
+		srv.lock("recovery-rendered-config-hashes")
+		node.PendingRenderedConfigHashes = HashRenderedConfigs(plan.GetRenderedConfig())
+		srv.unlock()
+	}
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "recovery: plan dispatched", 25, false, ""))
 	return nil
 }
@@ -1879,6 +2100,59 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node == nil || node.NodeID == "" {
 			continue
 		}
+		// Validate profiles before any dispatch — unknown profiles block the node.
+		actions, profileErr := buildPlanActions(node.Profiles)
+		if profileErr != nil {
+			node.Status = "blocked"
+			node.LastPlanError = profileErr.Error()
+			node.BlockedReason = "unknown_profile"
+			node.BlockedDetails = profileErr.Error()
+			stateDirty = true
+			log.Printf("reconcile: node %s blocked: %v", node.NodeID, profileErr)
+			continue
+		}
+		// Clear stale unknown_profile block now that profiles are valid.
+		if node.BlockedReason == "unknown_profile" {
+			node.BlockedReason = ""
+			node.BlockedDetails = ""
+			node.LastPlanError = ""
+			if node.Status == "blocked" {
+				node.Status = "converging"
+			}
+			stateDirty = true
+		}
+
+		// Phase 3: Capability gating — desired units must be installed on the node.
+		// Hard-gate when inventory_complete=true; soft-gate (warn only) otherwise.
+		if len(node.Units) > 0 {
+			desiredUnitNames := desiredUnitsFromActions(actions)
+			if missing := missingInstalledUnits(desiredUnitNames, node.Units); len(missing) > 0 {
+				if node.InventoryComplete {
+					// Full inventory reported — hard block.
+					node.Status = "blocked"
+					node.LastPlanError = fmt.Sprintf("missing unit files: %v", missing)
+					node.BlockedReason = "missing_units"
+					node.BlockedDetails = fmt.Sprintf("missing: %s", strings.Join(missing, ", "))
+					stateDirty = true
+					log.Printf("reconcile: node %s blocked (hard): missing units: %v", node.NodeID, missing)
+					continue
+				}
+				// Inventory not complete — soft mode: warn but allow reconcile to proceed.
+				log.Printf("reconcile: node %s soft-warn: possibly missing units (inventory incomplete): %v", node.NodeID, missing)
+			} else if node.InventoryComplete {
+				// Full inventory present and all units confirmed — clear stale missing_units block.
+				if node.BlockedReason == "missing_units" {
+					node.BlockedReason = ""
+					node.BlockedDetails = ""
+					node.LastPlanError = ""
+					if node.Status == "blocked" {
+						node.Status = "converging"
+					}
+					stateDirty = true
+				}
+			}
+		}
+
 		appliedHash, err := srv.getNodeAppliedHash(ctx, node.NodeID)
 		if err != nil {
 			log.Printf("reconcile: read applied hash for %s: %v", node.NodeID, err)
@@ -2176,11 +2450,14 @@ func isPlanStuck(status *planpb.NodePlanStatus, lastEmitMs int64, now time.Time)
 	return now.Sub(time.UnixMilli(int64(last))) > 10*time.Minute
 }
 
-func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePlan {
+func (srv *server) computeNodePlan(node *nodeState) (*clustercontrollerpb.NodePlan, error) {
 	if node == nil {
-		return nil
+		return nil, nil
 	}
-	actionList := buildPlanActions(node.Profiles)
+	actionList, err := buildPlanActions(node.Profiles)
+	if err != nil {
+		return nil, err
+	}
 	plan := &clustercontrollerpb.NodePlan{
 		NodeId:   node.NodeID,
 		Profiles: append([]string(nil), node.Profiles...),
@@ -2190,8 +2467,18 @@ func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePla
 	}
 	if rendered := srv.renderedConfigForNode(node); len(rendered) > 0 {
 		plan.RenderedConfig = rendered
+		// Phase 4b: inject restart actions for renderers whose output has changed.
+		// If a plan is already in flight (PendingRenderedConfigHashes is set), compare
+		// against pending so we don't re-dispatch the same restart actions every cycle.
+		compareHashes := node.RenderedConfigHashes
+		if len(node.PendingRenderedConfigHashes) > 0 {
+			compareHashes = node.PendingRenderedConfigHashes
+		}
+		if restarts := restartActionsForChangedConfigs(compareHashes, rendered); len(restarts) > 0 {
+			plan.UnitActions = append(plan.UnitActions, restarts...)
+		}
 	}
-	return plan
+	return plan, nil
 }
 
 func planHash(plan *clustercontrollerpb.NodePlan) string {
@@ -2391,6 +2678,37 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 		return nil
 	}
 	return out
+}
+
+// renderServiceConfigsForNodeInMembership renders service-specific configs for a
+// node using an explicitly provided membership snapshot (instead of reading live state).
+// Used by preview to compute hypothetical renders without mutating state.
+func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, membership *clusterMembership) map[string]string {
+	if node == nil || membership == nil {
+		return nil
+	}
+	// Find the node in the provided membership.
+	var currentMember *memberNode
+	for i := range membership.Nodes {
+		if membership.Nodes[i].NodeID == node.NodeID {
+			currentMember = &membership.Nodes[i]
+			break
+		}
+	}
+	if currentMember == nil {
+		return nil
+	}
+	domain := ""
+	if spec := srv.clusterNetworkSpec(); spec != nil {
+		domain = spec.GetClusterDomain()
+	}
+	ctx := &serviceConfigContext{
+		Membership:  membership,
+		CurrentNode: currentMember,
+		ClusterID:   membership.ClusterID,
+		Domain:      domain,
+	}
+	return renderServiceConfigs(ctx)
 }
 
 func (srv *server) networkingGeneration() uint64 {
@@ -2913,7 +3231,7 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	if node == nil {
 		return "degraded", "missing node record"
 	}
-	plan := srv.computeNodePlan(node)
+	plan, _ := srv.computeNodePlan(node)
 	required := requiredUnitsFromPlan(plan)
 	if len(required) == 0 {
 		return "ready", ""

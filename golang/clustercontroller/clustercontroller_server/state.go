@@ -66,6 +66,20 @@ type nodeState struct {
 	MarkedUnhealthySince time.Time `json:"marked_unhealthy_since,omitempty"`
 	// DNS-first naming field (PR2)
 	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
+	// Structured blocked reason (Phase 7)
+	BlockedReason  string `json:"blocked_reason,omitempty"`  // e.g. "unknown_profile" | "missing_units" | "apply_failed"
+	BlockedDetails string `json:"blocked_details,omitempty"` // human-readable details
+	// Per-file content hashes of the last successfully applied rendered service configs (Phase 4b).
+	// Map key is the output file path; value is sha256 hex of the file content.
+	// Committed only after the node agent reports apply success (not just on dispatch).
+	RenderedConfigHashes map[string]string `json:"rendered_config_hashes,omitempty"`
+	// PendingRenderedConfigHashes holds hashes from a dispatched plan that has not yet
+	// been confirmed as applied. On success these are promoted to RenderedConfigHashes;
+	// on failure they are cleared so the next cycle re-detects the change.
+	PendingRenderedConfigHashes map[string]string `json:"pending_rendered_config_hashes,omitempty"`
+	// InventoryComplete is true when the node agent last reported a full unit-file inventory.
+	// When false, capability gating uses soft mode (warn but don't block).
+	InventoryComplete bool `json:"inventory_complete,omitempty"`
 }
 
 type unitStatusRecord struct {

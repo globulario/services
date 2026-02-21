@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -8,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	configpkg "github.com/globulario/services/golang/config"
 )
 
@@ -413,6 +416,68 @@ func renderJSON(data map[string]interface{}) (string, error) {
 	return string(jsonBytes), nil
 }
 
+// rendererSpec describes a single service configuration renderer.
+type rendererSpec struct {
+	name         string
+	profiles     []string                                     // profiles that activate this renderer
+	outputs      []string                                     // file paths this renderer writes
+	restartUnits []string                                     // units to restart when output changes
+	render       func(*serviceConfigContext) (string, bool)   // rendering function
+}
+
+// renderers is the authoritative list of all config renderers in the controller.
+// This registry is validated at startup by validateRenderers().
+var renderers = []rendererSpec{
+	{
+		name:         "etcd",
+		profiles:     profilesForEtcd,
+		outputs:      []string{"/var/lib/globular/etcd/etcd.yaml"},
+		restartUnits: []string{"globular-etcd.service"},
+		render:       renderEtcdConfig,
+	},
+	{
+		name:         "minio",
+		profiles:     profilesForMinio,
+		outputs:      []string{"/var/lib/globular/minio/minio.env"},
+		restartUnits: []string{"globular-minio.service"},
+		render:       renderMinioConfig,
+	},
+	{
+		name:         "xds",
+		profiles:     profilesForXDS,
+		outputs:      []string{"/var/lib/globular/xds/config.json"},
+		restartUnits: []string{"globular-xds.service"}, // XDS server consumes this config
+		render:       renderXDSConfig,
+	},
+	{
+		name:         "dns",
+		profiles:     profilesForDNS,
+		outputs:      []string{"/var/lib/globular/dns/dns_init.json"},
+		restartUnits: []string{"globular-dns.service"},
+		render:       renderDNSConfig,
+	},
+}
+
+// validateRenderers checks for output path collisions and unknown profile references.
+// Must be called once at server startup.
+func validateRenderers() error {
+	seen := make(map[string]string) // output path → renderer name
+	for _, r := range renderers {
+		for _, o := range r.outputs {
+			if owner, dup := seen[o]; dup {
+				return fmt.Errorf("renderer collision: %q and %q both write %q", owner, r.name, o)
+			}
+			seen[o] = r.name
+		}
+		for _, p := range r.profiles {
+			if _, ok := profileUnitMap[p]; !ok {
+				return fmt.Errorf("renderer %q references unknown profile %q", r.name, p)
+			}
+		}
+	}
+	return nil
+}
+
 // renderServiceConfigs generates all service-specific configurations for a node.
 // Returns a map of file paths to file contents.
 func renderServiceConfigs(ctx *serviceConfigContext) map[string]string {
@@ -422,24 +487,85 @@ func renderServiceConfigs(ctx *serviceConfigContext) map[string]string {
 
 	configs := make(map[string]string)
 
-	if etcdConfig, ok := renderEtcdConfig(ctx); ok {
-		configs["/var/lib/globular/etcd/etcd.yaml"] = etcdConfig
-	}
-
-	if minioConfig, ok := renderMinioConfig(ctx); ok {
-		configs["/var/lib/globular/minio/minio.env"] = minioConfig
-	}
-
-	if xdsConfig, ok := renderXDSConfig(ctx); ok {
-		configs["/var/lib/globular/xds/config.json"] = xdsConfig
-	}
-
-	if dnsConfig, ok := renderDNSConfig(ctx); ok {
-		configs["/var/lib/globular/dns/dns_init.json"] = dnsConfig
+	for _, r := range renderers {
+		for _, output := range r.outputs {
+			content, ok := r.render(ctx)
+			if !ok {
+				continue
+			}
+			configs[output] = content
+		}
 	}
 
 	if len(configs) == 0 {
 		return nil
 	}
 	return configs
+}
+
+// HashRenderedConfigs computes sha256 hex hashes for each file in the rendered config map.
+// Returns a new map of the same keys with their hash values.
+func HashRenderedConfigs(rendered map[string]string) map[string]string {
+	if len(rendered) == 0 {
+		return nil
+	}
+	hashes := make(map[string]string, len(rendered))
+	for path, content := range rendered {
+		sum := sha256.Sum256([]byte(content))
+		hashes[path] = hex.EncodeToString(sum[:])
+	}
+	return hashes
+}
+
+// restartActionsForChangedConfigs returns restart UnitActions for all renderers whose output
+// files have changed (i.e., their content hash differs from the stored hash in oldHashes).
+// Only renderers with at least one changed output path contribute restart actions.
+func restartActionsForChangedConfigs(oldHashes map[string]string, rendered map[string]string) []*clustercontrollerpb.UnitAction {
+	if len(rendered) == 0 {
+		return nil
+	}
+	// Compute the new hashes.
+	newHashes := HashRenderedConfigs(rendered)
+
+	// Collect restart units for changed renderers (deduplicated).
+	restartSet := make(map[string]struct{})
+	for _, r := range renderers {
+		for _, output := range r.outputs {
+			newHash, exists := newHashes[output]
+			if !exists {
+				continue
+			}
+			oldHash := oldHashes[output]
+			// Only restart when a previously-written file changes.
+			// If oldHash is empty this is the first write for this file; the service
+			// will be started fresh via enable/start actions — no restart needed.
+			if oldHash != "" && newHash != oldHash {
+				// This renderer has a changed output — add all its restart units.
+				for _, unit := range r.restartUnits {
+					restartSet[unit] = struct{}{}
+				}
+				break // one changed output is enough to trigger this renderer's restarts
+			}
+		}
+	}
+
+	if len(restartSet) == 0 {
+		return nil
+	}
+
+	// Sort for deterministic output.
+	restartUnits := make([]string, 0, len(restartSet))
+	for unit := range restartSet {
+		restartUnits = append(restartUnits, unit)
+	}
+	sort.Strings(restartUnits)
+
+	actions := make([]*clustercontrollerpb.UnitAction, 0, len(restartUnits))
+	for _, unit := range restartUnits {
+		actions = append(actions, &clustercontrollerpb.UnitAction{
+			UnitName: unit,
+			Action:   "restart",
+		})
+	}
+	return actions
 }

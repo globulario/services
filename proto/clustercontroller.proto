@@ -353,6 +353,14 @@ message NodeStatus {
   //    lower-case, no "globular-" prefix, no ".service" suffix).
   // Value MUST be the resolved version string read from the version marker file.
   map<string, string> installed_versions = 9;
+  // installed_unit_files lists every systemd unit file known to this node
+  // (scanned from /etc/systemd/system and /lib/systemd/system).
+  // Used by the controller for capability gating (Phase 3).
+  repeated string installed_unit_files = 10;
+  // inventory_complete is true when the node agent has finished scanning unit files
+  // and installed_unit_files is a complete, authoritative inventory.
+  // When false, the controller uses soft-mode gating (warn, don't block).
+  bool inventory_complete = 11;
 }
 
 message ReportNodeStatusRequest {
@@ -396,6 +404,10 @@ service ClusterControllerService {
   rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
 
   rpc GetClusterHealthV1(GetClusterHealthV1Request) returns (GetClusterHealthV1Response);
+
+  // PreviewNodeProfiles computes the unit actions and config changes that WOULD result
+  // from assigning the given profiles to a node, without mutating any state.
+  rpc PreviewNodeProfiles(PreviewNodeProfilesRequest) returns (PreviewNodeProfilesResponse);
 }
 
 message DesiredNetwork {
@@ -435,6 +447,37 @@ message ServiceSummary {
 message GetClusterHealthV1Response {
   repeated NodeHealth nodes = 1;
   repeated ServiceSummary services = 2;
+}
+
+// PreviewNodeProfiles dry-run messages (Phase 5).
+// These are read-only — no state is mutated.
+
+message PreviewNodeProfilesRequest {
+  string node_id = 1;
+  repeated string profiles = 2;  // proposed profiles to preview
+}
+
+// ConfigFileDiff describes a single rendered config file and whether its content changed.
+message ConfigFileDiff {
+  string path = 1;         // absolute file path on the target node
+  string old_hash = 2;     // sha256 hex of current on-node content ("" if not previously rendered)
+  string new_hash = 3;     // sha256 hex of new content
+  bool   changed = 4;      // true when new_hash != old_hash (or first render)
+}
+
+// AffectedNodeDiff describes config changes that would ripple to another node
+// as a result of membership changes (etcd, minio cluster composition changes).
+message AffectedNodeDiff {
+  string node_id = 1;
+  repeated ConfigFileDiff config_diff = 2;  // files that would change on that node
+}
+
+message PreviewNodeProfilesResponse {
+  repeated string normalized_profiles = 1;   // profiles after normalization
+  repeated UnitAction unit_diff = 2;          // actions that WOULD be generated
+  repeated ConfigFileDiff config_diff = 3;    // per-file hash comparison for target node
+  repeated string restart_units = 4;          // units that WOULD be restarted due to config changes
+  repeated AffectedNodeDiff affected_nodes = 5; // other nodes whose configs would change
 }
 
 // Note: ServiceRelease resource type is defined as a hand-written Go struct in

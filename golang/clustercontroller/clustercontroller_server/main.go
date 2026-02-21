@@ -86,6 +86,12 @@ func main() {
 		*statePath = env
 	}
 
+	// Validate renderer registry (startup integrity check).
+	if err := validateRenderers(); err != nil {
+		logger.Error("renderer registry invalid", "error", err)
+		os.Exit(1)
+	}
+
 	// Load configuration
 	logger.Info("loading configuration", "config_path", *cfgPath)
 	cfg, err := loadClusterControllerConfig(*cfgPath)
