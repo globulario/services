@@ -294,7 +294,8 @@ func InitClient(client Client, address string, id string) error {
 	// Determine effective FQDN for TLS/certs usage
 	effectiveHost := resolveEffectiveHost(address, host, localCfg)
 	
-	isLocal := (effectiveHost == localHost || effectiveHost == "localhost" || strings.HasPrefix(localHost, effectiveHost))
+	isLoopback := effectiveHost == "127.0.0.1" || effectiveHost == "::1"
+	isLocal := isLoopback || effectiveHost == localHost || effectiveHost == "localhost" || strings.HasPrefix(localHost, effectiveHost)
 
 	client.SetAddress(address)
 
@@ -586,6 +587,31 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 		client.SetCertFile(c)
 		client.SetCaFile(ca)
 		return nil
+	}
+
+	// 1b) Loopback alias: 127.0.0.1 / ::1 → also search under "localhost" and any
+	// other subdirectory the Day-0 installer may have written certs into.
+	if effectiveHost == "127.0.0.1" || effectiveHost == "::1" {
+		if k, c, ca, ok := tryUseExistingClientCerts(base, "localhost"); ok {
+			client.SetKeyFile(k)
+			client.SetCertFile(c)
+			client.SetCaFile(ca)
+			return nil
+		}
+		// Also scan all subdirs (handles custom domain installs)
+		if entries, err := os.ReadDir(base); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() || e.Name() == "localhost" {
+					continue
+				}
+				if k, c, ca, ok := tryUseExistingClientCerts(base, e.Name()); ok {
+					client.SetKeyFile(k)
+					client.SetCertFile(c)
+					client.SetCaFile(ca)
+					return nil
+				}
+			}
+		}
 	}
 
 	// 2) Fallback: if isLocal and no user certs, try remapping server paths to client paths
