@@ -1253,6 +1253,31 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 		return nil, err
 	}
 
+	// Schema migration: add any columns that exist in the data but not yet in the table.
+	// This handles renamed columns (e.g. publisher_i_d → publisher_id after camelToSnake fix)
+	// without requiring a manual DROP TABLE.
+	if existingCols, err := store.getTableColumns(session, keyspace, tableName); err == nil {
+		for column, value := range data {
+			if value == nil || column == "typeName" {
+				continue
+			}
+			fieldType := deduceColumnType(value)
+			if fieldType == "" || fieldType == "array" || fieldType == "map" {
+				continue
+			}
+			col := camelToSnake(column)
+			if col == "_id" || col == "id" {
+				continue
+			}
+			if _, exists := existingCols[col]; !exists {
+				alterQ := fmt.Sprintf("ALTER TABLE %s.%s ADD %s %s", keyspace, tableName, col, fieldType)
+				if err := session.Query(alterQ).Exec(); err != nil {
+					slog.Warn("scylla: alter table add column skipped", "table", tableName, "col", col, "err", err)
+				}
+			}
+		}
+	}
+
 	columns := make([]string, 0)
 	values := make([]interface{}, 0)
 
