@@ -320,6 +320,20 @@ func GetAddress() (string, error) {
 	}
 
 	if addr := strings.TrimSpace(Utility.ToString(localConfig["Address"])); addr != "" {
+		// The Address field may be a bare IP/hostname without a port.
+		// Append the control port so callers always get "host:port".
+		if _, _, err := net.SplitHostPort(addr); err != nil {
+			proto := strings.ToLower(Utility.ToString(localConfig["Protocol"]))
+			if proto == "https" {
+				if p := strings.TrimSpace(Utility.ToString(localConfig["PortHTTPS"])); p != "" && p != "0" {
+					addr = net.JoinHostPort(addr, p)
+				}
+			} else {
+				if p := strings.TrimSpace(Utility.ToString(localConfig["PortHTTP"])); p != "" && p != "0" {
+					addr = net.JoinHostPort(addr, p)
+				}
+			}
+		}
 		return strings.ToLower(addr), nil
 	}
 
