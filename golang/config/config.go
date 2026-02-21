@@ -324,15 +324,19 @@ func GetAddress() (string, error) {
 		// Append the control port so callers always get "host:port".
 		if _, _, err := net.SplitHostPort(addr); err != nil {
 			proto := strings.ToLower(Utility.ToString(localConfig["Protocol"]))
+			var port int
 			if proto == "https" {
-				if p := strings.TrimSpace(Utility.ToString(localConfig["PortHTTPS"])); p != "" && p != "0" {
-					addr = net.JoinHostPort(addr, p)
+				port = Utility.ToInt(localConfig["PortHTTPS"])
+				if port == 0 {
+					port = 8443 // standard HTTPS fallback (matches GetGatewayUrl)
 				}
 			} else {
-				if p := strings.TrimSpace(Utility.ToString(localConfig["PortHTTP"])); p != "" && p != "0" {
-					addr = net.JoinHostPort(addr, p)
+				port = Utility.ToInt(localConfig["PortHTTP"])
+				if port == 0 {
+					port = 80
 				}
 			}
+			addr = net.JoinHostPort(addr, strconv.Itoa(port))
 		}
 		return strings.ToLower(addr), nil
 	}
