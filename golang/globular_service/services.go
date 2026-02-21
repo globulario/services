@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -274,8 +275,25 @@ func InitService(s Service) error {
 		if byName, nameErr := config.GetServicesConfigurationsByName(s.GetName()); nameErr == nil && len(byName) > 0 {
 			cfg = byName[0]
 			slog.Info("InitService: loaded config by name fallback", "service", s.GetName(), "current_id", s.GetId(), "config_id", Utility.ToString(cfg["Id"]))
-		} else if nameErr != nil {
-			slog.Warn("InitService: config lookup by name failed", "service", s.GetName(), "err", nameErr)
+		} else {
+			// On fresh install etcd has no entry yet — this is expected, not an error.
+			slog.Debug("InitService: no config in etcd (first install?), will use defaults", "service", s.GetName(), "err", nameErr)
+		}
+	}
+
+	// Local file fallback: installer writes a seed config to <servicesDir>/<id>.json
+	// before starting systemd. On first boot this avoids the "no config in etcd" path.
+	if cfg == nil {
+		servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
+		if servicesDir == "" {
+			servicesDir = "/var/lib/globular/services"
+		}
+		if data, err := os.ReadFile(filepath.Join(servicesDir, s.GetId()+".json")); err == nil {
+			var m map[string]interface{}
+			if jsonErr := json.Unmarshal(data, &m); jsonErr == nil && m != nil {
+				cfg = m
+				slog.Info("InitService: loaded seed config from local file", "service", s.GetName(), "id", s.GetId())
+			}
 		}
 	}
 
@@ -757,13 +775,23 @@ func reallocatePort(s Service, oldPort int) (int, error) {
 	// Update service configuration
 	s.SetPort(newPort)
 
-	// Update Address field
+	// Update Address field, preserving the real node IP.
+	// GetAddress() returns either a bare IP ("10.0.0.63") or "host:port".
+	// When it's a bare IP (no colon), use it directly as the host.
 	addr := s.GetAddress()
-	host := "localhost"
-	if strings.Contains(addr, ":") {
-		parts := strings.Split(addr, ":")
-		if len(parts) > 0 {
-			host = parts[0]
+	var host string
+	if h, _, err := net.SplitHostPort(addr); err == nil && h != "" {
+		host = h
+	} else if addr != "" {
+		// Bare IP or hostname (no port yet)
+		host = addr
+	}
+	// Fall back to the real node IP rather than loopback.
+	if host == "" || host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
+			host = ip
+		} else {
+			host = "localhost"
 		}
 	}
 	s.SetAddress(fmt.Sprintf("%s:%d", host, newPort))

@@ -160,45 +160,76 @@ func TestDescribeOutputFormat(t *testing.T) {
 
 	// Parse JSON output
 	var metadata struct {
-		Name        string   `json:"Name"`
-		Port        int      `json:"Port"`
-		Protocol    string   `json:"Protocol"`
-		Version     string   `json:"Version"`
-		Description string   `json:"Description"`
-		Keywords    []string `json:"Keywords"`
+		Id          string         `json:"Id"`
+		Name        string         `json:"Name"`
+		Port        int            `json:"Port"`
+		DefaultPort int            `json:"DefaultPort"`
+		PortRange   map[string]any `json:"PortRange"`
+		Protocol    string         `json:"Protocol"`
+		Version     string         `json:"Version"`
+		Description string         `json:"Description"`
+		Keywords    []string       `json:"Keywords"`
+		TLS         bool           `json:"TLS"`
+		Domain      string         `json:"Domain"`
 	}
 
 	if err := json.Unmarshal(output, &metadata); err != nil {
 		t.Fatalf("Failed to parse --describe JSON: %v\nOutput: %s", err, output)
 	}
 
-	// Verify required fields are present and correct
+	// A) Required installer contract fields
+	if metadata.Id == "" {
+		t.Error("Id must be non-empty (installer uses it to locate config file)")
+	}
+	if metadata.DefaultPort == 0 {
+		t.Error("DefaultPort must be non-zero")
+	}
+	if metadata.PortRange == nil {
+		t.Error("PortRange must be present")
+	} else {
+		if metadata.PortRange["Min"] == nil || metadata.PortRange["Max"] == nil {
+			t.Error("PortRange must have Min and Max fields")
+		}
+	}
+
+	// B) Service identity fields
 	if metadata.Name != "echo.EchoService" {
 		t.Errorf("Name = %q, want %q", metadata.Name, "echo.EchoService")
 	}
-
 	if metadata.Port == 0 {
 		t.Error("Port should be non-zero")
 	}
-
 	if metadata.Protocol != "grpc" {
 		t.Errorf("Protocol = %q, want %q", metadata.Protocol, "grpc")
 	}
-
 	if metadata.Version == "" {
 		t.Error("Version should not be empty")
 	}
-
 	if metadata.Description == "" {
 		t.Error("Description should not be empty")
 	}
-
 	if len(metadata.Keywords) == 0 {
 		t.Error("Keywords should not be empty")
 	}
 
-	t.Logf("--describe metadata: Name=%s, Port=%d, Version=%s",
-		metadata.Name, metadata.Port, metadata.Version)
+	// C) Id must be stable across repeated calls (deterministic UUID).
+	cmd2 := exec.Command(binaryPath, "--describe")
+	output2, err := cmd2.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Second --describe failed: %v", err)
+	}
+	var meta2 struct {
+		Id string `json:"Id"`
+	}
+	if err := json.Unmarshal(output2, &meta2); err != nil {
+		t.Fatalf("Failed to parse second --describe JSON: %v", err)
+	}
+	if meta2.Id != metadata.Id {
+		t.Errorf("Id is not stable: first=%q second=%q", metadata.Id, meta2.Id)
+	}
+
+	t.Logf("--describe: Id=%s Name=%s DefaultPort=%d Port=%d Version=%s",
+		metadata.Id, metadata.Name, metadata.DefaultPort, metadata.Port, metadata.Version)
 }
 
 // TestGetterSetterContract verifies the Globular service contract

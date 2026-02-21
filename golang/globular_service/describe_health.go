@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,10 +18,27 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// portRangeFromEnv reads the port range used by the port allocator.
+func portRangeFromEnv() (min, max int) {
+	min, max = 10000, 20000
+	if v := os.Getenv("GLOBULAR_PORT_RANGE_START"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			min = n
+		}
+	}
+	if v := os.Getenv("GLOBULAR_PORT_RANGE_END"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			max = n
+		}
+	}
+	return min, max
+}
+
 // DescribeMap returns a stable map of public, cluster-relevant fields.
 // It intentionally excludes runtime-only internals like grpcServer pointers.
 func DescribeMap(s Service) map[string]any {
 	ensureDescribeID(s)
+	rangeMin, rangeMax := portRangeFromEnv()
 	return map[string]any{
 		"Id":                 s.GetId(),
 		"Name":               s.GetName(),
@@ -56,6 +74,9 @@ func DescribeMap(s Service) map[string]any {
 		"LastError":    s.GetLastError(),
 		"ModTime":      s.GetModTime(),
 		"Mac":          s.GetMac(),
+		// Startup contract fields used by the installer for port preflight.
+		"DefaultPort": s.GetPort(),
+		"PortRange":   map[string]any{"Min": rangeMin, "Max": rangeMax},
 	}
 }
 

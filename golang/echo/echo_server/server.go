@@ -463,8 +463,7 @@ func main() {
 	}
 
 	if *showDescribe {
-		data, _ := json.MarshalIndent(srv, "", "  ")
-		fmt.Println(string(data))
+		globular.HandleDescribeFlag(srv, logger)
 		return
 	}
 

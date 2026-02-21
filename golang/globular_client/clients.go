@@ -258,6 +258,39 @@ func portOpen(addr string, timeout time.Duration) bool {
 	return true
 }
 
+// isOwnIP returns true if host is one of this machine's own IP addresses.
+// This works even when the local Globular config is unreadable (e.g. running as
+// a non-root user who cannot access /var/lib/globular/config.json).
+func isOwnIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ifaceIP net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ifaceIP = v.IP
+			case *net.IPAddr:
+				ifaceIP = v.IP
+			}
+			if ifaceIP != nil && ifaceIP.Equal(ip) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ===================== InitClient (refactored) =====================
 
 func InitClient(client Client, address string, id string) error {
@@ -295,7 +328,9 @@ func InitClient(client Client, address string, id string) error {
 	effectiveHost := resolveEffectiveHost(address, host, localCfg)
 	
 	isLoopback := effectiveHost == "127.0.0.1" || effectiveHost == "::1"
-	isLocal := isLoopback || effectiveHost == localHost || effectiveHost == "localhost" || strings.HasPrefix(localHost, effectiveHost)
+	isLocal := isLoopback || effectiveHost == "localhost" ||
+		(localHost != "" && (effectiveHost == localHost || strings.HasPrefix(localHost, effectiveHost))) ||
+		isOwnIP(effectiveHost)
 
 	client.SetAddress(address)
 
@@ -589,9 +624,11 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 		return nil
 	}
 
-	// 1b) Loopback alias: 127.0.0.1 / ::1 → also search under "localhost" and any
-	// other subdirectory the Day-0 installer may have written certs into.
-	if effectiveHost == "127.0.0.1" || effectiveHost == "::1" {
+	// 1b) Local alias: any local address (127.0.0.1, ::1, real node IP like 10.0.0.63)
+	// → also search under "localhost" and any other subdirectory the Day-0 installer
+	// may have written certs into (certs are stored under "localhost" regardless of
+	// which local IP the caller used to reach the service).
+	if isLocal && effectiveHost != "localhost" {
 		if k, c, ca, ok := tryUseExistingClientCerts(base, "localhost"); ok {
 			client.SetKeyFile(k)
 			client.SetCertFile(c)
