@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/media/media_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	resource_client "github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/security"
@@ -385,6 +386,16 @@ func getMediaClient() (*media_client.Media_Client, error) {
 		return nil, err
 	}
 	return c.(*media_client.Media_Client), nil
+}
+
+func getResourceClient() (*resource_client.Resource_Client, error) {
+	address, _ := config.GetAddress()
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	c, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return c.(*resource_client.Resource_Client), nil
 }
 func (srv *server) GetSearchClient() (*search_client.Search_Client, error) {
 	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
@@ -1154,6 +1165,68 @@ func main() {
 				logger.Warn("owner-set queue full; dropping", "path", path)
 			}
 		})
+
+		// Create user home dir in storage when a new account is registered.
+		subscribeWithRetry("create_account_evt", func(evt *eventpb.Event) {
+			if len(evt.Data) == 0 {
+				return
+			}
+			var acc struct {
+				Id     string `json:"id"`
+				Domain string `json:"domain"`
+			}
+			if err := json.Unmarshal(evt.Data, &acc); err != nil || acc.Id == "" {
+				return
+			}
+			path := "/users/" + acc.Id
+			if acc.Domain != "" {
+				path = "/users/" + acc.Id + "@" + acc.Domain
+			}
+			if err := s.storageMkdirAll(context.Background(), path, 0o755); err != nil {
+				logger.Error("create_account_evt: mkdir failed", "path", path, "err", err)
+			} else {
+				logger.Info("created user home dir", "path", path)
+			}
+		})
+	}()
+
+	// Ensure home dirs exist for all accounts already in the system (best-effort, background).
+	go func() {
+		// Wait for resource service and storage to be ready.
+		time.Sleep(10 * time.Second)
+
+		ctx := context.Background()
+
+		// Always ensure the built-in sa admin directory.
+		if err := s.storageMkdirAll(ctx, "/users/sa", 0o755); err != nil {
+			logger.Warn("could not ensure /users/sa dir", "err", err)
+		} else {
+			logger.Info("ensured /users/sa home dir")
+		}
+
+		rc, err := getResourceClient()
+		if err != nil {
+			logger.Warn("resource client unavailable for user dir init", "err", err)
+			return
+		}
+		accounts, err := rc.GetAccounts("")
+		if err != nil {
+			logger.Warn("GetAccounts failed for user dir init", "err", err)
+			return
+		}
+		for _, acc := range accounts {
+			if acc.GetId() == "" {
+				continue
+			}
+			path := "/users/" + acc.GetId()
+			if acc.GetDomain() != "" {
+				path = "/users/" + acc.GetId() + "@" + acc.GetDomain()
+			}
+			if err := s.storageMkdirAll(ctx, path, 0o755); err != nil {
+				logger.Warn("could not ensure user dir", "path", path, "err", err)
+			}
+		}
+		logger.Info("user home dir init complete", "count", len(accounts))
 	}()
 
 	// Start cleanup pass for temporary files
