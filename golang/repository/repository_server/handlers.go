@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -122,15 +121,14 @@ func (srv *server) DownloadBundle(
 		PackageDescriptor: rqst.Descriptor_,  // incoming descriptor
 	}
 
-	// Compute id and file path.
+	// Compute bundle id and storage key.
 	id := bundleID(bundle.PackageDescriptor, rqst.Platform)
-	repoPath := srv.Root + "/packages-repository"
-	filePath := repoPath + "/" + id + ".tar.gz"
+	storageKey := "packages-repository/" + id + ".tar.gz"
 
-	// Read the archived binaries.
-	data, err := os.ReadFile(filePath)
+	// Read the archived binaries from the configured storage backend (MinIO or local FS).
+	data, err := srv.Storage().ReadFile(stream.Context(), storageKey)
 	if err != nil {
-		return fmt.Errorf("read bundle file %q: %w", filePath, err)
+		return fmt.Errorf("read bundle %q: %w", storageKey, err)
 	}
 	bundle.Binairies = data
 
@@ -187,19 +185,14 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	}
 	bundle.PackageDescriptor.Id = descriptorID(bundle.PackageDescriptor)
 
-	// Compute bundle id & repository path.
+	// Compute bundle id and storage key.
 	id := bundleID(bundle.PackageDescriptor, bundle.Plaform)
-	repoPath := srv.Root + "/packages-repository"
-	if err := Utility.CreateDirIfNotExist(repoPath); err != nil {
-		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
-		return fmt.Errorf("ensure repo dir: %w", err)
-	}
-	filePath := repoPath + "/" + id + ".tar.gz"
+	storageKey := "packages-repository/" + id + ".tar.gz"
 
-	// Persist archive.
-	if err := os.WriteFile(filePath, bundle.Binairies, 0o644); err != nil {
+	// Persist archive to the configured storage backend (MinIO or local FS).
+	if err := srv.Storage().WriteFile(stream.Context(), storageKey, bundle.Binairies, 0o644); err != nil {
 		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
-		return fmt.Errorf("write bundle file %q: %w", filePath, err)
+		return fmt.Errorf("write bundle %q: %w", storageKey, err)
 	}
 
 	// Fill metadata and persist it via existing server method.
@@ -229,7 +222,7 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		"descriptor_name", bundle.PackageDescriptor.GetName(),
 		"size", bundle.Size,
 		"modified", bundle.Modified,
-		"path", filePath,
+		"key", storageKey,
 	)
 	return nil
 }

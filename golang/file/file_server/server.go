@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -579,16 +583,46 @@ func (srv *server) ensureMinioClient() error {
 		return fmt.Errorf("unknown minio auth mode: %s", auth.Mode)
 	}
 
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  creds,
-		Secure: cfg.Secure,
-	})
+	opts := &minio.Options{Creds: creds, Secure: cfg.Secure}
+	if cfg.Secure {
+		tlsCfg, err := buildMinioTLSConfig(cfg)
+		if err != nil {
+			return fmt.Errorf("build minio TLS config: %w", err)
+		}
+		if tlsCfg != nil {
+			opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+		}
+	}
+
+	client, err := minio.New(cfg.Endpoint, opts)
 	if err != nil {
 		return err
 	}
 
 	srv.minioClient = client
 	return nil
+}
+
+// buildMinioTLSConfig returns a tls.Config for the MinIO endpoint.
+// If CABundlePath is set, it is loaded for server-cert verification.
+// For loopback endpoints with no CA bundle, InsecureSkipVerify is used
+// (acceptable because traffic is local-only).
+func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
+	if cfg.CABundlePath != "" {
+		caCert, err := os.ReadFile(cfg.CABundlePath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA bundle %q: %w", cfg.CABundlePath, err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caCert)
+		return &tls.Config{RootCAs: pool}, nil
+	}
+	// Fallback: InsecureSkipVerify for loopback MinIO with self-signed cert.
+	host, _, _ := net.SplitHostPort(cfg.Endpoint)
+	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
+		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
+	}
+	return nil, nil
 }
 
 // minioContractPath is the well-known path where the installer writes the Minio config.
@@ -607,7 +641,14 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
 		if minioRaw, ok := cfg["MinioConfig"]; ok {
 			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
-				return parseMinioConfigFromMap(minioMap)
+				parsed := parseMinioConfigFromMap(minioMap)
+				// Normalize prefix: strip slashes and clear the old bad default "users"
+				// which caused pathToKey("/users/sa") → "users/users/sa" (double prefix).
+				parsed.Prefix = strings.Trim(parsed.Prefix, "/")
+				if parsed.Prefix == "users" {
+					parsed.Prefix = ""
+				}
+				return parsed
 			}
 		}
 	}
@@ -684,10 +725,11 @@ func loadMinioConfigFromCredentialsFile() *config.MinioProxyConfig {
 	}
 	logger.Info("loaded minio config from credentials file", "path", minioCredentialsPath)
 	return &config.MinioProxyConfig{
-		Endpoint: "127.0.0.1:9000",
-		Bucket:   "globular",
-		Prefix:   "",
-		Secure:   false,
+		Endpoint:     "127.0.0.1:9000",
+		Bucket:       "globular",
+		Prefix:       "",
+		Secure:       true, // MinIO uses HTTPS when certs are present in .minio/certs/
+		CABundlePath: "/var/lib/globular/pki/ca.pem",
 		Auth: &config.MinioProxyAuth{
 			Mode:      config.MinioProxyAuthModeAccessKey,
 			AccessKey: access,
@@ -834,7 +876,6 @@ func main() {
 	s.KeepUpToDate = true
 	s.AllowAllOrigins = allowAllOrigins
 	s.AllowedOrigins = allowedOriginsStr
-	s.Root = config.GetDataDir()
 	s.CacheAddress, _ = config.GetAddress()
 
 	s.Permissions = []interface{}{
@@ -1111,6 +1152,9 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Debug("service initialized", "duration_ms", time.Since(start).Milliseconds())
+	// Always override Root after Init() so the stored etcd config can never point
+	// user dirs at a stale path (e.g. /var/lib/globular/data/files from an old install).
+	s.Root = config.GetDataDir()
 	s.MinioConfig = s.loadMinioConfig()
 	if s.MinioConfig != nil {
 		logger.Info("minio storage configured",
