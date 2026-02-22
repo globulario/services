@@ -587,8 +587,8 @@ func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodes
 	if err := r.externalDNS.UpsertA(ctx, name, ips, ttl); err != nil {
 		return fmt.Errorf("upsert gateway A record: %w", err)
 	}
-
 	log.Printf("external dns: published %s -> %v", name, ips)
+
 	return nil
 }
 

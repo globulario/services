@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -111,6 +112,22 @@ func main() {
 	srv.StartACMERenewal(ctx)
 	srv.StartIngressReconciliation(ctx)
 	nodeagentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
+
+	// Register in the Globular service registry so the xDS watcher creates an Envoy cluster.
+	// NodeAgent is a standalone control-plane service that does not use the
+	// globular_service framework; without this call it is invisible to service discovery.
+	if portNum, convErr := strconv.Atoi(port); convErr == nil {
+		if regErr := config.SaveServiceConfiguration(map[string]interface{}{
+			"Id":       "nodeagent.NodeAgentService",
+			"Name":     "nodeagent.NodeAgentService",
+			"Address":  "localhost",
+			"Port":     portNum,
+			"Protocol": "grpc",
+			"TLS":      os.Getenv("NODE_AGENT_TLS_CERT") != "",
+		}); regErr != nil {
+			log.Printf("warn: failed to register in Globular service registry; xDS routing may be unavailable: %v", regErr)
+		}
+	}
 
 	log.Printf("node agent listening on %s", address)
 	if err := grpcServer.Serve(lis); err != nil {

@@ -55,6 +55,17 @@ func (s *DNS01Solver) SetPropagator(p DNSPropagator) {
 	s.propagator = p
 }
 
+// challengeRecordName returns the relative DNS name for the ACME challenge TXT record.
+// For a non-apex subdomain "sub.example.com" in zone "example.com" → "_acme-challenge.sub"
+// For the zone apex "example.com" (or wildcard "*.example.com") → "_acme-challenge"
+func (s *DNS01Solver) challengeRecordName(domain string) string {
+	rel := s.extractRelativeName(domain)
+	if rel == "" {
+		return "_acme-challenge"
+	}
+	return "_acme-challenge." + rel
+}
+
 // Present creates the TXT record for the ACME DNS-01 challenge.
 // This is called by the ACME client to prove domain ownership.
 //
@@ -74,12 +85,7 @@ func (s *DNS01Solver) Present(domain, token, keyAuth string) error {
 		return fmt.Errorf("domain %q is not in zone %q", domain, s.zone)
 	}
 
-	// Construct challenge record name
-	// For domain "test.example.com" in zone "example.com":
-	// Challenge record is "_acme-challenge.test.example.com"
-	// Relative name for provider is "_acme-challenge.test"
-	relativeName := s.extractRelativeName(domain)
-	challengeName := "_acme-challenge." + relativeName
+	challengeName := s.challengeRecordName(domain)
 
 	// Create TXT record with short TTL (DNS-01 challenges are temporary)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -90,7 +96,6 @@ func (s *DNS01Solver) Present(domain, token, keyAuth string) error {
 	}
 
 	// Wait for DNS propagation
-	// Construct full FQDN for the challenge record
 	fqdn := challengeName + "." + s.zone
 	if err := s.waitForPropagation(fqdn, txtValue); err != nil {
 		return fmt.Errorf("DNS-01 challenge record not propagated: %w", err)
@@ -100,20 +105,20 @@ func (s *DNS01Solver) Present(domain, token, keyAuth string) error {
 }
 
 // CleanUp removes the TXT record created for the ACME DNS-01 challenge.
-// This is called after the ACME server has validated the challenge.
+// This is called after the ACME server has validated the challenge (or on failure).
+// lego treats errors here as warnings — cleanup is always best-effort.
 func (s *DNS01Solver) CleanUp(domain, token, keyAuth string) error {
 	txtValue := s.computeTXTValue(keyAuth)
-
-	relativeName := s.extractRelativeName(domain)
-	challengeName := "_acme-challenge." + relativeName
+	challengeName := s.challengeRecordName(domain)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := s.provider.DeleteTXT(ctx, s.zone, challengeName, []string{txtValue}); err != nil {
-		// Log but don't fail - cleanup is best-effort
-		// The record will expire based on TTL anyway
-		return fmt.Errorf("failed to cleanup DNS-01 challenge record: %w", err)
+		// Log but return nil — lego already logs cleanup errors as warnings.
+		// The 60-second TTL ensures the record expires even if this call fails.
+		fmt.Printf("WARN: acme cleanup: failed to delete TXT %s.%s: %v\n", challengeName, s.zone, err)
+		return nil
 	}
 
 	return nil

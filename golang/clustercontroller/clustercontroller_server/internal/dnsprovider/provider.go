@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strings"
 )
 
 // Provider defines the interface for external DNS providers (PR8)
@@ -102,14 +103,21 @@ func FilterPublicIPs(ips []net.IP, allowPrivate bool) []net.IP {
 }
 
 // ValidateName validates a DNS name (PR8)
+// Accepts wildcard names of the form "*.example.com".
 func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty")
 	}
 
+	// Strip leading wildcard label before validating the rest.
+	check := name
+	if strings.HasPrefix(check, "*.") {
+		check = check[2:]
+	}
+
 	// DNS name validation (simplified)
 	validName := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$`)
-	if !validName.MatchString(name) {
+	if !validName.MatchString(check) {
 		return fmt.Errorf("invalid DNS name: %s", name)
 	}
 

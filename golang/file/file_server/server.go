@@ -514,8 +514,8 @@ func printVersion() {
 // initStorage selects the default and public storage implementations based on config.
 func (srv *server) initStorage() error {
 
-	// Public storage always uses local filesystem
-	srv.publicStorage = storage_backend.NewOSStorage("")
+	// Public storage always uses local filesystem rooted at srv.Root.
+	srv.publicStorage = storage_backend.NewOSStorage(srv.Root)
 
 	if srv.minioEnabled() {
 		if err := srv.ensureMinioClient(); err != nil {
@@ -536,7 +536,8 @@ func (srv *server) initStorage() error {
 		return nil
 	}
 
-	srv.storage = storage_backend.NewOSStorage("")
+	// Non-Minio: user dirs live under srv.Root on the local filesystem.
+	srv.storage = storage_backend.NewOSStorage(srv.Root)
 	return nil
 }
 
@@ -590,8 +591,19 @@ func (srv *server) ensureMinioClient() error {
 	return nil
 }
 
-// loadMinioConfig reads MinIO configuration from the service config or environment.
+// minioContractPath is the well-known path where the installer writes the Minio config.
+const minioContractPath = "/var/lib/globular/objectstore/minio.json"
+
+// minioCredentialsPath is written by the MinIO package installer (format: "access:secret").
+const minioCredentialsPath = "/var/lib/globular/minio/credentials"
+
+// loadMinioConfig reads MinIO configuration from (in priority order):
+//  1. Service config in etcd (set by admin or via globular service config)
+//  2. MINIO_ENDPOINT environment variable
+//  3. Installer-written contract at /var/lib/globular/objectstore/minio.json
+//  4. Credentials file at /var/lib/globular/minio/credentials (localhost defaults)
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
+	// 1. Service config in etcd
 	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
 		if minioRaw, ok := cfg["MinioConfig"]; ok {
 			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
@@ -600,20 +612,86 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 		}
 	}
 
+	// 2. Environment variables
 	endpoint := os.Getenv("MINIO_ENDPOINT")
-	if endpoint == "" {
+	if endpoint != "" {
+		return &config.MinioProxyConfig{
+			Endpoint: endpoint,
+			Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
+			Prefix:   getEnvOrDefault("MINIO_PREFIX", ""),
+			Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
+			Auth: &config.MinioProxyAuth{
+				Mode:      config.MinioProxyAuthModeAccessKey,
+				AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
+				SecretKey: os.Getenv("MINIO_SECRET_KEY"),
+			},
+		}
+	}
+
+	// 3. Installer contract file
+	if cfg := loadMinioConfigFromContractFile(); cfg != nil {
+		return cfg
+	}
+
+	return nil
+}
+
+// loadMinioConfigFromContractFile reads the installer-written minio.json.
+// User directories are domain-agnostic: /users/sa → globular/users/sa (no domain prefix).
+func loadMinioConfigFromContractFile() *config.MinioProxyConfig {
+	f, err := os.Open(minioContractPath)
+	if err != nil {
+		// Contract missing: last resort — try credentials file with localhost defaults.
+		return loadMinioConfigFromCredentialsFile()
+	}
+	defer f.Close()
+
+	cfg, err := config.LoadMinioProxyConfigFrom(f)
+	if err != nil {
+		logger.Warn("failed to parse minio contract", "path", minioContractPath, "err", err)
 		return nil
 	}
 
+	// Use the contract's prefix as-is (no domain appended).
+	// pathToKey("/users/sa") = prefix + "users/sa"
+	// With empty prefix → key = "users/sa" → bucket path: globular/users/sa
+	cfg.Prefix = strings.Trim(cfg.Prefix, "/")
+
+	logger.Info("loaded minio config from contract",
+		"path", minioContractPath,
+		"endpoint", cfg.Endpoint,
+		"bucket", cfg.Bucket,
+		"prefix", cfg.Prefix)
+	return cfg
+}
+
+// loadMinioConfigFromCredentialsFile is a last-resort fallback using the MinIO
+// credentials file (format: "accessKey:secretKey") written by the package installer.
+// It assumes Minio is running on localhost:9000 with the default "globular" bucket.
+func loadMinioConfigFromCredentialsFile() *config.MinioProxyConfig {
+	data, err := os.ReadFile(minioCredentialsPath)
+	if err != nil {
+		return nil
+	}
+	parts := strings.Split(strings.TrimSpace(string(data)), ":")
+	if len(parts) != 2 {
+		return nil
+	}
+	access := strings.TrimSpace(parts[0])
+	secret := strings.TrimSpace(parts[1])
+	if access == "" || secret == "" {
+		return nil
+	}
+	logger.Info("loaded minio config from credentials file", "path", minioCredentialsPath)
 	return &config.MinioProxyConfig{
-		Endpoint: endpoint,
-		Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
-		Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
-		Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
+		Endpoint: "127.0.0.1:9000",
+		Bucket:   "globular",
+		Prefix:   "",
+		Secure:   false,
 		Auth: &config.MinioProxyAuth{
 			Mode:      config.MinioProxyAuthModeAccessKey,
-			AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-			SecretKey: os.Getenv("MINIO_SECRET_KEY"),
+			AccessKey: access,
+			SecretKey: secret,
 		},
 	}
 }
@@ -1172,16 +1250,12 @@ func main() {
 				return
 			}
 			var acc struct {
-				Id     string `json:"id"`
-				Domain string `json:"domain"`
+				Id string `json:"id"`
 			}
 			if err := json.Unmarshal(evt.Data, &acc); err != nil || acc.Id == "" {
 				return
 			}
 			path := "/users/" + acc.Id
-			if acc.Domain != "" {
-				path = "/users/" + acc.Id + "@" + acc.Domain
-			}
 			if err := s.storageMkdirAll(context.Background(), path, 0o755); err != nil {
 				logger.Error("create_account_evt: mkdir failed", "path", path, "err", err)
 			} else {
@@ -1191,19 +1265,24 @@ func main() {
 	}()
 
 	// Ensure home dirs exist for all accounts already in the system (best-effort, background).
+	// Retries with backoff so that a slow Minio startup or missing bucket is recovered automatically.
 	go func() {
-		// Wait for resource service and storage to be ready.
-		time.Sleep(10 * time.Second)
-
 		ctx := context.Background()
 
-		// Always ensure the built-in sa admin directory.
-		if err := s.storageMkdirAll(ctx, "/users/sa", 0o755); err != nil {
-			logger.Warn("could not ensure /users/sa dir", "err", err)
-		} else {
-			logger.Info("ensured /users/sa home dir")
+		// Retry /users/sa creation until storage is ready (up to ~5 min).
+		const maxAttempts = 30
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			time.Sleep(10 * time.Second)
+			if err := s.storageMkdirAll(ctx, "/users/sa", 0o755); err != nil {
+				logger.Warn("could not ensure /users/sa dir, will retry",
+					"attempt", attempt, "max", maxAttempts, "err", err)
+				continue
+			}
+			logger.Info("ensured /users/sa home dir", "attempt", attempt)
+			break
 		}
 
+		// Bootstrap dirs for every registered account.
 		rc, err := getResourceClient()
 		if err != nil {
 			logger.Warn("resource client unavailable for user dir init", "err", err)
@@ -1219,9 +1298,6 @@ func main() {
 				continue
 			}
 			path := "/users/" + acc.GetId()
-			if acc.GetDomain() != "" {
-				path = "/users/" + acc.GetId() + "@" + acc.GetDomain()
-			}
 			if err := s.storageMkdirAll(ctx, path, 0o755); err != nil {
 				logger.Warn("could not ensure user dir", "path", path, "err", err)
 			}

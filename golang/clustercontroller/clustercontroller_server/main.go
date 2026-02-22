@@ -186,6 +186,20 @@ func main() {
 	// Start domain reconciler for external domains (DNS providers + ACME)
 	startDomainReconciler(ctx, etcdClient)
 
+	// Register in the Globular service registry so the xDS watcher creates an Envoy cluster.
+	// ClusterController is a standalone control-plane service that does not use the
+	// globular_service framework; without this call it is invisible to service discovery.
+	if err := config.SaveServiceConfiguration(map[string]interface{}{
+		"Id":       "clustercontroller.ClusterControllerService",
+		"Name":     "clustercontroller.ClusterControllerService",
+		"Address":  "localhost",
+		"Port":     cfg.Port,
+		"Protocol": "grpc",
+		"TLS":      false,
+	}); err != nil {
+		logger.Warn("failed to register in Globular service registry; xDS routing may be unavailable", "err", err)
+	}
+
 	// Start serving
 	logger.Info("cluster controller ready",
 		"address", address,

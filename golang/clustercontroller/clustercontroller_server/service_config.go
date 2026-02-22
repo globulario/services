@@ -30,10 +30,11 @@ type memberNode struct {
 
 // serviceConfigContext contains everything needed to render a service config for a specific node.
 type serviceConfigContext struct {
-	Membership  *clusterMembership
-	CurrentNode *memberNode
-	ClusterID   string
-	Domain      string
+	Membership     *clusterMembership
+	CurrentNode    *memberNode
+	ClusterID      string
+	Domain         string
+	ExternalDomain string // Public external domain (e.g., "globular.cloud") for ingress routing
 }
 
 // profilesForEtcd lists the profiles that run etcd.
@@ -254,6 +255,17 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 		domain = "example.com"
 	}
 
+	// Build ingress_domains: node FQDN + base external domain (for wildcard CNAME routing).
+	// Both are needed so that Envoy matches requests coming in as either
+	// service.globule-ryzen.globular.cloud or service.globular.cloud.
+	var ingressDomains []string
+	if ext := strings.TrimSpace(ctx.ExternalDomain); ext != "" {
+		if hostname := strings.TrimSpace(ctx.CurrentNode.Hostname); hostname != "" {
+			ingressDomains = append(ingressDomains, hostname+"."+ext)
+		}
+		ingressDomains = append(ingressDomains, ext)
+	}
+
 	tlsDir, fullchain, privkey, ca := configpkg.CanonicalTLSPaths(configpkg.GetRuntimeConfigDir())
 	config := map[string]interface{}{
 		"etcd_endpoints":        etcdEndpoints,
@@ -267,6 +279,9 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 				"ca_path":          ca,
 			},
 		},
+	}
+	if len(ingressDomains) > 0 {
+		config["ingress_domains"] = ingressDomains
 	}
 
 	result, err := renderJSON(config)

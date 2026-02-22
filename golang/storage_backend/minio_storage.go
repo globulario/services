@@ -2,6 +2,7 @@ package storage_backend
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -381,13 +382,20 @@ func (s *MinioStorage) Rename(ctx context.Context, oldPath, newPath string) erro
 }
 
 // MkdirAll creates an empty "directory marker" object so prefixes appear in listings.
-// This is optional in S3/MinIO but can be useful for compatibility.
+// If the bucket does not yet exist it is created automatically before retrying.
 func (s *MinioStorage) MkdirAll(ctx context.Context, path string, perm fs.FileMode) error {
 	key := s.pathToKey(path)
 	if !strings.HasSuffix(key, "/") {
 		key += "/"
 	}
 	_, err := s.client.PutObject(ctx, s.bucket, key, strings.NewReader(""), 0, minio.PutObjectOptions{})
+	if err != nil && minio.ToErrorResponse(err).Code == "NoSuchBucket" {
+		// Bucket missing — create it and retry once.
+		if mkErr := s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); mkErr != nil {
+			return fmt.Errorf("minio: bucket %q not found and auto-create failed: %w", s.bucket, mkErr)
+		}
+		_, err = s.client.PutObject(ctx, s.bucket, key, strings.NewReader(""), 0, minio.PutObjectOptions{})
+	}
 	return err
 }
 

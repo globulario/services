@@ -2654,18 +2654,23 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 		}
 	}
 
-	// Get the cluster domain from network spec
+	// Get the cluster domain and external domain from network spec
 	domain := ""
+	externalDomain := ""
 	if spec := srv.clusterNetworkSpec(); spec != nil {
 		domain = spec.GetClusterDomain()
+		if extDNS := spec.GetExternalDns(); extDNS != nil {
+			externalDomain = extDNS.GetDomain()
+		}
 	}
 
 	// Create config context
 	ctx := &serviceConfigContext{
-		Membership:  membership,
-		CurrentNode: currentMember,
-		ClusterID:   membership.ClusterID,
-		Domain:      domain,
+		Membership:     membership,
+		CurrentNode:    currentMember,
+		ClusterID:      membership.ClusterID,
+		Domain:         domain,
+		ExternalDomain: externalDomain,
 	}
 
 	// Render service-specific configs
@@ -2699,14 +2704,19 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 		return nil
 	}
 	domain := ""
+	externalDomain := ""
 	if spec := srv.clusterNetworkSpec(); spec != nil {
 		domain = spec.GetClusterDomain()
+		if extDNS := spec.GetExternalDns(); extDNS != nil {
+			externalDomain = extDNS.GetDomain()
+		}
 	}
 	ctx := &serviceConfigContext{
-		Membership:  membership,
-		CurrentNode: currentMember,
-		ClusterID:   membership.ClusterID,
-		Domain:      domain,
+		Membership:     membership,
+		CurrentNode:    currentMember,
+		ClusterID:      membership.ClusterID,
+		Domain:         domain,
+		ExternalDomain: externalDomain,
 	}
 	return renderServiceConfigs(ctx)
 }
