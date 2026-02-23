@@ -4365,5 +4365,127 @@ proto.resource.ResourceServicePromiseClient.prototype.clearCalls =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetServicesCorsPoliciesRqst,
+ *   !proto.resource.GetServicesCorsPoliciesRsp>}
+ */
+const methodDescriptor_ResourceService_GetServicesCorsPolicies = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetServicesCorsPolicies',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetServicesCorsPoliciesRqst,
+  proto.resource.GetServicesCorsPoliciesRsp,
+  /**
+   * @param {!proto.resource.GetServicesCorsPoliciesRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetServicesCorsPoliciesRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetServicesCorsPoliciesRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetServicesCorsPoliciesRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetServicesCorsPoliciesRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getServicesCorsPolicies =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetServicesCorsPolicies',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetServicesCorsPolicies,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetServicesCorsPoliciesRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetServicesCorsPoliciesRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getServicesCorsPolicies =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetServicesCorsPolicies',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetServicesCorsPolicies);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.SetServiceCorsPolicyRqst,
+ *   !proto.resource.SetServiceCorsPolicyRsp>}
+ */
+const methodDescriptor_ResourceService_SetServiceCorsPolicy = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/SetServiceCorsPolicy',
+  grpc.web.MethodType.UNARY,
+  proto.resource.SetServiceCorsPolicyRqst,
+  proto.resource.SetServiceCorsPolicyRsp,
+  /**
+   * @param {!proto.resource.SetServiceCorsPolicyRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.SetServiceCorsPolicyRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.SetServiceCorsPolicyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.SetServiceCorsPolicyRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.SetServiceCorsPolicyRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.setServiceCorsPolicy =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/SetServiceCorsPolicy',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetServiceCorsPolicy,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.SetServiceCorsPolicyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.SetServiceCorsPolicyRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.setServiceCorsPolicy =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/SetServiceCorsPolicy',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetServiceCorsPolicy);
+};
+
+
 module.exports = proto.resource;
 

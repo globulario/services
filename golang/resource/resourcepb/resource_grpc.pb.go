@@ -90,6 +90,8 @@ const (
 	ResourceService_SetCall_FullMethodName                       = "/resource.ResourceService/SetCall"
 	ResourceService_DeleteCall_FullMethodName                    = "/resource.ResourceService/DeleteCall"
 	ResourceService_ClearCalls_FullMethodName                    = "/resource.ResourceService/ClearCalls"
+	ResourceService_GetServicesCorsPolicies_FullMethodName       = "/resource.ResourceService/GetServicesCorsPolicies"
+	ResourceService_SetServiceCorsPolicy_FullMethodName          = "/resource.ResourceService/SetServiceCorsPolicy"
 )
 
 // ResourceServiceClient is the client API for ResourceService service.
@@ -242,6 +244,10 @@ type ResourceServiceClient interface {
 	DeleteCall(ctx context.Context, in *DeleteCallRqst, opts ...grpc.CallOption) (*DeleteCallRsp, error)
 	// Clears all call records.
 	ClearCalls(ctx context.Context, in *ClearCallsRqst, opts ...grpc.CallOption) (*ClearCallsRsp, error)
+	// Retrieves CORS policies for all services.
+	GetServicesCorsPolicies(ctx context.Context, in *GetServicesCorsPoliciesRqst, opts ...grpc.CallOption) (*GetServicesCorsPoliciesRsp, error)
+	// Sets the CORS policy for a specific service.
+	SetServiceCorsPolicy(ctx context.Context, in *SetServiceCorsPolicyRqst, opts ...grpc.CallOption) (*SetServiceCorsPolicyRsp, error)
 }
 
 type resourceServiceClient struct {
@@ -1034,6 +1040,26 @@ func (c *resourceServiceClient) ClearCalls(ctx context.Context, in *ClearCallsRq
 	return out, nil
 }
 
+func (c *resourceServiceClient) GetServicesCorsPolicies(ctx context.Context, in *GetServicesCorsPoliciesRqst, opts ...grpc.CallOption) (*GetServicesCorsPoliciesRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetServicesCorsPoliciesRsp)
+	err := c.cc.Invoke(ctx, ResourceService_GetServicesCorsPolicies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourceServiceClient) SetServiceCorsPolicy(ctx context.Context, in *SetServiceCorsPolicyRqst, opts ...grpc.CallOption) (*SetServiceCorsPolicyRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetServiceCorsPolicyRsp)
+	err := c.cc.Invoke(ctx, ResourceService_SetServiceCorsPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ResourceServiceServer is the server API for ResourceService service.
 // All implementations should embed UnimplementedResourceServiceServer
 // for forward compatibility.
@@ -1184,6 +1210,10 @@ type ResourceServiceServer interface {
 	DeleteCall(context.Context, *DeleteCallRqst) (*DeleteCallRsp, error)
 	// Clears all call records.
 	ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error)
+	// Retrieves CORS policies for all services.
+	GetServicesCorsPolicies(context.Context, *GetServicesCorsPoliciesRqst) (*GetServicesCorsPoliciesRsp, error)
+	// Sets the CORS policy for a specific service.
+	SetServiceCorsPolicy(context.Context, *SetServiceCorsPolicyRqst) (*SetServiceCorsPolicyRsp, error)
 }
 
 // UnimplementedResourceServiceServer should be embedded to have
@@ -1405,6 +1435,12 @@ func (UnimplementedResourceServiceServer) DeleteCall(context.Context, *DeleteCal
 }
 func (UnimplementedResourceServiceServer) ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClearCalls not implemented")
+}
+func (UnimplementedResourceServiceServer) GetServicesCorsPolicies(context.Context, *GetServicesCorsPoliciesRqst) (*GetServicesCorsPoliciesRsp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetServicesCorsPolicies not implemented")
+}
+func (UnimplementedResourceServiceServer) SetServiceCorsPolicy(context.Context, *SetServiceCorsPolicyRqst) (*SetServiceCorsPolicyRsp, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetServiceCorsPolicy not implemented")
 }
 func (UnimplementedResourceServiceServer) testEmbeddedByValue() {}
 
@@ -2648,6 +2684,42 @@ func _ResourceService_ClearCalls_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ResourceService_GetServicesCorsPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServicesCorsPoliciesRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourceServiceServer).GetServicesCorsPolicies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ResourceService_GetServicesCorsPolicies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourceServiceServer).GetServicesCorsPolicies(ctx, req.(*GetServicesCorsPoliciesRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourceService_SetServiceCorsPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetServiceCorsPolicyRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourceServiceServer).SetServiceCorsPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ResourceService_SetServiceCorsPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourceServiceServer).SetServiceCorsPolicy(ctx, req.(*SetServiceCorsPolicyRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ResourceService_ServiceDesc is the grpc.ServiceDesc for ResourceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2906,6 +2978,14 @@ var ResourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearCalls",
 			Handler:    _ResourceService_ClearCalls_Handler,
+		},
+		{
+			MethodName: "GetServicesCorsPolicies",
+			Handler:    _ResourceService_GetServicesCorsPolicies_Handler,
+		},
+		{
+			MethodName: "SetServiceCorsPolicy",
+			Handler:    _ResourceService_SetServiceCorsPolicy_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

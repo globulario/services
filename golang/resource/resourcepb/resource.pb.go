@@ -8462,6 +8462,250 @@ func (*DeleteReferenceRsp) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{159}
 }
 
+type GetServicesCorsPoliciesRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServicesCorsPoliciesRqst) Reset() {
+	*x = GetServicesCorsPoliciesRqst{}
+	mi := &file_resource_proto_msgTypes[160]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServicesCorsPoliciesRqst) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServicesCorsPoliciesRqst) ProtoMessage() {}
+
+func (x *GetServicesCorsPoliciesRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[160]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServicesCorsPoliciesRqst.ProtoReflect.Descriptor instead.
+func (*GetServicesCorsPoliciesRqst) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{160}
+}
+
+type ServiceCorsPolicy struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	AllowAllOrigins bool                   `protobuf:"varint,3,opt,name=allow_all_origins,json=allowAllOrigins,proto3" json:"allow_all_origins,omitempty"`
+	AllowedOrigins  string                 `protobuf:"bytes,4,opt,name=allowed_origins,json=allowedOrigins,proto3" json:"allowed_origins,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ServiceCorsPolicy) Reset() {
+	*x = ServiceCorsPolicy{}
+	mi := &file_resource_proto_msgTypes[161]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServiceCorsPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServiceCorsPolicy) ProtoMessage() {}
+
+func (x *ServiceCorsPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[161]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServiceCorsPolicy.ProtoReflect.Descriptor instead.
+func (*ServiceCorsPolicy) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{161}
+}
+
+func (x *ServiceCorsPolicy) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ServiceCorsPolicy) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ServiceCorsPolicy) GetAllowAllOrigins() bool {
+	if x != nil {
+		return x.AllowAllOrigins
+	}
+	return false
+}
+
+func (x *ServiceCorsPolicy) GetAllowedOrigins() string {
+	if x != nil {
+		return x.AllowedOrigins
+	}
+	return ""
+}
+
+type GetServicesCorsPoliciesRsp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Policies      []*ServiceCorsPolicy   `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServicesCorsPoliciesRsp) Reset() {
+	*x = GetServicesCorsPoliciesRsp{}
+	mi := &file_resource_proto_msgTypes[162]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServicesCorsPoliciesRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServicesCorsPoliciesRsp) ProtoMessage() {}
+
+func (x *GetServicesCorsPoliciesRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[162]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServicesCorsPoliciesRsp.ProtoReflect.Descriptor instead.
+func (*GetServicesCorsPoliciesRsp) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{162}
+}
+
+func (x *GetServicesCorsPoliciesRsp) GetPolicies() []*ServiceCorsPolicy {
+	if x != nil {
+		return x.Policies
+	}
+	return nil
+}
+
+type SetServiceCorsPolicyRqst struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AllowAllOrigins bool                   `protobuf:"varint,2,opt,name=allow_all_origins,json=allowAllOrigins,proto3" json:"allow_all_origins,omitempty"`
+	AllowedOrigins  string                 `protobuf:"bytes,3,opt,name=allowed_origins,json=allowedOrigins,proto3" json:"allowed_origins,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SetServiceCorsPolicyRqst) Reset() {
+	*x = SetServiceCorsPolicyRqst{}
+	mi := &file_resource_proto_msgTypes[163]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetServiceCorsPolicyRqst) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetServiceCorsPolicyRqst) ProtoMessage() {}
+
+func (x *SetServiceCorsPolicyRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[163]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetServiceCorsPolicyRqst.ProtoReflect.Descriptor instead.
+func (*SetServiceCorsPolicyRqst) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{163}
+}
+
+func (x *SetServiceCorsPolicyRqst) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetServiceCorsPolicyRqst) GetAllowAllOrigins() bool {
+	if x != nil {
+		return x.AllowAllOrigins
+	}
+	return false
+}
+
+func (x *SetServiceCorsPolicyRqst) GetAllowedOrigins() string {
+	if x != nil {
+		return x.AllowedOrigins
+	}
+	return ""
+}
+
+type SetServiceCorsPolicyRsp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetServiceCorsPolicyRsp) Reset() {
+	*x = SetServiceCorsPolicyRsp{}
+	mi := &file_resource_proto_msgTypes[164]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetServiceCorsPolicyRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetServiceCorsPolicyRsp) ProtoMessage() {}
+
+func (x *SetServiceCorsPolicyRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[164]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetServiceCorsPolicyRsp.ProtoReflect.Descriptor instead.
+func (*SetServiceCorsPolicyRsp) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{164}
+}
+
 var File_resource_proto protoreflect.FileDescriptor
 
 const file_resource_proto_rawDesc = "" +
@@ -8944,7 +9188,20 @@ const file_resource_proto_rawDesc = "" +
 	"\btargetId\x18\x02 \x01(\tR\btargetId\x12 \n" +
 	"\vtargetField\x18\x03 \x01(\tR\vtargetField\x12*\n" +
 	"\x10targetCollection\x18\x04 \x01(\tR\x10targetCollection\"\x14\n" +
-	"\x12DeleteReferenceRsp*F\n" +
+	"\x12DeleteReferenceRsp\"\x1d\n" +
+	"\x1bGetServicesCorsPoliciesRqst\"\x8c\x01\n" +
+	"\x11ServiceCorsPolicy\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12*\n" +
+	"\x11allow_all_origins\x18\x03 \x01(\bR\x0fallowAllOrigins\x12'\n" +
+	"\x0fallowed_origins\x18\x04 \x01(\tR\x0eallowedOrigins\"U\n" +
+	"\x1aGetServicesCorsPoliciesRsp\x127\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x1b.resource.ServiceCorsPolicyR\bpolicies\"\x7f\n" +
+	"\x18SetServiceCorsPolicyRqst\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12*\n" +
+	"\x11allow_all_origins\x18\x02 \x01(\bR\x0fallowAllOrigins\x12'\n" +
+	"\x0fallowed_origins\x18\x03 \x01(\tR\x0eallowedOrigins\"\x19\n" +
+	"\x17SetServiceCorsPolicyRsp*F\n" +
 	"\vPackageType\x12\x0f\n" +
 	"\vUNKNOW_TYPE\x10\x00\x12\x10\n" +
 	"\fSERVICE_TYPE\x10\x01\x12\x14\n" +
@@ -8957,7 +9214,7 @@ const file_resource_proto_rawDesc = "" +
 	"\n" +
 	"\x06ONLINE\x10\x00\x12\v\n" +
 	"\aOFFLINE\x10\x01\x12\b\n" +
-	"\x04AWAY\x10\x022\xe9/\n" +
+	"\x04AWAY\x10\x022\xb01\n" +
 	"\x0fResourceService\x12N\n" +
 	"\x0fCreateReference\x12\x1d.resource.CreateReferenceRqst\x1a\x1c.resource.CreateReferenceRsp\x12N\n" +
 	"\x0fDeleteReference\x12\x1d.resource.DeleteReferenceRqst\x1a\x1c.resource.DeleteReferenceRsp\x12W\n" +
@@ -9037,7 +9294,9 @@ const file_resource_proto_rawDesc = "" +
 	"\n" +
 	"DeleteCall\x12\x18.resource.DeleteCallRqst\x1a\x17.resource.DeleteCallRsp\x12?\n" +
 	"\n" +
-	"ClearCalls\x12\x18.resource.ClearCallsRqst\x1a\x17.resource.ClearCallsRspB;Z9github.com/globulario/services/golang/resource/resourcepbb\x06proto3"
+	"ClearCalls\x12\x18.resource.ClearCallsRqst\x1a\x17.resource.ClearCallsRsp\x12f\n" +
+	"\x17GetServicesCorsPolicies\x12%.resource.GetServicesCorsPoliciesRqst\x1a$.resource.GetServicesCorsPoliciesRsp\x12]\n" +
+	"\x14SetServiceCorsPolicy\x12\".resource.SetServiceCorsPolicyRqst\x1a!.resource.SetServiceCorsPolicyRspB;Z9github.com/globulario/services/golang/resource/resourcepbb\x06proto3"
 
 var (
 	file_resource_proto_rawDescOnce sync.Once
@@ -9052,7 +9311,7 @@ func file_resource_proto_rawDescGZIP() []byte {
 }
 
 var file_resource_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 161)
+var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 166)
 var file_resource_proto_goTypes = []any{
 	(PackageType)(0),                          // 0: resource.PackageType
 	(NotificationType)(0),                     // 1: resource.NotificationType
@@ -9217,7 +9476,12 @@ var file_resource_proto_goTypes = []any{
 	(*CreateReferenceRsp)(nil),                // 160: resource.CreateReferenceRsp
 	(*DeleteReferenceRqst)(nil),               // 161: resource.DeleteReferenceRqst
 	(*DeleteReferenceRsp)(nil),                // 162: resource.DeleteReferenceRsp
-	nil,                                       // 163: resource.NodeIdentity.LabelsEntry
+	(*GetServicesCorsPoliciesRqst)(nil),       // 163: resource.GetServicesCorsPoliciesRqst
+	(*ServiceCorsPolicy)(nil),                 // 164: resource.ServiceCorsPolicy
+	(*GetServicesCorsPoliciesRsp)(nil),        // 165: resource.GetServicesCorsPoliciesRsp
+	(*SetServiceCorsPolicyRqst)(nil),          // 166: resource.SetServiceCorsPolicyRqst
+	(*SetServiceCorsPolicyRsp)(nil),           // 167: resource.SetServiceCorsPolicyRsp
+	nil,                                       // 168: resource.NodeIdentity.LabelsEntry
 }
 var file_resource_proto_depIdxs = []int32{
 	8,   // 0: resource.PackageBundle.packageDescriptor:type_name -> resource.PackageDescriptor
@@ -9242,7 +9506,7 @@ var file_resource_proto_depIdxs = []int32{
 	77,  // 19: resource.GetGroupsRsp.groups:type_name -> resource.Group
 	94,  // 20: resource.CreateOrganizationRqst.organization:type_name -> resource.Organization
 	94,  // 21: resource.GetOrganizationsRsp.organizations:type_name -> resource.Organization
-	163, // 22: resource.NodeIdentity.labels:type_name -> resource.NodeIdentity.LabelsEntry
+	168, // 22: resource.NodeIdentity.labels:type_name -> resource.NodeIdentity.LabelsEntry
 	121, // 23: resource.UpsertNodeIdentityRqst.node:type_name -> resource.NodeIdentity
 	121, // 24: resource.UpsertNodeIdentityRsp.node:type_name -> resource.NodeIdentity
 	121, // 25: resource.GetNodeIdentityRsp.node:type_name -> resource.NodeIdentity
@@ -9257,153 +9521,158 @@ var file_resource_proto_depIdxs = []int32{
 	150, // 34: resource.UpdateSessionRequest.session:type_name -> resource.Session
 	150, // 35: resource.GetSessionsResponse.sessions:type_name -> resource.Session
 	150, // 36: resource.GetSessionResponse.session:type_name -> resource.Session
-	159, // 37: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
-	161, // 38: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
-	95,  // 39: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
-	97,  // 40: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
-	99,  // 41: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
-	119, // 42: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
-	101, // 43: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
-	103, // 44: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
-	105, // 45: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
-	107, // 46: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
-	90,  // 47: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
-	92,  // 48: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
-	115, // 49: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
-	109, // 50: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
-	111, // 51: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
-	113, // 52: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
-	78,  // 53: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
-	80,  // 54: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
-	82,  // 55: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
-	84,  // 56: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
-	86,  // 57: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
-	88,  // 58: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
-	25,  // 59: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
-	39,  // 60: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
-	31,  // 61: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
-	33,  // 62: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
-	35,  // 63: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
-	29,  // 64: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
-	41,  // 65: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
-	43,  // 66: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
-	46,  // 67: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
-	37,  // 68: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
-	117, // 69: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
-	48,  // 70: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
-	50,  // 71: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
-	52,  // 72: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
-	54,  // 73: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
-	18,  // 74: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
-	20,  // 75: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
-	22,  // 76: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
-	57,  // 77: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
-	59,  // 78: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
-	69,  // 79: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
-	61,  // 80: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
-	63,  // 81: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
-	65,  // 82: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
-	67,  // 83: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
-	71,  // 84: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
-	122, // 85: resource.ResourceService.UpsertNodeIdentity:input_type -> resource.UpsertNodeIdentityRqst
-	124, // 86: resource.ResourceService.GetNodeIdentity:input_type -> resource.GetNodeIdentityRqst
-	126, // 87: resource.ResourceService.ListNodeIdentities:input_type -> resource.ListNodeIdentitiesRqst
-	128, // 88: resource.ResourceService.SetNodeIdentityEnabled:input_type -> resource.SetNodeIdentityEnabledRqst
-	140, // 89: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
-	142, // 90: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
-	144, // 91: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
-	146, // 92: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
-	148, // 93: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
-	15,  // 94: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
-	9,   // 95: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
-	11,  // 96: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
-	13,  // 97: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
-	4,   // 98: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
-	6,   // 99: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
-	151, // 100: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
-	155, // 101: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
-	153, // 102: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
-	157, // 103: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
-	131, // 104: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
-	133, // 105: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
-	135, // 106: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
-	137, // 107: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
-	160, // 108: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
-	162, // 109: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
-	96,  // 110: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
-	98,  // 111: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
-	100, // 112: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
-	120, // 113: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
-	102, // 114: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
-	104, // 115: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
-	106, // 116: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
-	108, // 117: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
-	91,  // 118: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
-	93,  // 119: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
-	116, // 120: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
-	110, // 121: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
-	112, // 122: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
-	114, // 123: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
-	79,  // 124: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
-	81,  // 125: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
-	83,  // 126: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
-	85,  // 127: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
-	87,  // 128: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
-	89,  // 129: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
-	26,  // 130: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
-	40,  // 131: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
-	32,  // 132: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
-	34,  // 133: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
-	36,  // 134: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
-	30,  // 135: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
-	42,  // 136: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
-	44,  // 137: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
-	47,  // 138: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
-	38,  // 139: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
-	118, // 140: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
-	49,  // 141: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
-	51,  // 142: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
-	53,  // 143: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
-	55,  // 144: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
-	19,  // 145: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
-	21,  // 146: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
-	23,  // 147: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
-	58,  // 148: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
-	60,  // 149: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
-	70,  // 150: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
-	62,  // 151: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
-	64,  // 152: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
-	66,  // 153: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
-	68,  // 154: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
-	72,  // 155: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
-	123, // 156: resource.ResourceService.UpsertNodeIdentity:output_type -> resource.UpsertNodeIdentityRsp
-	125, // 157: resource.ResourceService.GetNodeIdentity:output_type -> resource.GetNodeIdentityRsp
-	127, // 158: resource.ResourceService.ListNodeIdentities:output_type -> resource.ListNodeIdentitiesRsp
-	129, // 159: resource.ResourceService.SetNodeIdentityEnabled:output_type -> resource.SetNodeIdentityEnabledRsp
-	141, // 160: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
-	143, // 161: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
-	145, // 162: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
-	147, // 163: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
-	149, // 164: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
-	16,  // 165: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
-	10,  // 166: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
-	12,  // 167: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
-	14,  // 168: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
-	5,   // 169: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
-	7,   // 170: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
-	152, // 171: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
-	156, // 172: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
-	154, // 173: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
-	158, // 174: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
-	132, // 175: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
-	134, // 176: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
-	136, // 177: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
-	138, // 178: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
-	108, // [108:179] is the sub-list for method output_type
-	37,  // [37:108] is the sub-list for method input_type
-	37,  // [37:37] is the sub-list for extension type_name
-	37,  // [37:37] is the sub-list for extension extendee
-	0,   // [0:37] is the sub-list for field type_name
+	164, // 37: resource.GetServicesCorsPoliciesRsp.policies:type_name -> resource.ServiceCorsPolicy
+	159, // 38: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
+	161, // 39: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
+	95,  // 40: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
+	97,  // 41: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
+	99,  // 42: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
+	119, // 43: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
+	101, // 44: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
+	103, // 45: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
+	105, // 46: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
+	107, // 47: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
+	90,  // 48: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
+	92,  // 49: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
+	115, // 50: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
+	109, // 51: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
+	111, // 52: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
+	113, // 53: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
+	78,  // 54: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
+	80,  // 55: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
+	82,  // 56: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
+	84,  // 57: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
+	86,  // 58: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
+	88,  // 59: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
+	25,  // 60: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
+	39,  // 61: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
+	31,  // 62: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
+	33,  // 63: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
+	35,  // 64: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
+	29,  // 65: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
+	41,  // 66: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
+	43,  // 67: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
+	46,  // 68: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
+	37,  // 69: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
+	117, // 70: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
+	48,  // 71: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
+	50,  // 72: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
+	52,  // 73: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
+	54,  // 74: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
+	18,  // 75: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
+	20,  // 76: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
+	22,  // 77: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
+	57,  // 78: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
+	59,  // 79: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
+	69,  // 80: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
+	61,  // 81: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
+	63,  // 82: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
+	65,  // 83: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
+	67,  // 84: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
+	71,  // 85: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
+	122, // 86: resource.ResourceService.UpsertNodeIdentity:input_type -> resource.UpsertNodeIdentityRqst
+	124, // 87: resource.ResourceService.GetNodeIdentity:input_type -> resource.GetNodeIdentityRqst
+	126, // 88: resource.ResourceService.ListNodeIdentities:input_type -> resource.ListNodeIdentitiesRqst
+	128, // 89: resource.ResourceService.SetNodeIdentityEnabled:input_type -> resource.SetNodeIdentityEnabledRqst
+	140, // 90: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
+	142, // 91: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
+	144, // 92: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
+	146, // 93: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
+	148, // 94: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
+	15,  // 95: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
+	9,   // 96: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
+	11,  // 97: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
+	13,  // 98: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
+	4,   // 99: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
+	6,   // 100: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
+	151, // 101: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
+	155, // 102: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
+	153, // 103: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
+	157, // 104: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
+	131, // 105: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
+	133, // 106: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
+	135, // 107: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
+	137, // 108: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
+	163, // 109: resource.ResourceService.GetServicesCorsPolicies:input_type -> resource.GetServicesCorsPoliciesRqst
+	166, // 110: resource.ResourceService.SetServiceCorsPolicy:input_type -> resource.SetServiceCorsPolicyRqst
+	160, // 111: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
+	162, // 112: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
+	96,  // 113: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
+	98,  // 114: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
+	100, // 115: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
+	120, // 116: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
+	102, // 117: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
+	104, // 118: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
+	106, // 119: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
+	108, // 120: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
+	91,  // 121: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
+	93,  // 122: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
+	116, // 123: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
+	110, // 124: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
+	112, // 125: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
+	114, // 126: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
+	79,  // 127: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
+	81,  // 128: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
+	83,  // 129: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
+	85,  // 130: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
+	87,  // 131: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
+	89,  // 132: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
+	26,  // 133: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
+	40,  // 134: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
+	32,  // 135: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
+	34,  // 136: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
+	36,  // 137: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
+	30,  // 138: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
+	42,  // 139: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
+	44,  // 140: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
+	47,  // 141: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
+	38,  // 142: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
+	118, // 143: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
+	49,  // 144: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
+	51,  // 145: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
+	53,  // 146: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
+	55,  // 147: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
+	19,  // 148: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
+	21,  // 149: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
+	23,  // 150: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
+	58,  // 151: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
+	60,  // 152: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
+	70,  // 153: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
+	62,  // 154: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
+	64,  // 155: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
+	66,  // 156: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
+	68,  // 157: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
+	72,  // 158: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
+	123, // 159: resource.ResourceService.UpsertNodeIdentity:output_type -> resource.UpsertNodeIdentityRsp
+	125, // 160: resource.ResourceService.GetNodeIdentity:output_type -> resource.GetNodeIdentityRsp
+	127, // 161: resource.ResourceService.ListNodeIdentities:output_type -> resource.ListNodeIdentitiesRsp
+	129, // 162: resource.ResourceService.SetNodeIdentityEnabled:output_type -> resource.SetNodeIdentityEnabledRsp
+	141, // 163: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
+	143, // 164: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
+	145, // 165: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
+	147, // 166: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
+	149, // 167: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
+	16,  // 168: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
+	10,  // 169: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
+	12,  // 170: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
+	14,  // 171: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
+	5,   // 172: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
+	7,   // 173: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
+	152, // 174: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
+	156, // 175: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
+	154, // 176: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
+	158, // 177: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
+	132, // 178: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
+	134, // 179: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
+	136, // 180: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
+	138, // 181: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
+	165, // 182: resource.ResourceService.GetServicesCorsPolicies:output_type -> resource.GetServicesCorsPoliciesRsp
+	167, // 183: resource.ResourceService.SetServiceCorsPolicy:output_type -> resource.SetServiceCorsPolicyRsp
+	111, // [111:184] is the sub-list for method output_type
+	38,  // [38:111] is the sub-list for method input_type
+	38,  // [38:38] is the sub-list for extension type_name
+	38,  // [38:38] is the sub-list for extension extendee
+	0,   // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_resource_proto_init() }
@@ -9417,7 +9686,7 @@ func file_resource_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_proto_rawDesc), len(file_resource_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   161,
+			NumMessages:   166,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

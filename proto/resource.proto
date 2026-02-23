@@ -1160,4 +1160,35 @@ service ResourceService {
     // Clears all call records.
     rpc ClearCalls(ClearCallsRqst) returns(ClearCallsRsp);
 
+    // ── CORS Policy Management ───────────────────────────────────────────────
+
+    // Retrieves CORS policies for all services.
+    rpc GetServicesCorsPolicies(GetServicesCorsPoliciesRqst) returns (GetServicesCorsPoliciesRsp);
+
+    // Sets the CORS policy for a specific service.
+    rpc SetServiceCorsPolicy(SetServiceCorsPolicyRqst) returns (SetServiceCorsPolicyRsp);
+
 }
+
+// ── CORS Policy Messages ─────────────────────────────────────────────────────
+
+message GetServicesCorsPoliciesRqst {}
+
+message ServiceCorsPolicy {
+  string id               = 1;
+  string name             = 2;
+  bool   allow_all_origins = 3;
+  string allowed_origins  = 4;
+}
+
+message GetServicesCorsPoliciesRsp {
+  repeated ServiceCorsPolicy policies = 1;
+}
+
+message SetServiceCorsPolicyRqst {
+  string id                = 1;
+  bool   allow_all_origins = 2;
+  string allowed_origins   = 3;
+}
+
+message SetServiceCorsPolicyRsp {}
