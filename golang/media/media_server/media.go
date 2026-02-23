@@ -1183,6 +1183,25 @@ func (srv *server) ensurePosterArtifacts(t *titlepb.Title, videoPath string, all
 		return
 	}
 
+	// Use cached data URL if it was written in a previous run.
+	cachePath := filepath.Join(thumbDir, thumbDataURLFilename)
+	if data, err := srv.readFile(cachePath); err == nil && len(data) > 0 {
+		t.Poster.ContentUrl = string(data)
+		return
+	}
+
+	// If an image file already exists in the thumbnail dir (downloaded previously
+	// but data_url.txt was never written), build the data URL from it directly.
+	localThumbDir := srv.formatPath(thumbDir)
+	if imgPath := findExistingThumbnailImage(localThumbDir); imgPath != "" {
+		if dataURL, err := Utility.CreateThumbnail(imgPath, thumbWidth, thumbHeight); err == nil {
+			if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
+				t.Poster.ContentUrl = dataURL
+				return
+			}
+		}
+	}
+
 	name := posterURL[strings.LastIndex(posterURL, "/")+1:]
 	if name == "" || name == "/" {
 		name = Utility.GenerateUUID("poster") + ".jpg"
@@ -1203,8 +1222,8 @@ func (srv *server) ensurePosterArtifacts(t *titlepb.Title, videoPath string, all
 		return
 	}
 
-	if dataURL, err := Utility.CreateThumbnail(tmpPath, 300, 180); err == nil {
-		if err := srv.writeFile(filepath.Join(thumbDir, "data_url.txt"), []byte(dataURL), 0o664); err == nil {
+	if dataURL, err := Utility.CreateThumbnail(tmpPath, thumbWidth, thumbHeight); err == nil {
+		if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
 			t.Poster.ContentUrl = dataURL
 		}
 	}

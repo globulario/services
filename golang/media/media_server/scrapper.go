@@ -44,6 +44,31 @@ func buildThumbnailDir(videoPath string) (string, string) {
 	return filepath.Join(dir, hiddenDirName, name, thumbnailLeafFolderName), name
 }
 
+// findExistingThumbnailImage returns the path of the first image file found in
+// dir (jpg/jpeg/png/webp), or "" if none exist. Used to avoid re-downloading
+// when a thumbnail was cached in a previous session without data_url.txt.
+func findExistingThumbnailImage(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		if name == thumbDataURLFilename {
+			continue
+		}
+		ext := filepath.Ext(name)
+		switch ext {
+		case ".jpg", ".jpeg", ".png", ".webp":
+			return filepath.Join(dir, e.Name())
+		}
+	}
+	return ""
+}
+
 var flashvarsPattern = regexp.MustCompile(`(?s)var\s+flashvars_[^=]+=\s*(\{.*?\});`)
 
 func appendUnique(list *[]string, value string) {
@@ -131,6 +156,17 @@ func (srv *server) downloadThumbnail(video_id, video_url, video_path string) (st
 		return "", err
 	}
 	defer cleanup()
+
+	// Before hitting the network, check whether an image file already exists in
+	// the thumbnail directory (e.g. downloaded during a previous session but
+	// data_url.txt was never written). Build the data URL from it directly.
+	if imgPath := findExistingThumbnailImage(localDir); imgPath != "" {
+		if dataURL, err := Utility.CreateThumbnail(imgPath, thumbWidth, thumbHeight); err == nil {
+			if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
+				return dataURL, nil
+			}
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ytDlpTimeout)
 	defer cancel()
