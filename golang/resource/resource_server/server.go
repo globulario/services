@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	// Gate calls into config/etcd until after we handle --describe/--health
@@ -115,7 +116,9 @@ type server struct {
 	SessionTimeout int
 
 	// Data store where account, role ect are keep...
-	store persistence_store.Store
+	store          persistence_store.Store
+	storeMu        sync.Mutex
+	storeLastCheck time.Time
 
 	// In-memory cache to speed up things.
 	cache    *storage_store.BigCache_store
@@ -700,7 +703,21 @@ func (srv *server) SetAccountAllocatedSpace(token, accountId string, space uint6
  * Connection to mongo db local store.
  */
 func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
-	// That service made user of persistence service.
+	srv.storeMu.Lock()
+	defer srv.storeMu.Unlock()
+
+	// If the store exists, periodically verify it's still reachable.
+	// This handles the case where the ScyllaDB host address changed (e.g. from
+	// 127.0.0.1 to a LAN IP): gocql sticks to the original contact points, so
+	// we must detect the broken session and reconnect to the new host.
+	if srv.store != nil && srv.Backend_type == "SCYLLA" && time.Since(srv.storeLastCheck) > 10*time.Second {
+		srv.storeLastCheck = time.Now()
+		if err := srv.store.Ping(context.Background(), "local_resource"); err != nil {
+			logger.Warn("persistence store unreachable; reconnecting with fresh host probe", "err", err)
+			srv.store = nil
+			computeBackendConfig(srv, true) // re-probe scylla host
+		}
+	}
 
 	if srv.store == nil {
 
