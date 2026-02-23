@@ -291,14 +291,13 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		return nil, status.Errorf(codes.InvalidArgument, "no poster was given")
 	}
 
-	// RBAC
-	rbacClient, err := srv.getRbacClient()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "rbac client: %v", err)
-	}
-	if perms, _ := rbacClient.GetResourcePermissions(rqst.Title.ID); perms == nil {
+	// RBAC ownership is best-effort: if the RBAC backend (ScyllaDB) is unavailable
+	// the title must still be indexed and returned successfully.
+	if rbacClient, err := srv.getRbacClient(); err != nil {
+		logger.Warn("CreateTitle: RBAC client unavailable; ownership not set", "titleID", rqst.Title.ID, "err", err)
+	} else if perms, _ := rbacClient.GetResourcePermissions(rqst.Title.ID); perms == nil {
 		if err := rbacClient.AddResourceOwner(token, rqst.Title.ID, clientId, "title_infos", rbacpb.SubjectType_ACCOUNT); err != nil {
-			return nil, status.Errorf(codes.Internal, "set title owner: %v", err)
+			logger.Warn("CreateTitle: AddResourceOwner failed; ownership not set", "titleID", rqst.Title.ID, "err", err)
 		}
 	}
 
@@ -452,13 +451,13 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 	}
 	video.Casting = srv.saveTitleCasting(indexPath, video.ID, "Casting", video.Casting)
 
-	rbacClient, err := srv.getRbacClient()
-	if err != nil {
-		return err
-	}
-	if perms, _ := rbacClient.GetResourcePermissions(video.ID); perms == nil {
+	// RBAC ownership is best-effort: if the RBAC backend (ScyllaDB) is unavailable
+	// the video must still be indexed and associated with the file.
+	if rbacClient, err := srv.getRbacClient(); err != nil {
+		logger.Warn("createVideo: RBAC client unavailable; ownership not set", "videoID", video.ID, "err", err)
+	} else if perms, _ := rbacClient.GetResourcePermissions(video.ID); perms == nil {
 		if err := rbacClient.AddResourceOwner(token, video.ID, clientId, "video_infos", rbacpb.SubjectType_ACCOUNT); err != nil {
-			return err
+			logger.Warn("createVideo: AddResourceOwner failed; ownership not set", "videoID", video.ID, "err", err)
 		}
 	}
 
@@ -468,10 +467,14 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 
 	evt, err := srv.getEventClient()
 	if err != nil {
-		return err
+		logger.Warn("createVideo: event client unavailable; update event not published", "videoID", video.ID, "err", err)
+		return nil
 	}
 	payload, _ := protojson.Marshal(video)
-	return evt.Publish("update_video_infos_evt", payload)
+	if err := evt.Publish("update_video_infos_evt", payload); err != nil {
+		logger.Warn("createVideo: publish update_video_infos_evt failed", "videoID", video.ID, "err", err)
+	}
+	return nil
 }
 
 // UpdateVideoMetadata updates persisted metadata of files associated with a given video.

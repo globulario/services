@@ -822,11 +822,11 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 
 	client, err := getTitleClient()
 	if err != nil {
-		return nil, err
+		slog.Warn("move: title service unavailable, title associations will not be updated", "err", err)
 	}
 	rbacClient, err := getRbacClient()
 	if err != nil {
-		return nil, err
+		slog.Warn("move: rbac service unavailable, permissions will not be updated", "err", err)
 	}
 
 	for i := 0; i < len(rqst.Files); i++ {
@@ -840,13 +840,14 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 		}
 
 		info, _ := srv.storageStat(ctx, from)
-		filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
 
 		if srv.storageForPath(from).Exists(ctx, from) {
 			titles := make(map[string][]*titlepb.Title)
-			_ = srv.getFileTitlesAssociation(client, rqst.Files[i], titles)
 			videos := make(map[string][]*titlepb.Video)
-			_ = srv.getFileVideosAssociation(client, rqst.Files[i], videos)
+			if client != nil {
+				_ = srv.getFileTitlesAssociation(client, rqst.Files[i], titles)
+				_ = srv.getFileVideosAssociation(client, rqst.Files[i], videos)
+			}
 
 			// Dissociate titles/videos at old path root
 			for f, list := range titles {
@@ -909,28 +910,31 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 			}
 
 			// Update permissions
-			if info.IsDir() {
-				for j := 0; j < len(filePerms); j++ {
-					p := filePerms[j]
-					if strings.HasPrefix(p.Path, rqst.Files[i]) {
-						if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
-							slog.Warn("move: delete old permission failed", "path", p.Path, "err", err)
-						}
-						d := rqst.Path + "/" + filepath.Base(rqst.Files[i])
-						p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], d)
-						if err := rbacClient.SetResourcePermissions(token, p.Path, p.ResourceType, p); err != nil {
-							slog.Warn("move: set new permission failed", "path", p.Path, "err", err)
+			if rbacClient != nil {
+				filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
+				if info.IsDir() {
+					for j := 0; j < len(filePerms); j++ {
+						p := filePerms[j]
+						if strings.HasPrefix(p.Path, rqst.Files[i]) {
+							if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
+								slog.Warn("move: delete old permission failed", "path", p.Path, "err", err)
+							}
+							d := rqst.Path + "/" + filepath.Base(rqst.Files[i])
+							p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], d)
+							if err := rbacClient.SetResourcePermissions(token, p.Path, p.ResourceType, p); err != nil {
+								slog.Warn("move: set new permission failed", "path", p.Path, "err", err)
+							}
 						}
 					}
-				}
-			} else {
-				if perm, err := rbacClient.GetResourcePermissions(rqst.Files[i]); err == nil && perm != nil {
-					if err := rbacClient.DeleteResourcePermissions(token, rqst.Files[i]); err != nil {
-						slog.Warn("move: delete file permission failed", "path", rqst.Files[i], "err", err)
-					}
-					perm.Path = rqst.Path + "/" + filepath.Base(perm.Path)
-					if err := rbacClient.SetResourcePermissions(token, perm.Path, perm.ResourceType, perm); err != nil {
-						slog.Warn("move: set file permission failed", "path", perm.Path, "err", err)
+				} else {
+					if perm, err := rbacClient.GetResourcePermissions(rqst.Files[i]); err == nil && perm != nil {
+						if err := rbacClient.DeleteResourcePermissions(token, rqst.Files[i]); err != nil {
+							slog.Warn("move: delete file permission failed", "path", rqst.Files[i], "err", err)
+						}
+						perm.Path = rqst.Path + "/" + filepath.Base(perm.Path)
+						if err := rbacClient.SetResourcePermissions(token, perm.Path, perm.ResourceType, perm); err != nil {
+							slog.Warn("move: set file permission failed", "path", perm.Path, "err", err)
+						}
 					}
 				}
 			}
@@ -980,7 +984,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 
 	client, err := getTitleClient()
 	if err != nil {
-		return nil, err
+		slog.Warn("rename: title service unavailable, title associations will not be updated", "err", err)
 	}
 
 	oldFull := srv.formatPath(filepath.Join(path, rqst.OldName))
@@ -990,15 +994,16 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	// `newFull` already normalized above.
 
 	titles := make(map[string][]*titlepb.Title)
-	_ = srv.getFileTitlesAssociation(client, oldFull, titles)
-
 	videos := make(map[string][]*titlepb.Video)
-	_ = srv.getFileVideosAssociation(client, oldFull, videos)
+	if client != nil {
+		_ = srv.getFileTitlesAssociation(client, oldFull, titles)
+		_ = srv.getFileVideosAssociation(client, oldFull, videos)
+	}
 
 	// Dissociate titles
 	for f, list := range titles {
 		for _, t := range list {
-			if err := client.DissociateFileWithTitle("/search/titles", t.ID, f); err != nil {
+			if err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f); err != nil {
 				slog.Warn("rename: dissociate title failed", "file", f, "titleID", t.ID, "err", err)
 			}
 		}
@@ -1006,7 +1011,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	// Dissociate videos
 	for f, list := range videos {
 		for _, v := range list {
-			if err := client.DissociateFileWithTitle("/search/videos", v.ID, f); err != nil {
+			if err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, f); err != nil {
 				slog.Warn("rename: dissociate video failed", "file", f, "videoID", v.ID, "err", err)
 			}
 		}
@@ -1018,10 +1023,8 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 
 	rbacClient, err := getRbacClient()
 	if err != nil {
-		return nil, err
+		slog.Warn("rename: rbac service unavailable, permissions will not be updated", "err", err)
 	}
-	filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
-	perm, _ := rbacClient.GetResourcePermissions(from)
 
 	srv.cacheRemove(from)
 	srv.cacheRemove(path)
@@ -1060,26 +1063,30 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	}
 
 	// Update permissions
-	if info.IsDir() {
-		for i := 0; i < len(filePerms); i++ {
-			p := filePerms[i]
-			if strings.HasPrefix(p.Path, from) {
-				if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
-					slog.Warn("rename: delete old permission failed", "path", p.Path, "err", err)
-				}
-				p.Path = strings.ReplaceAll(p.Path, from, dest)
-				if err := rbacClient.SetResourcePermissions(token, p.Path, p.ResourceType, p); err != nil {
-					slog.Warn("rename: set new permission failed", "path", p.Path, "err", err)
+	if rbacClient != nil {
+		filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
+		perm, _ := rbacClient.GetResourcePermissions(from)
+		if info.IsDir() {
+			for i := 0; i < len(filePerms); i++ {
+				p := filePerms[i]
+				if strings.HasPrefix(p.Path, from) {
+					if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
+						slog.Warn("rename: delete old permission failed", "path", p.Path, "err", err)
+					}
+					p.Path = strings.ReplaceAll(p.Path, from, dest)
+					if err := rbacClient.SetResourcePermissions(token, p.Path, p.ResourceType, p); err != nil {
+						slog.Warn("rename: set new permission failed", "path", p.Path, "err", err)
+					}
 				}
 			}
-		}
-	} else if perm != nil {
-		if err := rbacClient.DeleteResourcePermissions(token, from); err != nil {
-			slog.Warn("rename: delete file permission failed", "path", from, "err", err)
-		}
-		perm.Path = dest
-		if err := rbacClient.SetResourcePermissions(token, dest, perm.ResourceType, perm); err != nil {
-			slog.Warn("rename: set file permission failed", "path", dest, "err", err)
+		} else if perm != nil {
+			if err := rbacClient.DeleteResourcePermissions(token, from); err != nil {
+				slog.Warn("rename: delete file permission failed", "path", from, "err", err)
+			}
+			perm.Path = dest
+			if err := rbacClient.SetResourcePermissions(token, dest, perm.ResourceType, perm); err != nil {
+				slog.Warn("rename: set file permission failed", "path", dest, "err", err)
+			}
 		}
 	}
 
