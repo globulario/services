@@ -276,6 +276,23 @@ func (srv *server) restoreAsTitle(client *title_client.Title_Client, title *titl
 		return fmt.Errorf("restoreAsTitle: unable to resolve metadata for path %s", videoPath)
 	}
 
+	// Enrich metadata and poster BEFORE comparing with the stored title.
+	// This ensures that if a thumbnail already exists on disk (but ContentUrl
+	// was never persisted), the proto.Equal comparison detects the difference
+	// and triggers a re-create that saves the poster into the title service.
+	if err := srv.enrichTitleFromIMDB(incoming, videoPath); err != nil {
+		logger.Warn("restoreAsTitle: enrich from IMDB failed", "id", incoming.ID, "err", err)
+	}
+	srv.ensurePosterArtifacts(incoming, videoPath, true)
+	if incoming.Poster == nil {
+		incoming.Poster = &titlepb.Poster{ID: incoming.ID}
+	}
+	if incoming.Poster.ContentUrl == "" {
+		if thumb, err := srv.downloadThumbnail(incoming.ID, incoming.URL, videoPath); err == nil && thumb != "" {
+			incoming.Poster.ContentUrl = thumb
+		}
+	}
+
 	// Check if Title already exists.
 	existing, _, err := client.GetTitleById(indexPath, incoming.ID)
 	needsCreate := err != nil && existing == nil
@@ -287,18 +304,6 @@ func (srv *server) restoreAsTitle(client *title_client.Title_Client, title *titl
 		needsCreate = true
 	}
 	if needsCreate {
-		if err := srv.enrichTitleFromIMDB(incoming, videoPath); err != nil {
-			logger.Warn("restoreAsTitle: enrich from IMDB failed", "id", incoming.ID, "err", err)
-		}
-		srv.ensurePosterArtifacts(incoming, videoPath, true)
-		if incoming.Poster == nil {
-			incoming.Poster = &titlepb.Poster{ID: incoming.ID}
-		}
-		if incoming.Poster.ContentUrl == "" {
-			if thumb, err := srv.downloadThumbnail(incoming.ID, incoming.URL, videoPath); err == nil && thumb != "" {
-				incoming.Poster.ContentUrl = thumb
-			}
-		}
 		if err := client.CreateTitle("", indexPath, incoming); err != nil {
 			logger.Error("restoreAsTitle: CreateTitle failed", "id", incoming.ID, "err", err)
 			return err
@@ -327,6 +332,11 @@ func (srv *server) restoreAsVideo(client *title_client.Title_Client, video *titl
 		return fmt.Errorf("restoreAsVideo: unable to resolve metadata for path %s", videoPath)
 	}
 
+	// Populate poster/duration BEFORE comparing with the stored video so that
+	// if the thumbnail exists on disk but ContentUrl was never persisted, the
+	// proto.Equal comparison detects the difference and triggers a re-create.
+	srv.ensureVideoMetadata(incoming, videoPath)
+
 	// Check if Video already exists.
 	existing, _, err := client.GetVideoById(indexPath, incoming.ID)
 	needsCreate := err != nil && existing == nil
@@ -338,7 +348,6 @@ func (srv *server) restoreAsVideo(client *title_client.Title_Client, video *titl
 		needsCreate = true
 	}
 	if needsCreate {
-		srv.ensureVideoMetadata(incoming, videoPath)
 		if err := client.CreateVideo("", indexPath, incoming); err != nil {
 			return err
 		}
