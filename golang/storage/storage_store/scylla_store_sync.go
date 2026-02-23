@@ -37,6 +37,13 @@ func (store *ScyllaStore) Open(optionsStr string) error {
 	}
 	return <-errCh
 }
+// Ping verifies the session is alive. Returns nil if healthy.
+func (store *ScyllaStore) Ping() error {
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "ping", errCh: errCh}
+	return <-errCh
+}
+
 // Close closes the store.
 func (store *ScyllaStore) Close() error {
 	errCh := make(chan error, 1)

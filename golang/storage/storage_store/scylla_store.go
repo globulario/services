@@ -327,6 +327,14 @@ func (s *ScyllaStore) close() error {
 	return nil
 }
 
+// ping verifies the session is alive with a lightweight system query.
+func (s *ScyllaStore) ping() error {
+	if s.session == nil {
+		return errors.New("scylla not open")
+	}
+	return s.session.Query("SELECT now() FROM system.local").Consistency(gocql.One).Exec()
+}
+
 // SetItem stores a value by key. If ttlSeconds > 0, it is applied.
 func (s *ScyllaStore) setItem(key string, val []byte, ttlSeconds ...int) error {
 	if s.session == nil {
@@ -458,7 +466,9 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 				err = s.clear()
 			case "drop":
 				err = s.drop()
-			case "getallkeys":
+			case "ping":
+			err = s.ping()
+		case "getallkeys":
 				if s.session == nil {
 					err = errors.New("scylla not open")
 					break

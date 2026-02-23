@@ -11,7 +11,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -104,6 +106,9 @@ type server struct {
 	// Local KV/cache backends used by RBAC
 	cache       *storage_store.BigCache_store
 	permissions storage_store.Store
+	permsMu        sync.Mutex
+	permsLastCheck time.Time
+	permsOpts      string // JSON opts for reconnect
 
 	MinioConfig *config.MinioProxyConfig
 
@@ -114,25 +119,159 @@ type server struct {
 // Key/Value helpers for RBAC state
 // -----------------------------------------------------------------------------
 
+// tcpProbe dials host:port and returns true if the connection succeeds.
+func tcpProbe(host string, port int, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// detectPrimaryIP returns the first non-loopback UP interface IPv4 address.
+func detectPrimaryIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			if ip4 := ip.To4(); ip4 != nil {
+				return ip4.String(), nil
+			}
+		}
+	}
+	return "", errors.New("no non-loopback IPv4 address found")
+}
+
+// resolveScyllaHost probes for the Scylla host using:
+// 1. GLOBULAR_SCYLLA_HOST env var
+// 2. 127.0.0.1 TCP probe
+// 3. Primary node IP TCP probe (returned even without a successful probe as fallback)
+func resolveScyllaHost(port int) string {
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_SCYLLA_HOST")); v != "" {
+		return v
+	}
+	if tcpProbe("127.0.0.1", port, 500*time.Millisecond) {
+		return "127.0.0.1"
+	}
+	if ip, err := detectPrimaryIP(); err == nil {
+		// Return the primary IP even if probe didn't succeed yet; gocql will retry.
+		return ip
+	}
+	return "127.0.0.1" // last resort
+}
+
+// buildPermsOpts builds the JSON options string for the ScyllaStore.
+func (srv *server) buildPermsOpts(host string) string {
+	port := 9042
+	tls := false
+	if srv.GetTls() {
+		port = 9142
+		tls = true
+	}
+	return fmt.Sprintf(`{
+  "hosts": ["%s:%d"],
+  "keyspace": "rbac_permissions",
+  "table": "permissions",
+  "replication_factor": 1,
+  "connect_timeout_ms": 5000,
+  "timeout_ms": 5000,
+  "consistency": "quorum",
+  "disable_initial_host_lookup": true,
+  "ca_file": "%s",
+  "cert_file": "%s",
+  "key_file": "%s",
+  "insecure_skip_verify": false,
+  "ssl_port": 9142,
+  "tls": %t
+}`, host, port, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), tls)
+}
+
+// getPermissionsStore returns the permissions store, reconnecting if the
+// ScyllaDB host has become unreachable (e.g. after an IP change).
+func (srv *server) getPermissionsStore() (storage_store.Store, error) {
+	srv.permsMu.Lock()
+	defer srv.permsMu.Unlock()
+
+	// Periodic health check every 10 s.
+	if srv.permissions != nil && time.Since(srv.permsLastCheck) > 10*time.Second {
+		srv.permsLastCheck = time.Now()
+		if scylla, ok := srv.permissions.(*storage_store.ScyllaStore); ok {
+			if err := scylla.Ping(); err != nil {
+				logger.Warn("permissions store unreachable; reconnecting with fresh host probe", "err", err)
+				_ = srv.permissions.Close()
+				srv.permissions = nil
+				port := 9042
+				if srv.GetTls() {
+					port = 9142
+				}
+				host := resolveScyllaHost(port)
+				srv.permsOpts = srv.buildPermsOpts(host)
+			}
+		}
+	}
+
+	if srv.permissions == nil {
+		store := storage_store.NewScylla_store("", "", 1)
+		if err := store.Open(srv.permsOpts); err != nil {
+			return nil, fmt.Errorf("permissions store reconnect failed: %w", err)
+		}
+		srv.permissions = store
+		logger.Info("permissions store (re)connected", "backend", "scylla")
+	}
+	return srv.permissions, nil
+}
+
 func (srv *server) setItem(key string, val []byte) error {
 	if err := srv.cache.SetItem(key, val); err != nil {
 		return err
 	}
-	return srv.permissions.SetItem(key, val)
+	p, err := srv.getPermissionsStore()
+	if err != nil {
+		return err
+	}
+	return p.SetItem(key, val)
 }
 
 func (srv *server) getItem(key string) ([]byte, error) {
 	if val, err := srv.cache.GetItem(key); err == nil {
 		return val, nil
 	}
-	return srv.permissions.GetItem(key)
+	p, err := srv.getPermissionsStore()
+	if err != nil {
+		return nil, err
+	}
+	return p.GetItem(key)
 }
 
 func (srv *server) removeItem(key string) error {
 	if err := srv.cache.RemoveItem(key); err != nil {
 		return err
 	}
-	return srv.permissions.RemoveItem(key)
+	p, err := srv.getPermissionsStore()
+	if err != nil {
+		return err
+	}
+	return p.RemoveItem(key)
 }
 
 // -----------------------------------------------------------------------------
@@ -589,7 +728,11 @@ func (srv *server) scanPermissionKeys() ([]string, error) {
 	// Scan all keys in the permissions store that match the permissions key prefix.
 	// Assuming the permissions store supports a ListKeys or similar method.
 	const permissionsPrefix = "PERMISSIONS_"
-	keys, err := srv.permissions.GetAllKeys()
+	p, err := srv.getPermissionsStore()
+	if err != nil {
+		return nil, err
+	}
+	keys, err := p.GetAllKeys()
 	if err != nil {
 		return nil, err
 	}
@@ -971,38 +1114,19 @@ func main() {
 		logger.Info("bigcache store opened successfully")
 	}
 
-	// Scylla db — always connect to localhost since Scylla runs on the same node
-	// (systemd: After=scylla-server.service). Scylla is configured with
-	// rpc_address: 127.0.0.1, so using the node IP causes "connection refused".
-	var host string
-	if !srv.GetTls() {
-		host = "127.0.0.1:9042"
-	} else {
-		host = "127.0.0.1:9142"
+	// Resolve the Scylla host: probe loopback first, then primary node IP.
+	// This handles deployments where Scylla was reconfigured to a LAN address.
+	scyllaPort := 9042
+	if srv.GetTls() {
+		scyllaPort = 9142
 	}
-
-	// Build JSON options for the store
-	opts := fmt.Sprintf(`{
-  "hosts": ["%s"],
-  "keyspace": "rbac_permissions",
-  "table": "permissions",
-  "replication_factor": 1,
-  "connect_timeout_ms": 5000,
-  "timeout_ms": 5000,
-  "consistency": "quorum",
-  "disable_initial_host_lookup": true,
-  "ca_file": "%s",
-  "cert_file": "%s",
-  "key_file": "%s",
-  "insecure_skip_verify": false,
-  "ssl_port": 9142,
-  "tls": %t
-}`, host, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), srv.GetTls())
+	scyllaHost := resolveScyllaHost(scyllaPort)
+	srv.permsOpts = srv.buildPermsOpts(scyllaHost)
 
 	// Create & open the Scylla-backed KV store (with retries built into storage_store)
-	logger.Info("initializing scylla permissions store", "host", host, "keyspace", "rbac_permissions")
+	logger.Info("initializing scylla permissions store", "host", scyllaHost, "keyspace", "rbac_permissions")
 	srv.permissions = storage_store.NewScylla_store("", "", 1)
-	if err := srv.permissions.Open(opts); err != nil {
+	if err := srv.permissions.Open(srv.permsOpts); err != nil {
 		logger.Error("permissions store open failed - cannot start RBAC service", "err", err)
 		os.Exit(1)
 	}
