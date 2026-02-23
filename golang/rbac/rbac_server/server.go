@@ -378,7 +378,7 @@ func (srv *server) accountExist(id string) (bool, string) {
 	if err != nil || acc == nil {
 		return false, ""
 	}
-	return true, acc.Id + "@" + acc.Domain
+	return true, acc.Id
 }
 
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
@@ -418,7 +418,7 @@ func (srv *server) groupExist(id string) (bool, string) {
 	if err != nil || g == nil {
 		return false, ""
 	}
-	return true, g.Id + "@" + g.Domain
+	return true, g.Id
 }
 
 func (srv *server) getApplication(applicationId string) (*resourcepb.Application, error) {
@@ -454,7 +454,7 @@ func (srv *server) applicationExist(id string) (bool, string) {
 	if err != nil || app == nil {
 		return false, ""
 	}
-	return true, app.Id + "@" + app.Domain
+	return true, app.Id
 }
 
 func (srv *server) getNodeIdentityByMac(mac string) (*resourcepb.NodeIdentity, error) {
@@ -506,7 +506,7 @@ func (srv *server) organizationExist(id string) (bool, string) {
 	if err != nil || o == nil {
 		return false, ""
 	}
-	return true, o.Id + "@" + o.Domain
+	return true, o.Id
 }
 
 func (srv *server) getRoles() ([]*resourcepb.Role, error) {

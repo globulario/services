@@ -15,6 +15,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// bareID returns the identity without any @domain suffix.
+// Handles both "user" and legacy "user@domain" formats.
+func bareID(id string) string {
+	if i := strings.Index(id, "@"); i > 0 {
+		return id[:i]
+	}
+	return id
+}
+
 // matchID returns true if list contains id either exactly or by bare-id (before "@").
 // It also handles the case where list items are FQ and id is bare (or vice-versa).
 func matchID(list []string, id string) bool {
@@ -206,32 +215,23 @@ func (srv *server) validateAccessDenied(subject string, subjectType rbacpb.Subje
 						account, err := srv.getAccount(subject)
 						if err == nil && account.Groups != nil {
 							for i := range account.Groups {
-								groupId := account.Groups[i]
-								if !strings.Contains(groupId, "@") {
-									groupId = groupId + "@" + srv.Domain
-								}
-								if srv.validateAccessDenied(groupId, rbacpb.SubjectType_GROUP, name, path) {
+								if srv.validateAccessDenied(bareID(account.Groups[i]), rbacpb.SubjectType_GROUP, name, path) {
 									return true
 								}
 							}
 						}
 						if err == nil && account.Organizations != nil {
 							for i := range account.Organizations {
-								organizationId := account.Organizations[i]
-								if !strings.Contains(organizationId, "@") {
-									organizationId = organizationId + "@" + srv.Domain
-								}
-								if srv.validateAccessDenied(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path) {
+								if srv.validateAccessDenied(bareID(account.Organizations[i]), rbacpb.SubjectType_ORGANIZATION, name, path) {
 									return true
 								}
 							}
 						}
-						// Also handle memberships only present on the group/org entities (mirrors allow path)
+						// Also handle memberships only present on the group/org entities
 						if groups, err := srv.getGroups(); err == nil {
 							for i := range groups {
-								if matchID(groups[i].Accounts, subject) { // FIX: was Utility.Contains
-									id := groups[i].Id + "@" + groups[i].Domain
-									if srv.validateAccessDenied(id, rbacpb.SubjectType_GROUP, name, path) {
+								if matchID(groups[i].Accounts, subject) {
+									if srv.validateAccessDenied(groups[i].Id, rbacpb.SubjectType_GROUP, name, path) {
 										return true
 									}
 								}
@@ -239,9 +239,8 @@ func (srv *server) validateAccessDenied(subject string, subjectType rbacpb.Subje
 						}
 						if organizations, err := srv.getOrganizations(); err == nil {
 							for i := range organizations {
-								if matchID(organizations[i].Accounts, subject) { // FIX: was Utility.Contains
-									id := organizations[i].Id + "@" + organizations[i].Domain
-									if srv.validateAccessDenied(id, rbacpb.SubjectType_ORGANIZATION, name, path) {
+								if matchID(organizations[i].Accounts, subject) {
+									if srv.validateAccessDenied(organizations[i].Id, rbacpb.SubjectType_ORGANIZATION, name, path) {
 										return true
 									}
 								}
@@ -301,8 +300,8 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 		return false
 	}
 
-	// Test if the user is the sa
-	if subjectType == rbacpb.SubjectType_ACCOUNT && strings.HasPrefix(subject, "sa@") {
+	// Test if the user is the sa (bare "sa" or legacy "sa@domain")
+	if subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa" {
 		fmt.Println("Subject is service account, allowing access")
 		return true
 	}
@@ -329,22 +328,14 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 						account, err := srv.getAccount(subject)
 						if err == nil && account.Groups != nil {
 							for i := range account.Groups {
-								groupId := account.Groups[i]
-								if !strings.Contains(groupId, "@") {
-									groupId = groupId + "@" + srv.Domain
-								}
-								if srv.validateAccessAllowed(groupId, rbacpb.SubjectType_GROUP, name, path) {
+								if srv.validateAccessAllowed(bareID(account.Groups[i]), rbacpb.SubjectType_GROUP, name, path) {
 									return true
 								}
 							}
 						}
 						if err == nil && account.Organizations != nil {
 							for i := range account.Organizations {
-								organizationId := account.Organizations[i]
-								if !strings.Contains(organizationId, "@") {
-									organizationId = organizationId + "@" + srv.Domain
-								}
-								if srv.validateAccessAllowed(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path) {
+								if srv.validateAccessAllowed(bareID(account.Organizations[i]), rbacpb.SubjectType_ORGANIZATION, name, path) {
 									return true
 								}
 							}
@@ -352,9 +343,8 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 						// external memberships
 						if groups, err := srv.getGroups(); err == nil {
 							for i := range groups {
-								if matchID(groups[i].Accounts, subject) { // FIX: was Utility.Contains
-									id := groups[i].Id + "@" + groups[i].Domain
-									if srv.validateAccessAllowed(id, rbacpb.SubjectType_GROUP, name, path) {
+								if matchID(groups[i].Accounts, subject) {
+									if srv.validateAccessAllowed(groups[i].Id, rbacpb.SubjectType_GROUP, name, path) {
 										return true
 									}
 								}
@@ -362,9 +352,8 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 						}
 						if organizations, err := srv.getOrganizations(); err == nil {
 							for i := range organizations {
-								if matchID(organizations[i].Accounts, subject) { // FIX: was Utility.Contains
-									id := organizations[i].Id + "@" + organizations[i].Domain
-									if srv.validateAccessAllowed(id, rbacpb.SubjectType_ORGANIZATION, name, path) {
+								if matchID(organizations[i].Accounts, subject) {
+									if srv.validateAccessAllowed(organizations[i].Id, rbacpb.SubjectType_ORGANIZATION, name, path) {
 										return true
 									}
 								}
@@ -419,6 +408,14 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 }
 
 func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	// Fast path: the system account (sa) always has full access.
+	// This check runs BEFORE validateSubject so it does not depend on the
+	// Resource service being reachable.  It handles both bare "sa" and the
+	// legacy "sa@domain" format.
+	if subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa" {
+		return true, false, nil
+	}
+
 	subject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {
 		return false, false, err
