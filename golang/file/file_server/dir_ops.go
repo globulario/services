@@ -377,7 +377,13 @@ func (srv *server) publishReloadDirEvent(path string) {
 // AddPublicDir registers a folder as public.
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	p := srv.formatPath(rqst.Path)
-	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
+	if p == "" {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid empty path")))
+	}
+	// Public dirs are real OS paths (may be external mounts like /mnt/...).
+	// Use os.Stat directly because the path is not yet in srv.Public, so
+	// storageForPath would incorrectly resolve it relative to srv.Root.
+	if _, err := os.Stat(p); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
 	}
 	if srv.publicContains(p) {

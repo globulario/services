@@ -795,12 +795,22 @@ func (srv *server) Storage() storage_backend.Storage {
 }
 
 // storageForPath returns the appropriate storage implementation for a specific path.
-// Public directories are always served from the local filesystem; everything else uses the default backend.
+//
+// Routing rules:
+//   - Registered public dirs (e.g. /mnt/syno/...): raw OS storage with no root prefix,
+//     because these are real filesystem paths that must not be re-rooted under srv.Root.
+//   - All other non-user paths (/applications/, /templates/, etc.): publicStorage rooted
+//     at srv.Root so virtual paths resolve correctly.
+//   - /users/ paths: the configured backend (MinIO or local OS rooted at srv.Root).
 func (srv *server) storageForPath(path string) storage_backend.Storage {
 	path = srv.formatPath(path)
-	if srv.isPublic(path) || !strings.HasPrefix(path, "/users/") {
+	if srv.isPublic(path) {
+		// Real OS path registered as a public directory; use it as-is without root translation.
+		return storage_backend.NewOSStorage("")
+	}
+	if !strings.HasPrefix(path, "/users/") {
 		if srv.publicStorage == nil {
-			srv.publicStorage = storage_backend.NewOSStorage("")
+			srv.publicStorage = storage_backend.NewOSStorage(srv.Root)
 		}
 		return srv.publicStorage
 	}
@@ -1304,6 +1314,14 @@ func main() {
 				logger.Error("create_account_evt: mkdir failed", "path", path, "err", err)
 			} else {
 				logger.Info("created user home dir", "path", path)
+				// Register RBAC ownership so the user can write to their own home dir.
+				if rbac, err := getRbacClient(); err == nil {
+					if err := rbac.AddResourceOwner(token, path, acc.Id, "file", rbacpb.SubjectType_ACCOUNT); err != nil {
+						logger.Error("create_account_evt: set owner failed", "path", path, "owner", acc.Id, "err", err)
+					}
+				} else {
+					logger.Error("create_account_evt: get rbac client failed", "err", err)
+				}
 			}
 		})
 	}()
@@ -1312,6 +1330,9 @@ func main() {
 	// Retries with backoff so that a slow Minio startup or missing bucket is recovered automatically.
 	go func() {
 		ctx := context.Background()
+
+		// Get a local token for RBAC calls (best-effort; log and skip if unavailable).
+		bootstrapToken, tokenErr := security.GetLocalToken(s.Mac)
 
 		// Retry /users/sa creation until storage is ready (up to ~5 min).
 		const maxAttempts = 30
@@ -1323,6 +1344,16 @@ func main() {
 				continue
 			}
 			logger.Info("ensured /users/sa home dir", "attempt", attempt)
+			// Register RBAC ownership for sa so it can write to its home dir.
+			if tokenErr == nil {
+				if rbac, err := getRbacClient(); err == nil {
+					if err := rbac.AddResourceOwner(bootstrapToken, "/users/sa", "sa", "file", rbacpb.SubjectType_ACCOUNT); err != nil {
+						logger.Error("bootstrap: set owner for /users/sa failed", "err", err)
+					}
+				} else {
+					logger.Error("bootstrap: get rbac client failed", "err", err)
+				}
+			}
 			break
 		}
 
@@ -1344,6 +1375,15 @@ func main() {
 			path := "/users/" + acc.GetId()
 			if err := s.storageMkdirAll(ctx, path, 0o755); err != nil {
 				logger.Warn("could not ensure user dir", "path", path, "err", err)
+				continue
+			}
+			// Register RBAC ownership so each user can write to their home dir.
+			if tokenErr == nil {
+				if rbac, err := getRbacClient(); err == nil {
+					if err := rbac.AddResourceOwner(bootstrapToken, path, acc.GetId(), "file", rbacpb.SubjectType_ACCOUNT); err != nil {
+						logger.Warn("bootstrap: set owner failed", "path", path, "owner", acc.GetId(), "err", err)
+					}
+				}
 			}
 		}
 		logger.Info("user home dir init complete", "count", len(accounts))
