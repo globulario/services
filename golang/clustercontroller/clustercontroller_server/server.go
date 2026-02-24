@@ -829,11 +829,12 @@ func (srv *server) GetClusterHealth(ctx context.Context, req *clustercontrollerp
 
 		// Determine node health status
 		timeSinceSeen := now.Sub(node.LastSeen)
+		isHealthy := (node.Status == "healthy" || node.Status == "ready" || node.Status == "converging")
 		switch {
-		case node.Status == "healthy" && timeSinceSeen < healthyThreshold:
+		case isHealthy && timeSinceSeen < healthyThreshold:
 			nodeHealth.Status = "healthy"
 			resp.HealthyNodes++
-		case node.Status == "unhealthy" || node.LastError != "":
+		case node.Status == "unhealthy" || node.Status == "degraded" || node.LastError != "":
 			nodeHealth.Status = "unhealthy"
 			nodeHealth.FailedChecks = 1
 			if node.LastError != "" {

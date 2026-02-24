@@ -19,7 +19,7 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 	for nodeID, nh := range snap.NodeHealths {
 		desired := nh.GetDesiredServicesHash()
 		applied := nh.GetAppliedServicesHash()
-		if desired == "" || desired == applied {
+		if desired == "" || desired == "services:none" || desired == applied {
 			continue
 		}
 

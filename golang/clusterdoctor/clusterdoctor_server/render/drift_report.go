@@ -22,7 +22,7 @@ func DriftReport(snap *collector.Snapshot, nodeID string, version string) *clust
 
 		// Hash mismatches from GetClusterHealthV1
 		if nh, ok := snap.NodeHealths[nid]; ok {
-			if d := nh.GetDesiredServicesHash(); d != "" && d != nh.GetAppliedServicesHash() {
+			if d := nh.GetDesiredServicesHash(); d != "" && d != "services:none" && d != nh.GetAppliedServicesHash() {
 				items = append(items, &clusterdoctorpb.DriftItem{
 					NodeId:    nid,
 					EntityRef: "services",

@@ -20,7 +20,7 @@ func canonicalServiceName(name string) string {
 func serviceUnitForCanonical(svc string) string {
 	switch svc {
 	case "envoy":
-		return "envoy.service"
+		return "globular-envoy.service"
 	default:
 		return fmt.Sprintf("globular-%s.service", svc)
 	}

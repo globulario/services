@@ -760,14 +760,16 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		return nil
 	}
 	identity := buildNodeIdentity()
+	units := convertNodeAgentUnits(detectUnits(ctx))
 	status := &clustercontrollerpb.NodeStatus{
-		NodeId:        srv.nodeID,
-		Identity:      identity,
-		Ips:           append([]string(nil), identity.GetIps()...),
-		Units:         convertNodeAgentUnits(detectUnits(ctx)),
-		LastError:     "",
-		ReportedAt:    timestamppb.Now(),
-		AgentEndpoint: srv.advertisedAddr,
+		NodeId:            srv.nodeID,
+		Identity:          identity,
+		Ips:               append([]string(nil), identity.GetIps()...),
+		Units:             units,
+		LastError:         "",
+		ReportedAt:        timestamppb.Now(),
+		AgentEndpoint:     srv.advertisedAddr,
+		InventoryComplete: len(units) > 0,
 	}
 	installed, appliedHash, err := ComputeInstalledServices(ctx)
 	if err != nil {
@@ -2680,7 +2682,7 @@ func detectUnits(ctx context.Context) []*nodeagentpb.UnitStatus {
 		"globular-minio.service",
 		"globular-gateway.service",
 		"globular-xds.service",
-		"envoy.service",
+		"globular-envoy.service",
 	}
 	statuses := make([]*nodeagentpb.UnitStatus, 0, len(known))
 	for _, unit := range known {
