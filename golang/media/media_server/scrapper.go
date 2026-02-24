@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,40 +35,6 @@ const (
 	thumbnailLeafFolderName = "__thumbnail__"
 	noEmbedEndpointTemplate = "https://noembed.com/embed?url="
 )
-
-// buildThumbnailDir returns the hidden thumbnail directory for a given video file path.
-// e.g. /path/movie.mp4 -> /path/.hidden/movie/__thumbnail__
-func buildThumbnailDir(videoPath string) (string, string) {
-	dir := filepath.Dir(videoPath)
-	base := filepath.Base(videoPath)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
-	return filepath.Join(dir, hiddenDirName, name, thumbnailLeafFolderName), name
-}
-
-// findExistingThumbnailImage returns the path of the first image file found in
-// dir (jpg/jpeg/png/webp), or "" if none exist. Used to avoid re-downloading
-// when a thumbnail was cached in a previous session without data_url.txt.
-func findExistingThumbnailImage(dir string) string {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := strings.ToLower(e.Name())
-		if name == thumbDataURLFilename {
-			continue
-		}
-		ext := filepath.Ext(name)
-		switch ext {
-		case ".jpg", ".jpeg", ".png", ".webp":
-			return filepath.Join(dir, e.Name())
-		}
-	}
-	return ""
-}
 
 var flashvarsPattern = regexp.MustCompile(`(?s)var\s+flashvars_[^=]+=\s*(\{.*?\});`)
 
@@ -134,11 +101,11 @@ func (srv *server) downloadThumbnail(video_id, video_url, video_path string) (st
 		return "", errors.New("no video path was given")
 	}
 
-	thumbDir, _ := buildThumbnailDir(video_path)
+	thumbDir := thumbnailDirFor(video_path)
 	cachePath := filepath.Join(thumbDir, thumbDataURLFilename)
 
 	// Return cached data URL if present.
-	if data, err := srv.readFile(cachePath); err == nil {
+	if data, err := srv.readFile(cachePath); err == nil && len(bytes.TrimSpace(data)) > 0 {
 		return string(data), nil
 	}
 
@@ -160,11 +127,10 @@ func (srv *server) downloadThumbnail(video_id, video_url, video_path string) (st
 	// Before hitting the network, check whether an image file already exists in
 	// the thumbnail directory (e.g. downloaded during a previous session but
 	// data_url.txt was never written). Build the data URL from it directly.
-	if imgPath := findExistingThumbnailImage(localDir); imgPath != "" {
+	if imgPath, err := mostRecentJPG(localDir); err == nil && imgPath != "" {
 		if dataURL, err := Utility.CreateThumbnail(imgPath, thumbWidth, thumbHeight); err == nil {
-			if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
-				return dataURL, nil
-			}
+			_ = srv.writeFile(cachePath, []byte(dataURL), 0o664)
+			return dataURL, nil
 		}
 	}
 

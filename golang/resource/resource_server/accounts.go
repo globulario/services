@@ -104,7 +104,16 @@ func (srv *server) CreateAccountDir(ctx context.Context) error {
 	// Make sure some account exist on the server.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 	if count == 0 {
-		return errors.New("no account exist in the database")
+		// Fresh install or wiped DB: seed the 'sa' superadmin so the cluster has
+		// at least one account and the admin UI is usable.
+		domain, domErr := config.GetDomain()
+		if domErr != nil {
+			return fmt.Errorf("no accounts in database and cannot determine domain to seed sa: %w", domErr)
+		}
+		if regErr := srv.registerAccount(ctx, domain, "sa", "sa", "sa@"+domain, "adminadmin", "", "", "", "", "", nil, nil, nil); regErr != nil {
+			return fmt.Errorf("failed to seed sa account: %w", regErr)
+		}
+		fmt.Println("bootstrapped sa account with domain", domain)
 	}
 
 	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", q, "")

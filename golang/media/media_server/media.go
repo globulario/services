@@ -1165,26 +1165,9 @@ func (srv *server) ensurePosterArtifacts(t *titlepb.Title, videoPath string, all
 	if t == nil {
 		return
 	}
-	posterURL := ""
-	if t.Poster != nil {
-		posterURL = t.Poster.URL
-	}
-	if posterURL == "" && allowLookup && t.ID != "" {
-		if imdbIDRegex.MatchString(strings.ToLower(t.ID)) {
-			if url, err := GetIMDBPoster(t.ID); err == nil && url != "" {
-				posterURL = url
-			}
-		}
-	}
-	if posterURL == "" {
-		return
-	}
+	_ = allowLookup // restore path now purely local; keep signature intact
 	if t.Poster == nil {
 		t.Poster = &titlepb.Poster{ID: t.ID}
-	}
-	t.Poster.URL = posterURL
-	if t.Poster.ContentUrl == "" {
-		t.Poster.ContentUrl = posterURL
 	}
 
 	thumbDir := thumbnailDirFor(videoPath)
@@ -1192,68 +1175,17 @@ func (srv *server) ensurePosterArtifacts(t *titlepb.Title, videoPath string, all
 		return
 	}
 
-	// Use cached data URL if it was written in a previous run.
 	cachePath := filepath.Join(thumbDir, thumbDataURLFilename)
-	if data, err := srv.readFile(cachePath); err == nil && len(data) > 0 {
-		t.Poster.ContentUrl = string(data)
-		return
-	}
-
-	// If an image file already exists in the thumbnail dir (downloaded previously
-	// but data_url.txt was never written), build the data URL from it directly.
 	localThumbDir := srv.formatPath(thumbDir)
-	if imgPath := findExistingThumbnailImage(localThumbDir); imgPath != "" {
-		if dataURL, err := Utility.CreateThumbnail(imgPath, thumbWidth, thumbHeight); err == nil {
-			if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
-				t.Poster.ContentUrl = dataURL
-				return
-			}
-		}
-	}
 
-	name := posterURL[strings.LastIndex(posterURL, "/")+1:]
-	if name == "" || name == "/" {
-		name = Utility.GenerateUUID("poster") + ".jpg"
-	}
-	tmp, err := os.CreateTemp("", "poster-*"+filepath.Ext(name))
-	if err != nil {
-		return
-	}
-	tmpPath := tmp.Name()
-	_ = tmp.Close()
-	defer func() {
-		if tmpPath != "" {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-
-	if err := Utility.DownloadFile(posterURL, tmpPath); err != nil {
-		return
-	}
-
-	if dataURL, err := Utility.CreateThumbnail(tmpPath, thumbWidth, thumbHeight); err == nil {
-		if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err == nil {
+	if jpgPath, err := mostRecentJPG(localThumbDir); err == nil {
+		if dataURL, err := Utility.CreateThumbnail(jpgPath, 300, 450); err == nil {
+			_ = srv.writeFile(cachePath, []byte(dataURL), 0o664)
 			t.Poster.ContentUrl = dataURL
+			t.Poster.URL = ""
+			logger.Info("Poster restored from local thumbnail", "path", jpgPath)
 		}
 	}
-
-	finalPath := filepath.Join(thumbDir, name)
-	if err := srv.moveLocalFileToPath(tmpPath, finalPath); err == nil {
-		tmpPath = ""
-	} else {
-		logger.Warn("ensurePosterArtifacts: move poster failed", "path", finalPath, "err", err)
-	}
-}
-
-// thumbnailDirFor returns the .hidden thumbnail directory for a video path.
-func thumbnailDirFor(videoPath string) string {
-	p := filepath.ToSlash(videoPath)
-	base := p[:strings.LastIndex(p, "/")]
-	name := p[strings.LastIndex(p, "/")+1:]
-	if i := strings.LastIndex(name, "."); i != -1 && strings.HasSuffix(strings.ToLower(name), ".mp4") {
-		name = name[:i]
-	}
-	return filepath.Join(base, ".hidden", name, "__thumbnail__")
 }
 
 // processVideoInfo consumes a .info.json (yt-dlp) to create Title/Video and local artifacts.
