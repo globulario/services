@@ -31,15 +31,17 @@ type joinTokenRecord struct {
 }
 
 type joinRequestRecord struct {
-	RequestID      string            `json:"request_id"`
-	Token          string            `json:"token"`
-	Identity       storedIdentity    `json:"identity"`
-	Labels         map[string]string `json:"labels"`
-	RequestedAt    time.Time         `json:"requested_at"`
-	Status         string            `json:"status"`
-	Reason         string            `json:"reason,omitempty"`
-	Profiles       []string          `json:"profiles,omitempty"`
-	AssignedNodeID string            `json:"assigned_node_id,omitempty"`
+	RequestID         string              `json:"request_id"`
+	Token             string              `json:"token"`
+	Identity          storedIdentity      `json:"identity"`
+	Labels            map[string]string   `json:"labels"`
+	RequestedAt       time.Time           `json:"requested_at"`
+	Status            string              `json:"status"`
+	Reason            string              `json:"reason,omitempty"`
+	Profiles          []string            `json:"profiles,omitempty"`
+	AssignedNodeID    string              `json:"assigned_node_id,omitempty"`
+	Capabilities      *storedCapabilities `json:"capabilities,omitempty"`
+	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 }
 
 type nodeState struct {
@@ -80,6 +82,16 @@ type nodeState struct {
 	// InventoryComplete is true when the node agent last reported a full unit-file inventory.
 	// When false, capability gating uses soft mode (warn but don't block).
 	InventoryComplete bool `json:"inventory_complete,omitempty"`
+	// Capabilities holds the hardware stats last reported by this node's agent.
+	Capabilities *storedCapabilities `json:"capabilities,omitempty"`
+}
+
+// storedCapabilities is the JSON-serializable form of NodeCapabilities.
+type storedCapabilities struct {
+	CPUCount      uint32 `json:"cpu_count"`
+	RAMBytes      uint64 `json:"ram_bytes"`
+	DiskBytes     uint64 `json:"disk_bytes"`
+	DiskFreeBytes uint64 `json:"disk_free_bytes"`
 }
 
 type unitStatusRecord struct {

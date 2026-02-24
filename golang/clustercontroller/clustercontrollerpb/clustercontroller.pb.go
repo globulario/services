@@ -661,6 +661,76 @@ func (x *NodeIdentity) GetAdvertiseFqdn() string {
 	return ""
 }
 
+// Hardware capabilities reported by a node agent.
+// Used by the controller to suggest appropriate profiles during join approval.
+type NodeCapabilities struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CpuCount      uint32                 `protobuf:"varint,1,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`                  // logical CPU cores (runtime.NumCPU)
+	RamBytes      uint64                 `protobuf:"varint,2,opt,name=ram_bytes,json=ramBytes,proto3" json:"ram_bytes,omitempty"`                  // total RAM in bytes
+	DiskBytes     uint64                 `protobuf:"varint,3,opt,name=disk_bytes,json=diskBytes,proto3" json:"disk_bytes,omitempty"`               // total capacity of primary volume in bytes
+	DiskFreeBytes uint64                 `protobuf:"varint,4,opt,name=disk_free_bytes,json=diskFreeBytes,proto3" json:"disk_free_bytes,omitempty"` // free bytes on primary volume
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeCapabilities) Reset() {
+	*x = NodeCapabilities{}
+	mi := &file_clustercontroller_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeCapabilities) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeCapabilities) ProtoMessage() {}
+
+func (x *NodeCapabilities) ProtoReflect() protoreflect.Message {
+	mi := &file_clustercontroller_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeCapabilities.ProtoReflect.Descriptor instead.
+func (*NodeCapabilities) Descriptor() ([]byte, []int) {
+	return file_clustercontroller_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *NodeCapabilities) GetCpuCount() uint32 {
+	if x != nil {
+		return x.CpuCount
+	}
+	return 0
+}
+
+func (x *NodeCapabilities) GetRamBytes() uint64 {
+	if x != nil {
+		return x.RamBytes
+	}
+	return 0
+}
+
+func (x *NodeCapabilities) GetDiskBytes() uint64 {
+	if x != nil {
+		return x.DiskBytes
+	}
+	return 0
+}
+
+func (x *NodeCapabilities) GetDiskFreeBytes() uint64 {
+	if x != nil {
+		return x.DiskFreeBytes
+	}
+	return 0
+}
+
 type NodeRecord struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
@@ -671,13 +741,14 @@ type NodeRecord struct {
 	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	AgentEndpoint string                 `protobuf:"bytes,7,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
 	AdvertiseFqdn string                 `protobuf:"bytes,8,opt,name=advertise_fqdn,json=advertiseFqdn,proto3" json:"advertise_fqdn,omitempty"` // e.g., "node-01.cluster.local" (PR2)
+	Capabilities  *NodeCapabilities      `protobuf:"bytes,9,opt,name=capabilities,proto3" json:"capabilities,omitempty"`                        // hardware capabilities from last heartbeat
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NodeRecord) Reset() {
 	*x = NodeRecord{}
-	mi := &file_clustercontroller_proto_msgTypes[5]
+	mi := &file_clustercontroller_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +760,7 @@ func (x *NodeRecord) String() string {
 func (*NodeRecord) ProtoMessage() {}
 
 func (x *NodeRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[5]
+	mi := &file_clustercontroller_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +773,7 @@ func (x *NodeRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeRecord.ProtoReflect.Descriptor instead.
 func (*NodeRecord) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{5}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *NodeRecord) GetNodeId() string {
@@ -761,6 +832,13 @@ func (x *NodeRecord) GetAdvertiseFqdn() string {
 	return ""
 }
 
+func (x *NodeRecord) GetCapabilities() *NodeCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 type CreateJoinTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -770,7 +848,7 @@ type CreateJoinTokenRequest struct {
 
 func (x *CreateJoinTokenRequest) Reset() {
 	*x = CreateJoinTokenRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[6]
+	mi := &file_clustercontroller_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +860,7 @@ func (x *CreateJoinTokenRequest) String() string {
 func (*CreateJoinTokenRequest) ProtoMessage() {}
 
 func (x *CreateJoinTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[6]
+	mi := &file_clustercontroller_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +873,7 @@ func (x *CreateJoinTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateJoinTokenRequest.ProtoReflect.Descriptor instead.
 func (*CreateJoinTokenRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{6}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateJoinTokenRequest) GetExpiresAt() *timestamppb.Timestamp {
@@ -815,7 +893,7 @@ type CreateJoinTokenResponse struct {
 
 func (x *CreateJoinTokenResponse) Reset() {
 	*x = CreateJoinTokenResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[7]
+	mi := &file_clustercontroller_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -827,7 +905,7 @@ func (x *CreateJoinTokenResponse) String() string {
 func (*CreateJoinTokenResponse) ProtoMessage() {}
 
 func (x *CreateJoinTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[7]
+	mi := &file_clustercontroller_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +918,7 @@ func (x *CreateJoinTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateJoinTokenResponse.ProtoReflect.Descriptor instead.
 func (*CreateJoinTokenResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{7}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateJoinTokenResponse) GetJoinToken() string {
@@ -862,13 +940,14 @@ type RequestJoinRequest struct {
 	JoinToken     string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	Identity      *NodeIdentity          `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
 	Labels        map[string]string      `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Capabilities  *NodeCapabilities      `protobuf:"bytes,4,opt,name=capabilities,proto3" json:"capabilities,omitempty"` // hardware capabilities for profile suggestion
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RequestJoinRequest) Reset() {
 	*x = RequestJoinRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[8]
+	mi := &file_clustercontroller_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -880,7 +959,7 @@ func (x *RequestJoinRequest) String() string {
 func (*RequestJoinRequest) ProtoMessage() {}
 
 func (x *RequestJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[8]
+	mi := &file_clustercontroller_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -893,7 +972,7 @@ func (x *RequestJoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestJoinRequest.ProtoReflect.Descriptor instead.
 func (*RequestJoinRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{8}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RequestJoinRequest) GetJoinToken() string {
@@ -917,6 +996,13 @@ func (x *RequestJoinRequest) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *RequestJoinRequest) GetCapabilities() *NodeCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 type RequestJoinResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -928,7 +1014,7 @@ type RequestJoinResponse struct {
 
 func (x *RequestJoinResponse) Reset() {
 	*x = RequestJoinResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[9]
+	mi := &file_clustercontroller_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -940,7 +1026,7 @@ func (x *RequestJoinResponse) String() string {
 func (*RequestJoinResponse) ProtoMessage() {}
 
 func (x *RequestJoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[9]
+	mi := &file_clustercontroller_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -953,7 +1039,7 @@ func (x *RequestJoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestJoinResponse.ProtoReflect.Descriptor instead.
 func (*RequestJoinResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{9}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RequestJoinResponse) GetRequestId() string {
@@ -986,7 +1072,7 @@ type GetJoinRequestStatusRequest struct {
 
 func (x *GetJoinRequestStatusRequest) Reset() {
 	*x = GetJoinRequestStatusRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[10]
+	mi := &file_clustercontroller_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -998,7 +1084,7 @@ func (x *GetJoinRequestStatusRequest) String() string {
 func (*GetJoinRequestStatusRequest) ProtoMessage() {}
 
 func (x *GetJoinRequestStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[10]
+	mi := &file_clustercontroller_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1011,7 +1097,7 @@ func (x *GetJoinRequestStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJoinRequestStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetJoinRequestStatusRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{10}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetJoinRequestStatusRequest) GetRequestId() string {
@@ -1033,7 +1119,7 @@ type GetJoinRequestStatusResponse struct {
 
 func (x *GetJoinRequestStatusResponse) Reset() {
 	*x = GetJoinRequestStatusResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[11]
+	mi := &file_clustercontroller_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1045,7 +1131,7 @@ func (x *GetJoinRequestStatusResponse) String() string {
 func (*GetJoinRequestStatusResponse) ProtoMessage() {}
 
 func (x *GetJoinRequestStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[11]
+	mi := &file_clustercontroller_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1058,7 +1144,7 @@ func (x *GetJoinRequestStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJoinRequestStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetJoinRequestStatusResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{11}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetJoinRequestStatusResponse) GetStatus() string {
@@ -1090,20 +1176,22 @@ func (x *GetJoinRequestStatusResponse) GetMessage() string {
 }
 
 type JoinRequestRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Identity      *NodeIdentity          `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-	Profiles      []string               `protobuf:"bytes,5,rep,name=profiles,proto3" json:"profiles,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RequestId         string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Identity          *NodeIdentity          `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
+	Status            string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Message           string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	Profiles          []string               `protobuf:"bytes,5,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Metadata          map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Capabilities      *NodeCapabilities      `protobuf:"bytes,7,opt,name=capabilities,proto3" json:"capabilities,omitempty"`                                    // hardware capabilities from the joining node
+	SuggestedProfiles []string               `protobuf:"bytes,8,rep,name=suggested_profiles,json=suggestedProfiles,proto3" json:"suggested_profiles,omitempty"` // profiles deduced from capabilities
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *JoinRequestRecord) Reset() {
 	*x = JoinRequestRecord{}
-	mi := &file_clustercontroller_proto_msgTypes[12]
+	mi := &file_clustercontroller_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1115,7 +1203,7 @@ func (x *JoinRequestRecord) String() string {
 func (*JoinRequestRecord) ProtoMessage() {}
 
 func (x *JoinRequestRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[12]
+	mi := &file_clustercontroller_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1128,7 +1216,7 @@ func (x *JoinRequestRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequestRecord.ProtoReflect.Descriptor instead.
 func (*JoinRequestRecord) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{12}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *JoinRequestRecord) GetRequestId() string {
@@ -1173,6 +1261,20 @@ func (x *JoinRequestRecord) GetMetadata() map[string]string {
 	return nil
 }
 
+func (x *JoinRequestRecord) GetCapabilities() *NodeCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *JoinRequestRecord) GetSuggestedProfiles() []string {
+	if x != nil {
+		return x.SuggestedProfiles
+	}
+	return nil
+}
+
 type ListJoinRequestsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1181,7 +1283,7 @@ type ListJoinRequestsRequest struct {
 
 func (x *ListJoinRequestsRequest) Reset() {
 	*x = ListJoinRequestsRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[13]
+	mi := &file_clustercontroller_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1193,7 +1295,7 @@ func (x *ListJoinRequestsRequest) String() string {
 func (*ListJoinRequestsRequest) ProtoMessage() {}
 
 func (x *ListJoinRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[13]
+	mi := &file_clustercontroller_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1206,7 +1308,7 @@ func (x *ListJoinRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJoinRequestsRequest.ProtoReflect.Descriptor instead.
 func (*ListJoinRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{13}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{14}
 }
 
 type ListJoinRequestsResponse struct {
@@ -1218,7 +1320,7 @@ type ListJoinRequestsResponse struct {
 
 func (x *ListJoinRequestsResponse) Reset() {
 	*x = ListJoinRequestsResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[14]
+	mi := &file_clustercontroller_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1230,7 +1332,7 @@ func (x *ListJoinRequestsResponse) String() string {
 func (*ListJoinRequestsResponse) ProtoMessage() {}
 
 func (x *ListJoinRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[14]
+	mi := &file_clustercontroller_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1243,7 +1345,7 @@ func (x *ListJoinRequestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJoinRequestsResponse.ProtoReflect.Descriptor instead.
 func (*ListJoinRequestsResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{14}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListJoinRequestsResponse) GetPending() []*JoinRequestRecord {
@@ -1266,7 +1368,7 @@ type ApproveJoinRequest struct {
 
 func (x *ApproveJoinRequest) Reset() {
 	*x = ApproveJoinRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[15]
+	mi := &file_clustercontroller_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1278,7 +1380,7 @@ func (x *ApproveJoinRequest) String() string {
 func (*ApproveJoinRequest) ProtoMessage() {}
 
 func (x *ApproveJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[15]
+	mi := &file_clustercontroller_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1291,7 +1393,7 @@ func (x *ApproveJoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveJoinRequest.ProtoReflect.Descriptor instead.
 func (*ApproveJoinRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{15}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ApproveJoinRequest) GetRequestId() string {
@@ -1333,7 +1435,7 @@ type ApproveJoinResponse struct {
 
 func (x *ApproveJoinResponse) Reset() {
 	*x = ApproveJoinResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[16]
+	mi := &file_clustercontroller_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1345,7 +1447,7 @@ func (x *ApproveJoinResponse) String() string {
 func (*ApproveJoinResponse) ProtoMessage() {}
 
 func (x *ApproveJoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[16]
+	mi := &file_clustercontroller_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1358,7 +1460,7 @@ func (x *ApproveJoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveJoinResponse.ProtoReflect.Descriptor instead.
 func (*ApproveJoinResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{16}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ApproveJoinResponse) GetNodeId() string {
@@ -1387,7 +1489,7 @@ type RejectJoinRequest struct {
 
 func (x *RejectJoinRequest) Reset() {
 	*x = RejectJoinRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[17]
+	mi := &file_clustercontroller_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1399,7 +1501,7 @@ func (x *RejectJoinRequest) String() string {
 func (*RejectJoinRequest) ProtoMessage() {}
 
 func (x *RejectJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[17]
+	mi := &file_clustercontroller_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1412,7 +1514,7 @@ func (x *RejectJoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectJoinRequest.ProtoReflect.Descriptor instead.
 func (*RejectJoinRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{17}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RejectJoinRequest) GetRequestId() string {
@@ -1447,7 +1549,7 @@ type RejectJoinResponse struct {
 
 func (x *RejectJoinResponse) Reset() {
 	*x = RejectJoinResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[18]
+	mi := &file_clustercontroller_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1459,7 +1561,7 @@ func (x *RejectJoinResponse) String() string {
 func (*RejectJoinResponse) ProtoMessage() {}
 
 func (x *RejectJoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[18]
+	mi := &file_clustercontroller_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1472,7 +1574,7 @@ func (x *RejectJoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectJoinResponse.ProtoReflect.Descriptor instead.
 func (*RejectJoinResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{18}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RejectJoinResponse) GetNodeId() string {
@@ -1497,7 +1599,7 @@ type ListNodesRequest struct {
 
 func (x *ListNodesRequest) Reset() {
 	*x = ListNodesRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[19]
+	mi := &file_clustercontroller_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1509,7 +1611,7 @@ func (x *ListNodesRequest) String() string {
 func (*ListNodesRequest) ProtoMessage() {}
 
 func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[19]
+	mi := &file_clustercontroller_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1522,7 +1624,7 @@ func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesRequest.ProtoReflect.Descriptor instead.
 func (*ListNodesRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{19}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{20}
 }
 
 type ListNodesResponse struct {
@@ -1534,7 +1636,7 @@ type ListNodesResponse struct {
 
 func (x *ListNodesResponse) Reset() {
 	*x = ListNodesResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[20]
+	mi := &file_clustercontroller_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1546,7 +1648,7 @@ func (x *ListNodesResponse) String() string {
 func (*ListNodesResponse) ProtoMessage() {}
 
 func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[20]
+	mi := &file_clustercontroller_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1559,7 +1661,7 @@ func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesResponse.ProtoReflect.Descriptor instead.
 func (*ListNodesResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{20}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListNodesResponse) GetNodes() []*NodeRecord {
@@ -1579,7 +1681,7 @@ type SetNodeProfilesRequest struct {
 
 func (x *SetNodeProfilesRequest) Reset() {
 	*x = SetNodeProfilesRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[21]
+	mi := &file_clustercontroller_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1591,7 +1693,7 @@ func (x *SetNodeProfilesRequest) String() string {
 func (*SetNodeProfilesRequest) ProtoMessage() {}
 
 func (x *SetNodeProfilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[21]
+	mi := &file_clustercontroller_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1604,7 +1706,7 @@ func (x *SetNodeProfilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeProfilesRequest.ProtoReflect.Descriptor instead.
 func (*SetNodeProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{21}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SetNodeProfilesRequest) GetNodeId() string {
@@ -1630,7 +1732,7 @@ type SetNodeProfilesResponse struct {
 
 func (x *SetNodeProfilesResponse) Reset() {
 	*x = SetNodeProfilesResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[22]
+	mi := &file_clustercontroller_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1642,7 +1744,7 @@ func (x *SetNodeProfilesResponse) String() string {
 func (*SetNodeProfilesResponse) ProtoMessage() {}
 
 func (x *SetNodeProfilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[22]
+	mi := &file_clustercontroller_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1655,7 +1757,7 @@ func (x *SetNodeProfilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeProfilesResponse.ProtoReflect.Descriptor instead.
 func (*SetNodeProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{22}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SetNodeProfilesResponse) GetOperationId() string {
@@ -1678,7 +1780,7 @@ type RemoveNodeRequest struct {
 
 func (x *RemoveNodeRequest) Reset() {
 	*x = RemoveNodeRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[23]
+	mi := &file_clustercontroller_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1792,7 @@ func (x *RemoveNodeRequest) String() string {
 func (*RemoveNodeRequest) ProtoMessage() {}
 
 func (x *RemoveNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[23]
+	mi := &file_clustercontroller_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1805,7 @@ func (x *RemoveNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNodeRequest.ProtoReflect.Descriptor instead.
 func (*RemoveNodeRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{23}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RemoveNodeRequest) GetNodeId() string {
@@ -1737,7 +1839,7 @@ type RemoveNodeResponse struct {
 
 func (x *RemoveNodeResponse) Reset() {
 	*x = RemoveNodeResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[24]
+	mi := &file_clustercontroller_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1749,7 +1851,7 @@ func (x *RemoveNodeResponse) String() string {
 func (*RemoveNodeResponse) ProtoMessage() {}
 
 func (x *RemoveNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[24]
+	mi := &file_clustercontroller_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1762,7 +1864,7 @@ func (x *RemoveNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNodeResponse.ProtoReflect.Descriptor instead.
 func (*RemoveNodeResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{24}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RemoveNodeResponse) GetOperationId() string {
@@ -1788,7 +1890,7 @@ type GetClusterHealthRequest struct {
 
 func (x *GetClusterHealthRequest) Reset() {
 	*x = GetClusterHealthRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[25]
+	mi := &file_clustercontroller_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1800,7 +1902,7 @@ func (x *GetClusterHealthRequest) String() string {
 func (*GetClusterHealthRequest) ProtoMessage() {}
 
 func (x *GetClusterHealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[25]
+	mi := &file_clustercontroller_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1813,7 +1915,7 @@ func (x *GetClusterHealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterHealthRequest.ProtoReflect.Descriptor instead.
 func (*GetClusterHealthRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{25}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{26}
 }
 
 type GetClusterHealthResponse struct {
@@ -1830,7 +1932,7 @@ type GetClusterHealthResponse struct {
 
 func (x *GetClusterHealthResponse) Reset() {
 	*x = GetClusterHealthResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[26]
+	mi := &file_clustercontroller_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1842,7 +1944,7 @@ func (x *GetClusterHealthResponse) String() string {
 func (*GetClusterHealthResponse) ProtoMessage() {}
 
 func (x *GetClusterHealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[26]
+	mi := &file_clustercontroller_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1855,7 +1957,7 @@ func (x *GetClusterHealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterHealthResponse.ProtoReflect.Descriptor instead.
 func (*GetClusterHealthResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{26}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetClusterHealthResponse) GetStatus() string {
@@ -1914,7 +2016,7 @@ type NodeHealthStatus struct {
 
 func (x *NodeHealthStatus) Reset() {
 	*x = NodeHealthStatus{}
-	mi := &file_clustercontroller_proto_msgTypes[27]
+	mi := &file_clustercontroller_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1926,7 +2028,7 @@ func (x *NodeHealthStatus) String() string {
 func (*NodeHealthStatus) ProtoMessage() {}
 
 func (x *NodeHealthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[27]
+	mi := &file_clustercontroller_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1939,7 +2041,7 @@ func (x *NodeHealthStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeHealthStatus.ProtoReflect.Descriptor instead.
 func (*NodeHealthStatus) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{27}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *NodeHealthStatus) GetNodeId() string {
@@ -1993,7 +2095,7 @@ type UpdateClusterNetworkRequest struct {
 
 func (x *UpdateClusterNetworkRequest) Reset() {
 	*x = UpdateClusterNetworkRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[28]
+	mi := &file_clustercontroller_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2005,7 +2107,7 @@ func (x *UpdateClusterNetworkRequest) String() string {
 func (*UpdateClusterNetworkRequest) ProtoMessage() {}
 
 func (x *UpdateClusterNetworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[28]
+	mi := &file_clustercontroller_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2018,7 +2120,7 @@ func (x *UpdateClusterNetworkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateClusterNetworkRequest.ProtoReflect.Descriptor instead.
 func (*UpdateClusterNetworkRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{28}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *UpdateClusterNetworkRequest) GetSpec() *ClusterNetworkSpec {
@@ -2037,7 +2139,7 @@ type UpdateClusterNetworkResponse struct {
 
 func (x *UpdateClusterNetworkResponse) Reset() {
 	*x = UpdateClusterNetworkResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[29]
+	mi := &file_clustercontroller_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2151,7 @@ func (x *UpdateClusterNetworkResponse) String() string {
 func (*UpdateClusterNetworkResponse) ProtoMessage() {}
 
 func (x *UpdateClusterNetworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[29]
+	mi := &file_clustercontroller_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2164,7 @@ func (x *UpdateClusterNetworkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateClusterNetworkResponse.ProtoReflect.Descriptor instead.
 func (*UpdateClusterNetworkResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{29}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *UpdateClusterNetworkResponse) GetGeneration() uint64 {
@@ -2081,7 +2183,7 @@ type ApplyNodePlanRequest struct {
 
 func (x *ApplyNodePlanRequest) Reset() {
 	*x = ApplyNodePlanRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[30]
+	mi := &file_clustercontroller_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2093,7 +2195,7 @@ func (x *ApplyNodePlanRequest) String() string {
 func (*ApplyNodePlanRequest) ProtoMessage() {}
 
 func (x *ApplyNodePlanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[30]
+	mi := &file_clustercontroller_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2106,7 +2208,7 @@ func (x *ApplyNodePlanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyNodePlanRequest.ProtoReflect.Descriptor instead.
 func (*ApplyNodePlanRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{30}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ApplyNodePlanRequest) GetNodeId() string {
@@ -2125,7 +2227,7 @@ type ApplyNodePlanResponse struct {
 
 func (x *ApplyNodePlanResponse) Reset() {
 	*x = ApplyNodePlanResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[31]
+	mi := &file_clustercontroller_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2137,7 +2239,7 @@ func (x *ApplyNodePlanResponse) String() string {
 func (*ApplyNodePlanResponse) ProtoMessage() {}
 
 func (x *ApplyNodePlanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[31]
+	mi := &file_clustercontroller_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2150,7 +2252,7 @@ func (x *ApplyNodePlanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyNodePlanResponse.ProtoReflect.Descriptor instead.
 func (*ApplyNodePlanResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{31}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ApplyNodePlanResponse) GetOperationId() string {
@@ -2170,7 +2272,7 @@ type ApplyNodePlanV1Request struct {
 
 func (x *ApplyNodePlanV1Request) Reset() {
 	*x = ApplyNodePlanV1Request{}
-	mi := &file_clustercontroller_proto_msgTypes[32]
+	mi := &file_clustercontroller_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2182,7 +2284,7 @@ func (x *ApplyNodePlanV1Request) String() string {
 func (*ApplyNodePlanV1Request) ProtoMessage() {}
 
 func (x *ApplyNodePlanV1Request) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[32]
+	mi := &file_clustercontroller_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2195,7 +2297,7 @@ func (x *ApplyNodePlanV1Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyNodePlanV1Request.ProtoReflect.Descriptor instead.
 func (*ApplyNodePlanV1Request) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{32}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ApplyNodePlanV1Request) GetNodeId() string {
@@ -2221,7 +2323,7 @@ type ApplyNodePlanV1Response struct {
 
 func (x *ApplyNodePlanV1Response) Reset() {
 	*x = ApplyNodePlanV1Response{}
-	mi := &file_clustercontroller_proto_msgTypes[33]
+	mi := &file_clustercontroller_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2233,7 +2335,7 @@ func (x *ApplyNodePlanV1Response) String() string {
 func (*ApplyNodePlanV1Response) ProtoMessage() {}
 
 func (x *ApplyNodePlanV1Response) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[33]
+	mi := &file_clustercontroller_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2246,7 +2348,7 @@ func (x *ApplyNodePlanV1Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyNodePlanV1Response.ProtoReflect.Descriptor instead.
 func (*ApplyNodePlanV1Response) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{33}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ApplyNodePlanV1Response) GetOperationId() string {
@@ -2269,7 +2371,7 @@ type ArtifactRef struct {
 
 func (x *ArtifactRef) Reset() {
 	*x = ArtifactRef{}
-	mi := &file_clustercontroller_proto_msgTypes[34]
+	mi := &file_clustercontroller_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2281,7 +2383,7 @@ func (x *ArtifactRef) String() string {
 func (*ArtifactRef) ProtoMessage() {}
 
 func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[34]
+	mi := &file_clustercontroller_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2294,7 +2396,7 @@ func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactRef.ProtoReflect.Descriptor instead.
 func (*ArtifactRef) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{34}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ArtifactRef) GetKind() ArtifactKind {
@@ -2342,7 +2444,7 @@ type UnitAction struct {
 
 func (x *UnitAction) Reset() {
 	*x = UnitAction{}
-	mi := &file_clustercontroller_proto_msgTypes[35]
+	mi := &file_clustercontroller_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2354,7 +2456,7 @@ func (x *UnitAction) String() string {
 func (*UnitAction) ProtoMessage() {}
 
 func (x *UnitAction) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[35]
+	mi := &file_clustercontroller_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2367,7 +2469,7 @@ func (x *UnitAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnitAction.ProtoReflect.Descriptor instead.
 func (*UnitAction) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{35}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *UnitAction) GetUnitName() string {
@@ -2398,7 +2500,7 @@ type NodePlan struct {
 
 func (x *NodePlan) Reset() {
 	*x = NodePlan{}
-	mi := &file_clustercontroller_proto_msgTypes[36]
+	mi := &file_clustercontroller_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +2512,7 @@ func (x *NodePlan) String() string {
 func (*NodePlan) ProtoMessage() {}
 
 func (x *NodePlan) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[36]
+	mi := &file_clustercontroller_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +2525,7 @@ func (x *NodePlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodePlan.ProtoReflect.Descriptor instead.
 func (*NodePlan) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{36}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *NodePlan) GetNodeId() string {
@@ -2475,7 +2577,7 @@ type UpgradeGlobularRequest struct {
 
 func (x *UpgradeGlobularRequest) Reset() {
 	*x = UpgradeGlobularRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[37]
+	mi := &file_clustercontroller_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2487,7 +2589,7 @@ func (x *UpgradeGlobularRequest) String() string {
 func (*UpgradeGlobularRequest) ProtoMessage() {}
 
 func (x *UpgradeGlobularRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[37]
+	mi := &file_clustercontroller_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2500,7 +2602,7 @@ func (x *UpgradeGlobularRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpgradeGlobularRequest.ProtoReflect.Descriptor instead.
 func (*UpgradeGlobularRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{37}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *UpgradeGlobularRequest) GetNodeId() string {
@@ -2558,7 +2660,7 @@ type UpgradeGlobularResponse struct {
 
 func (x *UpgradeGlobularResponse) Reset() {
 	*x = UpgradeGlobularResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[38]
+	mi := &file_clustercontroller_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2570,7 +2672,7 @@ func (x *UpgradeGlobularResponse) String() string {
 func (*UpgradeGlobularResponse) ProtoMessage() {}
 
 func (x *UpgradeGlobularResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[38]
+	mi := &file_clustercontroller_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2583,7 +2685,7 @@ func (x *UpgradeGlobularResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpgradeGlobularResponse.ProtoReflect.Descriptor instead.
 func (*UpgradeGlobularResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{38}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *UpgradeGlobularResponse) GetPlanId() string {
@@ -2630,7 +2732,7 @@ type GetNodePlanRequest struct {
 
 func (x *GetNodePlanRequest) Reset() {
 	*x = GetNodePlanRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[39]
+	mi := &file_clustercontroller_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2642,7 +2744,7 @@ func (x *GetNodePlanRequest) String() string {
 func (*GetNodePlanRequest) ProtoMessage() {}
 
 func (x *GetNodePlanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[39]
+	mi := &file_clustercontroller_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2655,7 +2757,7 @@ func (x *GetNodePlanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodePlanRequest.ProtoReflect.Descriptor instead.
 func (*GetNodePlanRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{39}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetNodePlanRequest) GetNodeId() string {
@@ -2674,7 +2776,7 @@ type GetNodePlanResponse struct {
 
 func (x *GetNodePlanResponse) Reset() {
 	*x = GetNodePlanResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[40]
+	mi := &file_clustercontroller_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2686,7 +2788,7 @@ func (x *GetNodePlanResponse) String() string {
 func (*GetNodePlanResponse) ProtoMessage() {}
 
 func (x *GetNodePlanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[40]
+	mi := &file_clustercontroller_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2699,7 +2801,7 @@ func (x *GetNodePlanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodePlanResponse.ProtoReflect.Descriptor instead.
 func (*GetNodePlanResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{40}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetNodePlanResponse) GetPlan() *NodePlan {
@@ -2718,7 +2820,7 @@ type GetNodePlanV1Request struct {
 
 func (x *GetNodePlanV1Request) Reset() {
 	*x = GetNodePlanV1Request{}
-	mi := &file_clustercontroller_proto_msgTypes[41]
+	mi := &file_clustercontroller_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2730,7 +2832,7 @@ func (x *GetNodePlanV1Request) String() string {
 func (*GetNodePlanV1Request) ProtoMessage() {}
 
 func (x *GetNodePlanV1Request) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[41]
+	mi := &file_clustercontroller_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2743,7 +2845,7 @@ func (x *GetNodePlanV1Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodePlanV1Request.ProtoReflect.Descriptor instead.
 func (*GetNodePlanV1Request) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{41}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GetNodePlanV1Request) GetNodeId() string {
@@ -2762,7 +2864,7 @@ type GetNodePlanV1Response struct {
 
 func (x *GetNodePlanV1Response) Reset() {
 	*x = GetNodePlanV1Response{}
-	mi := &file_clustercontroller_proto_msgTypes[42]
+	mi := &file_clustercontroller_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2774,7 +2876,7 @@ func (x *GetNodePlanV1Response) String() string {
 func (*GetNodePlanV1Response) ProtoMessage() {}
 
 func (x *GetNodePlanV1Response) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[42]
+	mi := &file_clustercontroller_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2787,7 +2889,7 @@ func (x *GetNodePlanV1Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodePlanV1Response.ProtoReflect.Descriptor instead.
 func (*GetNodePlanV1Response) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{42}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetNodePlanV1Response) GetPlan() *planpb.NodePlan {
@@ -2806,7 +2908,7 @@ type ReconcileNodeV1Request struct {
 
 func (x *ReconcileNodeV1Request) Reset() {
 	*x = ReconcileNodeV1Request{}
-	mi := &file_clustercontroller_proto_msgTypes[43]
+	mi := &file_clustercontroller_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2818,7 +2920,7 @@ func (x *ReconcileNodeV1Request) String() string {
 func (*ReconcileNodeV1Request) ProtoMessage() {}
 
 func (x *ReconcileNodeV1Request) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[43]
+	mi := &file_clustercontroller_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2831,7 +2933,7 @@ func (x *ReconcileNodeV1Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileNodeV1Request.ProtoReflect.Descriptor instead.
 func (*ReconcileNodeV1Request) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{43}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ReconcileNodeV1Request) GetNodeId() string {
@@ -2849,7 +2951,7 @@ type ReconcileNodeV1Response struct {
 
 func (x *ReconcileNodeV1Response) Reset() {
 	*x = ReconcileNodeV1Response{}
-	mi := &file_clustercontroller_proto_msgTypes[44]
+	mi := &file_clustercontroller_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2861,7 +2963,7 @@ func (x *ReconcileNodeV1Response) String() string {
 func (*ReconcileNodeV1Response) ProtoMessage() {}
 
 func (x *ReconcileNodeV1Response) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[44]
+	mi := &file_clustercontroller_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2874,7 +2976,7 @@ func (x *ReconcileNodeV1Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileNodeV1Response.ProtoReflect.Descriptor instead.
 func (*ReconcileNodeV1Response) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{44}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{45}
 }
 
 type WatchNodePlanStatusV1Request struct {
@@ -2886,7 +2988,7 @@ type WatchNodePlanStatusV1Request struct {
 
 func (x *WatchNodePlanStatusV1Request) Reset() {
 	*x = WatchNodePlanStatusV1Request{}
-	mi := &file_clustercontroller_proto_msgTypes[45]
+	mi := &file_clustercontroller_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +3000,7 @@ func (x *WatchNodePlanStatusV1Request) String() string {
 func (*WatchNodePlanStatusV1Request) ProtoMessage() {}
 
 func (x *WatchNodePlanStatusV1Request) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[45]
+	mi := &file_clustercontroller_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +3013,7 @@ func (x *WatchNodePlanStatusV1Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchNodePlanStatusV1Request.ProtoReflect.Descriptor instead.
 func (*WatchNodePlanStatusV1Request) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{45}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *WatchNodePlanStatusV1Request) GetNodeId() string {
@@ -2930,7 +3032,7 @@ type StartApplyRequest struct {
 
 func (x *StartApplyRequest) Reset() {
 	*x = StartApplyRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[46]
+	mi := &file_clustercontroller_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2942,7 +3044,7 @@ func (x *StartApplyRequest) String() string {
 func (*StartApplyRequest) ProtoMessage() {}
 
 func (x *StartApplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[46]
+	mi := &file_clustercontroller_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2955,7 +3057,7 @@ func (x *StartApplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartApplyRequest.ProtoReflect.Descriptor instead.
 func (*StartApplyRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{46}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *StartApplyRequest) GetNodeId() string {
@@ -2974,7 +3076,7 @@ type StartApplyResponse struct {
 
 func (x *StartApplyResponse) Reset() {
 	*x = StartApplyResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[47]
+	mi := &file_clustercontroller_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2986,7 +3088,7 @@ func (x *StartApplyResponse) String() string {
 func (*StartApplyResponse) ProtoMessage() {}
 
 func (x *StartApplyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[47]
+	mi := &file_clustercontroller_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2999,7 +3101,7 @@ func (x *StartApplyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartApplyResponse.ProtoReflect.Descriptor instead.
 func (*StartApplyResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{47}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *StartApplyResponse) GetOperationId() string {
@@ -3025,7 +3127,7 @@ type OperationEvent struct {
 
 func (x *OperationEvent) Reset() {
 	*x = OperationEvent{}
-	mi := &file_clustercontroller_proto_msgTypes[48]
+	mi := &file_clustercontroller_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3037,7 +3139,7 @@ func (x *OperationEvent) String() string {
 func (*OperationEvent) ProtoMessage() {}
 
 func (x *OperationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[48]
+	mi := &file_clustercontroller_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3050,7 +3152,7 @@ func (x *OperationEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OperationEvent.ProtoReflect.Descriptor instead.
 func (*OperationEvent) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{48}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *OperationEvent) GetOperationId() string {
@@ -3123,7 +3225,7 @@ type CompleteOperationRequest struct {
 
 func (x *CompleteOperationRequest) Reset() {
 	*x = CompleteOperationRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[49]
+	mi := &file_clustercontroller_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3135,7 +3237,7 @@ func (x *CompleteOperationRequest) String() string {
 func (*CompleteOperationRequest) ProtoMessage() {}
 
 func (x *CompleteOperationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[49]
+	mi := &file_clustercontroller_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3148,7 +3250,7 @@ func (x *CompleteOperationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteOperationRequest.ProtoReflect.Descriptor instead.
 func (*CompleteOperationRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{49}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *CompleteOperationRequest) GetOperationId() string {
@@ -3202,7 +3304,7 @@ type CompleteOperationResponse struct {
 
 func (x *CompleteOperationResponse) Reset() {
 	*x = CompleteOperationResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[50]
+	mi := &file_clustercontroller_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3214,7 +3316,7 @@ func (x *CompleteOperationResponse) String() string {
 func (*CompleteOperationResponse) ProtoMessage() {}
 
 func (x *CompleteOperationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[50]
+	mi := &file_clustercontroller_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3227,7 +3329,7 @@ func (x *CompleteOperationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteOperationResponse.ProtoReflect.Descriptor instead.
 func (*CompleteOperationResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{50}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *CompleteOperationResponse) GetMessage() string {
@@ -3248,7 +3350,7 @@ type NodeUnitStatus struct {
 
 func (x *NodeUnitStatus) Reset() {
 	*x = NodeUnitStatus{}
-	mi := &file_clustercontroller_proto_msgTypes[51]
+	mi := &file_clustercontroller_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3260,7 +3362,7 @@ func (x *NodeUnitStatus) String() string {
 func (*NodeUnitStatus) ProtoMessage() {}
 
 func (x *NodeUnitStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[51]
+	mi := &file_clustercontroller_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3273,7 +3375,7 @@ func (x *NodeUnitStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeUnitStatus.ProtoReflect.Descriptor instead.
 func (*NodeUnitStatus) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{51}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *NodeUnitStatus) GetName() string {
@@ -3330,13 +3432,15 @@ type NodeStatus struct {
 	// and installed_unit_files is a complete, authoritative inventory.
 	// When false, the controller uses soft-mode gating (warn, don't block).
 	InventoryComplete bool `protobuf:"varint,11,opt,name=inventory_complete,json=inventoryComplete,proto3" json:"inventory_complete,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Hardware capabilities of the node, refreshed each heartbeat.
+	Capabilities  *NodeCapabilities `protobuf:"bytes,12,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NodeStatus) Reset() {
 	*x = NodeStatus{}
-	mi := &file_clustercontroller_proto_msgTypes[52]
+	mi := &file_clustercontroller_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3348,7 +3452,7 @@ func (x *NodeStatus) String() string {
 func (*NodeStatus) ProtoMessage() {}
 
 func (x *NodeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[52]
+	mi := &file_clustercontroller_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3361,7 +3465,7 @@ func (x *NodeStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeStatus.ProtoReflect.Descriptor instead.
 func (*NodeStatus) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{52}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *NodeStatus) GetNodeId() string {
@@ -3441,6 +3545,13 @@ func (x *NodeStatus) GetInventoryComplete() bool {
 	return false
 }
 
+func (x *NodeStatus) GetCapabilities() *NodeCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 type ReportNodeStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        *NodeStatus            `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
@@ -3450,7 +3561,7 @@ type ReportNodeStatusRequest struct {
 
 func (x *ReportNodeStatusRequest) Reset() {
 	*x = ReportNodeStatusRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[53]
+	mi := &file_clustercontroller_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3462,7 +3573,7 @@ func (x *ReportNodeStatusRequest) String() string {
 func (*ReportNodeStatusRequest) ProtoMessage() {}
 
 func (x *ReportNodeStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[53]
+	mi := &file_clustercontroller_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3475,7 +3586,7 @@ func (x *ReportNodeStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportNodeStatusRequest.ProtoReflect.Descriptor instead.
 func (*ReportNodeStatusRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{53}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ReportNodeStatusRequest) GetStatus() *NodeStatus {
@@ -3494,7 +3605,7 @@ type ReportNodeStatusResponse struct {
 
 func (x *ReportNodeStatusResponse) Reset() {
 	*x = ReportNodeStatusResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[54]
+	mi := &file_clustercontroller_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3506,7 +3617,7 @@ func (x *ReportNodeStatusResponse) String() string {
 func (*ReportNodeStatusResponse) ProtoMessage() {}
 
 func (x *ReportNodeStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[54]
+	mi := &file_clustercontroller_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3519,7 +3630,7 @@ func (x *ReportNodeStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportNodeStatusResponse.ProtoReflect.Descriptor instead.
 func (*ReportNodeStatusResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{54}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ReportNodeStatusResponse) GetMessage() string {
@@ -3539,7 +3650,7 @@ type WatchOperationsRequest struct {
 
 func (x *WatchOperationsRequest) Reset() {
 	*x = WatchOperationsRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[55]
+	mi := &file_clustercontroller_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3551,7 +3662,7 @@ func (x *WatchOperationsRequest) String() string {
 func (*WatchOperationsRequest) ProtoMessage() {}
 
 func (x *WatchOperationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[55]
+	mi := &file_clustercontroller_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3564,7 +3675,7 @@ func (x *WatchOperationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchOperationsRequest.ProtoReflect.Descriptor instead.
 func (*WatchOperationsRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{55}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *WatchOperationsRequest) GetNodeId() string {
@@ -3596,7 +3707,7 @@ type DesiredNetwork struct {
 
 func (x *DesiredNetwork) Reset() {
 	*x = DesiredNetwork{}
-	mi := &file_clustercontroller_proto_msgTypes[56]
+	mi := &file_clustercontroller_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3608,7 +3719,7 @@ func (x *DesiredNetwork) String() string {
 func (*DesiredNetwork) ProtoMessage() {}
 
 func (x *DesiredNetwork) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[56]
+	mi := &file_clustercontroller_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3621,7 +3732,7 @@ func (x *DesiredNetwork) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DesiredNetwork.ProtoReflect.Descriptor instead.
 func (*DesiredNetwork) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{56}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *DesiredNetwork) GetDomain() string {
@@ -3682,7 +3793,7 @@ type GetClusterHealthV1Request struct {
 
 func (x *GetClusterHealthV1Request) Reset() {
 	*x = GetClusterHealthV1Request{}
-	mi := &file_clustercontroller_proto_msgTypes[57]
+	mi := &file_clustercontroller_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3694,7 +3805,7 @@ func (x *GetClusterHealthV1Request) String() string {
 func (*GetClusterHealthV1Request) ProtoMessage() {}
 
 func (x *GetClusterHealthV1Request) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[57]
+	mi := &file_clustercontroller_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3707,7 +3818,7 @@ func (x *GetClusterHealthV1Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterHealthV1Request.ProtoReflect.Descriptor instead.
 func (*GetClusterHealthV1Request) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{57}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetClusterHealthV1Request) GetClusterId() string {
@@ -3734,7 +3845,7 @@ type NodeHealth struct {
 
 func (x *NodeHealth) Reset() {
 	*x = NodeHealth{}
-	mi := &file_clustercontroller_proto_msgTypes[58]
+	mi := &file_clustercontroller_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3746,7 +3857,7 @@ func (x *NodeHealth) String() string {
 func (*NodeHealth) ProtoMessage() {}
 
 func (x *NodeHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[58]
+	mi := &file_clustercontroller_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3759,7 +3870,7 @@ func (x *NodeHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeHealth.ProtoReflect.Descriptor instead.
 func (*NodeHealth) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{58}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *NodeHealth) GetNodeId() string {
@@ -3838,7 +3949,7 @@ type ServiceSummary struct {
 
 func (x *ServiceSummary) Reset() {
 	*x = ServiceSummary{}
-	mi := &file_clustercontroller_proto_msgTypes[59]
+	mi := &file_clustercontroller_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3850,7 +3961,7 @@ func (x *ServiceSummary) String() string {
 func (*ServiceSummary) ProtoMessage() {}
 
 func (x *ServiceSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[59]
+	mi := &file_clustercontroller_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3863,7 +3974,7 @@ func (x *ServiceSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceSummary.ProtoReflect.Descriptor instead.
 func (*ServiceSummary) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{59}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ServiceSummary) GetServiceName() string {
@@ -3911,7 +4022,7 @@ type GetClusterHealthV1Response struct {
 
 func (x *GetClusterHealthV1Response) Reset() {
 	*x = GetClusterHealthV1Response{}
-	mi := &file_clustercontroller_proto_msgTypes[60]
+	mi := &file_clustercontroller_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3923,7 +4034,7 @@ func (x *GetClusterHealthV1Response) String() string {
 func (*GetClusterHealthV1Response) ProtoMessage() {}
 
 func (x *GetClusterHealthV1Response) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[60]
+	mi := &file_clustercontroller_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3936,7 +4047,7 @@ func (x *GetClusterHealthV1Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClusterHealthV1Response.ProtoReflect.Descriptor instead.
 func (*GetClusterHealthV1Response) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{60}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetClusterHealthV1Response) GetNodes() []*NodeHealth {
@@ -3963,7 +4074,7 @@ type PreviewNodeProfilesRequest struct {
 
 func (x *PreviewNodeProfilesRequest) Reset() {
 	*x = PreviewNodeProfilesRequest{}
-	mi := &file_clustercontroller_proto_msgTypes[61]
+	mi := &file_clustercontroller_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3975,7 +4086,7 @@ func (x *PreviewNodeProfilesRequest) String() string {
 func (*PreviewNodeProfilesRequest) ProtoMessage() {}
 
 func (x *PreviewNodeProfilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[61]
+	mi := &file_clustercontroller_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3988,7 +4099,7 @@ func (x *PreviewNodeProfilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewNodeProfilesRequest.ProtoReflect.Descriptor instead.
 func (*PreviewNodeProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{61}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *PreviewNodeProfilesRequest) GetNodeId() string {
@@ -4018,7 +4129,7 @@ type ConfigFileDiff struct {
 
 func (x *ConfigFileDiff) Reset() {
 	*x = ConfigFileDiff{}
-	mi := &file_clustercontroller_proto_msgTypes[62]
+	mi := &file_clustercontroller_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4030,7 +4141,7 @@ func (x *ConfigFileDiff) String() string {
 func (*ConfigFileDiff) ProtoMessage() {}
 
 func (x *ConfigFileDiff) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[62]
+	mi := &file_clustercontroller_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4043,7 +4154,7 @@ func (x *ConfigFileDiff) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigFileDiff.ProtoReflect.Descriptor instead.
 func (*ConfigFileDiff) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{62}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ConfigFileDiff) GetPath() string {
@@ -4086,7 +4197,7 @@ type AffectedNodeDiff struct {
 
 func (x *AffectedNodeDiff) Reset() {
 	*x = AffectedNodeDiff{}
-	mi := &file_clustercontroller_proto_msgTypes[63]
+	mi := &file_clustercontroller_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4098,7 +4209,7 @@ func (x *AffectedNodeDiff) String() string {
 func (*AffectedNodeDiff) ProtoMessage() {}
 
 func (x *AffectedNodeDiff) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[63]
+	mi := &file_clustercontroller_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4111,7 +4222,7 @@ func (x *AffectedNodeDiff) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AffectedNodeDiff.ProtoReflect.Descriptor instead.
 func (*AffectedNodeDiff) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{63}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *AffectedNodeDiff) GetNodeId() string {
@@ -4141,7 +4252,7 @@ type PreviewNodeProfilesResponse struct {
 
 func (x *PreviewNodeProfilesResponse) Reset() {
 	*x = PreviewNodeProfilesResponse{}
-	mi := &file_clustercontroller_proto_msgTypes[64]
+	mi := &file_clustercontroller_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4153,7 +4264,7 @@ func (x *PreviewNodeProfilesResponse) String() string {
 func (*PreviewNodeProfilesResponse) ProtoMessage() {}
 
 func (x *PreviewNodeProfilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_clustercontroller_proto_msgTypes[64]
+	mi := &file_clustercontroller_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4166,7 +4277,7 @@ func (x *PreviewNodeProfilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewNodeProfilesResponse.ProtoReflect.Descriptor instead.
 func (*PreviewNodeProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_clustercontroller_proto_rawDescGZIP(), []int{64}
+	return file_clustercontroller_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *PreviewNodeProfilesResponse) GetNormalizedProfiles() []string {
@@ -4266,7 +4377,13 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
 	"\tnode_name\x18\a \x01(\tR\bnodeName\x12!\n" +
 	"\fadvertise_ip\x18\b \x01(\tR\vadvertiseIp\x12%\n" +
-	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\xa3\x03\n" +
+	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\x93\x01\n" +
+	"\x10NodeCapabilities\x12\x1b\n" +
+	"\tcpu_count\x18\x01 \x01(\rR\bcpuCount\x12\x1b\n" +
+	"\tram_bytes\x18\x02 \x01(\x04R\bramBytes\x12\x1d\n" +
+	"\n" +
+	"disk_bytes\x18\x03 \x01(\x04R\tdiskBytes\x12&\n" +
+	"\x0fdisk_free_bytes\x18\x04 \x01(\x04R\rdiskFreeBytes\"\xec\x03\n" +
 	"\n" +
 	"NodeRecord\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12;\n" +
@@ -4276,7 +4393,8 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\bprofiles\x18\x05 \x03(\tR\bprofiles\x12G\n" +
 	"\bmetadata\x18\x06 \x03(\v2+.clustercontroller.NodeRecord.MetadataEntryR\bmetadata\x12%\n" +
 	"\x0eagent_endpoint\x18\a \x01(\tR\ragentEndpoint\x12%\n" +
-	"\x0eadvertise_fqdn\x18\b \x01(\tR\radvertiseFqdn\x1a;\n" +
+	"\x0eadvertise_fqdn\x18\b \x01(\tR\radvertiseFqdn\x12G\n" +
+	"\fcapabilities\x18\t \x01(\v2#.clustercontroller.NodeCapabilitiesR\fcapabilities\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"S\n" +
@@ -4287,12 +4405,13 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xf6\x01\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xbf\x02\n" +
 	"\x12RequestJoinRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12;\n" +
 	"\bidentity\x18\x02 \x01(\v2\x1f.clustercontroller.NodeIdentityR\bidentity\x12I\n" +
-	"\x06labels\x18\x03 \x03(\v21.clustercontroller.RequestJoinRequest.LabelsEntryR\x06labels\x1a9\n" +
+	"\x06labels\x18\x03 \x03(\v21.clustercontroller.RequestJoinRequest.LabelsEntryR\x06labels\x12G\n" +
+	"\fcapabilities\x18\x04 \x01(\v2#.clustercontroller.NodeCapabilitiesR\fcapabilities\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"f\n" +
@@ -4308,7 +4427,7 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bprofiles\x18\x03 \x03(\tR\bprofiles\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage\"\xca\x02\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xc2\x03\n" +
 	"\x11JoinRequestRecord\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12;\n" +
@@ -4316,7 +4435,9 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06status\x18\x03 \x01(\tR\x06status\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12\x1a\n" +
 	"\bprofiles\x18\x05 \x03(\tR\bprofiles\x12N\n" +
-	"\bmetadata\x18\x06 \x03(\v22.clustercontroller.JoinRequestRecord.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\x06 \x03(\v22.clustercontroller.JoinRequestRecord.MetadataEntryR\bmetadata\x12G\n" +
+	"\fcapabilities\x18\a \x01(\v2#.clustercontroller.NodeCapabilitiesR\fcapabilities\x12-\n" +
+	"\x12suggested_profiles\x18\b \x03(\tR\x11suggestedProfiles\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x19\n" +
@@ -4465,7 +4586,7 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x0eNodeUnitStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12\x18\n" +
-	"\adetails\x18\x03 \x01(\tR\adetails\"\xf0\x04\n" +
+	"\adetails\x18\x03 \x01(\tR\adetails\"\xb9\x05\n" +
 	"\n" +
 	"NodeStatus\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12;\n" +
@@ -4481,7 +4602,8 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x12installed_versions\x18\t \x03(\v24.clustercontroller.NodeStatus.InstalledVersionsEntryR\x11installedVersions\x120\n" +
 	"\x14installed_unit_files\x18\n" +
 	" \x03(\tR\x12installedUnitFiles\x12-\n" +
-	"\x12inventory_complete\x18\v \x01(\bR\x11inventoryComplete\x1aD\n" +
+	"\x12inventory_complete\x18\v \x01(\bR\x11inventoryComplete\x12G\n" +
+	"\fcapabilities\x18\f \x01(\v2#.clustercontroller.NodeCapabilitiesR\fcapabilities\x1aD\n" +
 	"\x16InstalledVersionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"P\n" +
@@ -4599,7 +4721,7 @@ func file_clustercontroller_proto_rawDescGZIP() []byte {
 }
 
 var file_clustercontroller_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_clustercontroller_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
+var file_clustercontroller_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
 var file_clustercontroller_proto_goTypes = []any{
 	(ArtifactKind)(0),                    // 0: clustercontroller.ArtifactKind
 	(OperationPhase)(0),                  // 1: clustercontroller.OperationPhase
@@ -4609,171 +4731,176 @@ var file_clustercontroller_proto_goTypes = []any{
 	(*DomainMigration)(nil),              // 5: clustercontroller.DomainMigration
 	(*ExternalDNSConfig)(nil),            // 6: clustercontroller.ExternalDNSConfig
 	(*NodeIdentity)(nil),                 // 7: clustercontroller.NodeIdentity
-	(*NodeRecord)(nil),                   // 8: clustercontroller.NodeRecord
-	(*CreateJoinTokenRequest)(nil),       // 9: clustercontroller.CreateJoinTokenRequest
-	(*CreateJoinTokenResponse)(nil),      // 10: clustercontroller.CreateJoinTokenResponse
-	(*RequestJoinRequest)(nil),           // 11: clustercontroller.RequestJoinRequest
-	(*RequestJoinResponse)(nil),          // 12: clustercontroller.RequestJoinResponse
-	(*GetJoinRequestStatusRequest)(nil),  // 13: clustercontroller.GetJoinRequestStatusRequest
-	(*GetJoinRequestStatusResponse)(nil), // 14: clustercontroller.GetJoinRequestStatusResponse
-	(*JoinRequestRecord)(nil),            // 15: clustercontroller.JoinRequestRecord
-	(*ListJoinRequestsRequest)(nil),      // 16: clustercontroller.ListJoinRequestsRequest
-	(*ListJoinRequestsResponse)(nil),     // 17: clustercontroller.ListJoinRequestsResponse
-	(*ApproveJoinRequest)(nil),           // 18: clustercontroller.ApproveJoinRequest
-	(*ApproveJoinResponse)(nil),          // 19: clustercontroller.ApproveJoinResponse
-	(*RejectJoinRequest)(nil),            // 20: clustercontroller.RejectJoinRequest
-	(*RejectJoinResponse)(nil),           // 21: clustercontroller.RejectJoinResponse
-	(*ListNodesRequest)(nil),             // 22: clustercontroller.ListNodesRequest
-	(*ListNodesResponse)(nil),            // 23: clustercontroller.ListNodesResponse
-	(*SetNodeProfilesRequest)(nil),       // 24: clustercontroller.SetNodeProfilesRequest
-	(*SetNodeProfilesResponse)(nil),      // 25: clustercontroller.SetNodeProfilesResponse
-	(*RemoveNodeRequest)(nil),            // 26: clustercontroller.RemoveNodeRequest
-	(*RemoveNodeResponse)(nil),           // 27: clustercontroller.RemoveNodeResponse
-	(*GetClusterHealthRequest)(nil),      // 28: clustercontroller.GetClusterHealthRequest
-	(*GetClusterHealthResponse)(nil),     // 29: clustercontroller.GetClusterHealthResponse
-	(*NodeHealthStatus)(nil),             // 30: clustercontroller.NodeHealthStatus
-	(*UpdateClusterNetworkRequest)(nil),  // 31: clustercontroller.UpdateClusterNetworkRequest
-	(*UpdateClusterNetworkResponse)(nil), // 32: clustercontroller.UpdateClusterNetworkResponse
-	(*ApplyNodePlanRequest)(nil),         // 33: clustercontroller.ApplyNodePlanRequest
-	(*ApplyNodePlanResponse)(nil),        // 34: clustercontroller.ApplyNodePlanResponse
-	(*ApplyNodePlanV1Request)(nil),       // 35: clustercontroller.ApplyNodePlanV1Request
-	(*ApplyNodePlanV1Response)(nil),      // 36: clustercontroller.ApplyNodePlanV1Response
-	(*ArtifactRef)(nil),                  // 37: clustercontroller.ArtifactRef
-	(*UnitAction)(nil),                   // 38: clustercontroller.UnitAction
-	(*NodePlan)(nil),                     // 39: clustercontroller.NodePlan
-	(*UpgradeGlobularRequest)(nil),       // 40: clustercontroller.UpgradeGlobularRequest
-	(*UpgradeGlobularResponse)(nil),      // 41: clustercontroller.UpgradeGlobularResponse
-	(*GetNodePlanRequest)(nil),           // 42: clustercontroller.GetNodePlanRequest
-	(*GetNodePlanResponse)(nil),          // 43: clustercontroller.GetNodePlanResponse
-	(*GetNodePlanV1Request)(nil),         // 44: clustercontroller.GetNodePlanV1Request
-	(*GetNodePlanV1Response)(nil),        // 45: clustercontroller.GetNodePlanV1Response
-	(*ReconcileNodeV1Request)(nil),       // 46: clustercontroller.ReconcileNodeV1Request
-	(*ReconcileNodeV1Response)(nil),      // 47: clustercontroller.ReconcileNodeV1Response
-	(*WatchNodePlanStatusV1Request)(nil), // 48: clustercontroller.WatchNodePlanStatusV1Request
-	(*StartApplyRequest)(nil),            // 49: clustercontroller.StartApplyRequest
-	(*StartApplyResponse)(nil),           // 50: clustercontroller.StartApplyResponse
-	(*OperationEvent)(nil),               // 51: clustercontroller.OperationEvent
-	(*CompleteOperationRequest)(nil),     // 52: clustercontroller.CompleteOperationRequest
-	(*CompleteOperationResponse)(nil),    // 53: clustercontroller.CompleteOperationResponse
-	(*NodeUnitStatus)(nil),               // 54: clustercontroller.NodeUnitStatus
-	(*NodeStatus)(nil),                   // 55: clustercontroller.NodeStatus
-	(*ReportNodeStatusRequest)(nil),      // 56: clustercontroller.ReportNodeStatusRequest
-	(*ReportNodeStatusResponse)(nil),     // 57: clustercontroller.ReportNodeStatusResponse
-	(*WatchOperationsRequest)(nil),       // 58: clustercontroller.WatchOperationsRequest
-	(*DesiredNetwork)(nil),               // 59: clustercontroller.DesiredNetwork
-	(*GetClusterHealthV1Request)(nil),    // 60: clustercontroller.GetClusterHealthV1Request
-	(*NodeHealth)(nil),                   // 61: clustercontroller.NodeHealth
-	(*ServiceSummary)(nil),               // 62: clustercontroller.ServiceSummary
-	(*GetClusterHealthV1Response)(nil),   // 63: clustercontroller.GetClusterHealthV1Response
-	(*PreviewNodeProfilesRequest)(nil),   // 64: clustercontroller.PreviewNodeProfilesRequest
-	(*ConfigFileDiff)(nil),               // 65: clustercontroller.ConfigFileDiff
-	(*AffectedNodeDiff)(nil),             // 66: clustercontroller.AffectedNodeDiff
-	(*PreviewNodeProfilesResponse)(nil),  // 67: clustercontroller.PreviewNodeProfilesResponse
-	nil,                                  // 68: clustercontroller.ExternalDNSConfig.ProviderConfigEntry
-	nil,                                  // 69: clustercontroller.NodeRecord.MetadataEntry
-	nil,                                  // 70: clustercontroller.RequestJoinRequest.LabelsEntry
-	nil,                                  // 71: clustercontroller.JoinRequestRecord.MetadataEntry
-	nil,                                  // 72: clustercontroller.ApproveJoinRequest.MetadataEntry
-	nil,                                  // 73: clustercontroller.NodePlan.RenderedConfigEntry
-	nil,                                  // 74: clustercontroller.NodeStatus.InstalledVersionsEntry
-	(*timestamppb.Timestamp)(nil),        // 75: google.protobuf.Timestamp
-	(*planpb.NodePlan)(nil),              // 76: globular.plan.v1.NodePlan
-	(*planpb.NodePlanStatus)(nil),        // 77: globular.plan.v1.NodePlanStatus
+	(*NodeCapabilities)(nil),             // 8: clustercontroller.NodeCapabilities
+	(*NodeRecord)(nil),                   // 9: clustercontroller.NodeRecord
+	(*CreateJoinTokenRequest)(nil),       // 10: clustercontroller.CreateJoinTokenRequest
+	(*CreateJoinTokenResponse)(nil),      // 11: clustercontroller.CreateJoinTokenResponse
+	(*RequestJoinRequest)(nil),           // 12: clustercontroller.RequestJoinRequest
+	(*RequestJoinResponse)(nil),          // 13: clustercontroller.RequestJoinResponse
+	(*GetJoinRequestStatusRequest)(nil),  // 14: clustercontroller.GetJoinRequestStatusRequest
+	(*GetJoinRequestStatusResponse)(nil), // 15: clustercontroller.GetJoinRequestStatusResponse
+	(*JoinRequestRecord)(nil),            // 16: clustercontroller.JoinRequestRecord
+	(*ListJoinRequestsRequest)(nil),      // 17: clustercontroller.ListJoinRequestsRequest
+	(*ListJoinRequestsResponse)(nil),     // 18: clustercontroller.ListJoinRequestsResponse
+	(*ApproveJoinRequest)(nil),           // 19: clustercontroller.ApproveJoinRequest
+	(*ApproveJoinResponse)(nil),          // 20: clustercontroller.ApproveJoinResponse
+	(*RejectJoinRequest)(nil),            // 21: clustercontroller.RejectJoinRequest
+	(*RejectJoinResponse)(nil),           // 22: clustercontroller.RejectJoinResponse
+	(*ListNodesRequest)(nil),             // 23: clustercontroller.ListNodesRequest
+	(*ListNodesResponse)(nil),            // 24: clustercontroller.ListNodesResponse
+	(*SetNodeProfilesRequest)(nil),       // 25: clustercontroller.SetNodeProfilesRequest
+	(*SetNodeProfilesResponse)(nil),      // 26: clustercontroller.SetNodeProfilesResponse
+	(*RemoveNodeRequest)(nil),            // 27: clustercontroller.RemoveNodeRequest
+	(*RemoveNodeResponse)(nil),           // 28: clustercontroller.RemoveNodeResponse
+	(*GetClusterHealthRequest)(nil),      // 29: clustercontroller.GetClusterHealthRequest
+	(*GetClusterHealthResponse)(nil),     // 30: clustercontroller.GetClusterHealthResponse
+	(*NodeHealthStatus)(nil),             // 31: clustercontroller.NodeHealthStatus
+	(*UpdateClusterNetworkRequest)(nil),  // 32: clustercontroller.UpdateClusterNetworkRequest
+	(*UpdateClusterNetworkResponse)(nil), // 33: clustercontroller.UpdateClusterNetworkResponse
+	(*ApplyNodePlanRequest)(nil),         // 34: clustercontroller.ApplyNodePlanRequest
+	(*ApplyNodePlanResponse)(nil),        // 35: clustercontroller.ApplyNodePlanResponse
+	(*ApplyNodePlanV1Request)(nil),       // 36: clustercontroller.ApplyNodePlanV1Request
+	(*ApplyNodePlanV1Response)(nil),      // 37: clustercontroller.ApplyNodePlanV1Response
+	(*ArtifactRef)(nil),                  // 38: clustercontroller.ArtifactRef
+	(*UnitAction)(nil),                   // 39: clustercontroller.UnitAction
+	(*NodePlan)(nil),                     // 40: clustercontroller.NodePlan
+	(*UpgradeGlobularRequest)(nil),       // 41: clustercontroller.UpgradeGlobularRequest
+	(*UpgradeGlobularResponse)(nil),      // 42: clustercontroller.UpgradeGlobularResponse
+	(*GetNodePlanRequest)(nil),           // 43: clustercontroller.GetNodePlanRequest
+	(*GetNodePlanResponse)(nil),          // 44: clustercontroller.GetNodePlanResponse
+	(*GetNodePlanV1Request)(nil),         // 45: clustercontroller.GetNodePlanV1Request
+	(*GetNodePlanV1Response)(nil),        // 46: clustercontroller.GetNodePlanV1Response
+	(*ReconcileNodeV1Request)(nil),       // 47: clustercontroller.ReconcileNodeV1Request
+	(*ReconcileNodeV1Response)(nil),      // 48: clustercontroller.ReconcileNodeV1Response
+	(*WatchNodePlanStatusV1Request)(nil), // 49: clustercontroller.WatchNodePlanStatusV1Request
+	(*StartApplyRequest)(nil),            // 50: clustercontroller.StartApplyRequest
+	(*StartApplyResponse)(nil),           // 51: clustercontroller.StartApplyResponse
+	(*OperationEvent)(nil),               // 52: clustercontroller.OperationEvent
+	(*CompleteOperationRequest)(nil),     // 53: clustercontroller.CompleteOperationRequest
+	(*CompleteOperationResponse)(nil),    // 54: clustercontroller.CompleteOperationResponse
+	(*NodeUnitStatus)(nil),               // 55: clustercontroller.NodeUnitStatus
+	(*NodeStatus)(nil),                   // 56: clustercontroller.NodeStatus
+	(*ReportNodeStatusRequest)(nil),      // 57: clustercontroller.ReportNodeStatusRequest
+	(*ReportNodeStatusResponse)(nil),     // 58: clustercontroller.ReportNodeStatusResponse
+	(*WatchOperationsRequest)(nil),       // 59: clustercontroller.WatchOperationsRequest
+	(*DesiredNetwork)(nil),               // 60: clustercontroller.DesiredNetwork
+	(*GetClusterHealthV1Request)(nil),    // 61: clustercontroller.GetClusterHealthV1Request
+	(*NodeHealth)(nil),                   // 62: clustercontroller.NodeHealth
+	(*ServiceSummary)(nil),               // 63: clustercontroller.ServiceSummary
+	(*GetClusterHealthV1Response)(nil),   // 64: clustercontroller.GetClusterHealthV1Response
+	(*PreviewNodeProfilesRequest)(nil),   // 65: clustercontroller.PreviewNodeProfilesRequest
+	(*ConfigFileDiff)(nil),               // 66: clustercontroller.ConfigFileDiff
+	(*AffectedNodeDiff)(nil),             // 67: clustercontroller.AffectedNodeDiff
+	(*PreviewNodeProfilesResponse)(nil),  // 68: clustercontroller.PreviewNodeProfilesResponse
+	nil,                                  // 69: clustercontroller.ExternalDNSConfig.ProviderConfigEntry
+	nil,                                  // 70: clustercontroller.NodeRecord.MetadataEntry
+	nil,                                  // 71: clustercontroller.RequestJoinRequest.LabelsEntry
+	nil,                                  // 72: clustercontroller.JoinRequestRecord.MetadataEntry
+	nil,                                  // 73: clustercontroller.ApproveJoinRequest.MetadataEntry
+	nil,                                  // 74: clustercontroller.NodePlan.RenderedConfigEntry
+	nil,                                  // 75: clustercontroller.NodeStatus.InstalledVersionsEntry
+	(*timestamppb.Timestamp)(nil),        // 76: google.protobuf.Timestamp
+	(*planpb.NodePlan)(nil),              // 77: globular.plan.v1.NodePlan
+	(*planpb.NodePlanStatus)(nil),        // 78: globular.plan.v1.NodePlanStatus
 }
 var file_clustercontroller_proto_depIdxs = []int32{
-	75, // 0: clustercontroller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
+	76, // 0: clustercontroller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 1: clustercontroller.ClusterNetworkSpec.external_dns:type_name -> clustercontroller.ExternalDNSConfig
 	5,  // 2: clustercontroller.ClusterNetworkSpec.domain_migration:type_name -> clustercontroller.DomainMigration
 	2,  // 3: clustercontroller.DomainMigration.state:type_name -> clustercontroller.DomainMigration.MigrationState
-	68, // 4: clustercontroller.ExternalDNSConfig.provider_config:type_name -> clustercontroller.ExternalDNSConfig.ProviderConfigEntry
+	69, // 4: clustercontroller.ExternalDNSConfig.provider_config:type_name -> clustercontroller.ExternalDNSConfig.ProviderConfigEntry
 	7,  // 5: clustercontroller.NodeRecord.identity:type_name -> clustercontroller.NodeIdentity
-	75, // 6: clustercontroller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
-	69, // 7: clustercontroller.NodeRecord.metadata:type_name -> clustercontroller.NodeRecord.MetadataEntry
-	75, // 8: clustercontroller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
-	75, // 9: clustercontroller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	7,  // 10: clustercontroller.RequestJoinRequest.identity:type_name -> clustercontroller.NodeIdentity
-	70, // 11: clustercontroller.RequestJoinRequest.labels:type_name -> clustercontroller.RequestJoinRequest.LabelsEntry
-	7,  // 12: clustercontroller.JoinRequestRecord.identity:type_name -> clustercontroller.NodeIdentity
-	71, // 13: clustercontroller.JoinRequestRecord.metadata:type_name -> clustercontroller.JoinRequestRecord.MetadataEntry
-	15, // 14: clustercontroller.ListJoinRequestsResponse.pending:type_name -> clustercontroller.JoinRequestRecord
-	72, // 15: clustercontroller.ApproveJoinRequest.metadata:type_name -> clustercontroller.ApproveJoinRequest.MetadataEntry
-	8,  // 16: clustercontroller.ListNodesResponse.nodes:type_name -> clustercontroller.NodeRecord
-	30, // 17: clustercontroller.GetClusterHealthResponse.node_health:type_name -> clustercontroller.NodeHealthStatus
-	75, // 18: clustercontroller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
-	4,  // 19: clustercontroller.UpdateClusterNetworkRequest.spec:type_name -> clustercontroller.ClusterNetworkSpec
-	76, // 20: clustercontroller.ApplyNodePlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
-	0,  // 21: clustercontroller.ArtifactRef.kind:type_name -> clustercontroller.ArtifactKind
-	37, // 22: clustercontroller.NodePlan.ensure_installed:type_name -> clustercontroller.ArtifactRef
-	38, // 23: clustercontroller.NodePlan.unit_actions:type_name -> clustercontroller.UnitAction
-	73, // 24: clustercontroller.NodePlan.rendered_config:type_name -> clustercontroller.NodePlan.RenderedConfigEntry
-	39, // 25: clustercontroller.GetNodePlanResponse.plan:type_name -> clustercontroller.NodePlan
-	76, // 26: clustercontroller.GetNodePlanV1Response.plan:type_name -> globular.plan.v1.NodePlan
-	1,  // 27: clustercontroller.OperationEvent.phase:type_name -> clustercontroller.OperationPhase
-	75, // 28: clustercontroller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
-	7,  // 29: clustercontroller.NodeStatus.identity:type_name -> clustercontroller.NodeIdentity
-	54, // 30: clustercontroller.NodeStatus.units:type_name -> clustercontroller.NodeUnitStatus
-	75, // 31: clustercontroller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
-	74, // 32: clustercontroller.NodeStatus.installed_versions:type_name -> clustercontroller.NodeStatus.InstalledVersionsEntry
-	55, // 33: clustercontroller.ReportNodeStatusRequest.status:type_name -> clustercontroller.NodeStatus
-	61, // 34: clustercontroller.GetClusterHealthV1Response.nodes:type_name -> clustercontroller.NodeHealth
-	62, // 35: clustercontroller.GetClusterHealthV1Response.services:type_name -> clustercontroller.ServiceSummary
-	65, // 36: clustercontroller.AffectedNodeDiff.config_diff:type_name -> clustercontroller.ConfigFileDiff
-	38, // 37: clustercontroller.PreviewNodeProfilesResponse.unit_diff:type_name -> clustercontroller.UnitAction
-	65, // 38: clustercontroller.PreviewNodeProfilesResponse.config_diff:type_name -> clustercontroller.ConfigFileDiff
-	66, // 39: clustercontroller.PreviewNodeProfilesResponse.affected_nodes:type_name -> clustercontroller.AffectedNodeDiff
-	75, // 40: clustercontroller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
-	9,  // 41: clustercontroller.ClusterControllerService.CreateJoinToken:input_type -> clustercontroller.CreateJoinTokenRequest
-	11, // 42: clustercontroller.ClusterControllerService.RequestJoin:input_type -> clustercontroller.RequestJoinRequest
-	16, // 43: clustercontroller.ClusterControllerService.ListJoinRequests:input_type -> clustercontroller.ListJoinRequestsRequest
-	18, // 44: clustercontroller.ClusterControllerService.ApproveJoin:input_type -> clustercontroller.ApproveJoinRequest
-	20, // 45: clustercontroller.ClusterControllerService.RejectJoin:input_type -> clustercontroller.RejectJoinRequest
-	22, // 46: clustercontroller.ClusterControllerService.ListNodes:input_type -> clustercontroller.ListNodesRequest
-	24, // 47: clustercontroller.ClusterControllerService.SetNodeProfiles:input_type -> clustercontroller.SetNodeProfilesRequest
-	26, // 48: clustercontroller.ClusterControllerService.RemoveNode:input_type -> clustercontroller.RemoveNodeRequest
-	28, // 49: clustercontroller.ClusterControllerService.GetClusterHealth:input_type -> clustercontroller.GetClusterHealthRequest
-	42, // 50: clustercontroller.ClusterControllerService.GetNodePlan:input_type -> clustercontroller.GetNodePlanRequest
-	44, // 51: clustercontroller.ClusterControllerService.GetNodePlanV1:input_type -> clustercontroller.GetNodePlanV1Request
-	46, // 52: clustercontroller.ClusterControllerService.ReconcileNodeV1:input_type -> clustercontroller.ReconcileNodeV1Request
-	48, // 53: clustercontroller.ClusterControllerService.WatchNodePlanStatusV1:input_type -> clustercontroller.WatchNodePlanStatusV1Request
-	31, // 54: clustercontroller.ClusterControllerService.UpdateClusterNetwork:input_type -> clustercontroller.UpdateClusterNetworkRequest
-	33, // 55: clustercontroller.ClusterControllerService.ApplyNodePlan:input_type -> clustercontroller.ApplyNodePlanRequest
-	35, // 56: clustercontroller.ClusterControllerService.ApplyNodePlanV1:input_type -> clustercontroller.ApplyNodePlanV1Request
-	56, // 57: clustercontroller.ClusterControllerService.ReportNodeStatus:input_type -> clustercontroller.ReportNodeStatusRequest
-	13, // 58: clustercontroller.ClusterControllerService.GetJoinRequestStatus:input_type -> clustercontroller.GetJoinRequestStatusRequest
-	40, // 59: clustercontroller.ClusterControllerService.UpgradeGlobular:input_type -> clustercontroller.UpgradeGlobularRequest
-	52, // 60: clustercontroller.ClusterControllerService.CompleteOperation:input_type -> clustercontroller.CompleteOperationRequest
-	58, // 61: clustercontroller.ClusterControllerService.WatchOperations:input_type -> clustercontroller.WatchOperationsRequest
-	60, // 62: clustercontroller.ClusterControllerService.GetClusterHealthV1:input_type -> clustercontroller.GetClusterHealthV1Request
-	64, // 63: clustercontroller.ClusterControllerService.PreviewNodeProfiles:input_type -> clustercontroller.PreviewNodeProfilesRequest
-	3,  // 64: clustercontroller.ClusterControllerService.GetClusterInfo:output_type -> clustercontroller.ClusterInfo
-	10, // 65: clustercontroller.ClusterControllerService.CreateJoinToken:output_type -> clustercontroller.CreateJoinTokenResponse
-	12, // 66: clustercontroller.ClusterControllerService.RequestJoin:output_type -> clustercontroller.RequestJoinResponse
-	17, // 67: clustercontroller.ClusterControllerService.ListJoinRequests:output_type -> clustercontroller.ListJoinRequestsResponse
-	19, // 68: clustercontroller.ClusterControllerService.ApproveJoin:output_type -> clustercontroller.ApproveJoinResponse
-	21, // 69: clustercontroller.ClusterControllerService.RejectJoin:output_type -> clustercontroller.RejectJoinResponse
-	23, // 70: clustercontroller.ClusterControllerService.ListNodes:output_type -> clustercontroller.ListNodesResponse
-	25, // 71: clustercontroller.ClusterControllerService.SetNodeProfiles:output_type -> clustercontroller.SetNodeProfilesResponse
-	27, // 72: clustercontroller.ClusterControllerService.RemoveNode:output_type -> clustercontroller.RemoveNodeResponse
-	29, // 73: clustercontroller.ClusterControllerService.GetClusterHealth:output_type -> clustercontroller.GetClusterHealthResponse
-	43, // 74: clustercontroller.ClusterControllerService.GetNodePlan:output_type -> clustercontroller.GetNodePlanResponse
-	45, // 75: clustercontroller.ClusterControllerService.GetNodePlanV1:output_type -> clustercontroller.GetNodePlanV1Response
-	47, // 76: clustercontroller.ClusterControllerService.ReconcileNodeV1:output_type -> clustercontroller.ReconcileNodeV1Response
-	77, // 77: clustercontroller.ClusterControllerService.WatchNodePlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
-	32, // 78: clustercontroller.ClusterControllerService.UpdateClusterNetwork:output_type -> clustercontroller.UpdateClusterNetworkResponse
-	34, // 79: clustercontroller.ClusterControllerService.ApplyNodePlan:output_type -> clustercontroller.ApplyNodePlanResponse
-	36, // 80: clustercontroller.ClusterControllerService.ApplyNodePlanV1:output_type -> clustercontroller.ApplyNodePlanV1Response
-	57, // 81: clustercontroller.ClusterControllerService.ReportNodeStatus:output_type -> clustercontroller.ReportNodeStatusResponse
-	14, // 82: clustercontroller.ClusterControllerService.GetJoinRequestStatus:output_type -> clustercontroller.GetJoinRequestStatusResponse
-	41, // 83: clustercontroller.ClusterControllerService.UpgradeGlobular:output_type -> clustercontroller.UpgradeGlobularResponse
-	53, // 84: clustercontroller.ClusterControllerService.CompleteOperation:output_type -> clustercontroller.CompleteOperationResponse
-	51, // 85: clustercontroller.ClusterControllerService.WatchOperations:output_type -> clustercontroller.OperationEvent
-	63, // 86: clustercontroller.ClusterControllerService.GetClusterHealthV1:output_type -> clustercontroller.GetClusterHealthV1Response
-	67, // 87: clustercontroller.ClusterControllerService.PreviewNodeProfiles:output_type -> clustercontroller.PreviewNodeProfilesResponse
-	64, // [64:88] is the sub-list for method output_type
-	40, // [40:64] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	76, // 6: clustercontroller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
+	70, // 7: clustercontroller.NodeRecord.metadata:type_name -> clustercontroller.NodeRecord.MetadataEntry
+	8,  // 8: clustercontroller.NodeRecord.capabilities:type_name -> clustercontroller.NodeCapabilities
+	76, // 9: clustercontroller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
+	76, // 10: clustercontroller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	7,  // 11: clustercontroller.RequestJoinRequest.identity:type_name -> clustercontroller.NodeIdentity
+	71, // 12: clustercontroller.RequestJoinRequest.labels:type_name -> clustercontroller.RequestJoinRequest.LabelsEntry
+	8,  // 13: clustercontroller.RequestJoinRequest.capabilities:type_name -> clustercontroller.NodeCapabilities
+	7,  // 14: clustercontroller.JoinRequestRecord.identity:type_name -> clustercontroller.NodeIdentity
+	72, // 15: clustercontroller.JoinRequestRecord.metadata:type_name -> clustercontroller.JoinRequestRecord.MetadataEntry
+	8,  // 16: clustercontroller.JoinRequestRecord.capabilities:type_name -> clustercontroller.NodeCapabilities
+	16, // 17: clustercontroller.ListJoinRequestsResponse.pending:type_name -> clustercontroller.JoinRequestRecord
+	73, // 18: clustercontroller.ApproveJoinRequest.metadata:type_name -> clustercontroller.ApproveJoinRequest.MetadataEntry
+	9,  // 19: clustercontroller.ListNodesResponse.nodes:type_name -> clustercontroller.NodeRecord
+	31, // 20: clustercontroller.GetClusterHealthResponse.node_health:type_name -> clustercontroller.NodeHealthStatus
+	76, // 21: clustercontroller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
+	4,  // 22: clustercontroller.UpdateClusterNetworkRequest.spec:type_name -> clustercontroller.ClusterNetworkSpec
+	77, // 23: clustercontroller.ApplyNodePlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
+	0,  // 24: clustercontroller.ArtifactRef.kind:type_name -> clustercontroller.ArtifactKind
+	38, // 25: clustercontroller.NodePlan.ensure_installed:type_name -> clustercontroller.ArtifactRef
+	39, // 26: clustercontroller.NodePlan.unit_actions:type_name -> clustercontroller.UnitAction
+	74, // 27: clustercontroller.NodePlan.rendered_config:type_name -> clustercontroller.NodePlan.RenderedConfigEntry
+	40, // 28: clustercontroller.GetNodePlanResponse.plan:type_name -> clustercontroller.NodePlan
+	77, // 29: clustercontroller.GetNodePlanV1Response.plan:type_name -> globular.plan.v1.NodePlan
+	1,  // 30: clustercontroller.OperationEvent.phase:type_name -> clustercontroller.OperationPhase
+	76, // 31: clustercontroller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	7,  // 32: clustercontroller.NodeStatus.identity:type_name -> clustercontroller.NodeIdentity
+	55, // 33: clustercontroller.NodeStatus.units:type_name -> clustercontroller.NodeUnitStatus
+	76, // 34: clustercontroller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
+	75, // 35: clustercontroller.NodeStatus.installed_versions:type_name -> clustercontroller.NodeStatus.InstalledVersionsEntry
+	8,  // 36: clustercontroller.NodeStatus.capabilities:type_name -> clustercontroller.NodeCapabilities
+	56, // 37: clustercontroller.ReportNodeStatusRequest.status:type_name -> clustercontroller.NodeStatus
+	62, // 38: clustercontroller.GetClusterHealthV1Response.nodes:type_name -> clustercontroller.NodeHealth
+	63, // 39: clustercontroller.GetClusterHealthV1Response.services:type_name -> clustercontroller.ServiceSummary
+	66, // 40: clustercontroller.AffectedNodeDiff.config_diff:type_name -> clustercontroller.ConfigFileDiff
+	39, // 41: clustercontroller.PreviewNodeProfilesResponse.unit_diff:type_name -> clustercontroller.UnitAction
+	66, // 42: clustercontroller.PreviewNodeProfilesResponse.config_diff:type_name -> clustercontroller.ConfigFileDiff
+	67, // 43: clustercontroller.PreviewNodeProfilesResponse.affected_nodes:type_name -> clustercontroller.AffectedNodeDiff
+	76, // 44: clustercontroller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
+	10, // 45: clustercontroller.ClusterControllerService.CreateJoinToken:input_type -> clustercontroller.CreateJoinTokenRequest
+	12, // 46: clustercontroller.ClusterControllerService.RequestJoin:input_type -> clustercontroller.RequestJoinRequest
+	17, // 47: clustercontroller.ClusterControllerService.ListJoinRequests:input_type -> clustercontroller.ListJoinRequestsRequest
+	19, // 48: clustercontroller.ClusterControllerService.ApproveJoin:input_type -> clustercontroller.ApproveJoinRequest
+	21, // 49: clustercontroller.ClusterControllerService.RejectJoin:input_type -> clustercontroller.RejectJoinRequest
+	23, // 50: clustercontroller.ClusterControllerService.ListNodes:input_type -> clustercontroller.ListNodesRequest
+	25, // 51: clustercontroller.ClusterControllerService.SetNodeProfiles:input_type -> clustercontroller.SetNodeProfilesRequest
+	27, // 52: clustercontroller.ClusterControllerService.RemoveNode:input_type -> clustercontroller.RemoveNodeRequest
+	29, // 53: clustercontroller.ClusterControllerService.GetClusterHealth:input_type -> clustercontroller.GetClusterHealthRequest
+	43, // 54: clustercontroller.ClusterControllerService.GetNodePlan:input_type -> clustercontroller.GetNodePlanRequest
+	45, // 55: clustercontroller.ClusterControllerService.GetNodePlanV1:input_type -> clustercontroller.GetNodePlanV1Request
+	47, // 56: clustercontroller.ClusterControllerService.ReconcileNodeV1:input_type -> clustercontroller.ReconcileNodeV1Request
+	49, // 57: clustercontroller.ClusterControllerService.WatchNodePlanStatusV1:input_type -> clustercontroller.WatchNodePlanStatusV1Request
+	32, // 58: clustercontroller.ClusterControllerService.UpdateClusterNetwork:input_type -> clustercontroller.UpdateClusterNetworkRequest
+	34, // 59: clustercontroller.ClusterControllerService.ApplyNodePlan:input_type -> clustercontroller.ApplyNodePlanRequest
+	36, // 60: clustercontroller.ClusterControllerService.ApplyNodePlanV1:input_type -> clustercontroller.ApplyNodePlanV1Request
+	57, // 61: clustercontroller.ClusterControllerService.ReportNodeStatus:input_type -> clustercontroller.ReportNodeStatusRequest
+	14, // 62: clustercontroller.ClusterControllerService.GetJoinRequestStatus:input_type -> clustercontroller.GetJoinRequestStatusRequest
+	41, // 63: clustercontroller.ClusterControllerService.UpgradeGlobular:input_type -> clustercontroller.UpgradeGlobularRequest
+	53, // 64: clustercontroller.ClusterControllerService.CompleteOperation:input_type -> clustercontroller.CompleteOperationRequest
+	59, // 65: clustercontroller.ClusterControllerService.WatchOperations:input_type -> clustercontroller.WatchOperationsRequest
+	61, // 66: clustercontroller.ClusterControllerService.GetClusterHealthV1:input_type -> clustercontroller.GetClusterHealthV1Request
+	65, // 67: clustercontroller.ClusterControllerService.PreviewNodeProfiles:input_type -> clustercontroller.PreviewNodeProfilesRequest
+	3,  // 68: clustercontroller.ClusterControllerService.GetClusterInfo:output_type -> clustercontroller.ClusterInfo
+	11, // 69: clustercontroller.ClusterControllerService.CreateJoinToken:output_type -> clustercontroller.CreateJoinTokenResponse
+	13, // 70: clustercontroller.ClusterControllerService.RequestJoin:output_type -> clustercontroller.RequestJoinResponse
+	18, // 71: clustercontroller.ClusterControllerService.ListJoinRequests:output_type -> clustercontroller.ListJoinRequestsResponse
+	20, // 72: clustercontroller.ClusterControllerService.ApproveJoin:output_type -> clustercontroller.ApproveJoinResponse
+	22, // 73: clustercontroller.ClusterControllerService.RejectJoin:output_type -> clustercontroller.RejectJoinResponse
+	24, // 74: clustercontroller.ClusterControllerService.ListNodes:output_type -> clustercontroller.ListNodesResponse
+	26, // 75: clustercontroller.ClusterControllerService.SetNodeProfiles:output_type -> clustercontroller.SetNodeProfilesResponse
+	28, // 76: clustercontroller.ClusterControllerService.RemoveNode:output_type -> clustercontroller.RemoveNodeResponse
+	30, // 77: clustercontroller.ClusterControllerService.GetClusterHealth:output_type -> clustercontroller.GetClusterHealthResponse
+	44, // 78: clustercontroller.ClusterControllerService.GetNodePlan:output_type -> clustercontroller.GetNodePlanResponse
+	46, // 79: clustercontroller.ClusterControllerService.GetNodePlanV1:output_type -> clustercontroller.GetNodePlanV1Response
+	48, // 80: clustercontroller.ClusterControllerService.ReconcileNodeV1:output_type -> clustercontroller.ReconcileNodeV1Response
+	78, // 81: clustercontroller.ClusterControllerService.WatchNodePlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
+	33, // 82: clustercontroller.ClusterControllerService.UpdateClusterNetwork:output_type -> clustercontroller.UpdateClusterNetworkResponse
+	35, // 83: clustercontroller.ClusterControllerService.ApplyNodePlan:output_type -> clustercontroller.ApplyNodePlanResponse
+	37, // 84: clustercontroller.ClusterControllerService.ApplyNodePlanV1:output_type -> clustercontroller.ApplyNodePlanV1Response
+	58, // 85: clustercontroller.ClusterControllerService.ReportNodeStatus:output_type -> clustercontroller.ReportNodeStatusResponse
+	15, // 86: clustercontroller.ClusterControllerService.GetJoinRequestStatus:output_type -> clustercontroller.GetJoinRequestStatusResponse
+	42, // 87: clustercontroller.ClusterControllerService.UpgradeGlobular:output_type -> clustercontroller.UpgradeGlobularResponse
+	54, // 88: clustercontroller.ClusterControllerService.CompleteOperation:output_type -> clustercontroller.CompleteOperationResponse
+	52, // 89: clustercontroller.ClusterControllerService.WatchOperations:output_type -> clustercontroller.OperationEvent
+	64, // 90: clustercontroller.ClusterControllerService.GetClusterHealthV1:output_type -> clustercontroller.GetClusterHealthV1Response
+	68, // 91: clustercontroller.ClusterControllerService.PreviewNodeProfiles:output_type -> clustercontroller.PreviewNodeProfilesResponse
+	68, // [68:92] is the sub-list for method output_type
+	44, // [44:68] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_clustercontroller_proto_init() }
@@ -4787,7 +4914,7 @@ func file_clustercontroller_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_clustercontroller_proto_rawDesc), len(file_clustercontroller_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   72,
+			NumMessages:   73,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

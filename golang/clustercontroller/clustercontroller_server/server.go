@@ -344,14 +344,18 @@ func (srv *server) RequestJoin(ctx context.Context, req *clustercontrollerpb.Req
 	}
 	jt.Uses++
 	reqID := uuid.NewString()
-	srv.state.JoinRequests[reqID] = &joinRequestRecord{
-		RequestID:   reqID,
-		Token:       token,
-		Identity:    protoToStoredIdentity(req.GetIdentity()),
-		Labels:      copyLabels(req.GetLabels()),
-		RequestedAt: time.Now(),
-		Status:      "pending",
+	caps := req.GetCapabilities()
+	jr := &joinRequestRecord{
+		RequestID:         reqID,
+		Token:             token,
+		Identity:          protoToStoredIdentity(req.GetIdentity()),
+		Labels:            copyLabels(req.GetLabels()),
+		RequestedAt:       time.Now(),
+		Status:            "pending",
+		Capabilities:      capsToStored(caps),
+		SuggestedProfiles: deduceProfiles(caps),
 	}
+	srv.state.JoinRequests[reqID] = jr
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
 	}
@@ -378,11 +382,13 @@ func (srv *server) ListJoinRequests(ctx context.Context, req *clustercontrollerp
 	})
 	for _, jr := range pending {
 		resp.Pending = append(resp.Pending, &clustercontrollerpb.JoinRequestRecord{
-			RequestId: jr.RequestID,
-			Identity:  storedIdentityToProto(jr.Identity),
-			Status:    jr.Status,
-			Profiles:  append([]string(nil), jr.Profiles...),
-			Metadata:  copyLabels(jr.Labels),
+			RequestId:         jr.RequestID,
+			Identity:          storedIdentityToProto(jr.Identity),
+			Status:            jr.Status,
+			Profiles:          append([]string(nil), jr.Profiles...),
+			Metadata:          copyLabels(jr.Labels),
+			Capabilities:      storedToProtoCapabilities(jr.Capabilities),
+			SuggestedProfiles: append([]string(nil), jr.SuggestedProfiles...),
 		})
 	}
 	return resp, nil
@@ -511,6 +517,7 @@ func (srv *server) ListNodes(ctx context.Context, req *clustercontrollerpb.ListN
 			Profiles:      append([]string(nil), node.Profiles...),
 			Metadata:      meta,
 			AgentEndpoint: node.AgentEndpoint,
+			Capabilities:  storedToProtoCapabilities(node.Capabilities),
 		})
 	}
 	return resp, nil
@@ -1388,6 +1395,10 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 			node.InstalledVersions = installedVersions
 			changed = true
 		}
+	}
+	// Store hardware capabilities if reported.
+	if caps := nodeStatus.GetCapabilities(); caps != nil {
+		node.Capabilities = capsToStored(caps)
 	}
 	// Phase 3: store installed unit file inventory and inventory_complete flag.
 	if inventoryComplete || len(installedUnitFiles) > 0 {

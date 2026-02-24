@@ -75,6 +75,15 @@ message NodeIdentity {
   string advertise_fqdn = 9;    // e.g., "node-01.cluster.local"
 }
 
+// Hardware capabilities reported by a node agent.
+// Used by the controller to suggest appropriate profiles during join approval.
+message NodeCapabilities {
+  uint32 cpu_count       = 1;  // logical CPU cores (runtime.NumCPU)
+  uint64 ram_bytes       = 2;  // total RAM in bytes
+  uint64 disk_bytes      = 3;  // total capacity of primary volume in bytes
+  uint64 disk_free_bytes = 4;  // free bytes on primary volume
+}
+
 message NodeRecord {
   string node_id = 1;
   NodeIdentity identity = 2;
@@ -84,6 +93,7 @@ message NodeRecord {
   map<string,string> metadata = 6;
   string agent_endpoint = 7;
   string advertise_fqdn = 8;  // e.g., "node-01.cluster.local" (PR2)
+  NodeCapabilities capabilities = 9;  // hardware capabilities from last heartbeat
 }
 
 message CreateJoinTokenRequest {
@@ -98,6 +108,7 @@ message RequestJoinRequest {
   string join_token = 1;
   NodeIdentity identity = 2;
   map<string,string> labels = 3;
+  NodeCapabilities capabilities = 4;  // hardware capabilities for profile suggestion
 }
 message RequestJoinResponse {
   string request_id = 1;
@@ -122,6 +133,8 @@ message JoinRequestRecord {
   string message = 4;
   repeated string profiles = 5;
   map<string,string> metadata = 6;
+  NodeCapabilities capabilities = 7;        // hardware capabilities from the joining node
+  repeated string suggested_profiles = 8;   // profiles deduced from capabilities
 }
 
 message ListJoinRequestsRequest {}
@@ -361,6 +374,8 @@ message NodeStatus {
   // and installed_unit_files is a complete, authoritative inventory.
   // When false, the controller uses soft-mode gating (warn, don't block).
   bool inventory_complete = 11;
+  // Hardware capabilities of the node, refreshed each heartbeat.
+  NodeCapabilities capabilities = 12;
 }
 
 message ReportNodeStatusRequest {

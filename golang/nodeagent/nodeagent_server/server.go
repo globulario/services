@@ -770,6 +770,7 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		ReportedAt:        timestamppb.Now(),
 		AgentEndpoint:     srv.advertisedAddr,
 		InventoryComplete: len(units) > 0,
+		Capabilities:      buildNodeCapabilities(),
 	}
 	installed, appliedHash, err := ComputeInstalledServices(ctx)
 	if err != nil {
@@ -946,9 +947,10 @@ func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *nodeagentpb.Jo
 	}
 
 	resp, err := srv.controllerClient.RequestJoin(ctx, &clustercontrollerpb.RequestJoinRequest{
-		JoinToken: token,
-		Identity:  buildNodeIdentity(),
-		Labels:    parseNodeAgentLabels(),
+		JoinToken:    token,
+		Identity:     buildNodeIdentity(),
+		Labels:       parseNodeAgentLabels(),
+		Capabilities: buildNodeCapabilities(),
 	})
 	if err != nil {
 		return nil, err
