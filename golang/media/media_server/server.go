@@ -6,11 +6,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -538,15 +542,43 @@ func (srv *server) ensureMinioClient() error {
 		return fmt.Errorf("unknown minio auth mode: %s", auth.Mode)
 	}
 
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  creds,
-		Secure: cfg.Secure,
-	})
+	opts := &minio.Options{Creds: creds, Secure: cfg.Secure}
+	if cfg.Secure {
+		tlsCfg, err := buildMinioTLSConfig(cfg)
+		if err != nil {
+			return fmt.Errorf("build minio TLS config: %w", err)
+		}
+		if tlsCfg != nil {
+			opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+		}
+	}
+
+	client, err := minio.New(cfg.Endpoint, opts)
 	if err != nil {
 		return err
 	}
 	srv.minioClient = client
 	return nil
+}
+
+// buildMinioTLSConfig returns a *tls.Config for the MinIO endpoint.
+// For loopback endpoints with no CA bundle, InsecureSkipVerify is used
+// (acceptable because traffic is local-only).
+func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
+	if cfg.CABundlePath != "" {
+		caCert, err := os.ReadFile(cfg.CABundlePath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA bundle %q: %w", cfg.CABundlePath, err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caCert)
+		return &tls.Config{RootCAs: pool}, nil
+	}
+	host, _, _ := net.SplitHostPort(cfg.Endpoint)
+	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
+		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
+	}
+	return nil, nil
 }
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {

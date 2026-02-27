@@ -40,23 +40,35 @@ func (srv *server) isMinioPath(p string) bool {
 		return false
 	}
 	p = filepath.ToSlash(strings.TrimSpace(p))
-	prefix := srv.normalizedMinioPrefix()
-	base := strings.TrimSuffix(prefix, "/")
-	if base == "" {
-		return false
-	}
-	if p == base || strings.HasPrefix(p, base+"/") {
-		return true
-	}
-	return false
+	// The file service routes /users and /applications paths to MinIO.
+	// MinioConfig.Prefix is a bucket key prefix, not a logical path prefix.
+	return p == "/users" || strings.HasPrefix(p, "/users/") ||
+		p == "/applications" || strings.HasPrefix(p, "/applications/")
 }
 
+// minioKeyFromPath mirrors the file service's pathToKey:
+//
+//	strip the leading "/" from the logical path, then prepend the bucket
+//	key prefix (if one is configured).
+//
+// For example, with Prefix="" and logical path "/users/sa/file.mp4":
+//
+//	key = "users/sa/file.mp4"
+//
+// With Prefix="myapp" and logical path "/users/sa/file.mp4":
+//
+//	key = "myapp/users/sa/file.mp4"
 func (srv *server) minioKeyFromPath(p string) string {
 	p = filepath.ToSlash(strings.TrimSpace(p))
-	prefix := srv.normalizedMinioPrefix()
-	p = strings.TrimPrefix(p, prefix)
-	p = strings.TrimPrefix(p, "/")
-	return p
+	clean := strings.TrimLeft(filepath.ToSlash(filepath.Clean(p)), "/")
+	rawPrefix := ""
+	if srv.MinioConfig != nil {
+		rawPrefix = strings.Trim(srv.MinioConfig.Prefix, "/")
+	}
+	if rawPrefix == "" {
+		return clean
+	}
+	return rawPrefix + "/" + clean
 }
 
 func (srv *server) minioDownloadToTemp(ctx context.Context, logicalPath string) (string, func(), error) {
