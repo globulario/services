@@ -31,11 +31,10 @@ import (
 )
 
 var (
-	Root       = config_.GetGlobularExecPath()
-	ConfigPath = config_.GetConfigDir() + "/config.json"
+	Root             = config_.GetGlobularExecPath()
+	ConfigPath       = config_.GetConfigDir() + "/config.json"
 	credOpsProcessMu sync.Mutex // in-process serialization for the creds dir
 )
-
 
 // ----------------------------------------------------------------------------
 // CA retrieval / signing
@@ -248,7 +247,6 @@ func InstallServerCertificates(domain string, path string, country string, state
 	}
 	return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
 }
-
 
 func withCredsLock(dir string, fn func() error) error {
 	credOpsProcessMu.Lock()
@@ -804,7 +802,7 @@ func GenerateSanConfig(domain, path, country, state, city, organization string, 
 
 	// 1) Gather raw inputs (CN + alternates), split DNS vs IP
 	dnsSet := map[string]struct{}{}
-	ipSet  := map[string]struct{}{}
+	ipSet := map[string]struct{}{}
 	wildcards := map[string]struct{}{} // values are the suffixes after "*."
 
 	// CN (only if not an IP)
@@ -894,7 +892,6 @@ subjectAltName = @alt_names
 	return os.WriteFile(filepath.Join(path, "san.conf"), []byte(strings.TrimLeft(b.String(), "\n")), 0o644)
 }
 
-
 // CSRs
 
 // --- replace this: GenerateClientCertificateSigningRequest ---
@@ -913,9 +910,9 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 
 	dns, ips, _ := parseSANsFromConf(path)
 	tpl := &x509.CertificateRequest{
-		Subject:      pkix.Name{CommonName: domain},
-		DNSNames:     dns,
-		IPAddresses:  ips,
+		Subject:     pkix.Name{CommonName: domain},
+		DNSNames:    dns,
+		IPAddresses: ips,
 	}
 	der, err := x509.CreateCertificateRequest(rand.Reader, tpl, signer)
 	if err != nil {
@@ -923,7 +920,6 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 	}
 	return writePEM(path+"/client.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
-
 
 // --- replace this: GenerateServerCertificateSigningRequest ---
 func GenerateServerCertificateSigningRequest(path string, _ string, domain string) error {
@@ -941,9 +937,9 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 
 	dns, ips, _ := parseSANsFromConf(path)
 	tpl := &x509.CertificateRequest{
-		Subject:      pkix.Name{CommonName: domain},
-		DNSNames:     dns,
-		IPAddresses:  ips,
+		Subject:     pkix.Name{CommonName: domain},
+		DNSNames:    dns,
+		IPAddresses: ips,
 	}
 	der, err := x509.CreateCertificateRequest(rand.Reader, tpl, signer)
 	if err != nil {
@@ -952,25 +948,36 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 	return writePEM(path+"/server.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
 
-
 // Signing
 
 // --- replace this: signCSRWithCA (only the tpl fields block changed) ---
 func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isServer bool) error {
 	caBlock, err := readPEM(caCrtPath)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	caCert, err := x509.ParseCertificate(caBlock.Bytes)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	keyBlock, err := readPEM(caKeyPath)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	caSigner, err := parseAnyPrivateKey(keyBlock)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	csrBlock, err := readPEM(csrPath)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	now := time.Now()
 	serial, _ := serialNumber()
@@ -987,8 +994,8 @@ func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isSe
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  ext,
 		// carry SANs from CSR
-		DNSNames:     csr.DNSNames,
-		IPAddresses:  csr.IPAddresses,
+		DNSNames:    csr.DNSNames,
+		IPAddresses: csr.IPAddresses,
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, tpl, caCert, csr.PublicKey, caSigner)
@@ -997,7 +1004,6 @@ func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isSe
 	}
 	return writePEM(outPath, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444)
 }
-
 
 func GenerateSignedClientCertificate(path string, _ string, expiration_delay int) error {
 	if fileExists(path + "/client.crt") {
@@ -1058,6 +1064,22 @@ func ValidateCertificateExpiration(certFile, keyFile string) error {
 
 // normalizeAltDomains adjusts wildcard alts, may update *domain
 func normalizeAltDomains(domain string, alternateDomains []interface{}, domainOut *string) []string {
+	// If the primary domain itself is a wildcard, make the apex the CN and
+	// ensure both the wildcard and apex are present in SANs.
+	if strings.HasPrefix(domain, "*.") {
+		suffix := strings.TrimPrefix(domain, "*.")
+		// switch CN to apex to cover the bare domain (wildcard doesn't)
+		domain = suffix
+		// ensure wildcard stays as alt
+		if !Utility.Contains(toStringSlice(alternateDomains), "*."+suffix) {
+			alternateDomains = append(alternateDomains, "*."+suffix)
+		}
+		// ensure apex is also in SANs
+		if !Utility.Contains(toStringSlice(alternateDomains), suffix) {
+			alternateDomains = append(alternateDomains, suffix)
+		}
+	}
+
 	alts := make([]string, 0, len(alternateDomains))
 	for i := range alternateDomains {
 		alts = append(alts, alternateDomains[i].(string))
@@ -1082,6 +1104,14 @@ func normalizeAltDomains(domain string, alternateDomains []interface{}, domainOu
 	out := make([]string, 0, len(alternateDomains))
 	for i := range alternateDomains {
 		out = append(out, alternateDomains[i].(string))
+	}
+	return out
+}
+
+func toStringSlice(in []interface{}) []string {
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		out = append(out, v.(string))
 	}
 	return out
 }

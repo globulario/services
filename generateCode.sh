@@ -31,10 +31,11 @@ GO_TARGETS=(
   "title:golang/title/titlepb"
   "torrent:golang/torrent/torrentpb"
   "discovery:golang/discovery/discoverypb"
-"repository:golang/repository/repositorypb"
-"clustercontroller:golang/clustercontroller/clustercontrollerpb"
-"node_agent:golang/nodeagent/nodeagentpb"
-"plan:golang/plan/planpb"
+  "repository:golang/repository/repositorypb"
+  "clustercontroller:golang/clustercontroller/clustercontrollerpb"
+  "node_agent:golang/nodeagent/nodeagentpb"
+  "plan:golang/plan/planpb"
+  "clusterdoctor:golang/clusterdoctor/clusterdoctorpb"
 )
 
 TS_TARGETS=(
@@ -65,6 +66,7 @@ TS_TARGETS=(
 "clustercontroller"
 "node_agent"
 "plan"
+"clusterdoctor"
 )
 
 protoc_generate_go() {

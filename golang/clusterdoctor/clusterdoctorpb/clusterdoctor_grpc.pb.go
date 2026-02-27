@@ -84,17 +84,16 @@ func (c *clusterDoctorServiceClient) ExplainFinding(ctx context.Context, in *Exp
 }
 
 // ClusterDoctorServiceServer is the server API for ClusterDoctorService service.
-// All implementations must embed UnimplementedClusterDoctorServiceServer
+// All implementations should embed UnimplementedClusterDoctorServiceServer
 // for forward compatibility.
 type ClusterDoctorServiceServer interface {
 	GetClusterReport(context.Context, *ClusterReportRequest) (*ClusterReport, error)
 	GetNodeReport(context.Context, *NodeReportRequest) (*NodeReport, error)
 	GetDriftReport(context.Context, *DriftReportRequest) (*DriftReport, error)
 	ExplainFinding(context.Context, *ExplainFindingRequest) (*FindingExplanation, error)
-	mustEmbedUnimplementedClusterDoctorServiceServer()
 }
 
-// UnimplementedClusterDoctorServiceServer must be embedded to have
+// UnimplementedClusterDoctorServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -113,8 +112,7 @@ func (UnimplementedClusterDoctorServiceServer) GetDriftReport(context.Context, *
 func (UnimplementedClusterDoctorServiceServer) ExplainFinding(context.Context, *ExplainFindingRequest) (*FindingExplanation, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExplainFinding not implemented")
 }
-func (UnimplementedClusterDoctorServiceServer) mustEmbedUnimplementedClusterDoctorServiceServer() {}
-func (UnimplementedClusterDoctorServiceServer) testEmbeddedByValue()                              {}
+func (UnimplementedClusterDoctorServiceServer) testEmbeddedByValue() {}
 
 // UnsafeClusterDoctorServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ClusterDoctorServiceServer will

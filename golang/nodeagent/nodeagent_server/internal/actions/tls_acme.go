@@ -340,8 +340,9 @@ func obtainCertificate(ctx context.Context, domain, adminEmail, dnsAddr string, 
 	}
 
 	// Request certificate
+	domains := expandApexAndWildcard(domain)
 	request := certificate.ObtainRequest{
-		Domains: []string{domain},
+		Domains: domains,
 		Bundle:  true,
 	}
 
@@ -356,6 +357,31 @@ func obtainCertificate(ctx context.Context, domain, adminEmail, dnsAddr string, 
 	}
 
 	return true, nil
+}
+
+// expandApexAndWildcard ensures both the apex and wildcard are requested so the
+// issued cert covers https://<apex> and any subdomain. If domain is already a
+// wildcard, the apex is added; if it's an apex, the wildcard is added.
+func expandApexAndWildcard(domain string) []string {
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		return nil
+	}
+
+	apex := domain
+	if strings.HasPrefix(domain, "*.") {
+		apex = strings.TrimPrefix(domain, "*.")
+	}
+
+	set := map[string]struct{}{}
+	set[apex] = struct{}{}
+	set["*."+apex] = struct{}{}
+
+	out := make([]string, 0, len(set))
+	for d := range set {
+		out = append(out, d)
+	}
+	return out
 }
 
 // getOrCreateAccountKey loads or creates ACME account key

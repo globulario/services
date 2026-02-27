@@ -69,26 +69,6 @@ else
 fi
 
 echo ""
-echo "→ Creating spec symlinks for cluster-controller and node-agent..."
-# pkggen.sh converts: clustercontroller_server → clustercontroller → looks for clustercontroller_service.yaml
-# But the actual spec is: cluster-controller_service.yaml
-# Solution: Create symlinks so pkggen can find them
-
-if [[ -f "${SERVICES_OUTPUT}/specs/cluster-controller_service.yaml" ]]; then
-    ln -sf cluster-controller_service.yaml "${SERVICES_OUTPUT}/specs/clustercontroller_service.yaml"
-    echo "  ✓ clustercontroller_service.yaml → cluster-controller_service.yaml"
-else
-    echo "  ⚠ cluster-controller_service.yaml not found"
-fi
-
-if [[ -f "${SERVICES_OUTPUT}/specs/node-agent_service.yaml" ]]; then
-    ln -sf node-agent_service.yaml "${SERVICES_OUTPUT}/specs/nodeagent_service.yaml"
-    echo "  ✓ nodeagent_service.yaml → node-agent_service.yaml"
-else
-    echo "  ⚠ node-agent_service.yaml not found"
-fi
-
-echo ""
 echo "→ Checking/downloading Envoy ${ENVOY_VERSION}..."
 ENVOY_BIN="${PACKAGES_ROOT}/bin/envoy"
 ENVOY_URL="https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64"
@@ -208,6 +188,33 @@ else
     echo "  ✗ specgen.sh not found"
     exit 1
 fi
+
+# Clean previous service packages to avoid stale names (e.g., legacy clusterdoctor vs cluster-doctor)
+echo ""
+echo "→ Cleaning old service packages from ${SERVICES_OUTPUT}/packages..."
+rm -f "${SERVICES_OUTPUT}/packages"/*.tgz 2>/dev/null || true
+
+# specgen.sh uses svc_name_from_exe() which maps compound binary names to
+# hyphenated service names (clustercontroller→cluster-controller, etc.).
+# pkggen.sh uses the same mapping, so it already looks for the correct file.
+# These symlinks provide backward compatibility for any external tooling that
+# still references the old unhyphenated names.
+echo ""
+echo "→ Creating backward-compat spec symlinks..."
+for pair in \
+    "cluster-controller_service.yaml:clustercontroller_service.yaml" \
+    "node-agent_service.yaml:nodeagent_service.yaml" \
+    "cluster-doctor_service.yaml:clusterdoctor_service.yaml"
+do
+    src="${pair%%:*}"
+    dst="${pair##*:}"
+    if [[ -f "${SERVICES_OUTPUT}/specs/${src}" ]]; then
+        ln -sf "${src}" "${SERVICES_OUTPUT}/specs/${dst}"
+        echo "  ✓ ${dst} → ${src}"
+    else
+        echo "  ⚠ ${src} not found (binary may not have been compiled yet)"
+    fi
+done
 
 echo ""
 echo "→ Step 3b: Build service packages..."

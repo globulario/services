@@ -5,23 +5,25 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
 type clusterdoctorConfig struct {
-	Port                      int    `json:"port"`
-	ControllerEndpoint        string `json:"controller_endpoint"`
-	SnapshotTTLSeconds        int    `json:"snapshot_ttl_seconds"`
-	NodeHeartbeatStaleSeconds int    `json:"node_heartbeat_stale_seconds"`
-	UpstreamListTimeoutSeconds int   `json:"upstream_list_timeout_seconds"`
-	UpstreamNodeTimeoutSeconds int   `json:"upstream_node_timeout_seconds"`
-	UpstreamNodeConcurrency   int    `json:"upstream_node_concurrency"`
-	EmitAuditEvents           bool   `json:"emit_audit_events"`
+	Port                       int    `json:"port"`
+	ControllerEndpoint         string `json:"controller_endpoint"`
+	SnapshotTTLSeconds         int    `json:"snapshot_ttl_seconds"`
+	NodeHeartbeatStaleSeconds  int    `json:"node_heartbeat_stale_seconds"`
+	UpstreamListTimeoutSeconds int    `json:"upstream_list_timeout_seconds"`
+	UpstreamNodeTimeoutSeconds int    `json:"upstream_node_timeout_seconds"`
+	UpstreamNodeConcurrency    int    `json:"upstream_node_concurrency"`
+	EmitAuditEvents            bool   `json:"emit_audit_events"`
 }
 
 func defaultConfig() *clusterdoctorConfig {
 	return &clusterdoctorConfig{
 		Port:                       12100,
+		ControllerEndpoint:         "127.0.0.1:12000",
 		SnapshotTTLSeconds:         5,
 		NodeHeartbeatStaleSeconds:  120,
 		UpstreamListTimeoutSeconds: 10,
@@ -45,6 +47,12 @@ func loadConfig(path string) (*clusterdoctorConfig, error) {
 		if err := json.Unmarshal(b, cfg); err != nil {
 			return nil, fmt.Errorf("parse config %s: %w", path, err)
 		}
+	}
+
+	// Backward compatibility: older packaged configs may set controller_endpoint
+	// to an empty string. If missing, fall back to the default localhost:12000.
+	if strings.TrimSpace(cfg.ControllerEndpoint) == "" {
+		cfg.ControllerEndpoint = defaultConfig().ControllerEndpoint
 	}
 	return cfg, nil
 }

@@ -11,7 +11,8 @@ svc_name_from_exe() {
 
   case "${base}" in
     clustercontroller) echo "cluster-controller" ;;
-    nodeagent) echo "node-agent" ;;
+    clusterdoctor)     echo "cluster-doctor" ;;
+    nodeagent)         echo "node-agent" ;;
     *) echo "${base//_/-}" ;;
   esac
 }

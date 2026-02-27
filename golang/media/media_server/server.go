@@ -553,27 +553,50 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
 		if minioRaw, ok := cfg["MinioConfig"]; ok {
 			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
-				return parseMinioConfigFromMap(minioMap)
+				c := parseMinioConfigFromMap(minioMap)
+				if c.Endpoint != "" && c.Bucket != "" {
+					return c
+				}
 			}
 		}
 	}
 
 	endpoint := os.Getenv("MINIO_ENDPOINT")
-	if endpoint == "" {
-		return nil
+	if endpoint != "" {
+		return &config.MinioProxyConfig{
+			Endpoint: endpoint,
+			Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
+			Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
+			Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
+			Auth: &config.MinioProxyAuth{
+				Mode:      config.MinioProxyAuthModeAccessKey,
+				AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
+				SecretKey: os.Getenv("MINIO_SECRET_KEY"),
+			},
+		}
 	}
 
-	return &config.MinioProxyConfig{
-		Endpoint: endpoint,
-		Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
-		Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
-		Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
-		Auth: &config.MinioProxyAuth{
-			Mode:      config.MinioProxyAuthModeAccessKey,
-			AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-			SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-		},
+	// Inherit MinIO config from the file service when the media service
+	// has not been given its own MinIO configuration.  This lets users
+	// configure MinIO once (in the file service) and have preview/timeline
+	// generation work automatically for /users/ paths stored in MinIO.
+	if svcs, err := config.GetServicesConfigurationsByName("file.FileService"); err == nil {
+		for _, svc := range svcs {
+			if minioRaw, ok := svc["MinioConfig"]; ok {
+				if minioMap, ok := minioRaw.(map[string]interface{}); ok {
+					c := parseMinioConfigFromMap(minioMap)
+					if c.Endpoint != "" && c.Bucket != "" {
+						logger.Info("minio config inherited from file service",
+							"endpoint", c.Endpoint,
+							"bucket", c.Bucket)
+						return c
+					}
+				}
+			}
+		}
 	}
+
+	return nil
 }
 
 func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {
