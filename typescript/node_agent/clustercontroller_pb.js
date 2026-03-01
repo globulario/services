@@ -1,1 +1,1 @@
-module.exports = require('../clustercontroller/clustercontroller_pb.js');
+module.exports = require('../cluster_controller/clustercontroller_pb.js');

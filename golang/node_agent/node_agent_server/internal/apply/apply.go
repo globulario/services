@@ -1,0 +1,50 @@
+package apply
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/planner"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+)
+
+// ApplyActions runs each action sequentially via the supervisor.
+func ApplyActions(ctx context.Context, actions []planner.Action, before func(planner.Action)) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for _, act := range actions {
+		if before != nil {
+			before(act)
+		}
+		var err error
+		switch act.Op {
+		case planner.OpStart:
+			err = supervisor.Start(ctx, act.Unit)
+		case planner.OpStop:
+			err = supervisor.Stop(ctx, act.Unit)
+		case planner.OpRestart:
+			err = supervisor.Restart(ctx, act.Unit)
+		case planner.OpEnable:
+			err = supervisor.Enable(ctx, act.Unit)
+		case planner.OpDisable:
+			err = supervisor.Disable(ctx, act.Unit)
+		default:
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("%s %s: %w", act.Op, act.Unit, err)
+		}
+		if act.Wait {
+			timeout := act.WaitDuration
+			if timeout <= 0 {
+				timeout = 30 * time.Second
+			}
+			if err := supervisor.WaitActive(ctx, act.Unit, timeout); err != nil {
+				return fmt.Errorf("wait active %s: %w", act.Unit, err)
+			}
+		}
+	}
+	return nil
+}

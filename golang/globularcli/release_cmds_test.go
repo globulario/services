@@ -10,17 +10,17 @@ import (
 	"strings"
 	"testing"
 
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"google.golang.org/grpc"
 )
 
 type fakeResourcesClient struct {
 	applied int
-	lastReq *clustercontrollerpb.ApplyServiceReleaseRequest
+	lastReq *cluster_controllerpb.ApplyServiceReleaseRequest
 	err     error
 }
 
-func (f *fakeResourcesClient) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (f *fakeResourcesClient) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	f.applied++
 	f.lastReq = req
 	if f.err != nil {
@@ -28,42 +28,42 @@ func (f *fakeResourcesClient) ApplyServiceRelease(ctx context.Context, req *clus
 	}
 	obj := req.GetObject()
 	if obj.Meta == nil {
-		obj.Meta = &clustercontrollerpb.ObjectMeta{}
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
 	}
 	obj.Meta.Generation++
-	obj.Status = &clustercontrollerpb.ServiceReleaseStatus{Phase: clustercontrollerpb.ReleasePhaseAvailable}
+	obj.Status = &cluster_controllerpb.ServiceReleaseStatus{Phase: cluster_controllerpb.ReleasePhaseAvailable}
 	return obj, nil
 }
 
 // unused interface methods
-func (f *fakeResourcesClient) GetServiceRelease(_ context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, _ ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (f *fakeResourcesClient) GetServiceRelease(_ context.Context, req *cluster_controllerpb.GetServiceReleaseRequest, _ ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &clustercontrollerpb.ServiceRelease{
-		Meta: &clustercontrollerpb.ObjectMeta{Name: req.Name, Generation: 3},
-		Spec: &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
-		Status: &clustercontrollerpb.ServiceReleaseStatus{
-			Phase:           clustercontrollerpb.ReleasePhaseAvailable,
+	return &cluster_controllerpb.ServiceRelease{
+		Meta: &cluster_controllerpb.ObjectMeta{Name: req.Name, Generation: 3},
+		Spec: &cluster_controllerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
+		Status: &cluster_controllerpb.ServiceReleaseStatus{
+			Phase:           cluster_controllerpb.ReleasePhaseAvailable,
 			ResolvedVersion: "1.2.3",
 			DesiredHash:     "abc123",
-			Nodes: []*clustercontrollerpb.NodeReleaseStatus{
-				{NodeID: "n1", InstalledVersion: "1.2.3", Phase: clustercontrollerpb.ReleasePhaseAvailable},
-				{NodeID: "n2", InstalledVersion: "1.1.0", Phase: clustercontrollerpb.ReleasePhaseDegraded, ErrorMessage: "stale"},
+			Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+				{NodeID: "n1", InstalledVersion: "1.2.3", Phase: cluster_controllerpb.ReleasePhaseAvailable},
+				{NodeID: "n2", InstalledVersion: "1.1.0", Phase: cluster_controllerpb.ReleasePhaseDegraded, ErrorMessage: "stale"},
 			},
 		},
 	}, nil
 }
-func (f *fakeResourcesClient) ListServiceReleases(_ context.Context, _ *clustercontrollerpb.ListServiceReleasesRequest, _ ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
+func (f *fakeResourcesClient) ListServiceReleases(_ context.Context, _ *cluster_controllerpb.ListServiceReleasesRequest, _ ...grpc.CallOption) (*cluster_controllerpb.ListServiceReleasesResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &clustercontrollerpb.ListServiceReleasesResponse{
-		Items: []*clustercontrollerpb.ServiceRelease{
+	return &cluster_controllerpb.ListServiceReleasesResponse{
+		Items: []*cluster_controllerpb.ServiceRelease{
 			{
-				Meta:   &clustercontrollerpb.ObjectMeta{Name: "gateway"},
-				Spec:   &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
-				Status: &clustercontrollerpb.ServiceReleaseStatus{Phase: clustercontrollerpb.ReleasePhaseAvailable, ResolvedVersion: "1.2.3"},
+				Meta:   &cluster_controllerpb.ObjectMeta{Name: "gateway"},
+				Spec:   &cluster_controllerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
+				Status: &cluster_controllerpb.ServiceReleaseStatus{Phase: cluster_controllerpb.ReleasePhaseAvailable, ResolvedVersion: "1.2.3"},
 			},
 		},
 	}, nil
@@ -130,11 +130,11 @@ spec:
 	}
 
 	ctx := context.Background()
-	_, err = fc.ApplyServiceRelease(ctx, &clustercontrollerpb.ApplyServiceReleaseRequest{Object: rel})
+	_, err = fc.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
 	if err != nil {
 		t.Fatalf("apply first: %v", err)
 	}
-	_, err = fc.ApplyServiceRelease(ctx, &clustercontrollerpb.ApplyServiceReleaseRequest{Object: rel})
+	_, err = fc.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
 	if err != nil {
 		t.Fatalf("apply second: %v", err)
 	}
@@ -160,7 +160,7 @@ spec:
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if _, err := fc.ApplyServiceRelease(context.Background(), &clustercontrollerpb.ApplyServiceReleaseRequest{Object: rel}); err == nil {
+	if _, err := fc.ApplyServiceRelease(context.Background(), &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel}); err == nil {
 		t.Fatalf("expected error from client")
 	}
 }
@@ -187,7 +187,7 @@ func TestReleaseListFormatting(t *testing.T) {
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 
 	rows := [][]string{{"NAME", "SERVICE", "PHASE", "RESOLVED_VERSION", "AGE"}}
-	resp, _ := fc.ListServiceReleases(context.Background(), &clustercontrollerpb.ListServiceReleasesRequest{})
+	resp, _ := fc.ListServiceReleases(context.Background(), &cluster_controllerpb.ListServiceReleasesRequest{})
 	for _, rel := range resp.Items {
 		rows = append(rows, []string{
 			rel.Meta.Name,
@@ -210,7 +210,7 @@ func TestReleaseStatusFormatting(t *testing.T) {
 	fc := &fakeResourcesClient{}
 	resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient { return fc }
 
-	rel, _ := fc.GetServiceRelease(context.Background(), &clustercontrollerpb.GetServiceReleaseRequest{Name: "gateway"})
+	rel, _ := fc.GetServiceRelease(context.Background(), &cluster_controllerpb.GetServiceReleaseRequest{Name: "gateway"})
 	st := rel.Status
 
 	out := captureStdout(t, func() {
@@ -227,7 +227,7 @@ func TestReleaseStatusFormatting(t *testing.T) {
 			available := 0
 			mismatch := 0
 			for _, n := range st.Nodes {
-				if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+				if n.Phase == cluster_controllerpb.ReleasePhaseAvailable {
 					available++
 				} else {
 					mismatch++
@@ -238,7 +238,7 @@ func TestReleaseStatusFormatting(t *testing.T) {
 		if len(st.Nodes) > 0 {
 			healthy := 0
 			for _, n := range st.Nodes {
-				if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+				if n.Phase == cluster_controllerpb.ReleasePhaseAvailable {
 					healthy++
 				}
 			}
@@ -309,20 +309,20 @@ type applyCountingClient struct {
 	applied int
 }
 
-func (a *applyCountingClient) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (a *applyCountingClient) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	a.applied++
 	if req.Object.Meta == nil {
-		req.Object.Meta = &clustercontrollerpb.ObjectMeta{}
+		req.Object.Meta = &cluster_controllerpb.ObjectMeta{}
 	}
 	req.Object.Meta.Generation++
-	req.Object.Status = &clustercontrollerpb.ServiceReleaseStatus{Phase: clustercontrollerpb.ReleasePhaseAvailable}
+	req.Object.Status = &cluster_controllerpb.ServiceReleaseStatus{Phase: cluster_controllerpb.ReleasePhaseAvailable}
 	return req.Object, nil
 }
 
-func (*applyCountingClient) GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (*applyCountingClient) GetServiceRelease(ctx context.Context, req *cluster_controllerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	return nil, fmt.Errorf("unused")
 }
-func (*applyCountingClient) ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
+func (*applyCountingClient) ListServiceReleases(ctx context.Context, req *cluster_controllerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ListServiceReleasesResponse, error) {
 	return nil, fmt.Errorf("unused")
 }
 
@@ -363,29 +363,29 @@ func TestRunReleaseApplyCallsApplyOnce(t *testing.T) {
 }
 
 type memoryReleaseClient struct {
-	rel     *clustercontrollerpb.ServiceRelease
+	rel     *cluster_controllerpb.ServiceRelease
 	applied int
 }
 
-func (m *memoryReleaseClient) ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (m *memoryReleaseClient) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	m.applied++
 	if req.Object.Meta == nil {
-		req.Object.Meta = &clustercontrollerpb.ObjectMeta{}
+		req.Object.Meta = &cluster_controllerpb.ObjectMeta{}
 	}
 	req.Object.Meta.Generation++
 	m.rel = req.Object
 	return req.Object, nil
 }
 
-func (m *memoryReleaseClient) GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error) {
+func (m *memoryReleaseClient) GetServiceRelease(ctx context.Context, req *cluster_controllerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
 	if m.rel == nil {
 		return nil, fmt.Errorf("release %s not found", req.Name)
 	}
 	return m.rel, nil
 }
 
-func (m *memoryReleaseClient) ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error) {
-	return &clustercontrollerpb.ListServiceReleasesResponse{}, nil
+func (m *memoryReleaseClient) ListServiceReleases(ctx context.Context, req *cluster_controllerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ListServiceReleasesResponse, error) {
+	return &cluster_controllerpb.ListServiceReleasesResponse{}, nil
 }
 
 type releaseFakeConn struct{}
@@ -400,9 +400,9 @@ func (releaseFakeConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, met
 
 func TestRunReleaseScale(t *testing.T) {
 	mc := &memoryReleaseClient{
-		rel: &clustercontrollerpb.ServiceRelease{
-			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
-			Spec: &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
+		rel: &cluster_controllerpb.ServiceRelease{
+			Meta: &cluster_controllerpb.ObjectMeta{Name: "gateway"},
+			Spec: &cluster_controllerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway"},
 		},
 	}
 	oldFactory := resourcesClientFactory
@@ -431,9 +431,9 @@ func TestRunReleaseScale(t *testing.T) {
 
 func TestRunReleaseRollback(t *testing.T) {
 	mc := &memoryReleaseClient{
-		rel: &clustercontrollerpb.ServiceRelease{
-			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
-			Spec: &clustercontrollerpb.ServiceReleaseSpec{
+		rel: &cluster_controllerpb.ServiceRelease{
+			Meta: &cluster_controllerpb.ObjectMeta{Name: "gateway"},
+			Spec: &cluster_controllerpb.ServiceReleaseSpec{
 				PublisherID: "globular", ServiceName: "gateway", Version: "1.0.0", Channel: "stable",
 			},
 		},
@@ -466,9 +466,9 @@ func TestRunReleaseRollback(t *testing.T) {
 
 func TestRunReleaseRollbackRequiresTarget(t *testing.T) {
 	mc := &memoryReleaseClient{
-		rel: &clustercontrollerpb.ServiceRelease{
-			Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway"},
-			Spec: &clustercontrollerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway", Version: "1.0.0"},
+		rel: &cluster_controllerpb.ServiceRelease{
+			Meta: &cluster_controllerpb.ObjectMeta{Name: "gateway"},
+			Spec: &cluster_controllerpb.ServiceReleaseSpec{PublisherID: "globular", ServiceName: "gateway", Version: "1.0.0"},
 		},
 	}
 	oldFactory := resourcesClientFactory

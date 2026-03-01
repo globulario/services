@@ -189,32 +189,10 @@ else
     exit 1
 fi
 
-# Clean previous service packages to avoid stale names (e.g., legacy clusterdoctor vs cluster-doctor)
+# Clean previous service packages to avoid stale names
 echo ""
 echo "→ Cleaning old service packages from ${SERVICES_OUTPUT}/packages..."
 rm -f "${SERVICES_OUTPUT}/packages"/*.tgz 2>/dev/null || true
-
-# specgen.sh uses svc_name_from_exe() which maps compound binary names to
-# hyphenated service names (clustercontroller→cluster-controller, etc.).
-# pkggen.sh uses the same mapping, so it already looks for the correct file.
-# These symlinks provide backward compatibility for any external tooling that
-# still references the old unhyphenated names.
-echo ""
-echo "→ Creating backward-compat spec symlinks..."
-for pair in \
-    "cluster-controller_service.yaml:clustercontroller_service.yaml" \
-    "node-agent_service.yaml:nodeagent_service.yaml" \
-    "cluster-doctor_service.yaml:clusterdoctor_service.yaml"
-do
-    src="${pair%%:*}"
-    dst="${pair##*:}"
-    if [[ -f "${SERVICES_OUTPUT}/specs/${src}" ]]; then
-        ln -sf "${src}" "${SERVICES_OUTPUT}/specs/${dst}"
-        echo "  ✓ ${dst} → ${src}"
-    else
-        echo "  ⚠ ${src} not found (binary may not have been compiled yet)"
-    fi
-done
 
 echo ""
 echo "→ Step 3b: Build service packages..."

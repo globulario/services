@@ -161,12 +161,14 @@ func mapServiceToUnit(serviceName string) string {
 		"minio":             "minio.service",
 		"dns":               "globular-dns.service",
 		"globular-dns":      "globular-dns.service",
-		"nodeagent":         "globular-nodeagent.service",
-		"globular-nodeagent": "globular-nodeagent.service",
-		"node-agent":        "globular-nodeagent.service",
-		"controller":        "globular-clustercontroller.service",
-		"clustercontroller": "globular-clustercontroller.service",
-		"globular-clustercontroller": "globular-clustercontroller.service",
+		"nodeagent":                  "globular-node-agent.service",
+		"node_agent":                "globular-node-agent.service",
+		"globular-node-agent":       "globular-node-agent.service",
+		"node-agent":                "globular-node-agent.service",
+		"controller":                "globular-cluster-controller.service",
+		"clustercontroller":         "globular-cluster-controller.service",
+		"cluster_controller":        "globular-cluster-controller.service",
+		"globular-cluster-controller": "globular-cluster-controller.service",
 	}
 
 	if unit, ok := mappings[serviceName]; ok {

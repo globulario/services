@@ -7,17 +7,17 @@ import (
 	"testing"
 	"time"
 
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 type fakeWatchClient struct {
-	events []*clustercontrollerpb.WatchEvent
+	events []*cluster_controllerpb.WatchEvent
 	idx    int
 }
 
-func (f *fakeWatchClient) Recv() (*clustercontrollerpb.WatchEvent, error) {
+func (f *fakeWatchClient) Recv() (*cluster_controllerpb.WatchEvent, error) {
 	if f.idx >= len(f.events) {
 		return nil, errors.New("done")
 	}
@@ -33,9 +33,9 @@ func (f *fakeWatchClient) SendMsg(m interface{}) error  { return nil }
 func (f *fakeWatchClient) RecvMsg(m interface{}) error  { return nil }
 
 func TestWatchReleasePrintsEvents(t *testing.T) {
-	events := []*clustercontrollerpb.WatchEvent{
-		{ServiceRelease: &clustercontrollerpb.ServiceRelease{Status: &clustercontrollerpb.ServiceReleaseStatus{Phase: "AVAILABLE", ResolvedVersion: "1.0.0"}}},
-		{ServiceRelease: &clustercontrollerpb.ServiceRelease{Status: &clustercontrollerpb.ServiceReleaseStatus{Phase: "DEGRADED", ResolvedVersion: "1.0.0"}}},
+	events := []*cluster_controllerpb.WatchEvent{
+		{ServiceRelease: &cluster_controllerpb.ServiceRelease{Status: &cluster_controllerpb.ServiceReleaseStatus{Phase: "AVAILABLE", ResolvedVersion: "1.0.0"}}},
+		{ServiceRelease: &cluster_controllerpb.ServiceRelease{Status: &cluster_controllerpb.ServiceReleaseStatus{Phase: "DEGRADED", ResolvedVersion: "1.0.0"}}},
 	}
 	fakeStream := &fakeWatchClient{events: events}
 
@@ -59,11 +59,11 @@ func TestWatchReleasePrintsEvents(t *testing.T) {
 
 // mockResourcesClient implements only Watch for tests.
 type mockResourcesClient struct {
-	watchStream clustercontrollerpb.ResourcesService_WatchClient
+	watchStream cluster_controllerpb.ResourcesService_WatchClient
 	watchCalled int
 }
 
-func (m *mockResourcesClient) Watch(ctx context.Context, in *clustercontrollerpb.WatchRequest, opts ...grpc.CallOption) (clustercontrollerpb.ResourcesService_WatchClient, error) {
+func (m *mockResourcesClient) Watch(ctx context.Context, in *cluster_controllerpb.WatchRequest, opts ...grpc.CallOption) (cluster_controllerpb.ResourcesService_WatchClient, error) {
 	m.watchCalled++
 	return m.watchStream, nil
 }

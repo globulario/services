@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
 
 var (
@@ -70,10 +70,10 @@ func runNodeReconcileDryRun() error {
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	// Get the current node plan
-	resp, err := client.GetNodePlanV1(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanV1Request{
+	resp, err := client.GetNodePlanV1(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanV1Request{
 		NodeId: nodeReconcileNodeID,
 	})
 	if err != nil {
@@ -140,12 +140,12 @@ func runNodeReconcileApply() error {
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	// Trigger reconciliation
 	fmt.Printf("Triggering reconciliation for node %s...\n", nodeReconcileNodeID)
 
-	_, err = client.ReconcileNodeV1(ctxWithTimeout(), &clustercontrollerpb.ReconcileNodeV1Request{
+	_, err = client.ReconcileNodeV1(ctxWithTimeout(), &cluster_controllerpb.ReconcileNodeV1Request{
 		NodeId: nodeReconcileNodeID,
 	})
 	if err != nil {

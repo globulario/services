@@ -23,9 +23,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sigs.k8s.io/yaml"
 
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/dns/dnspb"
-	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
 const (
@@ -177,8 +177,8 @@ var bootstrapCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := nodeagentpb.NewNodeAgentServiceClient(cc)
-		req := &nodeagentpb.BootstrapFirstNodeRequest{
+		client := node_agentpb.NewNodeAgentServiceClient(cc)
+		req := &node_agentpb.BootstrapFirstNodeRequest{
 			ClusterDomain:  bootstrapDomain,
 			ControllerBind: bootstrapBind,
 			Profiles:       bootstrapProfiles,
@@ -206,8 +206,8 @@ var joinCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := nodeagentpb.NewNodeAgentServiceClient(cc)
-		resp, err := client.JoinCluster(ctxWithTimeout(), &nodeagentpb.JoinClusterRequest{
+		client := node_agentpb.NewNodeAgentServiceClient(cc)
+		resp, err := client.JoinCluster(ctxWithTimeout(), &node_agentpb.JoinClusterRequest{
 			ControllerEndpoint: controllerAddr,
 			JoinToken:          joinToken,
 		})
@@ -233,8 +233,8 @@ var tokenCreateCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		req := &clustercontrollerpb.CreateJoinTokenRequest{}
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		req := &cluster_controllerpb.CreateJoinTokenRequest{}
 		if tokenExpires != "" {
 			ts, err := parseExpiration(tokenExpires)
 			if err != nil {
@@ -265,8 +265,8 @@ var requestsListCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.ListJoinRequests(ctxWithTimeout(), &clustercontrollerpb.ListJoinRequestsRequest{})
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.ListJoinRequests(ctxWithTimeout(), &cluster_controllerpb.ListJoinRequestsRequest{})
 		if err != nil {
 			return err
 		}
@@ -285,12 +285,12 @@ var requestsApproveCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 		requestID, err := resolveRequestID(args, requestsApproveRequestID)
 		if err != nil {
 			return err
 		}
-		resp, err := client.ApproveJoin(ctxWithTimeout(), &clustercontrollerpb.ApproveJoinRequest{
+		resp, err := client.ApproveJoin(ctxWithTimeout(), &cluster_controllerpb.ApproveJoinRequest{
 			RequestId: requestID,
 			Profiles:  reqProfiles,
 			Metadata:  parseMetadata(reqMetadata),
@@ -313,12 +313,12 @@ var requestsRejectCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 		requestID, err := resolveRequestID(args, requestsRejectRequestID)
 		if err != nil {
 			return err
 		}
-		resp, err := client.RejectJoin(ctxWithTimeout(), &clustercontrollerpb.RejectJoinRequest{
+		resp, err := client.RejectJoin(ctxWithTimeout(), &cluster_controllerpb.RejectJoinRequest{
 			RequestId: requestID,
 			Reason:    rejectReason,
 		})
@@ -341,7 +341,7 @@ func resolveRequestID(args []string, flagValue string) (string, error) {
 	return id, nil
 }
 
-func printJoinRequests(resp *clustercontrollerpb.ListJoinRequestsResponse) {
+func printJoinRequests(resp *cluster_controllerpb.ListJoinRequestsResponse) {
 	if resp == nil || len(resp.GetPending()) == 0 {
 		fmt.Println("no pending join requests")
 		return
@@ -372,8 +372,8 @@ var nodesListCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.ListNodes(ctxWithTimeout(), &clustercontrollerpb.ListNodesRequest{})
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.ListNodes(ctxWithTimeout(), &cluster_controllerpb.ListNodesRequest{})
 		if err != nil {
 			return err
 		}
@@ -397,18 +397,18 @@ var nodesGetCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 		// List nodes and find the specific one
 		ctx, cancel := ctxWithCLITimeout(cmd.Context())
 		defer cancel()
 
-		resp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+		resp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 		if err != nil {
 			return err
 		}
 
-		var foundNode *clustercontrollerpb.NodeRecord
+		var foundNode *cluster_controllerpb.NodeRecord
 		for _, node := range resp.GetNodes() {
 			if node.GetNodeId() == nodeID {
 				foundNode = node
@@ -421,7 +421,7 @@ var nodesGetCmd = &cobra.Command{
 		}
 
 		// Get the node's plan to show applied configuration
-		planResp, err := client.GetNodePlan(ctx, &clustercontrollerpb.GetNodePlanRequest{
+		planResp, err := client.GetNodePlan(ctx, &cluster_controllerpb.GetNodePlanRequest{
 			NodeId: nodeID,
 		})
 		if err != nil {
@@ -487,8 +487,8 @@ var nodeProfilesCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		_, err = client.SetNodeProfiles(ctxWithTimeout(), &clustercontrollerpb.SetNodeProfilesRequest{
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		_, err = client.SetNodeProfiles(ctxWithTimeout(), &cluster_controllerpb.SetNodeProfilesRequest{
 			NodeId:   args[0],
 			Profiles: profileSet,
 		})
@@ -514,8 +514,8 @@ var nodeProfilesPreviewCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.PreviewNodeProfiles(ctxWithTimeout(), &clustercontrollerpb.PreviewNodeProfilesRequest{
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.PreviewNodeProfiles(ctxWithTimeout(), &cluster_controllerpb.PreviewNodeProfilesRequest{
 			NodeId:   args[0],
 			Profiles: profilePreviewSet,
 		})
@@ -611,9 +611,9 @@ Use --force to remove even if the node is unreachable.`,
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-		resp, err := client.RemoveNode(ctxWithTimeout(), &clustercontrollerpb.RemoveNodeRequest{
+		resp, err := client.RemoveNode(ctxWithTimeout(), &cluster_controllerpb.RemoveNodeRequest{
 			NodeId: nodeID,
 			Force:  removeNodeForce,
 			Drain:  removeNodeDrain,
@@ -735,8 +735,8 @@ var agentInventoryCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := nodeagentpb.NewNodeAgentServiceClient(cc)
-		resp, err := client.GetInventory(ctxWithTimeout(), &nodeagentpb.GetInventoryRequest{})
+		client := node_agentpb.NewNodeAgentServiceClient(cc)
+		resp, err := client.GetInventory(ctxWithTimeout(), &node_agentpb.GetInventoryRequest{})
 		if err != nil {
 			return err
 		}
@@ -765,8 +765,8 @@ var agentApplyCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := nodeagentpb.NewNodeAgentServiceClient(cc)
-		resp, err := client.ApplyPlan(ctxWithTimeout(), &nodeagentpb.ApplyPlanRequest{Plan: plan})
+		client := node_agentpb.NewNodeAgentServiceClient(cc)
+		resp, err := client.ApplyPlan(ctxWithTimeout(), &node_agentpb.ApplyPlanRequest{Plan: plan})
 		if err != nil {
 			return err
 		}
@@ -808,8 +808,8 @@ var planGetCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.GetNodePlan(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanRequest{NodeId: args[0]})
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.GetNodePlan(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanRequest{NodeId: args[0]})
 		if err != nil {
 			return err
 		}
@@ -832,8 +832,8 @@ var planApplyCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.ApplyNodePlan(ctxWithTimeout(), &clustercontrollerpb.ApplyNodePlanRequest{
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.ApplyNodePlan(ctxWithTimeout(), &cluster_controllerpb.ApplyNodePlanRequest{
 			NodeId: nodeID,
 		})
 		if err != nil {
@@ -861,14 +861,14 @@ var networkGetCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 		// Use GetNodePlan from a node to extract network spec, or use UpdateClusterNetwork with empty to get current
 		// Actually, we can read the state file or use a workaround - let's list nodes and get plan to see network config
 		ctx, cancel := ctxWithCLITimeout(cmd.Context())
 		defer cancel()
 
-		nodesResp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+		nodesResp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 		if err != nil {
 			return err
 		}
@@ -880,7 +880,7 @@ var networkGetCmd = &cobra.Command{
 
 		// Get plan from first node to extract network config
 		firstNode := nodesResp.GetNodes()[0]
-		planResp, err := client.GetNodePlan(ctx, &clustercontrollerpb.GetNodePlanRequest{
+		planResp, err := client.GetNodePlan(ctx, &cluster_controllerpb.GetNodePlanRequest{
 			NodeId: firstNode.GetNodeId(),
 		})
 		if err != nil {
@@ -900,7 +900,7 @@ var networkGetCmd = &cobra.Command{
 			return nil
 		}
 
-		var spec clustercontrollerpb.ClusterNetworkSpec
+		var spec cluster_controllerpb.ClusterNetworkSpec
 		if err := protojson.Unmarshal([]byte(specJSON), &spec); err != nil {
 			return fmt.Errorf("parse network spec: %w", err)
 		}
@@ -944,7 +944,7 @@ var networkSetCmd = &cobra.Command{
 		if networkAcme && strings.TrimSpace(networkEmail) == "" {
 			return errors.New("--email is required when --acme")
 		}
-		spec := &clustercontrollerpb.ClusterNetworkSpec{
+		spec := &cluster_controllerpb.ClusterNetworkSpec{
 			ClusterDomain:    strings.TrimSpace(networkDomain),
 			Protocol:         protocol,
 			PortHttp:         uint32(networkHTTPPort),
@@ -959,11 +959,11 @@ var networkSetCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 		ctx, cancel := ctxWithCLITimeout(cmd.Context())
 		defer cancel()
-		resp, err := client.UpdateClusterNetwork(ctx, &clustercontrollerpb.UpdateClusterNetworkRequest{
+		resp, err := client.UpdateClusterNetwork(ctx, &cluster_controllerpb.UpdateClusterNetworkRequest{
 			Spec: spec,
 		})
 		if err != nil {
@@ -973,7 +973,7 @@ var networkSetCmd = &cobra.Command{
 		targetGen := resp.GetGeneration()
 
 		ctxNodes, cancelNodes := ctxWithCLITimeout(cmd.Context())
-		nodesResp, err := client.ListNodes(ctxNodes, &clustercontrollerpb.ListNodesRequest{})
+		nodesResp, err := client.ListNodes(ctxNodes, &cluster_controllerpb.ListNodesRequest{})
 		cancelNodes()
 		if err != nil {
 			return err
@@ -990,7 +990,7 @@ var networkSetCmd = &cobra.Command{
 			}
 			fmt.Printf("dispatching plan to node %s\n", node.GetNodeId())
 			ctxApply, cancelApply := ctxWithCLITimeout(cmd.Context())
-			planResp, err := client.ApplyNodePlan(ctxApply, &clustercontrollerpb.ApplyNodePlanRequest{
+			planResp, err := client.ApplyNodePlan(ctxApply, &cluster_controllerpb.ApplyNodePlanRequest{
 				NodeId: node.GetNodeId(),
 			})
 			cancelApply()
@@ -1042,8 +1042,8 @@ var debugAgentApplyPlanCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		planResp, err := client.GetNodePlan(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanRequest{NodeId: nodeID})
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		planResp, err := client.GetNodePlan(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanRequest{NodeId: nodeID})
 		if err != nil {
 			return err
 		}
@@ -1057,8 +1057,8 @@ var debugAgentApplyPlanCmd = &cobra.Command{
 			return err
 		}
 		defer nc.Close()
-		nodeClient := nodeagentpb.NewNodeAgentServiceClient(nc)
-		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &nodeagentpb.ApplyPlanRequest{Plan: plan})
+		nodeClient := node_agentpb.NewNodeAgentServiceClient(nc)
+		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &node_agentpb.ApplyPlanRequest{Plan: plan})
 		if err != nil {
 			return err
 		}
@@ -1107,8 +1107,8 @@ var upgradeCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.UpgradeGlobular(ctxWithTimeout(), &clustercontrollerpb.UpgradeGlobularRequest{
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.UpgradeGlobular(ctxWithTimeout(), &cluster_controllerpb.UpgradeGlobularRequest{
 			NodeId:     nodeID,
 			Platform:   platform,
 			Artifact:   data,
@@ -1142,7 +1142,7 @@ var watchCmd = &cobra.Command{
 			return err
 		}
 		defer cc.Close()
-		req := &clustercontrollerpb.WatchOperationsRequest{
+		req := &cluster_controllerpb.WatchOperationsRequest{
 			NodeId:      watchNodeID,
 			OperationId: watchOpID,
 		}
@@ -1272,8 +1272,8 @@ func parseMetadata(items []string) map[string]string {
 	return meta
 }
 
-func watchControllerStream(cc *grpc.ClientConn, req *clustercontrollerpb.WatchOperationsRequest) error {
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+func watchControllerStream(cc *grpc.ClientConn, req *cluster_controllerpb.WatchOperationsRequest) error {
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
 	stream, err := client.WatchOperations(ctx, req)
@@ -1298,7 +1298,7 @@ func watchControllerOperations(nodeID, operationID string) error {
 		return err
 	}
 	defer cc.Close()
-	req := &clustercontrollerpb.WatchOperationsRequest{
+	req := &cluster_controllerpb.WatchOperationsRequest{
 		NodeId:      nodeID,
 		OperationId: operationID,
 	}
@@ -1311,10 +1311,10 @@ func watchAgentOperation(operationID, nodeOverride string) error {
 		return err
 	}
 	defer cc.Close()
-	client := nodeagentpb.NewNodeAgentServiceClient(cc)
+	client := node_agentpb.NewNodeAgentServiceClient(cc)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	stream, err := client.WatchOperation(ctx, &nodeagentpb.WatchOperationRequest{OperationId: operationID})
+	stream, err := client.WatchOperation(ctx, &node_agentpb.WatchOperationRequest{OperationId: operationID})
 	if err != nil {
 		return err
 	}
@@ -1350,14 +1350,14 @@ func normalizeAltDomains(values []string) []string {
 	return out
 }
 
-func watchNetworkConvergence(ctx context.Context, client clustercontrollerpb.ClusterControllerServiceClient, targetGen uint64) error {
+func watchNetworkConvergence(ctx context.Context, client cluster_controllerpb.ClusterControllerServiceClient, targetGen uint64) error {
 	deadline := time.Now().Add(rootCfg.timeout)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("watch timed out after %s", rootCfg.timeout)
 		}
 		pollCtx, cancel := ctxWithCLITimeout(ctx)
-		resp, err := client.ListNodes(pollCtx, &clustercontrollerpb.ListNodesRequest{})
+		resp, err := client.ListNodes(pollCtx, &cluster_controllerpb.ListNodesRequest{})
 		cancel()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "poll list nodes: %v\n", err)
@@ -1387,12 +1387,12 @@ func watchNetworkConvergence(ctx context.Context, client clustercontrollerpb.Clu
 	}
 }
 
-func loadPlan(path string) (*clustercontrollerpb.NodePlan, error) {
+func loadPlan(path string) (*cluster_controllerpb.NodePlan, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var plan clustercontrollerpb.NodePlan
+	var plan cluster_controllerpb.NodePlan
 	if err := protojson.Unmarshal(data, &plan); err == nil {
 		return &plan, nil
 	}

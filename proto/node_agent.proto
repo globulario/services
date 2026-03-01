@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package nodeagent;
+package node_agent;
 
-option go_package = "github.com/globulario/services/golang/nodeagent/nodeagentpb;nodeagentpb";
+option go_package = "github.com/globulario/services/golang/node_agent/node_agentpb;node_agentpb";
 
 import "google/protobuf/timestamp.proto";
-import "clustercontroller.proto";
+import "cluster_controller.proto";
 import "plan.proto";
 
 message JoinClusterRequest {
@@ -32,7 +32,7 @@ message UnitStatus {
 }
 
 message Inventory {
-  clustercontroller.NodeIdentity identity = 1;
+  cluster_controller.NodeIdentity identity = 1;
   google.protobuf.Timestamp unix_time = 2;
   repeated InstalledComponent components = 3;
   repeated UnitStatus units = 4;
@@ -42,7 +42,7 @@ message GetInventoryRequest {}
 message GetInventoryResponse { Inventory inventory = 1; }
 
 message ApplyPlanRequest {
-  clustercontroller.NodePlan plan = 1;
+  cluster_controller.NodePlan plan = 1;
   string operation_id = 2;
 }
 message ApplyPlanResponse {
@@ -74,7 +74,7 @@ message WatchOperationRequest { string operation_id = 1; }
 
 message OperationEvent {
   string operation_id = 1;
-  clustercontroller.OperationPhase phase = 2;
+  cluster_controller.OperationPhase phase = 2;
   string message = 3;
   int32 percent = 4;
   bool done = 5;

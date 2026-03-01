@@ -11,7 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"sigs.k8s.io/yaml"
@@ -82,21 +82,21 @@ var (
 
 // seam for tests
 type releaseResourcesClient interface {
-	ApplyServiceRelease(ctx context.Context, req *clustercontrollerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error)
-	GetServiceRelease(ctx context.Context, req *clustercontrollerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ServiceRelease, error)
-	ListServiceReleases(ctx context.Context, req *clustercontrollerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*clustercontrollerpb.ListServiceReleasesResponse, error)
+	ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error)
+	GetServiceRelease(ctx context.Context, req *cluster_controllerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error)
+	ListServiceReleases(ctx context.Context, req *cluster_controllerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ListServiceReleasesResponse, error)
 }
 
 var resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient {
-	return clustercontrollerpb.NewResourcesServiceClient(conn)
+	return cluster_controllerpb.NewResourcesServiceClient(conn)
 }
 
 type releaseWatchClient interface {
-	Watch(ctx context.Context, in *clustercontrollerpb.WatchRequest, opts ...grpc.CallOption) (clustercontrollerpb.ResourcesService_WatchClient, error)
+	Watch(ctx context.Context, in *cluster_controllerpb.WatchRequest, opts ...grpc.CallOption) (cluster_controllerpb.ResourcesService_WatchClient, error)
 }
 
 var watchClientFactory = func(conn grpc.ClientConnInterface) releaseWatchClient {
-	return clustercontrollerpb.NewResourcesServiceClient(conn)
+	return cluster_controllerpb.NewResourcesServiceClient(conn)
 }
 
 // controllerConnFactory enables testing without dialing real gRPC.
@@ -146,7 +146,7 @@ func runReleaseApply(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	resp, err := client.ApplyServiceRelease(ctx, &clustercontrollerpb.ApplyServiceReleaseRequest{Object: rel})
+	resp, err := client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func runReleaseList(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	resp, err := client.ListServiceReleases(ctx, &clustercontrollerpb.ListServiceReleasesRequest{})
+	resp, err := client.ListServiceReleases(ctx, &cluster_controllerpb.ListServiceReleasesRequest{})
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func runReleaseShow(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	rel, err := client.GetServiceRelease(ctx, &clustercontrollerpb.GetServiceReleaseRequest{Name: name})
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	rel, err := client.GetServiceRelease(ctx, &clustercontrollerpb.GetServiceReleaseRequest{Name: name})
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 		available := 0
 		mismatch := 0
 		for _, n := range st.Nodes {
-			if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+			if n.Phase == cluster_controllerpb.ReleasePhaseAvailable {
 				available++
 			} else {
 				mismatch++
@@ -262,7 +262,7 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 	if len(st.Nodes) > 0 {
 		healthy := 0
 		for _, n := range st.Nodes {
-			if n.Phase == clustercontrollerpb.ReleasePhaseAvailable {
+			if n.Phase == cluster_controllerpb.ReleasePhaseAvailable {
 				healthy++
 			}
 		}
@@ -295,7 +295,7 @@ func runReleaseScale(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if rel.Spec.Replicas == nil {
-		rel.Spec.Replicas = &clustercontrollerpb.ReplicaSpec{}
+		rel.Spec.Replicas = &cluster_controllerpb.ReplicaSpec{}
 	}
 	rel.Spec.Replicas.Min = int32(releaseMin)
 	if releaseMax > 0 {
@@ -382,7 +382,7 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClient, asJSON bool) error {
 	wctx, cancel := ctxWithCLITimeout(ctx)
 	defer cancel()
-	stream, err := client.Watch(wctx, &clustercontrollerpb.WatchRequest{Type: "ServiceRelease", Prefix: name})
+	stream, err := client.Watch(wctx, &cluster_controllerpb.WatchRequest{Type: "ServiceRelease", Prefix: name})
 	if err != nil {
 		return err
 	}
@@ -416,7 +416,7 @@ func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClien
 	}
 }
 
-func printReleaseEvent(rel *clustercontrollerpb.ServiceRelease) {
+func printReleaseEvent(rel *cluster_controllerpb.ServiceRelease) {
 	if rel == nil || rel.Status == nil {
 		return
 	}
@@ -428,7 +428,7 @@ func printReleaseEvent(rel *clustercontrollerpb.ServiceRelease) {
 	fmt.Printf("%s phase=%s resolved=%s message=%s\n", ts, rel.Status.Phase, rel.Status.ResolvedVersion, msg)
 }
 
-func parseServiceRelease(raw []byte) (*clustercontrollerpb.ServiceRelease, error) {
+func parseServiceRelease(raw []byte) (*cluster_controllerpb.ServiceRelease, error) {
 	if len(raw) == 0 {
 		return nil, errors.New("empty file")
 	}
@@ -436,7 +436,7 @@ func parseServiceRelease(raw []byte) (*clustercontrollerpb.ServiceRelease, error
 	if err != nil {
 		return nil, fmt.Errorf("parse YAML: %w", err)
 	}
-	rel := &clustercontrollerpb.ServiceRelease{}
+	rel := &cluster_controllerpb.ServiceRelease{}
 	if err := json.Unmarshal(jsonBytes, rel); err != nil {
 		return nil, fmt.Errorf("decode ServiceRelease: %w", err)
 	}

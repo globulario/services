@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/plan/planpb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -415,8 +415,8 @@ func getFirstNodeID(ctx context.Context) (string, error) {
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-	resp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 	if err != nil {
 		return "", fmt.Errorf("list nodes: %w", err)
 	}
@@ -495,10 +495,10 @@ func applyServicePlan(ctx context.Context, nodeID string, plan *planpb.NodePlan)
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	// Apply the plan via controller V1 API (sends actual plan)
-	resp, err := client.ApplyNodePlanV1(ctx, &clustercontrollerpb.ApplyNodePlanV1Request{
+	resp, err := client.ApplyNodePlanV1(ctx, &cluster_controllerpb.ApplyNodePlanV1Request{
 		NodeId: nodeID,
 		Plan:   plan,
 	})
@@ -519,9 +519,9 @@ func applyServicePlan(ctx context.Context, nodeID string, plan *planpb.NodePlan)
 	return nil
 }
 
-func waitForOperationCompletion(ctx context.Context, client clustercontrollerpb.ClusterControllerServiceClient, nodeID, operationID string) error {
+func waitForOperationCompletion(ctx context.Context, client cluster_controllerpb.ClusterControllerServiceClient, nodeID, operationID string) error {
 	// Watch operation status until completion
-	stream, err := client.WatchOperations(ctx, &clustercontrollerpb.WatchOperationsRequest{
+	stream, err := client.WatchOperations(ctx, &cluster_controllerpb.WatchOperationsRequest{
 		NodeId:      nodeID,
 		OperationId: operationID,
 	})
@@ -544,7 +544,7 @@ func waitForOperationCompletion(ctx context.Context, client clustercontrollerpb.
 		}
 
 		// Check for failure phase
-		if event.GetPhase() == clustercontrollerpb.OperationPhase_OP_FAILED {
+		if event.GetPhase() == cluster_controllerpb.OperationPhase_OP_FAILED {
 			return fmt.Errorf("operation failed at phase %s: %s", event.GetPhase(), event.GetMessage())
 		}
 	}
@@ -682,10 +682,10 @@ func signalGatewayReload(ctx context.Context) error {
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	// Get the first node to restart services on
-	nodesResp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+	nodesResp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 	if err != nil {
 		return fmt.Errorf("list nodes: %w", err)
 	}
@@ -700,7 +700,7 @@ func signalGatewayReload(ctx context.Context) error {
 	// In production, this would be handled via xds push or service reload signals
 	// We'll trigger a reconciliation which will restart services if needed
 
-	_, err = client.ReconcileNodeV1(ctx, &clustercontrollerpb.ReconcileNodeV1Request{
+	_, err = client.ReconcileNodeV1(ctx, &cluster_controllerpb.ReconcileNodeV1Request{
 		NodeId: nodeID,
 	})
 	if err != nil {
@@ -963,10 +963,10 @@ func stopService(ctx context.Context, unitName string) error {
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	// Get first node
-	nodesResp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+	nodesResp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 	if err != nil {
 		return fmt.Errorf("list nodes: %w", err)
 	}
@@ -1002,7 +1002,7 @@ func stopService(ctx context.Context, unitName string) error {
 	// which should handle service state
 	_ = stopPlan // Keep for reference, but use reconcile instead
 
-	_, err = client.ReconcileNodeV1(ctx, &clustercontrollerpb.ReconcileNodeV1Request{
+	_, err = client.ReconcileNodeV1(ctx, &cluster_controllerpb.ReconcileNodeV1Request{
 		NodeId: nodeID,
 	})
 	return err
@@ -1114,9 +1114,9 @@ func checkServiceUnit(ctx context.Context, unitName string) (*ServiceUnitStatus,
 	}
 	defer cc.Close()
 
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	nodesResp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+	nodesResp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}

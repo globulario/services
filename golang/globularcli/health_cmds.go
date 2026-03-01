@@ -15,7 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/globulario/services/golang/config"
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
 )
 
@@ -253,9 +253,9 @@ func runClusterHealthChecks() error {
 		return err
 	}
 	defer cc.Close()
-	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	resp, err := client.GetClusterHealth(ctxWithTimeout(), &clustercontrollerpb.GetClusterHealthRequest{})
+	resp, err := client.GetClusterHealth(ctxWithTimeout(), &cluster_controllerpb.GetClusterHealthRequest{})
 	if err != nil {
 		return err
 	}
@@ -302,13 +302,13 @@ func runClusterHealthChecks() error {
 }
 
 // loadNetworkSpec reads the network spec from the local file
-func loadNetworkSpec() (*clustercontrollerpb.ClusterNetworkSpec, error) {
+func loadNetworkSpec() (*cluster_controllerpb.ClusterNetworkSpec, error) {
 	data, err := os.ReadFile("/var/lib/globular/network.json")
 	if err != nil {
 		return nil, fmt.Errorf("read network spec: %w", err)
 	}
 
-	var spec clustercontrollerpb.ClusterNetworkSpec
+	var spec cluster_controllerpb.ClusterNetworkSpec
 	if err := json.Unmarshal(data, &spec); err != nil {
 		return nil, fmt.Errorf("unmarshal network spec: %w", err)
 	}
@@ -390,7 +390,7 @@ func checkEnvoy(ctx context.Context) HealthCheckResult {
 }
 
 // checkGateway checks if gateway is reachable on the configured port
-func checkGateway(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) HealthCheckResult {
+func checkGateway(ctx context.Context, spec *cluster_controllerpb.ClusterNetworkSpec) HealthCheckResult {
 	result := HealthCheckResult{Name: "gateway"}
 
 	port := spec.GetPortHttp()

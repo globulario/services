@@ -74,15 +74,7 @@ mkdir -p "${OUT_DIR}" "${PAYLOAD_DIR}"
 
 svc_name_from_exe() {
   local exe="$1"
-  local base="${exe%_server}"
-
-  # Special cases for services with compound names
-  case "${base}" in
-    clustercontroller) echo "cluster-controller" ;;
-    clusterdoctor)     echo "cluster-doctor" ;;
-    nodeagent)         echo "node-agent" ;;
-    *) echo "${base//_/-}" ;;
-  esac
+  echo "${exe%_server}"
 }
 
 build_one() {

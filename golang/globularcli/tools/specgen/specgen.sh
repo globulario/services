@@ -4,17 +4,11 @@ set -euo pipefail
 BIN_DIR="/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin"
 OUT_ROOT="$(pwd)/generated"
 
-# Normalize: strips "_server" suffix and replaces underscores with dashes
+# Normalize: strips "_server" suffix; keeps underscores for the canonical service name.
+# Systemd unit names use dashes (derived separately below).
 svc_name_from_exe() {
   local exe="$1"
-  local base="${exe%_server}"
-
-  case "${base}" in
-    clustercontroller) echo "cluster-controller" ;;
-    clusterdoctor)     echo "cluster-doctor" ;;
-    nodeagent)         echo "node-agent" ;;
-    *) echo "${base//_/-}" ;;
-  esac
+  echo "${exe%_server}"
 }
 
 # Check if service requires Scylla database
@@ -66,7 +60,7 @@ for exe_path in "${BIN_DIR}"/*_server; do
 
   echo "==> ${exe} -> ${svc}"
 
-  unit="globular-${svc}.service"
+  unit="globular-${svc//_/-}.service"
   spec="${SPECS_DIR}/${svc}_service.yaml"
 
   # Determine address_host based on service type

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
 
 // fetchRelease retrieves a ServiceRelease by name.
-func fetchRelease(ctx context.Context, name string, client releaseResourcesClient) (*clustercontrollerpb.ServiceRelease, error) {
-	rel, err := client.GetServiceRelease(ctx, &clustercontrollerpb.GetServiceReleaseRequest{Name: name})
+func fetchRelease(ctx context.Context, name string, client releaseResourcesClient) (*cluster_controllerpb.ServiceRelease, error) {
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
 	if err != nil {
 		return nil, err
 	}
@@ -21,14 +21,14 @@ func fetchRelease(ctx context.Context, name string, client releaseResourcesClien
 }
 
 // applyRelease writes the ServiceRelease back via ApplyServiceRelease.
-func applyRelease(ctx context.Context, rel *clustercontrollerpb.ServiceRelease, client releaseResourcesClient) (*clustercontrollerpb.ServiceRelease, error) {
-	return client.ApplyServiceRelease(ctx, &clustercontrollerpb.ApplyServiceReleaseRequest{Object: rel})
+func applyRelease(ctx context.Context, rel *cluster_controllerpb.ServiceRelease, client releaseResourcesClient) (*cluster_controllerpb.ServiceRelease, error) {
+	return client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
 }
 
 // patchSpec merges fields from patch into rel.Spec (shallow, JSON merge semantics).
-func patchSpec(rel *clustercontrollerpb.ServiceRelease, patch map[string]any) error {
+func patchSpec(rel *cluster_controllerpb.ServiceRelease, patch map[string]any) error {
 	if rel.Spec == nil {
-		rel.Spec = &clustercontrollerpb.ServiceReleaseSpec{}
+		rel.Spec = &cluster_controllerpb.ServiceReleaseSpec{}
 	}
 	current, err := json.Marshal(rel.Spec)
 	if err != nil {
@@ -45,7 +45,7 @@ func patchSpec(rel *clustercontrollerpb.ServiceRelease, patch map[string]any) er
 	if err != nil {
 		return err
 	}
-	var out clustercontrollerpb.ServiceReleaseSpec
+	var out cluster_controllerpb.ServiceReleaseSpec
 	if err := json.Unmarshal(merged, &out); err != nil {
 		return err
 	}

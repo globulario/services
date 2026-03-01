@@ -62,7 +62,7 @@ func TestSecurityRegressions(t *testing.T) {
 	t.Run("NoHTTPEtcdProbes", func(t *testing.T) {
 		// H4: No HTTP etcd health checks in production code
 		violations := scanForPattern(t, repoRoot, []string{
-			"golang/clustercontroller/clustercontroller_server/operator",
+			"golang/cluster_controller/cluster_controller_server/operator",
 		}, regexp.MustCompile(`http://127\.0\.0\.1:2379|http://localhost:2379`), []string{
 			"_test.go",            // Allow in tests
 			"security_regression", // Allow in this file
