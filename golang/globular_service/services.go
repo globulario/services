@@ -25,6 +25,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
@@ -224,10 +225,10 @@ func InitService(s Service) error {
 	}
 
 	// Contextual values with proper fallbacks.
-	// Domain: from cluster config or default to "localhost"
+	// Domain: from cluster config or default to the canonical cluster domain.
 	domain, err := config.GetDomain()
 	if err != nil || domain == "" {
-		domain = "localhost"
+		domain = netutil.DefaultClusterDomain()
 	}
 	s.SetDomain(domain)
 
@@ -356,6 +357,12 @@ func SaveService(s Service) error {
 	}
 
 	cfg["RolesDefault"] = s.RolesDefault()
+
+	// Runtime-only keys are managed exclusively by putRuntime*().
+	// Removing them here prevents SaveService from clobbering the current
+	// runtime state in etcd (e.g., reverting "running" back to "starting").
+	delete(cfg, "State")
+	delete(cfg, "LastError")
 
 	if err := config.SaveServiceConfiguration(cfg); err != nil {
 		slog.Error("SaveService: save failed", "service", s.GetName(), "err", err)
@@ -682,7 +689,30 @@ func StartService(s Service, srv *grpc.Server) error {
 	}()
 
 	// Mark running and persist runtime only (avoid clobbering desired).
-	_ = putRuntimeRunning(s)
+	// Retry indefinitely with exponential backoff (cap 60s): handles the common
+	// race where systemd starts a service before etcd is ready, since both units
+	// only depend on network-online.target with no mutual ordering.
+	go func() {
+		backoff := 100 * time.Millisecond
+		const maxBackoff = 60 * time.Second
+		for attempt := 0; ; attempt++ {
+			if err := putRuntimeRunning(s); err == nil {
+				if attempt > 0 {
+					slog.Info("putRuntimeRunning succeeded after retries",
+						"service", s.GetId(), "attempts", attempt+1)
+				}
+				return
+			} else if attempt == 0 {
+				slog.Warn("putRuntimeRunning failed, will retry until etcd is reachable",
+					"service", s.GetId(), "err", err)
+			}
+			time.Sleep(backoff)
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}()
 
 	// Etcd watch for desired config changes on this service id.
 	go watchDesiredConfig(s, srv)
@@ -1213,6 +1243,7 @@ func assignValueToField(field reflect.Value, raw any) error {
 // ------------------------------
 
 func putRuntimeRunning(s Service) error {
+	s.SetState("running")
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "running",
@@ -1221,6 +1252,7 @@ func putRuntimeRunning(s Service) error {
 }
 
 func putRuntimeFailed(s Service, lastErr string) error {
+	s.SetState("failed")
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "failed",
@@ -1229,6 +1261,7 @@ func putRuntimeFailed(s Service, lastErr string) error {
 }
 
 func putRuntimeStopped(s Service, lastErr string) error {
+	s.SetState("stopped")
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   -1,
 		"State":     "stopped",
@@ -1237,6 +1270,7 @@ func putRuntimeStopped(s Service, lastErr string) error {
 }
 
 func putRuntimeClosing(s Service, lastErr string) error {
+	s.SetState("closing")
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "closing",
@@ -1245,6 +1279,7 @@ func putRuntimeClosing(s Service, lastErr string) error {
 }
 
 func putRuntimeClosed(s Service, lastErr string) error {
+	s.SetState("closed")
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   -1,
 		"State":     "closed",

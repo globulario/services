@@ -117,6 +117,58 @@ func TestUnitForService(t *testing.T) {
 	}
 }
 
+func TestNormalizeServiceKey_DomainPrefix(t *testing.T) {
+	cases := []struct{ input, want string }{
+		{"localhost/authentication", "authentication"},
+		{"globular.internal/dns", "dns"},
+		{"unknown/node-agent", "node-agent"},
+		{"unknown/cluster_controller", "cluster-controller"},
+		{"localhost/cluster_doctor.clusterdoctorservice", "cluster-doctor"},
+	}
+	for _, tc := range cases {
+		got, _ := identity.NormalizeServiceKey(tc.input)
+		if got != tc.want {
+			t.Errorf("NormalizeServiceKey(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestNormalizeServiceKey_UnderscoreToHyphen(t *testing.T) {
+	// Even for unknown services, underscores must be converted to hyphens.
+	cases := []struct{ input, want string }{
+		{"cluster_controller", "cluster-controller"},
+		{"cluster_doctor", "cluster-doctor"},
+		{"node_agent", "node-agent"},
+		{"my_custom_service", "my-custom-service"},
+		{"globular-my_custom.service", "my-custom"},
+	}
+	for _, tc := range cases {
+		got, _ := identity.NormalizeServiceKey(tc.input)
+		if got != tc.want {
+			t.Errorf("NormalizeServiceKey(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestUnitToServiceID(t *testing.T) {
+	cases := []struct{ input, want string }{
+		{"globular-node-agent.service", "node-agent"},
+		{"globular-cluster-controller.service", "cluster-controller"},
+		{"globular-cluster-doctor.service", "cluster-doctor"},
+		{"globular-cluster_controller.service", "cluster-controller"},
+		{"globular-node_agent.service", "node-agent"},
+		{"globular-dns.service", "dns"},
+		{"globular-authentication.service", "authentication"},
+		{"globular-ldap.service", "ldap"},
+	}
+	for _, tc := range cases {
+		got := identity.UnitToServiceID(tc.input)
+		if got != tc.want {
+			t.Errorf("UnitToServiceID(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestMustIdentityByKey_Unknown(t *testing.T) {
 	id := identity.MustIdentityByKey("my-custom-service")
 	if id.UnitName != "globular-my-custom-service.service" {

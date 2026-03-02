@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,9 @@ import (
 
 // listAllDesiredServices fetches all ServiceDesiredVersion objects from the
 // resource store and converts them into the proto DesiredState.
+// Entries are deduplicated by canonical name — if a stale domain-prefixed key
+// (e.g. "localhost/authentication") coexists with the canonical key
+// ("authentication"), only the canonical one is returned.
 func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_controllerpb.DesiredState, error) {
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -33,17 +37,92 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 		return nil, status.Errorf(codes.Internal, "list desired services: %v", err)
 	}
 	ds := &cluster_controllerpb.DesiredState{Revision: rv}
+	seen := make(map[string]bool)
 	for _, obj := range items {
 		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
 		if !ok || sdv.Spec == nil {
 			continue
 		}
+		canon := canonicalServiceName(sdv.Spec.ServiceName)
+		if canon == "" {
+			canon = sdv.Spec.ServiceName
+		}
+		if seen[canon] {
+			continue
+		}
+		seen[canon] = true
 		ds.Services = append(ds.Services, &cluster_controllerpb.DesiredService{
-			ServiceId: sdv.Spec.ServiceName,
+			ServiceId: canon,
 			Version:   sdv.Spec.Version,
 		})
 	}
 	return ds, nil
+}
+
+// cleanupStaleDesiredKeys removes resource store entries whose key contains a
+// domain prefix (e.g. "localhost/authentication") that is now redundant because
+// canonicalServiceName strips domain prefixes. This is a one-time migration
+// step; new entries are always stored under the canonical key.
+// cleanupStaleDesiredKeys removes resource store entries whose key doesn't
+// match its canonical form. This handles:
+//   - Domain-prefixed keys: "localhost/authentication" → canonical "authentication"
+//   - Underscore variants: "cluster_controller" → canonical "cluster-controller"
+//   - Proto-qualified names: "cluster_doctor.clusterdoctorservice" → canonical "cluster-doctor"
+//
+// When a stale key's canonical form already exists, the stale entry is simply
+// deleted. When no canonical entry exists yet, the stale entry is re-upserted
+// under the canonical key before deleting the old one.
+func (srv *server) cleanupStaleDesiredKeys(ctx context.Context) int {
+	if srv.resources == nil {
+		return 0
+	}
+	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return 0
+	}
+
+	// First pass: collect what canonical keys already exist and identify stale entries.
+	type staleEntry struct {
+		storedKey string
+		canon     string
+		version   string
+	}
+	canonExists := make(map[string]bool)
+	var stale []staleEntry
+
+	for _, obj := range items {
+		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+		if !ok || sdv.Meta == nil || sdv.Spec == nil {
+			continue
+		}
+		storedKey := sdv.Meta.Name
+		canon := canonicalServiceName(storedKey)
+		if canon == "" {
+			canon = storedKey
+		}
+		if storedKey == canon {
+			canonExists[canon] = true
+		} else {
+			stale = append(stale, staleEntry{storedKey: storedKey, canon: canon, version: sdv.Spec.Version})
+		}
+	}
+
+	// Second pass: migrate or delete stale entries.
+	removed := 0
+	for _, s := range stale {
+		// If canonical key doesn't exist yet, re-create it before deleting stale.
+		if !canonExists[s.canon] {
+			_ = srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
+				ServiceId: s.canon,
+				Version:   s.version,
+			})
+			canonExists[s.canon] = true
+		}
+		if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", s.storedKey); err == nil {
+			removed++
+		}
+	}
+	return removed
 }
 
 // upsertOne applies a single DesiredService to the resource store.
@@ -58,6 +137,11 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	version := strings.TrimSpace(svc.Version)
 	if version == "" {
 		return fmt.Errorf("version is required for %q", svc.ServiceId)
+	}
+	if cv, err := versionutil.Canonical(version); err != nil {
+		return fmt.Errorf("invalid version %q for %q: %w", svc.Version, svc.ServiceId, err)
+	} else {
+		version = cv
 	}
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
@@ -121,6 +205,11 @@ func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controller
 		return nil, err
 	}
 
+	// Clean up any stale domain-prefixed keys from previous seeds.
+	if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
+		fmt.Printf("SeedDesiredState: cleaned up %d stale domain-prefixed entries\n", n)
+	}
+
 	switch req.GetMode() {
 	case cluster_controllerpb.SeedDesiredStateRequest_IMPORT_FROM_INSTALLED:
 		// Collect installed versions from all nodes (union, first-seen wins).
@@ -133,6 +222,9 @@ func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controller
 					continue
 				}
 				if _, exists := installed[canon]; !exists {
+					if cv, err := versionutil.Canonical(ver); err == nil {
+						ver = cv
+					}
 					installed[canon] = ver
 				}
 			}
@@ -198,6 +290,9 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	// Build a unified index from both artifact manifests and bundle summaries.
 	pkgIndex, repoNames := buildPackageIndex(repoClient)
 
+	if cv, err := versionutil.Canonical(version); err == nil {
+		version = cv
+	}
 	pkg, pkgFound := pkgIndex[normalizeServiceName(serviceId)+"@"+version]
 	if !pkgFound {
 		return &cluster_controllerpb.ValidationReport{
@@ -353,7 +448,11 @@ func buildPackageIndex(rc *repository_client.Repository_Service_Client) (
 				continue
 			}
 			nameSet[m.GetRef().GetName()] = true
-			k := normalizeServiceName(m.GetRef().GetName()) + "@" + m.GetRef().GetVersion()
+			ver := m.GetRef().GetVersion()
+			if cv, err := versionutil.Canonical(ver); err == nil {
+				ver = cv
+			}
+			k := normalizeServiceName(m.GetRef().GetName()) + "@" + ver
 			if _, exists := pkgIndex[k]; !exists {
 				pkgIndex[k] = resolvedPkg{
 					platform: m.GetRef().GetPlatform(),
@@ -367,7 +466,11 @@ func buildPackageIndex(rc *repository_client.Repository_Service_Client) (
 	if bundles, err := rc.ListBundles(); err == nil {
 		for _, b := range bundles {
 			nameSet[b.GetName()] = true
-			k := normalizeServiceName(b.GetName()) + "@" + b.GetVersion()
+			bver := b.GetVersion()
+			if cv, err := versionutil.Canonical(bver); err == nil {
+				bver = cv
+			}
+			k := normalizeServiceName(b.GetName()) + "@" + bver
 			if _, exists := pkgIndex[k]; !exists {
 				pkgIndex[k] = resolvedPkg{
 					platform: b.GetPlatform(),
@@ -435,6 +538,9 @@ func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_contro
 			continue
 		}
 
+		if cv, err := versionutil.Canonical(ver); err == nil {
+			ver = cv
+		}
 		pkg, ok := pkgIndex[normalizeServiceName(name)+"@"+ver]
 		if !ok {
 			preview.BlockingIssues = append(preview.BlockingIssues, &cluster_controllerpb.ValidationIssue{
@@ -469,7 +575,7 @@ func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_contro
 			name := svc.GetServiceId()
 			ver := svc.GetVersion()
 			// Only install if this node doesn't already have this version.
-			if node.InstalledVersions[name] != ver {
+			if !versionutil.Equal(node.InstalledVersions[name], ver) {
 				change.WillInstall = append(change.WillInstall,
 					fmt.Sprintf("%s@%s", name, ver))
 			}

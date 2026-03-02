@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/globulario/services/golang/plan/versionutil"
 )
 
 type BuildOptions struct {
@@ -40,6 +42,11 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 	if opts.Version == "" {
 		return nil, fmt.Errorf("version is required")
 	}
+	canonical, err := versionutil.Canonical(opts.Version)
+	if err != nil {
+		return nil, fmt.Errorf("invalid version %q: %w", opts.Version, err)
+	}
+	opts.Version = canonical
 	if opts.OutDir == "" {
 		return nil, fmt.Errorf("out directory is required")
 	}

@@ -48,6 +48,14 @@ var registry = func() map[string]ServiceIdentity {
 			Aliases:    []string{"clustercontroller", "cluster_controller", "globular-cluster-controller", "globular-cluster-controller.service", "cluster_controller.clustercontrollerservice"},
 		},
 		{
+			Key:        "cluster-doctor",
+			BundleName: "cluster-doctor",
+			UnitName:   "globular-cluster-doctor.service",
+			GrpcFull:   "cluster_doctor.ClusterDoctorService",
+			Binary:     "cluster_doctor_server",
+			Aliases:    []string{"clusterdoctor", "cluster_doctor", "globular-cluster-doctor", "globular-cluster-doctor.service", "cluster_doctor.clusterdoctorservice"},
+		},
+		{
 			Key:        "dns",
 			BundleName: "dns",
 			UnitName:   "globular-dns.service",
@@ -176,6 +184,78 @@ var registry = func() map[string]ServiceIdentity {
 			Aliases:    []string{"globular-conversation", "globular-conversation.service", "conversation.conversationservice"},
 		},
 		{
+			Key:        "ldap",
+			BundleName: "ldap",
+			UnitName:   "globular-ldap.service",
+			GrpcFull:   "ldap.LdapService",
+			Binary:     "ldap_server",
+			Aliases:    []string{"globular-ldap", "globular-ldap.service", "ldap.ldapservice"},
+		},
+		{
+			Key:        "mail",
+			BundleName: "mail",
+			UnitName:   "globular-mail.service",
+			GrpcFull:   "mail.MailService",
+			Binary:     "mail_server",
+			Aliases:    []string{"globular-mail", "globular-mail.service", "mail.mailservice"},
+		},
+		{
+			Key:        "log",
+			BundleName: "log",
+			UnitName:   "globular-log.service",
+			GrpcFull:   "log.LogService",
+			Binary:     "log_server",
+			Aliases:    []string{"globular-log", "globular-log.service", "log.logservice"},
+		},
+		{
+			Key:        "search",
+			BundleName: "search",
+			UnitName:   "globular-search.service",
+			GrpcFull:   "search.SearchService",
+			Binary:     "search_server",
+			Aliases:    []string{"globular-search", "globular-search.service", "search.searchservice"},
+		},
+		{
+			Key:        "monitoring",
+			BundleName: "monitoring",
+			UnitName:   "globular-monitoring.service",
+			GrpcFull:   "monitoring.MonitoringService",
+			Binary:     "monitoring_server",
+			Aliases:    []string{"globular-monitoring", "globular-monitoring.service", "monitoring.monitoringservice"},
+		},
+		{
+			Key:        "storage",
+			BundleName: "storage",
+			UnitName:   "globular-storage.service",
+			GrpcFull:   "storage.StorageService",
+			Binary:     "storage_server",
+			Aliases:    []string{"globular-storage", "globular-storage.service", "storage.storageservice"},
+		},
+		{
+			Key:        "sql",
+			BundleName: "sql",
+			UnitName:   "globular-sql.service",
+			GrpcFull:   "sql.SqlService",
+			Binary:     "sql_server",
+			Aliases:    []string{"globular-sql", "globular-sql.service", "sql.sqlservice"},
+		},
+		{
+			Key:        "catalog",
+			BundleName: "catalog",
+			UnitName:   "globular-catalog.service",
+			GrpcFull:   "catalog.CatalogService",
+			Binary:     "catalog_server",
+			Aliases:    []string{"globular-catalog", "globular-catalog.service", "catalog.catalogservice"},
+		},
+		{
+			Key:        "echo",
+			BundleName: "echo",
+			UnitName:   "globular-echo.service",
+			GrpcFull:   "echo.EchoService",
+			Binary:     "echo_server",
+			Aliases:    []string{"globular-echo", "globular-echo.service", "echo.echoservice"},
+		},
+		{
 			Key:        "minio",
 			BundleName: "minio",
 			UnitName:   "globular-minio.service",
@@ -270,10 +350,29 @@ func NormalizeServiceKey(input string) (string, bool) {
 		return "", false
 	}
 	norm := strings.ToLower(strings.TrimSpace(input))
+
+	// Strip domain prefix: "localhost/authentication" → "authentication",
+	// "globular.internal/dns" → "dns", "unknown/node-agent" → "node-agent".
+	if slash := strings.LastIndex(norm, "/"); slash >= 0 {
+		norm = norm[slash+1:]
+		if norm == "" {
+			return "", false
+		}
+	}
+
+	// Direct alias lookup.
 	if key, ok := aliasMap[norm]; ok {
 		return key, true
 	}
-	// Fallback: strip "globular-" prefix and ".service" suffix (handles unknown services gracefully).
+	// Try with underscores → hyphens (canonical form is always kebab-case).
+	hyphenated := strings.ReplaceAll(norm, "_", "-")
+	if hyphenated != norm {
+		if key, ok := aliasMap[hyphenated]; ok {
+			return key, true
+		}
+	}
+
+	// Fallback: strip "globular-" prefix and ".service" suffix.
 	stripped := norm
 	stripped = strings.TrimPrefix(stripped, "globular-")
 	stripped = strings.TrimSuffix(stripped, ".service")
@@ -281,18 +380,31 @@ func NormalizeServiceKey(input string) (string, bool) {
 		if key, ok := aliasMap[stripped]; ok {
 			return key, true
 		}
-		// Still unknown but at least canonicalized to stripped form.
-		return stripped, true
+		strippedHyphen := strings.ReplaceAll(stripped, "_", "-")
+		if strippedHyphen != stripped {
+			if key, ok := aliasMap[strippedHyphen]; ok {
+				return key, true
+			}
+		}
+		// Unknown service but at least canonicalize underscores → hyphens.
+		return strippedHyphen, true
 	}
+
 	// Strip gRPC package prefix (e.g., "foo.FooService" → "foo") and try.
 	if dot := strings.LastIndex(norm, "."); dot > 0 {
 		pkg := norm[:dot]
 		if key, ok := aliasMap[pkg]; ok {
 			return key, true
 		}
+		pkgHyphen := strings.ReplaceAll(pkg, "_", "-")
+		if pkgHyphen != pkg {
+			if key, ok := aliasMap[pkgHyphen]; ok {
+				return key, true
+			}
+		}
 	}
-	// Return the input lowercased and stripped as best-effort.
-	return norm, false
+	// Return canonicalized (underscores → hyphens) as best-effort.
+	return hyphenated, false
 }
 
 // IdentityByKey returns the ServiceIdentity for a canonical key.
@@ -314,6 +426,16 @@ func MustIdentityByKey(key string) ServiceIdentity {
 		BundleName: key,
 		UnitName:   unit,
 	}
+}
+
+// UnitToServiceID converts a systemd unit name (e.g., "globular-cluster_controller.service")
+// to the canonical kebab-case service key (e.g., "cluster-controller").
+// This is the single canonical path for unit→service mapping across CLI, node-agent,
+// and controller. It strips the "globular-" prefix and ".service" suffix, normalizes
+// underscores to hyphens, and resolves through the identity registry.
+func UnitToServiceID(unit string) string {
+	key, _ := NormalizeServiceKey(unit)
+	return key
 }
 
 // UnitForService returns the systemd unit name for any service identifier.

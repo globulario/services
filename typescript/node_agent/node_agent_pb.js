@@ -23,8 +23,8 @@ var global =
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 goog.object.extend(proto, google_protobuf_timestamp_pb);
-var clustercontroller_pb = require('./clustercontroller_pb.js');
-goog.object.extend(proto, clustercontroller_pb);
+var cluster_controller_pb = require('./cluster_controller_pb.js');
+goog.object.extend(proto, cluster_controller_pb);
 var plan_pb = require('./plan_pb.js');
 goog.object.extend(proto, plan_pb);
 goog.exportSymbol('proto.node_agent.ApplyPlanRequest', null, global);
@@ -1222,7 +1222,7 @@ proto.node_agent.Inventory.prototype.toObject = function(opt_includeInstance) {
  */
 proto.node_agent.Inventory.toObject = function(includeInstance, msg) {
   var f, obj = {
-identity: (f = msg.getIdentity()) && clustercontroller_pb.NodeIdentity.toObject(includeInstance, f),
+identity: (f = msg.getIdentity()) && cluster_controller_pb.NodeIdentity.toObject(includeInstance, f),
 unixTime: (f = msg.getUnixTime()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
 componentsList: jspb.Message.toObjectList(msg.getComponentsList(),
     proto.node_agent.InstalledComponent.toObject, includeInstance),
@@ -1265,8 +1265,8 @@ proto.node_agent.Inventory.deserializeBinaryFromReader = function(msg, reader) {
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = new clustercontroller_pb.NodeIdentity;
-      reader.readMessage(value,clustercontroller_pb.NodeIdentity.deserializeBinaryFromReader);
+      var value = new cluster_controller_pb.NodeIdentity;
+      reader.readMessage(value,cluster_controller_pb.NodeIdentity.deserializeBinaryFromReader);
       msg.setIdentity(value);
       break;
     case 2:
@@ -1318,7 +1318,7 @@ proto.node_agent.Inventory.serializeBinaryToWriter = function(message, writer) {
     writer.writeMessage(
       1,
       f,
-      clustercontroller_pb.NodeIdentity.serializeBinaryToWriter
+      cluster_controller_pb.NodeIdentity.serializeBinaryToWriter
     );
   }
   f = message.getUnixTime();
@@ -1349,17 +1349,17 @@ proto.node_agent.Inventory.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional clustercontroller.NodeIdentity identity = 1;
- * @return {?proto.clustercontroller.NodeIdentity}
+ * optional cluster_controller.NodeIdentity identity = 1;
+ * @return {?proto.cluster_controller.NodeIdentity}
  */
 proto.node_agent.Inventory.prototype.getIdentity = function() {
-  return /** @type{?proto.clustercontroller.NodeIdentity} */ (
-    jspb.Message.getWrapperField(this, clustercontroller_pb.NodeIdentity, 1));
+  return /** @type{?proto.cluster_controller.NodeIdentity} */ (
+    jspb.Message.getWrapperField(this, cluster_controller_pb.NodeIdentity, 1));
 };
 
 
 /**
- * @param {?proto.clustercontroller.NodeIdentity|undefined} value
+ * @param {?proto.cluster_controller.NodeIdentity|undefined} value
  * @return {!proto.node_agent.Inventory} returns this
 */
 proto.node_agent.Inventory.prototype.setIdentity = function(value) {
@@ -1782,7 +1782,7 @@ proto.node_agent.ApplyPlanRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.node_agent.ApplyPlanRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-plan: (f = msg.getPlan()) && clustercontroller_pb.NodePlan.toObject(includeInstance, f),
+plan: (f = msg.getPlan()) && cluster_controller_pb.NodePlan.toObject(includeInstance, f),
 operationId: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
@@ -1821,8 +1821,8 @@ proto.node_agent.ApplyPlanRequest.deserializeBinaryFromReader = function(msg, re
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = new clustercontroller_pb.NodePlan;
-      reader.readMessage(value,clustercontroller_pb.NodePlan.deserializeBinaryFromReader);
+      var value = new cluster_controller_pb.NodePlan;
+      reader.readMessage(value,cluster_controller_pb.NodePlan.deserializeBinaryFromReader);
       msg.setPlan(value);
       break;
     case 2:
@@ -1863,7 +1863,7 @@ proto.node_agent.ApplyPlanRequest.serializeBinaryToWriter = function(message, wr
     writer.writeMessage(
       1,
       f,
-      clustercontroller_pb.NodePlan.serializeBinaryToWriter
+      cluster_controller_pb.NodePlan.serializeBinaryToWriter
     );
   }
   f = message.getOperationId();
@@ -1877,17 +1877,17 @@ proto.node_agent.ApplyPlanRequest.serializeBinaryToWriter = function(message, wr
 
 
 /**
- * optional clustercontroller.NodePlan plan = 1;
- * @return {?proto.clustercontroller.NodePlan}
+ * optional cluster_controller.NodePlan plan = 1;
+ * @return {?proto.cluster_controller.NodePlan}
  */
 proto.node_agent.ApplyPlanRequest.prototype.getPlan = function() {
-  return /** @type{?proto.clustercontroller.NodePlan} */ (
-    jspb.Message.getWrapperField(this, clustercontroller_pb.NodePlan, 1));
+  return /** @type{?proto.cluster_controller.NodePlan} */ (
+    jspb.Message.getWrapperField(this, cluster_controller_pb.NodePlan, 1));
 };
 
 
 /**
- * @param {?proto.clustercontroller.NodePlan|undefined} value
+ * @param {?proto.cluster_controller.NodePlan|undefined} value
  * @return {!proto.node_agent.ApplyPlanRequest} returns this
 */
 proto.node_agent.ApplyPlanRequest.prototype.setPlan = function(value) {
@@ -3053,7 +3053,7 @@ proto.node_agent.OperationEvent.deserializeBinaryFromReader = function(msg, read
       msg.setOperationId(value);
       break;
     case 2:
-      var value = /** @type {!proto.clustercontroller.OperationPhase} */ (reader.readEnum());
+      var value = /** @type {!proto.cluster_controller.OperationPhase} */ (reader.readEnum());
       msg.setPhase(value);
       break;
     case 3:
@@ -3178,16 +3178,16 @@ proto.node_agent.OperationEvent.prototype.setOperationId = function(value) {
 
 
 /**
- * optional clustercontroller.OperationPhase phase = 2;
- * @return {!proto.clustercontroller.OperationPhase}
+ * optional cluster_controller.OperationPhase phase = 2;
+ * @return {!proto.cluster_controller.OperationPhase}
  */
 proto.node_agent.OperationEvent.prototype.getPhase = function() {
-  return /** @type {!proto.clustercontroller.OperationPhase} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+  return /** @type {!proto.cluster_controller.OperationPhase} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
- * @param {!proto.clustercontroller.OperationPhase} value
+ * @param {!proto.cluster_controller.OperationPhase} value
  * @return {!proto.node_agent.OperationEvent} returns this
  */
 proto.node_agent.OperationEvent.prototype.setPhase = function(value) {

@@ -17,7 +17,11 @@ func TestServiceRemovalPlanHasStableHash(t *testing.T) {
 	srv := &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
-			"n1": {NodeID: "n1", Units: []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}},
+			"n1": {
+				NodeID:       "n1",
+				Units:        []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}},
+				Capabilities: &storedCapabilities{CanApplyPrivileged: true},
+			},
 		}},
 		kv:                   kv,
 		planStore:            ps,

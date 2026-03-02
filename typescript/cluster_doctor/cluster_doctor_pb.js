@@ -1,4 +1,4 @@
-// source: clusterdoctor.proto
+// source: cluster_doctor.proto
 /**
  * @fileoverview
  * @enhanceable

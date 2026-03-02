@@ -3880,6 +3880,67 @@ proto.resource.ResourceServicePromiseClient.prototype.getPackageBundleChecksum =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPackageBundlesRequest,
+ *   !proto.resource.GetPackageBundlesResponse>}
+ */
+const methodDescriptor_ResourceService_GetPackageBundles = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetPackageBundles',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetPackageBundlesRequest,
+  proto.resource.GetPackageBundlesResponse,
+  /**
+   * @param {!proto.resource.GetPackageBundlesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetPackageBundlesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPackageBundlesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPackageBundlesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPackageBundlesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getPackageBundles =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetPackageBundles',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPackageBundles,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPackageBundlesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPackageBundlesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getPackageBundles =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetPackageBundles',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPackageBundles);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.UpdateSessionRequest,
  *   !proto.resource.UpdateSessionResponse>}
  */

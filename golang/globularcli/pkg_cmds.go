@@ -16,6 +16,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globularcli/pkgpack"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 )
@@ -485,8 +486,17 @@ func publishOne(file, token string) pkgPublishOne {
 		return r
 	}
 	r.name = summary.Name
-	r.version = summary.Version
 	r.platform = summary.Platform
+
+	// Normalize version to canonical semver.
+	if cv, err := versionutil.Canonical(summary.Version); err != nil {
+		r.err = fmt.Errorf("invalid version %q in package: %w", summary.Version, err)
+		r.duration = time.Since(start)
+		return r
+	} else {
+		summary.Version = cv
+	}
+	r.version = summary.Version
 
 	publisher := pkgPublishPublisher
 	if publisher == "" {
@@ -659,6 +669,9 @@ const defaultResourcePort = 10010
 //
 // Returns the descriptor action ("created"|"updated"|"upserted") and any error.
 func setPackageDescriptor(name, publisherID, version string, pkgType resourcepb.PackageType) (string, error) {
+	if cv, err := versionutil.Canonical(version); err == nil {
+		version = cv
+	}
 	addr := config.ResolveServiceAddr(
 		"resource.ResourceService",
 		fmt.Sprintf("localhost:%d", defaultResourcePort),

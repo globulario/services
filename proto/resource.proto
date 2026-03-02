@@ -31,6 +31,14 @@ message GetPackageBundleChecksumRequest {
 
 message GetPackageBundleChecksumResponse { string checksum = 1; }
 
+message GetPackageBundlesRequest {
+  string publisher_id = 1; // optional: filter by publisher
+}
+
+message GetPackageBundlesResponse {
+  repeated PackageBundle bundles = 1;
+}
+
 // Enum to define the type of package.
 enum PackageType {
   UNKNOW_TYPE = 0; // Default value for unknown type.
@@ -1135,6 +1143,9 @@ service ResourceService {
   
     // Gets the checksum for a specified package bundle.
     rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns (GetPackageBundleChecksumResponse);
+
+    // Lists all package bundles stored in the repository.
+    rpc GetPackageBundles(GetPackageBundlesRequest) returns (GetPackageBundlesResponse);
   
     // Updates user session information.
     rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse);

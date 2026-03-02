@@ -1,5 +1,5 @@
 /**
- * @fileoverview gRPC-Web generated client stub for nodeagent
+ * @fileoverview gRPC-Web generated client stub for node_agent
  * @enhanceable
  * @public
  */
@@ -22,7 +22,7 @@ grpc.web = require('grpc-web');
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
 
-var clustercontroller_pb = require('./clustercontroller_pb.js')
+var cluster_controller_pb = require('./cluster_controller_pb.js')
 
 var plan_pb = require('./plan_pb.js')
 const proto = {};

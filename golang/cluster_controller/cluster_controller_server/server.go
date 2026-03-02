@@ -68,6 +68,9 @@ func serviceUnitName(name string) string {
 	return fmt.Sprintf("%s.service", name)
 }
 
+// filterVersionsForNode returns all desired services with canonical names.
+// It includes services whose unit does not yet exist on the node so that
+// desired-hash computation and health counts reflect the full desired state.
 func filterVersionsForNode(desired map[string]string, node *nodeState) map[string]string {
 	out := make(map[string]string)
 	if len(desired) == 0 || node == nil {
@@ -75,22 +78,18 @@ func filterVersionsForNode(desired map[string]string, node *nodeState) map[strin
 	}
 	for svc, ver := range desired {
 		norm := canonicalServiceName(svc)
-		unit := serviceUnitForCanonical(norm)
-		if hasUnit(node.Units, unit) {
-			out[norm] = ver
-		}
+		out[norm] = ver
 	}
 	return out
 }
 
-// computeServiceDelta returns desiredPresent (desired services that exist on the node) and toRemove (services present on node but not desired).
+// computeServiceDelta returns desiredActionable (desired services that need
+// install or upgrade — includes services whose unit does not yet exist on the
+// node) and toRemove (services present on node but not desired).
 func computeServiceDelta(desiredCanon map[string]string, units []unitStatusRecord) (map[string]string, []string) {
-	desiredPresent := make(map[string]string)
+	desiredActionable := make(map[string]string)
 	for svc, ver := range desiredCanon {
-		unit := serviceUnitForCanonical(svc)
-		if hasUnit(units, unit) {
-			desiredPresent[svc] = ver
-		}
+		desiredActionable[svc] = ver
 	}
 	toRemove := make([]string, 0)
 	for _, u := range units {
@@ -108,7 +107,7 @@ func computeServiceDelta(desiredCanon map[string]string, units []unitStatusRecor
 			toRemove = append(toRemove, canon)
 		}
 	}
-	return desiredPresent, toRemove
+	return desiredActionable, toRemove
 }
 
 func toWatchEvent(typ string, evt resourcestore.Event) *cluster_controllerpb.WatchEvent {
@@ -1390,7 +1389,17 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		node.AppliedServicesHash = appliedSvcHash
 		changed = true
 	}
-	if len(installedVersions) > 0 {
+	// Persist the node-reported applied hash to KV so that GetClusterHealthV1
+	// and the reconciler see the same value.  Only do this when the node has
+	// completed its inventory scan to avoid locking in a partial hash.
+	if appliedSvcHash != "" && inventoryComplete {
+		if err := srv.putNodeAppliedServiceHash(ctx, nodeID, appliedSvcHash); err != nil {
+			log.Printf("ReportNodeStatus: store applied service hash for %s: %v", nodeID, err)
+		}
+	}
+	// Update installed versions when the node reports inventory, even if empty
+	// (inventoryComplete=true means the node has finished scanning).
+	if len(installedVersions) > 0 || inventoryComplete {
 		if !mapsEqual(node.InstalledVersions, installedVersions) {
 			node.InstalledVersions = installedVersions
 			changed = true
@@ -1568,6 +1577,23 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		if status != nil {
 			lastErr = status.GetErrorMessage()
 		}
+		// Determine whether the node can perform privileged operations.
+		canPriv := false
+		if node.Capabilities != nil {
+			canPriv = node.Capabilities.CanApplyPrivileged
+		}
+
+		// When desired ≠ applied and the node lacks privilege and no plan is
+		// actively running, override the phase to signal the admin UI.
+		if desiredSvcHash != "" && desiredSvcHash != appliedSvcHash && !canPriv {
+			isActive := status != nil &&
+				(status.GetState() == planpb.PlanState_PLAN_RUNNING ||
+					status.GetState() == planpb.PlanState_PLAN_ROLLING_BACK)
+			if !isActive {
+				phase = planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY.String()
+			}
+		}
+
 		nodeHealths = append(nodeHealths, &cluster_controllerpb.NodeHealth{
 			NodeId:              node.NodeID,
 			DesiredNetworkHash:  specHash,
@@ -1588,13 +1614,16 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 					return 0
 				}
 			}(),
-			CurrentPlanPhase: phase,
-			LastError:        lastErr,
+			CurrentPlanPhase:    phase,
+			LastError:           lastErr,
+			CanApplyPrivileged:  canPriv,
 		})
 
-		for svc := range filtered {
+		for svc, desiredVer := range filtered {
 			serviceCounts[svc]++
-			if desiredSvcHash != "" && desiredSvcHash == appliedSvcHash {
+			// Per-service convergence: compare installed version against
+			// the desired version for THIS service, not the global hash.
+			if installedVer, ok := node.InstalledVersions[svc]; ok && installedVer == desiredVer {
 				serviceAtDesired[svc]++
 			}
 			if status != nil && plan != nil && plan.GetDesiredHash() != "" && plan.GetDesiredHash() == desiredSvcHash {
@@ -2079,25 +2108,24 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	desiredNetworkObj, err := srv.loadDesiredNetwork(ctx)
 	if err != nil {
 		log.Printf("reconcile: load desired network failed: %v", err)
-		return
 	}
-	if desiredNetworkObj == nil {
-		log.Printf("reconcile: no ClusterNetwork/default in resource store; skipping")
-		return
-	}
-	desiredNet := &cluster_controllerpb.DesiredNetwork{
-		Domain:           desiredNetworkObj.Spec.GetClusterDomain(),
-		Protocol:         desiredNetworkObj.Spec.GetProtocol(),
-		PortHttp:         desiredNetworkObj.Spec.GetPortHttp(),
-		PortHttps:        desiredNetworkObj.Spec.GetPortHttps(),
-		AlternateDomains: append([]string(nil), desiredNetworkObj.Spec.GetAlternateDomains()...),
-		AcmeEnabled:      desiredNetworkObj.Spec.GetAcmeEnabled(),
-		AdminEmail:       desiredNetworkObj.Spec.GetAdminEmail(),
-	}
-	specHash, err := hashDesiredNetwork(desiredNet)
-	if err != nil {
-		log.Printf("reconcile: hash desired network: %v", err)
-		return
+	var desiredNet *cluster_controllerpb.DesiredNetwork
+	specHash := ""
+	if desiredNetworkObj != nil {
+		desiredNet = &cluster_controllerpb.DesiredNetwork{
+			Domain:           desiredNetworkObj.Spec.GetClusterDomain(),
+			Protocol:         desiredNetworkObj.Spec.GetProtocol(),
+			PortHttp:         desiredNetworkObj.Spec.GetPortHttp(),
+			PortHttps:        desiredNetworkObj.Spec.GetPortHttps(),
+			AlternateDomains: append([]string(nil), desiredNetworkObj.Spec.GetAlternateDomains()...),
+			AcmeEnabled:      desiredNetworkObj.Spec.GetAcmeEnabled(),
+			AdminEmail:       desiredNetworkObj.Spec.GetAdminEmail(),
+		}
+		if h, herr := hashDesiredNetwork(desiredNet); herr == nil {
+			specHash = h
+		} else {
+			log.Printf("reconcile: hash desired network: %v", herr)
+		}
 	}
 	srv.lock("reconcile:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
@@ -2162,6 +2190,19 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					}
 					stateDirty = true
 				}
+			}
+		}
+
+		// Phase 4: Privileged-apply gating — when the node lacks privilege to
+		// write systemd units, skip plan dispatch and record the state so the
+		// UI can show "Awaiting privileged apply".
+		canPriv := node.Capabilities != nil && node.Capabilities.CanApplyPrivileged
+		if !canPriv {
+			existingStatus, _ := srv.planStore.GetStatus(ctx, node.NodeID)
+			alreadyAwaiting := existingStatus != nil &&
+				existingStatus.GetState() == planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY
+			if !alreadyAwaiting {
+				log.Printf("reconcile: node %s lacks privileged-apply capability, skipping plan dispatch", node.NodeID)
 			}
 		}
 
@@ -2237,6 +2278,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				plan.CreatedUnixMs = uint64(now.UnixMilli())
 			}
 			plan.IssuedBy = "cluster-controller"
+
+			// Skip dispatch if node lacks privileged-apply capability.
+			if !canPriv {
+				log.Printf("reconcile: node %s needs privileged apply for network plan (plan_id=%s)", node.NodeID, plan.GetPlanId())
+				continue
+			}
 
 			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
 				log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
@@ -2331,6 +2378,40 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if svcHash == appliedSvcHash {
 			continue
 		}
+		// External install detection: if all desired services are reported as
+		// installed at the correct version (e.g. via CLI), update the applied
+		// hash without requiring a plan to succeed. This handles the case where
+		// services were installed outside the plan system.
+		if len(node.InstalledVersions) > 0 && len(filtered) > 0 {
+			allMatch := true
+			for svc, ver := range filtered {
+				installedVer := ""
+				// InstalledVersions keys are "publisher/service" or just "service"
+				for k, v := range node.InstalledVersions {
+					parts := strings.SplitN(k, "/", 2)
+					candidate := k
+					if len(parts) == 2 {
+						candidate = parts[1]
+					}
+					if canonicalServiceName(candidate) == canonicalServiceName(svc) {
+						installedVer = v
+						break
+					}
+				}
+				if installedVer != ver {
+					allMatch = false
+					break
+				}
+			}
+			if allMatch {
+				log.Printf("reconcile: external install detected node=%s — all %d desired services match installed versions, updating applied hash", node.NodeID, len(filtered))
+				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
+					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
+				continue
+			}
+		}
 		if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
 			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
 				if !isPlanStuck(status, lastEmitMs, now) {
@@ -2357,13 +2438,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}
 
-		// pick deterministic service to update this round
+		// pick deterministic service to update this round, rotating on failure
+		// so that one unavailable artifact doesn't block all other services.
 		svcNames := make([]string, 0, len(filtered))
 		for name := range filtered {
 			svcNames = append(svcNames, name)
 		}
 		sort.Strings(svcNames)
-		svcName := svcNames[0]
+		svcName := svcNames[int(failsSvc)%len(svcNames)]
 		version := filtered[svcName]
 		if blockUntil, ok := srv.serviceBlock[svcName]; ok && now.Before(blockUntil) {
 			continue

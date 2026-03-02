@@ -83,6 +83,7 @@ message NodeCapabilities {
   uint64 ram_bytes       = 2;  // total RAM in bytes
   uint64 disk_bytes      = 3;  // total capacity of primary volume in bytes
   uint64 disk_free_bytes = 4;  // free bytes on primary volume
+  bool can_apply_privileged = 5;  // true when node can write systemd units (root or equivalent)
 }
 
 message NodeRecord {
@@ -460,6 +461,7 @@ message NodeHealth {
   uint64 current_plan_generation = 7;
   string current_plan_phase = 8;
   string last_error = 9;
+  bool can_apply_privileged = 10;  // from node capabilities, for UI display
 }
 
 message ServiceSummary {

@@ -54,10 +54,11 @@ func capsToStored(caps *cluster_controllerpb.NodeCapabilities) *storedCapabiliti
 		return nil
 	}
 	return &storedCapabilities{
-		CPUCount:      caps.GetCpuCount(),
-		RAMBytes:      caps.GetRamBytes(),
-		DiskBytes:     caps.GetDiskBytes(),
-		DiskFreeBytes: caps.GetDiskFreeBytes(),
+		CPUCount:           caps.GetCpuCount(),
+		RAMBytes:           caps.GetRamBytes(),
+		DiskBytes:          caps.GetDiskBytes(),
+		DiskFreeBytes:      caps.GetDiskFreeBytes(),
+		CanApplyPrivileged: caps.GetCanApplyPrivileged(),
 	}
 }
 
@@ -67,9 +68,10 @@ func storedToProtoCapabilities(c *storedCapabilities) *cluster_controllerpb.Node
 		return nil
 	}
 	return &cluster_controllerpb.NodeCapabilities{
-		CpuCount:      c.CPUCount,
-		RamBytes:      c.RAMBytes,
-		DiskBytes:     c.DiskBytes,
-		DiskFreeBytes: c.DiskFreeBytes,
+		CpuCount:           c.CPUCount,
+		RamBytes:           c.RAMBytes,
+		DiskBytes:          c.DiskBytes,
+		DiskFreeBytes:      c.DiskFreeBytes,
+		CanApplyPrivileged: c.CanApplyPrivileged,
 	}
 }

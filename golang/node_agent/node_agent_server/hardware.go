@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -33,5 +35,24 @@ func buildNodeCapabilities() *cluster_controllerpb.NodeCapabilities {
 		caps.DiskFreeBytes = fs.Bfree * bsize
 	}
 
+	caps.CanApplyPrivileged = canApplyPrivileged()
+
 	return caps
+}
+
+// canApplyPrivileged returns true when the node-agent process can write
+// systemd unit files and manage services. This is the case when running
+// as root or when the user has write access to the systemd directory.
+func canApplyPrivileged() bool {
+	if os.Geteuid() == 0 {
+		return true
+	}
+	testPath := filepath.Join("/etc/systemd/system", ".globular-probe")
+	f, err := os.Create(testPath)
+	if err == nil {
+		f.Close()
+		os.Remove(testPath)
+		return true
+	}
+	return false
 }

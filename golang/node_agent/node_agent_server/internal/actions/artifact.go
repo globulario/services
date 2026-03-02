@@ -46,6 +46,8 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	platform := strings.TrimSpace(fields["platform"].GetStringValue())
 	publisherID := strings.TrimSpace(fields["publisher_id"].GetStringValue())
 	repositoryAddr := strings.TrimSpace(fields["repository_addr"].GetStringValue())
+	repositoryInsecure := fields["repository_insecure"].GetBoolValue()
+	repositoryCAPath := strings.TrimSpace(fields["repository_ca_path"].GetStringValue())
 	expectedSHA := strings.TrimSpace(fields["expected_sha256"].GetStringValue())
 
 	if dest == "" {
@@ -98,7 +100,7 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if publisherID != "" {
 		ref.PublisherId = publisherID
 	}
-	if err := downloadArtifactFromRepository(ctx, repositoryAddr, ref, dest, expectedSHA); err != nil {
+	if err := downloadArtifactFromRepository(ctx, repositoryAddr, ref, dest, expectedSHA, repositoryInsecure, repositoryCAPath); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("artifact fetched (remote) from %s", repositoryAddr), nil
@@ -203,6 +205,9 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		case strings.HasPrefix(name, "bin/"):
 			dest = filepath.Join(binDir, filepath.Base(name))
 		case strings.HasPrefix(name, "systemd/"), strings.HasPrefix(name, "units/"):
+			if skipSystemd {
+				continue
+			}
 			dest = filepath.Join(systemdDir, filepath.Base(name))
 			wroteUnit = true
 		case strings.HasPrefix(name, "config/"):
@@ -273,6 +278,9 @@ func (serviceWriteVersionMarkerAction) Apply(ctx context.Context, args *structpb
 	fields := args.GetFields()
 	service := strings.TrimSpace(fields["service"].GetStringValue())
 	version := fields["version"].GetStringValue()
+	if cv, err := versionutil.Canonical(version); err == nil {
+		version = cv
+	}
 	path := strings.TrimSpace(fields["path"].GetStringValue())
 	if service == "" {
 		return "", fmt.Errorf("service is required")
@@ -308,12 +316,17 @@ func resolveArtifactPath(service, version, platform string) string {
 // TLS configuration uses:
 //   - REPOSITORY_CA_PATH env var for the CA certificate (required unless REPOSITORY_INSECURE=true)
 //   - REPOSITORY_INSECURE=true disables TLS (development only)
-func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repositorypb.ArtifactRef, dest, expectedSHA256 string) error {
+func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repositorypb.ArtifactRef, dest, expectedSHA256 string, insecureFromPlan bool, caPathFromPlan string) error {
 	var opts []grpc.DialOption
-	if strings.EqualFold(os.Getenv("REPOSITORY_INSECURE"), "true") {
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))) //nolint:gosec // dev mode only
+
+	insecure := insecureFromPlan || strings.EqualFold(os.Getenv("REPOSITORY_INSECURE"), "true")
+	if insecure {
+		opts = append(opts, grpc.WithInsecure()) //nolint:staticcheck // plaintext for non-TLS repos
 	} else {
-		caPath := strings.TrimSpace(os.Getenv("REPOSITORY_CA_PATH"))
+		caPath := caPathFromPlan
+		if caPath == "" {
+			caPath = strings.TrimSpace(os.Getenv("REPOSITORY_CA_PATH"))
+		}
 		if caPath == "" {
 			caPath = strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA"))
 		}
@@ -578,7 +591,7 @@ func cfgPathMissing(path string) bool {
 func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {
 	binDir = os.Getenv("GLOBULAR_INSTALL_BIN_DIR")
 	if binDir == "" {
-		binDir = "/usr/local/bin"
+		binDir = "/usr/lib/globular/bin"
 	}
 	systemdDir = os.Getenv("GLOBULAR_INSTALL_SYSTEMD_DIR")
 	if systemdDir == "" {
@@ -588,7 +601,9 @@ func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {
 	if configDir == "" {
 		configDir = "/etc/globular"
 	}
-	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") == "1"
+	// Default: skip systemd writes — the node-agent runs as globular and cannot
+	// write to /etc/systemd/system/. Set GLOBULAR_SKIP_SYSTEMD=0 to override.
+	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") != "0"
 	return
 }
 

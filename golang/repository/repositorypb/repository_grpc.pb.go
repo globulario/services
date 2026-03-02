@@ -25,6 +25,7 @@ const (
 	PackageRepository_UploadArtifact_FullMethodName      = "/repository.PackageRepository/UploadArtifact"
 	PackageRepository_DownloadArtifact_FullMethodName    = "/repository.PackageRepository/DownloadArtifact"
 	PackageRepository_GetArtifactManifest_FullMethodName = "/repository.PackageRepository/GetArtifactManifest"
+	PackageRepository_ListBundles_FullMethodName         = "/repository.PackageRepository/ListBundles"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -49,6 +50,8 @@ type PackageRepositoryClient interface {
 	DownloadArtifact(ctx context.Context, in *DownloadArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DownloadArtifactResponse], error)
 	// Retrieves metadata for a specific artifact reference.
 	GetArtifactManifest(ctx context.Context, in *GetArtifactManifestRequest, opts ...grpc.CallOption) (*GetArtifactManifestResponse, error)
+	// Lists all bundles published to the repository (from the Resource service index).
+	ListBundles(ctx context.Context, in *ListBundlesRequest, opts ...grpc.CallOption) (*ListBundlesResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -143,6 +146,16 @@ func (c *packageRepositoryClient) GetArtifactManifest(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *packageRepositoryClient) ListBundles(ctx context.Context, in *ListBundlesRequest, opts ...grpc.CallOption) (*ListBundlesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBundlesResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListBundles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -165,6 +178,8 @@ type PackageRepositoryServer interface {
 	DownloadArtifact(*DownloadArtifactRequest, grpc.ServerStreamingServer[DownloadArtifactResponse]) error
 	// Retrieves metadata for a specific artifact reference.
 	GetArtifactManifest(context.Context, *GetArtifactManifestRequest) (*GetArtifactManifestResponse, error)
+	// Lists all bundles published to the repository (from the Resource service index).
+	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -191,6 +206,9 @@ func (UnimplementedPackageRepositoryServer) DownloadArtifact(*DownloadArtifactRe
 }
 func (UnimplementedPackageRepositoryServer) GetArtifactManifest(context.Context, *GetArtifactManifestRequest) (*GetArtifactManifestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetArtifactManifest not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListBundles not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -284,6 +302,24 @@ func _PackageRepository_GetArtifactManifest_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_ListBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBundlesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListBundles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListBundles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListBundles(ctx, req.(*ListBundlesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -298,6 +334,10 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetArtifactManifest",
 			Handler:    _PackageRepository_GetArtifactManifest_Handler,
+		},
+		{
+			MethodName: "ListBundles",
+			Handler:    _PackageRepository_ListBundles_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

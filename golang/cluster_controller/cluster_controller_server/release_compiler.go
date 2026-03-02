@@ -110,7 +110,7 @@ func CompileReleasePlan(
 	// Rollback steps: only when a prior installed version is known, the caller has
 	// pre-checked the manifest (Amendment 5), and the prior version differs from the
 	// target (rolling back to the same version is meaningless).
-	if installedVersion == resolvedVersion {
+	if versionutil.Equal(installedVersion, resolvedVersion) {
 		installedVersion = ""
 	}
 	var rollbackSteps []*planpb.PlanStep

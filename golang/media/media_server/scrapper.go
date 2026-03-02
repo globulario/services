@@ -933,14 +933,19 @@ func (srv *server) indexYoutubeVideo(token, video_id, video_url, index_path, vid
 		return nil, err
 	}
 
+	// Always extract title regardless of whether author_url is present.
+	// noembed returns error responses (no author_url) for many videos but still
+	// includes the title; keeping the assignment inside the author_url block was
+	// causing Description (the display label) to remain empty in those cases.
+	if title, ok := target["title"].(string); ok && title != "" {
+		currentVideo.Description = title
+	}
+
 	currentVideo.PublisherID = &titlepb.Publisher{}
 	if v := target["author_url"]; v != nil {
 		currentVideo.PublisherID.URL, _ = v.(string)
 		if name, ok := target["author_name"].(string); ok {
 			currentVideo.PublisherID.Name = name
-		}
-		if title, ok := target["title"].(string); ok {
-			currentVideo.Description = title
 		}
 
 		url := currentVideo.PublisherID.URL

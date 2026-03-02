@@ -1,5 +1,5 @@
 /**
- * @fileoverview gRPC-Web generated client stub for clusterdoctor
+ * @fileoverview gRPC-Web generated client stub for cluster_doctor
  * @enhanceable
  * @public
  */
@@ -8,7 +8,7 @@
 // versions:
 // 	protoc-gen-grpc-web v1.5.0
 // 	protoc              v3.21.12
-// source: clusterdoctor.proto
+// source: cluster_doctor.proto
 
 
 /* eslint-disable */
@@ -22,7 +22,7 @@ grpc.web = require('grpc-web');
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
 const proto = {};
-proto.cluster_doctor = require('./clusterdoctor_pb.js');
+proto.cluster_doctor = require('./cluster_doctor_pb.js');
 
 /**
  * @param {string} hostname

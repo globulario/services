@@ -9,7 +9,9 @@
 ./echo/echo_server | usr/local/bin/echo_server
 ./event/event_server | usr/local/bin/event_server
 ./file/file_server | usr/local/bin/file_server
+./ldap/ldap_server | usr/local/bin/ldap_server
 ./log/log_server | usr/local/bin/log_server
+./mail/mail_server | usr/local/bin/mail_server
 ./media/media_server | usr/local/bin/media_server
 ./monitoring/monitoring_server | usr/local/bin/monitoring_server
 ./persistence/persistence_server | usr/local/bin/persistence_server

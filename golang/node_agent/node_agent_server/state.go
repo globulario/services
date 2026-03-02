@@ -9,6 +9,7 @@ import (
 
 type nodeAgentState struct {
 	ControllerEndpoint string `json:"controller_endpoint"`
+	ControllerInsecure bool   `json:"controller_insecure"`
 	RequestID          string `json:"request_id"`
 	NodeID             string `json:"node_id"`
 	LastPlanGeneration uint64 `json:"last_plan_generation"`

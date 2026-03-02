@@ -7,7 +7,68 @@ import (
 	"github.com/coreos/go-semver/semver"
 )
 
-// PickLatestSemver returns the highest semantic version from the input slice.
+// Canonical normalizes a version string to canonical SemVer form
+// (MAJOR.MINOR.PATCH[-prerelease][+build], no leading "v").
+// It trims whitespace, strips a leading "v"/"V" prefix, and parses
+// strict semver. Returns an error if the input is not valid semver.
+func Canonical(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	v = strings.TrimPrefix(v, "v")
+	v = strings.TrimPrefix(v, "V")
+	if v == "" {
+		return "", fmt.Errorf("empty version string")
+	}
+	parsed, err := semver.NewVersion(v)
+	if err != nil {
+		return "", fmt.Errorf("invalid semver %q: %w", raw, err)
+	}
+	return parsed.String(), nil
+}
+
+// MustCanonical is like Canonical but panics on invalid input.
+// Use only in post-validation contexts where the version is known-good.
+func MustCanonical(raw string) string {
+	c, err := Canonical(raw)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// Equal returns true if a and b represent the same semantic version
+// after canonicalization. Returns false if either is invalid.
+func Equal(a, b string) bool {
+	ca, errA := Canonical(a)
+	cb, errB := Canonical(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return ca == cb
+}
+
+// Compare performs full semver comparison of a and b, returning
+// -1, 0, or 1. Both inputs are canonicalized before comparison.
+func Compare(a, b string) (int, error) {
+	va := strings.TrimSpace(a)
+	va = strings.TrimPrefix(va, "v")
+	va = strings.TrimPrefix(va, "V")
+	vb := strings.TrimSpace(b)
+	vb = strings.TrimPrefix(vb, "v")
+	vb = strings.TrimPrefix(vb, "V")
+
+	pa, err := semver.NewVersion(va)
+	if err != nil {
+		return 0, fmt.Errorf("invalid semver %q: %w", a, err)
+	}
+	pb, err := semver.NewVersion(vb)
+	if err != nil {
+		return 0, fmt.Errorf("invalid semver %q: %w", b, err)
+	}
+	return pa.Compare(*pb), nil
+}
+
+// PickLatestSemver returns the highest semantic version from the input slice
+// in canonical form (no leading "v").
 //
 // Rules:
 //   - Leading "v" is allowed (v1.2.3) and is stripped before parsing.
@@ -18,7 +79,6 @@ import (
 // This function does not mutate the input slice.
 func PickLatestSemver(versions []string) (string, error) {
 	var best *semver.Version
-	var bestOriginal string
 
 	for _, raw := range versions {
 		v := strings.TrimSpace(raw)
@@ -33,16 +93,11 @@ func PickLatestSemver(versions []string) (string, error) {
 		if best == nil || parsed.Compare(*best) > 0 {
 			copy := *parsed
 			best = &copy
-			if strings.HasPrefix(strings.TrimSpace(raw), "v") {
-				bestOriginal = "v" + parsed.String()
-			} else {
-				bestOriginal = parsed.String()
-			}
 		}
 	}
 
 	if best == nil {
 		return "", fmt.Errorf("no valid semantic versions found")
 	}
-	return bestOriginal, nil
+	return best.String(), nil
 }

@@ -20,7 +20,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 
-var clustercontroller_pb = require('./clustercontroller_pb.js')
+var clustercontroller_pb = require('./cluster_controller_pb.js')
 const proto = {};
 proto.admin = require('./admin_pb.js');
 

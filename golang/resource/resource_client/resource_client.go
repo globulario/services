@@ -7,9 +7,9 @@ import (
 	"time"
 
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -1345,23 +1345,26 @@ func (client *Resource_Client) GetPackageDescriptor(pacakageId, PublisherID, ver
 
 	descriptors := rsp.Results
 	descriptor := descriptors[0]
-	var lastVersion *Utility.Version
 
-	for i := 0; i < len(descriptors); i++ {
-		if len(version) > 0 {
-			if descriptors[i].Version == version {
+	if len(version) > 0 {
+		// Exact version match (semver-aware).
+		for i := 0; i < len(descriptors); i++ {
+			if versionutil.Equal(descriptors[i].Version, version) {
 				descriptor = descriptors[i]
 				break
 			}
-		} else {
-			if lastVersion == nil {
-				lastVersion = Utility.NewVersion(descriptors[i].Version)
-				descriptor = descriptors[i]
-			} else {
-				version_ := Utility.NewVersion(descriptors[i].Version)
-				if version_.Compare(lastVersion) == 1 {
-					lastVersion = version_
-					descriptor = descriptors[i]
+		}
+	} else {
+		// No explicit version: pick the latest by semver.
+		var candidates []string
+		for _, d := range descriptors {
+			candidates = append(candidates, d.Version)
+		}
+		if best, err := versionutil.PickLatestSemver(candidates); err == nil {
+			for _, d := range descriptors {
+				if versionutil.Equal(d.Version, best) {
+					descriptor = d
+					break
 				}
 			}
 		}
@@ -1406,6 +1409,18 @@ func (client *Resource_Client) SetPackageBundle(checksum, platform string, size 
 	}
 
 	return nil
+}
+
+// GetPackageBundles returns all bundle records, optionally filtered by publisherID.
+func (client *Resource_Client) GetPackageBundles(publisherID string) ([]*resourcepb.PackageBundle, error) {
+	rqst := &resourcepb.GetPackageBundlesRequest{
+		PublisherId: publisherID,
+	}
+	rsp, err := client.c.GetPackageBundles(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.GetBundles(), nil
 }
 
 func (client *Resource_Client) CreateNotification(notification *resourcepb.Notification) error {

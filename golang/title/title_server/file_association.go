@@ -319,10 +319,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	for _, id := range assoc.Titles {
 		if v, err := srv.getVideoById(rqst.IndexPath, id); err == nil && v != nil && v.ID != "" {
 			videos = append(videos, v)
-		} else {
-			// Fallback stub if index lookup fails.
-			videos = append(videos, &titlepb.Video{ID: id})
 		}
+		// Silently skip dangling association entries (video record deleted or
+		// never fully created).  Returning an empty stub would show blank video
+		// info in the UI and make isPathAlreadyIndexed() block re-restore.
 	}
 
 	if len(videos) == 0 {

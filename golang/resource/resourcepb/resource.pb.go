@@ -450,6 +450,94 @@ func (x *GetPackageBundleChecksumResponse) GetChecksum() string {
 	return ""
 }
 
+type GetPackageBundlesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"` // optional: filter by publisher
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPackageBundlesRequest) Reset() {
+	*x = GetPackageBundlesRequest{}
+	mi := &file_resource_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPackageBundlesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPackageBundlesRequest) ProtoMessage() {}
+
+func (x *GetPackageBundlesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPackageBundlesRequest.ProtoReflect.Descriptor instead.
+func (*GetPackageBundlesRequest) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetPackageBundlesRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+type GetPackageBundlesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bundles       []*PackageBundle       `protobuf:"bytes,1,rep,name=bundles,proto3" json:"bundles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPackageBundlesResponse) Reset() {
+	*x = GetPackageBundlesResponse{}
+	mi := &file_resource_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPackageBundlesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPackageBundlesResponse) ProtoMessage() {}
+
+func (x *GetPackageBundlesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPackageBundlesResponse.ProtoReflect.Descriptor instead.
+func (*GetPackageBundlesResponse) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetPackageBundlesResponse) GetBundles() []*PackageBundle {
+	if x != nil {
+		return x.Bundles
+	}
+	return nil
+}
+
 // *
 // PackageDescriptor defines the properties of a package, including its type,
 // publisher, and other metadata.
@@ -476,7 +564,7 @@ type PackageDescriptor struct {
 
 func (x *PackageDescriptor) Reset() {
 	*x = PackageDescriptor{}
-	mi := &file_resource_proto_msgTypes[5]
+	mi := &file_resource_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -488,7 +576,7 @@ func (x *PackageDescriptor) String() string {
 func (*PackageDescriptor) ProtoMessage() {}
 
 func (x *PackageDescriptor) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[5]
+	mi := &file_resource_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -501,7 +589,7 @@ func (x *PackageDescriptor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PackageDescriptor.ProtoReflect.Descriptor instead.
 func (*PackageDescriptor) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{5}
+	return file_resource_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PackageDescriptor) GetId() string {
@@ -619,7 +707,7 @@ type GetPackageDescriptorRequest struct {
 
 func (x *GetPackageDescriptorRequest) Reset() {
 	*x = GetPackageDescriptorRequest{}
-	mi := &file_resource_proto_msgTypes[6]
+	mi := &file_resource_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -631,7 +719,7 @@ func (x *GetPackageDescriptorRequest) String() string {
 func (*GetPackageDescriptorRequest) ProtoMessage() {}
 
 func (x *GetPackageDescriptorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[6]
+	mi := &file_resource_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -644,7 +732,7 @@ func (x *GetPackageDescriptorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPackageDescriptorRequest.ProtoReflect.Descriptor instead.
 func (*GetPackageDescriptorRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{6}
+	return file_resource_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetPackageDescriptorRequest) GetServiceId() string {
@@ -670,7 +758,7 @@ type GetPackageDescriptorResponse struct {
 
 func (x *GetPackageDescriptorResponse) Reset() {
 	*x = GetPackageDescriptorResponse{}
-	mi := &file_resource_proto_msgTypes[7]
+	mi := &file_resource_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -682,7 +770,7 @@ func (x *GetPackageDescriptorResponse) String() string {
 func (*GetPackageDescriptorResponse) ProtoMessage() {}
 
 func (x *GetPackageDescriptorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[7]
+	mi := &file_resource_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -695,7 +783,7 @@ func (x *GetPackageDescriptorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPackageDescriptorResponse.ProtoReflect.Descriptor instead.
 func (*GetPackageDescriptorResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{7}
+	return file_resource_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetPackageDescriptorResponse) GetResults() []*PackageDescriptor {
@@ -715,7 +803,7 @@ type GetPackagesDescriptorRequest struct {
 
 func (x *GetPackagesDescriptorRequest) Reset() {
 	*x = GetPackagesDescriptorRequest{}
-	mi := &file_resource_proto_msgTypes[8]
+	mi := &file_resource_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -727,7 +815,7 @@ func (x *GetPackagesDescriptorRequest) String() string {
 func (*GetPackagesDescriptorRequest) ProtoMessage() {}
 
 func (x *GetPackagesDescriptorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[8]
+	mi := &file_resource_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -740,7 +828,7 @@ func (x *GetPackagesDescriptorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPackagesDescriptorRequest.ProtoReflect.Descriptor instead.
 func (*GetPackagesDescriptorRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{8}
+	return file_resource_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetPackagesDescriptorRequest) GetQuery() string {
@@ -766,7 +854,7 @@ type GetPackagesDescriptorResponse struct {
 
 func (x *GetPackagesDescriptorResponse) Reset() {
 	*x = GetPackagesDescriptorResponse{}
-	mi := &file_resource_proto_msgTypes[9]
+	mi := &file_resource_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +866,7 @@ func (x *GetPackagesDescriptorResponse) String() string {
 func (*GetPackagesDescriptorResponse) ProtoMessage() {}
 
 func (x *GetPackagesDescriptorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[9]
+	mi := &file_resource_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +879,7 @@ func (x *GetPackagesDescriptorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPackagesDescriptorResponse.ProtoReflect.Descriptor instead.
 func (*GetPackagesDescriptorResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{9}
+	return file_resource_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetPackagesDescriptorResponse) GetResults() []*PackageDescriptor {
@@ -810,7 +898,7 @@ type SetPackageDescriptorRequest struct {
 
 func (x *SetPackageDescriptorRequest) Reset() {
 	*x = SetPackageDescriptorRequest{}
-	mi := &file_resource_proto_msgTypes[10]
+	mi := &file_resource_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -822,7 +910,7 @@ func (x *SetPackageDescriptorRequest) String() string {
 func (*SetPackageDescriptorRequest) ProtoMessage() {}
 
 func (x *SetPackageDescriptorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[10]
+	mi := &file_resource_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,7 +923,7 @@ func (x *SetPackageDescriptorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPackageDescriptorRequest.ProtoReflect.Descriptor instead.
 func (*SetPackageDescriptorRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{10}
+	return file_resource_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SetPackageDescriptorRequest) GetPackageDescriptor() *PackageDescriptor {
@@ -854,7 +942,7 @@ type SetPackageDescriptorResponse struct {
 
 func (x *SetPackageDescriptorResponse) Reset() {
 	*x = SetPackageDescriptorResponse{}
-	mi := &file_resource_proto_msgTypes[11]
+	mi := &file_resource_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -866,7 +954,7 @@ func (x *SetPackageDescriptorResponse) String() string {
 func (*SetPackageDescriptorResponse) ProtoMessage() {}
 
 func (x *SetPackageDescriptorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[11]
+	mi := &file_resource_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -879,7 +967,7 @@ func (x *SetPackageDescriptorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPackageDescriptorResponse.ProtoReflect.Descriptor instead.
 func (*SetPackageDescriptorResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{11}
+	return file_resource_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SetPackageDescriptorResponse) GetResult() bool {
@@ -898,7 +986,7 @@ type FindPackagesDescriptorRequest struct {
 
 func (x *FindPackagesDescriptorRequest) Reset() {
 	*x = FindPackagesDescriptorRequest{}
-	mi := &file_resource_proto_msgTypes[12]
+	mi := &file_resource_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -910,7 +998,7 @@ func (x *FindPackagesDescriptorRequest) String() string {
 func (*FindPackagesDescriptorRequest) ProtoMessage() {}
 
 func (x *FindPackagesDescriptorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[12]
+	mi := &file_resource_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -923,7 +1011,7 @@ func (x *FindPackagesDescriptorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindPackagesDescriptorRequest.ProtoReflect.Descriptor instead.
 func (*FindPackagesDescriptorRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{12}
+	return file_resource_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *FindPackagesDescriptorRequest) GetKeywords() []string {
@@ -942,7 +1030,7 @@ type FindPackagesDescriptorResponse struct {
 
 func (x *FindPackagesDescriptorResponse) Reset() {
 	*x = FindPackagesDescriptorResponse{}
-	mi := &file_resource_proto_msgTypes[13]
+	mi := &file_resource_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +1042,7 @@ func (x *FindPackagesDescriptorResponse) String() string {
 func (*FindPackagesDescriptorResponse) ProtoMessage() {}
 
 func (x *FindPackagesDescriptorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[13]
+	mi := &file_resource_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +1055,7 @@ func (x *FindPackagesDescriptorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindPackagesDescriptorResponse.ProtoReflect.Descriptor instead.
 func (*FindPackagesDescriptorResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{13}
+	return file_resource_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *FindPackagesDescriptorResponse) GetResults() []*PackageDescriptor {
@@ -997,7 +1085,7 @@ type Role struct {
 
 func (x *Role) Reset() {
 	*x = Role{}
-	mi := &file_resource_proto_msgTypes[14]
+	mi := &file_resource_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1009,7 +1097,7 @@ func (x *Role) String() string {
 func (*Role) ProtoMessage() {}
 
 func (x *Role) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[14]
+	mi := &file_resource_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1022,7 +1110,7 @@ func (x *Role) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Role.ProtoReflect.Descriptor instead.
 func (*Role) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{14}
+	return file_resource_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Role) GetId() string {
@@ -1098,7 +1186,7 @@ type AddRoleActionsRqst struct {
 
 func (x *AddRoleActionsRqst) Reset() {
 	*x = AddRoleActionsRqst{}
-	mi := &file_resource_proto_msgTypes[15]
+	mi := &file_resource_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1110,7 +1198,7 @@ func (x *AddRoleActionsRqst) String() string {
 func (*AddRoleActionsRqst) ProtoMessage() {}
 
 func (x *AddRoleActionsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[15]
+	mi := &file_resource_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1123,7 +1211,7 @@ func (x *AddRoleActionsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRoleActionsRqst.ProtoReflect.Descriptor instead.
 func (*AddRoleActionsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{15}
+	return file_resource_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AddRoleActionsRqst) GetRoleId() string {
@@ -1149,7 +1237,7 @@ type AddRoleActionsRsp struct {
 
 func (x *AddRoleActionsRsp) Reset() {
 	*x = AddRoleActionsRsp{}
-	mi := &file_resource_proto_msgTypes[16]
+	mi := &file_resource_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1161,7 +1249,7 @@ func (x *AddRoleActionsRsp) String() string {
 func (*AddRoleActionsRsp) ProtoMessage() {}
 
 func (x *AddRoleActionsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[16]
+	mi := &file_resource_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1174,7 +1262,7 @@ func (x *AddRoleActionsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRoleActionsRsp.ProtoReflect.Descriptor instead.
 func (*AddRoleActionsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{16}
+	return file_resource_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AddRoleActionsRsp) GetResult() bool {
@@ -1194,7 +1282,7 @@ type RemoveRoleActionRqst struct {
 
 func (x *RemoveRoleActionRqst) Reset() {
 	*x = RemoveRoleActionRqst{}
-	mi := &file_resource_proto_msgTypes[17]
+	mi := &file_resource_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1206,7 +1294,7 @@ func (x *RemoveRoleActionRqst) String() string {
 func (*RemoveRoleActionRqst) ProtoMessage() {}
 
 func (x *RemoveRoleActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[17]
+	mi := &file_resource_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1219,7 +1307,7 @@ func (x *RemoveRoleActionRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRoleActionRqst.ProtoReflect.Descriptor instead.
 func (*RemoveRoleActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{17}
+	return file_resource_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RemoveRoleActionRqst) GetRoleId() string {
@@ -1245,7 +1333,7 @@ type RemoveRoleActionRsp struct {
 
 func (x *RemoveRoleActionRsp) Reset() {
 	*x = RemoveRoleActionRsp{}
-	mi := &file_resource_proto_msgTypes[18]
+	mi := &file_resource_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1257,7 +1345,7 @@ func (x *RemoveRoleActionRsp) String() string {
 func (*RemoveRoleActionRsp) ProtoMessage() {}
 
 func (x *RemoveRoleActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[18]
+	mi := &file_resource_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1270,7 +1358,7 @@ func (x *RemoveRoleActionRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRoleActionRsp.ProtoReflect.Descriptor instead.
 func (*RemoveRoleActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{18}
+	return file_resource_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RemoveRoleActionRsp) GetResult() bool {
@@ -1289,7 +1377,7 @@ type RemoveRolesActionRqst struct {
 
 func (x *RemoveRolesActionRqst) Reset() {
 	*x = RemoveRolesActionRqst{}
-	mi := &file_resource_proto_msgTypes[19]
+	mi := &file_resource_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1301,7 +1389,7 @@ func (x *RemoveRolesActionRqst) String() string {
 func (*RemoveRolesActionRqst) ProtoMessage() {}
 
 func (x *RemoveRolesActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[19]
+	mi := &file_resource_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1314,7 +1402,7 @@ func (x *RemoveRolesActionRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRolesActionRqst.ProtoReflect.Descriptor instead.
 func (*RemoveRolesActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{19}
+	return file_resource_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RemoveRolesActionRqst) GetAction() string {
@@ -1333,7 +1421,7 @@ type RemoveRolesActionRsp struct {
 
 func (x *RemoveRolesActionRsp) Reset() {
 	*x = RemoveRolesActionRsp{}
-	mi := &file_resource_proto_msgTypes[20]
+	mi := &file_resource_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1345,7 +1433,7 @@ func (x *RemoveRolesActionRsp) String() string {
 func (*RemoveRolesActionRsp) ProtoMessage() {}
 
 func (x *RemoveRolesActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[20]
+	mi := &file_resource_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1358,7 +1446,7 @@ func (x *RemoveRolesActionRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRolesActionRsp.ProtoReflect.Descriptor instead.
 func (*RemoveRolesActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{20}
+	return file_resource_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *RemoveRolesActionRsp) GetResult() bool {
@@ -1393,7 +1481,7 @@ type Account struct {
 
 func (x *Account) Reset() {
 	*x = Account{}
-	mi := &file_resource_proto_msgTypes[21]
+	mi := &file_resource_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1405,7 +1493,7 @@ func (x *Account) String() string {
 func (*Account) ProtoMessage() {}
 
 func (x *Account) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[21]
+	mi := &file_resource_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1418,7 +1506,7 @@ func (x *Account) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Account.ProtoReflect.Descriptor instead.
 func (*Account) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{21}
+	return file_resource_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Account) GetId() string {
@@ -1529,7 +1617,7 @@ type RegisterAccountRqst struct {
 
 func (x *RegisterAccountRqst) Reset() {
 	*x = RegisterAccountRqst{}
-	mi := &file_resource_proto_msgTypes[22]
+	mi := &file_resource_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1541,7 +1629,7 @@ func (x *RegisterAccountRqst) String() string {
 func (*RegisterAccountRqst) ProtoMessage() {}
 
 func (x *RegisterAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[22]
+	mi := &file_resource_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1554,7 +1642,7 @@ func (x *RegisterAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterAccountRqst.ProtoReflect.Descriptor instead.
 func (*RegisterAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{22}
+	return file_resource_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RegisterAccountRqst) GetAccount() *Account {
@@ -1580,7 +1668,7 @@ type RegisterAccountRsp struct {
 
 func (x *RegisterAccountRsp) Reset() {
 	*x = RegisterAccountRsp{}
-	mi := &file_resource_proto_msgTypes[23]
+	mi := &file_resource_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1592,7 +1680,7 @@ func (x *RegisterAccountRsp) String() string {
 func (*RegisterAccountRsp) ProtoMessage() {}
 
 func (x *RegisterAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[23]
+	mi := &file_resource_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1605,7 +1693,7 @@ func (x *RegisterAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterAccountRsp.ProtoReflect.Descriptor instead.
 func (*RegisterAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{23}
+	return file_resource_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RegisterAccountRsp) GetResult() string {
@@ -1624,7 +1712,7 @@ type AccountExistRqst struct {
 
 func (x *AccountExistRqst) Reset() {
 	*x = AccountExistRqst{}
-	mi := &file_resource_proto_msgTypes[24]
+	mi := &file_resource_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1636,7 +1724,7 @@ func (x *AccountExistRqst) String() string {
 func (*AccountExistRqst) ProtoMessage() {}
 
 func (x *AccountExistRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[24]
+	mi := &file_resource_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1649,7 +1737,7 @@ func (x *AccountExistRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountExistRqst.ProtoReflect.Descriptor instead.
 func (*AccountExistRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{24}
+	return file_resource_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AccountExistRqst) GetId() string {
@@ -1668,7 +1756,7 @@ type AccountExistRsp struct {
 
 func (x *AccountExistRsp) Reset() {
 	*x = AccountExistRsp{}
-	mi := &file_resource_proto_msgTypes[25]
+	mi := &file_resource_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1680,7 +1768,7 @@ func (x *AccountExistRsp) String() string {
 func (*AccountExistRsp) ProtoMessage() {}
 
 func (x *AccountExistRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[25]
+	mi := &file_resource_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1693,7 +1781,7 @@ func (x *AccountExistRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountExistRsp.ProtoReflect.Descriptor instead.
 func (*AccountExistRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{25}
+	return file_resource_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AccountExistRsp) GetResult() bool {
@@ -1715,7 +1803,7 @@ type GetAccountsRqst struct {
 
 func (x *GetAccountsRqst) Reset() {
 	*x = GetAccountsRqst{}
-	mi := &file_resource_proto_msgTypes[26]
+	mi := &file_resource_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1727,7 +1815,7 @@ func (x *GetAccountsRqst) String() string {
 func (*GetAccountsRqst) ProtoMessage() {}
 
 func (x *GetAccountsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[26]
+	mi := &file_resource_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1740,7 +1828,7 @@ func (x *GetAccountsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountsRqst.ProtoReflect.Descriptor instead.
 func (*GetAccountsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{26}
+	return file_resource_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetAccountsRqst) GetQuery() string {
@@ -1766,7 +1854,7 @@ type GetAccountsRsp struct {
 
 func (x *GetAccountsRsp) Reset() {
 	*x = GetAccountsRsp{}
-	mi := &file_resource_proto_msgTypes[27]
+	mi := &file_resource_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1778,7 +1866,7 @@ func (x *GetAccountsRsp) String() string {
 func (*GetAccountsRsp) ProtoMessage() {}
 
 func (x *GetAccountsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[27]
+	mi := &file_resource_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1791,7 +1879,7 @@ func (x *GetAccountsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountsRsp.ProtoReflect.Descriptor instead.
 func (*GetAccountsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{27}
+	return file_resource_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GetAccountsRsp) GetAccounts() []*Account {
@@ -1810,7 +1898,7 @@ type GetAccountRqst struct {
 
 func (x *GetAccountRqst) Reset() {
 	*x = GetAccountRqst{}
-	mi := &file_resource_proto_msgTypes[28]
+	mi := &file_resource_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1822,7 +1910,7 @@ func (x *GetAccountRqst) String() string {
 func (*GetAccountRqst) ProtoMessage() {}
 
 func (x *GetAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[28]
+	mi := &file_resource_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1835,7 +1923,7 @@ func (x *GetAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountRqst.ProtoReflect.Descriptor instead.
 func (*GetAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{28}
+	return file_resource_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetAccountRqst) GetAccountId() string {
@@ -1854,7 +1942,7 @@ type GetAccountRsp struct {
 
 func (x *GetAccountRsp) Reset() {
 	*x = GetAccountRsp{}
-	mi := &file_resource_proto_msgTypes[29]
+	mi := &file_resource_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1866,7 +1954,7 @@ func (x *GetAccountRsp) String() string {
 func (*GetAccountRsp) ProtoMessage() {}
 
 func (x *GetAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[29]
+	mi := &file_resource_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1879,7 +1967,7 @@ func (x *GetAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountRsp.ProtoReflect.Descriptor instead.
 func (*GetAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{29}
+	return file_resource_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetAccountRsp) GetAccount() *Account {
@@ -1898,7 +1986,7 @@ type SetAccountRqst struct {
 
 func (x *SetAccountRqst) Reset() {
 	*x = SetAccountRqst{}
-	mi := &file_resource_proto_msgTypes[30]
+	mi := &file_resource_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1910,7 +1998,7 @@ func (x *SetAccountRqst) String() string {
 func (*SetAccountRqst) ProtoMessage() {}
 
 func (x *SetAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[30]
+	mi := &file_resource_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1923,7 +2011,7 @@ func (x *SetAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountRqst.ProtoReflect.Descriptor instead.
 func (*SetAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{30}
+	return file_resource_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SetAccountRqst) GetAccount() *Account {
@@ -1941,7 +2029,7 @@ type SetAccountRsp struct {
 
 func (x *SetAccountRsp) Reset() {
 	*x = SetAccountRsp{}
-	mi := &file_resource_proto_msgTypes[31]
+	mi := &file_resource_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1953,7 +2041,7 @@ func (x *SetAccountRsp) String() string {
 func (*SetAccountRsp) ProtoMessage() {}
 
 func (x *SetAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[31]
+	mi := &file_resource_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1966,7 +2054,7 @@ func (x *SetAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountRsp.ProtoReflect.Descriptor instead.
 func (*SetAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{31}
+	return file_resource_proto_rawDescGZIP(), []int{33}
 }
 
 type SetAccountPasswordRqst struct {
@@ -1980,7 +2068,7 @@ type SetAccountPasswordRqst struct {
 
 func (x *SetAccountPasswordRqst) Reset() {
 	*x = SetAccountPasswordRqst{}
-	mi := &file_resource_proto_msgTypes[32]
+	mi := &file_resource_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1992,7 +2080,7 @@ func (x *SetAccountPasswordRqst) String() string {
 func (*SetAccountPasswordRqst) ProtoMessage() {}
 
 func (x *SetAccountPasswordRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[32]
+	mi := &file_resource_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2005,7 +2093,7 @@ func (x *SetAccountPasswordRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountPasswordRqst.ProtoReflect.Descriptor instead.
 func (*SetAccountPasswordRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{32}
+	return file_resource_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *SetAccountPasswordRqst) GetAccountId() string {
@@ -2037,7 +2125,7 @@ type SetAccountPasswordRsp struct {
 
 func (x *SetAccountPasswordRsp) Reset() {
 	*x = SetAccountPasswordRsp{}
-	mi := &file_resource_proto_msgTypes[33]
+	mi := &file_resource_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2137,7 @@ func (x *SetAccountPasswordRsp) String() string {
 func (*SetAccountPasswordRsp) ProtoMessage() {}
 
 func (x *SetAccountPasswordRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[33]
+	mi := &file_resource_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2150,7 @@ func (x *SetAccountPasswordRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountPasswordRsp.ProtoReflect.Descriptor instead.
 func (*SetAccountPasswordRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{33}
+	return file_resource_proto_rawDescGZIP(), []int{35}
 }
 
 type SetEmailRequest struct {
@@ -2076,7 +2164,7 @@ type SetEmailRequest struct {
 
 func (x *SetEmailRequest) Reset() {
 	*x = SetEmailRequest{}
-	mi := &file_resource_proto_msgTypes[34]
+	mi := &file_resource_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2088,7 +2176,7 @@ func (x *SetEmailRequest) String() string {
 func (*SetEmailRequest) ProtoMessage() {}
 
 func (x *SetEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[34]
+	mi := &file_resource_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2101,7 +2189,7 @@ func (x *SetEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetEmailRequest.ProtoReflect.Descriptor instead.
 func (*SetEmailRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{34}
+	return file_resource_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SetEmailRequest) GetAccountId() string {
@@ -2133,7 +2221,7 @@ type SetEmailResponse struct {
 
 func (x *SetEmailResponse) Reset() {
 	*x = SetEmailResponse{}
-	mi := &file_resource_proto_msgTypes[35]
+	mi := &file_resource_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2145,7 +2233,7 @@ func (x *SetEmailResponse) String() string {
 func (*SetEmailResponse) ProtoMessage() {}
 
 func (x *SetEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[35]
+	mi := &file_resource_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2158,7 +2246,7 @@ func (x *SetEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetEmailResponse.ProtoReflect.Descriptor instead.
 func (*SetEmailResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{35}
+	return file_resource_proto_rawDescGZIP(), []int{37}
 }
 
 type DeleteAccountRqst struct {
@@ -2170,7 +2258,7 @@ type DeleteAccountRqst struct {
 
 func (x *DeleteAccountRqst) Reset() {
 	*x = DeleteAccountRqst{}
-	mi := &file_resource_proto_msgTypes[36]
+	mi := &file_resource_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2182,7 +2270,7 @@ func (x *DeleteAccountRqst) String() string {
 func (*DeleteAccountRqst) ProtoMessage() {}
 
 func (x *DeleteAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[36]
+	mi := &file_resource_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2195,7 +2283,7 @@ func (x *DeleteAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccountRqst.ProtoReflect.Descriptor instead.
 func (*DeleteAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{36}
+	return file_resource_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DeleteAccountRqst) GetId() string {
@@ -2214,7 +2302,7 @@ type DeleteAccountRsp struct {
 
 func (x *DeleteAccountRsp) Reset() {
 	*x = DeleteAccountRsp{}
-	mi := &file_resource_proto_msgTypes[37]
+	mi := &file_resource_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2226,7 +2314,7 @@ func (x *DeleteAccountRsp) String() string {
 func (*DeleteAccountRsp) ProtoMessage() {}
 
 func (x *DeleteAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[37]
+	mi := &file_resource_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2239,7 +2327,7 @@ func (x *DeleteAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccountRsp.ProtoReflect.Descriptor instead.
 func (*DeleteAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{37}
+	return file_resource_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DeleteAccountRsp) GetResult() string {
@@ -2259,7 +2347,7 @@ type AddAccountRoleRqst struct {
 
 func (x *AddAccountRoleRqst) Reset() {
 	*x = AddAccountRoleRqst{}
-	mi := &file_resource_proto_msgTypes[38]
+	mi := &file_resource_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2271,7 +2359,7 @@ func (x *AddAccountRoleRqst) String() string {
 func (*AddAccountRoleRqst) ProtoMessage() {}
 
 func (x *AddAccountRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[38]
+	mi := &file_resource_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2284,7 +2372,7 @@ func (x *AddAccountRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddAccountRoleRqst.ProtoReflect.Descriptor instead.
 func (*AddAccountRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{38}
+	return file_resource_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *AddAccountRoleRqst) GetAccountId() string {
@@ -2310,7 +2398,7 @@ type AddAccountRoleRsp struct {
 
 func (x *AddAccountRoleRsp) Reset() {
 	*x = AddAccountRoleRsp{}
-	mi := &file_resource_proto_msgTypes[39]
+	mi := &file_resource_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2322,7 +2410,7 @@ func (x *AddAccountRoleRsp) String() string {
 func (*AddAccountRoleRsp) ProtoMessage() {}
 
 func (x *AddAccountRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[39]
+	mi := &file_resource_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2335,7 +2423,7 @@ func (x *AddAccountRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddAccountRoleRsp.ProtoReflect.Descriptor instead.
 func (*AddAccountRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{39}
+	return file_resource_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *AddAccountRoleRsp) GetResult() bool {
@@ -2355,7 +2443,7 @@ type RemoveAccountRoleRqst struct {
 
 func (x *RemoveAccountRoleRqst) Reset() {
 	*x = RemoveAccountRoleRqst{}
-	mi := &file_resource_proto_msgTypes[40]
+	mi := &file_resource_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2367,7 +2455,7 @@ func (x *RemoveAccountRoleRqst) String() string {
 func (*RemoveAccountRoleRqst) ProtoMessage() {}
 
 func (x *RemoveAccountRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[40]
+	mi := &file_resource_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2380,7 +2468,7 @@ func (x *RemoveAccountRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAccountRoleRqst.ProtoReflect.Descriptor instead.
 func (*RemoveAccountRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{40}
+	return file_resource_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RemoveAccountRoleRqst) GetAccountId() string {
@@ -2406,7 +2494,7 @@ type RemoveAccountRoleRsp struct {
 
 func (x *RemoveAccountRoleRsp) Reset() {
 	*x = RemoveAccountRoleRsp{}
-	mi := &file_resource_proto_msgTypes[41]
+	mi := &file_resource_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2418,7 +2506,7 @@ func (x *RemoveAccountRoleRsp) String() string {
 func (*RemoveAccountRoleRsp) ProtoMessage() {}
 
 func (x *RemoveAccountRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[41]
+	mi := &file_resource_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2431,7 +2519,7 @@ func (x *RemoveAccountRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAccountRoleRsp.ProtoReflect.Descriptor instead.
 func (*RemoveAccountRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{41}
+	return file_resource_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *RemoveAccountRoleRsp) GetResult() bool {
@@ -2455,7 +2543,7 @@ type Contact struct {
 
 func (x *Contact) Reset() {
 	*x = Contact{}
-	mi := &file_resource_proto_msgTypes[42]
+	mi := &file_resource_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2467,7 +2555,7 @@ func (x *Contact) String() string {
 func (*Contact) ProtoMessage() {}
 
 func (x *Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[42]
+	mi := &file_resource_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2480,7 +2568,7 @@ func (x *Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Contact.ProtoReflect.Descriptor instead.
 func (*Contact) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{42}
+	return file_resource_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *Contact) GetId() string {
@@ -2528,7 +2616,7 @@ type SetAccountContactRqst struct {
 
 func (x *SetAccountContactRqst) Reset() {
 	*x = SetAccountContactRqst{}
-	mi := &file_resource_proto_msgTypes[43]
+	mi := &file_resource_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2540,7 +2628,7 @@ func (x *SetAccountContactRqst) String() string {
 func (*SetAccountContactRqst) ProtoMessage() {}
 
 func (x *SetAccountContactRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[43]
+	mi := &file_resource_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2553,7 +2641,7 @@ func (x *SetAccountContactRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountContactRqst.ProtoReflect.Descriptor instead.
 func (*SetAccountContactRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{43}
+	return file_resource_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *SetAccountContactRqst) GetAccountId() string {
@@ -2579,7 +2667,7 @@ type SetAccountContactRsp struct {
 
 func (x *SetAccountContactRsp) Reset() {
 	*x = SetAccountContactRsp{}
-	mi := &file_resource_proto_msgTypes[44]
+	mi := &file_resource_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2591,7 +2679,7 @@ func (x *SetAccountContactRsp) String() string {
 func (*SetAccountContactRsp) ProtoMessage() {}
 
 func (x *SetAccountContactRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[44]
+	mi := &file_resource_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2604,7 +2692,7 @@ func (x *SetAccountContactRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAccountContactRsp.ProtoReflect.Descriptor instead.
 func (*SetAccountContactRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{44}
+	return file_resource_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *SetAccountContactRsp) GetResult() bool {
@@ -2623,7 +2711,7 @@ type CreateRoleRqst struct {
 
 func (x *CreateRoleRqst) Reset() {
 	*x = CreateRoleRqst{}
-	mi := &file_resource_proto_msgTypes[45]
+	mi := &file_resource_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2635,7 +2723,7 @@ func (x *CreateRoleRqst) String() string {
 func (*CreateRoleRqst) ProtoMessage() {}
 
 func (x *CreateRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[45]
+	mi := &file_resource_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2648,7 +2736,7 @@ func (x *CreateRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoleRqst.ProtoReflect.Descriptor instead.
 func (*CreateRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{45}
+	return file_resource_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *CreateRoleRqst) GetRole() *Role {
@@ -2667,7 +2755,7 @@ type CreateRoleRsp struct {
 
 func (x *CreateRoleRsp) Reset() {
 	*x = CreateRoleRsp{}
-	mi := &file_resource_proto_msgTypes[46]
+	mi := &file_resource_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2679,7 +2767,7 @@ func (x *CreateRoleRsp) String() string {
 func (*CreateRoleRsp) ProtoMessage() {}
 
 func (x *CreateRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[46]
+	mi := &file_resource_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2692,7 +2780,7 @@ func (x *CreateRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoleRsp.ProtoReflect.Descriptor instead.
 func (*CreateRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{46}
+	return file_resource_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *CreateRoleRsp) GetResult() bool {
@@ -2714,7 +2802,7 @@ type UpdateRoleRqst struct {
 
 func (x *UpdateRoleRqst) Reset() {
 	*x = UpdateRoleRqst{}
-	mi := &file_resource_proto_msgTypes[47]
+	mi := &file_resource_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2726,7 +2814,7 @@ func (x *UpdateRoleRqst) String() string {
 func (*UpdateRoleRqst) ProtoMessage() {}
 
 func (x *UpdateRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[47]
+	mi := &file_resource_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2739,7 +2827,7 @@ func (x *UpdateRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRoleRqst.ProtoReflect.Descriptor instead.
 func (*UpdateRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{47}
+	return file_resource_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *UpdateRoleRqst) GetRoleId() string {
@@ -2765,7 +2853,7 @@ type UpdateRoleRsp struct {
 
 func (x *UpdateRoleRsp) Reset() {
 	*x = UpdateRoleRsp{}
-	mi := &file_resource_proto_msgTypes[48]
+	mi := &file_resource_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2777,7 +2865,7 @@ func (x *UpdateRoleRsp) String() string {
 func (*UpdateRoleRsp) ProtoMessage() {}
 
 func (x *UpdateRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[48]
+	mi := &file_resource_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2790,7 +2878,7 @@ func (x *UpdateRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRoleRsp.ProtoReflect.Descriptor instead.
 func (*UpdateRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{48}
+	return file_resource_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UpdateRoleRsp) GetResult() bool {
@@ -2812,7 +2900,7 @@ type GetRolesRqst struct {
 
 func (x *GetRolesRqst) Reset() {
 	*x = GetRolesRqst{}
-	mi := &file_resource_proto_msgTypes[49]
+	mi := &file_resource_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2824,7 +2912,7 @@ func (x *GetRolesRqst) String() string {
 func (*GetRolesRqst) ProtoMessage() {}
 
 func (x *GetRolesRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[49]
+	mi := &file_resource_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2837,7 +2925,7 @@ func (x *GetRolesRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRolesRqst.ProtoReflect.Descriptor instead.
 func (*GetRolesRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{49}
+	return file_resource_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetRolesRqst) GetQuery() string {
@@ -2863,7 +2951,7 @@ type GetRolesRsp struct {
 
 func (x *GetRolesRsp) Reset() {
 	*x = GetRolesRsp{}
-	mi := &file_resource_proto_msgTypes[50]
+	mi := &file_resource_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2875,7 +2963,7 @@ func (x *GetRolesRsp) String() string {
 func (*GetRolesRsp) ProtoMessage() {}
 
 func (x *GetRolesRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[50]
+	mi := &file_resource_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2888,7 +2976,7 @@ func (x *GetRolesRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRolesRsp.ProtoReflect.Descriptor instead.
 func (*GetRolesRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{50}
+	return file_resource_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *GetRolesRsp) GetRoles() []*Role {
@@ -2909,7 +2997,7 @@ type DeleteRoleRqst struct {
 
 func (x *DeleteRoleRqst) Reset() {
 	*x = DeleteRoleRqst{}
-	mi := &file_resource_proto_msgTypes[51]
+	mi := &file_resource_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2921,7 +3009,7 @@ func (x *DeleteRoleRqst) String() string {
 func (*DeleteRoleRqst) ProtoMessage() {}
 
 func (x *DeleteRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[51]
+	mi := &file_resource_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2934,7 +3022,7 @@ func (x *DeleteRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRoleRqst.ProtoReflect.Descriptor instead.
 func (*DeleteRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{51}
+	return file_resource_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *DeleteRoleRqst) GetRoleId() string {
@@ -2953,7 +3041,7 @@ type DeleteRoleRsp struct {
 
 func (x *DeleteRoleRsp) Reset() {
 	*x = DeleteRoleRsp{}
-	mi := &file_resource_proto_msgTypes[52]
+	mi := &file_resource_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2965,7 +3053,7 @@ func (x *DeleteRoleRsp) String() string {
 func (*DeleteRoleRsp) ProtoMessage() {}
 
 func (x *DeleteRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[52]
+	mi := &file_resource_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2978,7 +3066,7 @@ func (x *DeleteRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRoleRsp.ProtoReflect.Descriptor instead.
 func (*DeleteRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{52}
+	return file_resource_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *DeleteRoleRsp) GetResult() bool {
@@ -3012,7 +3100,7 @@ type Application struct {
 
 func (x *Application) Reset() {
 	*x = Application{}
-	mi := &file_resource_proto_msgTypes[53]
+	mi := &file_resource_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3024,7 +3112,7 @@ func (x *Application) String() string {
 func (*Application) ProtoMessage() {}
 
 func (x *Application) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[53]
+	mi := &file_resource_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3037,7 +3125,7 @@ func (x *Application) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Application.ProtoReflect.Descriptor instead.
 func (*Application) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{53}
+	return file_resource_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *Application) GetId() string {
@@ -3155,7 +3243,7 @@ type CreateApplicationRqst struct {
 
 func (x *CreateApplicationRqst) Reset() {
 	*x = CreateApplicationRqst{}
-	mi := &file_resource_proto_msgTypes[54]
+	mi := &file_resource_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3167,7 +3255,7 @@ func (x *CreateApplicationRqst) String() string {
 func (*CreateApplicationRqst) ProtoMessage() {}
 
 func (x *CreateApplicationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[54]
+	mi := &file_resource_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3180,7 +3268,7 @@ func (x *CreateApplicationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateApplicationRqst.ProtoReflect.Descriptor instead.
 func (*CreateApplicationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{54}
+	return file_resource_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CreateApplicationRqst) GetApplication() *Application {
@@ -3198,7 +3286,7 @@ type CreateApplicationRsp struct {
 
 func (x *CreateApplicationRsp) Reset() {
 	*x = CreateApplicationRsp{}
-	mi := &file_resource_proto_msgTypes[55]
+	mi := &file_resource_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3210,7 +3298,7 @@ func (x *CreateApplicationRsp) String() string {
 func (*CreateApplicationRsp) ProtoMessage() {}
 
 func (x *CreateApplicationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[55]
+	mi := &file_resource_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3223,7 +3311,7 @@ func (x *CreateApplicationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateApplicationRsp.ProtoReflect.Descriptor instead.
 func (*CreateApplicationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{55}
+	return file_resource_proto_rawDescGZIP(), []int{57}
 }
 
 // * Request to update an existing application.
@@ -3237,7 +3325,7 @@ type UpdateApplicationRqst struct {
 
 func (x *UpdateApplicationRqst) Reset() {
 	*x = UpdateApplicationRqst{}
-	mi := &file_resource_proto_msgTypes[56]
+	mi := &file_resource_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3249,7 +3337,7 @@ func (x *UpdateApplicationRqst) String() string {
 func (*UpdateApplicationRqst) ProtoMessage() {}
 
 func (x *UpdateApplicationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[56]
+	mi := &file_resource_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3262,7 +3350,7 @@ func (x *UpdateApplicationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateApplicationRqst.ProtoReflect.Descriptor instead.
 func (*UpdateApplicationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{56}
+	return file_resource_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *UpdateApplicationRqst) GetApplicationId() string {
@@ -3288,7 +3376,7 @@ type UpdateApplicationRsp struct {
 
 func (x *UpdateApplicationRsp) Reset() {
 	*x = UpdateApplicationRsp{}
-	mi := &file_resource_proto_msgTypes[57]
+	mi := &file_resource_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3300,7 +3388,7 @@ func (x *UpdateApplicationRsp) String() string {
 func (*UpdateApplicationRsp) ProtoMessage() {}
 
 func (x *UpdateApplicationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[57]
+	mi := &file_resource_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3313,7 +3401,7 @@ func (x *UpdateApplicationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateApplicationRsp.ProtoReflect.Descriptor instead.
 func (*UpdateApplicationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{57}
+	return file_resource_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *UpdateApplicationRsp) GetResult() bool {
@@ -3333,7 +3421,7 @@ type DeleteApplicationRqst struct {
 
 func (x *DeleteApplicationRqst) Reset() {
 	*x = DeleteApplicationRqst{}
-	mi := &file_resource_proto_msgTypes[58]
+	mi := &file_resource_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3345,7 +3433,7 @@ func (x *DeleteApplicationRqst) String() string {
 func (*DeleteApplicationRqst) ProtoMessage() {}
 
 func (x *DeleteApplicationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[58]
+	mi := &file_resource_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3358,7 +3446,7 @@ func (x *DeleteApplicationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteApplicationRqst.ProtoReflect.Descriptor instead.
 func (*DeleteApplicationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{58}
+	return file_resource_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *DeleteApplicationRqst) GetApplicationId() string {
@@ -3377,7 +3465,7 @@ type DeleteApplicationRsp struct {
 
 func (x *DeleteApplicationRsp) Reset() {
 	*x = DeleteApplicationRsp{}
-	mi := &file_resource_proto_msgTypes[59]
+	mi := &file_resource_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3389,7 +3477,7 @@ func (x *DeleteApplicationRsp) String() string {
 func (*DeleteApplicationRsp) ProtoMessage() {}
 
 func (x *DeleteApplicationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[59]
+	mi := &file_resource_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3402,7 +3490,7 @@ func (x *DeleteApplicationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteApplicationRsp.ProtoReflect.Descriptor instead.
 func (*DeleteApplicationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{59}
+	return file_resource_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *DeleteApplicationRsp) GetResult() bool {
@@ -3423,7 +3511,7 @@ type AddApplicationActionsRqst struct {
 
 func (x *AddApplicationActionsRqst) Reset() {
 	*x = AddApplicationActionsRqst{}
-	mi := &file_resource_proto_msgTypes[60]
+	mi := &file_resource_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3435,7 +3523,7 @@ func (x *AddApplicationActionsRqst) String() string {
 func (*AddApplicationActionsRqst) ProtoMessage() {}
 
 func (x *AddApplicationActionsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[60]
+	mi := &file_resource_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3448,7 +3536,7 @@ func (x *AddApplicationActionsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddApplicationActionsRqst.ProtoReflect.Descriptor instead.
 func (*AddApplicationActionsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{60}
+	return file_resource_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *AddApplicationActionsRqst) GetApplicationId() string {
@@ -3474,7 +3562,7 @@ type AddApplicationActionsRsp struct {
 
 func (x *AddApplicationActionsRsp) Reset() {
 	*x = AddApplicationActionsRsp{}
-	mi := &file_resource_proto_msgTypes[61]
+	mi := &file_resource_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3486,7 +3574,7 @@ func (x *AddApplicationActionsRsp) String() string {
 func (*AddApplicationActionsRsp) ProtoMessage() {}
 
 func (x *AddApplicationActionsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[61]
+	mi := &file_resource_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3499,7 +3587,7 @@ func (x *AddApplicationActionsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddApplicationActionsRsp.ProtoReflect.Descriptor instead.
 func (*AddApplicationActionsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{61}
+	return file_resource_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *AddApplicationActionsRsp) GetResult() bool {
@@ -3520,7 +3608,7 @@ type RemoveApplicationActionRqst struct {
 
 func (x *RemoveApplicationActionRqst) Reset() {
 	*x = RemoveApplicationActionRqst{}
-	mi := &file_resource_proto_msgTypes[62]
+	mi := &file_resource_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3532,7 +3620,7 @@ func (x *RemoveApplicationActionRqst) String() string {
 func (*RemoveApplicationActionRqst) ProtoMessage() {}
 
 func (x *RemoveApplicationActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[62]
+	mi := &file_resource_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3545,7 +3633,7 @@ func (x *RemoveApplicationActionRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveApplicationActionRqst.ProtoReflect.Descriptor instead.
 func (*RemoveApplicationActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{62}
+	return file_resource_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RemoveApplicationActionRqst) GetApplicationId() string {
@@ -3571,7 +3659,7 @@ type RemoveApplicationActionRsp struct {
 
 func (x *RemoveApplicationActionRsp) Reset() {
 	*x = RemoveApplicationActionRsp{}
-	mi := &file_resource_proto_msgTypes[63]
+	mi := &file_resource_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3583,7 +3671,7 @@ func (x *RemoveApplicationActionRsp) String() string {
 func (*RemoveApplicationActionRsp) ProtoMessage() {}
 
 func (x *RemoveApplicationActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[63]
+	mi := &file_resource_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3596,7 +3684,7 @@ func (x *RemoveApplicationActionRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveApplicationActionRsp.ProtoReflect.Descriptor instead.
 func (*RemoveApplicationActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{63}
+	return file_resource_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *RemoveApplicationActionRsp) GetResult() bool {
@@ -3616,7 +3704,7 @@ type RemoveApplicationsActionRqst struct {
 
 func (x *RemoveApplicationsActionRqst) Reset() {
 	*x = RemoveApplicationsActionRqst{}
-	mi := &file_resource_proto_msgTypes[64]
+	mi := &file_resource_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3628,7 +3716,7 @@ func (x *RemoveApplicationsActionRqst) String() string {
 func (*RemoveApplicationsActionRqst) ProtoMessage() {}
 
 func (x *RemoveApplicationsActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[64]
+	mi := &file_resource_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3641,7 +3729,7 @@ func (x *RemoveApplicationsActionRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveApplicationsActionRqst.ProtoReflect.Descriptor instead.
 func (*RemoveApplicationsActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{64}
+	return file_resource_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *RemoveApplicationsActionRqst) GetAction() string {
@@ -3660,7 +3748,7 @@ type RemoveApplicationsActionRsp struct {
 
 func (x *RemoveApplicationsActionRsp) Reset() {
 	*x = RemoveApplicationsActionRsp{}
-	mi := &file_resource_proto_msgTypes[65]
+	mi := &file_resource_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3672,7 +3760,7 @@ func (x *RemoveApplicationsActionRsp) String() string {
 func (*RemoveApplicationsActionRsp) ProtoMessage() {}
 
 func (x *RemoveApplicationsActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[65]
+	mi := &file_resource_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3685,7 +3773,7 @@ func (x *RemoveApplicationsActionRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveApplicationsActionRsp.ProtoReflect.Descriptor instead.
 func (*RemoveApplicationsActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{65}
+	return file_resource_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *RemoveApplicationsActionRsp) GetResult() bool {
@@ -3706,7 +3794,7 @@ type GetApplicationsRqst struct {
 
 func (x *GetApplicationsRqst) Reset() {
 	*x = GetApplicationsRqst{}
-	mi := &file_resource_proto_msgTypes[66]
+	mi := &file_resource_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3718,7 +3806,7 @@ func (x *GetApplicationsRqst) String() string {
 func (*GetApplicationsRqst) ProtoMessage() {}
 
 func (x *GetApplicationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[66]
+	mi := &file_resource_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3731,7 +3819,7 @@ func (x *GetApplicationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationsRqst.ProtoReflect.Descriptor instead.
 func (*GetApplicationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{66}
+	return file_resource_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *GetApplicationsRqst) GetQuery() string {
@@ -3757,7 +3845,7 @@ type GetApplicationsRsp struct {
 
 func (x *GetApplicationsRsp) Reset() {
 	*x = GetApplicationsRsp{}
-	mi := &file_resource_proto_msgTypes[67]
+	mi := &file_resource_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3769,7 +3857,7 @@ func (x *GetApplicationsRsp) String() string {
 func (*GetApplicationsRsp) ProtoMessage() {}
 
 func (x *GetApplicationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[67]
+	mi := &file_resource_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3782,7 +3870,7 @@ func (x *GetApplicationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationsRsp.ProtoReflect.Descriptor instead.
 func (*GetApplicationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{67}
+	return file_resource_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *GetApplicationsRsp) GetApplications() []*Application {
@@ -3802,7 +3890,7 @@ type GetApplicationVersionRqst struct {
 
 func (x *GetApplicationVersionRqst) Reset() {
 	*x = GetApplicationVersionRqst{}
-	mi := &file_resource_proto_msgTypes[68]
+	mi := &file_resource_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3814,7 +3902,7 @@ func (x *GetApplicationVersionRqst) String() string {
 func (*GetApplicationVersionRqst) ProtoMessage() {}
 
 func (x *GetApplicationVersionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[68]
+	mi := &file_resource_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3827,7 +3915,7 @@ func (x *GetApplicationVersionRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationVersionRqst.ProtoReflect.Descriptor instead.
 func (*GetApplicationVersionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{68}
+	return file_resource_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *GetApplicationVersionRqst) GetId() string {
@@ -3846,7 +3934,7 @@ type GetApplicationVersionRsp struct {
 
 func (x *GetApplicationVersionRsp) Reset() {
 	*x = GetApplicationVersionRsp{}
-	mi := &file_resource_proto_msgTypes[69]
+	mi := &file_resource_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3858,7 +3946,7 @@ func (x *GetApplicationVersionRsp) String() string {
 func (*GetApplicationVersionRsp) ProtoMessage() {}
 
 func (x *GetApplicationVersionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[69]
+	mi := &file_resource_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3871,7 +3959,7 @@ func (x *GetApplicationVersionRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationVersionRsp.ProtoReflect.Descriptor instead.
 func (*GetApplicationVersionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{69}
+	return file_resource_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetApplicationVersionRsp) GetVersion() string {
@@ -3891,7 +3979,7 @@ type GetApplicationIconRqst struct {
 
 func (x *GetApplicationIconRqst) Reset() {
 	*x = GetApplicationIconRqst{}
-	mi := &file_resource_proto_msgTypes[70]
+	mi := &file_resource_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3903,7 +3991,7 @@ func (x *GetApplicationIconRqst) String() string {
 func (*GetApplicationIconRqst) ProtoMessage() {}
 
 func (x *GetApplicationIconRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[70]
+	mi := &file_resource_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3916,7 +4004,7 @@ func (x *GetApplicationIconRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationIconRqst.ProtoReflect.Descriptor instead.
 func (*GetApplicationIconRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{70}
+	return file_resource_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *GetApplicationIconRqst) GetId() string {
@@ -3935,7 +4023,7 @@ type GetApplicationIconRsp struct {
 
 func (x *GetApplicationIconRsp) Reset() {
 	*x = GetApplicationIconRsp{}
-	mi := &file_resource_proto_msgTypes[71]
+	mi := &file_resource_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3947,7 +4035,7 @@ func (x *GetApplicationIconRsp) String() string {
 func (*GetApplicationIconRsp) ProtoMessage() {}
 
 func (x *GetApplicationIconRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[71]
+	mi := &file_resource_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3960,7 +4048,7 @@ func (x *GetApplicationIconRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationIconRsp.ProtoReflect.Descriptor instead.
 func (*GetApplicationIconRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{71}
+	return file_resource_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetApplicationIconRsp) GetIcon() string {
@@ -3980,7 +4068,7 @@ type GetApplicationAliasRqst struct {
 
 func (x *GetApplicationAliasRqst) Reset() {
 	*x = GetApplicationAliasRqst{}
-	mi := &file_resource_proto_msgTypes[72]
+	mi := &file_resource_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3992,7 +4080,7 @@ func (x *GetApplicationAliasRqst) String() string {
 func (*GetApplicationAliasRqst) ProtoMessage() {}
 
 func (x *GetApplicationAliasRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[72]
+	mi := &file_resource_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4005,7 +4093,7 @@ func (x *GetApplicationAliasRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationAliasRqst.ProtoReflect.Descriptor instead.
 func (*GetApplicationAliasRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{72}
+	return file_resource_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *GetApplicationAliasRqst) GetId() string {
@@ -4024,7 +4112,7 @@ type GetApplicationAliasRsp struct {
 
 func (x *GetApplicationAliasRsp) Reset() {
 	*x = GetApplicationAliasRsp{}
-	mi := &file_resource_proto_msgTypes[73]
+	mi := &file_resource_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4036,7 +4124,7 @@ func (x *GetApplicationAliasRsp) String() string {
 func (*GetApplicationAliasRsp) ProtoMessage() {}
 
 func (x *GetApplicationAliasRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[73]
+	mi := &file_resource_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4049,7 +4137,7 @@ func (x *GetApplicationAliasRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetApplicationAliasRsp.ProtoReflect.Descriptor instead.
 func (*GetApplicationAliasRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{73}
+	return file_resource_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GetApplicationAliasRsp) GetAlias() string {
@@ -4077,7 +4165,7 @@ type Group struct {
 
 func (x *Group) Reset() {
 	*x = Group{}
-	mi := &file_resource_proto_msgTypes[74]
+	mi := &file_resource_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4089,7 +4177,7 @@ func (x *Group) String() string {
 func (*Group) ProtoMessage() {}
 
 func (x *Group) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[74]
+	mi := &file_resource_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4102,7 +4190,7 @@ func (x *Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Group.ProtoReflect.Descriptor instead.
 func (*Group) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{74}
+	return file_resource_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *Group) GetId() string {
@@ -4178,7 +4266,7 @@ type CreateGroupRqst struct {
 
 func (x *CreateGroupRqst) Reset() {
 	*x = CreateGroupRqst{}
-	mi := &file_resource_proto_msgTypes[75]
+	mi := &file_resource_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4190,7 +4278,7 @@ func (x *CreateGroupRqst) String() string {
 func (*CreateGroupRqst) ProtoMessage() {}
 
 func (x *CreateGroupRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[75]
+	mi := &file_resource_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4203,7 +4291,7 @@ func (x *CreateGroupRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupRqst.ProtoReflect.Descriptor instead.
 func (*CreateGroupRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{75}
+	return file_resource_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *CreateGroupRqst) GetGroup() *Group {
@@ -4222,7 +4310,7 @@ type CreateGroupRsp struct {
 
 func (x *CreateGroupRsp) Reset() {
 	*x = CreateGroupRsp{}
-	mi := &file_resource_proto_msgTypes[76]
+	mi := &file_resource_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4234,7 +4322,7 @@ func (x *CreateGroupRsp) String() string {
 func (*CreateGroupRsp) ProtoMessage() {}
 
 func (x *CreateGroupRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[76]
+	mi := &file_resource_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4247,7 +4335,7 @@ func (x *CreateGroupRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupRsp.ProtoReflect.Descriptor instead.
 func (*CreateGroupRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{76}
+	return file_resource_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *CreateGroupRsp) GetResult() bool {
@@ -4268,7 +4356,7 @@ type UpdateGroupRqst struct {
 
 func (x *UpdateGroupRqst) Reset() {
 	*x = UpdateGroupRqst{}
-	mi := &file_resource_proto_msgTypes[77]
+	mi := &file_resource_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4280,7 +4368,7 @@ func (x *UpdateGroupRqst) String() string {
 func (*UpdateGroupRqst) ProtoMessage() {}
 
 func (x *UpdateGroupRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[77]
+	mi := &file_resource_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4293,7 +4381,7 @@ func (x *UpdateGroupRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupRqst.ProtoReflect.Descriptor instead.
 func (*UpdateGroupRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{77}
+	return file_resource_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *UpdateGroupRqst) GetGroupId() string {
@@ -4319,7 +4407,7 @@ type UpdateGroupRsp struct {
 
 func (x *UpdateGroupRsp) Reset() {
 	*x = UpdateGroupRsp{}
-	mi := &file_resource_proto_msgTypes[78]
+	mi := &file_resource_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4331,7 +4419,7 @@ func (x *UpdateGroupRsp) String() string {
 func (*UpdateGroupRsp) ProtoMessage() {}
 
 func (x *UpdateGroupRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[78]
+	mi := &file_resource_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4344,7 +4432,7 @@ func (x *UpdateGroupRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupRsp.ProtoReflect.Descriptor instead.
 func (*UpdateGroupRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{78}
+	return file_resource_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *UpdateGroupRsp) GetResult() bool {
@@ -4365,7 +4453,7 @@ type GetGroupsRqst struct {
 
 func (x *GetGroupsRqst) Reset() {
 	*x = GetGroupsRqst{}
-	mi := &file_resource_proto_msgTypes[79]
+	mi := &file_resource_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4377,7 +4465,7 @@ func (x *GetGroupsRqst) String() string {
 func (*GetGroupsRqst) ProtoMessage() {}
 
 func (x *GetGroupsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[79]
+	mi := &file_resource_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4390,7 +4478,7 @@ func (x *GetGroupsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsRqst.ProtoReflect.Descriptor instead.
 func (*GetGroupsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{79}
+	return file_resource_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *GetGroupsRqst) GetQuery() string {
@@ -4416,7 +4504,7 @@ type GetGroupsRsp struct {
 
 func (x *GetGroupsRsp) Reset() {
 	*x = GetGroupsRsp{}
-	mi := &file_resource_proto_msgTypes[80]
+	mi := &file_resource_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4428,7 +4516,7 @@ func (x *GetGroupsRsp) String() string {
 func (*GetGroupsRsp) ProtoMessage() {}
 
 func (x *GetGroupsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[80]
+	mi := &file_resource_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4441,7 +4529,7 @@ func (x *GetGroupsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsRsp.ProtoReflect.Descriptor instead.
 func (*GetGroupsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{80}
+	return file_resource_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *GetGroupsRsp) GetGroups() []*Group {
@@ -4461,7 +4549,7 @@ type DeleteGroupRqst struct {
 
 func (x *DeleteGroupRqst) Reset() {
 	*x = DeleteGroupRqst{}
-	mi := &file_resource_proto_msgTypes[81]
+	mi := &file_resource_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4473,7 +4561,7 @@ func (x *DeleteGroupRqst) String() string {
 func (*DeleteGroupRqst) ProtoMessage() {}
 
 func (x *DeleteGroupRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[81]
+	mi := &file_resource_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4486,7 +4574,7 @@ func (x *DeleteGroupRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGroupRqst.ProtoReflect.Descriptor instead.
 func (*DeleteGroupRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{81}
+	return file_resource_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *DeleteGroupRqst) GetGroup() string {
@@ -4505,7 +4593,7 @@ type DeleteGroupRsp struct {
 
 func (x *DeleteGroupRsp) Reset() {
 	*x = DeleteGroupRsp{}
-	mi := &file_resource_proto_msgTypes[82]
+	mi := &file_resource_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4517,7 +4605,7 @@ func (x *DeleteGroupRsp) String() string {
 func (*DeleteGroupRsp) ProtoMessage() {}
 
 func (x *DeleteGroupRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[82]
+	mi := &file_resource_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4530,7 +4618,7 @@ func (x *DeleteGroupRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGroupRsp.ProtoReflect.Descriptor instead.
 func (*DeleteGroupRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{82}
+	return file_resource_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *DeleteGroupRsp) GetResult() bool {
@@ -4551,7 +4639,7 @@ type AddGroupMemberAccountRqst struct {
 
 func (x *AddGroupMemberAccountRqst) Reset() {
 	*x = AddGroupMemberAccountRqst{}
-	mi := &file_resource_proto_msgTypes[83]
+	mi := &file_resource_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4563,7 +4651,7 @@ func (x *AddGroupMemberAccountRqst) String() string {
 func (*AddGroupMemberAccountRqst) ProtoMessage() {}
 
 func (x *AddGroupMemberAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[83]
+	mi := &file_resource_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4576,7 +4664,7 @@ func (x *AddGroupMemberAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupMemberAccountRqst.ProtoReflect.Descriptor instead.
 func (*AddGroupMemberAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{83}
+	return file_resource_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *AddGroupMemberAccountRqst) GetGroupId() string {
@@ -4602,7 +4690,7 @@ type AddGroupMemberAccountRsp struct {
 
 func (x *AddGroupMemberAccountRsp) Reset() {
 	*x = AddGroupMemberAccountRsp{}
-	mi := &file_resource_proto_msgTypes[84]
+	mi := &file_resource_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4614,7 +4702,7 @@ func (x *AddGroupMemberAccountRsp) String() string {
 func (*AddGroupMemberAccountRsp) ProtoMessage() {}
 
 func (x *AddGroupMemberAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[84]
+	mi := &file_resource_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4627,7 +4715,7 @@ func (x *AddGroupMemberAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupMemberAccountRsp.ProtoReflect.Descriptor instead.
 func (*AddGroupMemberAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{84}
+	return file_resource_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *AddGroupMemberAccountRsp) GetResult() bool {
@@ -4648,7 +4736,7 @@ type RemoveGroupMemberAccountRqst struct {
 
 func (x *RemoveGroupMemberAccountRqst) Reset() {
 	*x = RemoveGroupMemberAccountRqst{}
-	mi := &file_resource_proto_msgTypes[85]
+	mi := &file_resource_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4660,7 +4748,7 @@ func (x *RemoveGroupMemberAccountRqst) String() string {
 func (*RemoveGroupMemberAccountRqst) ProtoMessage() {}
 
 func (x *RemoveGroupMemberAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[85]
+	mi := &file_resource_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4673,7 +4761,7 @@ func (x *RemoveGroupMemberAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupMemberAccountRqst.ProtoReflect.Descriptor instead.
 func (*RemoveGroupMemberAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{85}
+	return file_resource_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *RemoveGroupMemberAccountRqst) GetGroupId() string {
@@ -4699,7 +4787,7 @@ type RemoveGroupMemberAccountRsp struct {
 
 func (x *RemoveGroupMemberAccountRsp) Reset() {
 	*x = RemoveGroupMemberAccountRsp{}
-	mi := &file_resource_proto_msgTypes[86]
+	mi := &file_resource_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4711,7 +4799,7 @@ func (x *RemoveGroupMemberAccountRsp) String() string {
 func (*RemoveGroupMemberAccountRsp) ProtoMessage() {}
 
 func (x *RemoveGroupMemberAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[86]
+	mi := &file_resource_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4724,7 +4812,7 @@ func (x *RemoveGroupMemberAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupMemberAccountRsp.ProtoReflect.Descriptor instead.
 func (*RemoveGroupMemberAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{86}
+	return file_resource_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *RemoveGroupMemberAccountRsp) GetResult() bool {
@@ -4744,7 +4832,7 @@ type AddGroupRoleRqst struct {
 
 func (x *AddGroupRoleRqst) Reset() {
 	*x = AddGroupRoleRqst{}
-	mi := &file_resource_proto_msgTypes[87]
+	mi := &file_resource_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4756,7 +4844,7 @@ func (x *AddGroupRoleRqst) String() string {
 func (*AddGroupRoleRqst) ProtoMessage() {}
 
 func (x *AddGroupRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[87]
+	mi := &file_resource_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4769,7 +4857,7 @@ func (x *AddGroupRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupRoleRqst.ProtoReflect.Descriptor instead.
 func (*AddGroupRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{87}
+	return file_resource_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *AddGroupRoleRqst) GetGroupId() string {
@@ -4795,7 +4883,7 @@ type AddGroupRoleRsp struct {
 
 func (x *AddGroupRoleRsp) Reset() {
 	*x = AddGroupRoleRsp{}
-	mi := &file_resource_proto_msgTypes[88]
+	mi := &file_resource_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4807,7 +4895,7 @@ func (x *AddGroupRoleRsp) String() string {
 func (*AddGroupRoleRsp) ProtoMessage() {}
 
 func (x *AddGroupRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[88]
+	mi := &file_resource_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4820,7 +4908,7 @@ func (x *AddGroupRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupRoleRsp.ProtoReflect.Descriptor instead.
 func (*AddGroupRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{88}
+	return file_resource_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *AddGroupRoleRsp) GetResult() bool {
@@ -4840,7 +4928,7 @@ type RemoveGroupRoleRqst struct {
 
 func (x *RemoveGroupRoleRqst) Reset() {
 	*x = RemoveGroupRoleRqst{}
-	mi := &file_resource_proto_msgTypes[89]
+	mi := &file_resource_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4852,7 +4940,7 @@ func (x *RemoveGroupRoleRqst) String() string {
 func (*RemoveGroupRoleRqst) ProtoMessage() {}
 
 func (x *RemoveGroupRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[89]
+	mi := &file_resource_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4865,7 +4953,7 @@ func (x *RemoveGroupRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupRoleRqst.ProtoReflect.Descriptor instead.
 func (*RemoveGroupRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{89}
+	return file_resource_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *RemoveGroupRoleRqst) GetGroupId() string {
@@ -4891,7 +4979,7 @@ type RemoveGroupRoleRsp struct {
 
 func (x *RemoveGroupRoleRsp) Reset() {
 	*x = RemoveGroupRoleRsp{}
-	mi := &file_resource_proto_msgTypes[90]
+	mi := &file_resource_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4903,7 +4991,7 @@ func (x *RemoveGroupRoleRsp) String() string {
 func (*RemoveGroupRoleRsp) ProtoMessage() {}
 
 func (x *RemoveGroupRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[90]
+	mi := &file_resource_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4916,7 +5004,7 @@ func (x *RemoveGroupRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupRoleRsp.ProtoReflect.Descriptor instead.
 func (*RemoveGroupRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{90}
+	return file_resource_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *RemoveGroupRoleRsp) GetResult() bool {
@@ -4947,7 +5035,7 @@ type Organization struct {
 
 func (x *Organization) Reset() {
 	*x = Organization{}
-	mi := &file_resource_proto_msgTypes[91]
+	mi := &file_resource_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4959,7 +5047,7 @@ func (x *Organization) String() string {
 func (*Organization) ProtoMessage() {}
 
 func (x *Organization) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[91]
+	mi := &file_resource_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4972,7 +5060,7 @@ func (x *Organization) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Organization.ProtoReflect.Descriptor instead.
 func (*Organization) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{91}
+	return file_resource_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *Organization) GetId() string {
@@ -5062,7 +5150,7 @@ type CreateOrganizationRqst struct {
 
 func (x *CreateOrganizationRqst) Reset() {
 	*x = CreateOrganizationRqst{}
-	mi := &file_resource_proto_msgTypes[92]
+	mi := &file_resource_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5074,7 +5162,7 @@ func (x *CreateOrganizationRqst) String() string {
 func (*CreateOrganizationRqst) ProtoMessage() {}
 
 func (x *CreateOrganizationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[92]
+	mi := &file_resource_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5087,7 +5175,7 @@ func (x *CreateOrganizationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrganizationRqst.ProtoReflect.Descriptor instead.
 func (*CreateOrganizationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{92}
+	return file_resource_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *CreateOrganizationRqst) GetOrganization() *Organization {
@@ -5106,7 +5194,7 @@ type CreateOrganizationRsp struct {
 
 func (x *CreateOrganizationRsp) Reset() {
 	*x = CreateOrganizationRsp{}
-	mi := &file_resource_proto_msgTypes[93]
+	mi := &file_resource_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5118,7 +5206,7 @@ func (x *CreateOrganizationRsp) String() string {
 func (*CreateOrganizationRsp) ProtoMessage() {}
 
 func (x *CreateOrganizationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[93]
+	mi := &file_resource_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5131,7 +5219,7 @@ func (x *CreateOrganizationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrganizationRsp.ProtoReflect.Descriptor instead.
 func (*CreateOrganizationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{93}
+	return file_resource_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *CreateOrganizationRsp) GetResult() bool {
@@ -5152,7 +5240,7 @@ type UpdateOrganizationRqst struct {
 
 func (x *UpdateOrganizationRqst) Reset() {
 	*x = UpdateOrganizationRqst{}
-	mi := &file_resource_proto_msgTypes[94]
+	mi := &file_resource_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5164,7 +5252,7 @@ func (x *UpdateOrganizationRqst) String() string {
 func (*UpdateOrganizationRqst) ProtoMessage() {}
 
 func (x *UpdateOrganizationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[94]
+	mi := &file_resource_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5177,7 +5265,7 @@ func (x *UpdateOrganizationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOrganizationRqst.ProtoReflect.Descriptor instead.
 func (*UpdateOrganizationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{94}
+	return file_resource_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *UpdateOrganizationRqst) GetOrganizationId() string {
@@ -5203,7 +5291,7 @@ type UpdateOrganizationRsp struct {
 
 func (x *UpdateOrganizationRsp) Reset() {
 	*x = UpdateOrganizationRsp{}
-	mi := &file_resource_proto_msgTypes[95]
+	mi := &file_resource_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5215,7 +5303,7 @@ func (x *UpdateOrganizationRsp) String() string {
 func (*UpdateOrganizationRsp) ProtoMessage() {}
 
 func (x *UpdateOrganizationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[95]
+	mi := &file_resource_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5228,7 +5316,7 @@ func (x *UpdateOrganizationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOrganizationRsp.ProtoReflect.Descriptor instead.
 func (*UpdateOrganizationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{95}
+	return file_resource_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *UpdateOrganizationRsp) GetResult() bool {
@@ -5249,7 +5337,7 @@ type GetOrganizationsRqst struct {
 
 func (x *GetOrganizationsRqst) Reset() {
 	*x = GetOrganizationsRqst{}
-	mi := &file_resource_proto_msgTypes[96]
+	mi := &file_resource_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5261,7 +5349,7 @@ func (x *GetOrganizationsRqst) String() string {
 func (*GetOrganizationsRqst) ProtoMessage() {}
 
 func (x *GetOrganizationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[96]
+	mi := &file_resource_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5274,7 +5362,7 @@ func (x *GetOrganizationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrganizationsRqst.ProtoReflect.Descriptor instead.
 func (*GetOrganizationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{96}
+	return file_resource_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *GetOrganizationsRqst) GetQuery() string {
@@ -5300,7 +5388,7 @@ type GetOrganizationsRsp struct {
 
 func (x *GetOrganizationsRsp) Reset() {
 	*x = GetOrganizationsRsp{}
-	mi := &file_resource_proto_msgTypes[97]
+	mi := &file_resource_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5312,7 +5400,7 @@ func (x *GetOrganizationsRsp) String() string {
 func (*GetOrganizationsRsp) ProtoMessage() {}
 
 func (x *GetOrganizationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[97]
+	mi := &file_resource_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5325,7 +5413,7 @@ func (x *GetOrganizationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrganizationsRsp.ProtoReflect.Descriptor instead.
 func (*GetOrganizationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{97}
+	return file_resource_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *GetOrganizationsRsp) GetOrganizations() []*Organization {
@@ -5346,7 +5434,7 @@ type AddOrganizationAccountRqst struct {
 
 func (x *AddOrganizationAccountRqst) Reset() {
 	*x = AddOrganizationAccountRqst{}
-	mi := &file_resource_proto_msgTypes[98]
+	mi := &file_resource_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5358,7 +5446,7 @@ func (x *AddOrganizationAccountRqst) String() string {
 func (*AddOrganizationAccountRqst) ProtoMessage() {}
 
 func (x *AddOrganizationAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[98]
+	mi := &file_resource_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5371,7 +5459,7 @@ func (x *AddOrganizationAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationAccountRqst.ProtoReflect.Descriptor instead.
 func (*AddOrganizationAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{98}
+	return file_resource_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *AddOrganizationAccountRqst) GetOrganizationId() string {
@@ -5397,7 +5485,7 @@ type AddOrganizationAccountRsp struct {
 
 func (x *AddOrganizationAccountRsp) Reset() {
 	*x = AddOrganizationAccountRsp{}
-	mi := &file_resource_proto_msgTypes[99]
+	mi := &file_resource_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5409,7 +5497,7 @@ func (x *AddOrganizationAccountRsp) String() string {
 func (*AddOrganizationAccountRsp) ProtoMessage() {}
 
 func (x *AddOrganizationAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[99]
+	mi := &file_resource_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5422,7 +5510,7 @@ func (x *AddOrganizationAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationAccountRsp.ProtoReflect.Descriptor instead.
 func (*AddOrganizationAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{99}
+	return file_resource_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *AddOrganizationAccountRsp) GetResult() bool {
@@ -5443,7 +5531,7 @@ type AddOrganizationGroupRqst struct {
 
 func (x *AddOrganizationGroupRqst) Reset() {
 	*x = AddOrganizationGroupRqst{}
-	mi := &file_resource_proto_msgTypes[100]
+	mi := &file_resource_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5455,7 +5543,7 @@ func (x *AddOrganizationGroupRqst) String() string {
 func (*AddOrganizationGroupRqst) ProtoMessage() {}
 
 func (x *AddOrganizationGroupRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[100]
+	mi := &file_resource_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5468,7 +5556,7 @@ func (x *AddOrganizationGroupRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationGroupRqst.ProtoReflect.Descriptor instead.
 func (*AddOrganizationGroupRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{100}
+	return file_resource_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *AddOrganizationGroupRqst) GetOrganizationId() string {
@@ -5494,7 +5582,7 @@ type AddOrganizationGroupRsp struct {
 
 func (x *AddOrganizationGroupRsp) Reset() {
 	*x = AddOrganizationGroupRsp{}
-	mi := &file_resource_proto_msgTypes[101]
+	mi := &file_resource_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5506,7 +5594,7 @@ func (x *AddOrganizationGroupRsp) String() string {
 func (*AddOrganizationGroupRsp) ProtoMessage() {}
 
 func (x *AddOrganizationGroupRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[101]
+	mi := &file_resource_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5519,7 +5607,7 @@ func (x *AddOrganizationGroupRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationGroupRsp.ProtoReflect.Descriptor instead.
 func (*AddOrganizationGroupRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{101}
+	return file_resource_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *AddOrganizationGroupRsp) GetResult() bool {
@@ -5540,7 +5628,7 @@ type AddOrganizationRoleRqst struct {
 
 func (x *AddOrganizationRoleRqst) Reset() {
 	*x = AddOrganizationRoleRqst{}
-	mi := &file_resource_proto_msgTypes[102]
+	mi := &file_resource_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5552,7 +5640,7 @@ func (x *AddOrganizationRoleRqst) String() string {
 func (*AddOrganizationRoleRqst) ProtoMessage() {}
 
 func (x *AddOrganizationRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[102]
+	mi := &file_resource_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5565,7 +5653,7 @@ func (x *AddOrganizationRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationRoleRqst.ProtoReflect.Descriptor instead.
 func (*AddOrganizationRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{102}
+	return file_resource_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *AddOrganizationRoleRqst) GetOrganizationId() string {
@@ -5591,7 +5679,7 @@ type AddOrganizationRoleRsp struct {
 
 func (x *AddOrganizationRoleRsp) Reset() {
 	*x = AddOrganizationRoleRsp{}
-	mi := &file_resource_proto_msgTypes[103]
+	mi := &file_resource_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5603,7 +5691,7 @@ func (x *AddOrganizationRoleRsp) String() string {
 func (*AddOrganizationRoleRsp) ProtoMessage() {}
 
 func (x *AddOrganizationRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[103]
+	mi := &file_resource_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5616,7 +5704,7 @@ func (x *AddOrganizationRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationRoleRsp.ProtoReflect.Descriptor instead.
 func (*AddOrganizationRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{103}
+	return file_resource_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *AddOrganizationRoleRsp) GetResult() bool {
@@ -5637,7 +5725,7 @@ type AddOrganizationApplicationRqst struct {
 
 func (x *AddOrganizationApplicationRqst) Reset() {
 	*x = AddOrganizationApplicationRqst{}
-	mi := &file_resource_proto_msgTypes[104]
+	mi := &file_resource_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5649,7 +5737,7 @@ func (x *AddOrganizationApplicationRqst) String() string {
 func (*AddOrganizationApplicationRqst) ProtoMessage() {}
 
 func (x *AddOrganizationApplicationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[104]
+	mi := &file_resource_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5662,7 +5750,7 @@ func (x *AddOrganizationApplicationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationApplicationRqst.ProtoReflect.Descriptor instead.
 func (*AddOrganizationApplicationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{104}
+	return file_resource_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *AddOrganizationApplicationRqst) GetOrganizationId() string {
@@ -5688,7 +5776,7 @@ type AddOrganizationApplicationRsp struct {
 
 func (x *AddOrganizationApplicationRsp) Reset() {
 	*x = AddOrganizationApplicationRsp{}
-	mi := &file_resource_proto_msgTypes[105]
+	mi := &file_resource_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5700,7 +5788,7 @@ func (x *AddOrganizationApplicationRsp) String() string {
 func (*AddOrganizationApplicationRsp) ProtoMessage() {}
 
 func (x *AddOrganizationApplicationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[105]
+	mi := &file_resource_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5713,7 +5801,7 @@ func (x *AddOrganizationApplicationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddOrganizationApplicationRsp.ProtoReflect.Descriptor instead.
 func (*AddOrganizationApplicationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{105}
+	return file_resource_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *AddOrganizationApplicationRsp) GetResult() bool {
@@ -5734,7 +5822,7 @@ type RemoveOrganizationGroupRqst struct {
 
 func (x *RemoveOrganizationGroupRqst) Reset() {
 	*x = RemoveOrganizationGroupRqst{}
-	mi := &file_resource_proto_msgTypes[106]
+	mi := &file_resource_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5746,7 +5834,7 @@ func (x *RemoveOrganizationGroupRqst) String() string {
 func (*RemoveOrganizationGroupRqst) ProtoMessage() {}
 
 func (x *RemoveOrganizationGroupRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[106]
+	mi := &file_resource_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5759,7 +5847,7 @@ func (x *RemoveOrganizationGroupRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationGroupRqst.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationGroupRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{106}
+	return file_resource_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *RemoveOrganizationGroupRqst) GetOrganizationId() string {
@@ -5785,7 +5873,7 @@ type RemoveOrganizationGroupRsp struct {
 
 func (x *RemoveOrganizationGroupRsp) Reset() {
 	*x = RemoveOrganizationGroupRsp{}
-	mi := &file_resource_proto_msgTypes[107]
+	mi := &file_resource_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5797,7 +5885,7 @@ func (x *RemoveOrganizationGroupRsp) String() string {
 func (*RemoveOrganizationGroupRsp) ProtoMessage() {}
 
 func (x *RemoveOrganizationGroupRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[107]
+	mi := &file_resource_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5810,7 +5898,7 @@ func (x *RemoveOrganizationGroupRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationGroupRsp.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationGroupRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{107}
+	return file_resource_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *RemoveOrganizationGroupRsp) GetResult() bool {
@@ -5831,7 +5919,7 @@ type RemoveOrganizationRoleRqst struct {
 
 func (x *RemoveOrganizationRoleRqst) Reset() {
 	*x = RemoveOrganizationRoleRqst{}
-	mi := &file_resource_proto_msgTypes[108]
+	mi := &file_resource_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5843,7 +5931,7 @@ func (x *RemoveOrganizationRoleRqst) String() string {
 func (*RemoveOrganizationRoleRqst) ProtoMessage() {}
 
 func (x *RemoveOrganizationRoleRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[108]
+	mi := &file_resource_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5856,7 +5944,7 @@ func (x *RemoveOrganizationRoleRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationRoleRqst.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationRoleRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{108}
+	return file_resource_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *RemoveOrganizationRoleRqst) GetOrganizationId() string {
@@ -5882,7 +5970,7 @@ type RemoveOrganizationRoleRsp struct {
 
 func (x *RemoveOrganizationRoleRsp) Reset() {
 	*x = RemoveOrganizationRoleRsp{}
-	mi := &file_resource_proto_msgTypes[109]
+	mi := &file_resource_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5894,7 +5982,7 @@ func (x *RemoveOrganizationRoleRsp) String() string {
 func (*RemoveOrganizationRoleRsp) ProtoMessage() {}
 
 func (x *RemoveOrganizationRoleRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[109]
+	mi := &file_resource_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5907,7 +5995,7 @@ func (x *RemoveOrganizationRoleRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationRoleRsp.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationRoleRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{109}
+	return file_resource_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *RemoveOrganizationRoleRsp) GetResult() bool {
@@ -5928,7 +6016,7 @@ type RemoveOrganizationApplicationRqst struct {
 
 func (x *RemoveOrganizationApplicationRqst) Reset() {
 	*x = RemoveOrganizationApplicationRqst{}
-	mi := &file_resource_proto_msgTypes[110]
+	mi := &file_resource_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5940,7 +6028,7 @@ func (x *RemoveOrganizationApplicationRqst) String() string {
 func (*RemoveOrganizationApplicationRqst) ProtoMessage() {}
 
 func (x *RemoveOrganizationApplicationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[110]
+	mi := &file_resource_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5953,7 +6041,7 @@ func (x *RemoveOrganizationApplicationRqst) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RemoveOrganizationApplicationRqst.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationApplicationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{110}
+	return file_resource_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *RemoveOrganizationApplicationRqst) GetOrganizationId() string {
@@ -5979,7 +6067,7 @@ type RemoveOrganizationApplicationRsp struct {
 
 func (x *RemoveOrganizationApplicationRsp) Reset() {
 	*x = RemoveOrganizationApplicationRsp{}
-	mi := &file_resource_proto_msgTypes[111]
+	mi := &file_resource_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5991,7 +6079,7 @@ func (x *RemoveOrganizationApplicationRsp) String() string {
 func (*RemoveOrganizationApplicationRsp) ProtoMessage() {}
 
 func (x *RemoveOrganizationApplicationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[111]
+	mi := &file_resource_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6004,7 +6092,7 @@ func (x *RemoveOrganizationApplicationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationApplicationRsp.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationApplicationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{111}
+	return file_resource_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *RemoveOrganizationApplicationRsp) GetResult() bool {
@@ -6025,7 +6113,7 @@ type RemoveOrganizationAccountRqst struct {
 
 func (x *RemoveOrganizationAccountRqst) Reset() {
 	*x = RemoveOrganizationAccountRqst{}
-	mi := &file_resource_proto_msgTypes[112]
+	mi := &file_resource_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6037,7 +6125,7 @@ func (x *RemoveOrganizationAccountRqst) String() string {
 func (*RemoveOrganizationAccountRqst) ProtoMessage() {}
 
 func (x *RemoveOrganizationAccountRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[112]
+	mi := &file_resource_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6050,7 +6138,7 @@ func (x *RemoveOrganizationAccountRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationAccountRqst.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationAccountRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{112}
+	return file_resource_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *RemoveOrganizationAccountRqst) GetOrganizationId() string {
@@ -6076,7 +6164,7 @@ type RemoveOrganizationAccountRsp struct {
 
 func (x *RemoveOrganizationAccountRsp) Reset() {
 	*x = RemoveOrganizationAccountRsp{}
-	mi := &file_resource_proto_msgTypes[113]
+	mi := &file_resource_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6088,7 +6176,7 @@ func (x *RemoveOrganizationAccountRsp) String() string {
 func (*RemoveOrganizationAccountRsp) ProtoMessage() {}
 
 func (x *RemoveOrganizationAccountRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[113]
+	mi := &file_resource_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6101,7 +6189,7 @@ func (x *RemoveOrganizationAccountRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveOrganizationAccountRsp.ProtoReflect.Descriptor instead.
 func (*RemoveOrganizationAccountRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{113}
+	return file_resource_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *RemoveOrganizationAccountRsp) GetResult() bool {
@@ -6122,7 +6210,7 @@ type IsOrgnanizationMemberRqst struct {
 
 func (x *IsOrgnanizationMemberRqst) Reset() {
 	*x = IsOrgnanizationMemberRqst{}
-	mi := &file_resource_proto_msgTypes[114]
+	mi := &file_resource_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6134,7 +6222,7 @@ func (x *IsOrgnanizationMemberRqst) String() string {
 func (*IsOrgnanizationMemberRqst) ProtoMessage() {}
 
 func (x *IsOrgnanizationMemberRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[114]
+	mi := &file_resource_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6147,7 +6235,7 @@ func (x *IsOrgnanizationMemberRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IsOrgnanizationMemberRqst.ProtoReflect.Descriptor instead.
 func (*IsOrgnanizationMemberRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{114}
+	return file_resource_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *IsOrgnanizationMemberRqst) GetOrganizationId() string {
@@ -6173,7 +6261,7 @@ type IsOrgnanizationMemberRsp struct {
 
 func (x *IsOrgnanizationMemberRsp) Reset() {
 	*x = IsOrgnanizationMemberRsp{}
-	mi := &file_resource_proto_msgTypes[115]
+	mi := &file_resource_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6185,7 +6273,7 @@ func (x *IsOrgnanizationMemberRsp) String() string {
 func (*IsOrgnanizationMemberRsp) ProtoMessage() {}
 
 func (x *IsOrgnanizationMemberRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[115]
+	mi := &file_resource_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6198,7 +6286,7 @@ func (x *IsOrgnanizationMemberRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IsOrgnanizationMemberRsp.ProtoReflect.Descriptor instead.
 func (*IsOrgnanizationMemberRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{115}
+	return file_resource_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *IsOrgnanizationMemberRsp) GetResult() bool {
@@ -6219,7 +6307,7 @@ type DeleteOrganizationRqst struct {
 
 func (x *DeleteOrganizationRqst) Reset() {
 	*x = DeleteOrganizationRqst{}
-	mi := &file_resource_proto_msgTypes[116]
+	mi := &file_resource_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6231,7 +6319,7 @@ func (x *DeleteOrganizationRqst) String() string {
 func (*DeleteOrganizationRqst) ProtoMessage() {}
 
 func (x *DeleteOrganizationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[116]
+	mi := &file_resource_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6244,7 +6332,7 @@ func (x *DeleteOrganizationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOrganizationRqst.ProtoReflect.Descriptor instead.
 func (*DeleteOrganizationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{116}
+	return file_resource_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *DeleteOrganizationRqst) GetOrganization() string {
@@ -6263,7 +6351,7 @@ type DeleteOrganizationRsp struct {
 
 func (x *DeleteOrganizationRsp) Reset() {
 	*x = DeleteOrganizationRsp{}
-	mi := &file_resource_proto_msgTypes[117]
+	mi := &file_resource_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6275,7 +6363,7 @@ func (x *DeleteOrganizationRsp) String() string {
 func (*DeleteOrganizationRsp) ProtoMessage() {}
 
 func (x *DeleteOrganizationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[117]
+	mi := &file_resource_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6288,7 +6376,7 @@ func (x *DeleteOrganizationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOrganizationRsp.ProtoReflect.Descriptor instead.
 func (*DeleteOrganizationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{117}
+	return file_resource_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *DeleteOrganizationRsp) GetResult() bool {
@@ -6323,7 +6411,7 @@ type NodeIdentity struct {
 
 func (x *NodeIdentity) Reset() {
 	*x = NodeIdentity{}
-	mi := &file_resource_proto_msgTypes[118]
+	mi := &file_resource_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6335,7 +6423,7 @@ func (x *NodeIdentity) String() string {
 func (*NodeIdentity) ProtoMessage() {}
 
 func (x *NodeIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[118]
+	mi := &file_resource_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6348,7 +6436,7 @@ func (x *NodeIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeIdentity.ProtoReflect.Descriptor instead.
 func (*NodeIdentity) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{118}
+	return file_resource_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *NodeIdentity) GetNodeId() string {
@@ -6473,7 +6561,7 @@ type UpsertNodeIdentityRqst struct {
 
 func (x *UpsertNodeIdentityRqst) Reset() {
 	*x = UpsertNodeIdentityRqst{}
-	mi := &file_resource_proto_msgTypes[119]
+	mi := &file_resource_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6485,7 +6573,7 @@ func (x *UpsertNodeIdentityRqst) String() string {
 func (*UpsertNodeIdentityRqst) ProtoMessage() {}
 
 func (x *UpsertNodeIdentityRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[119]
+	mi := &file_resource_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6498,7 +6586,7 @@ func (x *UpsertNodeIdentityRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertNodeIdentityRqst.ProtoReflect.Descriptor instead.
 func (*UpsertNodeIdentityRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{119}
+	return file_resource_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *UpsertNodeIdentityRqst) GetNode() *NodeIdentity {
@@ -6517,7 +6605,7 @@ type UpsertNodeIdentityRsp struct {
 
 func (x *UpsertNodeIdentityRsp) Reset() {
 	*x = UpsertNodeIdentityRsp{}
-	mi := &file_resource_proto_msgTypes[120]
+	mi := &file_resource_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6529,7 +6617,7 @@ func (x *UpsertNodeIdentityRsp) String() string {
 func (*UpsertNodeIdentityRsp) ProtoMessage() {}
 
 func (x *UpsertNodeIdentityRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[120]
+	mi := &file_resource_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6542,7 +6630,7 @@ func (x *UpsertNodeIdentityRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertNodeIdentityRsp.ProtoReflect.Descriptor instead.
 func (*UpsertNodeIdentityRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{120}
+	return file_resource_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *UpsertNodeIdentityRsp) GetNode() *NodeIdentity {
@@ -6562,7 +6650,7 @@ type GetNodeIdentityRqst struct {
 
 func (x *GetNodeIdentityRqst) Reset() {
 	*x = GetNodeIdentityRqst{}
-	mi := &file_resource_proto_msgTypes[121]
+	mi := &file_resource_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6574,7 +6662,7 @@ func (x *GetNodeIdentityRqst) String() string {
 func (*GetNodeIdentityRqst) ProtoMessage() {}
 
 func (x *GetNodeIdentityRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[121]
+	mi := &file_resource_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6587,7 +6675,7 @@ func (x *GetNodeIdentityRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeIdentityRqst.ProtoReflect.Descriptor instead.
 func (*GetNodeIdentityRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{121}
+	return file_resource_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *GetNodeIdentityRqst) GetNodeId() string {
@@ -6606,7 +6694,7 @@ type GetNodeIdentityRsp struct {
 
 func (x *GetNodeIdentityRsp) Reset() {
 	*x = GetNodeIdentityRsp{}
-	mi := &file_resource_proto_msgTypes[122]
+	mi := &file_resource_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6618,7 +6706,7 @@ func (x *GetNodeIdentityRsp) String() string {
 func (*GetNodeIdentityRsp) ProtoMessage() {}
 
 func (x *GetNodeIdentityRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[122]
+	mi := &file_resource_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6631,7 +6719,7 @@ func (x *GetNodeIdentityRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeIdentityRsp.ProtoReflect.Descriptor instead.
 func (*GetNodeIdentityRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{122}
+	return file_resource_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *GetNodeIdentityRsp) GetNode() *NodeIdentity {
@@ -6652,7 +6740,7 @@ type ListNodeIdentitiesRqst struct {
 
 func (x *ListNodeIdentitiesRqst) Reset() {
 	*x = ListNodeIdentitiesRqst{}
-	mi := &file_resource_proto_msgTypes[123]
+	mi := &file_resource_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6664,7 +6752,7 @@ func (x *ListNodeIdentitiesRqst) String() string {
 func (*ListNodeIdentitiesRqst) ProtoMessage() {}
 
 func (x *ListNodeIdentitiesRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[123]
+	mi := &file_resource_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6677,7 +6765,7 @@ func (x *ListNodeIdentitiesRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodeIdentitiesRqst.ProtoReflect.Descriptor instead.
 func (*ListNodeIdentitiesRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{123}
+	return file_resource_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *ListNodeIdentitiesRqst) GetQuery() string {
@@ -6703,7 +6791,7 @@ type ListNodeIdentitiesRsp struct {
 
 func (x *ListNodeIdentitiesRsp) Reset() {
 	*x = ListNodeIdentitiesRsp{}
-	mi := &file_resource_proto_msgTypes[124]
+	mi := &file_resource_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6715,7 +6803,7 @@ func (x *ListNodeIdentitiesRsp) String() string {
 func (*ListNodeIdentitiesRsp) ProtoMessage() {}
 
 func (x *ListNodeIdentitiesRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[124]
+	mi := &file_resource_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6728,7 +6816,7 @@ func (x *ListNodeIdentitiesRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodeIdentitiesRsp.ProtoReflect.Descriptor instead.
 func (*ListNodeIdentitiesRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{124}
+	return file_resource_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *ListNodeIdentitiesRsp) GetNodes() []*NodeIdentity {
@@ -6749,7 +6837,7 @@ type SetNodeIdentityEnabledRqst struct {
 
 func (x *SetNodeIdentityEnabledRqst) Reset() {
 	*x = SetNodeIdentityEnabledRqst{}
-	mi := &file_resource_proto_msgTypes[125]
+	mi := &file_resource_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6761,7 +6849,7 @@ func (x *SetNodeIdentityEnabledRqst) String() string {
 func (*SetNodeIdentityEnabledRqst) ProtoMessage() {}
 
 func (x *SetNodeIdentityEnabledRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[125]
+	mi := &file_resource_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6774,7 +6862,7 @@ func (x *SetNodeIdentityEnabledRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeIdentityEnabledRqst.ProtoReflect.Descriptor instead.
 func (*SetNodeIdentityEnabledRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{125}
+	return file_resource_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *SetNodeIdentityEnabledRqst) GetNodeId() string {
@@ -6800,7 +6888,7 @@ type SetNodeIdentityEnabledRsp struct {
 
 func (x *SetNodeIdentityEnabledRsp) Reset() {
 	*x = SetNodeIdentityEnabledRsp{}
-	mi := &file_resource_proto_msgTypes[126]
+	mi := &file_resource_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6812,7 +6900,7 @@ func (x *SetNodeIdentityEnabledRsp) String() string {
 func (*SetNodeIdentityEnabledRsp) ProtoMessage() {}
 
 func (x *SetNodeIdentityEnabledRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[126]
+	mi := &file_resource_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6825,7 +6913,7 @@ func (x *SetNodeIdentityEnabledRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeIdentityEnabledRsp.ProtoReflect.Descriptor instead.
 func (*SetNodeIdentityEnabledRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{126}
+	return file_resource_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *SetNodeIdentityEnabledRsp) GetResult() bool {
@@ -6850,7 +6938,7 @@ type Call struct {
 
 func (x *Call) Reset() {
 	*x = Call{}
-	mi := &file_resource_proto_msgTypes[127]
+	mi := &file_resource_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6862,7 +6950,7 @@ func (x *Call) String() string {
 func (*Call) ProtoMessage() {}
 
 func (x *Call) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[127]
+	mi := &file_resource_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6875,7 +6963,7 @@ func (x *Call) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Call.ProtoReflect.Descriptor instead.
 func (*Call) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{127}
+	return file_resource_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *Call) GetUuid() string {
@@ -6930,7 +7018,7 @@ type GetCallHistoryRqst struct {
 
 func (x *GetCallHistoryRqst) Reset() {
 	*x = GetCallHistoryRqst{}
-	mi := &file_resource_proto_msgTypes[128]
+	mi := &file_resource_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6942,7 +7030,7 @@ func (x *GetCallHistoryRqst) String() string {
 func (*GetCallHistoryRqst) ProtoMessage() {}
 
 func (x *GetCallHistoryRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[128]
+	mi := &file_resource_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6955,7 +7043,7 @@ func (x *GetCallHistoryRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCallHistoryRqst.ProtoReflect.Descriptor instead.
 func (*GetCallHistoryRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{128}
+	return file_resource_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *GetCallHistoryRqst) GetAccountId() string {
@@ -6975,7 +7063,7 @@ type GetCallHistoryRsp struct {
 
 func (x *GetCallHistoryRsp) Reset() {
 	*x = GetCallHistoryRsp{}
-	mi := &file_resource_proto_msgTypes[129]
+	mi := &file_resource_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6987,7 +7075,7 @@ func (x *GetCallHistoryRsp) String() string {
 func (*GetCallHistoryRsp) ProtoMessage() {}
 
 func (x *GetCallHistoryRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[129]
+	mi := &file_resource_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7000,7 +7088,7 @@ func (x *GetCallHistoryRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCallHistoryRsp.ProtoReflect.Descriptor instead.
 func (*GetCallHistoryRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{129}
+	return file_resource_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *GetCallHistoryRsp) GetCalls() []*Call {
@@ -7020,7 +7108,7 @@ type SetCallRqst struct {
 
 func (x *SetCallRqst) Reset() {
 	*x = SetCallRqst{}
-	mi := &file_resource_proto_msgTypes[130]
+	mi := &file_resource_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7032,7 +7120,7 @@ func (x *SetCallRqst) String() string {
 func (*SetCallRqst) ProtoMessage() {}
 
 func (x *SetCallRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[130]
+	mi := &file_resource_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7045,7 +7133,7 @@ func (x *SetCallRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCallRqst.ProtoReflect.Descriptor instead.
 func (*SetCallRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{130}
+	return file_resource_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *SetCallRqst) GetCall() *Call {
@@ -7064,7 +7152,7 @@ type SetCallRsp struct {
 
 func (x *SetCallRsp) Reset() {
 	*x = SetCallRsp{}
-	mi := &file_resource_proto_msgTypes[131]
+	mi := &file_resource_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7076,7 +7164,7 @@ func (x *SetCallRsp) String() string {
 func (*SetCallRsp) ProtoMessage() {}
 
 func (x *SetCallRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[131]
+	mi := &file_resource_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7089,7 +7177,7 @@ func (x *SetCallRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCallRsp.ProtoReflect.Descriptor instead.
 func (*SetCallRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{131}
+	return file_resource_proto_rawDescGZIP(), []int{133}
 }
 
 // Request to delete a specific call from an account's call history.
@@ -7103,7 +7191,7 @@ type DeleteCallRqst struct {
 
 func (x *DeleteCallRqst) Reset() {
 	*x = DeleteCallRqst{}
-	mi := &file_resource_proto_msgTypes[132]
+	mi := &file_resource_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7115,7 +7203,7 @@ func (x *DeleteCallRqst) String() string {
 func (*DeleteCallRqst) ProtoMessage() {}
 
 func (x *DeleteCallRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[132]
+	mi := &file_resource_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7128,7 +7216,7 @@ func (x *DeleteCallRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCallRqst.ProtoReflect.Descriptor instead.
 func (*DeleteCallRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{132}
+	return file_resource_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *DeleteCallRqst) GetAccountId() string {
@@ -7155,7 +7243,7 @@ type DeleteCallRsp struct {
 
 func (x *DeleteCallRsp) Reset() {
 	*x = DeleteCallRsp{}
-	mi := &file_resource_proto_msgTypes[133]
+	mi := &file_resource_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7167,7 +7255,7 @@ func (x *DeleteCallRsp) String() string {
 func (*DeleteCallRsp) ProtoMessage() {}
 
 func (x *DeleteCallRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[133]
+	mi := &file_resource_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7180,7 +7268,7 @@ func (x *DeleteCallRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCallRsp.ProtoReflect.Descriptor instead.
 func (*DeleteCallRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{133}
+	return file_resource_proto_rawDescGZIP(), []int{135}
 }
 
 // Request to clear call history based on a filter.
@@ -7194,7 +7282,7 @@ type ClearCallsRqst struct {
 
 func (x *ClearCallsRqst) Reset() {
 	*x = ClearCallsRqst{}
-	mi := &file_resource_proto_msgTypes[134]
+	mi := &file_resource_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7206,7 +7294,7 @@ func (x *ClearCallsRqst) String() string {
 func (*ClearCallsRqst) ProtoMessage() {}
 
 func (x *ClearCallsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[134]
+	mi := &file_resource_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7219,7 +7307,7 @@ func (x *ClearCallsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCallsRqst.ProtoReflect.Descriptor instead.
 func (*ClearCallsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{134}
+	return file_resource_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *ClearCallsRqst) GetAccountId() string {
@@ -7246,7 +7334,7 @@ type ClearCallsRsp struct {
 
 func (x *ClearCallsRsp) Reset() {
 	*x = ClearCallsRsp{}
-	mi := &file_resource_proto_msgTypes[135]
+	mi := &file_resource_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7258,7 +7346,7 @@ func (x *ClearCallsRsp) String() string {
 func (*ClearCallsRsp) ProtoMessage() {}
 
 func (x *ClearCallsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[135]
+	mi := &file_resource_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7271,7 +7359,7 @@ func (x *ClearCallsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCallsRsp.ProtoReflect.Descriptor instead.
 func (*ClearCallsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{135}
+	return file_resource_proto_rawDescGZIP(), []int{137}
 }
 
 // Structure representing a notification.
@@ -7291,7 +7379,7 @@ type Notification struct {
 
 func (x *Notification) Reset() {
 	*x = Notification{}
-	mi := &file_resource_proto_msgTypes[136]
+	mi := &file_resource_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7303,7 +7391,7 @@ func (x *Notification) String() string {
 func (*Notification) ProtoMessage() {}
 
 func (x *Notification) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[136]
+	mi := &file_resource_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7316,7 +7404,7 @@ func (x *Notification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 func (*Notification) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{136}
+	return file_resource_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *Notification) GetId() string {
@@ -7385,7 +7473,7 @@ type CreateNotificationRqst struct {
 
 func (x *CreateNotificationRqst) Reset() {
 	*x = CreateNotificationRqst{}
-	mi := &file_resource_proto_msgTypes[137]
+	mi := &file_resource_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7397,7 +7485,7 @@ func (x *CreateNotificationRqst) String() string {
 func (*CreateNotificationRqst) ProtoMessage() {}
 
 func (x *CreateNotificationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[137]
+	mi := &file_resource_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7410,7 +7498,7 @@ func (x *CreateNotificationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotificationRqst.ProtoReflect.Descriptor instead.
 func (*CreateNotificationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{137}
+	return file_resource_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *CreateNotificationRqst) GetNotification() *Notification {
@@ -7429,7 +7517,7 @@ type CreateNotificationRsp struct {
 
 func (x *CreateNotificationRsp) Reset() {
 	*x = CreateNotificationRsp{}
-	mi := &file_resource_proto_msgTypes[138]
+	mi := &file_resource_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7441,7 +7529,7 @@ func (x *CreateNotificationRsp) String() string {
 func (*CreateNotificationRsp) ProtoMessage() {}
 
 func (x *CreateNotificationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[138]
+	mi := &file_resource_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7454,7 +7542,7 @@ func (x *CreateNotificationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotificationRsp.ProtoReflect.Descriptor instead.
 func (*CreateNotificationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{138}
+	return file_resource_proto_rawDescGZIP(), []int{140}
 }
 
 // Request to retrieve notifications for a recipient.
@@ -7467,7 +7555,7 @@ type GetNotificationsRqst struct {
 
 func (x *GetNotificationsRqst) Reset() {
 	*x = GetNotificationsRqst{}
-	mi := &file_resource_proto_msgTypes[139]
+	mi := &file_resource_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7479,7 +7567,7 @@ func (x *GetNotificationsRqst) String() string {
 func (*GetNotificationsRqst) ProtoMessage() {}
 
 func (x *GetNotificationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[139]
+	mi := &file_resource_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7492,7 +7580,7 @@ func (x *GetNotificationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationsRqst.ProtoReflect.Descriptor instead.
 func (*GetNotificationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{139}
+	return file_resource_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *GetNotificationsRqst) GetRecipient() string {
@@ -7512,7 +7600,7 @@ type GetNotificationsRsp struct {
 
 func (x *GetNotificationsRsp) Reset() {
 	*x = GetNotificationsRsp{}
-	mi := &file_resource_proto_msgTypes[140]
+	mi := &file_resource_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7524,7 +7612,7 @@ func (x *GetNotificationsRsp) String() string {
 func (*GetNotificationsRsp) ProtoMessage() {}
 
 func (x *GetNotificationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[140]
+	mi := &file_resource_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7537,7 +7625,7 @@ func (x *GetNotificationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationsRsp.ProtoReflect.Descriptor instead.
 func (*GetNotificationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{140}
+	return file_resource_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *GetNotificationsRsp) GetNotifications() []*Notification {
@@ -7558,7 +7646,7 @@ type DeleteNotificationRqst struct {
 
 func (x *DeleteNotificationRqst) Reset() {
 	*x = DeleteNotificationRqst{}
-	mi := &file_resource_proto_msgTypes[141]
+	mi := &file_resource_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7570,7 +7658,7 @@ func (x *DeleteNotificationRqst) String() string {
 func (*DeleteNotificationRqst) ProtoMessage() {}
 
 func (x *DeleteNotificationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[141]
+	mi := &file_resource_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7583,7 +7671,7 @@ func (x *DeleteNotificationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotificationRqst.ProtoReflect.Descriptor instead.
 func (*DeleteNotificationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{141}
+	return file_resource_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *DeleteNotificationRqst) GetId() string {
@@ -7609,7 +7697,7 @@ type DeleteNotificationRsp struct {
 
 func (x *DeleteNotificationRsp) Reset() {
 	*x = DeleteNotificationRsp{}
-	mi := &file_resource_proto_msgTypes[142]
+	mi := &file_resource_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7621,7 +7709,7 @@ func (x *DeleteNotificationRsp) String() string {
 func (*DeleteNotificationRsp) ProtoMessage() {}
 
 func (x *DeleteNotificationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[142]
+	mi := &file_resource_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7634,7 +7722,7 @@ func (x *DeleteNotificationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotificationRsp.ProtoReflect.Descriptor instead.
 func (*DeleteNotificationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{142}
+	return file_resource_proto_rawDescGZIP(), []int{144}
 }
 
 // Request to clear all notifications for a recipient.
@@ -7647,7 +7735,7 @@ type ClearAllNotificationsRqst struct {
 
 func (x *ClearAllNotificationsRqst) Reset() {
 	*x = ClearAllNotificationsRqst{}
-	mi := &file_resource_proto_msgTypes[143]
+	mi := &file_resource_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7659,7 +7747,7 @@ func (x *ClearAllNotificationsRqst) String() string {
 func (*ClearAllNotificationsRqst) ProtoMessage() {}
 
 func (x *ClearAllNotificationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[143]
+	mi := &file_resource_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7672,7 +7760,7 @@ func (x *ClearAllNotificationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearAllNotificationsRqst.ProtoReflect.Descriptor instead.
 func (*ClearAllNotificationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{143}
+	return file_resource_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *ClearAllNotificationsRqst) GetRecipient() string {
@@ -7691,7 +7779,7 @@ type ClearAllNotificationsRsp struct {
 
 func (x *ClearAllNotificationsRsp) Reset() {
 	*x = ClearAllNotificationsRsp{}
-	mi := &file_resource_proto_msgTypes[144]
+	mi := &file_resource_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7703,7 +7791,7 @@ func (x *ClearAllNotificationsRsp) String() string {
 func (*ClearAllNotificationsRsp) ProtoMessage() {}
 
 func (x *ClearAllNotificationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[144]
+	mi := &file_resource_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7716,7 +7804,7 @@ func (x *ClearAllNotificationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearAllNotificationsRsp.ProtoReflect.Descriptor instead.
 func (*ClearAllNotificationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{144}
+	return file_resource_proto_rawDescGZIP(), []int{146}
 }
 
 // Request to clear notifications of a specific type for a recipient.
@@ -7730,7 +7818,7 @@ type ClearNotificationsByTypeRqst struct {
 
 func (x *ClearNotificationsByTypeRqst) Reset() {
 	*x = ClearNotificationsByTypeRqst{}
-	mi := &file_resource_proto_msgTypes[145]
+	mi := &file_resource_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7742,7 +7830,7 @@ func (x *ClearNotificationsByTypeRqst) String() string {
 func (*ClearNotificationsByTypeRqst) ProtoMessage() {}
 
 func (x *ClearNotificationsByTypeRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[145]
+	mi := &file_resource_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7755,7 +7843,7 @@ func (x *ClearNotificationsByTypeRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearNotificationsByTypeRqst.ProtoReflect.Descriptor instead.
 func (*ClearNotificationsByTypeRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{145}
+	return file_resource_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *ClearNotificationsByTypeRqst) GetRecipient() string {
@@ -7781,7 +7869,7 @@ type ClearNotificationsByTypeRsp struct {
 
 func (x *ClearNotificationsByTypeRsp) Reset() {
 	*x = ClearNotificationsByTypeRsp{}
-	mi := &file_resource_proto_msgTypes[146]
+	mi := &file_resource_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7793,7 +7881,7 @@ func (x *ClearNotificationsByTypeRsp) String() string {
 func (*ClearNotificationsByTypeRsp) ProtoMessage() {}
 
 func (x *ClearNotificationsByTypeRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[146]
+	mi := &file_resource_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7806,7 +7894,7 @@ func (x *ClearNotificationsByTypeRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearNotificationsByTypeRsp.ProtoReflect.Descriptor instead.
 func (*ClearNotificationsByTypeRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{146}
+	return file_resource_proto_rawDescGZIP(), []int{148}
 }
 
 // Message representing information about a user's session.
@@ -7823,7 +7911,7 @@ type Session struct {
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_resource_proto_msgTypes[147]
+	mi := &file_resource_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7835,7 +7923,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[147]
+	mi := &file_resource_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7848,7 +7936,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{147}
+	return file_resource_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *Session) GetAccountId() string {
@@ -7896,7 +7984,7 @@ type UpdateSessionRequest struct {
 
 func (x *UpdateSessionRequest) Reset() {
 	*x = UpdateSessionRequest{}
-	mi := &file_resource_proto_msgTypes[148]
+	mi := &file_resource_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7908,7 +7996,7 @@ func (x *UpdateSessionRequest) String() string {
 func (*UpdateSessionRequest) ProtoMessage() {}
 
 func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[148]
+	mi := &file_resource_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7921,7 +8009,7 @@ func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{148}
+	return file_resource_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *UpdateSessionRequest) GetSession() *Session {
@@ -7941,7 +8029,7 @@ type UpdateSessionResponse struct {
 
 func (x *UpdateSessionResponse) Reset() {
 	*x = UpdateSessionResponse{}
-	mi := &file_resource_proto_msgTypes[149]
+	mi := &file_resource_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7953,7 +8041,7 @@ func (x *UpdateSessionResponse) String() string {
 func (*UpdateSessionResponse) ProtoMessage() {}
 
 func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[149]
+	mi := &file_resource_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7966,7 +8054,7 @@ func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionResponse.ProtoReflect.Descriptor instead.
 func (*UpdateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{149}
+	return file_resource_proto_rawDescGZIP(), []int{151}
 }
 
 // Request to remove a session.
@@ -7979,7 +8067,7 @@ type RemoveSessionRequest struct {
 
 func (x *RemoveSessionRequest) Reset() {
 	*x = RemoveSessionRequest{}
-	mi := &file_resource_proto_msgTypes[150]
+	mi := &file_resource_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7991,7 +8079,7 @@ func (x *RemoveSessionRequest) String() string {
 func (*RemoveSessionRequest) ProtoMessage() {}
 
 func (x *RemoveSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[150]
+	mi := &file_resource_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8004,7 +8092,7 @@ func (x *RemoveSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSessionRequest.ProtoReflect.Descriptor instead.
 func (*RemoveSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{150}
+	return file_resource_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *RemoveSessionRequest) GetAccountId() string {
@@ -8024,7 +8112,7 @@ type RemoveSessionResponse struct {
 
 func (x *RemoveSessionResponse) Reset() {
 	*x = RemoveSessionResponse{}
-	mi := &file_resource_proto_msgTypes[151]
+	mi := &file_resource_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8036,7 +8124,7 @@ func (x *RemoveSessionResponse) String() string {
 func (*RemoveSessionResponse) ProtoMessage() {}
 
 func (x *RemoveSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[151]
+	mi := &file_resource_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8049,7 +8137,7 @@ func (x *RemoveSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSessionResponse.ProtoReflect.Descriptor instead.
 func (*RemoveSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{151}
+	return file_resource_proto_rawDescGZIP(), []int{153}
 }
 
 // Request to retrieve sessions based on a query and options.
@@ -8063,7 +8151,7 @@ type GetSessionsRequest struct {
 
 func (x *GetSessionsRequest) Reset() {
 	*x = GetSessionsRequest{}
-	mi := &file_resource_proto_msgTypes[152]
+	mi := &file_resource_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8075,7 +8163,7 @@ func (x *GetSessionsRequest) String() string {
 func (*GetSessionsRequest) ProtoMessage() {}
 
 func (x *GetSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[152]
+	mi := &file_resource_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8088,7 +8176,7 @@ func (x *GetSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionsRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{152}
+	return file_resource_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *GetSessionsRequest) GetQuery() string {
@@ -8115,7 +8203,7 @@ type GetSessionsResponse struct {
 
 func (x *GetSessionsResponse) Reset() {
 	*x = GetSessionsResponse{}
-	mi := &file_resource_proto_msgTypes[153]
+	mi := &file_resource_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8127,7 +8215,7 @@ func (x *GetSessionsResponse) String() string {
 func (*GetSessionsResponse) ProtoMessage() {}
 
 func (x *GetSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[153]
+	mi := &file_resource_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8140,7 +8228,7 @@ func (x *GetSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionsResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{153}
+	return file_resource_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *GetSessionsResponse) GetSessions() []*Session {
@@ -8160,7 +8248,7 @@ type GetSessionRequest struct {
 
 func (x *GetSessionRequest) Reset() {
 	*x = GetSessionRequest{}
-	mi := &file_resource_proto_msgTypes[154]
+	mi := &file_resource_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8172,7 +8260,7 @@ func (x *GetSessionRequest) String() string {
 func (*GetSessionRequest) ProtoMessage() {}
 
 func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[154]
+	mi := &file_resource_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8185,7 +8273,7 @@ func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{154}
+	return file_resource_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *GetSessionRequest) GetAccountId() string {
@@ -8205,7 +8293,7 @@ type GetSessionResponse struct {
 
 func (x *GetSessionResponse) Reset() {
 	*x = GetSessionResponse{}
-	mi := &file_resource_proto_msgTypes[155]
+	mi := &file_resource_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8217,7 +8305,7 @@ func (x *GetSessionResponse) String() string {
 func (*GetSessionResponse) ProtoMessage() {}
 
 func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[155]
+	mi := &file_resource_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8230,7 +8318,7 @@ func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{155}
+	return file_resource_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *GetSessionResponse) GetSession() *Session {
@@ -8254,7 +8342,7 @@ type CreateReferenceRqst struct {
 
 func (x *CreateReferenceRqst) Reset() {
 	*x = CreateReferenceRqst{}
-	mi := &file_resource_proto_msgTypes[156]
+	mi := &file_resource_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8266,7 +8354,7 @@ func (x *CreateReferenceRqst) String() string {
 func (*CreateReferenceRqst) ProtoMessage() {}
 
 func (x *CreateReferenceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[156]
+	mi := &file_resource_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8279,7 +8367,7 @@ func (x *CreateReferenceRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferenceRqst.ProtoReflect.Descriptor instead.
 func (*CreateReferenceRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{156}
+	return file_resource_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *CreateReferenceRqst) GetSourceId() string {
@@ -8327,7 +8415,7 @@ type CreateReferenceRsp struct {
 
 func (x *CreateReferenceRsp) Reset() {
 	*x = CreateReferenceRsp{}
-	mi := &file_resource_proto_msgTypes[157]
+	mi := &file_resource_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8339,7 +8427,7 @@ func (x *CreateReferenceRsp) String() string {
 func (*CreateReferenceRsp) ProtoMessage() {}
 
 func (x *CreateReferenceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[157]
+	mi := &file_resource_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8352,7 +8440,7 @@ func (x *CreateReferenceRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferenceRsp.ProtoReflect.Descriptor instead.
 func (*CreateReferenceRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{157}
+	return file_resource_proto_rawDescGZIP(), []int{159}
 }
 
 // Request to delete a reference between entities.
@@ -8368,7 +8456,7 @@ type DeleteReferenceRqst struct {
 
 func (x *DeleteReferenceRqst) Reset() {
 	*x = DeleteReferenceRqst{}
-	mi := &file_resource_proto_msgTypes[158]
+	mi := &file_resource_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8380,7 +8468,7 @@ func (x *DeleteReferenceRqst) String() string {
 func (*DeleteReferenceRqst) ProtoMessage() {}
 
 func (x *DeleteReferenceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[158]
+	mi := &file_resource_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8393,7 +8481,7 @@ func (x *DeleteReferenceRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReferenceRqst.ProtoReflect.Descriptor instead.
 func (*DeleteReferenceRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{158}
+	return file_resource_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *DeleteReferenceRqst) GetRefId() string {
@@ -8434,7 +8522,7 @@ type DeleteReferenceRsp struct {
 
 func (x *DeleteReferenceRsp) Reset() {
 	*x = DeleteReferenceRsp{}
-	mi := &file_resource_proto_msgTypes[159]
+	mi := &file_resource_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8446,7 +8534,7 @@ func (x *DeleteReferenceRsp) String() string {
 func (*DeleteReferenceRsp) ProtoMessage() {}
 
 func (x *DeleteReferenceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[159]
+	mi := &file_resource_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8459,7 +8547,7 @@ func (x *DeleteReferenceRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReferenceRsp.ProtoReflect.Descriptor instead.
 func (*DeleteReferenceRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{159}
+	return file_resource_proto_rawDescGZIP(), []int{161}
 }
 
 type GetServicesCorsPoliciesRqst struct {
@@ -8470,7 +8558,7 @@ type GetServicesCorsPoliciesRqst struct {
 
 func (x *GetServicesCorsPoliciesRqst) Reset() {
 	*x = GetServicesCorsPoliciesRqst{}
-	mi := &file_resource_proto_msgTypes[160]
+	mi := &file_resource_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8482,7 +8570,7 @@ func (x *GetServicesCorsPoliciesRqst) String() string {
 func (*GetServicesCorsPoliciesRqst) ProtoMessage() {}
 
 func (x *GetServicesCorsPoliciesRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[160]
+	mi := &file_resource_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8495,7 +8583,7 @@ func (x *GetServicesCorsPoliciesRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServicesCorsPoliciesRqst.ProtoReflect.Descriptor instead.
 func (*GetServicesCorsPoliciesRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{160}
+	return file_resource_proto_rawDescGZIP(), []int{162}
 }
 
 type ServiceCorsPolicy struct {
@@ -8510,7 +8598,7 @@ type ServiceCorsPolicy struct {
 
 func (x *ServiceCorsPolicy) Reset() {
 	*x = ServiceCorsPolicy{}
-	mi := &file_resource_proto_msgTypes[161]
+	mi := &file_resource_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8522,7 +8610,7 @@ func (x *ServiceCorsPolicy) String() string {
 func (*ServiceCorsPolicy) ProtoMessage() {}
 
 func (x *ServiceCorsPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[161]
+	mi := &file_resource_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8535,7 +8623,7 @@ func (x *ServiceCorsPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceCorsPolicy.ProtoReflect.Descriptor instead.
 func (*ServiceCorsPolicy) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{161}
+	return file_resource_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *ServiceCorsPolicy) GetId() string {
@@ -8575,7 +8663,7 @@ type GetServicesCorsPoliciesRsp struct {
 
 func (x *GetServicesCorsPoliciesRsp) Reset() {
 	*x = GetServicesCorsPoliciesRsp{}
-	mi := &file_resource_proto_msgTypes[162]
+	mi := &file_resource_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8587,7 +8675,7 @@ func (x *GetServicesCorsPoliciesRsp) String() string {
 func (*GetServicesCorsPoliciesRsp) ProtoMessage() {}
 
 func (x *GetServicesCorsPoliciesRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[162]
+	mi := &file_resource_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8600,7 +8688,7 @@ func (x *GetServicesCorsPoliciesRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServicesCorsPoliciesRsp.ProtoReflect.Descriptor instead.
 func (*GetServicesCorsPoliciesRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{162}
+	return file_resource_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *GetServicesCorsPoliciesRsp) GetPolicies() []*ServiceCorsPolicy {
@@ -8621,7 +8709,7 @@ type SetServiceCorsPolicyRqst struct {
 
 func (x *SetServiceCorsPolicyRqst) Reset() {
 	*x = SetServiceCorsPolicyRqst{}
-	mi := &file_resource_proto_msgTypes[163]
+	mi := &file_resource_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8633,7 +8721,7 @@ func (x *SetServiceCorsPolicyRqst) String() string {
 func (*SetServiceCorsPolicyRqst) ProtoMessage() {}
 
 func (x *SetServiceCorsPolicyRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[163]
+	mi := &file_resource_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8646,7 +8734,7 @@ func (x *SetServiceCorsPolicyRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetServiceCorsPolicyRqst.ProtoReflect.Descriptor instead.
 func (*SetServiceCorsPolicyRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{163}
+	return file_resource_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *SetServiceCorsPolicyRqst) GetId() string {
@@ -8678,7 +8766,7 @@ type SetServiceCorsPolicyRsp struct {
 
 func (x *SetServiceCorsPolicyRsp) Reset() {
 	*x = SetServiceCorsPolicyRsp{}
-	mi := &file_resource_proto_msgTypes[164]
+	mi := &file_resource_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8690,7 +8778,7 @@ func (x *SetServiceCorsPolicyRsp) String() string {
 func (*SetServiceCorsPolicyRsp) ProtoMessage() {}
 
 func (x *SetServiceCorsPolicyRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[164]
+	mi := &file_resource_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8703,7 +8791,7 @@ func (x *SetServiceCorsPolicyRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetServiceCorsPolicyRsp.ProtoReflect.Descriptor instead.
 func (*SetServiceCorsPolicyRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{164}
+	return file_resource_proto_rawDescGZIP(), []int{166}
 }
 
 var File_resource_proto protoreflect.FileDescriptor
@@ -8727,7 +8815,11 @@ const file_resource_proto_rawDesc = "" +
 	"\x1fGetPackageBundleChecksumRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\">\n" +
 	" GetPackageBundleChecksumResponse\x12\x1a\n" +
-	"\bchecksum\x18\x01 \x01(\tR\bchecksum\"\xd1\x03\n" +
+	"\bchecksum\x18\x01 \x01(\tR\bchecksum\"=\n" +
+	"\x18GetPackageBundlesRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\"N\n" +
+	"\x19GetPackageBundlesResponse\x121\n" +
+	"\abundles\x18\x01 \x03(\v2\x17.resource.PackageBundleR\abundles\"\xd1\x03\n" +
 	"\x11PackageDescriptor\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12)\n" +
@@ -9214,7 +9306,7 @@ const file_resource_proto_rawDesc = "" +
 	"\n" +
 	"\x06ONLINE\x10\x00\x12\v\n" +
 	"\aOFFLINE\x10\x01\x12\b\n" +
-	"\x04AWAY\x10\x022\xb01\n" +
+	"\x04AWAY\x10\x022\x8e2\n" +
 	"\x0fResourceService\x12N\n" +
 	"\x0fCreateReference\x12\x1d.resource.CreateReferenceRqst\x1a\x1c.resource.CreateReferenceRsp\x12N\n" +
 	"\x0fDeleteReference\x12\x1d.resource.DeleteReferenceRqst\x1a\x1c.resource.DeleteReferenceRsp\x12W\n" +
@@ -9283,7 +9375,8 @@ const file_resource_proto_rawDesc = "" +
 	"\x15GetPackagesDescriptor\x12&.resource.GetPackagesDescriptorRequest\x1a'.resource.GetPackagesDescriptorResponse0\x01\x12e\n" +
 	"\x14SetPackageDescriptor\x12%.resource.SetPackageDescriptorRequest\x1a&.resource.SetPackageDescriptorResponse\x12Y\n" +
 	"\x10SetPackageBundle\x12!.resource.SetPackageBundleRequest\x1a\".resource.SetPackageBundleResponse\x12q\n" +
-	"\x18GetPackageBundleChecksum\x12).resource.GetPackageBundleChecksumRequest\x1a*.resource.GetPackageBundleChecksumResponse\x12P\n" +
+	"\x18GetPackageBundleChecksum\x12).resource.GetPackageBundleChecksumRequest\x1a*.resource.GetPackageBundleChecksumResponse\x12\\\n" +
+	"\x11GetPackageBundles\x12\".resource.GetPackageBundlesRequest\x1a#.resource.GetPackageBundlesResponse\x12P\n" +
 	"\rUpdateSession\x12\x1e.resource.UpdateSessionRequest\x1a\x1f.resource.UpdateSessionResponse\x12J\n" +
 	"\vGetSessions\x12\x1c.resource.GetSessionsRequest\x1a\x1d.resource.GetSessionsResponse\x12P\n" +
 	"\rRemoveSession\x12\x1e.resource.RemoveSessionRequest\x1a\x1f.resource.RemoveSessionResponse\x12G\n" +
@@ -9311,7 +9404,7 @@ func file_resource_proto_rawDescGZIP() []byte {
 }
 
 var file_resource_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 166)
+var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 168)
 var file_resource_proto_goTypes = []any{
 	(PackageType)(0),                          // 0: resource.PackageType
 	(NotificationType)(0),                     // 1: resource.NotificationType
@@ -9321,358 +9414,363 @@ var file_resource_proto_goTypes = []any{
 	(*SetPackageBundleResponse)(nil),          // 5: resource.SetPackageBundleResponse
 	(*GetPackageBundleChecksumRequest)(nil),   // 6: resource.GetPackageBundleChecksumRequest
 	(*GetPackageBundleChecksumResponse)(nil),  // 7: resource.GetPackageBundleChecksumResponse
-	(*PackageDescriptor)(nil),                 // 8: resource.PackageDescriptor
-	(*GetPackageDescriptorRequest)(nil),       // 9: resource.GetPackageDescriptorRequest
-	(*GetPackageDescriptorResponse)(nil),      // 10: resource.GetPackageDescriptorResponse
-	(*GetPackagesDescriptorRequest)(nil),      // 11: resource.GetPackagesDescriptorRequest
-	(*GetPackagesDescriptorResponse)(nil),     // 12: resource.GetPackagesDescriptorResponse
-	(*SetPackageDescriptorRequest)(nil),       // 13: resource.SetPackageDescriptorRequest
-	(*SetPackageDescriptorResponse)(nil),      // 14: resource.SetPackageDescriptorResponse
-	(*FindPackagesDescriptorRequest)(nil),     // 15: resource.FindPackagesDescriptorRequest
-	(*FindPackagesDescriptorResponse)(nil),    // 16: resource.FindPackagesDescriptorResponse
-	(*Role)(nil),                              // 17: resource.Role
-	(*AddRoleActionsRqst)(nil),                // 18: resource.AddRoleActionsRqst
-	(*AddRoleActionsRsp)(nil),                 // 19: resource.AddRoleActionsRsp
-	(*RemoveRoleActionRqst)(nil),              // 20: resource.RemoveRoleActionRqst
-	(*RemoveRoleActionRsp)(nil),               // 21: resource.RemoveRoleActionRsp
-	(*RemoveRolesActionRqst)(nil),             // 22: resource.RemoveRolesActionRqst
-	(*RemoveRolesActionRsp)(nil),              // 23: resource.RemoveRolesActionRsp
-	(*Account)(nil),                           // 24: resource.Account
-	(*RegisterAccountRqst)(nil),               // 25: resource.RegisterAccountRqst
-	(*RegisterAccountRsp)(nil),                // 26: resource.RegisterAccountRsp
-	(*AccountExistRqst)(nil),                  // 27: resource.AccountExistRqst
-	(*AccountExistRsp)(nil),                   // 28: resource.AccountExistRsp
-	(*GetAccountsRqst)(nil),                   // 29: resource.GetAccountsRqst
-	(*GetAccountsRsp)(nil),                    // 30: resource.GetAccountsRsp
-	(*GetAccountRqst)(nil),                    // 31: resource.GetAccountRqst
-	(*GetAccountRsp)(nil),                     // 32: resource.GetAccountRsp
-	(*SetAccountRqst)(nil),                    // 33: resource.SetAccountRqst
-	(*SetAccountRsp)(nil),                     // 34: resource.SetAccountRsp
-	(*SetAccountPasswordRqst)(nil),            // 35: resource.SetAccountPasswordRqst
-	(*SetAccountPasswordRsp)(nil),             // 36: resource.SetAccountPasswordRsp
-	(*SetEmailRequest)(nil),                   // 37: resource.SetEmailRequest
-	(*SetEmailResponse)(nil),                  // 38: resource.SetEmailResponse
-	(*DeleteAccountRqst)(nil),                 // 39: resource.DeleteAccountRqst
-	(*DeleteAccountRsp)(nil),                  // 40: resource.DeleteAccountRsp
-	(*AddAccountRoleRqst)(nil),                // 41: resource.AddAccountRoleRqst
-	(*AddAccountRoleRsp)(nil),                 // 42: resource.AddAccountRoleRsp
-	(*RemoveAccountRoleRqst)(nil),             // 43: resource.RemoveAccountRoleRqst
-	(*RemoveAccountRoleRsp)(nil),              // 44: resource.RemoveAccountRoleRsp
-	(*Contact)(nil),                           // 45: resource.Contact
-	(*SetAccountContactRqst)(nil),             // 46: resource.SetAccountContactRqst
-	(*SetAccountContactRsp)(nil),              // 47: resource.SetAccountContactRsp
-	(*CreateRoleRqst)(nil),                    // 48: resource.CreateRoleRqst
-	(*CreateRoleRsp)(nil),                     // 49: resource.CreateRoleRsp
-	(*UpdateRoleRqst)(nil),                    // 50: resource.UpdateRoleRqst
-	(*UpdateRoleRsp)(nil),                     // 51: resource.UpdateRoleRsp
-	(*GetRolesRqst)(nil),                      // 52: resource.GetRolesRqst
-	(*GetRolesRsp)(nil),                       // 53: resource.GetRolesRsp
-	(*DeleteRoleRqst)(nil),                    // 54: resource.DeleteRoleRqst
-	(*DeleteRoleRsp)(nil),                     // 55: resource.DeleteRoleRsp
-	(*Application)(nil),                       // 56: resource.Application
-	(*CreateApplicationRqst)(nil),             // 57: resource.CreateApplicationRqst
-	(*CreateApplicationRsp)(nil),              // 58: resource.CreateApplicationRsp
-	(*UpdateApplicationRqst)(nil),             // 59: resource.UpdateApplicationRqst
-	(*UpdateApplicationRsp)(nil),              // 60: resource.UpdateApplicationRsp
-	(*DeleteApplicationRqst)(nil),             // 61: resource.DeleteApplicationRqst
-	(*DeleteApplicationRsp)(nil),              // 62: resource.DeleteApplicationRsp
-	(*AddApplicationActionsRqst)(nil),         // 63: resource.AddApplicationActionsRqst
-	(*AddApplicationActionsRsp)(nil),          // 64: resource.AddApplicationActionsRsp
-	(*RemoveApplicationActionRqst)(nil),       // 65: resource.RemoveApplicationActionRqst
-	(*RemoveApplicationActionRsp)(nil),        // 66: resource.RemoveApplicationActionRsp
-	(*RemoveApplicationsActionRqst)(nil),      // 67: resource.RemoveApplicationsActionRqst
-	(*RemoveApplicationsActionRsp)(nil),       // 68: resource.RemoveApplicationsActionRsp
-	(*GetApplicationsRqst)(nil),               // 69: resource.GetApplicationsRqst
-	(*GetApplicationsRsp)(nil),                // 70: resource.GetApplicationsRsp
-	(*GetApplicationVersionRqst)(nil),         // 71: resource.GetApplicationVersionRqst
-	(*GetApplicationVersionRsp)(nil),          // 72: resource.GetApplicationVersionRsp
-	(*GetApplicationIconRqst)(nil),            // 73: resource.GetApplicationIconRqst
-	(*GetApplicationIconRsp)(nil),             // 74: resource.GetApplicationIconRsp
-	(*GetApplicationAliasRqst)(nil),           // 75: resource.GetApplicationAliasRqst
-	(*GetApplicationAliasRsp)(nil),            // 76: resource.GetApplicationAliasRsp
-	(*Group)(nil),                             // 77: resource.Group
-	(*CreateGroupRqst)(nil),                   // 78: resource.CreateGroupRqst
-	(*CreateGroupRsp)(nil),                    // 79: resource.CreateGroupRsp
-	(*UpdateGroupRqst)(nil),                   // 80: resource.UpdateGroupRqst
-	(*UpdateGroupRsp)(nil),                    // 81: resource.UpdateGroupRsp
-	(*GetGroupsRqst)(nil),                     // 82: resource.GetGroupsRqst
-	(*GetGroupsRsp)(nil),                      // 83: resource.GetGroupsRsp
-	(*DeleteGroupRqst)(nil),                   // 84: resource.DeleteGroupRqst
-	(*DeleteGroupRsp)(nil),                    // 85: resource.DeleteGroupRsp
-	(*AddGroupMemberAccountRqst)(nil),         // 86: resource.AddGroupMemberAccountRqst
-	(*AddGroupMemberAccountRsp)(nil),          // 87: resource.AddGroupMemberAccountRsp
-	(*RemoveGroupMemberAccountRqst)(nil),      // 88: resource.RemoveGroupMemberAccountRqst
-	(*RemoveGroupMemberAccountRsp)(nil),       // 89: resource.RemoveGroupMemberAccountRsp
-	(*AddGroupRoleRqst)(nil),                  // 90: resource.AddGroupRoleRqst
-	(*AddGroupRoleRsp)(nil),                   // 91: resource.AddGroupRoleRsp
-	(*RemoveGroupRoleRqst)(nil),               // 92: resource.RemoveGroupRoleRqst
-	(*RemoveGroupRoleRsp)(nil),                // 93: resource.RemoveGroupRoleRsp
-	(*Organization)(nil),                      // 94: resource.Organization
-	(*CreateOrganizationRqst)(nil),            // 95: resource.CreateOrganizationRqst
-	(*CreateOrganizationRsp)(nil),             // 96: resource.CreateOrganizationRsp
-	(*UpdateOrganizationRqst)(nil),            // 97: resource.UpdateOrganizationRqst
-	(*UpdateOrganizationRsp)(nil),             // 98: resource.UpdateOrganizationRsp
-	(*GetOrganizationsRqst)(nil),              // 99: resource.GetOrganizationsRqst
-	(*GetOrganizationsRsp)(nil),               // 100: resource.GetOrganizationsRsp
-	(*AddOrganizationAccountRqst)(nil),        // 101: resource.AddOrganizationAccountRqst
-	(*AddOrganizationAccountRsp)(nil),         // 102: resource.AddOrganizationAccountRsp
-	(*AddOrganizationGroupRqst)(nil),          // 103: resource.AddOrganizationGroupRqst
-	(*AddOrganizationGroupRsp)(nil),           // 104: resource.AddOrganizationGroupRsp
-	(*AddOrganizationRoleRqst)(nil),           // 105: resource.AddOrganizationRoleRqst
-	(*AddOrganizationRoleRsp)(nil),            // 106: resource.AddOrganizationRoleRsp
-	(*AddOrganizationApplicationRqst)(nil),    // 107: resource.AddOrganizationApplicationRqst
-	(*AddOrganizationApplicationRsp)(nil),     // 108: resource.AddOrganizationApplicationRsp
-	(*RemoveOrganizationGroupRqst)(nil),       // 109: resource.RemoveOrganizationGroupRqst
-	(*RemoveOrganizationGroupRsp)(nil),        // 110: resource.RemoveOrganizationGroupRsp
-	(*RemoveOrganizationRoleRqst)(nil),        // 111: resource.RemoveOrganizationRoleRqst
-	(*RemoveOrganizationRoleRsp)(nil),         // 112: resource.RemoveOrganizationRoleRsp
-	(*RemoveOrganizationApplicationRqst)(nil), // 113: resource.RemoveOrganizationApplicationRqst
-	(*RemoveOrganizationApplicationRsp)(nil),  // 114: resource.RemoveOrganizationApplicationRsp
-	(*RemoveOrganizationAccountRqst)(nil),     // 115: resource.RemoveOrganizationAccountRqst
-	(*RemoveOrganizationAccountRsp)(nil),      // 116: resource.RemoveOrganizationAccountRsp
-	(*IsOrgnanizationMemberRqst)(nil),         // 117: resource.IsOrgnanizationMemberRqst
-	(*IsOrgnanizationMemberRsp)(nil),          // 118: resource.IsOrgnanizationMemberRsp
-	(*DeleteOrganizationRqst)(nil),            // 119: resource.DeleteOrganizationRqst
-	(*DeleteOrganizationRsp)(nil),             // 120: resource.DeleteOrganizationRsp
-	(*NodeIdentity)(nil),                      // 121: resource.NodeIdentity
-	(*UpsertNodeIdentityRqst)(nil),            // 122: resource.UpsertNodeIdentityRqst
-	(*UpsertNodeIdentityRsp)(nil),             // 123: resource.UpsertNodeIdentityRsp
-	(*GetNodeIdentityRqst)(nil),               // 124: resource.GetNodeIdentityRqst
-	(*GetNodeIdentityRsp)(nil),                // 125: resource.GetNodeIdentityRsp
-	(*ListNodeIdentitiesRqst)(nil),            // 126: resource.ListNodeIdentitiesRqst
-	(*ListNodeIdentitiesRsp)(nil),             // 127: resource.ListNodeIdentitiesRsp
-	(*SetNodeIdentityEnabledRqst)(nil),        // 128: resource.SetNodeIdentityEnabledRqst
-	(*SetNodeIdentityEnabledRsp)(nil),         // 129: resource.SetNodeIdentityEnabledRsp
-	(*Call)(nil),                              // 130: resource.Call
-	(*GetCallHistoryRqst)(nil),                // 131: resource.GetCallHistoryRqst
-	(*GetCallHistoryRsp)(nil),                 // 132: resource.GetCallHistoryRsp
-	(*SetCallRqst)(nil),                       // 133: resource.SetCallRqst
-	(*SetCallRsp)(nil),                        // 134: resource.SetCallRsp
-	(*DeleteCallRqst)(nil),                    // 135: resource.DeleteCallRqst
-	(*DeleteCallRsp)(nil),                     // 136: resource.DeleteCallRsp
-	(*ClearCallsRqst)(nil),                    // 137: resource.ClearCallsRqst
-	(*ClearCallsRsp)(nil),                     // 138: resource.ClearCallsRsp
-	(*Notification)(nil),                      // 139: resource.Notification
-	(*CreateNotificationRqst)(nil),            // 140: resource.CreateNotificationRqst
-	(*CreateNotificationRsp)(nil),             // 141: resource.CreateNotificationRsp
-	(*GetNotificationsRqst)(nil),              // 142: resource.GetNotificationsRqst
-	(*GetNotificationsRsp)(nil),               // 143: resource.GetNotificationsRsp
-	(*DeleteNotificationRqst)(nil),            // 144: resource.DeleteNotificationRqst
-	(*DeleteNotificationRsp)(nil),             // 145: resource.DeleteNotificationRsp
-	(*ClearAllNotificationsRqst)(nil),         // 146: resource.ClearAllNotificationsRqst
-	(*ClearAllNotificationsRsp)(nil),          // 147: resource.ClearAllNotificationsRsp
-	(*ClearNotificationsByTypeRqst)(nil),      // 148: resource.ClearNotificationsByTypeRqst
-	(*ClearNotificationsByTypeRsp)(nil),       // 149: resource.ClearNotificationsByTypeRsp
-	(*Session)(nil),                           // 150: resource.Session
-	(*UpdateSessionRequest)(nil),              // 151: resource.UpdateSessionRequest
-	(*UpdateSessionResponse)(nil),             // 152: resource.UpdateSessionResponse
-	(*RemoveSessionRequest)(nil),              // 153: resource.RemoveSessionRequest
-	(*RemoveSessionResponse)(nil),             // 154: resource.RemoveSessionResponse
-	(*GetSessionsRequest)(nil),                // 155: resource.GetSessionsRequest
-	(*GetSessionsResponse)(nil),               // 156: resource.GetSessionsResponse
-	(*GetSessionRequest)(nil),                 // 157: resource.GetSessionRequest
-	(*GetSessionResponse)(nil),                // 158: resource.GetSessionResponse
-	(*CreateReferenceRqst)(nil),               // 159: resource.CreateReferenceRqst
-	(*CreateReferenceRsp)(nil),                // 160: resource.CreateReferenceRsp
-	(*DeleteReferenceRqst)(nil),               // 161: resource.DeleteReferenceRqst
-	(*DeleteReferenceRsp)(nil),                // 162: resource.DeleteReferenceRsp
-	(*GetServicesCorsPoliciesRqst)(nil),       // 163: resource.GetServicesCorsPoliciesRqst
-	(*ServiceCorsPolicy)(nil),                 // 164: resource.ServiceCorsPolicy
-	(*GetServicesCorsPoliciesRsp)(nil),        // 165: resource.GetServicesCorsPoliciesRsp
-	(*SetServiceCorsPolicyRqst)(nil),          // 166: resource.SetServiceCorsPolicyRqst
-	(*SetServiceCorsPolicyRsp)(nil),           // 167: resource.SetServiceCorsPolicyRsp
-	nil,                                       // 168: resource.NodeIdentity.LabelsEntry
+	(*GetPackageBundlesRequest)(nil),          // 8: resource.GetPackageBundlesRequest
+	(*GetPackageBundlesResponse)(nil),         // 9: resource.GetPackageBundlesResponse
+	(*PackageDescriptor)(nil),                 // 10: resource.PackageDescriptor
+	(*GetPackageDescriptorRequest)(nil),       // 11: resource.GetPackageDescriptorRequest
+	(*GetPackageDescriptorResponse)(nil),      // 12: resource.GetPackageDescriptorResponse
+	(*GetPackagesDescriptorRequest)(nil),      // 13: resource.GetPackagesDescriptorRequest
+	(*GetPackagesDescriptorResponse)(nil),     // 14: resource.GetPackagesDescriptorResponse
+	(*SetPackageDescriptorRequest)(nil),       // 15: resource.SetPackageDescriptorRequest
+	(*SetPackageDescriptorResponse)(nil),      // 16: resource.SetPackageDescriptorResponse
+	(*FindPackagesDescriptorRequest)(nil),     // 17: resource.FindPackagesDescriptorRequest
+	(*FindPackagesDescriptorResponse)(nil),    // 18: resource.FindPackagesDescriptorResponse
+	(*Role)(nil),                              // 19: resource.Role
+	(*AddRoleActionsRqst)(nil),                // 20: resource.AddRoleActionsRqst
+	(*AddRoleActionsRsp)(nil),                 // 21: resource.AddRoleActionsRsp
+	(*RemoveRoleActionRqst)(nil),              // 22: resource.RemoveRoleActionRqst
+	(*RemoveRoleActionRsp)(nil),               // 23: resource.RemoveRoleActionRsp
+	(*RemoveRolesActionRqst)(nil),             // 24: resource.RemoveRolesActionRqst
+	(*RemoveRolesActionRsp)(nil),              // 25: resource.RemoveRolesActionRsp
+	(*Account)(nil),                           // 26: resource.Account
+	(*RegisterAccountRqst)(nil),               // 27: resource.RegisterAccountRqst
+	(*RegisterAccountRsp)(nil),                // 28: resource.RegisterAccountRsp
+	(*AccountExistRqst)(nil),                  // 29: resource.AccountExistRqst
+	(*AccountExistRsp)(nil),                   // 30: resource.AccountExistRsp
+	(*GetAccountsRqst)(nil),                   // 31: resource.GetAccountsRqst
+	(*GetAccountsRsp)(nil),                    // 32: resource.GetAccountsRsp
+	(*GetAccountRqst)(nil),                    // 33: resource.GetAccountRqst
+	(*GetAccountRsp)(nil),                     // 34: resource.GetAccountRsp
+	(*SetAccountRqst)(nil),                    // 35: resource.SetAccountRqst
+	(*SetAccountRsp)(nil),                     // 36: resource.SetAccountRsp
+	(*SetAccountPasswordRqst)(nil),            // 37: resource.SetAccountPasswordRqst
+	(*SetAccountPasswordRsp)(nil),             // 38: resource.SetAccountPasswordRsp
+	(*SetEmailRequest)(nil),                   // 39: resource.SetEmailRequest
+	(*SetEmailResponse)(nil),                  // 40: resource.SetEmailResponse
+	(*DeleteAccountRqst)(nil),                 // 41: resource.DeleteAccountRqst
+	(*DeleteAccountRsp)(nil),                  // 42: resource.DeleteAccountRsp
+	(*AddAccountRoleRqst)(nil),                // 43: resource.AddAccountRoleRqst
+	(*AddAccountRoleRsp)(nil),                 // 44: resource.AddAccountRoleRsp
+	(*RemoveAccountRoleRqst)(nil),             // 45: resource.RemoveAccountRoleRqst
+	(*RemoveAccountRoleRsp)(nil),              // 46: resource.RemoveAccountRoleRsp
+	(*Contact)(nil),                           // 47: resource.Contact
+	(*SetAccountContactRqst)(nil),             // 48: resource.SetAccountContactRqst
+	(*SetAccountContactRsp)(nil),              // 49: resource.SetAccountContactRsp
+	(*CreateRoleRqst)(nil),                    // 50: resource.CreateRoleRqst
+	(*CreateRoleRsp)(nil),                     // 51: resource.CreateRoleRsp
+	(*UpdateRoleRqst)(nil),                    // 52: resource.UpdateRoleRqst
+	(*UpdateRoleRsp)(nil),                     // 53: resource.UpdateRoleRsp
+	(*GetRolesRqst)(nil),                      // 54: resource.GetRolesRqst
+	(*GetRolesRsp)(nil),                       // 55: resource.GetRolesRsp
+	(*DeleteRoleRqst)(nil),                    // 56: resource.DeleteRoleRqst
+	(*DeleteRoleRsp)(nil),                     // 57: resource.DeleteRoleRsp
+	(*Application)(nil),                       // 58: resource.Application
+	(*CreateApplicationRqst)(nil),             // 59: resource.CreateApplicationRqst
+	(*CreateApplicationRsp)(nil),              // 60: resource.CreateApplicationRsp
+	(*UpdateApplicationRqst)(nil),             // 61: resource.UpdateApplicationRqst
+	(*UpdateApplicationRsp)(nil),              // 62: resource.UpdateApplicationRsp
+	(*DeleteApplicationRqst)(nil),             // 63: resource.DeleteApplicationRqst
+	(*DeleteApplicationRsp)(nil),              // 64: resource.DeleteApplicationRsp
+	(*AddApplicationActionsRqst)(nil),         // 65: resource.AddApplicationActionsRqst
+	(*AddApplicationActionsRsp)(nil),          // 66: resource.AddApplicationActionsRsp
+	(*RemoveApplicationActionRqst)(nil),       // 67: resource.RemoveApplicationActionRqst
+	(*RemoveApplicationActionRsp)(nil),        // 68: resource.RemoveApplicationActionRsp
+	(*RemoveApplicationsActionRqst)(nil),      // 69: resource.RemoveApplicationsActionRqst
+	(*RemoveApplicationsActionRsp)(nil),       // 70: resource.RemoveApplicationsActionRsp
+	(*GetApplicationsRqst)(nil),               // 71: resource.GetApplicationsRqst
+	(*GetApplicationsRsp)(nil),                // 72: resource.GetApplicationsRsp
+	(*GetApplicationVersionRqst)(nil),         // 73: resource.GetApplicationVersionRqst
+	(*GetApplicationVersionRsp)(nil),          // 74: resource.GetApplicationVersionRsp
+	(*GetApplicationIconRqst)(nil),            // 75: resource.GetApplicationIconRqst
+	(*GetApplicationIconRsp)(nil),             // 76: resource.GetApplicationIconRsp
+	(*GetApplicationAliasRqst)(nil),           // 77: resource.GetApplicationAliasRqst
+	(*GetApplicationAliasRsp)(nil),            // 78: resource.GetApplicationAliasRsp
+	(*Group)(nil),                             // 79: resource.Group
+	(*CreateGroupRqst)(nil),                   // 80: resource.CreateGroupRqst
+	(*CreateGroupRsp)(nil),                    // 81: resource.CreateGroupRsp
+	(*UpdateGroupRqst)(nil),                   // 82: resource.UpdateGroupRqst
+	(*UpdateGroupRsp)(nil),                    // 83: resource.UpdateGroupRsp
+	(*GetGroupsRqst)(nil),                     // 84: resource.GetGroupsRqst
+	(*GetGroupsRsp)(nil),                      // 85: resource.GetGroupsRsp
+	(*DeleteGroupRqst)(nil),                   // 86: resource.DeleteGroupRqst
+	(*DeleteGroupRsp)(nil),                    // 87: resource.DeleteGroupRsp
+	(*AddGroupMemberAccountRqst)(nil),         // 88: resource.AddGroupMemberAccountRqst
+	(*AddGroupMemberAccountRsp)(nil),          // 89: resource.AddGroupMemberAccountRsp
+	(*RemoveGroupMemberAccountRqst)(nil),      // 90: resource.RemoveGroupMemberAccountRqst
+	(*RemoveGroupMemberAccountRsp)(nil),       // 91: resource.RemoveGroupMemberAccountRsp
+	(*AddGroupRoleRqst)(nil),                  // 92: resource.AddGroupRoleRqst
+	(*AddGroupRoleRsp)(nil),                   // 93: resource.AddGroupRoleRsp
+	(*RemoveGroupRoleRqst)(nil),               // 94: resource.RemoveGroupRoleRqst
+	(*RemoveGroupRoleRsp)(nil),                // 95: resource.RemoveGroupRoleRsp
+	(*Organization)(nil),                      // 96: resource.Organization
+	(*CreateOrganizationRqst)(nil),            // 97: resource.CreateOrganizationRqst
+	(*CreateOrganizationRsp)(nil),             // 98: resource.CreateOrganizationRsp
+	(*UpdateOrganizationRqst)(nil),            // 99: resource.UpdateOrganizationRqst
+	(*UpdateOrganizationRsp)(nil),             // 100: resource.UpdateOrganizationRsp
+	(*GetOrganizationsRqst)(nil),              // 101: resource.GetOrganizationsRqst
+	(*GetOrganizationsRsp)(nil),               // 102: resource.GetOrganizationsRsp
+	(*AddOrganizationAccountRqst)(nil),        // 103: resource.AddOrganizationAccountRqst
+	(*AddOrganizationAccountRsp)(nil),         // 104: resource.AddOrganizationAccountRsp
+	(*AddOrganizationGroupRqst)(nil),          // 105: resource.AddOrganizationGroupRqst
+	(*AddOrganizationGroupRsp)(nil),           // 106: resource.AddOrganizationGroupRsp
+	(*AddOrganizationRoleRqst)(nil),           // 107: resource.AddOrganizationRoleRqst
+	(*AddOrganizationRoleRsp)(nil),            // 108: resource.AddOrganizationRoleRsp
+	(*AddOrganizationApplicationRqst)(nil),    // 109: resource.AddOrganizationApplicationRqst
+	(*AddOrganizationApplicationRsp)(nil),     // 110: resource.AddOrganizationApplicationRsp
+	(*RemoveOrganizationGroupRqst)(nil),       // 111: resource.RemoveOrganizationGroupRqst
+	(*RemoveOrganizationGroupRsp)(nil),        // 112: resource.RemoveOrganizationGroupRsp
+	(*RemoveOrganizationRoleRqst)(nil),        // 113: resource.RemoveOrganizationRoleRqst
+	(*RemoveOrganizationRoleRsp)(nil),         // 114: resource.RemoveOrganizationRoleRsp
+	(*RemoveOrganizationApplicationRqst)(nil), // 115: resource.RemoveOrganizationApplicationRqst
+	(*RemoveOrganizationApplicationRsp)(nil),  // 116: resource.RemoveOrganizationApplicationRsp
+	(*RemoveOrganizationAccountRqst)(nil),     // 117: resource.RemoveOrganizationAccountRqst
+	(*RemoveOrganizationAccountRsp)(nil),      // 118: resource.RemoveOrganizationAccountRsp
+	(*IsOrgnanizationMemberRqst)(nil),         // 119: resource.IsOrgnanizationMemberRqst
+	(*IsOrgnanizationMemberRsp)(nil),          // 120: resource.IsOrgnanizationMemberRsp
+	(*DeleteOrganizationRqst)(nil),            // 121: resource.DeleteOrganizationRqst
+	(*DeleteOrganizationRsp)(nil),             // 122: resource.DeleteOrganizationRsp
+	(*NodeIdentity)(nil),                      // 123: resource.NodeIdentity
+	(*UpsertNodeIdentityRqst)(nil),            // 124: resource.UpsertNodeIdentityRqst
+	(*UpsertNodeIdentityRsp)(nil),             // 125: resource.UpsertNodeIdentityRsp
+	(*GetNodeIdentityRqst)(nil),               // 126: resource.GetNodeIdentityRqst
+	(*GetNodeIdentityRsp)(nil),                // 127: resource.GetNodeIdentityRsp
+	(*ListNodeIdentitiesRqst)(nil),            // 128: resource.ListNodeIdentitiesRqst
+	(*ListNodeIdentitiesRsp)(nil),             // 129: resource.ListNodeIdentitiesRsp
+	(*SetNodeIdentityEnabledRqst)(nil),        // 130: resource.SetNodeIdentityEnabledRqst
+	(*SetNodeIdentityEnabledRsp)(nil),         // 131: resource.SetNodeIdentityEnabledRsp
+	(*Call)(nil),                              // 132: resource.Call
+	(*GetCallHistoryRqst)(nil),                // 133: resource.GetCallHistoryRqst
+	(*GetCallHistoryRsp)(nil),                 // 134: resource.GetCallHistoryRsp
+	(*SetCallRqst)(nil),                       // 135: resource.SetCallRqst
+	(*SetCallRsp)(nil),                        // 136: resource.SetCallRsp
+	(*DeleteCallRqst)(nil),                    // 137: resource.DeleteCallRqst
+	(*DeleteCallRsp)(nil),                     // 138: resource.DeleteCallRsp
+	(*ClearCallsRqst)(nil),                    // 139: resource.ClearCallsRqst
+	(*ClearCallsRsp)(nil),                     // 140: resource.ClearCallsRsp
+	(*Notification)(nil),                      // 141: resource.Notification
+	(*CreateNotificationRqst)(nil),            // 142: resource.CreateNotificationRqst
+	(*CreateNotificationRsp)(nil),             // 143: resource.CreateNotificationRsp
+	(*GetNotificationsRqst)(nil),              // 144: resource.GetNotificationsRqst
+	(*GetNotificationsRsp)(nil),               // 145: resource.GetNotificationsRsp
+	(*DeleteNotificationRqst)(nil),            // 146: resource.DeleteNotificationRqst
+	(*DeleteNotificationRsp)(nil),             // 147: resource.DeleteNotificationRsp
+	(*ClearAllNotificationsRqst)(nil),         // 148: resource.ClearAllNotificationsRqst
+	(*ClearAllNotificationsRsp)(nil),          // 149: resource.ClearAllNotificationsRsp
+	(*ClearNotificationsByTypeRqst)(nil),      // 150: resource.ClearNotificationsByTypeRqst
+	(*ClearNotificationsByTypeRsp)(nil),       // 151: resource.ClearNotificationsByTypeRsp
+	(*Session)(nil),                           // 152: resource.Session
+	(*UpdateSessionRequest)(nil),              // 153: resource.UpdateSessionRequest
+	(*UpdateSessionResponse)(nil),             // 154: resource.UpdateSessionResponse
+	(*RemoveSessionRequest)(nil),              // 155: resource.RemoveSessionRequest
+	(*RemoveSessionResponse)(nil),             // 156: resource.RemoveSessionResponse
+	(*GetSessionsRequest)(nil),                // 157: resource.GetSessionsRequest
+	(*GetSessionsResponse)(nil),               // 158: resource.GetSessionsResponse
+	(*GetSessionRequest)(nil),                 // 159: resource.GetSessionRequest
+	(*GetSessionResponse)(nil),                // 160: resource.GetSessionResponse
+	(*CreateReferenceRqst)(nil),               // 161: resource.CreateReferenceRqst
+	(*CreateReferenceRsp)(nil),                // 162: resource.CreateReferenceRsp
+	(*DeleteReferenceRqst)(nil),               // 163: resource.DeleteReferenceRqst
+	(*DeleteReferenceRsp)(nil),                // 164: resource.DeleteReferenceRsp
+	(*GetServicesCorsPoliciesRqst)(nil),       // 165: resource.GetServicesCorsPoliciesRqst
+	(*ServiceCorsPolicy)(nil),                 // 166: resource.ServiceCorsPolicy
+	(*GetServicesCorsPoliciesRsp)(nil),        // 167: resource.GetServicesCorsPoliciesRsp
+	(*SetServiceCorsPolicyRqst)(nil),          // 168: resource.SetServiceCorsPolicyRqst
+	(*SetServiceCorsPolicyRsp)(nil),           // 169: resource.SetServiceCorsPolicyRsp
+	nil,                                       // 170: resource.NodeIdentity.LabelsEntry
 }
 var file_resource_proto_depIdxs = []int32{
-	8,   // 0: resource.PackageBundle.packageDescriptor:type_name -> resource.PackageDescriptor
+	10,  // 0: resource.PackageBundle.packageDescriptor:type_name -> resource.PackageDescriptor
 	3,   // 1: resource.SetPackageBundleRequest.bundle:type_name -> resource.PackageBundle
-	0,   // 2: resource.PackageDescriptor.type:type_name -> resource.PackageType
-	17,  // 3: resource.PackageDescriptor.roles:type_name -> resource.Role
-	77,  // 4: resource.PackageDescriptor.groups:type_name -> resource.Group
-	8,   // 5: resource.GetPackageDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	8,   // 6: resource.GetPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	8,   // 7: resource.SetPackageDescriptorRequest.packageDescriptor:type_name -> resource.PackageDescriptor
-	8,   // 8: resource.FindPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	24,  // 9: resource.RegisterAccountRqst.account:type_name -> resource.Account
-	24,  // 10: resource.GetAccountsRsp.accounts:type_name -> resource.Account
-	24,  // 11: resource.GetAccountRsp.account:type_name -> resource.Account
-	24,  // 12: resource.SetAccountRqst.account:type_name -> resource.Account
-	45,  // 13: resource.SetAccountContactRqst.contact:type_name -> resource.Contact
-	17,  // 14: resource.CreateRoleRqst.role:type_name -> resource.Role
-	17,  // 15: resource.GetRolesRsp.roles:type_name -> resource.Role
-	56,  // 16: resource.CreateApplicationRqst.application:type_name -> resource.Application
-	56,  // 17: resource.GetApplicationsRsp.applications:type_name -> resource.Application
-	77,  // 18: resource.CreateGroupRqst.group:type_name -> resource.Group
-	77,  // 19: resource.GetGroupsRsp.groups:type_name -> resource.Group
-	94,  // 20: resource.CreateOrganizationRqst.organization:type_name -> resource.Organization
-	94,  // 21: resource.GetOrganizationsRsp.organizations:type_name -> resource.Organization
-	168, // 22: resource.NodeIdentity.labels:type_name -> resource.NodeIdentity.LabelsEntry
-	121, // 23: resource.UpsertNodeIdentityRqst.node:type_name -> resource.NodeIdentity
-	121, // 24: resource.UpsertNodeIdentityRsp.node:type_name -> resource.NodeIdentity
-	121, // 25: resource.GetNodeIdentityRsp.node:type_name -> resource.NodeIdentity
-	121, // 26: resource.ListNodeIdentitiesRsp.nodes:type_name -> resource.NodeIdentity
-	130, // 27: resource.GetCallHistoryRsp.calls:type_name -> resource.Call
-	130, // 28: resource.SetCallRqst.call:type_name -> resource.Call
-	1,   // 29: resource.Notification.notification_type:type_name -> resource.NotificationType
-	139, // 30: resource.CreateNotificationRqst.notification:type_name -> resource.Notification
-	139, // 31: resource.GetNotificationsRsp.notifications:type_name -> resource.Notification
-	1,   // 32: resource.ClearNotificationsByTypeRqst.notification_type:type_name -> resource.NotificationType
-	2,   // 33: resource.Session.state:type_name -> resource.SessionState
-	150, // 34: resource.UpdateSessionRequest.session:type_name -> resource.Session
-	150, // 35: resource.GetSessionsResponse.sessions:type_name -> resource.Session
-	150, // 36: resource.GetSessionResponse.session:type_name -> resource.Session
-	164, // 37: resource.GetServicesCorsPoliciesRsp.policies:type_name -> resource.ServiceCorsPolicy
-	159, // 38: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
-	161, // 39: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
-	95,  // 40: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
-	97,  // 41: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
-	99,  // 42: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
-	119, // 43: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
-	101, // 44: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
-	103, // 45: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
-	105, // 46: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
-	107, // 47: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
-	90,  // 48: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
-	92,  // 49: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
-	115, // 50: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
-	109, // 51: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
-	111, // 52: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
-	113, // 53: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
-	78,  // 54: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
-	80,  // 55: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
-	82,  // 56: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
-	84,  // 57: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
-	86,  // 58: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
-	88,  // 59: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
-	25,  // 60: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
-	39,  // 61: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
-	31,  // 62: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
-	33,  // 63: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
-	35,  // 64: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
-	29,  // 65: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
-	41,  // 66: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
-	43,  // 67: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
-	46,  // 68: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
-	37,  // 69: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
-	117, // 70: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
-	48,  // 71: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
-	50,  // 72: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
-	52,  // 73: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
-	54,  // 74: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
-	18,  // 75: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
-	20,  // 76: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
-	22,  // 77: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
-	57,  // 78: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
-	59,  // 79: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
-	69,  // 80: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
-	61,  // 81: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
-	63,  // 82: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
-	65,  // 83: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
-	67,  // 84: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
-	71,  // 85: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
-	122, // 86: resource.ResourceService.UpsertNodeIdentity:input_type -> resource.UpsertNodeIdentityRqst
-	124, // 87: resource.ResourceService.GetNodeIdentity:input_type -> resource.GetNodeIdentityRqst
-	126, // 88: resource.ResourceService.ListNodeIdentities:input_type -> resource.ListNodeIdentitiesRqst
-	128, // 89: resource.ResourceService.SetNodeIdentityEnabled:input_type -> resource.SetNodeIdentityEnabledRqst
-	140, // 90: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
-	142, // 91: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
-	144, // 92: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
-	146, // 93: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
-	148, // 94: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
-	15,  // 95: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
-	9,   // 96: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
-	11,  // 97: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
-	13,  // 98: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
-	4,   // 99: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
-	6,   // 100: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
-	151, // 101: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
-	155, // 102: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
-	153, // 103: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
-	157, // 104: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
-	131, // 105: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
-	133, // 106: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
-	135, // 107: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
-	137, // 108: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
-	163, // 109: resource.ResourceService.GetServicesCorsPolicies:input_type -> resource.GetServicesCorsPoliciesRqst
-	166, // 110: resource.ResourceService.SetServiceCorsPolicy:input_type -> resource.SetServiceCorsPolicyRqst
-	160, // 111: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
-	162, // 112: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
-	96,  // 113: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
-	98,  // 114: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
-	100, // 115: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
-	120, // 116: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
-	102, // 117: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
-	104, // 118: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
-	106, // 119: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
-	108, // 120: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
-	91,  // 121: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
-	93,  // 122: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
-	116, // 123: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
-	110, // 124: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
-	112, // 125: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
-	114, // 126: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
-	79,  // 127: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
-	81,  // 128: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
-	83,  // 129: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
-	85,  // 130: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
-	87,  // 131: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
-	89,  // 132: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
-	26,  // 133: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
-	40,  // 134: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
-	32,  // 135: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
-	34,  // 136: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
-	36,  // 137: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
-	30,  // 138: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
-	42,  // 139: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
-	44,  // 140: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
-	47,  // 141: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
-	38,  // 142: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
-	118, // 143: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
-	49,  // 144: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
-	51,  // 145: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
-	53,  // 146: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
-	55,  // 147: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
-	19,  // 148: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
-	21,  // 149: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
-	23,  // 150: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
-	58,  // 151: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
-	60,  // 152: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
-	70,  // 153: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
-	62,  // 154: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
-	64,  // 155: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
-	66,  // 156: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
-	68,  // 157: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
-	72,  // 158: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
-	123, // 159: resource.ResourceService.UpsertNodeIdentity:output_type -> resource.UpsertNodeIdentityRsp
-	125, // 160: resource.ResourceService.GetNodeIdentity:output_type -> resource.GetNodeIdentityRsp
-	127, // 161: resource.ResourceService.ListNodeIdentities:output_type -> resource.ListNodeIdentitiesRsp
-	129, // 162: resource.ResourceService.SetNodeIdentityEnabled:output_type -> resource.SetNodeIdentityEnabledRsp
-	141, // 163: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
-	143, // 164: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
-	145, // 165: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
-	147, // 166: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
-	149, // 167: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
-	16,  // 168: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
-	10,  // 169: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
-	12,  // 170: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
-	14,  // 171: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
-	5,   // 172: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
-	7,   // 173: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
-	152, // 174: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
-	156, // 175: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
-	154, // 176: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
-	158, // 177: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
-	132, // 178: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
-	134, // 179: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
-	136, // 180: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
-	138, // 181: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
-	165, // 182: resource.ResourceService.GetServicesCorsPolicies:output_type -> resource.GetServicesCorsPoliciesRsp
-	167, // 183: resource.ResourceService.SetServiceCorsPolicy:output_type -> resource.SetServiceCorsPolicyRsp
-	111, // [111:184] is the sub-list for method output_type
-	38,  // [38:111] is the sub-list for method input_type
-	38,  // [38:38] is the sub-list for extension type_name
-	38,  // [38:38] is the sub-list for extension extendee
-	0,   // [0:38] is the sub-list for field type_name
+	3,   // 2: resource.GetPackageBundlesResponse.bundles:type_name -> resource.PackageBundle
+	0,   // 3: resource.PackageDescriptor.type:type_name -> resource.PackageType
+	19,  // 4: resource.PackageDescriptor.roles:type_name -> resource.Role
+	79,  // 5: resource.PackageDescriptor.groups:type_name -> resource.Group
+	10,  // 6: resource.GetPackageDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	10,  // 7: resource.GetPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	10,  // 8: resource.SetPackageDescriptorRequest.packageDescriptor:type_name -> resource.PackageDescriptor
+	10,  // 9: resource.FindPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	26,  // 10: resource.RegisterAccountRqst.account:type_name -> resource.Account
+	26,  // 11: resource.GetAccountsRsp.accounts:type_name -> resource.Account
+	26,  // 12: resource.GetAccountRsp.account:type_name -> resource.Account
+	26,  // 13: resource.SetAccountRqst.account:type_name -> resource.Account
+	47,  // 14: resource.SetAccountContactRqst.contact:type_name -> resource.Contact
+	19,  // 15: resource.CreateRoleRqst.role:type_name -> resource.Role
+	19,  // 16: resource.GetRolesRsp.roles:type_name -> resource.Role
+	58,  // 17: resource.CreateApplicationRqst.application:type_name -> resource.Application
+	58,  // 18: resource.GetApplicationsRsp.applications:type_name -> resource.Application
+	79,  // 19: resource.CreateGroupRqst.group:type_name -> resource.Group
+	79,  // 20: resource.GetGroupsRsp.groups:type_name -> resource.Group
+	96,  // 21: resource.CreateOrganizationRqst.organization:type_name -> resource.Organization
+	96,  // 22: resource.GetOrganizationsRsp.organizations:type_name -> resource.Organization
+	170, // 23: resource.NodeIdentity.labels:type_name -> resource.NodeIdentity.LabelsEntry
+	123, // 24: resource.UpsertNodeIdentityRqst.node:type_name -> resource.NodeIdentity
+	123, // 25: resource.UpsertNodeIdentityRsp.node:type_name -> resource.NodeIdentity
+	123, // 26: resource.GetNodeIdentityRsp.node:type_name -> resource.NodeIdentity
+	123, // 27: resource.ListNodeIdentitiesRsp.nodes:type_name -> resource.NodeIdentity
+	132, // 28: resource.GetCallHistoryRsp.calls:type_name -> resource.Call
+	132, // 29: resource.SetCallRqst.call:type_name -> resource.Call
+	1,   // 30: resource.Notification.notification_type:type_name -> resource.NotificationType
+	141, // 31: resource.CreateNotificationRqst.notification:type_name -> resource.Notification
+	141, // 32: resource.GetNotificationsRsp.notifications:type_name -> resource.Notification
+	1,   // 33: resource.ClearNotificationsByTypeRqst.notification_type:type_name -> resource.NotificationType
+	2,   // 34: resource.Session.state:type_name -> resource.SessionState
+	152, // 35: resource.UpdateSessionRequest.session:type_name -> resource.Session
+	152, // 36: resource.GetSessionsResponse.sessions:type_name -> resource.Session
+	152, // 37: resource.GetSessionResponse.session:type_name -> resource.Session
+	166, // 38: resource.GetServicesCorsPoliciesRsp.policies:type_name -> resource.ServiceCorsPolicy
+	161, // 39: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
+	163, // 40: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
+	97,  // 41: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
+	99,  // 42: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
+	101, // 43: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
+	121, // 44: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
+	103, // 45: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
+	105, // 46: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
+	107, // 47: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
+	109, // 48: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
+	92,  // 49: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
+	94,  // 50: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
+	117, // 51: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
+	111, // 52: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
+	113, // 53: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
+	115, // 54: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
+	80,  // 55: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
+	82,  // 56: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
+	84,  // 57: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
+	86,  // 58: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
+	88,  // 59: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
+	90,  // 60: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
+	27,  // 61: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
+	41,  // 62: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
+	33,  // 63: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
+	35,  // 64: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
+	37,  // 65: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
+	31,  // 66: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
+	43,  // 67: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
+	45,  // 68: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
+	48,  // 69: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
+	39,  // 70: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
+	119, // 71: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
+	50,  // 72: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
+	52,  // 73: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
+	54,  // 74: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
+	56,  // 75: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
+	20,  // 76: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
+	22,  // 77: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
+	24,  // 78: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
+	59,  // 79: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
+	61,  // 80: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
+	71,  // 81: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
+	63,  // 82: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
+	65,  // 83: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
+	67,  // 84: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
+	69,  // 85: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
+	73,  // 86: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
+	124, // 87: resource.ResourceService.UpsertNodeIdentity:input_type -> resource.UpsertNodeIdentityRqst
+	126, // 88: resource.ResourceService.GetNodeIdentity:input_type -> resource.GetNodeIdentityRqst
+	128, // 89: resource.ResourceService.ListNodeIdentities:input_type -> resource.ListNodeIdentitiesRqst
+	130, // 90: resource.ResourceService.SetNodeIdentityEnabled:input_type -> resource.SetNodeIdentityEnabledRqst
+	142, // 91: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
+	144, // 92: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
+	146, // 93: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
+	148, // 94: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
+	150, // 95: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
+	17,  // 96: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
+	11,  // 97: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
+	13,  // 98: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
+	15,  // 99: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
+	4,   // 100: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
+	6,   // 101: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
+	8,   // 102: resource.ResourceService.GetPackageBundles:input_type -> resource.GetPackageBundlesRequest
+	153, // 103: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
+	157, // 104: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
+	155, // 105: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
+	159, // 106: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
+	133, // 107: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
+	135, // 108: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
+	137, // 109: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
+	139, // 110: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
+	165, // 111: resource.ResourceService.GetServicesCorsPolicies:input_type -> resource.GetServicesCorsPoliciesRqst
+	168, // 112: resource.ResourceService.SetServiceCorsPolicy:input_type -> resource.SetServiceCorsPolicyRqst
+	162, // 113: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
+	164, // 114: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
+	98,  // 115: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
+	100, // 116: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
+	102, // 117: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
+	122, // 118: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
+	104, // 119: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
+	106, // 120: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
+	108, // 121: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
+	110, // 122: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
+	93,  // 123: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
+	95,  // 124: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
+	118, // 125: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
+	112, // 126: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
+	114, // 127: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
+	116, // 128: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
+	81,  // 129: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
+	83,  // 130: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
+	85,  // 131: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
+	87,  // 132: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
+	89,  // 133: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
+	91,  // 134: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
+	28,  // 135: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
+	42,  // 136: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
+	34,  // 137: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
+	36,  // 138: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
+	38,  // 139: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
+	32,  // 140: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
+	44,  // 141: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
+	46,  // 142: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
+	49,  // 143: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
+	40,  // 144: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
+	120, // 145: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
+	51,  // 146: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
+	53,  // 147: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
+	55,  // 148: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
+	57,  // 149: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
+	21,  // 150: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
+	23,  // 151: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
+	25,  // 152: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
+	60,  // 153: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
+	62,  // 154: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
+	72,  // 155: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
+	64,  // 156: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
+	66,  // 157: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
+	68,  // 158: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
+	70,  // 159: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
+	74,  // 160: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
+	125, // 161: resource.ResourceService.UpsertNodeIdentity:output_type -> resource.UpsertNodeIdentityRsp
+	127, // 162: resource.ResourceService.GetNodeIdentity:output_type -> resource.GetNodeIdentityRsp
+	129, // 163: resource.ResourceService.ListNodeIdentities:output_type -> resource.ListNodeIdentitiesRsp
+	131, // 164: resource.ResourceService.SetNodeIdentityEnabled:output_type -> resource.SetNodeIdentityEnabledRsp
+	143, // 165: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
+	145, // 166: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
+	147, // 167: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
+	149, // 168: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
+	151, // 169: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
+	18,  // 170: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
+	12,  // 171: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
+	14,  // 172: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
+	16,  // 173: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
+	5,   // 174: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
+	7,   // 175: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
+	9,   // 176: resource.ResourceService.GetPackageBundles:output_type -> resource.GetPackageBundlesResponse
+	154, // 177: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
+	158, // 178: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
+	156, // 179: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
+	160, // 180: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
+	134, // 181: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
+	136, // 182: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
+	138, // 183: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
+	140, // 184: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
+	167, // 185: resource.ResourceService.GetServicesCorsPolicies:output_type -> resource.GetServicesCorsPoliciesRsp
+	169, // 186: resource.ResourceService.SetServiceCorsPolicy:output_type -> resource.SetServiceCorsPolicyRsp
+	113, // [113:187] is the sub-list for method output_type
+	39,  // [39:113] is the sub-list for method input_type
+	39,  // [39:39] is the sub-list for extension type_name
+	39,  // [39:39] is the sub-list for extension extendee
+	0,   // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_resource_proto_init() }
@@ -9686,7 +9784,7 @@ func file_resource_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_proto_rawDesc), len(file_resource_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   166,
+			NumMessages:   168,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

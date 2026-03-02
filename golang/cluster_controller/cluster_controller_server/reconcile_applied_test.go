@@ -15,7 +15,10 @@ func newTestServerWithNode(kv *mapKV, ps *fakePlanStore) *server {
 	return &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
-			"n1": {NodeID: "n1"},
+			"n1": {
+				NodeID:       "n1",
+				Capabilities: &storedCapabilities{CanApplyPrivileged: true},
+			},
 		}},
 		kv:        kv,
 		planStore: ps,
@@ -175,8 +178,8 @@ func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
-	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{"globular-gateway.service": "1.2.3"})
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{"globular-ldap.service": "1.2.3"})
 	// Mark network converged so service reconcile can proceed.
 	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desiredNetworkForTests())); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)
@@ -186,7 +189,7 @@ func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 	if plan == nil {
 		t.Fatalf("expected service plan emitted")
 	}
-	svcHash := stableServiceDesiredHash(map[string]string{"gateway": "1.2.3"})
+	svcHash := stableServiceDesiredHash(map[string]string{"ldap": "1.2.3"})
 	if plan.GetDesiredHash() != svcHash {
 		t.Fatalf("plan desired_hash mismatch: got %s want %s", plan.GetDesiredHash(), svcHash)
 	}
@@ -210,17 +213,17 @@ func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, map[string]string{
-		"globular-gateway.service": "1.2.3",
+		"globular-ldap.service": "1.2.3",
 	})
 	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, net)); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 	srv.reconcileNodes(context.Background())
 	firstPlan := ps.lastPlan
-	svcHash := stableServiceDesiredHash(map[string]string{"gateway": "1.2.3"})
+	svcHash := stableServiceDesiredHash(map[string]string{"ldap": "1.2.3"})
 	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
 		PlanId:     firstPlan.GetPlanId(),
 		NodeId:     "n1",
@@ -240,10 +243,10 @@ func TestServiceReconcileReemitsAfterFailure(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, map[string]string{
-		"globular-gateway.service": "1.2.3",
+		"globular-ldap.service": "1.2.3",
 	})
 	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, net)); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)

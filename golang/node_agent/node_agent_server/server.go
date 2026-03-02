@@ -206,6 +206,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 	} else {
 		state.ControllerEndpoint = controllerEndpoint
 	}
+	state.ControllerInsecure = useInsecure
 
 	// Validate controller endpoint in cluster mode (PR3)
 	if controllerEndpoint != "" && clusterMode {
@@ -244,7 +245,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		joinToken:                strings.TrimSpace(os.Getenv("NODE_AGENT_JOIN_TOKEN")),
 		bootstrapToken:           strings.TrimSpace(os.Getenv("NODE_AGENT_BOOTSTRAP_TOKEN")),
 		controllerEndpoint:       controllerEndpoint,
-		agentVersion:             getEnv("NODE_AGENT_VERSION", "v0.1.0"),
+		agentVersion:             getEnv("NODE_AGENT_VERSION", "0.0.1"),
 		bootstrapPlan:            nil,
 		nodeID:                   nodeID,
 		statePath:                statePath,
@@ -476,24 +477,35 @@ func (srv *NodeAgentServer) pollPlan(ctx context.Context) {
 	defer cancel()
 	plan, err := srv.planStore.GetCurrentPlan(pollCtx, srv.nodeID)
 	if err != nil {
-		log.Printf("unable to read current plan: %v", err)
+		log.Printf("poll-plan: unable to read current plan for node %s: %v", srv.nodeID, err)
 		return
 	}
 	status, _ := srv.planStore.GetStatus(pollCtx, srv.nodeID)
 	if plan == nil {
 		return
 	}
+	statusState := "nil"
+	statusGen := uint64(0)
+	if status != nil {
+		statusState = status.GetState().String()
+		statusGen = status.GetGeneration()
+	}
+	log.Printf("poll-plan: found plan %s gen=%d for node %s (reason=%s) status=%s status_gen=%d", plan.GetPlanId(), plan.GetGeneration(), srv.nodeID, plan.GetReason(), statusState, statusGen)
 	if plan.GetNodeId() != "" && plan.GetNodeId() != srv.nodeID {
+		log.Printf("poll-plan: SKIP node id mismatch plan=%s srv=%s", plan.GetNodeId(), srv.nodeID)
 		return
 	}
 	if status != nil && status.GetGeneration() == plan.GetGeneration() && isTerminalState(status.GetState()) {
+		log.Printf("poll-plan: SKIP terminal status=%s gen=%d", status.GetState().String(), status.GetGeneration())
 		return
 	}
 	now := time.Now().UnixMilli()
 	if plan.GetExpiresUnixMs() > 0 && now > int64(plan.GetExpiresUnixMs()) {
+		log.Printf("poll-plan: SKIP expired")
 		srv.markPlanExpired(pollCtx, plan)
 		return
 	}
+	log.Printf("poll-plan: executing plan %s gen=%d", plan.GetPlanId(), plan.GetGeneration())
 	srv.runStoredPlan(ctx, plan, status)
 }
 
@@ -603,8 +615,12 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	runner := planexec.NewRunner(srv.nodeID, srv.publishPlanStatus)
 	updated, recErr := runner.ReconcilePlan(ctx, plan, status)
 	if recErr != nil {
+		log.Printf("plan-runner: plan %s gen=%d FAILED: %v", plan.GetPlanId(), plan.GetGeneration(), recErr)
 		op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_FAILED, recErr.Error(), 90, true, recErr.Error()))
 		return
+	}
+	if updated != nil {
+		log.Printf("plan-runner: plan %s gen=%d finished state=%s err=%s", plan.GetPlanId(), plan.GetGeneration(), updated.GetState().String(), updated.GetErrorMessage())
 	}
 	if updated != nil && isTerminalState(updated.GetState()) {
 		srv.lastPlanGeneration = plan.GetGeneration()
@@ -778,9 +794,16 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	}
 	if len(installed) > 0 {
 		status.InstalledVersions = make(map[string]string, len(installed))
+		sample := make([]string, 0, 5)
 		for key, info := range installed {
 			status.InstalledVersions[key.String()] = info.Version
+			if len(sample) < 5 {
+				sample = append(sample, key.String())
+			}
 		}
+		log.Printf("nodeagent: reporting %d installed services (hash=%s, sample=%v)", len(installed), appliedHash, sample)
+	} else {
+		log.Printf("nodeagent: no installed services found")
 	}
 	status.AppliedServicesHash = appliedHash
 	return srv.sendStatusWithRetry(ctx, status)
@@ -2666,7 +2689,7 @@ func buildNodeIdentity() *cluster_controllerpb.NodeIdentity {
 		Ips:          gatherIPs(),
 		Os:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
-		AgentVersion: getEnv("NODE_AGENT_VERSION", "v0.1.0"),
+		AgentVersion: getEnv("NODE_AGENT_VERSION", "0.0.1"),
 	}
 }
 

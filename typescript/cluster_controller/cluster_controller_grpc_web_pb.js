@@ -1,5 +1,5 @@
 /**
- * @fileoverview gRPC-Web generated client stub for clustercontroller
+ * @fileoverview gRPC-Web generated client stub for cluster_controller
  * @enhanceable
  * @public
  */
@@ -8,7 +8,7 @@
 // versions:
 // 	protoc-gen-grpc-web v1.5.0
 // 	protoc              v3.21.12
-// source: clustercontroller.proto
+// source: cluster_controller.proto
 
 
 /* eslint-disable */
@@ -26,7 +26,7 @@ var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb
 
 var plan_pb = require('./plan_pb.js')
 const proto = {};
-proto.cluster_controller = require('./clustercontroller_pb.js');
+proto.cluster_controller = require('./cluster_controller_pb.js');
 
 /**
  * @param {string} hostname

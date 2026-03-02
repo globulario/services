@@ -33,12 +33,17 @@ func TestComputeInstalledServicesDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComputeInstalledServices returned error: %v", err)
 	}
-	if len(installed1) != 1 {
-		t.Fatalf("expected 1 installed service, got %d", len(installed1))
+	// Check that our test service is in the result (systemd units from the
+	// running host may also be present).
+	found := false
+	for k, info := range installed1 {
+		if k.ServiceName == "gateway" && info.Version == "1.0.0" {
+			found = true
+			break
+		}
 	}
-	key := ServiceKey{PublisherID: "globular", ServiceName: "gateway"}
-	if installed1[key].Version != "1.0.0" {
-		t.Fatalf("expected version 1.0.0, got %q", installed1[key].Version)
+	if !found {
+		t.Fatalf("expected gateway@1.0.0 in installed services")
 	}
 
 	installed2, hash2, err := ComputeInstalledServices(context.Background())
@@ -99,44 +104,46 @@ func TestAppliedHashChangesWhenVersionChanges(t *testing.T) {
 	}
 }
 
-func TestAppliedHashChangesWhenPublisherDiffers(t *testing.T) {
+func TestAppliedHashNotAffectedByPublisher(t *testing.T) {
+	// The applied hash uses only canonical service name + version (matching the
+	// controller's desired hash format). Publisher does not affect the hash.
 	first := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1"},
+		{PublisherID: "p1", ServiceName: "svca"}: {PublisherID: "p1", ServiceName: "svca", Version: "1"},
 	}
 	second := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p2", ServiceName: "svcA"}: {PublisherID: "p2", ServiceName: "svcA", Version: "1"},
+		{PublisherID: "p2", ServiceName: "svca"}: {PublisherID: "p2", ServiceName: "svca", Version: "1"},
 	}
 
-	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 == h2 {
-		t.Fatalf("hash should differ when publisher differs even if name+version match")
+	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 != h2 {
+		t.Fatalf("hash should NOT differ when only publisher differs; got %q and %q", h1, h2)
 	}
 }
 
-// TestAppliedHashNotAffectedByConfig verifies that config differences do not change
-// the P2 applied services hash (config excluded until P3).
+// TestAppliedHashNotAffectedByConfig verifies that config differences do not
+// change the applied services hash (matches controller's version-only format).
 func TestAppliedHashNotAffectedByConfig(t *testing.T) {
 	withDigest := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{PublisherID: "p1", ServiceName: "svca"}: {PublisherID: "p1", ServiceName: "svca", Version: "1.0.0", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	}
 	withoutDigest := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1.0.0"},
+		{PublisherID: "p1", ServiceName: "svca"}: {PublisherID: "p1", ServiceName: "svca", Version: "1.0.0"},
 	}
-	if h1, h2 := computeAppliedServicesHash(withDigest), computeAppliedServicesHash(withoutDigest); h1 == h2 {
-		t.Fatalf("hash should differ when config digest differs")
+	if h1, h2 := computeAppliedServicesHash(withDigest), computeAppliedServicesHash(withoutDigest); h1 != h2 {
+		t.Fatalf("hash should NOT differ when only config digest differs; got %q and %q", h1, h2)
 	}
 }
 
 // TestAppliedHashCanonicalFormat verifies the exact canonical string format so that
 // controller and node-agent can be independently validated to produce the same hash
-// for a single service: SHA256("<publisher_id>/<canonical_service_name>=<version>;").
+// for a single service: SHA256("<canonical_service_name>=<version>;").
 func TestAppliedHashCanonicalFormat(t *testing.T) {
 	installed := map[ServiceKey]InstalledServiceInfo{
 		{PublisherID: "pub", ServiceName: "gateway"}: {PublisherID: "pub", ServiceName: "gateway", Version: "1.0.0"},
 	}
 	got := computeAppliedServicesHash(installed)
 
-	// Manually compute expected: "pub/gateway=1.0.0@-;"
-	raw := "pub/gateway=1.0.0@-;"
+	// Manually compute expected: "gateway=1.0.0;"
+	raw := "gateway=1.0.0;"
 	sum := sha256.Sum256([]byte(raw))
 	want := hex.EncodeToString(sum[:])
 
@@ -145,15 +152,16 @@ func TestAppliedHashCanonicalFormat(t *testing.T) {
 	}
 }
 
-func TestConfigDigestChangeChangesHash(t *testing.T) {
+func TestConfigDigestChangeDoesNotChangeHash(t *testing.T) {
+	// Config digest is not included in the hash (matches controller format).
 	first := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{PublisherID: "p1", ServiceName: "svca"}: {PublisherID: "p1", ServiceName: "svca", Version: "1", ConfigDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	}
 	second := map[ServiceKey]InstalledServiceInfo{
-		{PublisherID: "p1", ServiceName: "svcA"}: {PublisherID: "p1", ServiceName: "svcA", Version: "1", ConfigDigest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		{PublisherID: "p1", ServiceName: "svca"}: {PublisherID: "p1", ServiceName: "svca", Version: "1", ConfigDigest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
 	}
-	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 == h2 {
-		t.Fatalf("hash should change when config digest differs")
+	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 != h2 {
+		t.Fatalf("hash should NOT change when only config digest differs; got %q and %q", h1, h2)
 	}
 }
 

@@ -151,7 +151,7 @@ func (c *nodeAgentServiceClient) BootstrapFirstNode(ctx context.Context, in *Boo
 }
 
 // NodeAgentServiceServer is the server API for NodeAgentService service.
-// All implementations must embed UnimplementedNodeAgentServiceServer
+// All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
 type NodeAgentServiceServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error)
@@ -162,10 +162,9 @@ type NodeAgentServiceServer interface {
 	WatchPlanStatusV1(*WatchPlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error)
-	mustEmbedUnimplementedNodeAgentServiceServer()
 }
 
-// UnimplementedNodeAgentServiceServer must be embedded to have
+// UnimplementedNodeAgentServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -196,8 +195,7 @@ func (UnimplementedNodeAgentServiceServer) WatchOperation(*WatchOperationRequest
 func (UnimplementedNodeAgentServiceServer) BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method BootstrapFirstNode not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) mustEmbedUnimplementedNodeAgentServiceServer() {}
-func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue()                          {}
+func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
 // UnsafeNodeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to NodeAgentServiceServer will

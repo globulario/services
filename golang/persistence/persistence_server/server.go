@@ -627,16 +627,7 @@ func main() {
 		srv.State = "starting"
 
 		// Safe defaults for domain/address without etcd
-		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-			srv.Domain = strings.ToLower(v)
-		} else {
-			srv.Domain = "localhost"
-		}
-		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-			srv.Address = strings.ToLower(v)
-		} else {
-			srv.Address = "localhost:" + Utility.ToString(srv.Port)
-		}
+		srv.Domain, srv.Address = globular.GetDefaultDomainAddress(srv.Port)
 
 		b, err := globular.DescribeJSON(srv)
 		if err != nil {

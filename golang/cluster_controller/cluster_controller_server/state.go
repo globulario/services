@@ -88,10 +88,11 @@ type nodeState struct {
 
 // storedCapabilities is the JSON-serializable form of NodeCapabilities.
 type storedCapabilities struct {
-	CPUCount      uint32 `json:"cpu_count"`
-	RAMBytes      uint64 `json:"ram_bytes"`
-	DiskBytes     uint64 `json:"disk_bytes"`
-	DiskFreeBytes uint64 `json:"disk_free_bytes"`
+	CPUCount            uint32 `json:"cpu_count"`
+	RAMBytes            uint64 `json:"ram_bytes"`
+	DiskBytes           uint64 `json:"disk_bytes"`
+	DiskFreeBytes       uint64 `json:"disk_free_bytes"`
+	CanApplyPrivileged  bool   `json:"can_apply_privileged,omitempty"`
 }
 
 type unitStatusRecord struct {

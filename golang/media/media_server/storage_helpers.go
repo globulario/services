@@ -40,6 +40,21 @@ func (srv *server) isMinioPath(p string) bool {
 		return false
 	}
 	p = filepath.ToSlash(strings.TrimSpace(p))
+
+	// If caller passed a bucket-prefixed path (e.g., "globular/users/sa/file.mp4"),
+	// strip the bucket name to recover the logical path.
+	if srv.MinioConfig != nil && srv.MinioConfig.Bucket != "" {
+		bucket := strings.TrimSpace(srv.MinioConfig.Bucket)
+		if strings.HasPrefix(p, bucket+"/") {
+			p = strings.TrimPrefix(p, bucket)
+		}
+	}
+
+	// Ensure leading slash so both "users/sa/..." and "/users/sa/..." are accepted.
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+
 	// The file service routes /users and /applications paths to MinIO.
 	// MinioConfig.Prefix is a bucket key prefix, not a logical path prefix.
 	return p == "/users" || strings.HasPrefix(p, "/users/") ||
@@ -85,6 +100,39 @@ func (srv *server) minioDownloadToTemp(ctx context.Context, logicalPath string) 
 		_ = os.Remove(tmp)
 	}
 	return tmp, cleanup, nil
+}
+
+// minioDownloadDirToTemp downloads all objects under logicalDir (a MinIO prefix)
+// into a local temporary directory and returns its path. The caller must invoke
+// the returned cleanup function when done.
+func (srv *server) minioDownloadDirToTemp(ctx context.Context, logicalDir string) (string, func(), error) {
+	if err := srv.ensureMinioClient(); err != nil {
+		return "", func() {}, err
+	}
+	tmpDir, err := os.MkdirTemp("", "media-hls-*")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+
+	prefix := strings.TrimSuffix(srv.minioKeyFromPath(logicalDir), "/") + "/"
+	for obj := range srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
+		if obj.Err != nil {
+			cleanup()
+			return "", func() {}, obj.Err
+		}
+		rel := strings.TrimPrefix(obj.Key, prefix)
+		localPath := filepath.Join(tmpDir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+			cleanup()
+			return "", func() {}, err
+		}
+		if err := srv.minioClient.FGetObject(ctx, srv.MinioConfig.Bucket, obj.Key, localPath, minio.GetObjectOptions{}); err != nil {
+			cleanup()
+			return "", func() {}, err
+		}
+	}
+	return tmpDir, cleanup, nil
 }
 
 func (srv *server) minioUploadFile(ctx context.Context, logicalPath, localPath, contentType string) error {
@@ -154,7 +202,18 @@ func (srv *server) minioObjectExists(ctx context.Context, logicalPath string) bo
 	}
 	key := srv.minioKeyFromPath(logicalPath)
 	_, err := srv.minioClient.StatObject(ctx, srv.MinioConfig.Bucket, key, minio.StatObjectOptions{})
-	return err == nil
+	if err == nil {
+		return true
+	}
+	// The path may be a directory (prefix) in MinIO — no actual object exists for it.
+	// Check whether any objects are stored under that prefix.
+	prefix := strings.TrimSuffix(key, "/") + "/"
+	for obj := range srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, minio.ListObjectsOptions{Prefix: prefix}) {
+		if obj.Err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (srv *server) withWorkFile(path string, fn func(wf mediaWorkFile) error) error {
@@ -169,6 +228,21 @@ func (srv *server) withWorkFile(path string, fn func(wf mediaWorkFile) error) er
 				LocalPath:   filepath.ToSlash(tmp),
 				IsMinio:     true,
 			})
+		}
+		// Single-file download failed — the path may be an HLS directory.
+		// Check for playlist.m3u8 inside it and download the full directory.
+		playlistLogical := strings.TrimSuffix(logical, "/") + "/playlist.m3u8"
+		if srv.minioObjectExists(ctx, playlistLogical) {
+			tmpDir, cleanupDir, dlErr := srv.minioDownloadDirToTemp(ctx, logical)
+			if dlErr == nil {
+				defer cleanupDir()
+				localPlaylist := filepath.ToSlash(filepath.Join(tmpDir, "playlist.m3u8"))
+				return fn(mediaWorkFile{
+					LogicalPath: playlistLogical,
+					LocalPath:   localPlaylist,
+					IsMinio:     true,
+				})
+			}
 		}
 		localFallback := srv.formatPath(logical)
 		if srv.localPathExists(localFallback) {

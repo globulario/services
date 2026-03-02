@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/globulario/services/golang/netutil"
 )
 
 // ConfigValidator defines the interface for validatable configurations.
@@ -101,13 +103,13 @@ func GetDefaultDomainAddress(port int) (domain string, address string) {
 	if v := os.Getenv("GLOBULAR_DOMAIN"); v != "" {
 		domain = v
 	} else {
-		domain = "localhost"
+		domain = netutil.DefaultClusterDomain()
 	}
 
 	if v := os.Getenv("GLOBULAR_ADDRESS"); v != "" {
 		address = v
 	} else {
-		address = fmt.Sprintf("localhost:%d", port)
+		address = fmt.Sprintf("%s:%d", domain, port)
 	}
 
 	return domain, address

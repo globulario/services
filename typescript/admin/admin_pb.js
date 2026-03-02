@@ -21,5 +21,5 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
-var clustercontroller_pb = require('./clustercontroller_pb.js');
+var clustercontroller_pb = require('./cluster_controller_pb.js');
 goog.object.extend(proto, clustercontroller_pb);

@@ -9,9 +9,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/globulario/services/golang/plan/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // handlers.go
@@ -185,6 +187,11 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	}
 	bundle.PackageDescriptor.Id = descriptorID(bundle.PackageDescriptor)
 
+	// Normalize version to canonical semver (no v-prefix).
+	if cv, err := versionutil.Canonical(bundle.PackageDescriptor.Version); err == nil {
+		bundle.PackageDescriptor.Version = cv
+	}
+
 	// Compute bundle id and storage key.
 	id := bundleID(bundle.PackageDescriptor, bundle.Plaform)
 	storageKey := "packages-repository/" + id + ".tar.gz"
@@ -209,6 +216,34 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 	); err != nil {
 		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
 		return fmt.Errorf("persist bundle metadata: %w", err)
+	}
+
+	// Dual-write: also persist as an artifact so DownloadArtifact can find it.
+	// This bridges the legacy UploadBundle path with the new artifact-based reconciler.
+	if d := bundle.PackageDescriptor; d != nil && d.Name != "" && d.Version != "" {
+		aRef := &repopb.ArtifactRef{
+			Name:        d.Name,
+			Version:     d.Version,
+			Platform:    bundle.Plaform,
+			PublisherId: d.PublisherID,
+			Kind:        repopb.ArtifactKind_SERVICE,
+		}
+		aKey := artifactKey(aRef)
+		_ = srv.Storage().MkdirAll(stream.Context(), artifactsDir, 0o755)
+		if werr := srv.Storage().WriteFile(stream.Context(), binaryStorageKey(aKey), bundle.Binairies, 0o644); werr != nil {
+			slog.Warn("dual-write artifact binary failed", "key", aKey, "err", werr)
+		} else {
+			manifest := &repopb.ArtifactManifest{
+				Ref:          aRef,
+				Checksum:     bundle.Checksum,
+				SizeBytes:    int64(bundle.Size),
+				ModifiedUnix: bundle.Modified,
+			}
+			if mjson, merr := protojson.Marshal(manifest); merr == nil {
+				_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
+			}
+			slog.Info("dual-write artifact", "key", aKey)
+		}
 	}
 
 	// Close stream, report success.

@@ -566,18 +566,29 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 }
 
 // deleteVideo removes a video and its associations and permissions, then publishes events.
+// If the video record is missing from the index but file associations still exist
+// (dangling reference caused by a failed earlier restore), the associations are
+// cleaned up anyway so the path can be re-indexed via StartProcessVideo.
 func (srv *server) deleteVideo(token, indexPath, videoId string) error {
 	video, err := srv.getVideoById(indexPath, videoId)
-	if err != nil {
+	recordMissing := err != nil && strings.Contains(err.Error(), "no video found with id")
+	if err != nil && !recordMissing {
+		// Hard error (e.g. database directory not found) — nothing safe to do.
 		return err
 	}
-	for _, c := range video.Casting {
-		if p, err := srv.getPersonById(indexPath, c.ID); err == nil {
-			p.Casting = Utility.RemoveString(p.Casting, video.ID)
-			_ = srv.createPerson(indexPath, p)
+
+	// Clean up casting back-references only when we have the record.
+	if video != nil {
+		for _, c := range video.Casting {
+			if p, err := srv.getPersonById(indexPath, c.ID); err == nil {
+				p.Casting = Utility.RemoveString(p.Casting, video.ID)
+				_ = srv.createPerson(indexPath, p)
+			}
 		}
 	}
 
+	// Always clean up file associations, even when the video record is gone.
+	// Without this a path stays permanently "already indexed" and restore is blocked.
 	dirs := make([]string, 0)
 	if paths, err := srv.getTitleFiles(indexPath, videoId); err == nil {
 		for _, p := range paths {
@@ -586,31 +597,33 @@ func (srv *server) deleteVideo(token, indexPath, videoId string) error {
 		}
 	}
 
-	index, err := srv.getIndex(indexPath)
-	if err != nil {
-		return err
-	}
-	uuid := Utility.GenerateUUID(videoId)
-	if err := index.Delete(uuid); err != nil {
-		return err
-	}
-	if err := index.DeleteInternal([]byte(uuid)); err != nil {
-		return err
-	}
-	srv.removeMetadata(indexPath, "videos", videoId)
+	if !recordMissing {
+		index, err := srv.getIndex(indexPath)
+		if err != nil {
+			return err
+		}
+		uuid := Utility.GenerateUUID(videoId)
+		if err := index.Delete(uuid); err != nil {
+			return err
+		}
+		if err := index.DeleteInternal([]byte(uuid)); err != nil {
+			return err
+		}
+		srv.removeMetadata(indexPath, "videos", videoId)
 
-	if val, err := index.GetInternal([]byte(uuid)); err != nil {
-		return err
-	} else if val != nil {
-		return errors.New("expected nil, got " + string(val))
-	}
+		if val, err := index.GetInternal([]byte(uuid)); err != nil {
+			return err
+		} else if val != nil {
+			return errors.New("expected nil, got " + string(val))
+		}
 
-	rbacClient, err := srv.getRbacClient()
-	if err != nil {
-		return err
-	}
-	if err := rbacClient.DeleteResourcePermissions(token, videoId); err != nil {
-		return err
+		rbacClient, err := srv.getRbacClient()
+		if err != nil {
+			return err
+		}
+		if err := rbacClient.DeleteResourcePermissions(token, videoId); err != nil {
+			return err
+		}
 	}
 
 	for _, d := range dirs {

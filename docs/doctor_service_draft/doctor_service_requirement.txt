@@ -1,0 +1,441 @@
+ClusterDoctorService Requirements (Deterministic Operational Intelligence)
+0. Purpose
+
+Create a new Globular microservice named clusterdoctor that provides deterministic, read-only operational intelligence about a Globular cluster:
+
+deterministic health analysis (invariants)
+
+drift detection (desired vs actual)
+
+plan diffs / plan explanation (why actions are needed)
+
+evidence-backed diagnosis (no guessing)
+
+remediation proposals (suggestions only, no execution in v1)
+
+This service is the “analysis layer” on top of ClusterControllerService and NodeAgentService.
+
+1. Design Constraints
+1.1 Determinism
+
+Output must be fully determined by:
+
+RPC responses from ClusterController/NodeAgent (+ optional Monitoring/Log/Event)
+
+local, versioned invariant rules
+
+No probabilistic/LLM behavior.
+
+No “best guess” text unless backed by evidence fields.
+
+1.2 Read-only in v1
+
+ClusterDoctorService must not mutate cluster state in v1.
+
+It may call only read RPCs from other services.
+
+Any “fix” is returned as a proposal (steps + optional future action IDs), not executed.
+
+1.3 Evidence-driven output
+
+Every finding must include:
+
+invariant_id
+
+severity
+
+affected entity (node/service/component)
+
+evidence list (source RPC + key fields)
+
+timestamp of snapshot
+
+2. Inputs / Dependencies (Existing Services)
+
+ClusterDoctor uses these services as sources of truth:
+
+Required (v1)
+
+clustercontroller.ClusterControllerService
+
+nodes list / node records
+
+desired state snapshot if available (plans, desired services)
+
+join requests / operations status (if useful)
+
+nodeagent.NodeAgentService
+
+NodeInventory (installed units/services/components)
+
+PlanStatus / execution results
+
+Installed components list
+
+Optional (v1 but recommended)
+
+monitoring.MonitoringService
+
+alerts/targets/health queries
+
+log.LogService
+
+retrieve recent error logs for evidence linking (not full log mining)
+
+event.EventService
+
+live subscription; history if QueryEvents exists
+
+3. Core Responsibilities (What it does)
+3.1 Cluster Health Report
+
+Compute a cluster-wide report:
+
+overall status: HEALTHY / DEGRADED / CRITICAL
+
+violated invariants list
+
+top issues (sorted by severity, blast radius)
+
+counts per category (TLS, systemd, inventory, drift, repository, discovery, etc.)
+
+3.2 Node Health Report
+
+For a node:
+
+node reachability (last seen / heartbeat staleness)
+
+inventory completeness
+
+unit file presence vs running state
+
+plan execution failures (last plan, failed steps)
+
+clock skew suspicion (if timestamps imply it)
+
+basic resource warnings if data exists (disk full etc.)
+
+3.3 Drift Report (Desired vs Actual)
+
+Compute drift between:
+
+desired state (from ClusterController) and
+
+actual state (from NodeAgent inventory + plan status)
+
+Drift categories must be deterministic:
+
+MISSING_UNIT_FILE
+
+UNIT_STOPPED
+
+UNIT_DISABLED
+
+VERSION_MISMATCH
+
+CONFIG_HASH_MISMATCH (if available)
+
+ENDPOINT_MISSING (if available)
+
+INVENTORY_INCOMPLETE
+
+3.4 Plan Diff / Explanation
+
+If ClusterController can provide current NodePlan or planned actions:
+
+generate a “diff-style” summary (actions to be applied)
+
+classify risk:
+
+SAFE (restart only)
+
+MODERATE (config change)
+
+DANGEROUS (upgrade, remove, cert rotation)
+
+explain “why plan exists” by linking to violated invariants/drift evidence.
+
+3.5 Remediation Proposals (No Execution)
+
+For each invariant violation, provide:
+
+short explanation
+
+suggested steps (human-readable)
+
+optional CLI mapping (globularcli commands) if known
+
+optional future RPC action identifier (for later “approved execution” version)
+
+No side effects in v1.
+
+4. Invariant Model (Must be Explicit)
+
+ClusterDoctor evaluates a fixed set of invariants (versioned in code).
+
+4.1 Invariant format
+
+Each invariant has:
+
+invariant_id (stable string, e.g. node.inventory.complete)
+
+title
+
+category (inventory/systemd/tls/drift/network/repo/etcd/etc.)
+
+severity (WARN/ERROR/CRITICAL)
+
+scope (cluster/node/service)
+
+evaluation function that returns:
+
+pass/fail
+
+evidence (structured)
+
+remediation proposal
+
+4.2 Minimum v1 invariant set (suggested)
+
+(Claude should refine based on what data is available today.)
+
+node.reachable (heartbeat not stale)
+
+node.inventory.complete
+
+node.plan.last_apply_success (last plan has no failed steps)
+
+node.systemd.unit_files_present (declared units exist)
+
+node.systemd.units_running (desired-running alignment)
+
+cluster.services.drift (service instances drift count > 0)
+
+cluster.repo.reachable (repository endpoint reachable or last known healthy)
+
+cluster.discovery.consistent (if discovery reports installed services and repo has artifacts)
+
+security.certs.not_expired (if cert data accessible)
+
+If some invariants require missing RPCs, mark them “pending” and do not fake results.
+
+5. Service Interface (Proto) — v1
+
+Create a new proto package and service, e.g.:
+
+clusterdoctor/clusterdoctor.proto
+
+package clusterdoctor;
+
+service ClusterDoctorService
+
+5.1 Required RPCs
+
+GetClusterReport(ClusterReportRequest) returns (ClusterReport)
+
+GetNodeReport(NodeReportRequest) returns (NodeReport)
+
+GetDriftReport(DriftReportRequest) returns (DriftReport)
+
+ExplainFinding(ExplainFindingRequest) returns (FindingExplanation)
+
+5.2 Report output types
+
+Define shared types:
+
+ReportHeader (generated_at, snapshot_id, globular_version)
+
+Finding:
+
+finding_id
+
+invariant_id
+
+severity
+
+category
+
+entity_ref (node_id/service_name/unit_name)
+
+summary
+
+evidence[] (structured)
+
+remediation[] (steps)
+
+Evidence:
+
+source_service (clustercontroller/nodeagent/monitoring/log/event)
+
+source_rpc
+
+key_values map / or typed oneof
+
+timestamp
+
+5.3 Snapshot semantics
+
+Every report must include:
+
+snapshot_id (uuid)
+
+generated_at
+
+data_sources list (which upstream RPCs were called)
+
+6. Implementation Requirements (Go)
+6.1 Location and naming
+
+Implement as a standard Globular service under services/golang/clusterdoctor (or the repo’s convention).
+Must include:
+
+server implementation
+
+config file (if needed)
+
+systemd unit template if that’s standard
+
+packaging descriptors consistent with other services
+
+6.2 Internal architecture
+
+collector layer: gathers upstream state from ClusterController/NodeAgent
+
+model layer: normalized snapshot structs
+
+rules layer: invariant checks, deterministic
+
+render layer: builds Report protobuf responses
+
+6.3 Caching
+
+Optional but recommended:
+
+cache snapshot for short TTL (e.g. 2–5 seconds) to avoid flooding upstream services from UI refresh.
+
+cache keyed by request scope.
+
+6.4 Timeouts and resiliency
+
+all upstream RPC calls must have deadlines
+
+partial data is allowed, but must be explicitly marked as data_incomplete=true and include the error evidence (e.g. “nodeagent timeout”)
+
+No silent failures.
+
+7. Security Requirements
+
+All RPCs require auth token like other services.
+
+Enforce RBAC:
+
+read reports: requires admin/operator role (e.g. cluster.read, node.read)
+
+do not leak sensitive secrets (never include secret values in evidence)
+
+Emit audit events (if EventService is used) for:
+
+report requests (who requested what)
+
+upstream RPC failures
+
+8. Integration Requirements
+8.1 globular-admin
+
+Add new UI pages or integrate into existing:
+
+Overview dashboard can call GetClusterReport
+
+Node detail view calls GetNodeReport
+
+Drift view calls GetDriftReport
+
+UI must display:
+
+findings grouped by severity/category
+
+evidence drilldown (show key fields + source)
+
+remediation steps
+
+8.2 globularcli (optional)
+
+Add a command group:
+
+globular doctor cluster
+
+globular doctor node <id>
+
+globular doctor drift
+
+If CLI work is too large for v1, skip it.
+
+9. Non-Goals (explicitly out of scope for v1)
+
+No automatic remediation execution
+
+No LLM / chat interface
+
+No writing cluster state
+
+No new storage backend requirements
+
+No deep log mining / anomaly detection beyond deterministic checks
+
+No “incident history” unless QueryEvents exists already
+
+10. Acceptance Criteria (Definition of Done)
+
+ClusterDoctorService is done when:
+
+Service builds, packages, and installs like other Globular services.
+
+GetClusterReport returns consistent results on repeated calls with unchanged cluster state.
+
+GetNodeReport correctly identifies at least:
+
+unreachable nodes
+
+inventory incomplete nodes
+
+failed plan steps (if reported)
+
+missing unit files (if reported)
+
+GetDriftReport categorizes drift deterministically.
+
+Every finding includes:
+
+invariant_id
+
+severity
+
+evidence (source + key fields)
+
+remediation steps
+
+Service handles partial upstream failures explicitly (data_incomplete + evidence errors).
+
+No write RPC calls are made to upstream services.
+
+11. Implementation Plan Request to Claude
+
+Claude should produce:
+
+proto definitions
+
+service skeleton in Go
+
+collector code that calls upstream services
+
+initial invariant set based on data currently available
+
+unit tests for invariant evaluation (pure Go tests)
+
+minimal UI wiring plan (admin pages call doctor endpoints)
+
+Claude must NOT invent upstream RPCs that do not exist; if needed fields are missing, Claude should:
+
+mark the invariant as “pending”
+
+propose minimal upstream RPC additions separately (but not block v1)

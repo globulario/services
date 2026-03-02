@@ -124,6 +124,9 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 		return errRestoreCooldown
 	}
 	p := filepath.ToSlash(videoPath)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p // accept bucket-style or relative minio paths
+	}
 
 	var err error
 	if client == nil {
@@ -137,6 +140,13 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	if alreadyIndexed, checkErr := srv.isPathAlreadyIndexed(client, p); checkErr != nil {
 		logger.Warn("restoreVideoInfos: check existing association failed", "path", p, "err", checkErr)
 	} else if alreadyIndexed {
+		// Path is correctly indexed.  For MinIO files, also clean up any stale
+		// association stored under the /users/-stripped key (written before the
+		// associationPath bug was fixed).  This handles the case where both the
+		// correct key (/users/sa/…) and the stale key (/sa/…) coexist in ScyllaDB.
+		if srv.isMinioPath(p) {
+			srv.cleanStaleMinioAssociation(client, p)
+		}
 		return nil
 	}
 
@@ -168,11 +178,8 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 		return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
 	}
 
-	rawTitle, _ := tags["title"].(string)
-	titleHint := strings.TrimSpace(rawTitle)
-
-	rawComment, _ := tags["comment"].(string)
-	comment := strings.TrimSpace(rawComment)
+	titleHint := tagString(tags, "title")
+	comment := tagString(tags, "comment")
 	if comment == "" {
 		if handled, err := srv.tryRestoreFromFilename(client, token, videoPath, titleHint); handled {
 			return err
@@ -319,6 +326,16 @@ func (srv *server) restoreAsTitle(client *title_client.Title_Client, title *titl
 		return err
 	}
 
+	// Best-effort: remove any stale association stored with the /users/-stripped path
+	// (written by the old associationPath implementation that always called logicalPath).
+	staleTitle := srv.logicalPath(filepath.ToSlash(strings.TrimSpace(videoPath)))
+	if strings.HasSuffix(staleTitle, "/playlist.m3u8") {
+		staleTitle = strings.TrimSuffix(staleTitle, "/playlist.m3u8")
+	}
+	if staleTitle != rel {
+		_ = client.DissociateFileWithTitle(indexPath, incoming.ID, staleTitle)
+	}
+
 	return nil
 }
 
@@ -362,7 +379,40 @@ func (srv *server) restoreAsVideo(client *title_client.Title_Client, video *titl
 		return err
 	}
 
+	// Best-effort: remove any stale association stored with the /users/-stripped path
+	// (written by the old associationPath implementation that always called logicalPath).
+	staleVideo := srv.logicalPath(filepath.ToSlash(strings.TrimSpace(videoPath)))
+	if strings.HasSuffix(staleVideo, "/playlist.m3u8") {
+		staleVideo = strings.TrimSuffix(staleVideo, "/playlist.m3u8")
+	}
+	if staleVideo != rel {
+		_ = client.DissociateFileWithTitle(indexPath, existing.ID, staleVideo)
+	}
+
 	return nil
+}
+
+// cleanStaleMinioAssociation removes any title/video association stored under
+// the /users/-stripped variant of a MinIO path (written before the
+// associationPath bug was fixed).  It is best-effort: all errors are ignored.
+func (srv *server) cleanStaleMinioAssociation(client *title_client.Title_Client, fullPath string) {
+	stale := srv.logicalPath(filepath.ToSlash(strings.TrimSpace(fullPath)))
+	if strings.HasSuffix(stale, "/playlist.m3u8") {
+		stale = strings.TrimSuffix(stale, "/playlist.m3u8")
+	}
+	if stale == fullPath || stale == "" {
+		return // nothing to clean
+	}
+	if videos, err := client.GetFileVideos("/search/videos", stale); err == nil {
+		for _, v := range videos {
+			_ = client.DissociateFileWithTitle("/search/videos", v.ID, stale)
+		}
+	}
+	if titles, err := client.GetFileTitles("/search/titles", stale); err == nil {
+		for _, t := range titles {
+			_ = client.DissociateFileWithTitle("/search/titles", t.ID, stale)
+		}
+	}
 }
 
 var (
@@ -818,6 +868,21 @@ func decodeEmbeddedComment(comment string) ([]byte, bool) {
 	return nil, false
 }
 
+// tagString safely extracts a string tag value.
+func tagString(tags map[string]interface{}, key string) string {
+	lk := strings.ToLower(strings.TrimSpace(key))
+	for k, v := range tags {
+		if strings.ToLower(k) != lk || v == nil {
+			continue
+		}
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+
+	return ""
+}
+
 func looksLikeJSON(data []byte) bool {
 	trimmed := strings.TrimSpace(string(data))
 	if trimmed == "" {
@@ -856,11 +921,17 @@ func (srv *server) buildVideoFromYTDLPInfo(info map[string]interface{}, videoPat
 	if err != nil {
 		return nil, err
 	}
-	if title, ok := info["title"].(string); ok && title != "" && video.Title == "" {
-		video.Title = title
-	}
-	if description, ok := info["description"].(string); ok && description != "" {
-		video.Description = description
+	if title, ok := info["title"].(string); ok && title != "" {
+		if video.Title == "" {
+			video.Title = title
+		}
+		// Use the yt-dlp title as the display label (Description) when noembed
+		// did not set it.  Do NOT fall back to info["description"] here — that
+		// field holds the long freeform YouTube description text, not the name
+		// shown in the UI.
+		if video.Description == "" {
+			video.Description = title
+		}
 	}
 	if thumb, ok := info["thumbnail"].(string); ok && thumb != "" {
 		if video.Poster == nil {
@@ -1450,8 +1521,14 @@ func metadataCachePath(dir string) string {
 	clean := filepath.ToSlash(filepath.Clean(dir))
 	parent := filepath.Dir(clean)
 	base := filepath.Base(clean)
-	if info, err := os.Stat(clean); err == nil && !info.IsDir() {
-		base = strings.TrimSuffix(base, filepath.Ext(base))
+	// Use extension check instead of os.Stat, which fails for MinIO logical paths
+	// (the object doesn't exist on the local filesystem).
+	if ext := filepath.Ext(base); ext != "" {
+		switch strings.ToLower(ext) {
+		case ".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts",
+			".mp3", ".wav", ".flac", ".m3u8", ".ogg", ".opus", ".aac":
+			base = strings.TrimSuffix(base, ext)
+		}
 	}
 	if base == "" {
 		return ""
@@ -1475,6 +1552,22 @@ func (srv *server) logicalPath(path string) string {
 	if p == "" {
 		return ""
 	}
+
+	// If caller passed a MinIO bucket-prefixed path (e.g. "globular/users/sa/f.mp4"),
+	// strip the bucket name to recover the logical path.
+	if srv.MinioConfig != nil && srv.MinioConfig.Bucket != "" {
+		bucket := strings.TrimSpace(srv.MinioConfig.Bucket)
+		for _, pref := range []string{bucket + "/", "/" + bucket + "/"} {
+			if strings.HasPrefix(p, pref) {
+				p = strings.TrimPrefix(p, pref)
+				if !strings.HasPrefix(p, "/") {
+					p = "/" + p
+				}
+				break
+			}
+		}
+	}
+
 	candidates := []string{
 		"/users",
 		"/user",
@@ -1515,7 +1608,18 @@ func (srv *server) normalizeDirList(paths []string) []string {
 }
 
 func (srv *server) associationPath(path string) string {
-	logical := srv.logicalPath(path)
+	p := filepath.ToSlash(strings.TrimSpace(path))
+	// MinIO logical paths (/users/…, /applications/…) must NOT have their prefix
+	// stripped.  The title service stores and queries MinIO associations using the
+	// full path (e.g. /users/sa/video.mp4), so stripping /users would produce a
+	// key mismatch that makes the restored association invisible to UI queries.
+	if srv.isMinioPath(p) {
+		if strings.HasSuffix(p, "/playlist.m3u8") {
+			p = strings.TrimSuffix(p, "/playlist.m3u8")
+		}
+		return p
+	}
+	logical := srv.logicalPath(p)
 	if strings.HasSuffix(logical, "/playlist.m3u8") {
 		logical = strings.TrimSuffix(logical, "/playlist.m3u8")
 	}
@@ -1549,6 +1653,7 @@ func (srv *server) cleanHiddenOrphans(dirs []string) {
 						filepath.Join(parent, base+".wav"),
 						filepath.Join(parent, base+".flac"),
 						filepath.Join(parent, base+".m3u8"),
+						filepath.Join(parent, base, "playlist.m3u8"), // HLS directory: base/playlist.m3u8
 					}
 					found := slices.ContainsFunc(mediaCandidates, srv.pathExists)
 					if !found {
@@ -1805,35 +1910,43 @@ func getFileTitles(path string) ([]*titlepb.Title, error) {
 func reassociatePath(path, new_path, domain string) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 
+	// Build candidate lookup paths: the original AND the /users-/user-stripped variant.
+	// Associations stored via restoreAsVideo → associationPath → logicalPath strip the
+	// /users or /user prefix (e.g. "/users/sa/toto.mp4" → "/sa/toto.mp4").  Associations
+	// stored via direct AssociateFileWithTitle calls keep the full path.  Try both so
+	// reassociation succeeds regardless of which format was used when originally stored.
+	searchPaths := []string{path}
+	for _, prefix := range []string{"/users", "/user"} {
+		if stripped := strings.TrimPrefix(path, prefix); stripped != path {
+			searchPaths = append(searchPaths, stripped)
+			break
+		}
+	}
+
 	// So here I will try to retreive indexation for the file...
 	client, err := getTitleClient()
 	if err != nil {
 		return err
 	}
 
-	// Now I will asscociate the title.
-	titles, err := getFileTitles(path)
-	if err == nil {
-		// Here I will asscociate the path
-		for _, title := range titles {
-			client.AssociateFileWithTitle("/search/titles", title.ID, new_path)
-			client.DissociateFileWithTitle("/search/titles", title.ID, path)
-		}
-	}
-
-	// Look for videos
-	videos, err := getFileVideos(path, domain)
-
-	if err == nil {
-		// Here I will asscociate the path
-		for _, video := range videos {
-			err_0 := client.AssociateFileWithTitle("/search/videos", video.ID, new_path)
-			if err_0 != nil {
-				fmt.Println("fail to associte file ", err)
+	for _, sp := range searchPaths {
+		// Now I will asscociate the title.
+		if titles, err := getFileTitles(sp); err == nil {
+			for _, title := range titles {
+				client.AssociateFileWithTitle("/search/titles", title.ID, new_path)
+				client.DissociateFileWithTitle("/search/titles", title.ID, sp)
 			}
-			err_1 := client.DissociateFileWithTitle("/search/videos", video.ID, path)
-			if err_1 != nil {
-				fmt.Println("fail to dissocite file ", err_1)
+		}
+
+		// Look for videos
+		if videos, err := getFileVideos(sp, domain); err == nil {
+			for _, video := range videos {
+				if err_0 := client.AssociateFileWithTitle("/search/videos", video.ID, new_path); err_0 != nil {
+					fmt.Println("fail to associate file ", err_0)
+				}
+				if err_1 := client.DissociateFileWithTitle("/search/videos", video.ID, sp); err_1 != nil {
+					fmt.Println("fail to dissociate file ", err_1)
+				}
 			}
 		}
 	}
@@ -3695,7 +3808,15 @@ func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartPro
 		dirs = append(dirs, srv.normalizeDirList(config.GetPublicDirs())...)
 		dirs = append(dirs, "/users")
 	} else {
-		dirs = append(dirs, srv.logicalPath(rqst.Path))
+		p := filepath.ToSlash(strings.TrimSpace(rqst.Path))
+		// MinIO paths start with /users/ or /applications/ and must keep that
+		// prefix so walkDir routes them to MinIO correctly.  logicalPath() strips
+		// /users which breaks isMinioPath() detection, so only normalise non-MinIO paths.
+		if srv.isMinioPath(p) {
+			dirs = append(dirs, p)
+		} else {
+			dirs = append(dirs, srv.logicalPath(p))
+		}
 	}
 
 	if srv.isProcessing {

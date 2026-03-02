@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -14,8 +15,14 @@ func (srv *server) initResourceStore(etcd *clientv3.Client) {
 	if etcd != nil {
 		srv.resources = resourcestore.NewEtcdStore(etcd)
 		log.Printf("resources: using etcd store")
-		return
+	} else {
+		srv.resources = resourcestore.NewMemStore()
+		log.Printf("resources: using mem store")
 	}
-	srv.resources = resourcestore.NewMemStore()
-	log.Printf("resources: using mem store")
+
+	// One-time migration: clean up stale desired-service keys that don't match
+	// their canonical form (domain-prefixed, underscore variants, etc.).
+	if n := srv.cleanupStaleDesiredKeys(context.Background()); n > 0 {
+		log.Printf("resources: cleaned up %d stale desired-service key(s)", n)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -49,8 +50,24 @@ func (srv *server) rebuildCollection(ctx context.Context, collection string, inc
 			_ = idx.Close()
 			delete(srv.indexs, resolved)
 		}
-		if err := os.RemoveAll(resolved); err != nil {
-			logger.Warn("rebuild: remove index dir failed", "path", resolved, "err", err)
+		// Rotate the old bleve directory out of the way atomically.
+		// os.Rename works on Linux even when files inside the directory are
+		// still held open by bleve's internal Badger store — avoiding the
+		// "unlinkat .../store: directory not empty" error that os.RemoveAll
+		// hits when concurrent gRPC requests keep the index open.
+		// Association data lives in ScyllaDB (not on the filesystem), so only
+		// the bleve index directory needs to be cleared.
+		stale := resolved + ".rebuilding"
+		_ = os.RemoveAll(stale) // remove any leftover from a previous failed rebuild
+		if err := os.Rename(resolved, stale); err != nil && !os.IsNotExist(err) {
+			logger.Warn("rebuild: rename index dir failed; continuing with existing index", "path", resolved, "err", err)
+		} else {
+			// Clean up the stale directory in the background; open file
+			// handles drain quickly and the delete will succeed after a short wait.
+			go func(p string) {
+				time.Sleep(10 * time.Second)
+				_ = os.RemoveAll(p)
+			}(stale)
 		}
 	}
 

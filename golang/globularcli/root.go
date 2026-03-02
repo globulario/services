@@ -20,7 +20,7 @@ var rootCfg = struct {
 	timeout        time.Duration
 	output         string
 }{
-	controllerAddr: "localhost:10000",
+	controllerAddr: "localhost:12000",
 	nodeAddr:       "localhost:11000",
 	dnsAddr:        "localhost:10006", // Updated from 10033 to actual DNS service port
 	timeout:        5 * time.Second,
@@ -79,4 +79,5 @@ func init() {
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(pkgCmd)
+	rootCmd.AddCommand(servicesCmd)
 }

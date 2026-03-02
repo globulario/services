@@ -88,6 +88,26 @@ message DownloadBundleResponse {
   bytes data = 1;               // Binary data of the downloaded bundle.
 }
 
+// BundleSummary holds the catalog metadata for a published bundle.
+message BundleSummary {
+  string name = 1;           // service / package name
+  string version = 2;        // semver or build tag
+  string platform = 3;       // e.g. linux_amd64
+  string publisher_id = 4;   // publishing organization
+  string service_id = 5;     // descriptor UUID
+  int64  size_bytes = 6;     // archive size
+  int64  published_unix = 7; // upload timestamp (unix seconds)
+  string sha256 = 8;         // checksum of the archive
+}
+
+message ListBundlesRequest {
+  string prefix = 1; // optional: filter bundles whose name starts with this
+}
+
+message ListBundlesResponse {
+  repeated BundleSummary bundles = 1;
+}
+
 // Service for managing package uploads and downloads in a repository.
 service PackageRepository {
   // Downloads a package bundle from the package repository.
@@ -111,4 +131,7 @@ service PackageRepository {
 
   // Retrieves metadata for a specific artifact reference.
   rpc GetArtifactManifest(GetArtifactManifestRequest) returns(GetArtifactManifestResponse);
+
+  // Lists all bundles published to the repository (from the Resource service index).
+  rpc ListBundles(ListBundlesRequest) returns(ListBundlesResponse);
 }

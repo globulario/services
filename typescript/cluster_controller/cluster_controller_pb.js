@@ -1,4 +1,4 @@
-// source: clustercontroller.proto
+// source: cluster_controller.proto
 /**
  * @fileoverview
  * @enhanceable
@@ -3544,7 +3544,8 @@ proto.cluster_controller.NodeCapabilities.toObject = function(includeInstance, m
 cpuCount: jspb.Message.getFieldWithDefault(msg, 1, 0),
 ramBytes: jspb.Message.getFieldWithDefault(msg, 2, 0),
 diskBytes: jspb.Message.getFieldWithDefault(msg, 3, 0),
-diskFreeBytes: jspb.Message.getFieldWithDefault(msg, 4, 0)
+diskFreeBytes: jspb.Message.getFieldWithDefault(msg, 4, 0),
+canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
   };
 
   if (includeInstance) {
@@ -3596,6 +3597,10 @@ proto.cluster_controller.NodeCapabilities.deserializeBinaryFromReader = function
     case 4:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setDiskFreeBytes(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setCanApplyPrivileged(value);
       break;
     default:
       reader.skipField();
@@ -3651,6 +3656,13 @@ proto.cluster_controller.NodeCapabilities.serializeBinaryToWriter = function(mes
   if (f !== 0) {
     writer.writeUint64(
       4,
+      f
+    );
+  }
+  f = message.getCanApplyPrivileged();
+  if (f) {
+    writer.writeBool(
+      5,
       f
     );
   }
@@ -3726,6 +3738,24 @@ proto.cluster_controller.NodeCapabilities.prototype.getDiskFreeBytes = function(
  */
 proto.cluster_controller.NodeCapabilities.prototype.setDiskFreeBytes = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional bool can_apply_privileged = 5;
+ * @return {boolean}
+ */
+proto.cluster_controller.NodeCapabilities.prototype.getCanApplyPrivileged = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.NodeCapabilities} returns this
+ */
+proto.cluster_controller.NodeCapabilities.prototype.setCanApplyPrivileged = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
 };
 
 
@@ -14275,7 +14305,8 @@ appliedServicesHash: jspb.Message.getFieldWithDefault(msg, 5, ""),
 currentPlanId: jspb.Message.getFieldWithDefault(msg, 6, ""),
 currentPlanGeneration: jspb.Message.getFieldWithDefault(msg, 7, 0),
 currentPlanPhase: jspb.Message.getFieldWithDefault(msg, 8, ""),
-lastError: jspb.Message.getFieldWithDefault(msg, 9, "")
+lastError: jspb.Message.getFieldWithDefault(msg, 9, ""),
+canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
   };
 
   if (includeInstance) {
@@ -14347,6 +14378,10 @@ proto.cluster_controller.NodeHealth.deserializeBinaryFromReader = function(msg, 
     case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.setLastError(value);
+      break;
+    case 10:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setCanApplyPrivileged(value);
       break;
     default:
       reader.skipField();
@@ -14437,6 +14472,13 @@ proto.cluster_controller.NodeHealth.serializeBinaryToWriter = function(message, 
   if (f.length > 0) {
     writer.writeString(
       9,
+      f
+    );
+  }
+  f = message.getCanApplyPrivileged();
+  if (f) {
+    writer.writeBool(
+      10,
       f
     );
   }
@@ -14602,6 +14644,24 @@ proto.cluster_controller.NodeHealth.prototype.getLastError = function() {
  */
 proto.cluster_controller.NodeHealth.prototype.setLastError = function(value) {
   return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional bool can_apply_privileged = 10;
+ * @return {boolean}
+ */
+proto.cluster_controller.NodeHealth.prototype.getCanApplyPrivileged = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 10, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.NodeHealth} returns this
+ */
+proto.cluster_controller.NodeHealth.prototype.setCanApplyPrivileged = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 10, value);
 };
 
 

@@ -825,6 +825,195 @@ func (x *DownloadBundleResponse) GetData() []byte {
 	return nil
 }
 
+// BundleSummary holds the catalog metadata for a published bundle.
+type BundleSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                         // service / package name
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`                                   // semver or build tag
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`                                 // e.g. linux_amd64
+	PublisherId   string                 `protobuf:"bytes,4,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`        // publishing organization
+	ServiceId     string                 `protobuf:"bytes,5,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`              // descriptor UUID
+	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`             // archive size
+	PublishedUnix int64                  `protobuf:"varint,7,opt,name=published_unix,json=publishedUnix,proto3" json:"published_unix,omitempty"` // upload timestamp (unix seconds)
+	Sha256        string                 `protobuf:"bytes,8,opt,name=sha256,proto3" json:"sha256,omitempty"`                                     // checksum of the archive
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BundleSummary) Reset() {
+	*x = BundleSummary{}
+	mi := &file_repository_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BundleSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BundleSummary) ProtoMessage() {}
+
+func (x *BundleSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BundleSummary.ProtoReflect.Descriptor instead.
+func (*BundleSummary) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *BundleSummary) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BundleSummary) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *BundleSummary) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *BundleSummary) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *BundleSummary) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
+func (x *BundleSummary) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *BundleSummary) GetPublishedUnix() int64 {
+	if x != nil {
+		return x.PublishedUnix
+	}
+	return 0
+}
+
+func (x *BundleSummary) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
+}
+
+type ListBundlesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prefix        string                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"` // optional: filter bundles whose name starts with this
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBundlesRequest) Reset() {
+	*x = ListBundlesRequest{}
+	mi := &file_repository_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBundlesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBundlesRequest) ProtoMessage() {}
+
+func (x *ListBundlesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBundlesRequest.ProtoReflect.Descriptor instead.
+func (*ListBundlesRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListBundlesRequest) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+type ListBundlesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bundles       []*BundleSummary       `protobuf:"bytes,1,rep,name=bundles,proto3" json:"bundles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBundlesResponse) Reset() {
+	*x = ListBundlesResponse{}
+	mi := &file_repository_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBundlesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBundlesResponse) ProtoMessage() {}
+
+func (x *ListBundlesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBundlesResponse.ProtoReflect.Descriptor instead.
+func (*ListBundlesResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListBundlesResponse) GetBundles() []*BundleSummary {
+	if x != nil {
+		return x.Bundles
+	}
+	return nil
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -881,20 +1070,36 @@ const file_repository_proto_rawDesc = "" +
 	"descriptor\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\",\n" +
 	"\x16DownloadBundleResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data*e\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\xf9\x01\n" +
+	"\rBundleSummary\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x12!\n" +
+	"\fpublisher_id\x18\x04 \x01(\tR\vpublisherId\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\x05 \x01(\tR\tserviceId\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12%\n" +
+	"\x0epublished_unix\x18\a \x01(\x03R\rpublishedUnix\x12\x16\n" +
+	"\x06sha256\x18\b \x01(\tR\x06sha256\",\n" +
+	"\x12ListBundlesRequest\x12\x16\n" +
+	"\x06prefix\x18\x01 \x01(\tR\x06prefix\"J\n" +
+	"\x13ListBundlesResponse\x123\n" +
+	"\abundles\x18\x01 \x03(\v2\x19.repository.BundleSummaryR\abundles*e\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
 	"\vAPPLICATION\x10\x02\x12\t\n" +
 	"\x05AGENT\x10\x03\x12\r\n" +
-	"\tSUBSYSTEM\x10\x042\xbd\x04\n" +
+	"\tSUBSYSTEM\x10\x042\x8d\x05\n" +
 	"\x11PackageRepository\x12Y\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse0\x01\x12S\n" +
 	"\fUploadBundle\x12\x1f.repository.UploadBundleRequest\x1a .repository.UploadBundleResponse(\x01\x12T\n" +
 	"\rListArtifacts\x12 .repository.ListArtifactsRequest\x1a!.repository.ListArtifactsResponse\x12Y\n" +
 	"\x0eUploadArtifact\x12!.repository.UploadArtifactRequest\x1a\".repository.UploadArtifactResponse(\x01\x12_\n" +
 	"\x10DownloadArtifact\x12#.repository.DownloadArtifactRequest\x1a$.repository.DownloadArtifactResponse0\x01\x12f\n" +
-	"\x13GetArtifactManifest\x12&.repository.GetArtifactManifestRequest\x1a'.repository.GetArtifactManifestResponseB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\x13GetArtifactManifest\x12&.repository.GetArtifactManifestRequest\x1a'.repository.GetArtifactManifestResponse\x12N\n" +
+	"\vListBundles\x12\x1e.repository.ListBundlesRequest\x1a\x1f.repository.ListBundlesResponseB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -909,7 +1114,7 @@ func file_repository_proto_rawDescGZIP() []byte {
 }
 
 var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_repository_proto_goTypes = []any{
 	(ArtifactKind)(0),                    // 0: repository.ArtifactKind
 	(*ArtifactRef)(nil),                  // 1: repository.ArtifactRef
@@ -926,36 +1131,42 @@ var file_repository_proto_goTypes = []any{
 	(*UploadBundleResponse)(nil),         // 12: repository.UploadBundleResponse
 	(*DownloadBundleRequest)(nil),        // 13: repository.DownloadBundleRequest
 	(*DownloadBundleResponse)(nil),       // 14: repository.DownloadBundleResponse
-	nil,                                  // 15: repository.ArtifactManifest.DefaultsEntry
-	(*resourcepb.PackageDescriptor)(nil), // 16: resource.PackageDescriptor
+	(*BundleSummary)(nil),                // 15: repository.BundleSummary
+	(*ListBundlesRequest)(nil),           // 16: repository.ListBundlesRequest
+	(*ListBundlesResponse)(nil),          // 17: repository.ListBundlesResponse
+	nil,                                  // 18: repository.ArtifactManifest.DefaultsEntry
+	(*resourcepb.PackageDescriptor)(nil), // 19: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
 	0,  // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
 	1,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
-	15, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	18, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
 	2,  // 3: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
 	1,  // 4: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
 	1,  // 5: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
 	1,  // 6: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
 	2,  // 7: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
-	16, // 8: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
-	13, // 9: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	11, // 10: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	3,  // 11: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
-	5,  // 12: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
-	7,  // 13: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
-	9,  // 14: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
-	14, // 15: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	12, // 16: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	4,  // 17: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
-	6,  // 18: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
-	8,  // 19: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
-	10, // 20: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	19, // 8: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	15, // 9: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
+	13, // 10: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	11, // 11: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	3,  // 12: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	5,  // 13: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	7,  // 14: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	9,  // 15: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	16, // 16: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
+	14, // 17: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	12, // 18: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	4,  // 19: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	6,  // 20: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	8,  // 21: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	10, // 22: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	17, // 23: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -969,7 +1180,7 @@ func file_repository_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   15,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

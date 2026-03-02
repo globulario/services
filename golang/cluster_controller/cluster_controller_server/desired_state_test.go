@@ -77,7 +77,10 @@ func TestReconcileSkipsWhenHashUnchanged(t *testing.T) {
 	ps := &fakePlanStore{}
 	srv := &server{
 		cfg:       &clusterControllerConfig{},
-		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
+		state: &controllerState{Nodes: map[string]*nodeState{"n1": {
+			NodeID:       "n1",
+			Capabilities: &storedCapabilities{CanApplyPrivileged: true},
+		}}},
 		kv:        kv,
 		planStore: ps,
 		resources: resourcestore.NewMemStore(),

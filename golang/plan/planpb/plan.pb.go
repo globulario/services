@@ -71,13 +71,14 @@ func (FailureMode) EnumDescriptor() ([]byte, []int) {
 type PlanState int32
 
 const (
-	PlanState_PLAN_PENDING      PlanState = 0
-	PlanState_PLAN_RUNNING      PlanState = 1
-	PlanState_PLAN_SUCCEEDED    PlanState = 2
-	PlanState_PLAN_FAILED       PlanState = 3
-	PlanState_PLAN_ROLLING_BACK PlanState = 4
-	PlanState_PLAN_ROLLED_BACK  PlanState = 5
-	PlanState_PLAN_EXPIRED      PlanState = 6
+	PlanState_PLAN_PENDING                   PlanState = 0
+	PlanState_PLAN_RUNNING                   PlanState = 1
+	PlanState_PLAN_SUCCEEDED                 PlanState = 2
+	PlanState_PLAN_FAILED                    PlanState = 3
+	PlanState_PLAN_ROLLING_BACK              PlanState = 4
+	PlanState_PLAN_ROLLED_BACK               PlanState = 5
+	PlanState_PLAN_EXPIRED                   PlanState = 6
+	PlanState_PLAN_AWAITING_PRIVILEGED_APPLY PlanState = 7
 )
 
 // Enum value maps for PlanState.
@@ -90,15 +91,17 @@ var (
 		4: "PLAN_ROLLING_BACK",
 		5: "PLAN_ROLLED_BACK",
 		6: "PLAN_EXPIRED",
+		7: "PLAN_AWAITING_PRIVILEGED_APPLY",
 	}
 	PlanState_value = map[string]int32{
-		"PLAN_PENDING":      0,
-		"PLAN_RUNNING":      1,
-		"PLAN_SUCCEEDED":    2,
-		"PLAN_FAILED":       3,
-		"PLAN_ROLLING_BACK": 4,
-		"PLAN_ROLLED_BACK":  5,
-		"PLAN_EXPIRED":      6,
+		"PLAN_PENDING":                   0,
+		"PLAN_RUNNING":                   1,
+		"PLAN_SUCCEEDED":                 2,
+		"PLAN_FAILED":                    3,
+		"PLAN_ROLLING_BACK":              4,
+		"PLAN_ROLLED_BACK":               5,
+		"PLAN_EXPIRED":                   6,
+		"PLAN_AWAITING_PRIVILEGED_APPLY": 7,
 	}
 )
 
@@ -1367,7 +1370,7 @@ const file_plan_proto_rawDesc = "" +
 	"\astep_id\x18\x04 \x01(\tR\x06stepId*@\n" +
 	"\vFailureMode\x12\x16\n" +
 	"\x12FAILURE_MODE_ABORT\x10\x00\x12\x19\n" +
-	"\x15FAILURE_MODE_ROLLBACK\x10\x01*\x93\x01\n" +
+	"\x15FAILURE_MODE_ROLLBACK\x10\x01*\xb7\x01\n" +
 	"\tPlanState\x12\x10\n" +
 	"\fPLAN_PENDING\x10\x00\x12\x10\n" +
 	"\fPLAN_RUNNING\x10\x01\x12\x12\n" +
@@ -1375,7 +1378,8 @@ const file_plan_proto_rawDesc = "" +
 	"\vPLAN_FAILED\x10\x03\x12\x15\n" +
 	"\x11PLAN_ROLLING_BACK\x10\x04\x12\x14\n" +
 	"\x10PLAN_ROLLED_BACK\x10\x05\x12\x10\n" +
-	"\fPLAN_EXPIRED\x10\x06*_\n" +
+	"\fPLAN_EXPIRED\x10\x06\x12\"\n" +
+	"\x1ePLAN_AWAITING_PRIVILEGED_APPLY\x10\a*_\n" +
 	"\tStepState\x12\x10\n" +
 	"\fSTEP_PENDING\x10\x00\x12\x10\n" +
 	"\fSTEP_RUNNING\x10\x01\x12\v\n" +

@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/versionutil"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -164,6 +167,33 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 	svcCanonical := canonicalServiceName(svcName)
 	unit := serviceUnitForCanonical(svcCanonical)
 	marker := versionutil.MarkerPath(svcName)
+
+	repo := resolveRepositoryInfo()
+	repoAddr := strings.TrimSpace(os.Getenv(repositoryAddressEnv))
+	if repoAddr == "" {
+		repoAddr = repo.Address
+	}
+
+	publisherID := strings.TrimSpace(os.Getenv("GLOBULAR_DEFAULT_PUBLISHER"))
+	if publisherID == "" {
+		publisherID = "core@globular.io"
+	}
+
+	fetchArgs := map[string]interface{}{
+		"service":         svcName,
+		"version":         desiredVersion,
+		"platform":        platform,
+		"artifact_path":   fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
+		"repository_addr": repoAddr,
+		"publisher_id":    publisherID,
+	}
+	if !repo.TLS {
+		fetchArgs["repository_insecure"] = true
+	}
+	if repo.CAPath != "" {
+		fetchArgs["repository_ca_path"] = repo.CAPath
+	}
+
 	return &planpb.NodePlan{
 		ApiVersion:  "globular.io/plan/v1",
 		Kind:        "NodePlan",
@@ -178,12 +208,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		},
 		Spec: &planpb.PlanSpec{
 			Steps: []*planpb.PlanStep{
-				planStep("artifact.fetch", map[string]interface{}{
-					"service":       svcName,
-					"version":       desiredVersion,
-					"platform":      platform,
-					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
-				}),
+				planStep("artifact.fetch", fetchArgs),
 				planStep("artifact.verify", map[string]interface{}{
 					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
 				}),
@@ -271,4 +296,55 @@ func structpbFromMap(fields map[string]interface{}) *structpb.Struct {
 	}
 	s, _ := structpb.NewStruct(fields)
 	return s
+}
+
+// repositoryInfo holds resolved repository connection details.
+type repositoryInfo struct {
+	Address string
+	TLS     bool
+	CAPath  string
+}
+
+// resolveRepositoryInfo looks up the repository service in the Globular
+// service registry and returns connection details. Falls back to "localhost:10101".
+func resolveRepositoryInfo() repositoryInfo {
+	const fallback = "localhost:10101"
+	cfg, err := config.GetServiceConfigurationById("repository.PackageRepository")
+	if err != nil || cfg == nil {
+		return repositoryInfo{Address: fallback}
+	}
+	port := Utility.ToInt(cfg["Port"])
+	host := strings.TrimSpace(Utility.ToString(cfg["Address"]))
+	if host == "" {
+		host = "localhost"
+	}
+	// If the Address already contains a colon (host:port), use it as-is.
+	var addr string
+	if strings.Contains(host, ":") {
+		addr = host
+	} else if port <= 0 {
+		addr = fallback
+	} else {
+		addr = fmt.Sprintf("%s:%d", host, port)
+	}
+
+	tlsEnabled := false
+	if v, ok := cfg["TLS"]; ok {
+		switch t := v.(type) {
+		case bool:
+			tlsEnabled = t
+		case string:
+			tlsEnabled = strings.EqualFold(t, "true")
+		}
+	}
+	caPath := ""
+	if s, ok := cfg["CertAuthorityTrust"]; ok {
+		caPath = strings.TrimSpace(Utility.ToString(s))
+	}
+	return repositoryInfo{Address: addr, TLS: tlsEnabled, CAPath: caPath}
+}
+
+// resolveRepositoryAddress returns "host:port" for backward compat.
+func resolveRepositoryAddress() string {
+	return resolveRepositoryInfo().Address
 }

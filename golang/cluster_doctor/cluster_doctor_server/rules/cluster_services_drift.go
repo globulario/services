@@ -23,25 +23,44 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 			continue
 		}
 
+		canPriv := nh.GetCanApplyPrivileged()
+
+		summary := fmt.Sprintf("Node %s services state hash mismatch (desired ≠ applied)", nodeID)
+		if !canPriv {
+			summary = fmt.Sprintf("Node %s services state hash mismatch — node lacks privilege for systemd operations", nodeID)
+		}
+
+		evidence := []*cluster_doctorpb.Evidence{
+			kvEvidence("cluster_controller", "GetClusterHealthV1", map[string]string{
+				"node_id":              nodeID,
+				"desired_hash":         desired,
+				"applied_hash":         applied,
+				"can_apply_privileged": fmt.Sprintf("%v", canPriv),
+			}),
+		}
+
+		remediation := []*cluster_doctorpb.RemediationStep{
+			step(1, "Trigger reconciliation for node "+nodeID+" to converge desired state", "globular doctor drift"),
+			step(2, "Inspect current plan to understand what changes are pending", ""),
+			step(3, "Check for failed previous plans that may have left state partially applied", "globular doctor node "+nodeID),
+		}
+
+		if !canPriv {
+			remediation = []*cluster_doctorpb.RemediationStep{
+				step(1, "Node lacks privilege for systemd operations. Apply the desired state manually on the node:", "globular services apply-desired"),
+				step(2, "Alternatively, restart the node agent with root privileges to enable automatic convergence", ""),
+			}
+		}
+
 		findings = append(findings, Finding{
-			FindingID:   FindingID("cluster.services.drift", nodeID, desired),
-			InvariantID: "cluster.services.drift",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
-			Category:    "drift",
-			EntityRef:   nodeID,
-			Summary:     fmt.Sprintf("Node %s services state hash mismatch (desired ≠ applied)", nodeID),
-			Evidence: []*cluster_doctorpb.Evidence{
-				kvEvidence("cluster_controller", "GetClusterHealthV1", map[string]string{
-					"node_id":       nodeID,
-					"desired_hash":  desired,
-					"applied_hash":  applied,
-				}),
-			},
-			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Trigger reconciliation for node "+nodeID+" to converge desired state", "globular doctor drift"),
-				step(2, "Inspect current plan to understand what changes are pending", ""),
-				step(3, "Check for failed previous plans that may have left state partially applied", "globular doctor node "+nodeID),
-			},
+			FindingID:       FindingID("cluster.services.drift", nodeID, desired),
+			InvariantID:     "cluster.services.drift",
+			Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:        "drift",
+			EntityRef:       nodeID,
+			Summary:         summary,
+			Evidence:        evidence,
+			Remediation:     remediation,
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
 	}

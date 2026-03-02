@@ -757,13 +757,14 @@ func (x *NodeIdentity) GetAdvertiseFqdn() string {
 // Hardware capabilities reported by a node agent.
 // Used by the controller to suggest appropriate profiles during join approval.
 type NodeCapabilities struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CpuCount      uint32                 `protobuf:"varint,1,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`                  // logical CPU cores (runtime.NumCPU)
-	RamBytes      uint64                 `protobuf:"varint,2,opt,name=ram_bytes,json=ramBytes,proto3" json:"ram_bytes,omitempty"`                  // total RAM in bytes
-	DiskBytes     uint64                 `protobuf:"varint,3,opt,name=disk_bytes,json=diskBytes,proto3" json:"disk_bytes,omitempty"`               // total capacity of primary volume in bytes
-	DiskFreeBytes uint64                 `protobuf:"varint,4,opt,name=disk_free_bytes,json=diskFreeBytes,proto3" json:"disk_free_bytes,omitempty"` // free bytes on primary volume
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	CpuCount           uint32                 `protobuf:"varint,1,opt,name=cpu_count,json=cpuCount,proto3" json:"cpu_count,omitempty"`                                 // logical CPU cores (runtime.NumCPU)
+	RamBytes           uint64                 `protobuf:"varint,2,opt,name=ram_bytes,json=ramBytes,proto3" json:"ram_bytes,omitempty"`                                 // total RAM in bytes
+	DiskBytes          uint64                 `protobuf:"varint,3,opt,name=disk_bytes,json=diskBytes,proto3" json:"disk_bytes,omitempty"`                              // total capacity of primary volume in bytes
+	DiskFreeBytes      uint64                 `protobuf:"varint,4,opt,name=disk_free_bytes,json=diskFreeBytes,proto3" json:"disk_free_bytes,omitempty"`                // free bytes on primary volume
+	CanApplyPrivileged bool                   `protobuf:"varint,5,opt,name=can_apply_privileged,json=canApplyPrivileged,proto3" json:"can_apply_privileged,omitempty"` // true when node can write systemd units (root or equivalent)
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *NodeCapabilities) Reset() {
@@ -822,6 +823,13 @@ func (x *NodeCapabilities) GetDiskFreeBytes() uint64 {
 		return x.DiskFreeBytes
 	}
 	return 0
+}
+
+func (x *NodeCapabilities) GetCanApplyPrivileged() bool {
+	if x != nil {
+		return x.CanApplyPrivileged
+	}
+	return false
 }
 
 type NodeRecord struct {
@@ -3932,6 +3940,7 @@ type NodeHealth struct {
 	CurrentPlanGeneration uint64                 `protobuf:"varint,7,opt,name=current_plan_generation,json=currentPlanGeneration,proto3" json:"current_plan_generation,omitempty"`
 	CurrentPlanPhase      string                 `protobuf:"bytes,8,opt,name=current_plan_phase,json=currentPlanPhase,proto3" json:"current_plan_phase,omitempty"`
 	LastError             string                 `protobuf:"bytes,9,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	CanApplyPrivileged    bool                   `protobuf:"varint,10,opt,name=can_apply_privileged,json=canApplyPrivileged,proto3" json:"can_apply_privileged,omitempty"` // from node capabilities, for UI display
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -4027,6 +4036,13 @@ func (x *NodeHealth) GetLastError() string {
 		return x.LastError
 	}
 	return ""
+}
+
+func (x *NodeHealth) GetCanApplyPrivileged() bool {
+	if x != nil {
+		return x.CanApplyPrivileged
+	}
+	return false
 }
 
 type ServiceSummary struct {
@@ -5071,13 +5087,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
 	"\tnode_name\x18\a \x01(\tR\bnodeName\x12!\n" +
 	"\fadvertise_ip\x18\b \x01(\tR\vadvertiseIp\x12%\n" +
-	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\x93\x01\n" +
+	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\xc5\x01\n" +
 	"\x10NodeCapabilities\x12\x1b\n" +
 	"\tcpu_count\x18\x01 \x01(\rR\bcpuCount\x12\x1b\n" +
 	"\tram_bytes\x18\x02 \x01(\x04R\bramBytes\x12\x1d\n" +
 	"\n" +
 	"disk_bytes\x18\x03 \x01(\x04R\tdiskBytes\x12&\n" +
-	"\x0fdisk_free_bytes\x18\x04 \x01(\x04R\rdiskFreeBytes\"\xef\x03\n" +
+	"\x0fdisk_free_bytes\x18\x04 \x01(\x04R\rdiskFreeBytes\x120\n" +
+	"\x14can_apply_privileged\x18\x05 \x01(\bR\x12canApplyPrivileged\"\xef\x03\n" +
 	"\n" +
 	"NodeRecord\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12<\n" +
@@ -5320,7 +5337,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x11alternate_domains\x18\a \x03(\tR\x10alternateDomains\":\n" +
 	"\x19GetClusterHealthV1Request\x12\x1d\n" +
 	"\n" +
-	"cluster_id\x18\x01 \x01(\tR\tclusterId\"\x9e\x03\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\"\xd0\x03\n" +
 	"\n" +
 	"NodeHealth\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
@@ -5332,7 +5349,9 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x17current_plan_generation\x18\a \x01(\x04R\x15currentPlanGeneration\x12,\n" +
 	"\x12current_plan_phase\x18\b \x01(\tR\x10currentPlanPhase\x12\x1d\n" +
 	"\n" +
-	"last_error\x18\t \x01(\tR\tlastError\"\xc5\x01\n" +
+	"last_error\x18\t \x01(\tR\tlastError\x120\n" +
+	"\x14can_apply_privileged\x18\n" +
+	" \x01(\bR\x12canApplyPrivileged\"\xc5\x01\n" +
 	"\x0eServiceSummary\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12'\n" +
 	"\x0fdesired_version\x18\x02 \x01(\tR\x0edesiredVersion\x12(\n" +

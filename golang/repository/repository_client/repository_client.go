@@ -304,6 +304,15 @@ func (client *Repository_Service_Client) ListArtifacts() ([]*repositorypb.Artifa
 	return resp.GetArtifacts(), nil
 }
 
+// ListBundles returns all bundle summaries stored in the repository.
+func (client *Repository_Service_Client) ListBundles() ([]*repositorypb.BundleSummary, error) {
+	resp, err := client.c.ListBundles(client.GetCtx(), &repositorypb.ListBundlesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetBundles(), nil
+}
+
 // GetArtifactManifest returns the manifest for the given artifact reference.
 func (client *Repository_Service_Client) GetArtifactManifest(ref *repositorypb.ArtifactRef) (*repositorypb.ArtifactManifest, error) {
 	if ref == nil {

@@ -310,5 +310,66 @@ proto.repository.PackageRepositoryPromiseClient.prototype.getArtifactManifest =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListBundlesRequest,
+ *   !proto.repository.ListBundlesResponse>}
+ */
+const methodDescriptor_PackageRepository_ListBundles = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListBundles',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListBundlesRequest,
+  proto.repository.ListBundlesResponse,
+  /**
+   * @param {!proto.repository.ListBundlesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListBundlesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListBundlesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListBundlesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListBundlesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listBundles =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListBundles',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListBundles,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListBundlesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListBundlesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listBundles =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListBundles',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListBundles);
+};
+
+
 module.exports = proto.repository;
 

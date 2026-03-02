@@ -63,6 +63,11 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		}
 	}
 
+	// Normalize version to canonical semver.
+	if cv, err := versionutil.Canonical(version); err == nil {
+		version = cv
+	}
+
 	// Fetch manifest to confirm existence and retrieve digest.
 	ref := &repositorypb.ArtifactRef{
 		PublisherId: spec.PublisherID,

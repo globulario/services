@@ -178,6 +178,18 @@ echo ""
 
 cd "${SERVICES_ROOT}"
 
+# Remove legacy binary names from the stage directory so specgen/pkggen don't
+# produce duplicate packages (e.g. both clustercontroller and cluster_controller).
+echo "→ Removing legacy binary names from stage directory..."
+for _old in clustercontroller_server clusterdoctor_server nodeagent_server \
+            cluster_controller node_agent; do
+    if [[ -e "${SERVICES_STAGE}/${_old}" || -L "${SERVICES_STAGE}/${_old}" ]]; then
+        rm -f "${SERVICES_STAGE}/${_old}"
+        echo "  removed ${_old}"
+    fi
+done
+echo ""
+
 echo "→ Step 3a: Generate service specs..."
 if [[ -f "golang/globularcli/tools/specgen/specgen.sh" ]]; then
     bash golang/globularcli/tools/specgen/specgen.sh \

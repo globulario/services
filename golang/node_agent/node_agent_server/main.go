@@ -130,7 +130,7 @@ func main() {
 			"TLS":      os.Getenv("NODE_AGENT_TLS_CERT") != "",
 			"State":    "running",
 			"Process":  os.Getpid(),
-			"Version":  getEnv("NODE_AGENT_VERSION", "v0.1.0"),
+			"Version":  getEnv("NODE_AGENT_VERSION", "0.0.1"),
 		}); regErr != nil {
 			log.Printf("warn: failed to register in Globular service registry; xDS routing may be unavailable: %v", regErr)
 		}

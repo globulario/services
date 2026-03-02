@@ -4335,7 +4335,8 @@ proto.globular.plan.v1.PlanState = {
   PLAN_FAILED: 3,
   PLAN_ROLLING_BACK: 4,
   PLAN_ROLLED_BACK: 5,
-  PLAN_EXPIRED: 6
+  PLAN_EXPIRED: 6,
+  PLAN_AWAITING_PRIVILEGED_APPLY: 7
 };
 
 /**

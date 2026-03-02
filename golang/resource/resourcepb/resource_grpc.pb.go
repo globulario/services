@@ -82,6 +82,7 @@ const (
 	ResourceService_SetPackageDescriptor_FullMethodName          = "/resource.ResourceService/SetPackageDescriptor"
 	ResourceService_SetPackageBundle_FullMethodName              = "/resource.ResourceService/SetPackageBundle"
 	ResourceService_GetPackageBundleChecksum_FullMethodName      = "/resource.ResourceService/GetPackageBundleChecksum"
+	ResourceService_GetPackageBundles_FullMethodName             = "/resource.ResourceService/GetPackageBundles"
 	ResourceService_UpdateSession_FullMethodName                 = "/resource.ResourceService/UpdateSession"
 	ResourceService_GetSessions_FullMethodName                   = "/resource.ResourceService/GetSessions"
 	ResourceService_RemoveSession_FullMethodName                 = "/resource.ResourceService/RemoveSession"
@@ -228,6 +229,8 @@ type ResourceServiceClient interface {
 	SetPackageBundle(ctx context.Context, in *SetPackageBundleRequest, opts ...grpc.CallOption) (*SetPackageBundleResponse, error)
 	// Gets the checksum for a specified package bundle.
 	GetPackageBundleChecksum(ctx context.Context, in *GetPackageBundleChecksumRequest, opts ...grpc.CallOption) (*GetPackageBundleChecksumResponse, error)
+	// Lists all package bundles stored in the repository.
+	GetPackageBundles(ctx context.Context, in *GetPackageBundlesRequest, opts ...grpc.CallOption) (*GetPackageBundlesResponse, error)
 	// Updates user session information.
 	UpdateSession(ctx context.Context, in *UpdateSessionRequest, opts ...grpc.CallOption) (*UpdateSessionResponse, error)
 	// Retrieves a list of all user sessions.
@@ -960,6 +963,16 @@ func (c *resourceServiceClient) GetPackageBundleChecksum(ctx context.Context, in
 	return out, nil
 }
 
+func (c *resourceServiceClient) GetPackageBundles(ctx context.Context, in *GetPackageBundlesRequest, opts ...grpc.CallOption) (*GetPackageBundlesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPackageBundlesResponse)
+	err := c.cc.Invoke(ctx, ResourceService_GetPackageBundles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *resourceServiceClient) UpdateSession(ctx context.Context, in *UpdateSessionRequest, opts ...grpc.CallOption) (*UpdateSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateSessionResponse)
@@ -1194,6 +1207,8 @@ type ResourceServiceServer interface {
 	SetPackageBundle(context.Context, *SetPackageBundleRequest) (*SetPackageBundleResponse, error)
 	// Gets the checksum for a specified package bundle.
 	GetPackageBundleChecksum(context.Context, *GetPackageBundleChecksumRequest) (*GetPackageBundleChecksumResponse, error)
+	// Lists all package bundles stored in the repository.
+	GetPackageBundles(context.Context, *GetPackageBundlesRequest) (*GetPackageBundlesResponse, error)
 	// Updates user session information.
 	UpdateSession(context.Context, *UpdateSessionRequest) (*UpdateSessionResponse, error)
 	// Retrieves a list of all user sessions.
@@ -1411,6 +1426,9 @@ func (UnimplementedResourceServiceServer) SetPackageBundle(context.Context, *Set
 }
 func (UnimplementedResourceServiceServer) GetPackageBundleChecksum(context.Context, *GetPackageBundleChecksumRequest) (*GetPackageBundleChecksumResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPackageBundleChecksum not implemented")
+}
+func (UnimplementedResourceServiceServer) GetPackageBundles(context.Context, *GetPackageBundlesRequest) (*GetPackageBundlesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPackageBundles not implemented")
 }
 func (UnimplementedResourceServiceServer) UpdateSession(context.Context, *UpdateSessionRequest) (*UpdateSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSession not implemented")
@@ -2540,6 +2558,24 @@ func _ResourceService_GetPackageBundleChecksum_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ResourceService_GetPackageBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPackageBundlesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourceServiceServer).GetPackageBundles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ResourceService_GetPackageBundles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourceServiceServer).GetPackageBundles(ctx, req.(*GetPackageBundlesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ResourceService_UpdateSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateSessionRequest)
 	if err := dec(in); err != nil {
@@ -2946,6 +2982,10 @@ var ResourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPackageBundleChecksum",
 			Handler:    _ResourceService_GetPackageBundleChecksum_Handler,
+		},
+		{
+			MethodName: "GetPackageBundles",
+			Handler:    _ResourceService_GetPackageBundles_Handler,
 		},
 		{
 			MethodName: "UpdateSession",

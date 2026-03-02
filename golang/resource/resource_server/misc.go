@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -808,6 +809,13 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
 	bundle := rqst.Bundle
 
+	// Normalize version to canonical semver (no v-prefix).
+	if bundle != nil && bundle.PackageDescriptor != nil {
+		if cv, err := versionutil.Canonical(bundle.PackageDescriptor.Version); err == nil {
+			bundle.PackageDescriptor.Version = cv
+		}
+	}
+
 	p, err := srv.getPersistenceStore()
 	if err != nil {
 		slog.Error("SetPackageBundle: getPersistenceStore failed", "file", Utility.FileLine(), "func", Utility.FunctionName(), "error", err.Error())
@@ -819,7 +827,7 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherID + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
 
-	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "PublisherID": bundle.PackageDescriptor.PublisherID, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
+	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "PublisherID": bundle.PackageDescriptor.PublisherID, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "version": bundle.PackageDescriptor.Version, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
 		slog.Error("SetPackageBundle: ToJson failed", "file", Utility.FileLine(), "func", Utility.FunctionName(), "error", err.Error())
 		return nil, status.Errorf(
@@ -835,6 +843,80 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 		return nil, err
 	}
 	return &resourcepb.SetPackageBundleResponse{Result: true}, nil
+}
+
+// GetPackageBundles returns all bundle records stored in local_resource.Bundles,
+// optionally filtered by publisher_id. Each returned PackageBundle has its
+// PackageDescriptor populated (Name, Version, PublisherID, Id) but Binairies is empty.
+func (srv *server) GetPackageBundles(ctx context.Context, rqst *resourcepb.GetPackageBundlesRequest) (*resourcepb.GetPackageBundlesResponse, error) {
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	query := `{}`
+	if rqst.PublisherId != "" {
+		query = `{"PublisherID":"` + rqst.PublisherId + `"}`
+	}
+
+	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Bundles", query, "")
+	if err != nil {
+		// Empty or missing collection — return empty list, not an error.
+		return &resourcepb.GetPackageBundlesResponse{}, nil
+	}
+
+	bundles := make([]*resourcepb.PackageBundle, 0, len(results))
+	for _, raw := range results {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := m["servicename"].(string)
+		publisherID, _ := m["PublisherID"].(string)
+		if publisherID == "" {
+			// ScyllaDB normalises "PublisherID" → "publisherId"
+			publisherID, _ = m["publisherId"].(string)
+		}
+		serviceID, _ := m["serviceid"].(string)
+		platform, _ := m["platform"].(string)
+		checksum, _ := m["checksum"].(string)
+		version, _ := m["version"].(string)
+
+		var size int32
+		switch v := m["size"].(type) {
+		case float64:
+			size = int32(v)
+		case int32:
+			size = v
+		case int64:
+			size = int32(v)
+		}
+
+		var modified int64
+		switch v := m["modified"].(type) {
+		case float64:
+			modified = int64(v)
+		case int64:
+			modified = v
+		}
+
+		bundles = append(bundles, &resourcepb.PackageBundle{
+			PackageDescriptor: &resourcepb.PackageDescriptor{
+				Name:        name,
+				Id:          serviceID,
+				PublisherID: publisherID,
+				Version:     version,
+			},
+			Checksum: checksum,
+			Plaform:  platform,
+			Size:     size,
+			Modified: modified,
+		})
+	}
+
+	return &resourcepb.GetPackageBundlesResponse{Bundles: bundles}, nil
 }
 
 // SetPackageDescriptor sets or updates a package descriptor in the persistence store.
@@ -854,6 +936,12 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 //	*resourcepb.SetPackageDescriptorResponse - The response indicating success.
 //	error - An error if the operation fails.
 func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
+	// Normalize version to canonical semver (no v-prefix).
+	if rqst.PackageDescriptor != nil {
+		if cv, err := versionutil.Canonical(rqst.PackageDescriptor.Version); err == nil {
+			rqst.PackageDescriptor.Version = cv
+		}
+	}
 
 	p, err := srv.getPersistenceStore()
 	if err != nil {
