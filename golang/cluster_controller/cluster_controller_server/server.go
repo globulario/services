@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
 	"github.com/globulario/services/golang/plan/versionutil"
@@ -182,6 +183,9 @@ type server struct {
 	// can immediately trigger a reconcile cycle after saving profile changes.
 	enqueueReconcile func()
 
+	// event publishing (fire-and-forget, nil-safe)
+	eventClient *event_client.Event_Client
+
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
 	testDispatchReleasePlan   func(context.Context, *cluster_controllerpb.ServiceRelease, string) (*planpb.NodePlan, error)
@@ -217,6 +221,18 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
 		srv.enableServiceRemoval = true
 	}
+
+	// Connect to EventService for reconciliation event publishing.
+	eventAddr := strings.TrimSpace(os.Getenv("CLUSTER_EVENT_SERVICE_ADDR"))
+	if eventAddr == "" {
+		eventAddr = "localhost:10050"
+	}
+	if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
+		srv.eventClient = ec
+	} else {
+		log.Printf("cluster-controller: event client unavailable: %v", err)
+	}
+
 	srv.setLeader(false, "", "")
 
 	// Register built-in operators
@@ -254,6 +270,23 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	})
 
 	return srv
+}
+
+// emitClusterEvent publishes an event to the EventService (fire-and-forget).
+// Safe to call when eventClient is nil.
+func (srv *server) emitClusterEvent(name string, payload map[string]interface{}) {
+	if srv.eventClient == nil {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	go func() {
+		if err := srv.eventClient.Publish(name, data); err != nil {
+			log.Printf("cluster-controller: publish %q failed: %v", name, err)
+		}
+	}()
 }
 
 func (srv *server) lock(tag string) {
@@ -1617,6 +1650,7 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			CurrentPlanPhase:    phase,
 			LastError:           lastErr,
 			CanApplyPrivileged:  canPriv,
+			InstalledVersions:   node.InstalledVersions,
 		})
 
 		for svc, desiredVer := range filtered {
@@ -1651,6 +1685,126 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	return &cluster_controllerpb.GetClusterHealthV1Response{
 		Nodes:    nodeHealths,
 		Services: summaries,
+	}, nil
+}
+
+func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_controllerpb.GetNodeHealthDetailV1Request) (*cluster_controllerpb.GetNodeHealthDetailV1Response, error) {
+	if req == nil || req.GetNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	nodeID := req.GetNodeId()
+
+	srv.lock("health-detail:snapshot")
+	node := srv.state.Nodes[nodeID]
+	srv.unlock()
+
+	if node == nil {
+		return nil, status.Errorf(codes.NotFound, "node %q not found", nodeID)
+	}
+
+	var checks []*cluster_controllerpb.NodeHealthCheck
+
+	// 1. Heartbeat check
+	heartbeatOK := !node.LastSeen.IsZero() && time.Since(node.LastSeen) < unhealthyThreshold
+	hbReason := ""
+	if !heartbeatOK {
+		if node.LastSeen.IsZero() {
+			hbReason = "never seen"
+		} else {
+			hbReason = fmt.Sprintf("last seen %s ago", time.Since(node.LastSeen).Truncate(time.Second))
+		}
+	}
+	checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+		Subsystem: "heartbeat",
+		Ok:        heartbeatOK,
+		Reason:    hbReason,
+	})
+
+	// 2. Unit checks — compare required units from plan vs reported unit states
+	plan, _ := srv.computeNodePlan(node)
+	required := requiredUnitsFromPlan(plan)
+	unitStates := make(map[string]string, len(node.Units))
+	for _, u := range node.Units {
+		if u.Name != "" {
+			unitStates[strings.ToLower(u.Name)] = strings.ToLower(u.State)
+		}
+	}
+	for unit := range required {
+		unitOK := false
+		reason := ""
+		st, found := unitStates[strings.ToLower(unit)]
+		if !found {
+			reason = "unit not reported by node"
+		} else if st != "active" {
+			reason = fmt.Sprintf("state is %q", st)
+		} else {
+			unitOK = true
+		}
+		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+			Subsystem: "unit:" + unit,
+			Ok:        unitOK,
+			Reason:    reason,
+		})
+	}
+
+	// 3. Inventory check
+	checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+		Subsystem: "inventory",
+		Ok:        node.InventoryComplete,
+		Reason: func() string {
+			if !node.InventoryComplete {
+				return "inventory scan not yet complete"
+			}
+			return ""
+		}(),
+	})
+
+	// 4. Version checks — compare installed vs desired
+	desiredCanon, _, _ := srv.loadDesiredServices(ctx)
+	filtered := filterVersionsForNode(desiredCanon, node)
+	for svc, desiredVer := range filtered {
+		installedVer, found := node.InstalledVersions[svc]
+		ok := found && installedVer == desiredVer
+		reason := ""
+		if !found {
+			reason = fmt.Sprintf("not installed (desired %s)", desiredVer)
+		} else if installedVer != desiredVer {
+			reason = fmt.Sprintf("installed %s, desired %s", installedVer, desiredVer)
+		}
+		checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+			Subsystem: "version:" + svc,
+			Ok:        ok,
+			Reason:    reason,
+		})
+	}
+
+	// Overall status from existing evaluator, overridden to unhealthy if heartbeat fails.
+	overallStatus, _ := srv.evaluateNodeStatus(node, node.Units)
+	if !heartbeatOK {
+		overallStatus = "unhealthy"
+	}
+	allOK := true
+	for _, c := range checks {
+		if !c.Ok {
+			allOK = false
+			break
+		}
+	}
+
+	canPriv := false
+	if node.Capabilities != nil {
+		canPriv = node.Capabilities.CanApplyPrivileged
+	}
+
+	return &cluster_controllerpb.GetNodeHealthDetailV1Response{
+		NodeId:             nodeID,
+		OverallStatus:      overallStatus,
+		Healthy:            allOK,
+		Checks:             checks,
+		LastError:          node.LastError,
+		CanApplyPrivileged: canPriv,
+		InventoryComplete:  node.InventoryComplete,
+		LastSeen:           timestamppb.New(node.LastSeen),
 	}, nil
 }
 
@@ -2136,6 +2290,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	srv.unlock()
 	now := time.Now()
 
+	// (RECONCILE_CYCLE removed — not in required event set)
+
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
 			continue
@@ -2149,6 +2305,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			node.BlockedDetails = profileErr.Error()
 			stateDirty = true
 			log.Printf("reconcile: node %s blocked: %v", node.NodeID, profileErr)
+			srv.emitClusterEvent("plan_blocked", map[string]interface{}{
+				"severity":       "WARN",
+				"node_id":        node.NodeID,
+				"hostname":       node.Identity.Hostname,
+				"message":        fmt.Sprintf("Node %s blocked: unknown profile", node.Identity.Hostname),
+				"correlation_id": fmt.Sprintf("plan:%s:gen:0", node.NodeID),
+			})
 			continue
 		}
 		// Clear stale unknown_profile block now that profiles are valid.
@@ -2175,6 +2338,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					node.BlockedDetails = fmt.Sprintf("missing: %s", strings.Join(missing, ", "))
 					stateDirty = true
 					log.Printf("reconcile: node %s blocked (hard): missing units: %v", node.NodeID, missing)
+					srv.emitClusterEvent("plan_blocked", map[string]interface{}{
+						"severity":       "WARN",
+						"node_id":        node.NodeID,
+						"hostname":       node.Identity.Hostname,
+						"message":        fmt.Sprintf("Node %s blocked: missing unit files %v", node.Identity.Hostname, missing),
+						"correlation_id": fmt.Sprintf("plan:%s:gen:0", node.NodeID),
+					})
 					continue
 				}
 				// Inventory not complete — soft mode: warn but allow reconcile to proceed.
@@ -2247,11 +2417,25 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 						})
 					}
 					_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
+					srv.emitClusterEvent("plan_apply_succeeded", map[string]interface{}{
+						"severity":       "INFO",
+						"node_id":        node.NodeID,
+						"hostname":       node.Identity.Hostname,
+						"message":        fmt.Sprintf("Network plan succeeded for %s", node.Identity.Hostname),
+						"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+					})
 					continue
 				}
 			}
 			fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
 			if status != nil && planHash == specHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+				srv.emitClusterEvent("plan_apply_failed", map[string]interface{}{
+					"severity":       "ERROR",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"message":        fmt.Sprintf("Network plan failed for %s (state=%s)", node.Identity.Hostname, status.GetState()),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
+				})
 				delay := backoffDuration(fails)
 				if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
 					continue
@@ -2282,6 +2466,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			// Skip dispatch if node lacks privileged-apply capability.
 			if !canPriv {
 				log.Printf("reconcile: node %s needs privileged apply for network plan (plan_id=%s)", node.NodeID, plan.GetPlanId())
+				srv.emitClusterEvent("plan_blocked_privileged", map[string]interface{}{
+					"severity":       "WARN",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"message":        fmt.Sprintf("Node %s cannot apply privileged operations. Run: globular services apply-desired", node.Identity.Hostname),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
+				})
 				continue
 			}
 
@@ -2300,6 +2491,20 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				_ = srv.putNodeFailureCount(ctx, node.NodeID, fails+1)
 			}
 			log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
+			srv.emitClusterEvent("plan_generated", map[string]interface{}{
+				"severity":       "INFO",
+				"node_id":        node.NodeID,
+				"hostname":       node.Identity.Hostname,
+				"message":        fmt.Sprintf("Network plan generated for %s", node.Identity.Hostname),
+				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
+			})
+			srv.emitClusterEvent("plan_apply_started", map[string]interface{}{
+				"severity":       "INFO",
+				"node_id":        node.NodeID,
+				"hostname":       node.Identity.Hostname,
+				"message":        fmt.Sprintf("Network plan dispatched for %s", node.Identity.Hostname),
+				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
+			})
 			continue
 		}
 
@@ -2328,6 +2533,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 						})
 					}
 				}
+				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
+					"severity":       "INFO",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"service":        remSvc,
+					"message":        fmt.Sprintf("Service removal succeeded for %s on %s", remSvc, node.Identity.Hostname),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
+				})
 				continue
 			}
 			rmPlan := BuildServiceRemovePlan(node.NodeID, remSvc, svcHash)
@@ -2347,6 +2560,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					_ = appendable.AppendHistory(ctx, node.NodeID, rmPlan)
 				}
 				log.Printf("reconcile: wrote service removal plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, remSvc, rmPlan.GetPlanId(), rmPlan.GetGeneration())
+				srv.emitClusterEvent("service_apply_started", map[string]interface{}{
+					"severity":       "INFO",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"service":        remSvc,
+					"message":        fmt.Sprintf("Service removal plan dispatched for %s on %s", remSvc, node.Identity.Hostname),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, rmPlan.GetGeneration()),
+				})
 				continue
 			}
 		}
@@ -2372,6 +2593,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 						}
 					}
 				}
+				srv.emitClusterEvent("plan_apply_succeeded", map[string]interface{}{
+					"severity":       "INFO",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"message":        fmt.Sprintf("All services at desired state for %s", node.Identity.Hostname),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+				})
 			}
 			continue
 		}
@@ -2409,6 +2637,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
 				}
 				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
+				// (EXTERNAL_INSTALL_DETECTED removed — not in required event set)
 				continue
 			}
 		}
@@ -2427,11 +2656,25 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
 				}
 				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
+				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
+					"severity":       "INFO",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"message":        fmt.Sprintf("Service plan succeeded for %s", node.Identity.Hostname),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+				})
 				continue
 			}
 		}
 		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
 		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			srv.emitClusterEvent("service_apply_failed", map[string]interface{}{
+				"severity":       "ERROR",
+				"node_id":        node.NodeID,
+				"hostname":       node.Identity.Hostname,
+				"message":        fmt.Sprintf("Service plan failed for %s (state=%s)", node.Identity.Hostname, status.GetState()),
+				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
+			})
 			delay := backoffDuration(failsSvc)
 			if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
 				continue
@@ -2502,6 +2745,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, failsSvc+1)
 		}
 		log.Printf("reconcile: wrote service plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, svcName, plan.GetPlanId(), plan.GetGeneration())
+		srv.emitClusterEvent("service_apply_started", map[string]interface{}{
+			"severity":       "INFO",
+			"node_id":        node.NodeID,
+			"hostname":       node.Identity.Hostname,
+			"service":        svcName,
+			"message":        fmt.Sprintf("Service upgrade plan dispatched for %s on %s", svcName, node.Identity.Hostname),
+			"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
+		})
 	}
 	if stateDirty {
 		srv.lock("reconcile:persist")
