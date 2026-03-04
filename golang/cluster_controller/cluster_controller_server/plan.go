@@ -16,6 +16,7 @@ var coreUnits = []string{
 	"globular-rbac.service",
 	"globular-file.service",
 	"globular-minio.service",
+	"globular-monitoring.service",
 }
 
 var profileUnitMap = map[string][]string{
@@ -156,10 +157,12 @@ var unitPriority = map[string]int{
 	"minio.service":              6,
 	"globular-file.service":      7,
 	"file.service":               7,
-	"globular-gateway.service":   8,
-	"globular-xds.service":       8,
-	"xds.service":                8,
-	"envoy.service":              9,
+	"globular-monitoring.service": 8,
+	"monitoring.service":          8,
+	"globular-gateway.service":   9,
+	"globular-xds.service":       9,
+	"xds.service":                9,
+	"envoy.service":              10,
 }
 
 // getUnitPriority returns the priority for a unit, defaulting to 1000 for unknown units.

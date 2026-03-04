@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	appliedHashPrefix    = "globular/cluster/v1/applied_hash"
-	appliedSvcHashPrefix = "globular/cluster/v1/applied_hash_services"
-	planMetaPrefix       = "globular/cluster/v1/plan_meta"
-	failCountPrefix      = "globular/cluster/v1/fail_count"
-	failCountSvcPrefix   = "globular/cluster/v1/fail_count_services"
+	appliedHashPrefix     = "globular/cluster/v1/applied_hash"
+	appliedSvcHashPrefix  = "globular/cluster/v1/applied_hash_services"
+	observedSvcHashPrefix = "globular/cluster/v1/observed_hash_services"
+	planMetaPrefix        = "globular/cluster/v1/plan_meta"
+	failCountPrefix       = "globular/cluster/v1/fail_count"
+	failCountSvcPrefix    = "globular/cluster/v1/fail_count_services"
 )
 
 type planMeta struct {
@@ -153,6 +154,37 @@ func (srv *server) putNodeAppliedServiceHash(ctx context.Context, nodeID, hash s
 		return fmt.Errorf("etcd client unavailable")
 	}
 	key := fmt.Sprintf("%s/%s", appliedSvcHashPrefix, nodeID)
+	_, err := srv.kv.Put(ctx, key, hash)
+	return err
+}
+
+// getNodeObservedServiceHash returns the raw inventory hash reported by the
+// node agent. This is distinct from the applied hash which is only set when
+// the reconciler confirms convergence with the desired state.
+func (srv *server) getNodeObservedServiceHash(ctx context.Context, nodeID string) (string, error) {
+	if srv.kv == nil {
+		return "", fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", observedSvcHashPrefix, nodeID)
+	resp, err := srv.kv.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Kvs) == 0 {
+		return "", nil
+	}
+	val := string(resp.Kvs[0].Value)
+	if val != "" && !strings.HasPrefix(val, "services:") {
+		return "services:" + val, nil
+	}
+	return val, nil
+}
+
+func (srv *server) putNodeObservedServiceHash(ctx context.Context, nodeID, hash string) error {
+	if srv.kv == nil {
+		return fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", observedSvcHashPrefix, nodeID)
 	_, err := srv.kv.Put(ctx, key, hash)
 	return err
 }

@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -121,6 +124,20 @@ var servicesDesiredDiffCmd = &cobra.Command{
 	RunE:  runDesiredDiff,
 }
 
+// ─── list-desired ────────────────────────────────────────────────────────────
+
+var servicesListDesiredCmd = &cobra.Command{
+	Use:   "list-desired",
+	Short: "List desired vs installed services and compare state hashes",
+	Long: `Fetch the desired state from the cluster controller and compare it
+with locally-installed service versions. Computes and displays the
+desired and applied state hashes so you can diagnose hash mismatches.
+
+Example:
+  globular services list-desired --insecure`,
+	RunE: runServicesListDesired,
+}
+
 // ─── adopt-installed ─────────────────────────────────────────────────────────
 
 var servicesAdoptInstalledCmd = &cobra.Command{
@@ -157,6 +174,7 @@ func init() {
 	servicesCmd.AddCommand(servicesSeedCmd)
 	servicesCmd.AddCommand(servicesDesiredCmd)
 	servicesCmd.AddCommand(servicesAdoptInstalledCmd)
+	servicesCmd.AddCommand(servicesListDesiredCmd)
 }
 
 // ─── apply ───────────────────────────────────────────────────────────────────
@@ -1067,4 +1085,248 @@ func orDash(s string) string {
 		return "—"
 	}
 	return s
+}
+
+// ─── list-desired implementation ─────────────────────────────────────────────
+
+func runServicesListDesired(cmd *cobra.Command, args []string) error {
+	autoDiscoverController(cmd)
+
+	// 1. Fetch desired state from controller.
+	desired, err := fetchDesiredState()
+	if err != nil {
+		return fmt.Errorf("fetch desired state (controller=%s, insecure=%v): %w\n"+
+			"Hint: try globular services list-desired --controller <addr>:12000 --insecure",
+			rootCfg.controllerAddr, rootCfg.insecure, err)
+	}
+
+	// 2. Build desired service map (canonical name → version), same as
+	//    controller's stableServiceDesiredHash.
+	desiredMap := make(map[string]string, len(desired))
+	for _, ds := range desired {
+		key, _ := identity.NormalizeServiceKey(ds.GetServiceId())
+		if key == "" {
+			continue
+		}
+		ver := ds.GetVersion()
+		if cv, err := versionutil.Canonical(ver); err == nil {
+			ver = cv
+		}
+		desiredMap[key] = ver
+	}
+	desiredHash := stableHash(desiredMap)
+
+	// 3. Scan locally-installed services (version markers + systemd), same
+	//    sources the node agent uses for computeAppliedServicesHash.
+	installedMap := scanLocalInstalledServices()
+	installedHash := stableHash(installedMap)
+
+	// 4. Merge keys from both maps to show a unified diff.
+	allKeys := make(map[string]bool)
+	for k := range desiredMap {
+		allKeys[k] = true
+	}
+	for k := range installedMap {
+		allKeys[k] = true
+	}
+	sorted := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+
+	// 5. Print comparison table.
+	fmt.Printf("%-35s %-18s %-18s %s\n", "SERVICE", "DESIRED", "INSTALLED", "STATUS")
+	fmt.Printf("%-35s %-18s %-18s %s\n",
+		strings.Repeat("─", 35), strings.Repeat("─", 18),
+		strings.Repeat("─", 18), strings.Repeat("─", 14))
+
+	var drifted, extra, missing int
+	for _, svc := range sorted {
+		dVer := desiredMap[svc]
+		iVer := installedMap[svc]
+		status := "✓ match"
+		switch {
+		case dVer == "" && iVer != "":
+			status = "⊕ extra (not desired)"
+			extra++
+		case dVer != "" && iVer == "":
+			status = "✕ missing"
+			missing++
+		case dVer != iVer:
+			status = "~ version drift"
+			drifted++
+		}
+		fmt.Printf("%-35s %-18s %-18s %s\n", svc, orDash(dVer), orDash(iVer), status)
+	}
+
+	// 6. Print hash comparison.
+	fmt.Println()
+	fmt.Printf("Desired hash:   %s\n", desiredHash)
+	fmt.Printf("Installed hash: %s\n", installedHash)
+	if desiredHash == installedHash {
+		fmt.Println("Hashes MATCH ✓")
+	} else {
+		fmt.Println("Hashes DIFFER ✕")
+	}
+
+	// 7. Summary.
+	fmt.Println()
+	if extra+missing+drifted > 0 {
+		fmt.Printf("Summary: %d missing, %d version drift, %d extra (not in desired state)\n",
+			missing, drifted, extra)
+		if extra > 0 {
+			fmt.Println("\nExtra services contribute to the installed hash but not the desired hash.")
+			fmt.Println("To fix: either add them to desired state or remove stale version markers:")
+			fmt.Println("  sudo rm -rf /var/lib/globular/version-markers/<service>")
+			fmt.Println("  sudo systemctl restart globular-node-agent.service")
+		}
+		if missing > 0 {
+			fmt.Println("\nMissing services are in desired state but not installed locally.")
+			fmt.Println("To fix: globular services apply-desired --insecure")
+		}
+	} else if len(sorted) == 0 {
+		fmt.Println("No desired services configured and no installed services found.")
+	} else {
+		fmt.Println("All services match. If the controller still reports a hash mismatch,")
+		fmt.Println("restart the node agent to force a fresh status report:")
+		fmt.Println("  sudo systemctl restart globular-node-agent.service")
+	}
+	return nil
+}
+
+// stableHash computes a state hash identical to the controller's
+// stableServiceDesiredHash / node agent's computeAppliedServicesHash.
+// Format: sorted "key=version;" entries → SHA256 → "services:<hex>".
+func stableHash(versions map[string]string) string {
+	if len(versions) == 0 {
+		return "services:none"
+	}
+	keys := make([]string, 0, len(versions))
+	for k := range versions {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteString("=")
+		b.WriteString(versions[k])
+		b.WriteString(";")
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return "services:" + hex.EncodeToString(sum[:])
+}
+
+// scanLocalInstalledServices discovers services the same way the node agent
+// does: version markers first, then active systemd units as fallback.
+// Returns canonical-name → version map.
+func scanLocalInstalledServices() map[string]string {
+	installed := make(map[string]string)
+
+	// Source 1: version markers.
+	markerRoot := versionutil.BaseDir()
+	entries, err := os.ReadDir(markerRoot)
+	if err == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			verPath := filepath.Join(markerRoot, e.Name(), "version")
+			data, err := os.ReadFile(verPath)
+			if err != nil {
+				continue
+			}
+			ver := strings.TrimSpace(string(data))
+			if ver == "" {
+				continue
+			}
+			if cv, err := versionutil.Canonical(ver); err == nil {
+				ver = cv
+			}
+			key, _ := identity.NormalizeServiceKey(e.Name())
+			if key != "" {
+				installed[key] = ver
+			}
+		}
+	}
+
+	// Source 2: service config JSON files (same as node agent loadServiceConfigs).
+	cfgRoot := config.GetServicesConfigDir()
+	cfgEntries, err := os.ReadDir(cfgRoot)
+	if err == nil {
+		for _, e := range cfgEntries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(cfgRoot, e.Name()))
+			if err != nil {
+				continue
+			}
+			var raw map[string]interface{}
+			if json.Unmarshal(data, &raw) != nil {
+				continue
+			}
+			svc := ""
+			for _, field := range []string{"Name", "ServiceName", "service_name", "service"} {
+				if v, ok := raw[field].(string); ok && v != "" {
+					svc = v
+					break
+				}
+			}
+			key, _ := identity.NormalizeServiceKey(svc)
+			if key == "" {
+				continue
+			}
+			if _, exists := installed[key]; exists {
+				continue // marker already found
+			}
+			ver := ""
+			for _, field := range []string{"Version", "version"} {
+				if v, ok := raw[field].(string); ok && v != "" {
+					ver = v
+					break
+				}
+			}
+			if ver == "" {
+				continue
+			}
+			if cv, err := versionutil.Canonical(ver); err == nil {
+				ver = cv
+			}
+			installed[key] = ver
+		}
+	}
+
+	// Source 3: active systemd units (same as node agent loadSystemdUnits).
+	// Infrastructure services are excluded, matching the node agent's infra set.
+	infra := map[string]bool{
+		"etcd": true, "minio": true, "envoy": true,
+		"xds": true, "gateway": true,
+	}
+	out, err := exec.Command("systemctl", "list-units",
+		"--type=service", "--state=active", "--no-legend", "--no-pager",
+		"globular-*.service").Output()
+	if err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+			key, _ := identity.NormalizeServiceKey(fields[0])
+			if key == "" || infra[key] {
+				continue
+			}
+			if _, exists := installed[key]; exists {
+				continue
+			}
+			installed[key] = "0.0.1" // fallback, same as node agent
+		}
+	}
+
+	return installed
 }

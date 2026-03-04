@@ -1422,12 +1422,12 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		node.AppliedServicesHash = appliedSvcHash
 		changed = true
 	}
-	// Persist the node-reported applied hash to KV so that GetClusterHealthV1
-	// and the reconciler see the same value.  Only do this when the node has
-	// completed its inventory scan to avoid locking in a partial hash.
+	// Persist the node-reported inventory hash under the observed key.
+	// This is distinct from applied_hash_services which is only set by the
+	// reconciler when convergence with the desired state is confirmed.
 	if appliedSvcHash != "" && inventoryComplete {
-		if err := srv.putNodeAppliedServiceHash(ctx, nodeID, appliedSvcHash); err != nil {
-			log.Printf("ReportNodeStatus: store applied service hash for %s: %v", nodeID, err)
+		if err := srv.putNodeObservedServiceHash(ctx, nodeID, appliedSvcHash); err != nil {
+			log.Printf("ReportNodeStatus: store observed service hash for %s: %v", nodeID, err)
 		}
 	}
 	// Update installed versions when the node reports inventory, even if empty
@@ -1616,14 +1616,39 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			canPriv = node.Capabilities.CanApplyPrivileged
 		}
 
-		// When desired ≠ applied and the node lacks privilege and no plan is
-		// actively running, override the phase to signal the admin UI.
-		if desiredSvcHash != "" && desiredSvcHash != appliedSvcHash && !canPriv {
-			isActive := status != nil &&
-				(status.GetState() == planpb.PlanState_PLAN_RUNNING ||
-					status.GetState() == planpb.PlanState_PLAN_ROLLING_BACK)
-			if !isActive {
-				phase = planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY.String()
+		// Only show PLAN_AWAITING_PRIVILEGED_APPLY when at least one desired
+		// service is genuinely missing or at the wrong version AND the node
+		// cannot self-apply. Previously this compared hashes alone, which
+		// caused an impossible-to-resolve loop when the node had extra
+		// unmanaged services (extras inflate the inventory hash but
+		// apply-desired can never remove them when enableServiceRemoval=false).
+		if desiredSvcHash != "" && !canPriv {
+			hasMissing := false
+			for svc, desiredVer := range filtered {
+				installedVer := ""
+				for k, v := range node.InstalledVersions {
+					parts := strings.SplitN(k, "/", 2)
+					candidate := k
+					if len(parts) == 2 {
+						candidate = parts[1]
+					}
+					if canonicalServiceName(candidate) == canonicalServiceName(svc) {
+						installedVer = v
+						break
+					}
+				}
+				if installedVer != desiredVer {
+					hasMissing = true
+					break
+				}
+			}
+			if hasMissing {
+				isActive := status != nil &&
+					(status.GetState() == planpb.PlanState_PLAN_RUNNING ||
+						status.GetState() == planpb.PlanState_PLAN_ROLLING_BACK)
+				if !isActive {
+					phase = planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY.String()
+				}
 			}
 		}
 
