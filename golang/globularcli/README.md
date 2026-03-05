@@ -18,6 +18,7 @@
   - [Node Management](#node-management)
   - [Logs](#logs)
   - [Service Releases](#service-releases)
+  - [Backup Management](#backup-management)
 - [Common Workflows](#common-workflows)
 - [Troubleshooting](#troubleshooting)
 
@@ -34,6 +35,7 @@ The Globular CLI is a Go-based tool that communicates directly with the Globular
 - **Network configuration**: Manage HTTPS, certificates, and ACME automation
 - **Node operations**: Monitor health, apply plans, and debug issues
 - **Package operations**: Build, verify, and publish service packages
+- **Backup management**: Create, list, and restore cluster backups with provider-level control
 - **Day-1 operations**: Health checks, diagnostics collection, log access, and reconciliation
 - **Operational readiness**: Single commands for cluster health verification and troubleshooting
 
@@ -1628,6 +1630,120 @@ globular release rollback gateway --to 1.9.4
 - Clears channel when pinning a version.
 - If no rollback history is available and `--to` is omitted, the command fails with guidance to specify `--to`.
 
+### Backup Management
+
+Manage cluster backups — create snapshots, list existing backups, and restore from a previous backup. These commands communicate with the `backup_manager` gRPC service (default port **10040**), which is auto-discovered via etcd.
+
+#### `globular backup create`
+
+Trigger a backup job. By default runs a **CLUSTER-mode** backup with all default providers (etcd, scylla, restic, minio).
+
+```bash
+# Create a cluster backup with defaults
+globular backup create
+
+# Create and wait for completion
+globular backup create --wait
+
+# Service-mode backup with specific providers
+globular backup create --mode service --provider etcd --provider restic
+
+# Add labels for tracking
+globular backup create --label reason=pre-upgrade --label env=production
+
+# Scope to specific services
+globular backup create --service title --service catalog
+
+# Name the plan
+globular backup create --plan nightly
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mode` | `cluster` | Backup mode: `cluster` or `service` |
+| `--provider` | (all defaults) | Providers to include (repeatable) |
+| `--service` | (none) | Services to include in scope (repeatable) |
+| `--label` | (none) | Labels as `key=value` (repeatable) |
+| `--plan` | (none) | Plan name |
+| `--wait` | `false` | Wait for backup to complete and show result |
+
+**Output** (without `--wait`): prints the job ID immediately.
+**Output** (with `--wait`): polls every 2 seconds, then prints per-provider results on completion.
+
+#### `globular backup list`
+
+List completed backup artifacts.
+
+```bash
+# List recent backups (default: 20)
+globular backup list
+
+# JSON output for scripting
+globular backup list -o json
+
+# Filter by mode
+globular backup list --mode cluster
+
+# Filter by quality state
+globular backup list --quality promoted
+
+# Pagination
+globular backup list --limit 50 --offset 100
+
+# Filter by plan name
+globular backup list --plan nightly
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `20` | Maximum number of backups to return |
+| `--offset` | `0` | Offset for pagination |
+| `--mode` | (all) | Filter by mode: `cluster`, `service` |
+| `--plan` | (none) | Filter by plan name |
+| `--quality` | (all) | Filter by quality: `unverified`, `validated`, `restore-tested`, `promoted` |
+
+**Table output columns**: Backup ID, Created, Mode, Providers (with FAIL markers), Size, Quality.
+
+#### `globular backup restore`
+
+Restore from a backup artifact. Uses a two-phase flow: first generates a **restore plan** (read-only preview of steps), then executes the restore using the server-issued confirmation token.
+
+```bash
+# Restore everything from a specific backup
+globular backup restore --backup-id abc123
+
+# Dry-run: preview the restore plan without executing
+globular backup restore --backup-id abc123 --dry-run
+
+# Restore only etcd and config
+globular backup restore --backup-id abc123 --etcd --config
+
+# Restore all providers explicitly
+globular backup restore --backup-id abc123 --all
+
+# Force restore (skip confirmation token)
+globular backup restore --backup-id abc123 --force
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (required) | Backup ID to restore |
+| `--etcd` | `false` | Include etcd restore |
+| `--config` | `false` | Include config restore |
+| `--minio` | `false` | Include MinIO restore |
+| `--scylla` | `false` | Include ScyllaDB restore |
+| `--all` | `false` | Include all providers |
+| `--dry-run` | `false` | Preview restore plan without executing |
+| `--force` | `false` | Skip confirmation token requirement |
+
+**Behavior**: When no specific provider flags (`--etcd`, `--config`, `--minio`, `--scylla`) are set and `--all` is not used, all providers are included by default.
+
+**Restore flow**:
+1. Calls `RestorePlan` RPC — displays numbered steps and any warnings
+2. If `--dry-run`, stops here
+3. Calls `RestoreBackup` RPC with the confirmation token from step 1
+4. Prints the restore job ID (track progress with `globular backup list` or the admin UI)
+
 ---
 
 ## Common Workflows
@@ -1810,6 +1926,29 @@ globular dns lookup large-txt.cluster.local --type TXT --tcp
 ```
 
 **Use case**: When DNS resolution issues occur, this workflow helps distinguish between problems in the DNS service storage (gRPC view) vs DNS resolver behavior (client view), essential for debugging service discovery failures.
+
+---
+
+### 8. Backup and Restore
+
+```bash
+# Step 1: Create a pre-upgrade backup with labels
+globular backup create --label reason=pre-upgrade --wait
+
+# Step 2: Verify backup completed
+globular backup list --limit 1
+
+# Step 3: (After something goes wrong) Preview the restore plan
+globular backup restore --backup-id <ID> --dry-run
+
+# Step 4: Execute the restore
+globular backup restore --backup-id <ID>
+
+# Step 5: Restore only etcd (e.g. after config corruption)
+globular backup restore --backup-id <ID> --etcd
+```
+
+**Use case**: Before risky operations (upgrades, migrations), create a labeled backup. If issues arise, preview the restore plan with `--dry-run`, then execute a full or partial restore targeting only the affected providers.
 
 ---
 
