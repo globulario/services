@@ -20,14 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NodeAgentService_JoinCluster_FullMethodName        = "/node_agent.NodeAgentService/JoinCluster"
-	NodeAgentService_GetInventory_FullMethodName       = "/node_agent.NodeAgentService/GetInventory"
-	NodeAgentService_ApplyPlan_FullMethodName          = "/node_agent.NodeAgentService/ApplyPlan"
-	NodeAgentService_ApplyPlanV1_FullMethodName        = "/node_agent.NodeAgentService/ApplyPlanV1"
-	NodeAgentService_GetPlanStatusV1_FullMethodName    = "/node_agent.NodeAgentService/GetPlanStatusV1"
-	NodeAgentService_WatchPlanStatusV1_FullMethodName  = "/node_agent.NodeAgentService/WatchPlanStatusV1"
-	NodeAgentService_WatchOperation_FullMethodName     = "/node_agent.NodeAgentService/WatchOperation"
-	NodeAgentService_BootstrapFirstNode_FullMethodName = "/node_agent.NodeAgentService/BootstrapFirstNode"
+	NodeAgentService_JoinCluster_FullMethodName         = "/node_agent.NodeAgentService/JoinCluster"
+	NodeAgentService_GetInventory_FullMethodName        = "/node_agent.NodeAgentService/GetInventory"
+	NodeAgentService_ApplyPlan_FullMethodName           = "/node_agent.NodeAgentService/ApplyPlan"
+	NodeAgentService_ApplyPlanV1_FullMethodName         = "/node_agent.NodeAgentService/ApplyPlanV1"
+	NodeAgentService_GetPlanStatusV1_FullMethodName     = "/node_agent.NodeAgentService/GetPlanStatusV1"
+	NodeAgentService_WatchPlanStatusV1_FullMethodName   = "/node_agent.NodeAgentService/WatchPlanStatusV1"
+	NodeAgentService_WatchOperation_FullMethodName      = "/node_agent.NodeAgentService/WatchOperation"
+	NodeAgentService_BootstrapFirstNode_FullMethodName  = "/node_agent.NodeAgentService/BootstrapFirstNode"
+	NodeAgentService_RunBackupProvider_FullMethodName   = "/node_agent.NodeAgentService/RunBackupProvider"
+	NodeAgentService_GetBackupTaskResult_FullMethodName = "/node_agent.NodeAgentService/GetBackupTaskResult"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -42,6 +44,9 @@ type NodeAgentServiceClient interface {
 	WatchPlanStatusV1(ctx context.Context, in *WatchPlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error)
 	WatchOperation(ctx context.Context, in *WatchOperationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 	BootstrapFirstNode(ctx context.Context, in *BootstrapFirstNodeRequest, opts ...grpc.CallOption) (*BootstrapFirstNodeResponse, error)
+	// Backup provider execution (called by backup-manager for cluster-wide fan-out)
+	RunBackupProvider(ctx context.Context, in *RunBackupProviderRequest, opts ...grpc.CallOption) (*RunBackupProviderResponse, error)
+	GetBackupTaskResult(ctx context.Context, in *GetBackupTaskResultRequest, opts ...grpc.CallOption) (*GetBackupTaskResultResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -150,6 +155,26 @@ func (c *nodeAgentServiceClient) BootstrapFirstNode(ctx context.Context, in *Boo
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) RunBackupProvider(ctx context.Context, in *RunBackupProviderRequest, opts ...grpc.CallOption) (*RunBackupProviderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunBackupProviderResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_RunBackupProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) GetBackupTaskResult(ctx context.Context, in *GetBackupTaskResultRequest, opts ...grpc.CallOption) (*GetBackupTaskResultResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBackupTaskResultResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetBackupTaskResult_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -162,6 +187,9 @@ type NodeAgentServiceServer interface {
 	WatchPlanStatusV1(*WatchPlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error)
+	// Backup provider execution (called by backup-manager for cluster-wide fan-out)
+	RunBackupProvider(context.Context, *RunBackupProviderRequest) (*RunBackupProviderResponse, error)
+	GetBackupTaskResult(context.Context, *GetBackupTaskResultRequest) (*GetBackupTaskResultResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -194,6 +222,12 @@ func (UnimplementedNodeAgentServiceServer) WatchOperation(*WatchOperationRequest
 }
 func (UnimplementedNodeAgentServiceServer) BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method BootstrapFirstNode not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) RunBackupProvider(context.Context, *RunBackupProviderRequest) (*RunBackupProviderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunBackupProvider not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) GetBackupTaskResult(context.Context, *GetBackupTaskResultRequest) (*GetBackupTaskResultResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBackupTaskResult not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -345,6 +379,42 @@ func _NodeAgentService_BootstrapFirstNode_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_RunBackupProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunBackupProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).RunBackupProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_RunBackupProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).RunBackupProvider(ctx, req.(*RunBackupProviderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_GetBackupTaskResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBackupTaskResultRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetBackupTaskResult(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetBackupTaskResult_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetBackupTaskResult(ctx, req.(*GetBackupTaskResultRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -375,6 +445,14 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BootstrapFirstNode",
 			Handler:    _NodeAgentService_BootstrapFirstNode_Handler,
+		},
+		{
+			MethodName: "RunBackupProvider",
+			Handler:    _NodeAgentService_RunBackupProvider_Handler,
+		},
+		{
+			MethodName: "GetBackupTaskResult",
+			Handler:    _NodeAgentService_GetBackupTaskResult_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -93,6 +93,47 @@ message BootstrapFirstNodeResponse {
   string message = 3;
 }
 
+// --- Backup provider execution (called by backup-manager during cluster fan-out) ---
+
+message BackupProviderSpec {
+  string provider = 1;           // "restic", "etcd", etc.
+  map<string, string> options = 2; // provider-specific options (repo, password, paths, etc.)
+  uint32 timeout_seconds = 3;
+}
+
+message RunBackupProviderRequest {
+  string backup_id = 1;
+  BackupProviderSpec spec = 2;
+  string node_id = 3;            // the node's own ID (for tagging)
+  map<string, string> labels = 4;
+}
+
+message RunBackupProviderResponse {
+  string task_id = 1;            // async task ID
+}
+
+message GetBackupTaskResultRequest {
+  string task_id = 1;
+}
+
+message BackupProviderResult {
+  string provider = 1;
+  bool ok = 2;
+  string summary = 3;
+  string error_message = 4;
+  map<string, string> outputs = 5;    // snapshot_id, paths, etc.
+  repeated string output_files = 6;   // relative paths in capsule
+  int64 started_unix_ms = 7;
+  int64 finished_unix_ms = 8;
+  uint64 bytes_written = 9;
+  bool done = 10;                     // true when task is complete
+  map<string, bytes> artifacts = 11;  // relative_path -> file content (for small artifacts)
+}
+
+message GetBackupTaskResultResponse {
+  BackupProviderResult result = 1;
+}
+
 service NodeAgentService {
   rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
   rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
@@ -102,4 +143,8 @@ service NodeAgentService {
   rpc WatchPlanStatusV1(WatchPlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
   rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent);
   rpc BootstrapFirstNode(BootstrapFirstNodeRequest) returns (BootstrapFirstNodeResponse);
+
+  // Backup provider execution (called by backup-manager for cluster-wide fan-out)
+  rpc RunBackupProvider(RunBackupProviderRequest) returns (RunBackupProviderResponse);
+  rpc GetBackupTaskResult(GetBackupTaskResultRequest) returns (GetBackupTaskResultResponse);
 }

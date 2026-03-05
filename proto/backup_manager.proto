@@ -1,0 +1,527 @@
+syntax = "proto3";
+
+package backup_manager;
+
+option go_package = "github.com/globulario/services/golang/backup_manager/backup_managerpb;backup_managerpb";
+
+service BackupManagerService {
+  // Run a backup now. Returns a job id immediately.
+  rpc RunBackup(RunBackupRequest) returns (RunBackupResponse);
+
+  // Get status/progress for a specific job id.
+  rpc GetBackupJob(GetBackupJobRequest) returns (GetBackupJobResponse);
+
+  // List recent jobs (history).
+  rpc ListBackupJobs(ListBackupJobsRequest) returns (ListBackupJobsResponse);
+
+  // List completed backup artifacts.
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+
+  // Get a single backup artifact.
+  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse);
+
+  // Delete a backup artifact.
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+
+  // Validate a backup artifact integrity.
+  rpc ValidateBackup(ValidateBackupRequest) returns (ValidateBackupResponse);
+
+  // Preview what would be restored (read-only, no changes).
+  rpc RestorePlan(RestorePlanRequest) returns (RestorePlanResponse);
+
+  // Execute a restore from a backup artifact.
+  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse);
+
+  // Cancel a running backup job.
+  rpc CancelBackupJob(CancelBackupJobRequest) returns (CancelBackupJobResponse);
+
+  // Run retention policy now (delete old backups per config).
+  rpc RunRetention(RunRetentionRequest) returns (RunRetentionResponse);
+
+  // Get current retention policy status.
+  rpc GetRetentionStatus(GetRetentionStatusRequest) returns (GetRetentionStatusResponse);
+
+  // Check provider tool availability and versions.
+  rpc PreflightCheck(PreflightCheckRequest) returns (PreflightCheckResponse);
+
+  // Run a restore test (sandbox restore to prove backup restores).
+  rpc RunRestoreTest(RunRestoreTestRequest) returns (RunRestoreTestResponse);
+
+  // Promote a backup (protect from retention deletion).
+  rpc PromoteBackup(PromoteBackupRequest) returns (PromoteBackupResponse);
+
+  // Demote a previously promoted backup (allow retention to delete it).
+  rpc DemoteBackup(DemoteBackupRequest) returns (DemoteBackupResponse);
+
+  // Stop the service.
+  rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// ---- Enums ----
+
+enum BackupProviderType {
+  BACKUP_PROVIDER_TYPE_UNSPECIFIED = 0;
+  BACKUP_PROVIDER_ETCD   = 1;
+  BACKUP_PROVIDER_RESTIC = 2;
+  BACKUP_PROVIDER_MINIO  = 3;
+  BACKUP_PROVIDER_SCYLLA = 4;
+}
+
+enum BackupJobState {
+  BACKUP_JOB_STATE_UNSPECIFIED = 0;
+  BACKUP_JOB_QUEUED    = 1;
+  BACKUP_JOB_RUNNING   = 2;
+  BACKUP_JOB_SUCCEEDED = 3;
+  BACKUP_JOB_FAILED    = 4;
+  BACKUP_JOB_CANCELED  = 5;
+}
+
+enum BackupJobType {
+  BACKUP_JOB_TYPE_UNSPECIFIED = 0;
+  BACKUP_JOB_TYPE_BACKUP     = 1;
+  BACKUP_JOB_TYPE_RESTORE    = 2;
+  BACKUP_JOB_TYPE_RETENTION  = 3;
+}
+
+enum BackupSeverity {
+  BACKUP_SEVERITY_UNSPECIFIED = 0;
+  BACKUP_SEVERITY_INFO  = 1;
+  BACKUP_SEVERITY_WARN  = 2;
+  BACKUP_SEVERITY_ERROR = 3;
+}
+
+enum BackupDestinationType {
+  BACKUP_DESTINATION_TYPE_UNSPECIFIED = 0;
+  BACKUP_DESTINATION_LOCAL  = 1;  // local filesystem path
+  BACKUP_DESTINATION_MINIO  = 2;  // MinIO S3-compatible bucket
+  BACKUP_DESTINATION_NFS    = 3;  // NFS mount point (treated as local path)
+  BACKUP_DESTINATION_S3     = 4;  // AWS S3 or S3-compatible (via rclone)
+  BACKUP_DESTINATION_RCLONE = 5;  // any rclone remote
+}
+
+enum BackupMode {
+  BACKUP_MODE_UNSPECIFIED = 0;
+  BACKUP_MODE_SERVICE     = 1;  // single-provider or single-service backup
+  BACKUP_MODE_CLUSTER     = 2;  // multi-provider cluster-wide snapshot
+}
+
+enum QualityState {
+  QUALITY_STATE_UNSPECIFIED  = 0;
+  QUALITY_UNVERIFIED         = 1;  // freshly created, not yet validated
+  QUALITY_VALIDATED          = 2;  // passed deep validation
+  QUALITY_RESTORE_TESTED     = 3;  // passed a restore test
+  QUALITY_PROMOTED           = 4;  // manually promoted, protected from retention
+}
+
+enum RestoreTestLevel {
+  RESTORE_TEST_LEVEL_UNSPECIFIED = 0;
+  RESTORE_TEST_LIGHT   = 1;  // metadata checks only (etcdctl snapshot status, restic snapshots, etc.)
+  RESTORE_TEST_HEAVY   = 2;  // actual sandbox restore + verification
+}
+
+// ---- Core messages ----
+
+// Scope of a cluster-mode backup.
+message BackupScope {
+  repeated string providers = 1;   // provider names (etcd, restic, scylla, etc.)
+  repeated string services = 2;    // globular service names/IDs (optional)
+}
+
+// Cluster context recorded in the manifest.
+message ClusterInfo {
+  string cluster_id = 1;
+  string domain = 2;
+  string node_id = 3;
+  string topology_hash = 4;  // optional, reserved for future
+}
+
+// Hook execution result (quiesce hooks).
+message HookResult {
+  string service_name = 1;
+  bool ok = 2;
+  string message = 3;
+  map<string, string> details = 4;
+  int64 duration_ms = 5;
+}
+
+// Summary of hook results for a backup.
+message HookSummary {
+  repeated HookResult prepare = 1;
+  repeated HookResult finalize = 2;
+}
+
+message BackupDestination {
+  string name = 1;
+  BackupDestinationType type = 2;
+  string path = 3;                    // filesystem path, bucket/prefix, or rclone remote:path
+  map<string, string> options = 4;    // type-specific options (endpoint, access_key, etc.)
+  bool primary = 5;                   // if true, providers write directly here
+}
+
+message BackupProviderSpec {
+  BackupProviderType type = 1;
+  bool enabled = 2;
+  map<string, string> options = 3;
+  uint32 timeout_seconds = 4;         // per-provider timeout (0 = use server default)
+}
+
+message BackupPlan {
+  string name = 1;
+  repeated BackupProviderSpec providers = 2;
+  string destination = 3;                       // deprecated: use destinations
+  repeated BackupDestination destinations = 4;  // where to store backups (replicate to all)
+}
+
+// Tracks replication status per destination after a backup completes.
+message ReplicationResult {
+  string destination_name = 1;
+  BackupDestinationType destination_type = 2;
+  string destination_path = 3;
+  BackupJobState state = 4;
+  string error_message = 5;
+  uint64 bytes_written = 6;
+  int64 started_unix_ms = 7;
+  int64 finished_unix_ms = 8;
+}
+
+// Replication verification result for deep validation.
+message ReplicationValidation {
+  string destination_name = 1;
+  bool ok = 2;
+  repeated string missing_files = 3;
+  string error_message = 4;
+}
+
+message BackupProviderResult {
+  BackupProviderType type = 1;
+  bool enabled = 2;
+  BackupJobState state = 3;
+  BackupSeverity severity = 4;
+  string summary = 5;
+  map<string, string> outputs = 6;
+  string error_message = 7;
+  int64 started_unix_ms = 8;
+  int64 finished_unix_ms = 9;
+  uint64 bytes_written = 10;
+  repeated string payload_files = 11;     // relative paths inside capsule payload/
+  repeated string output_files = 12;      // relative paths inside capsule provider/
+  map<string, string> restore_inputs = 13; // minimal fields needed for restore execution
+}
+
+message BackupJob {
+  string job_id = 1;
+  string plan_name = 2;
+  BackupJobState state = 3;
+  int64 created_unix_ms = 4;
+  int64 started_unix_ms = 5;
+  int64 finished_unix_ms = 6;
+  BackupPlan plan = 7;
+  repeated BackupProviderResult results = 8;
+  string backup_id = 9;
+  string message = 10;
+  repeated ReplicationResult replications = 11;
+  BackupJobType job_type = 12;
+}
+
+message BackupArtifact {
+  string backup_id = 1;
+  int64 created_unix_ms = 2;
+  string location = 3;                             // primary storage location
+  string plan_name = 4;
+  string cluster_id = 5;
+  string domain = 6;
+  string created_by = 7;
+  repeated BackupProviderResult provider_results = 8;
+  string manifest_sha256 = 9;
+  uint64 total_bytes = 10;
+  repeated string locations = 11;                   // all locations where this backup exists
+  repeated ReplicationResult replications = 12;     // replication status per destination
+  uint32 schema_version = 13;                       // manifest schema version (current: 2)
+  BackupMode mode = 14;                              // SERVICE or CLUSTER
+  BackupScope scope = 15;                            // scope of backup (providers, services)
+  map<string, string> labels = 16;                   // user labels (reason, env, etc.)
+  QualityState quality_state = 17;                   // current quality state
+  ClusterInfo cluster = 18;                          // cluster context at backup time
+  HookSummary hooks = 19;                            // quiesce hook results (if cluster mode)
+  repeated SkippedProvider skipped_providers = 20;    // providers that were skipped (unavailable, etc.)
+}
+
+// Retention policy configuration.
+message RetentionPolicy {
+  uint32 keep_last_n = 1;       // keep at most N recent backups (0 = unlimited)
+  uint32 keep_days = 2;         // keep backups from last N days (0 = unlimited)
+  uint64 max_total_bytes = 3;   // max total backup size in bytes (0 = unlimited)
+}
+
+// ---- RPC messages ----
+
+message RunBackupRequest {
+  BackupPlan plan = 1;
+  string request_id = 2;
+  bool fail_if_running = 3;
+  BackupMode mode = 4;                   // SERVICE (default) or CLUSTER
+  BackupScope scope = 5;                 // scope for cluster-mode backups
+  map<string, string> labels = 6;        // user labels (reason, env, etc.)
+}
+
+message RunBackupResponse {
+  string job_id = 1;
+}
+
+message GetBackupJobRequest {
+  string job_id = 1;
+}
+
+message GetBackupJobResponse {
+  BackupJob job = 1;
+}
+
+message ListBackupJobsRequest {
+  uint32 limit = 1;
+  uint32 offset = 2;
+  BackupJobState state = 3;
+  string plan_name = 4;
+}
+
+message ListBackupJobsResponse {
+  repeated BackupJob jobs = 1;
+  uint32 total = 2;
+}
+
+message ListBackupsRequest {
+  uint32 limit = 1;
+  uint32 offset = 2;
+  string plan_name = 3;
+  BackupMode mode = 4;                   // filter by mode (0 = all)
+  QualityState quality_state = 5;        // filter by quality state (0 = all)
+}
+
+message ListBackupsResponse {
+  repeated BackupArtifact backups = 1;
+  uint32 total = 2;
+}
+
+message GetBackupRequest {
+  string backup_id = 1;
+}
+
+message GetBackupResponse {
+  BackupArtifact backup = 1;
+}
+
+message DeleteBackupRequest {
+  string backup_id = 1;
+  bool delete_provider_artifacts = 2;
+}
+
+message DeleteBackupResponse {
+  bool deleted = 1;
+  string message = 2;
+  repeated DeleteResult provider_results = 3;
+  repeated DeleteResult replication_results = 4;
+}
+
+message DeleteResult {
+  string target = 1;
+  bool ok = 2;
+  string message = 3;
+}
+
+message ValidateBackupRequest {
+  string backup_id = 1;
+  bool deep = 2;
+}
+
+message ValidateBackupResponse {
+  bool valid = 1;
+  repeated ValidationIssue issues = 2;
+  repeated ReplicationValidation replication_checks = 3;
+}
+
+message ValidationIssue {
+  BackupSeverity severity = 1;
+  string code = 2;
+  string message = 3;
+}
+
+message RestorePlanRequest {
+  string backup_id = 1;
+  bool include_etcd = 2;
+  bool include_config = 3;
+  bool include_minio = 4;
+  bool include_scylla = 5;
+}
+
+message RestorePlanResponse {
+  string backup_id = 1;
+  repeated RestoreStep steps = 2;
+  repeated ValidationIssue warnings = 3;
+  string confirmation_token = 4;    // server-generated token required by RestoreBackup
+}
+
+message RestoreStep {
+  uint32 order = 1;
+  string title = 2;
+  string details = 3;
+}
+
+message RestoreBackupRequest {
+  string backup_id = 1;
+  bool include_etcd = 2;
+  bool include_config = 3;
+  bool include_minio = 4;
+  bool include_scylla = 5;
+  bool dry_run = 6;                    // if true, validate + plan but don't execute
+  bool force = 7;                      // bypass safety gates (e.g. active jobs check)
+  string confirmation_token = 8;       // from RestorePlanResponse; required unless force=true
+  string target_node = 9;             // optional: target node for restore (future)
+}
+
+message RestoreBackupResponse {
+  string job_id = 1;                   // restore job ID (track via GetBackupJob)
+  bool dry_run = 2;
+  repeated RestoreStep steps = 3;      // if dry_run, preview steps only
+  repeated ValidationIssue warnings = 4;
+}
+
+message CancelBackupJobRequest {
+  string job_id = 1;
+}
+
+message CancelBackupJobResponse {
+  bool canceled = 1;
+  string message = 2;
+}
+
+message RunRetentionRequest {
+  bool dry_run = 1;                    // if true, return what would be deleted without deleting
+}
+
+message RunRetentionResponse {
+  repeated string deleted_backup_ids = 1;
+  repeated string kept_backup_ids = 2;
+  bool dry_run = 3;
+  string message = 4;
+}
+
+message GetRetentionStatusRequest {}
+
+message GetRetentionStatusResponse {
+  RetentionPolicy policy = 1;
+  uint32 current_backup_count = 2;
+  uint64 current_total_bytes = 3;
+  int64 oldest_backup_unix_ms = 4;
+  int64 newest_backup_unix_ms = 5;
+}
+
+message PreflightCheckRequest {}
+
+message PreflightCheckResponse {
+  repeated ToolCheck tools = 1;
+  bool all_ok = 2;
+}
+
+message ToolCheck {
+  string name = 1;           // e.g. "etcdctl", "restic", "rclone", "sctool"
+  bool available = 2;
+  string version = 3;
+  string path = 4;
+  string error_message = 5;
+}
+
+// --- Skipped Provider ---
+
+message SkippedProvider {
+  string name = 1;       // provider name (etcd, scylla, restic, minio)
+  string reason = 2;     // why it was skipped (e.g. "scylla-manager not configured")
+}
+
+// --- Restore Test ---
+
+message RunRestoreTestRequest {
+  string backup_id = 1;                  // backup to test (empty = pick latest UNVERIFIED/VALIDATED)
+  RestoreTestLevel level = 2;            // LIGHT or HEAVY
+  string target_root = 3;               // sandbox directory (default: <DataDir>/restore-tests/<backup_id>/)
+}
+
+message RunRestoreTestResponse {
+  string job_id = 1;                     // restore-test job ID
+  string backup_id = 2;                  // the backup being tested
+  RestoreTestLevel level = 3;
+}
+
+message RestoreTestReport {
+  string backup_id = 1;
+  RestoreTestLevel level = 2;
+  bool passed = 3;
+  repeated RestoreTestCheck checks = 4;
+  int64 started_unix_ms = 5;
+  int64 finished_unix_ms = 6;
+}
+
+message RestoreTestCheck {
+  string provider = 1;
+  bool ok = 2;
+  string summary = 3;
+  string error_message = 4;
+}
+
+// --- Promote / Demote ---
+
+message PromoteBackupRequest {
+  string backup_id = 1;
+}
+
+message PromoteBackupResponse {
+  bool ok = 1;
+  QualityState quality_state = 2;
+  string message = 3;
+}
+
+message DemoteBackupRequest {
+  string backup_id = 1;
+}
+
+message DemoteBackupResponse {
+  bool ok = 1;
+  QualityState quality_state = 2;
+  string message = 3;
+}
+
+// --- Quiesce Hook Service (implemented by services that want pre/post-backup coordination) ---
+
+service BackupHookService {
+  rpc PrepareBackup(PrepareBackupHookRequest) returns (PrepareBackupHookResponse);
+  rpc FinalizeBackup(FinalizeBackupHookRequest) returns (FinalizeBackupHookResponse);
+}
+
+message PrepareBackupHookRequest {
+  string backup_id = 1;
+  BackupMode mode = 2;
+  BackupScope scope = 3;
+  map<string, string> labels = 4;
+  int32 timeout_seconds = 5;
+}
+
+message PrepareBackupHookResponse {
+  bool ok = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+message FinalizeBackupHookRequest {
+  string backup_id = 1;
+  BackupMode mode = 2;
+  BackupScope scope = 3;
+  map<string, string> labels = 4;
+  bool backup_succeeded = 5;
+}
+
+message FinalizeBackupHookResponse {
+  bool ok = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+message StopRequest {}
+message StopResponse {}

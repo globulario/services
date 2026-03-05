@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package backup_hook;
+
+option go_package = "github.com/globulario/services/golang/backup_hook/backup_hookpb;backup_hookpb";
+
+// BackupHookService is a lightweight contract implemented by any Globular service
+// that holds state needing consistency during cluster backups.
+//
+// Backup-manager calls PrepareBackup before taking snapshots and FinalizeBackup
+// after (regardless of success/failure).
+service BackupHookService {
+  rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupResponse);
+  rpc FinalizeBackup(FinalizeBackupRequest) returns (FinalizeBackupResponse);
+}
+
+message PrepareBackupRequest {
+  string backup_id = 1;
+  string mode = 2;                     // "SERVICE" or "CLUSTER"
+  repeated string providers = 3;       // providers being run (etcd, restic, etc.)
+  repeated string services = 4;        // scoped services (empty = all)
+  map<string, string> labels = 5;
+  int32 deadline_seconds = 6;          // informational; real deadline in context
+}
+
+message PrepareBackupResponse {
+  bool ok = 1;
+  string message = 2;
+  map<string, string> details = 3;     // e.g. flushed_items, blocked_writes
+}
+
+message FinalizeBackupRequest {
+  string backup_id = 1;
+  string mode = 2;
+  repeated string providers = 3;
+  repeated string services = 4;
+  map<string, string> labels = 5;
+  bool backup_succeeded = 6;
+}
+
+message FinalizeBackupResponse {
+  bool ok = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
