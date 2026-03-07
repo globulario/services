@@ -1,17 +1,21 @@
 // Package main implements the Log gRPC service wired for Globular.
 // It uses structured logging (slog), supports --describe / --health,
-// exposes Prometheus metrics, and manages log persistence with Badger.
+// exposes Prometheus metrics, and persists logs via a pluggable Store backend.
 package main
 
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"hash/crc32"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
+	"unicode"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -32,7 +36,7 @@ import (
 // -----------------------------------------------------------------------------
 
 var (
-	defaultPort  = 10000
+	defaultPort  = 10100
 	defaultProxy = defaultPort + 1
 
 	allowAllOrigins   = true
@@ -83,6 +87,8 @@ func loadDefaultPermissions() []interface{} {
 
 // server implements the LogService and Globular service contract.
 type server struct {
+	logpb.UnimplementedLogServiceServer
+
 	// Core metadata managed by Globular
 	Id           string
 	Name         string
@@ -128,16 +134,18 @@ type server struct {
 	grpcServer *grpc.Server
 	Root       string
 
-	// Persistence
-	logs *storage_store.Badger_store
+	// Storage backend (SCYLLADB, BADGER, LEVELDB)
+	CacheType              string
+	CacheAddress           string
+	CacheReplicationFactor int
+	stores                 *sync.Map
 
 	// Metrics
 	logCount        *prometheus.CounterVec
 	Monitoring_Port int
 
 	// Retention
-	RetentionHours    int // default 7d (set in main)
-	SweepEverySeconds int // default 300s (set in main)
+	RetentionHours int // default 7d
 
 	logger *slog.Logger
 }
@@ -152,9 +160,11 @@ func (srv *server) SetAddress(address string) { srv.Address = address }
 
 func (srv *server) GetProcess() int { return srv.Process }
 func (srv *server) SetProcess(pid int) {
-	// Close store if we are marked as stopped.
-	if pid == -1 && srv.logs != nil {
-		_ = srv.logs.Close()
+	if pid == -1 && srv.stores != nil {
+		srv.stores.Range(func(_ any, v any) bool {
+			v.(storage_store.Store).Close()
+			return true
+		})
 	}
 	srv.Process = pid
 }
@@ -311,13 +321,20 @@ func (srv *server) Init() error {
 	return nil
 }
 
-func (srv *server) Save() error { return globular.SaveService(srv) }
+func (srv *server) Save() error        { return globular.SaveService(srv) }
 func (srv *server) StartService() error {
 	srv.ensureRuntime()
-	go srv.startRetentionJanitor()
 	return globular.StartService(srv, srv.grpcServer)
 }
-func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) StopService() error {
+	if srv.stores != nil {
+		srv.stores.Range(func(_ any, v any) bool {
+			v.(storage_store.Store).Close()
+			return true
+		})
+	}
+	return globular.StopService(srv, srv.grpcServer)
+}
 
 // --- Optional: event helpers ---
 
@@ -338,34 +355,204 @@ func (srv *server) publish(event string, data []byte) error {
 	return ec.Publish(event, data)
 }
 
+// --- Store helpers (mirrors title_server/helper.go pattern) ---
+
+// getStore opens/returns the named key-value store, caching in srv.stores.
+func (srv *server) getStore(name string) (storage_store.Store, error) {
+	safeName := sanitizeStoreName(name)
+	if srv.stores == nil {
+		srv.stores = new(sync.Map)
+	} else if store, ok := srv.stores.Load(safeName); ok {
+		return store.(storage_store.Store), nil
+	}
+
+	path := filepath.Join(srv.Root, "log_data")
+
+	var store storage_store.Store
+	var openOptions string
+	switch srv.CacheType {
+	case "BADGER":
+		store = storage_store.NewBadger_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, safeName)
+	case "LEVELDB":
+		store = storage_store.NewLevelDB_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, safeName)
+	case "SCYLLADB":
+		store = storage_store.NewScylla_store(srv.CacheAddress, safeName, srv.CacheReplicationFactor)
+		opts, err := srv.buildScyllaOptions(safeName)
+		if err != nil {
+			return nil, fmt.Errorf("build scylla options: %w", err)
+		}
+		openOptions = opts
+	default:
+		store = storage_store.NewBadger_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, safeName)
+	}
+
+	if err := store.Open(openOptions); err != nil {
+		return nil, err
+	}
+	srv.stores.Store(safeName, store)
+	logger.Info("store opened", "name", name, "store", safeName, "type", srv.CacheType)
+	return store, nil
+}
+
+func (srv *server) buildScyllaOptions(name string) (string, error) {
+	hosts := srv.scyllaHosts()
+	replication := srv.CacheReplicationFactor
+	if replication <= 0 {
+		replication = 1
+	}
+	safeName := sanitizeStoreName(name)
+	opts := map[string]interface{}{
+		"hosts":              hosts,
+		"keyspace":           safeName,
+		"table":              safeName,
+		"replication_factor": replication,
+	}
+	raw, err := json.Marshal(opts)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func (srv *server) scyllaHosts() []string {
+	var hosts []string
+	if addr := strings.TrimSpace(srv.CacheAddress); addr != "" {
+		for _, part := range strings.Split(addr, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				hosts = append(hosts, trimmed)
+			}
+		}
+	}
+	if len(hosts) == 0 {
+		hosts = append(hosts, config.GetLocalIP())
+	}
+	return hosts
+}
+
+func sanitizeStoreName(s string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(s))
+	if trimmed == "" {
+		return "store"
+	}
+	var b strings.Builder
+	changed := false
+	for i, r := range trimmed {
+		if i == 0 {
+			if unicode.IsLetter(r) {
+				b.WriteRune(r)
+				continue
+			}
+			if unicode.IsDigit(r) {
+				b.WriteRune('a')
+				b.WriteRune(r)
+				changed = true
+				continue
+			}
+			b.WriteRune('a')
+			changed = true
+			continue
+		}
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+			changed = true
+		}
+	}
+	result := b.String()
+	if result == "" {
+		result = "store"
+		changed = true
+	}
+	if changed && result != trimmed {
+		result = fmt.Sprintf("%s_%x", result, crc32.ChecksumIEEE([]byte(trimmed)))
+	}
+	return result
+}
+
+// retentionDays returns the retention period in whole days.
+func (srv *server) retentionDays() int {
+	if srv.RetentionHours <= 0 {
+		return 7
+	}
+	d := srv.RetentionHours / 24
+	if d <= 0 {
+		d = 1
+	}
+	return d
+}
+
+// startRetentionCleanup runs a background goroutine that prunes expired entries.
+func (srv *server) startRetentionCleanup() {
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			srv.pruneExpiredEntries()
+		}
+	}()
+}
+
+func (srv *server) pruneExpiredEntries() {
+	store, err := srv.getStore("log_entries")
+	if err != nil {
+		return
+	}
+	keys, err := store.GetAllKeys()
+	if err != nil {
+		return
+	}
+	cutoffBucket := dayBucket(time.Now().UnixMilli()) - srv.retentionDays()
+	pruned := 0
+	for _, k := range keys {
+		_, _, bucket, _, ok := parseEntryKey(k)
+		if !ok {
+			continue
+		}
+		if bucket < cutoffBucket {
+			_ = store.RemoveItem(k)
+			pruned++
+		}
+	}
+	if pruned > 0 {
+		logger.Info("retention cleanup", "pruned", pruned)
+	}
+}
+
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
-		Name:              string(logpb.File_log_proto.Services().Get(0).FullName()),
-		Proto:             logpb.File_log_proto.Path(),
-		Path:              func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
-		Port:              cfg.Port,
-		Proxy:             cfg.Proxy,
-		Protocol:          cfg.Protocol,
-		Version:           Version,
-		PublisherID:       cfg.PublisherID,
-		Description:       "Centralized logging service with retention policies, persistence, and Prometheus metrics",
-		Keywords:          []string{"log", "logging", "audit", "metrics", "badger", "prometheus", "retention", "persistence"},
-		Repositories:      globular.CloneStringSlice(cfg.Repositories),
-		Discoveries:       globular.CloneStringSlice(cfg.Discoveries),
-		AllowAllOrigins:   cfg.AllowAllOrigins,
-		AllowedOrigins:    cfg.AllowedOrigins,
-		KeepUpToDate:      cfg.KeepUpToDate,
-		KeepAlive:         cfg.KeepAlive,
-		Process:           -1,
-		ProxyProcess:      -1,
-		Dependencies:      []string{"event.EventService"},
-		Permissions:       loadDefaultPermissions(),
-		Monitoring_Port:   cfg.MonitoringPort,
-		Root:              cfg.Root,
-		RetentionHours:    cfg.RetentionHours,
-		SweepEverySeconds: cfg.SweepEverySeconds,
-		logger:            logger,
+		Name:                   string(logpb.File_log_proto.Services().Get(0).FullName()),
+		Proto:                  logpb.File_log_proto.Path(),
+		Path:                   func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
+		Port:                   cfg.Port,
+		Proxy:                  cfg.Proxy,
+		Protocol:               cfg.Protocol,
+		Version:                Version,
+		PublisherID:            cfg.PublisherID,
+		Description:            "Centralized logging service with persistence and Prometheus metrics",
+		Keywords:               []string{"log", "logging", "audit", "metrics", "prometheus", "retention", "persistence"},
+		Repositories:           globular.CloneStringSlice(cfg.Repositories),
+		Discoveries:            globular.CloneStringSlice(cfg.Discoveries),
+		AllowAllOrigins:        cfg.AllowAllOrigins,
+		AllowedOrigins:         cfg.AllowedOrigins,
+		KeepUpToDate:           cfg.KeepUpToDate,
+		KeepAlive:              cfg.KeepAlive,
+		Process:                -1,
+		ProxyProcess:           -1,
+		Dependencies:           []string{"event.EventService"},
+		Permissions:            loadDefaultPermissions(),
+		Monitoring_Port:        cfg.MonitoringPort,
+		Root:                   cfg.Root,
+		RetentionHours:         cfg.RetentionHours,
+		CacheType:              cfg.CacheType,
+		CacheAddress:           cfg.CacheAddress,
+		CacheReplicationFactor: cfg.CacheReplicationFactor,
+		stores:                 new(sync.Map),
+		logger:                 logger,
 	}
 
 	s.Domain, s.Address = globular.GetDefaultDomainAddress(s.Port)
@@ -445,6 +632,11 @@ func main() {
 		srv.Address = fmt.Sprintf("localhost:%d", srv.Port)
 	}
 
+	// Fix up CacheAddress: if empty or "localhost", use local IP (like title service)
+	if srv.CacheAddress == "" || srv.CacheAddress == "localhost" {
+		srv.CacheAddress = config.GetLocalIP()
+	}
+
 	// Log service start
 	logger.Info("starting log service",
 		"service", srv.Name,
@@ -452,7 +644,8 @@ func main() {
 		"domain", srv.Domain,
 		"address", srv.Address,
 		"retention_hours", srv.RetentionHours,
-		"sweep_seconds", srv.SweepEverySeconds,
+		"cache_type", srv.CacheType,
+		"cache_address", srv.CacheAddress,
 		"monitoring_port", srv.Monitoring_Port)
 
 	// gRPC bootstrap
@@ -468,13 +661,8 @@ func main() {
 	reflection.Register(srv.grpcServer)
 	logger.Debug("gRPC handlers registered")
 
-	// Open Badger store
-	srv.logs = storage_store.NewBadger_store()
-	if err := srv.logs.Open(`{"path":"` + srv.Root + `", "name":"logs"}`); err != nil {
-		logger.Error("failed to open log store", "err", err)
-	} else {
-		logger.Info("log store opened", "path", srv.Root)
-	}
+	// Start retention cleanup goroutine
+	srv.startRetentionCleanup()
 
 	// Prometheus metrics
 	srv.logCount = prometheus.NewCounterVec(
@@ -513,7 +701,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Log Service - Centralized logging with retention and metrics")
+	fmt.Println("Log Service - Centralized logging with pluggable persistence and metrics")
 	fmt.Println()
 	fmt.Println("USAGE:")
 	fmt.Println("  log-service [OPTIONS] [id] [config_path]")
@@ -534,11 +722,11 @@ func printUsage() {
 	fmt.Println("  GLOBULAR_ADDRESS   Override service address (host:port)")
 	fmt.Println()
 	fmt.Println("FEATURES:")
-	fmt.Println("  • Centralized log aggregation with Badger persistence")
-	fmt.Println("  • Automatic log retention and cleanup (configurable)")
-	fmt.Println("  • Prometheus metrics integration (/metrics endpoint)")
-	fmt.Println("  • Role-based access control (viewer, writer, operator, admin)")
-	fmt.Println("  • Structured logging with level, application, and method tracking")
+	fmt.Println("  - Centralized log aggregation with pluggable storage (ScyllaDB, Badger, LevelDB)")
+	fmt.Println("  - Automatic log retention via background cleanup")
+	fmt.Println("  - Prometheus metrics integration (/metrics endpoint)")
+	fmt.Println("  - Role-based access control (viewer, writer, operator, admin)")
+	fmt.Println("  - Structured logging with level, application, method, and node_id tracking")
 	fmt.Println()
 	fmt.Println("EXAMPLES:")
 	fmt.Println("  # Start with default configuration")
@@ -567,7 +755,3 @@ func printVersion() {
 	data, _ := json.MarshalIndent(info, "", "  ")
 	fmt.Println(string(data))
 }
-
-// -----------------------------------------------------------------------------
-// helpers
-// -----------------------------------------------------------------------------

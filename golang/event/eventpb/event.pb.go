@@ -9,6 +9,7 @@ package eventpb
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -689,11 +690,191 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_event_proto_rawDescGZIP(), []int{13}
 }
 
+type PersistedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Ts            *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=ts,proto3" json:"ts,omitempty"`
+	Sequence      uint64                 `protobuf:"varint,4,opt,name=sequence,proto3" json:"sequence,omitempty"` // monotonic, for cursor pagination
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersistedEvent) Reset() {
+	*x = PersistedEvent{}
+	mi := &file_event_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersistedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersistedEvent) ProtoMessage() {}
+
+func (x *PersistedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_event_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersistedEvent.ProtoReflect.Descriptor instead.
+func (*PersistedEvent) Descriptor() ([]byte, []int) {
+	return file_event_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *PersistedEvent) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PersistedEvent) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *PersistedEvent) GetTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Ts
+	}
+	return nil
+}
+
+func (x *PersistedEvent) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+type QueryEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NameFilter    string                 `protobuf:"bytes,1,opt,name=name_filter,json=nameFilter,proto3" json:"name_filter,omitempty"`           // prefix filter, empty = all
+	Limit         uint32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                                      // 0 = server default (100)
+	AfterSequence uint64                 `protobuf:"varint,3,opt,name=after_sequence,json=afterSequence,proto3" json:"after_sequence,omitempty"` // cursor: only events with seq > this
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryEventsRequest) Reset() {
+	*x = QueryEventsRequest{}
+	mi := &file_event_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryEventsRequest) ProtoMessage() {}
+
+func (x *QueryEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_event_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryEventsRequest.ProtoReflect.Descriptor instead.
+func (*QueryEventsRequest) Descriptor() ([]byte, []int) {
+	return file_event_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *QueryEventsRequest) GetNameFilter() string {
+	if x != nil {
+		return x.NameFilter
+	}
+	return ""
+}
+
+func (x *QueryEventsRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *QueryEventsRequest) GetAfterSequence() uint64 {
+	if x != nil {
+		return x.AfterSequence
+	}
+	return 0
+}
+
+type QueryEventsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Events         []*PersistedEvent      `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	LatestSequence uint64                 `protobuf:"varint,2,opt,name=latest_sequence,json=latestSequence,proto3" json:"latest_sequence,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *QueryEventsResponse) Reset() {
+	*x = QueryEventsResponse{}
+	mi := &file_event_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryEventsResponse) ProtoMessage() {}
+
+func (x *QueryEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_event_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryEventsResponse.ProtoReflect.Descriptor instead.
+func (*QueryEventsResponse) Descriptor() ([]byte, []int) {
+	return file_event_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *QueryEventsResponse) GetEvents() []*PersistedEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *QueryEventsResponse) GetLatestSequence() uint64 {
+	if x != nil {
+		return x.LatestSequence
+	}
+	return 0
+}
+
 var File_event_proto protoreflect.FileDescriptor
 
 const file_event_proto_rawDesc = "" +
 	"\n" +
-	"\vevent.proto\x12\x05event\"\v\n" +
+	"\vevent.proto\x12\x05event\x1a\x1fgoogle/protobuf/timestamp.proto\"\v\n" +
 	"\tKeepAlive\"/\n" +
 	"\x05Event\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -723,14 +904,28 @@ const file_event_proto_rawDesc = "" +
 	"\x0fPublishResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xf6\x02\n" +
+	"\fStopResponse\"\x80\x01\n" +
+	"\x0ePersistedEvent\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12*\n" +
+	"\x02ts\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x1a\n" +
+	"\bsequence\x18\x04 \x01(\x04R\bsequence\"r\n" +
+	"\x12QueryEventsRequest\x12\x1f\n" +
+	"\vname_filter\x18\x01 \x01(\tR\n" +
+	"nameFilter\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\x12%\n" +
+	"\x0eafter_sequence\x18\x03 \x01(\x04R\rafterSequence\"m\n" +
+	"\x13QueryEventsResponse\x12-\n" +
+	"\x06events\x18\x01 \x03(\v2\x15.event.PersistedEventR\x06events\x12'\n" +
+	"\x0flatest_sequence\x18\x02 \x01(\x04R\x0elatestSequence2\xbe\x03\n" +
 	"\fEventService\x12/\n" +
 	"\x04Stop\x12\x12.event.StopRequest\x1a\x13.event.StopResponse\x12<\n" +
 	"\aOnEvent\x12\x15.event.OnEventRequest\x1a\x16.event.OnEventResponse\"\x000\x01\x121\n" +
 	"\x04Quit\x12\x12.event.QuitRequest\x1a\x13.event.QuitResponse\"\x00\x12@\n" +
 	"\tSubscribe\x12\x17.event.SubscribeRequest\x1a\x18.event.SubscribeResponse\"\x00\x12F\n" +
 	"\vUnSubscribe\x12\x19.event.UnSubscribeRequest\x1a\x1a.event.UnSubscribeResponse\"\x00\x12:\n" +
-	"\aPublish\x12\x15.event.PublishRequest\x1a\x16.event.PublishResponse\"\x00B5Z3github.com/globulario/services/golang/event/eventpbb\x06proto3"
+	"\aPublish\x12\x15.event.PublishRequest\x1a\x16.event.PublishResponse\"\x00\x12F\n" +
+	"\vQueryEvents\x12\x19.event.QueryEventsRequest\x1a\x1a.event.QueryEventsResponse\"\x00B5Z3github.com/globulario/services/golang/event/eventpbb\x06proto3"
 
 var (
 	file_event_proto_rawDescOnce sync.Once
@@ -744,44 +939,52 @@ func file_event_proto_rawDescGZIP() []byte {
 	return file_event_proto_rawDescData
 }
 
-var file_event_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_event_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_event_proto_goTypes = []any{
-	(*KeepAlive)(nil),           // 0: event.KeepAlive
-	(*Event)(nil),               // 1: event.Event
-	(*QuitRequest)(nil),         // 2: event.QuitRequest
-	(*QuitResponse)(nil),        // 3: event.QuitResponse
-	(*OnEventRequest)(nil),      // 4: event.OnEventRequest
-	(*OnEventResponse)(nil),     // 5: event.OnEventResponse
-	(*SubscribeRequest)(nil),    // 6: event.SubscribeRequest
-	(*SubscribeResponse)(nil),   // 7: event.SubscribeResponse
-	(*UnSubscribeRequest)(nil),  // 8: event.UnSubscribeRequest
-	(*UnSubscribeResponse)(nil), // 9: event.UnSubscribeResponse
-	(*PublishRequest)(nil),      // 10: event.PublishRequest
-	(*PublishResponse)(nil),     // 11: event.PublishResponse
-	(*StopRequest)(nil),         // 12: event.StopRequest
-	(*StopResponse)(nil),        // 13: event.StopResponse
+	(*KeepAlive)(nil),             // 0: event.KeepAlive
+	(*Event)(nil),                 // 1: event.Event
+	(*QuitRequest)(nil),           // 2: event.QuitRequest
+	(*QuitResponse)(nil),          // 3: event.QuitResponse
+	(*OnEventRequest)(nil),        // 4: event.OnEventRequest
+	(*OnEventResponse)(nil),       // 5: event.OnEventResponse
+	(*SubscribeRequest)(nil),      // 6: event.SubscribeRequest
+	(*SubscribeResponse)(nil),     // 7: event.SubscribeResponse
+	(*UnSubscribeRequest)(nil),    // 8: event.UnSubscribeRequest
+	(*UnSubscribeResponse)(nil),   // 9: event.UnSubscribeResponse
+	(*PublishRequest)(nil),        // 10: event.PublishRequest
+	(*PublishResponse)(nil),       // 11: event.PublishResponse
+	(*StopRequest)(nil),           // 12: event.StopRequest
+	(*StopResponse)(nil),          // 13: event.StopResponse
+	(*PersistedEvent)(nil),        // 14: event.PersistedEvent
+	(*QueryEventsRequest)(nil),    // 15: event.QueryEventsRequest
+	(*QueryEventsResponse)(nil),   // 16: event.QueryEventsResponse
+	(*timestamppb.Timestamp)(nil), // 17: google.protobuf.Timestamp
 }
 var file_event_proto_depIdxs = []int32{
 	1,  // 0: event.OnEventResponse.evt:type_name -> event.Event
 	0,  // 1: event.OnEventResponse.ka:type_name -> event.KeepAlive
 	1,  // 2: event.PublishRequest.evt:type_name -> event.Event
-	12, // 3: event.EventService.Stop:input_type -> event.StopRequest
-	4,  // 4: event.EventService.OnEvent:input_type -> event.OnEventRequest
-	2,  // 5: event.EventService.Quit:input_type -> event.QuitRequest
-	6,  // 6: event.EventService.Subscribe:input_type -> event.SubscribeRequest
-	8,  // 7: event.EventService.UnSubscribe:input_type -> event.UnSubscribeRequest
-	10, // 8: event.EventService.Publish:input_type -> event.PublishRequest
-	13, // 9: event.EventService.Stop:output_type -> event.StopResponse
-	5,  // 10: event.EventService.OnEvent:output_type -> event.OnEventResponse
-	3,  // 11: event.EventService.Quit:output_type -> event.QuitResponse
-	7,  // 12: event.EventService.Subscribe:output_type -> event.SubscribeResponse
-	9,  // 13: event.EventService.UnSubscribe:output_type -> event.UnSubscribeResponse
-	11, // 14: event.EventService.Publish:output_type -> event.PublishResponse
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	17, // 3: event.PersistedEvent.ts:type_name -> google.protobuf.Timestamp
+	14, // 4: event.QueryEventsResponse.events:type_name -> event.PersistedEvent
+	12, // 5: event.EventService.Stop:input_type -> event.StopRequest
+	4,  // 6: event.EventService.OnEvent:input_type -> event.OnEventRequest
+	2,  // 7: event.EventService.Quit:input_type -> event.QuitRequest
+	6,  // 8: event.EventService.Subscribe:input_type -> event.SubscribeRequest
+	8,  // 9: event.EventService.UnSubscribe:input_type -> event.UnSubscribeRequest
+	10, // 10: event.EventService.Publish:input_type -> event.PublishRequest
+	15, // 11: event.EventService.QueryEvents:input_type -> event.QueryEventsRequest
+	13, // 12: event.EventService.Stop:output_type -> event.StopResponse
+	5,  // 13: event.EventService.OnEvent:output_type -> event.OnEventResponse
+	3,  // 14: event.EventService.Quit:output_type -> event.QuitResponse
+	7,  // 15: event.EventService.Subscribe:output_type -> event.SubscribeResponse
+	9,  // 16: event.EventService.UnSubscribe:output_type -> event.UnSubscribeResponse
+	11, // 17: event.EventService.Publish:output_type -> event.PublishResponse
+	16, // 18: event.EventService.QueryEvents:output_type -> event.QueryEventsResponse
+	12, // [12:19] is the sub-list for method output_type
+	5,  // [5:12] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_event_proto_init() }
@@ -799,7 +1002,7 @@ func file_event_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_event_proto_rawDesc), len(file_event_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

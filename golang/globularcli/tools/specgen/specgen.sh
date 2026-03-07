@@ -194,6 +194,13 @@ EOF
 EOF
     fi
 
+    # Backup manager needs etcdctl and restic on PATH for provider execution
+    if [[ "${svc}" == "backup_manager" ]]; then
+      cat >> "${spec}" <<EOF
+          Environment=PATH={{.Prefix}}/bin:/usr/local/bin:/usr/bin:/bin
+EOF
+    fi
+
     cat >> "${spec}" <<EOF
           ExecStart={{.Prefix}}/bin/${exe}
           Restart=on-failure

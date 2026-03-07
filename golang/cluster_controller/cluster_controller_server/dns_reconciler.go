@@ -114,11 +114,11 @@ func (r *DNSReconciler) reconcile() error {
 		atomic.StoreInt64(&r.lastReconcileAt, time.Now().Unix())
 	}()
 
-	r.srv.mu.Lock()
+	r.srv.lock("dns-reconciler:snapshot")
 	spec := r.srv.state.ClusterNetworkSpec
 	generation := r.srv.state.NetworkingGeneration
 	nodes := r.srv.state.Nodes
-	r.srv.mu.Unlock()
+	r.srv.unlock()
 
 	if spec == nil || spec.ClusterDomain == "" {
 		log.Printf("dns reconciler: skipping (no cluster network spec)")
@@ -527,9 +527,9 @@ func (r *DNSReconciler) publishExternalDNS(ctx context.Context, spec *cluster_co
 		return nil // Nothing to publish
 	}
 
-	r.srv.mu.Lock()
+	r.srv.lock("dns-reconciler:external-dns")
 	nodesMap := r.srv.state.Nodes
-	r.srv.mu.Unlock()
+	r.srv.unlock()
 
 	ttl := int(cfg.Ttl)
 	if ttl <= 0 {

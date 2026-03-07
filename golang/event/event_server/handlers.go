@@ -134,6 +134,10 @@ func (srv *server) run() {
 					srv.logger.Error("invalid publish request: missing channel name")
 					continue
 				}
+				// Persist to ring buffer for QueryEvents replay.
+				if srv.ring != nil {
+					srv.ring.append(name, data)
+				}
 				uuids := channels[name]
 				if uuids == nil {
 					continue
@@ -305,4 +309,27 @@ func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*
 	publish := map[string]interface{}{"action": "publish", "name": rqst.Evt.Name, "data": rqst.Evt.Data}
 	srv.actions <- publish
 	return &eventpb.PublishResponse{Result: true}, nil
+}
+
+func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsRequest) (*eventpb.QueryEventsResponse, error) {
+	if srv.ring == nil {
+		return &eventpb.QueryEventsResponse{}, nil
+	}
+	nameFilter := ""
+	if rqst != nil {
+		nameFilter = rqst.GetNameFilter()
+	}
+	limit := 100
+	if rqst != nil && rqst.GetLimit() > 0 {
+		limit = int(rqst.GetLimit())
+	}
+	var afterSeq uint64
+	if rqst != nil {
+		afterSeq = rqst.GetAfterSequence()
+	}
+	events, latestSeq := srv.ring.query(nameFilter, afterSeq, limit)
+	return &eventpb.QueryEventsResponse{
+		Events:         events,
+		LatestSequence: latestSeq,
+	}, nil
 }

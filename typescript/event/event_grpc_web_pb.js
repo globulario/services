@@ -19,6 +19,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
 const proto = {};
 proto.event = require('./event_pb.js');
 
@@ -432,6 +434,67 @@ proto.event.EventServicePromiseClient.prototype.publish =
       request,
       metadata || {},
       methodDescriptor_EventService_Publish);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.event.QueryEventsRequest,
+ *   !proto.event.QueryEventsResponse>}
+ */
+const methodDescriptor_EventService_QueryEvents = new grpc.web.MethodDescriptor(
+  '/event.EventService/QueryEvents',
+  grpc.web.MethodType.UNARY,
+  proto.event.QueryEventsRequest,
+  proto.event.QueryEventsResponse,
+  /**
+   * @param {!proto.event.QueryEventsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.event.QueryEventsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.event.QueryEventsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.event.QueryEventsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.event.QueryEventsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.event.EventServiceClient.prototype.queryEvents =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/event.EventService/QueryEvents',
+      request,
+      metadata || {},
+      methodDescriptor_EventService_QueryEvents,
+      callback);
+};
+
+
+/**
+ * @param {!proto.event.QueryEventsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.event.QueryEventsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.event.EventServicePromiseClient.prototype.queryEvents =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/event.EventService/QueryEvents',
+      request,
+      metadata || {},
+      methodDescriptor_EventService_QueryEvents);
 };
 
 

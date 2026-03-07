@@ -22,6 +22,8 @@ func NewRegistry(cfg Config) *Registry {
 		nodeUnitsRunning{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},
+		// Local filesystem checks
+		prometheusBearerTokenFile{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

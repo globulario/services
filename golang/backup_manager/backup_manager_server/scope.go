@@ -167,8 +167,8 @@ func checkProviderAvailability(name string, srv *server) ProviderAvailability {
 		if srv.ScyllaCluster == "" {
 			return ProviderAvailability{false, "ScyllaCluster not configured"}
 		}
-		if srv.ScyllaLocation == "" {
-			return ProviderAvailability{false, "ScyllaLocation not configured"}
+		if srv.ScyllaLocation == "" && len(srv.scyllaLocations()) == 0 {
+			return ProviderAvailability{false, "no ScyllaDB-compatible destinations (requires S3/GCS/Azure, not local)"}
 		}
 		return ProviderAvailability{Available: true}
 

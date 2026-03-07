@@ -43,10 +43,14 @@ type Config struct {
 	CertAuthorityTrust string   `json:"CertAuthorityTrust"`
 
 	// Log-specific
-	Root              string `json:"Root"`
-	MonitoringPort    int    `json:"MonitoringPort"`
-	RetentionHours    int    `json:"RetentionHours"`
-	SweepEverySeconds int    `json:"SweepEverySeconds"`
+	Root           string `json:"Root"`
+	MonitoringPort int    `json:"MonitoringPort"`
+	RetentionHours int    `json:"RetentionHours"`
+
+	// Storage backend (SCYLLADB, BADGER, LEVELDB)
+	CacheType              string `json:"CacheType"`
+	CacheAddress           string `json:"CacheAddress"`
+	CacheReplicationFactor int    `json:"CacheReplicationFactor"`
 }
 
 func DefaultConfig() *Config {
@@ -68,10 +72,12 @@ func DefaultConfig() *Config {
 		KeepAlive:         true,
 		Process:           -1,
 		ProxyProcess:      -1,
-		Root:              "",
-		MonitoringPort:    9092,
-		RetentionHours:    24 * 7,
-		SweepEverySeconds: 300,
+		Root:                    "",
+		MonitoringPort:          9092,
+		RetentionHours:          24 * 7,
+		CacheType:              "SCYLLADB",
+		CacheAddress:           "",
+		CacheReplicationFactor: 1,
 	}
 	cfg.Domain, cfg.Address = globular.GetDefaultDomainAddress(cfg.Port)
 	return cfg
@@ -86,9 +92,6 @@ func (c *Config) Validate() error {
 	}
 	if c.RetentionHours < 0 {
 		return fmt.Errorf("RetentionHours must be non-negative")
-	}
-	if c.SweepEverySeconds < 0 {
-		return fmt.Errorf("SweepEverySeconds must be non-negative")
 	}
 	return nil
 }

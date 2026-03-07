@@ -26,6 +26,7 @@ message LogInfo {
     int64    timestamp_ms = 8;  // Unix epoch millis when produced (producer side)
     string   component    = 9;  // e.g., "http", "dns", "tls" (from logger attr)
     map<string,string> fields = 10; // structured attrs (key→value)
+    string node_id = 11;             // Hostname of the node that produced this log entry.
 }
 
 // LogRqst is the request format for logging a new message.

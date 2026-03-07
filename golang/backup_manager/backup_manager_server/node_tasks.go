@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -127,6 +128,7 @@ func (srv *server) runProviderOnAllNodes(
 	allOk := true
 	var aggregatedOutputs = make(map[string]string)
 	var snapshotIDs []string
+	var totalBytes uint64
 
 	for _, nr := range allResults {
 		ok := nr.Result.State == backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
@@ -140,6 +142,7 @@ func (srv *server) runProviderOnAllNodes(
 			allOk = false
 		}
 		coverage.Nodes = append(coverage.Nodes, entry)
+		totalBytes += nr.Result.BytesWritten
 
 		// Collect per-node snapshot IDs
 		if snapID, exists := nr.Result.Outputs["snapshot_id"]; exists && snapID != "" {
@@ -161,12 +164,13 @@ func (srv *server) runProviderOnAllNodes(
 	}
 
 	return &backup_managerpb.BackupProviderResult{
-		Type:     spec.Type,
-		Enabled:  true,
-		State:    state,
-		Severity: severity,
-		Summary:  summary,
-		Outputs:  aggregatedOutputs,
+		Type:         spec.Type,
+		Enabled:      true,
+		State:        state,
+		Severity:     severity,
+		Summary:      summary,
+		Outputs:      aggregatedOutputs,
+		BytesWritten: totalBytes,
 	}, coverage
 }
 
@@ -371,6 +375,23 @@ func (srv *server) isLocalNode(n TopologyNode) bool {
 	}
 	if n.Address == srv.Address || n.Address == "127.0.0.1" || n.Address == "localhost" {
 		return true
+	}
+	// Compare by hostname
+	if hostname, err := os.Hostname(); err == nil && n.Hostname == hostname {
+		return true
+	}
+	// Compare by local IP addresses
+	if n.Address != "" {
+		addrs, err := net.InterfaceAddrs()
+		if err == nil {
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok {
+					if ipnet.IP.String() == n.Address {
+						return true
+					}
+				}
+			}
+		}
 	}
 	return false
 }

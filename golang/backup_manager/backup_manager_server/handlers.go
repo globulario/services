@@ -79,6 +79,7 @@ func (srv *server) RunBackup(ctx context.Context, rqst *backup_managerpb.RunBack
 		JobId:         jobID,
 		PlanName:      plan.Name,
 		State:         backup_managerpb.BackupJobState_BACKUP_JOB_QUEUED,
+		JobType:       backup_managerpb.BackupJobType_BACKUP_JOB_TYPE_BACKUP,
 		CreatedUnixMs: now,
 		Plan:          plan,
 		Message:       "queued",
@@ -277,6 +278,40 @@ func (srv *server) CancelBackupJob(ctx context.Context, rqst *backup_managerpb.C
 	}
 
 	return &backup_managerpb.CancelBackupJobResponse{Canceled: false, Message: "job not found in active set"}, nil
+}
+
+// DeleteBackupJob removes a backup job record and optionally its artifacts.
+func (srv *server) DeleteBackupJob(ctx context.Context, rqst *backup_managerpb.DeleteBackupJobRequest) (*backup_managerpb.DeleteBackupJobResponse, error) {
+	job, err := srv.store.GetJob(rqst.JobId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "job %s not found", rqst.JobId)
+	}
+
+	// Don't allow deleting running jobs — cancel first
+	if job.State == backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING ||
+		job.State == backup_managerpb.BackupJobState_BACKUP_JOB_QUEUED {
+		return nil, status.Errorf(codes.FailedPrecondition, "cannot delete a running/pending job — cancel it first")
+	}
+
+	// Optionally delete the associated backup artifact
+	if rqst.DeleteArtifacts && job.BackupId != "" {
+		if _, delErr := srv.DeleteBackup(ctx, &backup_managerpb.DeleteBackupRequest{
+			BackupId:                job.BackupId,
+			DeleteProviderArtifacts: true,
+		}); delErr != nil {
+			slog.Warn("failed to delete backup artifact for job", "job_id", rqst.JobId, "backup_id", job.BackupId, "error", delErr)
+		}
+	}
+
+	if err := srv.store.DeleteJob(rqst.JobId); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete job: %v", err)
+	}
+
+	slog.Info("backup job deleted", "job_id", rqst.JobId)
+	return &backup_managerpb.DeleteBackupJobResponse{
+		Deleted: true,
+		Message: fmt.Sprintf("job %s deleted", rqst.JobId),
+	}, nil
 }
 
 // RestorePlan generates a read-only preview of what a restore would do.
@@ -493,6 +528,13 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 	var results []*backup_managerpb.BackupProviderResult
 	var coverages []*NodeCoverage
 	allOk := true
+	totalProviders := 0
+	for _, s := range providers {
+		if s.Enabled {
+			totalProviders++
+		}
+	}
+	providerIdx := 0
 
 	for _, spec := range providers {
 		if !spec.Enabled {
@@ -516,6 +558,12 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		}
 
 		name := providerName(spec.Type)
+		providerIdx++
+
+		// Update job progress before running provider
+		job.Message = fmt.Sprintf("running %s (%d/%d)", name, providerIdx, totalProviders)
+		job.Results = results
+		_ = srv.store.SaveJob(job)
 
 		// Phase 5: Classify provider scope
 		if mode == backup_managerpb.BackupMode_BACKUP_MODE_CLUSTER && providerScope(spec.Type) == ProviderScopeNode {
@@ -540,6 +588,10 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 				allOk = false
 			}
 		}
+
+		// Save intermediate results so the UI can see completed providers
+		job.Results = results
+		_ = srv.store.SaveJob(job)
 	}
 
 	// Quiesce hooks: FinalizeBackup (CLUSTER mode only, always runs)
@@ -564,7 +616,22 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		job.BackupId = backupID
 		job.Message = "completed successfully"
 
+		// Compress capsule if configured
+		var archivePath string
+		if srv.CompressCapsule {
+			var compErr error
+			archivePath, compErr = compressCapsule(srv.CapsuleDir(backupID))
+			if compErr != nil {
+				slog.Warn("capsule compression failed (continuing without)", "backup_id", backupID, "error", compErr)
+			} else {
+				slog.Info("capsule compressed", "backup_id", backupID, "archive", archivePath)
+			}
+		}
+		_ = archivePath // archive is available alongside the capsule dir for replication
+
 		// Replicate capsule to configured destinations
+		job.Message = "replicating to destinations"
+		_ = srv.store.SaveJob(job)
 		repResults := srv.replicateToDestinations(backupID, job.Plan)
 		job.Replications = repResults
 
@@ -590,6 +657,27 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			executedScope.Services = scope.Services
 		}
 
+		// Compute total bytes from provider results
+		var totalBytes uint64
+		for _, r := range results {
+			totalBytes += r.BytesWritten
+		}
+
+		// Compute total replication bytes
+		var repTotalBytes uint64
+		for _, r := range repResults {
+			repTotalBytes += r.BytesWritten
+		}
+
+		// Compute manifest SHA from capsule directory
+		manifestSHA := computeCapsuleSHA(srv.CapsuleDir(backupID))
+
+		// Created by: extract from labels or default
+		createdBy := ""
+		if labels != nil {
+			createdBy = labels["created_by"]
+		}
+
 		// Create artifact
 		art := &backup_managerpb.BackupArtifact{
 			BackupId:         backupID,
@@ -598,6 +686,7 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			Locations:        locations,
 			PlanName:         job.PlanName,
 			Domain:           srv.Domain,
+			CreatedBy:        createdBy,
 			ProviderResults:  results,
 			Replications:     repResults,
 			SchemaVersion:    2,
@@ -608,6 +697,8 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			SkippedProviders: resolved.Skipped,
 			Cluster:          clusterInfo,
 			Hooks:            hookSummary,
+			TotalBytes:       totalBytes,
+			ManifestSha256:   manifestSHA,
 		}
 		if err := srv.store.SaveArtifact(art); err != nil {
 			slog.Error("failed to save artifact", "job_id", job.JobId, "err", err)
@@ -775,6 +866,10 @@ func (srv *server) deleteReplicatedCapsule(backupID string, dest DestinationConf
 			}
 			if sk := dest.Options["secret_key"]; sk != "" {
 				args = append(args, "--s3-secret-access-key", sk)
+			}
+			// Skip TLS verification for internal MinIO with self-signed certs
+			if strings.HasPrefix(dest.Options["endpoint"], "https") {
+				args = append(args, "--no-check-certificate")
 			}
 		}
 		_, stderr, err := runCmd("rclone", args...)

@@ -558,5 +558,127 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.bootstrapFirstNode =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.RunBackupProviderRequest,
+ *   !proto.node_agent.RunBackupProviderResponse>}
+ */
+const methodDescriptor_NodeAgentService_RunBackupProvider = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/RunBackupProvider',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.RunBackupProviderRequest,
+  proto.node_agent.RunBackupProviderResponse,
+  /**
+   * @param {!proto.node_agent.RunBackupProviderRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.RunBackupProviderResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.RunBackupProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.RunBackupProviderResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.RunBackupProviderResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.runBackupProvider =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunBackupProvider',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunBackupProvider,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.RunBackupProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.RunBackupProviderResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.runBackupProvider =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunBackupProvider',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunBackupProvider);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetBackupTaskResultRequest,
+ *   !proto.node_agent.GetBackupTaskResultResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetBackupTaskResult = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetBackupTaskResult',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetBackupTaskResultRequest,
+  proto.node_agent.GetBackupTaskResultResponse,
+  /**
+   * @param {!proto.node_agent.GetBackupTaskResultRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetBackupTaskResultResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetBackupTaskResultRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetBackupTaskResultResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetBackupTaskResultResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getBackupTaskResult =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetBackupTaskResult',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetBackupTaskResult,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetBackupTaskResultRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetBackupTaskResultResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getBackupTaskResult =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetBackupTaskResult',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetBackupTaskResult);
+};
+
+
 module.exports = proto.node_agent;
 

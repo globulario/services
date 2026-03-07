@@ -25,6 +25,7 @@ const (
 	EventService_Subscribe_FullMethodName   = "/event.EventService/Subscribe"
 	EventService_UnSubscribe_FullMethodName = "/event.EventService/UnSubscribe"
 	EventService_Publish_FullMethodName     = "/event.EventService/Publish"
+	EventService_QueryEvents_FullMethodName = "/event.EventService/QueryEvents"
 )
 
 // EventServiceClient is the client API for EventService service.
@@ -47,6 +48,8 @@ type EventServiceClient interface {
 	UnSubscribe(ctx context.Context, in *UnSubscribeRequest, opts ...grpc.CallOption) (*UnSubscribeResponse, error)
 	// Publish an event to a channel.
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
+	// Query recent events from the in-memory ring buffer.
+	QueryEvents(ctx context.Context, in *QueryEventsRequest, opts ...grpc.CallOption) (*QueryEventsResponse, error)
 }
 
 type eventServiceClient struct {
@@ -126,6 +129,16 @@ func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, op
 	return out, nil
 }
 
+func (c *eventServiceClient) QueryEvents(ctx context.Context, in *QueryEventsRequest, opts ...grpc.CallOption) (*QueryEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryEventsResponse)
+	err := c.cc.Invoke(ctx, EventService_QueryEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EventServiceServer is the server API for EventService service.
 // All implementations should embed UnimplementedEventServiceServer
 // for forward compatibility.
@@ -146,6 +159,8 @@ type EventServiceServer interface {
 	UnSubscribe(context.Context, *UnSubscribeRequest) (*UnSubscribeResponse, error)
 	// Publish an event to a channel.
 	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
+	// Query recent events from the in-memory ring buffer.
+	QueryEvents(context.Context, *QueryEventsRequest) (*QueryEventsResponse, error)
 }
 
 // UnimplementedEventServiceServer should be embedded to have
@@ -172,6 +187,9 @@ func (UnimplementedEventServiceServer) UnSubscribe(context.Context, *UnSubscribe
 }
 func (UnimplementedEventServiceServer) Publish(context.Context, *PublishRequest) (*PublishResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Publish not implemented")
+}
+func (UnimplementedEventServiceServer) QueryEvents(context.Context, *QueryEventsRequest) (*QueryEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QueryEvents not implemented")
 }
 func (UnimplementedEventServiceServer) testEmbeddedByValue() {}
 
@@ -294,6 +312,24 @@ func _EventService_Publish_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EventService_QueryEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventServiceServer).QueryEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EventService_QueryEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventServiceServer).QueryEvents(ctx, req.(*QueryEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EventService_ServiceDesc is the grpc.ServiceDesc for EventService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -320,6 +356,10 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Publish",
 			Handler:    _EventService_Publish_Handler,
+		},
+		{
+			MethodName: "QueryEvents",
+			Handler:    _EventService_QueryEvents_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

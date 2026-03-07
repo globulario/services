@@ -37,6 +37,7 @@ import (
 
 	// Keep the original service proto import so we can register the server type
 	// (handlers are defined elsewhere in this package).
+	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resource_server/internal/security"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -1561,6 +1562,7 @@ func main() {
 	// Register service implementation handlers (implemented elsewhere in this package)
 	logger.Debug("registering gRPC handlers", "service", s.Name)
 	resourcepb.RegisterResourceServiceServer(s.grpcServer, s)
+	backup_hook.Register(s.grpcServer, s.newBackupHookHandler())
 	reflection.Register(s.grpcServer)
 	logger.Debug("gRPC handlers registered")
 

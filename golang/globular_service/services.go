@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -33,6 +34,7 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -562,6 +564,9 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 		return nil, err
 	}
 
+	// Enable gRPC latency histograms (grpc_server_handling_seconds_bucket).
+	grpc_prometheus.EnableHandlingTimeHistogram()
+
 	// Interceptors + Prometheus.
 	switch {
 	case unaryInterceptor != nil && streamInterceptor != nil:
@@ -688,6 +693,9 @@ func StartService(s Service, srv *grpc.Server) error {
 		}
 	}()
 
+	// Start Prometheus /metrics endpoint on the proxy port.
+	startMetricsServer(s)
+
 	// Mark running and persist runtime only (avoid clobbering desired).
 	// Retry indefinitely with exponential backoff (cap 60s): handles the common
 	// race where systemd starts a service before etcd is ready, since both units
@@ -725,6 +733,90 @@ func StartService(s Service, srv *grpc.Server) error {
 	// Graceful shutdown.
 	StopService(s, srv)
 	return nil
+}
+
+// startMetricsServer starts a Prometheus /metrics HTTP endpoint on the
+// service's proxy port. Uses a dedicated ServeMux (not DefaultServeMux)
+// to avoid conflicts with services that register their own handlers.
+//
+// If the configured proxy port is already in use (e.g. another service
+// claimed it first), a free port is allocated automatically so that every
+// service gets its own metrics endpoint.
+//
+// It also writes a Prometheus file_sd target file so that a standalone
+// Prometheus instance discovers this service automatically.
+func startMetricsServer(s Service) {
+	port := s.GetProxy()
+	if port == 0 {
+		return
+	}
+
+	// Pre-bind so we detect conflicts immediately instead of in a goroutine.
+	addr := "127.0.0.1:" + strconv.Itoa(port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		if isAddrInUse(err) {
+			// Port is taken — allocate a free one.
+			ln, err = net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				slog.Warn("metrics: cannot allocate port", "service", s.GetName(), "err", err)
+				return
+			}
+			port = ln.Addr().(*net.TCPAddr).Port
+			slog.Info("metrics: proxy port conflict, using free port",
+				"service", s.GetName(), "wanted", s.GetProxy(), "actual", port)
+			s.SetProxy(port)
+		} else {
+			slog.Warn("metrics: cannot listen", "service", s.GetName(), "addr", addr, "err", err)
+			return
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+	go func() {
+		slog.Info("metrics listening", "service", s.GetName(), "addr", ln.Addr().String())
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			slog.Warn("metrics server error", "service", s.GetName(), "addr", ln.Addr().String(), "err", err)
+		}
+	}()
+
+	// Register with Prometheus file-based service discovery.
+	writePromTargetFile(s.GetName(), port)
+}
+
+// promTargetsDir is the directory where Prometheus file_sd target files are written.
+const promTargetsDir = "/var/lib/globular/prometheus/targets"
+
+// writePromTargetFile writes a Prometheus file_sd YAML target file so that
+// a standalone Prometheus instance auto-discovers this service's /metrics endpoint.
+func writePromTargetFile(serviceName string, port int) {
+	// Derive a short job name: "event.EventService" -> "event"
+	job := serviceName
+	if idx := strings.IndexByte(job, '.'); idx > 0 {
+		job = job[:idx]
+	}
+	job = strings.ToLower(job)
+
+	content := fmt.Sprintf(`- targets: ["127.0.0.1:%d"]
+  labels:
+    job: %s
+`, port, job)
+
+	path := filepath.Join(promTargetsDir, job+".yaml")
+
+	// Best-effort: if the directory doesn't exist yet (Prometheus not installed), skip silently.
+	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
+		return
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		slog.Warn("failed to write prometheus target file", "path", path, "err", err)
+	}
 }
 
 // isAddrInUse checks if an error is "address already in use" (EADDRINUSE).

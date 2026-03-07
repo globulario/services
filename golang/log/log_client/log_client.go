@@ -229,6 +229,41 @@ func (client *Log_Client) SetCaFile(caFile string) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// LogWithNodeId appends a log entry with an explicit node_id field.
+func (client *Log_Client) LogWithNodeId(
+	application, user, method string,
+	level logpb.LogLevel,
+	message, fileLine, functionName, nodeId, token string,
+) error {
+	if method == "/log.LogService/Log" {
+		return errors.New("recursive function call cycle")
+	}
+
+	rqst := &logpb.LogRqst{
+		Info: &logpb.LogInfo{
+			Method:      method,
+			Line:        fileLine,
+			Level:       level,
+			Application: application,
+			Message:     message,
+			Occurences:  0,
+			NodeId:      nodeId,
+		},
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.Log(ctx, rqst)
+	return err
+}
+
 // Append a new log information.
 func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string, token string) error {
 	// do not log itself.

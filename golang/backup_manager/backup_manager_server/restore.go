@@ -447,36 +447,49 @@ func (srv *server) restoreScylla(ctx context.Context, pr *backup_managerpb.Backu
 	start := time.Now().UnixMilli()
 
 	cluster := pr.Outputs["cluster"]
-	location := pr.Outputs["location"]
 	if cluster == "" {
 		if c, ok := pr.RestoreInputs["cluster"]; ok {
 			cluster = c
 		}
 	}
-	if location == "" {
-		if l, ok := pr.RestoreInputs["location"]; ok {
-			location = l
-		}
-	}
 	if cluster == "" {
 		cluster = srv.ScyllaCluster
 	}
-	if location == "" {
-		location = srv.ScyllaLocation
+
+	// Derive locations: try restore inputs first, then configured destinations
+	var locations []string
+	if l := pr.Outputs["locations"]; l != "" {
+		locations = strings.Split(l, ",")
+	} else if l := pr.RestoreInputs["locations"]; l != "" {
+		locations = strings.Split(l, ",")
+	} else if l := pr.Outputs["location"]; l != "" {
+		// backwards compat with old capsules
+		locations = []string{l}
+	} else if l := pr.RestoreInputs["location"]; l != "" {
+		locations = []string{l}
+	}
+	if len(locations) == 0 {
+		if srv.ScyllaLocation != "" {
+			locations = []string{srv.ScyllaLocation}
+		} else {
+			locations = srv.scyllaLocations()
+		}
 	}
 
-	if cluster == "" || location == "" {
+	if cluster == "" || len(locations) == 0 {
 		return restoreFailResult(pr.Type, "scylla cluster/location not configured; cannot restore", "", outputs, start)
 	}
 
 	args := []string{
 		"restore",
 		"--cluster", cluster,
-		"--location", location,
 		"--api-url", srv.ScyllaManagerAPI,
 	}
+	for _, loc := range locations {
+		args = append(args, "--location", loc)
+	}
 
-	slog.Info("restoring scylladb", "cluster", cluster, "location", location)
+	slog.Info("restoring scylladb", "cluster", cluster, "locations", strings.Join(locations, ","))
 	cmd := exec.CommandContext(ctx, "sctool", args...)
 	out, err := cmd.CombinedOutput()
 	outputs["output"] = strings.TrimSpace(string(out))

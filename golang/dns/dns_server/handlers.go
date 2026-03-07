@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/security"
@@ -69,7 +70,82 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Auto-initialize SOA, NS, and dns A record for each new zone.
+	// This ensures every managed zone is a proper authoritative zone.
+	for _, domain := range normalized {
+		srv.ensureZoneAuthority(domain)
+	}
+
 	return &dnspb.SetDomainsResponse{Result: true}, nil
+}
+
+// ensureZoneAuthority creates SOA, NS, and a dns A record for a zone
+// if they don't already exist. Called automatically when domains are set.
+// Must be called with srv.mu held.
+func (srv *server) ensureZoneAuthority(domain string) {
+	nsName := "dns." + domain
+
+	// Check if SOA already exists
+	soaUUID := Utility.GenerateUUID("SOA:" + domain)
+	if data, err := srv.store.GetItem(soaUUID); err == nil && len(data) > 0 {
+		// SOA exists, skip initialization
+		return
+	}
+
+	// Determine the node IP for the dns A record
+	nodeIP, err := Utility.GetPrimaryIPAddress()
+	if err != nil || nodeIP == "" {
+		nodeIP = Utility.MyIP()
+	}
+	if nodeIP == "" {
+		nodeIP = "127.0.0.1"
+	}
+
+	srv.Logger.Info("Initializing zone authority", "zone", domain, "ns", nsName, "ip", nodeIP)
+
+	// Create SOA record
+	soa := &dnspb.SOA{
+		Ns:      nsName,
+		Mbox:    "admin." + domain,
+		Serial:  uint32(time.Now().Unix()),
+		Refresh: 3600,
+		Retry:   600,
+		Expire:  86400,
+		Minttl:  3600,
+	}
+	soaValues := []*dnspb.SOA{soa}
+	if soaData, err := json.Marshal(soaValues); err == nil {
+		if err := srv.store.SetItem(soaUUID, soaData); err != nil {
+			srv.Logger.Warn("Failed to create SOA for zone", "zone", domain, "err", err)
+		} else {
+			_ = srv.setTtl(soaUUID, 3600)
+			srv.Logger.Info("SOA record created", "zone", domain, "ns", nsName)
+		}
+	}
+
+	// Create NS record
+	nsUUID := Utility.GenerateUUID("NS:" + domain)
+	nsValues := []string{nsName}
+	if nsData, err := json.Marshal(nsValues); err == nil {
+		if err := srv.store.SetItem(nsUUID, nsData); err != nil {
+			srv.Logger.Warn("Failed to create NS for zone", "zone", domain, "err", err)
+		} else {
+			_ = srv.setTtl(nsUUID, 3600)
+			srv.Logger.Info("NS record created", "zone", domain, "ns", nsName)
+		}
+	}
+
+	// Create A record for the nameserver so it resolves
+	aUUID := Utility.GenerateUUID("A:" + nsName)
+	aValues := []string{nodeIP}
+	if aData, err := json.Marshal(aValues); err == nil {
+		if err := srv.store.SetItem(aUUID, aData); err != nil {
+			srv.Logger.Warn("Failed to create dns A record for zone", "zone", domain, "err", err)
+		} else {
+			_ = srv.setTtl(aUUID, 300)
+			srv.Logger.Info("DNS A record created", "name", nsName, "ip", nodeIP)
+		}
+	}
 }
 
 // Get multiple domain names.

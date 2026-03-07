@@ -29,12 +29,16 @@ const (
 	BackupManagerService_RestorePlan_FullMethodName        = "/backup_manager.BackupManagerService/RestorePlan"
 	BackupManagerService_RestoreBackup_FullMethodName      = "/backup_manager.BackupManagerService/RestoreBackup"
 	BackupManagerService_CancelBackupJob_FullMethodName    = "/backup_manager.BackupManagerService/CancelBackupJob"
+	BackupManagerService_DeleteBackupJob_FullMethodName    = "/backup_manager.BackupManagerService/DeleteBackupJob"
 	BackupManagerService_RunRetention_FullMethodName       = "/backup_manager.BackupManagerService/RunRetention"
 	BackupManagerService_GetRetentionStatus_FullMethodName = "/backup_manager.BackupManagerService/GetRetentionStatus"
 	BackupManagerService_PreflightCheck_FullMethodName     = "/backup_manager.BackupManagerService/PreflightCheck"
 	BackupManagerService_RunRestoreTest_FullMethodName     = "/backup_manager.BackupManagerService/RunRestoreTest"
 	BackupManagerService_PromoteBackup_FullMethodName      = "/backup_manager.BackupManagerService/PromoteBackup"
 	BackupManagerService_DemoteBackup_FullMethodName       = "/backup_manager.BackupManagerService/DemoteBackup"
+	BackupManagerService_ListMinioBuckets_FullMethodName   = "/backup_manager.BackupManagerService/ListMinioBuckets"
+	BackupManagerService_CreateMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/CreateMinioBucket"
+	BackupManagerService_DeleteMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/DeleteMinioBucket"
 	BackupManagerService_Stop_FullMethodName               = "/backup_manager.BackupManagerService/Stop"
 )
 
@@ -62,6 +66,8 @@ type BackupManagerServiceClient interface {
 	RestoreBackup(ctx context.Context, in *RestoreBackupRequest, opts ...grpc.CallOption) (*RestoreBackupResponse, error)
 	// Cancel a running backup job.
 	CancelBackupJob(ctx context.Context, in *CancelBackupJobRequest, opts ...grpc.CallOption) (*CancelBackupJobResponse, error)
+	// Delete a backup job record (for cleaning up failed/old jobs).
+	DeleteBackupJob(ctx context.Context, in *DeleteBackupJobRequest, opts ...grpc.CallOption) (*DeleteBackupJobResponse, error)
 	// Run retention policy now (delete old backups per config).
 	RunRetention(ctx context.Context, in *RunRetentionRequest, opts ...grpc.CallOption) (*RunRetentionResponse, error)
 	// Get current retention policy status.
@@ -74,6 +80,12 @@ type BackupManagerServiceClient interface {
 	PromoteBackup(ctx context.Context, in *PromoteBackupRequest, opts ...grpc.CallOption) (*PromoteBackupResponse, error)
 	// Demote a previously promoted backup (allow retention to delete it).
 	DemoteBackup(ctx context.Context, in *DemoteBackupRequest, opts ...grpc.CallOption) (*DemoteBackupResponse, error)
+	// List MinIO buckets on the configured endpoint.
+	ListMinioBuckets(ctx context.Context, in *ListMinioBucketsRequest, opts ...grpc.CallOption) (*ListMinioBucketsResponse, error)
+	// Create a MinIO bucket.
+	CreateMinioBucket(ctx context.Context, in *CreateMinioBucketRequest, opts ...grpc.CallOption) (*CreateMinioBucketResponse, error)
+	// Delete a MinIO bucket.
+	DeleteMinioBucket(ctx context.Context, in *DeleteMinioBucketRequest, opts ...grpc.CallOption) (*DeleteMinioBucketResponse, error)
 	// Stop the service.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 }
@@ -186,6 +198,16 @@ func (c *backupManagerServiceClient) CancelBackupJob(ctx context.Context, in *Ca
 	return out, nil
 }
 
+func (c *backupManagerServiceClient) DeleteBackupJob(ctx context.Context, in *DeleteBackupJobRequest, opts ...grpc.CallOption) (*DeleteBackupJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteBackupJobResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_DeleteBackupJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *backupManagerServiceClient) RunRetention(ctx context.Context, in *RunRetentionRequest, opts ...grpc.CallOption) (*RunRetentionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunRetentionResponse)
@@ -246,6 +268,36 @@ func (c *backupManagerServiceClient) DemoteBackup(ctx context.Context, in *Demot
 	return out, nil
 }
 
+func (c *backupManagerServiceClient) ListMinioBuckets(ctx context.Context, in *ListMinioBucketsRequest, opts ...grpc.CallOption) (*ListMinioBucketsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMinioBucketsResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_ListMinioBuckets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupManagerServiceClient) CreateMinioBucket(ctx context.Context, in *CreateMinioBucketRequest, opts ...grpc.CallOption) (*CreateMinioBucketResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateMinioBucketResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_CreateMinioBucket_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupManagerServiceClient) DeleteMinioBucket(ctx context.Context, in *DeleteMinioBucketRequest, opts ...grpc.CallOption) (*DeleteMinioBucketResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMinioBucketResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_DeleteMinioBucket_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *backupManagerServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StopResponse)
@@ -280,6 +332,8 @@ type BackupManagerServiceServer interface {
 	RestoreBackup(context.Context, *RestoreBackupRequest) (*RestoreBackupResponse, error)
 	// Cancel a running backup job.
 	CancelBackupJob(context.Context, *CancelBackupJobRequest) (*CancelBackupJobResponse, error)
+	// Delete a backup job record (for cleaning up failed/old jobs).
+	DeleteBackupJob(context.Context, *DeleteBackupJobRequest) (*DeleteBackupJobResponse, error)
 	// Run retention policy now (delete old backups per config).
 	RunRetention(context.Context, *RunRetentionRequest) (*RunRetentionResponse, error)
 	// Get current retention policy status.
@@ -292,6 +346,12 @@ type BackupManagerServiceServer interface {
 	PromoteBackup(context.Context, *PromoteBackupRequest) (*PromoteBackupResponse, error)
 	// Demote a previously promoted backup (allow retention to delete it).
 	DemoteBackup(context.Context, *DemoteBackupRequest) (*DemoteBackupResponse, error)
+	// List MinIO buckets on the configured endpoint.
+	ListMinioBuckets(context.Context, *ListMinioBucketsRequest) (*ListMinioBucketsResponse, error)
+	// Create a MinIO bucket.
+	CreateMinioBucket(context.Context, *CreateMinioBucketRequest) (*CreateMinioBucketResponse, error)
+	// Delete a MinIO bucket.
+	DeleteMinioBucket(context.Context, *DeleteMinioBucketRequest) (*DeleteMinioBucketResponse, error)
 	// Stop the service.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 }
@@ -333,6 +393,9 @@ func (UnimplementedBackupManagerServiceServer) RestoreBackup(context.Context, *R
 func (UnimplementedBackupManagerServiceServer) CancelBackupJob(context.Context, *CancelBackupJobRequest) (*CancelBackupJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelBackupJob not implemented")
 }
+func (UnimplementedBackupManagerServiceServer) DeleteBackupJob(context.Context, *DeleteBackupJobRequest) (*DeleteBackupJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteBackupJob not implemented")
+}
 func (UnimplementedBackupManagerServiceServer) RunRetention(context.Context, *RunRetentionRequest) (*RunRetentionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunRetention not implemented")
 }
@@ -350,6 +413,15 @@ func (UnimplementedBackupManagerServiceServer) PromoteBackup(context.Context, *P
 }
 func (UnimplementedBackupManagerServiceServer) DemoteBackup(context.Context, *DemoteBackupRequest) (*DemoteBackupResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DemoteBackup not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) ListMinioBuckets(context.Context, *ListMinioBucketsRequest) (*ListMinioBucketsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMinioBuckets not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) CreateMinioBucket(context.Context, *CreateMinioBucketRequest) (*CreateMinioBucketResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateMinioBucket not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) DeleteMinioBucket(context.Context, *DeleteMinioBucketRequest) (*DeleteMinioBucketResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMinioBucket not implemented")
 }
 func (UnimplementedBackupManagerServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
@@ -554,6 +626,24 @@ func _BackupManagerService_CancelBackupJob_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupManagerService_DeleteBackupJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBackupJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).DeleteBackupJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_DeleteBackupJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).DeleteBackupJob(ctx, req.(*DeleteBackupJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BackupManagerService_RunRetention_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RunRetentionRequest)
 	if err := dec(in); err != nil {
@@ -662,6 +752,60 @@ func _BackupManagerService_DemoteBackup_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupManagerService_ListMinioBuckets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMinioBucketsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).ListMinioBuckets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_ListMinioBuckets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).ListMinioBuckets(ctx, req.(*ListMinioBucketsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupManagerService_CreateMinioBucket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateMinioBucketRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).CreateMinioBucket(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_CreateMinioBucket_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).CreateMinioBucket(ctx, req.(*CreateMinioBucketRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupManagerService_DeleteMinioBucket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMinioBucketRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).DeleteMinioBucket(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_DeleteMinioBucket_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).DeleteMinioBucket(ctx, req.(*DeleteMinioBucketRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BackupManagerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopRequest)
 	if err := dec(in); err != nil {
@@ -728,6 +872,10 @@ var BackupManagerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _BackupManagerService_CancelBackupJob_Handler,
 		},
 		{
+			MethodName: "DeleteBackupJob",
+			Handler:    _BackupManagerService_DeleteBackupJob_Handler,
+		},
+		{
 			MethodName: "RunRetention",
 			Handler:    _BackupManagerService_RunRetention_Handler,
 		},
@@ -750,6 +898,18 @@ var BackupManagerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DemoteBackup",
 			Handler:    _BackupManagerService_DemoteBackup_Handler,
+		},
+		{
+			MethodName: "ListMinioBuckets",
+			Handler:    _BackupManagerService_ListMinioBuckets_Handler,
+		},
+		{
+			MethodName: "CreateMinioBucket",
+			Handler:    _BackupManagerService_CreateMinioBucket_Handler,
+		},
+		{
+			MethodName: "DeleteMinioBucket",
+			Handler:    _BackupManagerService_DeleteMinioBucket_Handler,
 		},
 		{
 			MethodName: "Stop",

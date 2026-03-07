@@ -28,6 +28,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -331,8 +332,98 @@ func validateActionRequest(
 	return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
 }
 
+// ---- log forwarding to LogService -------------------------------------------
+
+var (
+	logClientOnce   sync.Once
+	logClientSingle *log_client.Log_Client
+	logClientFailed bool // true if initial connection failed (retry later)
+
+	nodeHostnameOnce sync.Once
+	nodeHostname     string
+)
+
+// getNodeHostname returns the hostname of this node (cached).
+func getNodeHostname() string {
+	nodeHostnameOnce.Do(func() {
+		h, err := os.Hostname()
+		if err != nil {
+			h = "unknown"
+		}
+		nodeHostname = h
+	})
+	return nodeHostname
+}
+
+// getLogClient returns a lazily-initialized LogService client.
+// Returns nil if the log service is unreachable or if we ARE the log service.
+func getLogClient() *log_client.Log_Client {
+	logClientOnce.Do(func() {
+		// Discover the log service address from etcd config
+		svcs, err := config.GetServicesConfigurationsByName("log.LogService")
+		if err != nil || len(svcs) == 0 {
+			slog.Debug("log forwarding disabled: log.LogService not found in config")
+			logClientFailed = true
+			return
+		}
+		svc := svcs[0]
+		addr, _ := svc["Address"].(string)
+		id, _ := svc["Id"].(string)
+		if addr == "" {
+			logClientFailed = true
+			return
+		}
+		c, err := log_client.NewLogService_Client(addr, id)
+		if err != nil {
+			slog.Warn("log forwarding disabled: cannot connect to LogService", "address", addr, "error", err)
+			logClientFailed = true
+			return
+		}
+		logClientSingle = c
+		slog.Info("log forwarding enabled", "address", addr)
+	})
+	return logClientSingle
+}
+
+// forwardToLogService sends ERROR/FATAL logs to log.LogService/Log asynchronously.
+// It silently drops the entry if the client is unavailable or the call fails.
+func forwardToLogService(application, user, method, fileLine, functionName, msg string, level logpb.LogLevel) {
+	// Only forward ERROR and FATAL (matching server persistence policy)
+	if level != logpb.LogLevel_ERROR_MESSAGE && level != logpb.LogLevel_FATAL_MESSAGE {
+		return
+	}
+	// Skip if this is a log-service method (cycle prevention)
+	if strings.HasPrefix(method, "/log.LogService/") {
+		return
+	}
+	go func() {
+		c := getLogClient()
+		if c == nil {
+			return
+		}
+		if err := c.LogWithNodeId(application, user, method, level, msg, fileLine, functionName, getNodeHostname(), ""); err != nil {
+			// Silently drop — don't log to avoid infinite recursion
+		}
+	}()
+}
+
 // ---- logging ----------------------------------------------------------------
+
+// applicationFromMethod extracts the service name from a gRPC method string.
+// e.g. "/dns.DnsService/RemoveA" → "dns.DnsService"
+func applicationFromMethod(method string) string {
+	m := strings.TrimPrefix(method, "/")
+	if i := strings.IndexByte(m, '/'); i > 0 {
+		return m[:i]
+	}
+	return m
+}
+
 func log(address, application, user, method, fileLine, functionName, msg string, level logpb.LogLevel) {
+	// Derive application from method when not provided via gRPC metadata
+	if application == "" {
+		application = applicationFromMethod(method)
+	}
 	attrs := []any{
 		"domain", address,
 		"application", application,
@@ -352,6 +443,9 @@ func log(address, application, user, method, fileLine, functionName, msg string,
 	default:
 		slog.Debug(msg, attrs...)
 	}
+
+	// Forward ERROR/FATAL to the centralized LogService for persistence + UI visibility
+	forwardToLogService(application, user, method, fileLine, functionName, msg, level)
 }
 
 func shouldLogError(method string, err error) bool {
@@ -449,6 +543,17 @@ func handleUnaryMethod(routing, token string, ctx context.Context, method string
 // - If the method is allowlisted â†’ pass through
 // - If RBAC has NO resource mapping for the method â†’ pass through
 // - Only if there IS a mapping, we parse token and enforce RBAC.
+// callHandlerWithLogging invokes a unary handler and forwards errors to the log
+// function (which in turn sends them to slog + the centralized LogService).
+func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.UnaryHandler, address, application, method string) (interface{}, error) {
+	res, hErr := handler(ctx, rqst)
+	if hErr != nil {
+		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		return nil, hErr
+	}
+	return res, nil
+}
+
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	var (
 		token        string
@@ -497,7 +602,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			// Security Fix #9: During bootstrap, cluster_id can be empty
 			// After cluster init, cluster_id enforcement applies (below)
 			LogAuthzDecisionSimple(authCtx, true, reason)
-			return handler(ctx, rqst)
+			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 		}
 		// Bootstrap gate denied - log and fall through to normal authorization
 		LogAuthzDecisionSimple(authCtx, false, reason)
@@ -530,7 +635,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// 2) Bypass for allowlisted infra/public methods.
 	if isUnauthenticated(method) {
 		LogAuthzDecisionSimple(authCtx, true, "allowlist")
-		return handler(ctx, rqst)
+		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
 
 	// Post-Day-0: after cluster is initialized, all mutating RPCs MUST be authenticated.
@@ -569,7 +674,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 				"permission denied: %s — assign a role with 'globular rbac bind'", method)
 		}
 		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
-		return handler(ctx, rqst)
+		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
 
 	// 3) Only consult RBAC if there are resource mappings for this method.
@@ -596,7 +701,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 		// Warning mode: ALLOW but log for detection
 		LogAuthzDecisionSimple(authCtx, true, "no_rbac_mapping_warning")
-		return handler(ctx, rqst)
+		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
 
 	// 4) We need auth → use AuthContext as single source of truth
@@ -851,6 +956,16 @@ func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context
 
 // ServerStreamInterceptor is now NORMALLY PERMISSIVE at the outer layer too:
 // it does NOT pre-validate tokens; RecvMsg decides based on RBAC mappings.
+// callStreamHandlerWithLogging invokes a stream handler and forwards errors
+// to the log function (slog + centralized LogService).
+func callStreamHandlerWithLogging(srv interface{}, stream grpc.ServerStream, handler grpc.StreamHandler, address, application, method string) error {
+	err := handler(srv, stream)
+	if err != nil && shouldLogError(method, err) {
+		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+	}
+	return err
+}
+
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	var (
 		token       string
@@ -892,7 +1007,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		allowed, reason := security.DefaultBootstrapGate.ShouldAllow(authCtx)
 		if allowed {
 			LogAuthzDecisionSimple(authCtx, true, reason)
-			return handler(srv, stream)
+			return callStreamHandlerWithLogging(srv, stream, handler, address, application, method)
 		}
 		// Bootstrap gate denied - log and fall through to normal authorization
 		LogAuthzDecisionSimple(authCtx, false, reason)
@@ -901,7 +1016,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Bypass RBAC entirely for allowlisted infra/public methods.
 	if isUnauthenticated(method) {
 		LogAuthzDecisionSimple(authCtx, true, "allowlist")
-		return handler(srv, stream)
+		return callStreamHandlerWithLogging(srv, stream, handler, address, application, method)
 	}
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
@@ -947,7 +1062,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 				"permission denied: %s — assign a role with 'globular rbac bind'", method)
 		}
 		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
-		return handler(srv, stream)
+		return callStreamHandlerWithLogging(srv, stream, handler, address, application, method)
 	}
 
 	uuid := Utility.RandomUUID()

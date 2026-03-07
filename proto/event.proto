@@ -1,8 +1,10 @@
  syntax = "proto3";
  package event;
- 
+
  // Go package path for generated code.
  option go_package="github.com/globulario/services/golang/event/eventpb";
+
+ import "google/protobuf/timestamp.proto";
  
  // KeepAlive message, likely used for maintaining the connection alive.
  message KeepAlive {}
@@ -70,9 +72,29 @@
  
  // StopRequest message to stop the server.
  message StopRequest {}
- 
+
  // StopResponse message as a result of StopRequest.
  message StopResponse {}
+
+ // ── Event history (Feature C) ───────────────────────────────────────────────
+
+ message PersistedEvent {
+   string name                      = 1;
+   bytes  data                      = 2;
+   google.protobuf.Timestamp ts     = 3;
+   uint64 sequence                  = 4;  // monotonic, for cursor pagination
+ }
+
+ message QueryEventsRequest {
+   string name_filter    = 1;  // prefix filter, empty = all
+   uint32 limit          = 2;  // 0 = server default (100)
+   uint64 after_sequence = 3;  // cursor: only events with seq > this
+ }
+
+ message QueryEventsResponse {
+   repeated PersistedEvent events = 1;
+   uint64 latest_sequence         = 2;
+ }
  
  /**
   * A gRPC event bus.
@@ -96,5 +118,8 @@
  
    // Publish an event to a channel.
    rpc Publish(PublishRequest) returns (PublishResponse) {};
+
+   // Query recent events from the in-memory ring buffer.
+   rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse) {};
  }
  

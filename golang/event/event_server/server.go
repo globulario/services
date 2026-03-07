@@ -42,7 +42,8 @@ const permissionsJSON = `[
   {"action":"/event.EventService/Subscribe","permission":"read","resources":[{"index":0,"field":"Name","permission":"read"}]},
   {"action":"/event.EventService/UnSubscribe","permission":"read","resources":[{"index":0,"field":"Name","permission":"read"}]},
   {"action":"/event.EventService/Publish","permission":"write","resources":[{"index":0,"field":"Evt.Name","permission":"write"}]},
-  {"action":"/event.EventService/Stop","permission":"write","resources":[]}
+  {"action":"/event.EventService/Stop","permission":"write","resources":[]},
+  {"action":"/event.EventService/QueryEvents","permission":"read","resources":[]}
 ]`
 
 type server struct {
@@ -84,6 +85,7 @@ type server struct {
 	grpcServer *grpc.Server
 	actions    chan map[string]interface{}
 	exit       chan bool
+	ring       *eventRingBuffer
 
 	logger *slog.Logger
 }
@@ -184,6 +186,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			"/event.EventService/Quit",
 			"/event.EventService/Subscribe",
 			"/event.EventService/UnSubscribe",
+			"/event.EventService/QueryEvents",
 		},
 		TypeName: "resource.Role",
 	}
@@ -227,6 +230,9 @@ func (srv *server) ensureRuntimeChannels() {
 	}
 	if srv.exit == nil {
 		srv.exit = make(chan bool)
+	}
+	if srv.ring == nil {
+		srv.ring = newEventRingBuffer(defaultRingCapacity)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/config"
@@ -450,6 +451,7 @@ func loadDefaultPermissions() []interface{} {
 
 func setupGrpcService(srv *server) {
 	catalogpb.RegisterCatalogServiceServer(srv.grpcServer, srv)
+	backup_hook.Register(srv.grpcServer, srv.newBackupHookHandler())
 	reflection.Register(srv.grpcServer)
 }
 

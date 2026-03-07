@@ -121,6 +121,12 @@ func (s *jobStore) ListJobs(state backup_managerpb.BackupJobState, planName stri
 	return all, total, nil
 }
 
+func (s *jobStore) DeleteJob(jobID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return os.Remove(filepath.Join(s.jobsDir, jobID+".json"))
+}
+
 // --- Artifacts ---
 
 func (s *jobStore) SaveArtifact(art *backup_managerpb.BackupArtifact) error {

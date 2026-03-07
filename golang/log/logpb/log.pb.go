@@ -93,6 +93,7 @@ type LogInfo struct {
 	TimestampMs   int64                  `protobuf:"varint,8,opt,name=timestamp_ms,json=timestampMs,proto3" json:"timestamp_ms,omitempty"`                                              // Unix epoch millis when produced (producer side)
 	Component     string                 `protobuf:"bytes,9,opt,name=component,proto3" json:"component,omitempty"`                                                                      // e.g., "http", "dns", "tls" (from logger attr)
 	Fields        map[string]string      `protobuf:"bytes,10,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // structured attrs (key→value)
+	NodeId        string                 `protobuf:"bytes,11,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                                                             // Hostname of the node that produced this log entry.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -195,6 +196,13 @@ func (x *LogInfo) GetFields() map[string]string {
 		return x.Fields
 	}
 	return nil
+}
+
+func (x *LogInfo) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
 }
 
 // LogRqst is the request format for logging a new message.
@@ -561,7 +569,7 @@ var File_log_proto protoreflect.FileDescriptor
 
 const file_log_proto_rawDesc = "" +
 	"\n" +
-	"\tlog.proto\x12\x03log\"\xf4\x02\n" +
+	"\tlog.proto\x12\x03log\"\x8d\x03\n" +
 	"\aLogInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\x05level\x18\x02 \x01(\x0e2\r.log.LogLevelR\x05level\x12 \n" +
@@ -575,7 +583,8 @@ const file_log_proto_rawDesc = "" +
 	"\ftimestamp_ms\x18\b \x01(\x03R\vtimestampMs\x12\x1c\n" +
 	"\tcomponent\x18\t \x01(\tR\tcomponent\x120\n" +
 	"\x06fields\x18\n" +
-	" \x03(\v2\x18.log.LogInfo.FieldsEntryR\x06fields\x1a9\n" +
+	" \x03(\v2\x18.log.LogInfo.FieldsEntryR\x06fields\x12\x17\n" +
+	"\anode_id\x18\v \x01(\tR\x06nodeId\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"+\n" +

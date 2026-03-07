@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/globulario/services/golang/backup_hook"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/search/searchpb"
 	"google.golang.org/grpc/reflection"
@@ -72,6 +73,7 @@ func initializeServerDefaults() *server {
 
 func setupGrpc(s *server) {
 	searchpb.RegisterSearchServiceServer(s.grpcServer, s)
+	backup_hook.Register(s.grpcServer, s.newBackupHookHandler())
 	reflection.Register(s.grpcServer)
 }
 

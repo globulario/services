@@ -1925,6 +1925,29 @@ scrape_configs:
     scheme: http
 `
 		}
+
+		// Per-service metrics (proxy port = metrics port, bound to 127.0.0.1)
+		if allCfgs, err := config.GetServicesConfigurations(); err == nil {
+			for _, svcCfg := range allCfgs {
+				svcName := Utility.ToString(svcCfg["Name"])
+				proxyPort := Utility.ToInt(svcCfg["Proxy"])
+				if svcName == "" || proxyPort == 0 {
+					continue
+				}
+				// Derive a clean job name: "event", "file", "authentication", etc.
+				base := strings.TrimSuffix(svcName, "Service")
+				base = strings.TrimRight(base, ".")
+				if idx := strings.LastIndex(base, "."); idx >= 0 {
+					base = base[idx+1:]
+				}
+				base = strings.ToLower(base)
+				cfg += "  - job_name: '" + base + "'\n" +
+					"    scrape_interval: 5s\n" +
+					"    static_configs:\n" +
+					"    - targets: ['127.0.0.1:" + Utility.ToString(proxyPort) + "']\n"
+			}
+		}
+
 		if err := os.WriteFile(promYml, []byte(cfg), 0644); err != nil {
 			return err
 		}

@@ -45,6 +45,7 @@ const (
 	ClusterControllerService_CompleteOperation_FullMethodName      = "/cluster_controller.ClusterControllerService/CompleteOperation"
 	ClusterControllerService_WatchOperations_FullMethodName        = "/cluster_controller.ClusterControllerService/WatchOperations"
 	ClusterControllerService_GetClusterHealthV1_FullMethodName     = "/cluster_controller.ClusterControllerService/GetClusterHealthV1"
+	ClusterControllerService_GetNodeHealthDetailV1_FullMethodName  = "/cluster_controller.ClusterControllerService/GetNodeHealthDetailV1"
 	ClusterControllerService_PreviewNodeProfiles_FullMethodName    = "/cluster_controller.ClusterControllerService/PreviewNodeProfiles"
 	ClusterControllerService_GetDesiredState_FullMethodName        = "/cluster_controller.ClusterControllerService/GetDesiredState"
 	ClusterControllerService_UpsertDesiredService_FullMethodName   = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
@@ -81,6 +82,7 @@ type ClusterControllerServiceClient interface {
 	CompleteOperation(ctx context.Context, in *CompleteOperationRequest, opts ...grpc.CallOption) (*CompleteOperationResponse, error)
 	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 	GetClusterHealthV1(ctx context.Context, in *GetClusterHealthV1Request, opts ...grpc.CallOption) (*GetClusterHealthV1Response, error)
+	GetNodeHealthDetailV1(ctx context.Context, in *GetNodeHealthDetailV1Request, opts ...grpc.CallOption) (*GetNodeHealthDetailV1Response, error)
 	// PreviewNodeProfiles computes the unit actions and config changes that WOULD result
 	// from assigning the given profiles to a node, without mutating any state.
 	PreviewNodeProfiles(ctx context.Context, in *PreviewNodeProfilesRequest, opts ...grpc.CallOption) (*PreviewNodeProfilesResponse, error)
@@ -350,6 +352,16 @@ func (c *clusterControllerServiceClient) GetClusterHealthV1(ctx context.Context,
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetNodeHealthDetailV1(ctx context.Context, in *GetNodeHealthDetailV1Request, opts ...grpc.CallOption) (*GetNodeHealthDetailV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNodeHealthDetailV1Response)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetNodeHealthDetailV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) PreviewNodeProfiles(ctx context.Context, in *PreviewNodeProfilesRequest, opts ...grpc.CallOption) (*PreviewNodeProfilesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PreviewNodeProfilesResponse)
@@ -447,6 +459,7 @@ type ClusterControllerServiceServer interface {
 	CompleteOperation(context.Context, *CompleteOperationRequest) (*CompleteOperationResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error)
+	GetNodeHealthDetailV1(context.Context, *GetNodeHealthDetailV1Request) (*GetNodeHealthDetailV1Response, error)
 	// PreviewNodeProfiles computes the unit actions and config changes that WOULD result
 	// from assigning the given profiles to a node, without mutating any state.
 	PreviewNodeProfiles(context.Context, *PreviewNodeProfilesRequest) (*PreviewNodeProfilesResponse, error)
@@ -535,6 +548,9 @@ func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperati
 }
 func (UnimplementedClusterControllerServiceServer) GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetClusterHealthV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetNodeHealthDetailV1(context.Context, *GetNodeHealthDetailV1Request) (*GetNodeHealthDetailV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNodeHealthDetailV1 not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) PreviewNodeProfiles(context.Context, *PreviewNodeProfilesRequest) (*PreviewNodeProfilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PreviewNodeProfiles not implemented")
@@ -977,6 +993,24 @@ func _ClusterControllerService_GetClusterHealthV1_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetNodeHealthDetailV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeHealthDetailV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetNodeHealthDetailV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetNodeHealthDetailV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetNodeHealthDetailV1(ctx, req.(*GetNodeHealthDetailV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_PreviewNodeProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PreviewNodeProfilesRequest)
 	if err := dec(in); err != nil {
@@ -1193,6 +1227,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClusterHealthV1",
 			Handler:    _ClusterControllerService_GetClusterHealthV1_Handler,
+		},
+		{
+			MethodName: "GetNodeHealthDetailV1",
+			Handler:    _ClusterControllerService_GetNodeHealthDetailV1_Handler,
 		},
 		{
 			MethodName: "PreviewNodeProfiles",

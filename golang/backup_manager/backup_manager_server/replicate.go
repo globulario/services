@@ -1,8 +1,12 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -37,6 +41,7 @@ func (srv *server) replicateToDestinations(backupID string, plan *backup_manager
 				DestinationType: destType(dest.Type),
 				DestinationPath: dest.Path,
 				State:           backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED,
+				BytesWritten:    dirSize(capsuleDir),
 			})
 			continue
 		}
@@ -100,6 +105,7 @@ func (srv *server) replicateOne(backupID, capsuleDir string, dest DestinationCon
 		slog.Warn("replication failed", "backup_id", backupID, "destination", dest.Name, "error", err)
 	} else {
 		result.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
+		result.BytesWritten = dirSize(capsuleDir)
 		slog.Info("replication completed", "backup_id", backupID, "destination", dest.Name, "duration_ms", result.FinishedUnixMs-start)
 	}
 
@@ -149,6 +155,11 @@ func (srv *server) replicateMinio(backupID, capsuleDir string, dest DestinationC
 	}
 	if dest.Options["no_check_bucket"] == "true" {
 		args = append(args, "--s3-no-check-bucket")
+	}
+
+	// Skip TLS verification for internal MinIO with self-signed certs
+	if strings.HasPrefix(endpoint, "https") && srv.MinioSecure {
+		args = append(args, "--no-check-certificate")
 	}
 
 	cmd := exec.Command("rclone", args...)
@@ -228,6 +239,100 @@ func destType(t string) backup_managerpb.BackupDestinationType {
 	default:
 		return backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_TYPE_UNSPECIFIED
 	}
+}
+
+// dirSize returns the total size of all files in a directory tree.
+func dirSize(path string) uint64 {
+	var total uint64
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		total += uint64(info.Size())
+		return nil
+	})
+	return total
+}
+
+// computeCapsuleSHA computes a SHA-256 hash over all files in the capsule directory,
+// sorted by relative path for determinism.
+func computeCapsuleSHA(capsuleDir string) string {
+	h := sha256.New()
+	_ = filepath.Walk(capsuleDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(capsuleDir, path)
+		h.Write([]byte(rel))
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+		io.Copy(h, f)
+		return nil
+	})
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// compressCapsule creates a tar.gz archive of the capsule directory.
+// Returns the path to the archive file (placed next to the capsule dir).
+func compressCapsule(capsuleDir string) (string, error) {
+	archivePath := capsuleDir + ".tar.gz"
+
+	f, err := os.Create(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("create archive file: %w", err)
+	}
+	defer f.Close()
+
+	gw := gzip.NewWriter(f)
+	defer gw.Close()
+
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	baseDir := filepath.Dir(capsuleDir)
+	prefix := filepath.Base(capsuleDir)
+
+	err = filepath.Walk(capsuleDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		rel, _ := filepath.Rel(baseDir, path)
+		// Ensure archive entries start with the backup ID directory name
+		_ = prefix
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = rel
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(tw, file)
+		return err
+	})
+
+	if err != nil {
+		os.Remove(archivePath)
+		return "", fmt.Errorf("walk capsule dir: %w", err)
+	}
+
+	return archivePath, nil
 }
 
 // destTypeStr converts a proto enum to its string representation.

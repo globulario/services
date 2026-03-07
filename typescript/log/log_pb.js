@@ -261,7 +261,8 @@ line: jspb.Message.getFieldWithDefault(msg, 6, ""),
 occurences: jspb.Message.getFieldWithDefault(msg, 7, 0),
 timestampMs: jspb.Message.getFieldWithDefault(msg, 8, 0),
 component: jspb.Message.getFieldWithDefault(msg, 9, ""),
-fieldsMap: (f = msg.getFieldsMap()) ? f.toObject(includeInstance, undefined) : []
+fieldsMap: (f = msg.getFieldsMap()) ? f.toObject(includeInstance, undefined) : [],
+nodeId: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -339,6 +340,10 @@ proto.log.LogInfo.deserializeBinaryFromReader = function(msg, reader) {
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
          });
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
       break;
     default:
       reader.skipField();
@@ -435,6 +440,13 @@ proto.log.LogInfo.serializeBinaryToWriter = function(message, writer) {
   f = message.getFieldsMap(true);
   if (f && f.getLength() > 0) {
     f.serializeBinary(10, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
+      f
+    );
   }
 };
 
@@ -621,6 +633,24 @@ proto.log.LogInfo.prototype.getFieldsMap = function(opt_noLazyCreate) {
 proto.log.LogInfo.prototype.clearFieldsMap = function() {
   this.getFieldsMap().clear();
   return this;
+};
+
+
+/**
+ * optional string node_id = 11;
+ * @return {string}
+ */
+proto.log.LogInfo.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 

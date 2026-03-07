@@ -35,6 +35,9 @@ service BackupManagerService {
   // Cancel a running backup job.
   rpc CancelBackupJob(CancelBackupJobRequest) returns (CancelBackupJobResponse);
 
+  // Delete a backup job record (for cleaning up failed/old jobs).
+  rpc DeleteBackupJob(DeleteBackupJobRequest) returns (DeleteBackupJobResponse);
+
   // Run retention policy now (delete old backups per config).
   rpc RunRetention(RunRetentionRequest) returns (RunRetentionResponse);
 
@@ -52,6 +55,15 @@ service BackupManagerService {
 
   // Demote a previously promoted backup (allow retention to delete it).
   rpc DemoteBackup(DemoteBackupRequest) returns (DemoteBackupResponse);
+
+  // List MinIO buckets on the configured endpoint.
+  rpc ListMinioBuckets(ListMinioBucketsRequest) returns (ListMinioBucketsResponse);
+
+  // Create a MinIO bucket.
+  rpc CreateMinioBucket(CreateMinioBucketRequest) returns (CreateMinioBucketResponse);
+
+  // Delete a MinIO bucket.
+  rpc DeleteMinioBucket(DeleteMinioBucketRequest) returns (DeleteMinioBucketResponse);
 
   // Stop the service.
   rpc Stop(StopRequest) returns (StopResponse);
@@ -393,6 +405,16 @@ message CancelBackupJobResponse {
   string message = 2;
 }
 
+message DeleteBackupJobRequest {
+  string job_id = 1;
+  bool delete_artifacts = 2;  // also delete the backup artifact if one was created
+}
+
+message DeleteBackupJobResponse {
+  bool deleted = 1;
+  string message = 2;
+}
+
 message RunRetentionRequest {
   bool dry_run = 1;                    // if true, return what would be deleted without deleting
 }
@@ -521,6 +543,44 @@ message FinalizeBackupHookResponse {
   bool ok = 1;
   string message = 2;
   map<string, string> details = 3;
+}
+
+// --- MinIO Bucket Management ---
+
+message MinioBucketInfo {
+  string name = 1;
+  string creation_date = 2;   // RFC3339
+  uint64 size_bytes = 3;      // approximate total size (0 if unknown)
+  uint64 object_count = 4;    // approximate number of objects (0 if unknown)
+}
+
+message ListMinioBucketsRequest {}
+
+message ListMinioBucketsResponse {
+  repeated MinioBucketInfo buckets = 1;
+  string endpoint = 2;              // the MinIO endpoint used
+}
+
+message CreateMinioBucketRequest {
+  string name = 1;                  // bucket name
+  bool set_as_backup_destination = 2;  // if true, auto-add as a backup destination
+  bool set_as_scylla_location = 3;     // if true, also set ScyllaLocation = s3:<name>
+}
+
+message CreateMinioBucketResponse {
+  bool ok = 1;
+  string message = 2;
+  string bucket_name = 3;
+}
+
+message DeleteMinioBucketRequest {
+  string name = 1;                  // bucket name to delete
+  bool force = 2;                   // if true, delete even if bucket has objects
+}
+
+message DeleteMinioBucketResponse {
+  bool ok = 1;
+  string message = 2;
 }
 
 message StopRequest {}

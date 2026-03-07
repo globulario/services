@@ -19,6 +19,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/plan/planpb"
@@ -317,12 +318,16 @@ func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestam
 	if created.IsZero() {
 		created = time.Now()
 	}
+	domain := srv.cfg.ClusterDomain
+	if domain == "" {
+		domain = netutil.DefaultClusterDomain()
+	}
 	clusterID := srv.state.ClusterId
 	if clusterID == "" {
-		clusterID = srv.cfg.ClusterDomain
+		clusterID = domain
 	}
 	info := &cluster_controllerpb.ClusterInfo{
-		ClusterDomain: srv.cfg.ClusterDomain,
+		ClusterDomain: domain,
 		ClusterId:     clusterID,
 		CreatedAt:     timestamppb.New(created),
 	}
@@ -481,6 +486,7 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	// Note: New nodes won't have endpoint yet, so reconciliation loop will pick this up
 	// when the node first reports status with its agent endpoint
 	srv.unlock()
+	// NOTE: lock is released here; remaining code below does not need the lock.
 
 	return &cluster_controllerpb.ApproveJoinResponse{
 		NodeId:  nodeID,
@@ -760,11 +766,11 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 	// Remove from state
 	srv.lock("remove-node")
 	delete(srv.state.Nodes, nodeID)
-	if err := srv.persistStateLocked(true); err != nil {
-		srv.unlock()
-		return nil, status.Errorf(codes.Internal, "persist node removal: %v", err)
-	}
+	persistErr := srv.persistStateLocked(true)
 	srv.unlock()
+	if persistErr != nil {
+		return nil, status.Errorf(codes.Internal, "persist node removal: %v", persistErr)
+	}
 
 	// Close agent client if we have one
 	if agentEndpoint != "" {
@@ -1078,11 +1084,13 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *cluster_controllerpb.
 		srv.unlock()
 	}
 	if srv.recordPlanSent(nodeID, hash) {
-		srv.lock("unknown")
-		if err := srv.persistStateLocked(true); err != nil {
-			log.Printf("persist state after ApplyNodePlan: %v", err)
-		}
-		srv.unlock()
+		srv.lock("apply-node-plan:persist")
+		func() {
+			defer srv.unlock()
+			if err := srv.persistStateLocked(true); err != nil {
+				log.Printf("persist state after ApplyNodePlan: %v", err)
+			}
+		}()
 	}
 
 	return &cluster_controllerpb.ApplyNodePlanResponse{
@@ -2209,10 +2217,12 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 
 	if stateDirty {
 		srv.lock("health-monitor:persist")
-		if err := srv.persistStateLocked(true); err != nil {
-			log.Printf("health monitor: persist state: %v", err)
-		}
-		srv.unlock()
+		func() {
+			defer srv.unlock()
+			if err := srv.persistStateLocked(true); err != nil {
+				log.Printf("health monitor: persist state: %v", err)
+			}
+		}()
 	}
 }
 
@@ -2781,10 +2791,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	}
 	if stateDirty {
 		srv.lock("reconcile:persist")
-		if err := srv.persistStateLocked(true); err != nil {
-			log.Printf("persist state: %v", err)
-		}
-		srv.unlock()
+		func() {
+			defer srv.unlock()
+			if err := srv.persistStateLocked(true); err != nil {
+				log.Printf("persist state: %v", err)
+			}
+		}()
 	}
 }
 

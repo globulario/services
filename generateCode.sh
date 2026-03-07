@@ -36,6 +36,8 @@ GO_TARGETS=(
   "node_agent:golang/node_agent/node_agentpb"
   "plan:golang/plan/planpb"
   "cluster_doctor:golang/cluster_doctor/cluster_doctorpb"
+  "backup_manager:golang/backup_manager/backup_managerpb"
+  "backup_hook:golang/backup_hook/backup_hookpb"
 )
 
 TS_TARGETS=(
@@ -67,6 +69,7 @@ TS_TARGETS=(
 "node_agent"
 "plan"
 "cluster_doctor"
+"backup_manager"
 )
 
 protoc_generate_go() {

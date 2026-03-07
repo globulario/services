@@ -89,6 +89,7 @@ func (srv *server) captureTopology(backupID string) (*backup_managerpb.ClusterIn
 		"hash", hash[:16])
 
 	return &backup_managerpb.ClusterInfo{
+		ClusterId:    srv.Domain,
 		Domain:       srv.Domain,
 		TopologyHash: hash,
 	}, nil

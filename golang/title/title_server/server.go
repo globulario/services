@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -942,6 +943,7 @@ func main() {
 
 	logger.Debug("registering gRPC handlers", "service", srv.Name)
 	titlepb.RegisterTitleServiceServer(srv.grpcServer, srv)
+	backup_hook.Register(srv.grpcServer, srv.newBackupHookHandler())
 	reflection.Register(srv.grpcServer)
 	logger.Debug("gRPC handlers registered")
 

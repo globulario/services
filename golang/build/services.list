@@ -27,3 +27,4 @@
 ./node_agent/node_agent_server | usr/local/bin/node_agent_server
 ./globularcli | usr/local/bin/globularcli
 ./cluster_doctor/cluster_doctor_server | usr/local/bin/cluster_doctor_server
+./backup_manager/backup_manager_server | usr/local/bin/backup_manager_server

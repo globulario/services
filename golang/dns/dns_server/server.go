@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
@@ -463,14 +464,15 @@ func (srv *server) ensureDefaultInternalZone() error {
 		return fmt.Errorf("bootstrap zone: %w", err)
 	}
 
-	// Add baseline A records for core services
+	// Add baseline A records for core services.
+	// Note: dns.<domain> is created automatically by ensureZoneAuthority
+	// (called from SetDomains above) with the real node IP.
 	baseRecords := []struct {
 		name string
 		ip   string
 	}{
 		{"globular-gateway." + internalDomain, "127.0.0.1"},
 		{"controller." + internalDomain, "127.0.0.1"},
-		{"dns." + internalDomain, "127.0.0.1"},
 		{"etcd." + internalDomain, "127.0.0.1"},
 	}
 
@@ -663,6 +665,7 @@ func initializeServerDefaults() *server {
 
 func setupGrpcService(s *server) {
 	dnspb.RegisterDnsServiceServer(s.grpcServer, s)
+	backup_hook.Register(s.grpcServer, s.newBackupHookHandler())
 	reflection.Register(s.grpcServer)
 }
 
