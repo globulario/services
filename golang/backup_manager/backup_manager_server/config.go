@@ -50,6 +50,9 @@ type Config struct {
 	EtcdCert      string `json:"EtcdCert"`
 	EtcdKey       string `json:"EtcdKey"`
 
+	// Capsule compression
+	CompressCapsule bool `json:"CompressCapsule"` // if true, tar.gz capsule before replication
+
 	// Deletion safety
 	AllowResticPruneOnDelete bool `json:"AllowResticPruneOnDelete"` // allow restic forget/prune on delete (default false)
 	AllowRemoteDelete        bool `json:"AllowRemoteDelete"`        // allow deletion of replicated copies (default true)
@@ -88,6 +91,15 @@ type Config struct {
 	ScyllaManagerAPI string `json:"ScyllaManagerAPI"` // scylla-manager API, default "http://127.0.0.1:5080"
 	ScyllaCluster    string `json:"ScyllaCluster"`    // cluster name in scylla-manager
 	ScyllaLocation   string `json:"ScyllaLocation"`   // backup location, e.g. "s3:scylla-backups"
+
+	// Scheduled backups
+	ScheduleInterval string `json:"ScheduleInterval"` // e.g. "6h", "24h", "daily", "weekly", "0"=disabled
+
+	// MinIO connection (shared by minio provider + bucket management)
+	MinioEndpoint  string `json:"MinioEndpoint"`  // e.g. "127.0.0.1:9000"
+	MinioAccessKey string `json:"MinioAccessKey"` // access key
+	MinioSecretKey string `json:"MinioSecretKey"` // secret key
+	MinioSecure    bool   `json:"MinioSecure"`    // use HTTPS
 }
 
 // DestinationConfig defines a storage location for backup artifacts.
@@ -137,7 +149,7 @@ func DefaultConfig() *Config {
 		MaxConcurrentJobs: 1,
 		AllowResticPruneOnDelete: false,
 		AllowRemoteDelete:        true,
-		ProviderTimeoutSeconds:   600, // 10 minutes default
+		ProviderTimeoutSeconds:   1800, // 30 minutes default
 		Destinations: []DestinationConfig{
 			{
 				Name:    "local",
@@ -157,11 +169,18 @@ func DefaultConfig() *Config {
 		ResticPaths:    "/var/lib/globular",
 
 		RcloneRemote: "",
-		RcloneSource: "/var/lib/globular/.minio/data",
+		RcloneSource: "/var/lib/globular/minio/data",
 
 		ScyllaManagerAPI: "http://127.0.0.1:5080",
 		ScyllaCluster:    "",
 		ScyllaLocation:   "",
+
+		ScheduleInterval: "daily",
+
+		MinioEndpoint:  "127.0.0.1:9000",
+		MinioAccessKey: "",
+		MinioSecretKey: "",
+		MinioSecure:    true,
 	}
 
 	cfg.Domain, cfg.Address = globular_service.GetDefaultDomainAddress(cfg.Port)

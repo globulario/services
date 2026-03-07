@@ -14,6 +14,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -86,6 +87,9 @@ type server struct {
 	active            *runningJobs   // cancelable running jobs
 	tokens            *tokenStore    // TTL-based confirmation tokens
 
+	// Capsule compression
+	CompressCapsule bool `json:"CompressCapsule"` // if true, tar.gz the capsule before replication
+
 	// Deletion safety
 	AllowResticPruneOnDelete bool `json:"AllowResticPruneOnDelete"`
 	AllowRemoteDelete        bool `json:"AllowRemoteDelete"`
@@ -124,6 +128,16 @@ type server struct {
 	ScyllaManagerAPI string `json:"ScyllaManagerAPI"`
 	ScyllaCluster    string `json:"ScyllaCluster"`
 	ScyllaLocation   string `json:"ScyllaLocation"`
+
+	// Scheduled backups
+	ScheduleInterval string         `json:"ScheduleInterval"`
+	stopScheduler    context.CancelFunc
+
+	// MinIO connection
+	MinioEndpoint  string `json:"MinioEndpoint"`
+	MinioAccessKey string `json:"MinioAccessKey"`
+	MinioSecretKey string `json:"MinioSecretKey"`
+	MinioSecure    bool   `json:"MinioSecure"`
 }
 
 // --- Globular service contract (getters/setters) ---
@@ -240,6 +254,14 @@ func (srv *server) Init() error {
 	if srv.EtcdCACert == "" {
 		srv.EtcdCACert = "/var/lib/globular/pki/ca.pem"
 	}
+	// Prefer ca.crt if the configured path does not exist
+	if !fileExists(srv.EtcdCACert) {
+		dir := filepath.Dir(srv.EtcdCACert)
+		alt := filepath.Join(dir, "ca.crt")
+		if fileExists(alt) {
+			srv.EtcdCACert = alt
+		}
+	}
 	if srv.EtcdCert == "" {
 		srv.EtcdCert = "/var/lib/globular/pki/issued/services/service.crt"
 	}
@@ -258,14 +280,26 @@ func (srv *server) Init() error {
 	if len(srv.ClusterDefaultProviders) == 0 {
 		srv.ClusterDefaultProviders = []string{"etcd", "scylla", "restic", "minio"}
 	}
+	// Auto-include scylla in ClusterDefaultProviders when ScyllaCluster is configured
+	// but was previously missing from the list (e.g. saved before scylla was set up).
+	if srv.ScyllaCluster != "" && !containsProvider(srv.ClusterDefaultProviders, "scylla") {
+		srv.ClusterDefaultProviders = append(srv.ClusterDefaultProviders, "scylla")
+	}
 	if srv.RcloneSource == "" {
-		srv.RcloneSource = "/var/lib/globular/.minio/data"
+		srv.RcloneSource = "/var/lib/globular/minio/data"
 	}
 	if srv.ScyllaManagerAPI == "" {
 		srv.ScyllaManagerAPI = "http://127.0.0.1:5080"
 	}
 	if srv.HookTimeoutSeconds <= 0 {
 		srv.HookTimeoutSeconds = 30
+	}
+	if srv.MinioEndpoint == "" {
+		srv.MinioEndpoint = "127.0.0.1:9000"
+	}
+	// Auto-load MinIO credentials from the Globular credentials file if not configured.
+	if srv.MinioAccessKey == "" || srv.MinioSecretKey == "" {
+		srv.tryLoadMinioCredentials()
 	}
 	if len(srv.Destinations) == 0 {
 		srv.Destinations = []DestinationConfig{
@@ -282,7 +316,72 @@ func (srv *server) Init() error {
 	srv.active = newRunningJobs()
 	srv.tokens = newTokenStore()
 
+	// Recover orphaned jobs that were running when the server last stopped.
+	srv.recoverOrphanedJobs()
+
+	// Auto-configure scylla-manager-agent S3 access if MinIO is configured.
+	srv.ensureScyllaAgentS3Config()
+
+	// Auto-register ScyllaDB in scylla-manager if not already done.
+	// Runs in background so it doesn't block startup.
+	go srv.ensureScyllaRegistered()
+
+	// Start the backup scheduler (no-op if ScheduleInterval is empty/disabled).
+	srv.stopScheduler = srv.startScheduler()
+
 	return nil
+}
+
+// recoverOrphanedJobs marks any jobs left in running/queued state as failed.
+// This happens when the server crashes or restarts while a job is in progress.
+func (srv *server) recoverOrphanedJobs() {
+	hadOrphans := false
+	jobs, _, err := srv.store.ListJobs(backup_managerpb.BackupJobState_BACKUP_JOB_STATE_UNSPECIFIED, "", 0, 0)
+	if err != nil {
+		slog.Warn("failed to list jobs for recovery", "error", err)
+		return
+	}
+	for _, job := range jobs {
+		if job.State == backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING ||
+			job.State == backup_managerpb.BackupJobState_BACKUP_JOB_QUEUED {
+			hadOrphans = true
+			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
+			job.Message = "server restarted while job was in progress"
+			job.FinishedUnixMs = time.Now().UnixMilli()
+			if err := srv.store.SaveJob(job); err != nil {
+				slog.Warn("failed to recover orphaned job", "job_id", job.JobId, "error", err)
+			} else {
+				slog.Info("recovered orphaned job", "job_id", job.JobId)
+			}
+		}
+	}
+
+	// If there were orphaned jobs, force-release the cluster lock
+	// in case it's still held by a stale etcd lease.
+	if hadOrphans {
+		srv.forceReleaseClusterLock()
+	}
+}
+
+// forceReleaseClusterLock deletes the etcd cluster lock key to clear stale locks.
+func (srv *server) forceReleaseClusterLock() {
+	cli, err := srv.etcdClient()
+	if err != nil {
+		slog.Warn("cannot connect to etcd to release stale lock", "error", err)
+		return
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Delete all keys under the lock prefix to clear any stale mutex entries
+	resp, err := cli.Delete(ctx, clusterLockKey, clientv3.WithPrefix())
+	if err != nil {
+		slog.Warn("failed to delete stale cluster lock", "error", err)
+	} else if resp.Deleted > 0 {
+		slog.Info("released stale cluster lock", "keys_deleted", resp.Deleted)
+	}
 }
 
 func (srv *server) Save() error { return globular.SaveService(srv) }
@@ -296,6 +395,9 @@ func (srv *server) StartService() error {
 }
 
 func (srv *server) StopService() error {
+	if srv.stopScheduler != nil {
+		srv.stopScheduler()
+	}
 	return globular.StopService(srv, srv.grpcServer)
 }
 
@@ -343,7 +445,7 @@ func initializeServerDefaults() *server {
 	srv.MaxConcurrentJobs = 1
 	srv.AllowResticPruneOnDelete = false
 	srv.AllowRemoteDelete = true
-	srv.ProviderTimeoutSeconds = 600
+	srv.ProviderTimeoutSeconds = 1800
 	srv.Destinations = []DestinationConfig{
 		{Name: "local", Type: "local", Path: "/var/lib/globular/backups", Primary: true},
 	}
@@ -358,13 +460,16 @@ func initializeServerDefaults() *server {
 	srv.ResticPaths = "/var/lib/globular"
 
 	srv.RcloneRemote = ""
-	srv.RcloneSource = "/var/lib/globular/.minio/data"
+	srv.RcloneSource = "/var/lib/globular/minio/data"
 
 	srv.ScyllaManagerAPI = "http://127.0.0.1:5080"
 	srv.ScyllaCluster = ""
 	srv.ScyllaLocation = ""
 
 	srv.ClusterDefaultProviders = []string{"etcd", "scylla", "restic", "minio"}
+
+	srv.MinioEndpoint = "127.0.0.1:9000"
+	srv.MinioSecure = true
 
 	return srv
 }
