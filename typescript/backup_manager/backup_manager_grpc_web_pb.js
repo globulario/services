@@ -1480,6 +1480,67 @@ proto.backup_manager.BackupManagerServicePromiseClient.prototype.applyRecoverySe
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.backup_manager.TestScyllaConnectionRequest,
+ *   !proto.backup_manager.TestScyllaConnectionResponse>}
+ */
+const methodDescriptor_BackupManagerService_TestScyllaConnection = new grpc.web.MethodDescriptor(
+  '/backup_manager.BackupManagerService/TestScyllaConnection',
+  grpc.web.MethodType.UNARY,
+  proto.backup_manager.TestScyllaConnectionRequest,
+  proto.backup_manager.TestScyllaConnectionResponse,
+  /**
+   * @param {!proto.backup_manager.TestScyllaConnectionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.backup_manager.TestScyllaConnectionResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.backup_manager.TestScyllaConnectionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.backup_manager.TestScyllaConnectionResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.backup_manager.TestScyllaConnectionResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.backup_manager.BackupManagerServiceClient.prototype.testScyllaConnection =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/backup_manager.BackupManagerService/TestScyllaConnection',
+      request,
+      metadata || {},
+      methodDescriptor_BackupManagerService_TestScyllaConnection,
+      callback);
+};
+
+
+/**
+ * @param {!proto.backup_manager.TestScyllaConnectionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.backup_manager.TestScyllaConnectionResponse>}
+ *     Promise that resolves to the response
+ */
+proto.backup_manager.BackupManagerServicePromiseClient.prototype.testScyllaConnection =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/backup_manager.BackupManagerService/TestScyllaConnection',
+      request,
+      metadata || {},
+      methodDescriptor_BackupManagerService_TestScyllaConnection);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.backup_manager.StopRequest,
  *   !proto.backup_manager.StopResponse>}
  */

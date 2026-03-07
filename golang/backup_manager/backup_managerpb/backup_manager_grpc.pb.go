@@ -19,30 +19,31 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BackupManagerService_RunBackup_FullMethodName          = "/backup_manager.BackupManagerService/RunBackup"
-	BackupManagerService_GetBackupJob_FullMethodName       = "/backup_manager.BackupManagerService/GetBackupJob"
-	BackupManagerService_ListBackupJobs_FullMethodName     = "/backup_manager.BackupManagerService/ListBackupJobs"
-	BackupManagerService_ListBackups_FullMethodName        = "/backup_manager.BackupManagerService/ListBackups"
-	BackupManagerService_GetBackup_FullMethodName          = "/backup_manager.BackupManagerService/GetBackup"
-	BackupManagerService_DeleteBackup_FullMethodName       = "/backup_manager.BackupManagerService/DeleteBackup"
-	BackupManagerService_ValidateBackup_FullMethodName     = "/backup_manager.BackupManagerService/ValidateBackup"
-	BackupManagerService_RestorePlan_FullMethodName        = "/backup_manager.BackupManagerService/RestorePlan"
-	BackupManagerService_RestoreBackup_FullMethodName      = "/backup_manager.BackupManagerService/RestoreBackup"
-	BackupManagerService_CancelBackupJob_FullMethodName    = "/backup_manager.BackupManagerService/CancelBackupJob"
-	BackupManagerService_DeleteBackupJob_FullMethodName    = "/backup_manager.BackupManagerService/DeleteBackupJob"
-	BackupManagerService_RunRetention_FullMethodName       = "/backup_manager.BackupManagerService/RunRetention"
-	BackupManagerService_GetRetentionStatus_FullMethodName = "/backup_manager.BackupManagerService/GetRetentionStatus"
-	BackupManagerService_PreflightCheck_FullMethodName     = "/backup_manager.BackupManagerService/PreflightCheck"
-	BackupManagerService_RunRestoreTest_FullMethodName     = "/backup_manager.BackupManagerService/RunRestoreTest"
-	BackupManagerService_PromoteBackup_FullMethodName      = "/backup_manager.BackupManagerService/PromoteBackup"
-	BackupManagerService_DemoteBackup_FullMethodName       = "/backup_manager.BackupManagerService/DemoteBackup"
-	BackupManagerService_ListMinioBuckets_FullMethodName   = "/backup_manager.BackupManagerService/ListMinioBuckets"
-	BackupManagerService_CreateMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/CreateMinioBucket"
-	BackupManagerService_DeleteMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/DeleteMinioBucket"
-	BackupManagerService_GetScheduleStatus_FullMethodName  = "/backup_manager.BackupManagerService/GetScheduleStatus"
-	BackupManagerService_GetRecoveryStatus_FullMethodName  = "/backup_manager.BackupManagerService/GetRecoveryStatus"
-	BackupManagerService_ApplyRecoverySeed_FullMethodName  = "/backup_manager.BackupManagerService/ApplyRecoverySeed"
-	BackupManagerService_Stop_FullMethodName               = "/backup_manager.BackupManagerService/Stop"
+	BackupManagerService_RunBackup_FullMethodName            = "/backup_manager.BackupManagerService/RunBackup"
+	BackupManagerService_GetBackupJob_FullMethodName         = "/backup_manager.BackupManagerService/GetBackupJob"
+	BackupManagerService_ListBackupJobs_FullMethodName       = "/backup_manager.BackupManagerService/ListBackupJobs"
+	BackupManagerService_ListBackups_FullMethodName          = "/backup_manager.BackupManagerService/ListBackups"
+	BackupManagerService_GetBackup_FullMethodName            = "/backup_manager.BackupManagerService/GetBackup"
+	BackupManagerService_DeleteBackup_FullMethodName         = "/backup_manager.BackupManagerService/DeleteBackup"
+	BackupManagerService_ValidateBackup_FullMethodName       = "/backup_manager.BackupManagerService/ValidateBackup"
+	BackupManagerService_RestorePlan_FullMethodName          = "/backup_manager.BackupManagerService/RestorePlan"
+	BackupManagerService_RestoreBackup_FullMethodName        = "/backup_manager.BackupManagerService/RestoreBackup"
+	BackupManagerService_CancelBackupJob_FullMethodName      = "/backup_manager.BackupManagerService/CancelBackupJob"
+	BackupManagerService_DeleteBackupJob_FullMethodName      = "/backup_manager.BackupManagerService/DeleteBackupJob"
+	BackupManagerService_RunRetention_FullMethodName         = "/backup_manager.BackupManagerService/RunRetention"
+	BackupManagerService_GetRetentionStatus_FullMethodName   = "/backup_manager.BackupManagerService/GetRetentionStatus"
+	BackupManagerService_PreflightCheck_FullMethodName       = "/backup_manager.BackupManagerService/PreflightCheck"
+	BackupManagerService_RunRestoreTest_FullMethodName       = "/backup_manager.BackupManagerService/RunRestoreTest"
+	BackupManagerService_PromoteBackup_FullMethodName        = "/backup_manager.BackupManagerService/PromoteBackup"
+	BackupManagerService_DemoteBackup_FullMethodName         = "/backup_manager.BackupManagerService/DemoteBackup"
+	BackupManagerService_ListMinioBuckets_FullMethodName     = "/backup_manager.BackupManagerService/ListMinioBuckets"
+	BackupManagerService_CreateMinioBucket_FullMethodName    = "/backup_manager.BackupManagerService/CreateMinioBucket"
+	BackupManagerService_DeleteMinioBucket_FullMethodName    = "/backup_manager.BackupManagerService/DeleteMinioBucket"
+	BackupManagerService_GetScheduleStatus_FullMethodName    = "/backup_manager.BackupManagerService/GetScheduleStatus"
+	BackupManagerService_GetRecoveryStatus_FullMethodName    = "/backup_manager.BackupManagerService/GetRecoveryStatus"
+	BackupManagerService_ApplyRecoverySeed_FullMethodName    = "/backup_manager.BackupManagerService/ApplyRecoverySeed"
+	BackupManagerService_TestScyllaConnection_FullMethodName = "/backup_manager.BackupManagerService/TestScyllaConnection"
+	BackupManagerService_Stop_FullMethodName                 = "/backup_manager.BackupManagerService/Stop"
 )
 
 // BackupManagerServiceClient is the client API for BackupManagerService service.
@@ -95,6 +96,8 @@ type BackupManagerServiceClient interface {
 	GetRecoveryStatus(ctx context.Context, in *GetRecoveryStatusRequest, opts ...grpc.CallOption) (*GetRecoveryStatusResponse, error)
 	// Explicitly apply recovery seed to restore config from a fresh install.
 	ApplyRecoverySeed(ctx context.Context, in *ApplyRecoverySeedRequest, opts ...grpc.CallOption) (*ApplyRecoverySeedResponse, error)
+	// Test ScyllaDB connectivity (agent, manager, storage location).
+	TestScyllaConnection(ctx context.Context, in *TestScyllaConnectionRequest, opts ...grpc.CallOption) (*TestScyllaConnectionResponse, error)
 	// Stop the service.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 }
@@ -337,6 +340,16 @@ func (c *backupManagerServiceClient) ApplyRecoverySeed(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *backupManagerServiceClient) TestScyllaConnection(ctx context.Context, in *TestScyllaConnectionRequest, opts ...grpc.CallOption) (*TestScyllaConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestScyllaConnectionResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_TestScyllaConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *backupManagerServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StopResponse)
@@ -397,6 +410,8 @@ type BackupManagerServiceServer interface {
 	GetRecoveryStatus(context.Context, *GetRecoveryStatusRequest) (*GetRecoveryStatusResponse, error)
 	// Explicitly apply recovery seed to restore config from a fresh install.
 	ApplyRecoverySeed(context.Context, *ApplyRecoverySeedRequest) (*ApplyRecoverySeedResponse, error)
+	// Test ScyllaDB connectivity (agent, manager, storage location).
+	TestScyllaConnection(context.Context, *TestScyllaConnectionRequest) (*TestScyllaConnectionResponse, error)
 	// Stop the service.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 }
@@ -476,6 +491,9 @@ func (UnimplementedBackupManagerServiceServer) GetRecoveryStatus(context.Context
 }
 func (UnimplementedBackupManagerServiceServer) ApplyRecoverySeed(context.Context, *ApplyRecoverySeedRequest) (*ApplyRecoverySeedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyRecoverySeed not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) TestScyllaConnection(context.Context, *TestScyllaConnectionRequest) (*TestScyllaConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TestScyllaConnection not implemented")
 }
 func (UnimplementedBackupManagerServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
@@ -914,6 +932,24 @@ func _BackupManagerService_ApplyRecoverySeed_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupManagerService_TestScyllaConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestScyllaConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).TestScyllaConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_TestScyllaConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).TestScyllaConnection(ctx, req.(*TestScyllaConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BackupManagerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopRequest)
 	if err := dec(in); err != nil {
@@ -1030,6 +1066,10 @@ var BackupManagerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyRecoverySeed",
 			Handler:    _BackupManagerService_ApplyRecoverySeed_Handler,
+		},
+		{
+			MethodName: "TestScyllaConnection",
+			Handler:    _BackupManagerService_TestScyllaConnection_Handler,
 		},
 		{
 			MethodName: "Stop",

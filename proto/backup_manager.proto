@@ -74,6 +74,9 @@ service BackupManagerService {
   // Explicitly apply recovery seed to restore config from a fresh install.
   rpc ApplyRecoverySeed(ApplyRecoverySeedRequest) returns (ApplyRecoverySeedResponse);
 
+  // Test ScyllaDB connectivity (agent, manager, storage location).
+  rpc TestScyllaConnection(TestScyllaConnectionRequest) returns (TestScyllaConnectionResponse);
+
   // Stop the service.
   rpc Stop(StopRequest) returns (StopResponse);
 }
@@ -674,6 +677,23 @@ message ApplyRecoverySeedResponse {
   bool   ok = 1;
   string message = 2;
   RecoverySeedDestination applied_destination = 3;
+}
+
+message TestScyllaConnectionRequest {
+  string cluster = 1;   // cluster name (uses config default if empty)
+  string location = 2;  // S3 location to test (uses config default if empty)
+}
+
+message TestScyllaConnectionResponse {
+  bool   all_ok = 1;
+  repeated ScyllaConnectionCheck checks = 2;
+}
+
+message ScyllaConnectionCheck {
+  string name    = 1;  // e.g. "scylla_manager", "agent_reachable", "cluster_status", "storage_location"
+  bool   ok      = 2;
+  string message = 3;  // human-readable status or error
+  string fix     = 4;  // suggested fix command or procedure
 }
 
 message StopRequest {}

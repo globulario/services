@@ -5443,6 +5443,178 @@ func (x *ApplyRecoverySeedResponse) GetAppliedDestination() *RecoverySeedDestina
 	return nil
 }
 
+type TestScyllaConnectionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cluster       string                 `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`   // cluster name (uses config default if empty)
+	Location      string                 `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"` // S3 location to test (uses config default if empty)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestScyllaConnectionRequest) Reset() {
+	*x = TestScyllaConnectionRequest{}
+	mi := &file_backup_manager_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestScyllaConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestScyllaConnectionRequest) ProtoMessage() {}
+
+func (x *TestScyllaConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestScyllaConnectionRequest.ProtoReflect.Descriptor instead.
+func (*TestScyllaConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *TestScyllaConnectionRequest) GetCluster() string {
+	if x != nil {
+		return x.Cluster
+	}
+	return ""
+}
+
+func (x *TestScyllaConnectionRequest) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+type TestScyllaConnectionResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	AllOk         bool                     `protobuf:"varint,1,opt,name=all_ok,json=allOk,proto3" json:"all_ok,omitempty"`
+	Checks        []*ScyllaConnectionCheck `protobuf:"bytes,2,rep,name=checks,proto3" json:"checks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestScyllaConnectionResponse) Reset() {
+	*x = TestScyllaConnectionResponse{}
+	mi := &file_backup_manager_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestScyllaConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestScyllaConnectionResponse) ProtoMessage() {}
+
+func (x *TestScyllaConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestScyllaConnectionResponse.ProtoReflect.Descriptor instead.
+func (*TestScyllaConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *TestScyllaConnectionResponse) GetAllOk() bool {
+	if x != nil {
+		return x.AllOk
+	}
+	return false
+}
+
+func (x *TestScyllaConnectionResponse) GetChecks() []*ScyllaConnectionCheck {
+	if x != nil {
+		return x.Checks
+	}
+	return nil
+}
+
+type ScyllaConnectionCheck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // e.g. "scylla_manager", "agent_reachable", "cluster_status", "storage_location"
+	Ok            bool                   `protobuf:"varint,2,opt,name=ok,proto3" json:"ok,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"` // human-readable status or error
+	Fix           string                 `protobuf:"bytes,4,opt,name=fix,proto3" json:"fix,omitempty"`         // suggested fix command or procedure
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScyllaConnectionCheck) Reset() {
+	*x = ScyllaConnectionCheck{}
+	mi := &file_backup_manager_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScyllaConnectionCheck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScyllaConnectionCheck) ProtoMessage() {}
+
+func (x *ScyllaConnectionCheck) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScyllaConnectionCheck.ProtoReflect.Descriptor instead.
+func (*ScyllaConnectionCheck) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *ScyllaConnectionCheck) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ScyllaConnectionCheck) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ScyllaConnectionCheck) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ScyllaConnectionCheck) GetFix() string {
+	if x != nil {
+		return x.Fix
+	}
+	return ""
+}
+
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -5451,7 +5623,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_backup_manager_proto_msgTypes[76]
+	mi := &file_backup_manager_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5463,7 +5635,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[76]
+	mi := &file_backup_manager_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5476,7 +5648,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{76}
+	return file_backup_manager_proto_rawDescGZIP(), []int{79}
 }
 
 type StopResponse struct {
@@ -5487,7 +5659,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_backup_manager_proto_msgTypes[77]
+	mi := &file_backup_manager_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5499,7 +5671,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[77]
+	mi := &file_backup_manager_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5512,7 +5684,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{77}
+	return file_backup_manager_proto_rawDescGZIP(), []int{80}
 }
 
 var File_backup_manager_proto protoreflect.FileDescriptor
@@ -5931,7 +6103,18 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x19ApplyRecoverySeedResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12X\n" +
-	"\x13applied_destination\x18\x03 \x01(\v2'.backup_manager.RecoverySeedDestinationR\x12appliedDestination\"\r\n" +
+	"\x13applied_destination\x18\x03 \x01(\v2'.backup_manager.RecoverySeedDestinationR\x12appliedDestination\"S\n" +
+	"\x1bTestScyllaConnectionRequest\x12\x18\n" +
+	"\acluster\x18\x01 \x01(\tR\acluster\x12\x1a\n" +
+	"\blocation\x18\x02 \x01(\tR\blocation\"t\n" +
+	"\x1cTestScyllaConnectionResponse\x12\x15\n" +
+	"\x06all_ok\x18\x01 \x01(\bR\x05allOk\x12=\n" +
+	"\x06checks\x18\x02 \x03(\v2%.backup_manager.ScyllaConnectionCheckR\x06checks\"g\n" +
+	"\x15ScyllaConnectionCheck\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x0e\n" +
+	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x10\n" +
+	"\x03fix\x18\x04 \x01(\tR\x03fix\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
 	"\fStopResponse*\xa7\x01\n" +
 	"\x12BackupProviderType\x12$\n" +
@@ -5978,7 +6161,7 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x10RestoreTestLevel\x12\"\n" +
 	"\x1eRESTORE_TEST_LEVEL_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESTORE_TEST_LIGHT\x10\x01\x12\x16\n" +
-	"\x12RESTORE_TEST_HEAVY\x10\x022\x87\x12\n" +
+	"\x12RESTORE_TEST_HEAVY\x10\x022\xfa\x12\n" +
 	"\x14BackupManagerService\x12P\n" +
 	"\tRunBackup\x12 .backup_manager.RunBackupRequest\x1a!.backup_manager.RunBackupResponse\x12Y\n" +
 	"\fGetBackupJob\x12#.backup_manager.GetBackupJobRequest\x1a$.backup_manager.GetBackupJobResponse\x12_\n" +
@@ -6002,7 +6185,8 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x11DeleteMinioBucket\x12(.backup_manager.DeleteMinioBucketRequest\x1a).backup_manager.DeleteMinioBucketResponse\x12h\n" +
 	"\x11GetScheduleStatus\x12(.backup_manager.GetScheduleStatusRequest\x1a).backup_manager.GetScheduleStatusResponse\x12h\n" +
 	"\x11GetRecoveryStatus\x12(.backup_manager.GetRecoveryStatusRequest\x1a).backup_manager.GetRecoveryStatusResponse\x12h\n" +
-	"\x11ApplyRecoverySeed\x12(.backup_manager.ApplyRecoverySeedRequest\x1a).backup_manager.ApplyRecoverySeedResponse\x12A\n" +
+	"\x11ApplyRecoverySeed\x12(.backup_manager.ApplyRecoverySeedRequest\x1a).backup_manager.ApplyRecoverySeedResponse\x12q\n" +
+	"\x14TestScyllaConnection\x12+.backup_manager.TestScyllaConnectionRequest\x1a,.backup_manager.TestScyllaConnectionResponse\x12A\n" +
 	"\x04Stop\x12\x1b.backup_manager.StopRequest\x1a\x1c.backup_manager.StopResponse2\xe2\x01\n" +
 	"\x11BackupHookService\x12d\n" +
 	"\rPrepareBackup\x12(.backup_manager.PrepareBackupHookRequest\x1a).backup_manager.PrepareBackupHookResponse\x12g\n" +
@@ -6021,115 +6205,118 @@ func file_backup_manager_proto_rawDescGZIP() []byte {
 }
 
 var file_backup_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_backup_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
+var file_backup_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
 var file_backup_manager_proto_goTypes = []any{
-	(BackupProviderType)(0),            // 0: backup_manager.BackupProviderType
-	(BackupJobState)(0),                // 1: backup_manager.BackupJobState
-	(BackupJobType)(0),                 // 2: backup_manager.BackupJobType
-	(BackupSeverity)(0),                // 3: backup_manager.BackupSeverity
-	(BackupDestinationType)(0),         // 4: backup_manager.BackupDestinationType
-	(BackupMode)(0),                    // 5: backup_manager.BackupMode
-	(QualityState)(0),                  // 6: backup_manager.QualityState
-	(RestoreTestLevel)(0),              // 7: backup_manager.RestoreTestLevel
-	(*BackupScope)(nil),                // 8: backup_manager.BackupScope
-	(*ClusterInfo)(nil),                // 9: backup_manager.ClusterInfo
-	(*HookResult)(nil),                 // 10: backup_manager.HookResult
-	(*HookSummary)(nil),                // 11: backup_manager.HookSummary
-	(*BackupDestination)(nil),          // 12: backup_manager.BackupDestination
-	(*BackupProviderSpec)(nil),         // 13: backup_manager.BackupProviderSpec
-	(*BackupPlan)(nil),                 // 14: backup_manager.BackupPlan
-	(*ReplicationResult)(nil),          // 15: backup_manager.ReplicationResult
-	(*ReplicationValidation)(nil),      // 16: backup_manager.ReplicationValidation
-	(*BackupProviderResult)(nil),       // 17: backup_manager.BackupProviderResult
-	(*BackupJob)(nil),                  // 18: backup_manager.BackupJob
-	(*BackupArtifact)(nil),             // 19: backup_manager.BackupArtifact
-	(*RetentionPolicy)(nil),            // 20: backup_manager.RetentionPolicy
-	(*RunBackupRequest)(nil),           // 21: backup_manager.RunBackupRequest
-	(*RunBackupResponse)(nil),          // 22: backup_manager.RunBackupResponse
-	(*GetBackupJobRequest)(nil),        // 23: backup_manager.GetBackupJobRequest
-	(*GetBackupJobResponse)(nil),       // 24: backup_manager.GetBackupJobResponse
-	(*ListBackupJobsRequest)(nil),      // 25: backup_manager.ListBackupJobsRequest
-	(*ListBackupJobsResponse)(nil),     // 26: backup_manager.ListBackupJobsResponse
-	(*ListBackupsRequest)(nil),         // 27: backup_manager.ListBackupsRequest
-	(*ListBackupsResponse)(nil),        // 28: backup_manager.ListBackupsResponse
-	(*GetBackupRequest)(nil),           // 29: backup_manager.GetBackupRequest
-	(*GetBackupResponse)(nil),          // 30: backup_manager.GetBackupResponse
-	(*DeleteBackupRequest)(nil),        // 31: backup_manager.DeleteBackupRequest
-	(*DeleteBackupResponse)(nil),       // 32: backup_manager.DeleteBackupResponse
-	(*DeleteResult)(nil),               // 33: backup_manager.DeleteResult
-	(*ValidateBackupRequest)(nil),      // 34: backup_manager.ValidateBackupRequest
-	(*ValidateBackupResponse)(nil),     // 35: backup_manager.ValidateBackupResponse
-	(*ValidationIssue)(nil),            // 36: backup_manager.ValidationIssue
-	(*RestorePlanRequest)(nil),         // 37: backup_manager.RestorePlanRequest
-	(*RestorePlanResponse)(nil),        // 38: backup_manager.RestorePlanResponse
-	(*RestoreStep)(nil),                // 39: backup_manager.RestoreStep
-	(*RestoreBackupRequest)(nil),       // 40: backup_manager.RestoreBackupRequest
-	(*RestoreBackupResponse)(nil),      // 41: backup_manager.RestoreBackupResponse
-	(*CancelBackupJobRequest)(nil),     // 42: backup_manager.CancelBackupJobRequest
-	(*CancelBackupJobResponse)(nil),    // 43: backup_manager.CancelBackupJobResponse
-	(*DeleteBackupJobRequest)(nil),     // 44: backup_manager.DeleteBackupJobRequest
-	(*DeleteBackupJobResponse)(nil),    // 45: backup_manager.DeleteBackupJobResponse
-	(*RunRetentionRequest)(nil),        // 46: backup_manager.RunRetentionRequest
-	(*RunRetentionResponse)(nil),       // 47: backup_manager.RunRetentionResponse
-	(*GetRetentionStatusRequest)(nil),  // 48: backup_manager.GetRetentionStatusRequest
-	(*GetRetentionStatusResponse)(nil), // 49: backup_manager.GetRetentionStatusResponse
-	(*PreflightCheckRequest)(nil),      // 50: backup_manager.PreflightCheckRequest
-	(*PreflightCheckResponse)(nil),     // 51: backup_manager.PreflightCheckResponse
-	(*ToolCheck)(nil),                  // 52: backup_manager.ToolCheck
-	(*SkippedProvider)(nil),            // 53: backup_manager.SkippedProvider
-	(*ValidationReport)(nil),           // 54: backup_manager.ValidationReport
-	(*NodeCoverageReport)(nil),         // 55: backup_manager.NodeCoverageReport
-	(*NodeCoverageReportEntry)(nil),    // 56: backup_manager.NodeCoverageReportEntry
-	(*RunRestoreTestRequest)(nil),      // 57: backup_manager.RunRestoreTestRequest
-	(*RunRestoreTestResponse)(nil),     // 58: backup_manager.RunRestoreTestResponse
-	(*RestoreTestReport)(nil),          // 59: backup_manager.RestoreTestReport
-	(*RestoreTestCheck)(nil),           // 60: backup_manager.RestoreTestCheck
-	(*PromoteBackupRequest)(nil),       // 61: backup_manager.PromoteBackupRequest
-	(*PromoteBackupResponse)(nil),      // 62: backup_manager.PromoteBackupResponse
-	(*DemoteBackupRequest)(nil),        // 63: backup_manager.DemoteBackupRequest
-	(*DemoteBackupResponse)(nil),       // 64: backup_manager.DemoteBackupResponse
-	(*PrepareBackupHookRequest)(nil),   // 65: backup_manager.PrepareBackupHookRequest
-	(*PrepareBackupHookResponse)(nil),  // 66: backup_manager.PrepareBackupHookResponse
-	(*FinalizeBackupHookRequest)(nil),  // 67: backup_manager.FinalizeBackupHookRequest
-	(*FinalizeBackupHookResponse)(nil), // 68: backup_manager.FinalizeBackupHookResponse
-	(*MinioBucketInfo)(nil),            // 69: backup_manager.MinioBucketInfo
-	(*ListMinioBucketsRequest)(nil),    // 70: backup_manager.ListMinioBucketsRequest
-	(*ListMinioBucketsResponse)(nil),   // 71: backup_manager.ListMinioBucketsResponse
-	(*CreateMinioBucketRequest)(nil),   // 72: backup_manager.CreateMinioBucketRequest
-	(*CreateMinioBucketResponse)(nil),  // 73: backup_manager.CreateMinioBucketResponse
-	(*DeleteMinioBucketRequest)(nil),   // 74: backup_manager.DeleteMinioBucketRequest
-	(*DeleteMinioBucketResponse)(nil),  // 75: backup_manager.DeleteMinioBucketResponse
-	(*GetScheduleStatusRequest)(nil),   // 76: backup_manager.GetScheduleStatusRequest
-	(*GetScheduleStatusResponse)(nil),  // 77: backup_manager.GetScheduleStatusResponse
-	(*RecoverySeedLastBackup)(nil),     // 78: backup_manager.RecoverySeedLastBackup
-	(*RecoverySeedDestination)(nil),    // 79: backup_manager.RecoverySeedDestination
-	(*GetRecoveryStatusRequest)(nil),   // 80: backup_manager.GetRecoveryStatusRequest
-	(*GetRecoveryStatusResponse)(nil),  // 81: backup_manager.GetRecoveryStatusResponse
-	(*ApplyRecoverySeedRequest)(nil),   // 82: backup_manager.ApplyRecoverySeedRequest
-	(*ApplyRecoverySeedResponse)(nil),  // 83: backup_manager.ApplyRecoverySeedResponse
-	(*StopRequest)(nil),                // 84: backup_manager.StopRequest
-	(*StopResponse)(nil),               // 85: backup_manager.StopResponse
-	nil,                                // 86: backup_manager.HookResult.DetailsEntry
-	nil,                                // 87: backup_manager.BackupDestination.OptionsEntry
-	nil,                                // 88: backup_manager.BackupProviderSpec.OptionsEntry
-	nil,                                // 89: backup_manager.BackupProviderResult.OutputsEntry
-	nil,                                // 90: backup_manager.BackupProviderResult.RestoreInputsEntry
-	nil,                                // 91: backup_manager.BackupArtifact.LabelsEntry
-	nil,                                // 92: backup_manager.RunBackupRequest.LabelsEntry
-	nil,                                // 93: backup_manager.PrepareBackupHookRequest.LabelsEntry
-	nil,                                // 94: backup_manager.PrepareBackupHookResponse.DetailsEntry
-	nil,                                // 95: backup_manager.FinalizeBackupHookRequest.LabelsEntry
-	nil,                                // 96: backup_manager.FinalizeBackupHookResponse.DetailsEntry
-	nil,                                // 97: backup_manager.RecoverySeedDestination.OptionsEntry
+	(BackupProviderType)(0),              // 0: backup_manager.BackupProviderType
+	(BackupJobState)(0),                  // 1: backup_manager.BackupJobState
+	(BackupJobType)(0),                   // 2: backup_manager.BackupJobType
+	(BackupSeverity)(0),                  // 3: backup_manager.BackupSeverity
+	(BackupDestinationType)(0),           // 4: backup_manager.BackupDestinationType
+	(BackupMode)(0),                      // 5: backup_manager.BackupMode
+	(QualityState)(0),                    // 6: backup_manager.QualityState
+	(RestoreTestLevel)(0),                // 7: backup_manager.RestoreTestLevel
+	(*BackupScope)(nil),                  // 8: backup_manager.BackupScope
+	(*ClusterInfo)(nil),                  // 9: backup_manager.ClusterInfo
+	(*HookResult)(nil),                   // 10: backup_manager.HookResult
+	(*HookSummary)(nil),                  // 11: backup_manager.HookSummary
+	(*BackupDestination)(nil),            // 12: backup_manager.BackupDestination
+	(*BackupProviderSpec)(nil),           // 13: backup_manager.BackupProviderSpec
+	(*BackupPlan)(nil),                   // 14: backup_manager.BackupPlan
+	(*ReplicationResult)(nil),            // 15: backup_manager.ReplicationResult
+	(*ReplicationValidation)(nil),        // 16: backup_manager.ReplicationValidation
+	(*BackupProviderResult)(nil),         // 17: backup_manager.BackupProviderResult
+	(*BackupJob)(nil),                    // 18: backup_manager.BackupJob
+	(*BackupArtifact)(nil),               // 19: backup_manager.BackupArtifact
+	(*RetentionPolicy)(nil),              // 20: backup_manager.RetentionPolicy
+	(*RunBackupRequest)(nil),             // 21: backup_manager.RunBackupRequest
+	(*RunBackupResponse)(nil),            // 22: backup_manager.RunBackupResponse
+	(*GetBackupJobRequest)(nil),          // 23: backup_manager.GetBackupJobRequest
+	(*GetBackupJobResponse)(nil),         // 24: backup_manager.GetBackupJobResponse
+	(*ListBackupJobsRequest)(nil),        // 25: backup_manager.ListBackupJobsRequest
+	(*ListBackupJobsResponse)(nil),       // 26: backup_manager.ListBackupJobsResponse
+	(*ListBackupsRequest)(nil),           // 27: backup_manager.ListBackupsRequest
+	(*ListBackupsResponse)(nil),          // 28: backup_manager.ListBackupsResponse
+	(*GetBackupRequest)(nil),             // 29: backup_manager.GetBackupRequest
+	(*GetBackupResponse)(nil),            // 30: backup_manager.GetBackupResponse
+	(*DeleteBackupRequest)(nil),          // 31: backup_manager.DeleteBackupRequest
+	(*DeleteBackupResponse)(nil),         // 32: backup_manager.DeleteBackupResponse
+	(*DeleteResult)(nil),                 // 33: backup_manager.DeleteResult
+	(*ValidateBackupRequest)(nil),        // 34: backup_manager.ValidateBackupRequest
+	(*ValidateBackupResponse)(nil),       // 35: backup_manager.ValidateBackupResponse
+	(*ValidationIssue)(nil),              // 36: backup_manager.ValidationIssue
+	(*RestorePlanRequest)(nil),           // 37: backup_manager.RestorePlanRequest
+	(*RestorePlanResponse)(nil),          // 38: backup_manager.RestorePlanResponse
+	(*RestoreStep)(nil),                  // 39: backup_manager.RestoreStep
+	(*RestoreBackupRequest)(nil),         // 40: backup_manager.RestoreBackupRequest
+	(*RestoreBackupResponse)(nil),        // 41: backup_manager.RestoreBackupResponse
+	(*CancelBackupJobRequest)(nil),       // 42: backup_manager.CancelBackupJobRequest
+	(*CancelBackupJobResponse)(nil),      // 43: backup_manager.CancelBackupJobResponse
+	(*DeleteBackupJobRequest)(nil),       // 44: backup_manager.DeleteBackupJobRequest
+	(*DeleteBackupJobResponse)(nil),      // 45: backup_manager.DeleteBackupJobResponse
+	(*RunRetentionRequest)(nil),          // 46: backup_manager.RunRetentionRequest
+	(*RunRetentionResponse)(nil),         // 47: backup_manager.RunRetentionResponse
+	(*GetRetentionStatusRequest)(nil),    // 48: backup_manager.GetRetentionStatusRequest
+	(*GetRetentionStatusResponse)(nil),   // 49: backup_manager.GetRetentionStatusResponse
+	(*PreflightCheckRequest)(nil),        // 50: backup_manager.PreflightCheckRequest
+	(*PreflightCheckResponse)(nil),       // 51: backup_manager.PreflightCheckResponse
+	(*ToolCheck)(nil),                    // 52: backup_manager.ToolCheck
+	(*SkippedProvider)(nil),              // 53: backup_manager.SkippedProvider
+	(*ValidationReport)(nil),             // 54: backup_manager.ValidationReport
+	(*NodeCoverageReport)(nil),           // 55: backup_manager.NodeCoverageReport
+	(*NodeCoverageReportEntry)(nil),      // 56: backup_manager.NodeCoverageReportEntry
+	(*RunRestoreTestRequest)(nil),        // 57: backup_manager.RunRestoreTestRequest
+	(*RunRestoreTestResponse)(nil),       // 58: backup_manager.RunRestoreTestResponse
+	(*RestoreTestReport)(nil),            // 59: backup_manager.RestoreTestReport
+	(*RestoreTestCheck)(nil),             // 60: backup_manager.RestoreTestCheck
+	(*PromoteBackupRequest)(nil),         // 61: backup_manager.PromoteBackupRequest
+	(*PromoteBackupResponse)(nil),        // 62: backup_manager.PromoteBackupResponse
+	(*DemoteBackupRequest)(nil),          // 63: backup_manager.DemoteBackupRequest
+	(*DemoteBackupResponse)(nil),         // 64: backup_manager.DemoteBackupResponse
+	(*PrepareBackupHookRequest)(nil),     // 65: backup_manager.PrepareBackupHookRequest
+	(*PrepareBackupHookResponse)(nil),    // 66: backup_manager.PrepareBackupHookResponse
+	(*FinalizeBackupHookRequest)(nil),    // 67: backup_manager.FinalizeBackupHookRequest
+	(*FinalizeBackupHookResponse)(nil),   // 68: backup_manager.FinalizeBackupHookResponse
+	(*MinioBucketInfo)(nil),              // 69: backup_manager.MinioBucketInfo
+	(*ListMinioBucketsRequest)(nil),      // 70: backup_manager.ListMinioBucketsRequest
+	(*ListMinioBucketsResponse)(nil),     // 71: backup_manager.ListMinioBucketsResponse
+	(*CreateMinioBucketRequest)(nil),     // 72: backup_manager.CreateMinioBucketRequest
+	(*CreateMinioBucketResponse)(nil),    // 73: backup_manager.CreateMinioBucketResponse
+	(*DeleteMinioBucketRequest)(nil),     // 74: backup_manager.DeleteMinioBucketRequest
+	(*DeleteMinioBucketResponse)(nil),    // 75: backup_manager.DeleteMinioBucketResponse
+	(*GetScheduleStatusRequest)(nil),     // 76: backup_manager.GetScheduleStatusRequest
+	(*GetScheduleStatusResponse)(nil),    // 77: backup_manager.GetScheduleStatusResponse
+	(*RecoverySeedLastBackup)(nil),       // 78: backup_manager.RecoverySeedLastBackup
+	(*RecoverySeedDestination)(nil),      // 79: backup_manager.RecoverySeedDestination
+	(*GetRecoveryStatusRequest)(nil),     // 80: backup_manager.GetRecoveryStatusRequest
+	(*GetRecoveryStatusResponse)(nil),    // 81: backup_manager.GetRecoveryStatusResponse
+	(*ApplyRecoverySeedRequest)(nil),     // 82: backup_manager.ApplyRecoverySeedRequest
+	(*ApplyRecoverySeedResponse)(nil),    // 83: backup_manager.ApplyRecoverySeedResponse
+	(*TestScyllaConnectionRequest)(nil),  // 84: backup_manager.TestScyllaConnectionRequest
+	(*TestScyllaConnectionResponse)(nil), // 85: backup_manager.TestScyllaConnectionResponse
+	(*ScyllaConnectionCheck)(nil),        // 86: backup_manager.ScyllaConnectionCheck
+	(*StopRequest)(nil),                  // 87: backup_manager.StopRequest
+	(*StopResponse)(nil),                 // 88: backup_manager.StopResponse
+	nil,                                  // 89: backup_manager.HookResult.DetailsEntry
+	nil,                                  // 90: backup_manager.BackupDestination.OptionsEntry
+	nil,                                  // 91: backup_manager.BackupProviderSpec.OptionsEntry
+	nil,                                  // 92: backup_manager.BackupProviderResult.OutputsEntry
+	nil,                                  // 93: backup_manager.BackupProviderResult.RestoreInputsEntry
+	nil,                                  // 94: backup_manager.BackupArtifact.LabelsEntry
+	nil,                                  // 95: backup_manager.RunBackupRequest.LabelsEntry
+	nil,                                  // 96: backup_manager.PrepareBackupHookRequest.LabelsEntry
+	nil,                                  // 97: backup_manager.PrepareBackupHookResponse.DetailsEntry
+	nil,                                  // 98: backup_manager.FinalizeBackupHookRequest.LabelsEntry
+	nil,                                  // 99: backup_manager.FinalizeBackupHookResponse.DetailsEntry
+	nil,                                  // 100: backup_manager.RecoverySeedDestination.OptionsEntry
 }
 var file_backup_manager_proto_depIdxs = []int32{
-	86,  // 0: backup_manager.HookResult.details:type_name -> backup_manager.HookResult.DetailsEntry
+	89,  // 0: backup_manager.HookResult.details:type_name -> backup_manager.HookResult.DetailsEntry
 	10,  // 1: backup_manager.HookSummary.prepare:type_name -> backup_manager.HookResult
 	10,  // 2: backup_manager.HookSummary.finalize:type_name -> backup_manager.HookResult
 	4,   // 3: backup_manager.BackupDestination.type:type_name -> backup_manager.BackupDestinationType
-	87,  // 4: backup_manager.BackupDestination.options:type_name -> backup_manager.BackupDestination.OptionsEntry
+	90,  // 4: backup_manager.BackupDestination.options:type_name -> backup_manager.BackupDestination.OptionsEntry
 	0,   // 5: backup_manager.BackupProviderSpec.type:type_name -> backup_manager.BackupProviderType
-	88,  // 6: backup_manager.BackupProviderSpec.options:type_name -> backup_manager.BackupProviderSpec.OptionsEntry
+	91,  // 6: backup_manager.BackupProviderSpec.options:type_name -> backup_manager.BackupProviderSpec.OptionsEntry
 	13,  // 7: backup_manager.BackupPlan.providers:type_name -> backup_manager.BackupProviderSpec
 	12,  // 8: backup_manager.BackupPlan.destinations:type_name -> backup_manager.BackupDestination
 	4,   // 9: backup_manager.ReplicationResult.destination_type:type_name -> backup_manager.BackupDestinationType
@@ -6137,8 +6324,8 @@ var file_backup_manager_proto_depIdxs = []int32{
 	0,   // 11: backup_manager.BackupProviderResult.type:type_name -> backup_manager.BackupProviderType
 	1,   // 12: backup_manager.BackupProviderResult.state:type_name -> backup_manager.BackupJobState
 	3,   // 13: backup_manager.BackupProviderResult.severity:type_name -> backup_manager.BackupSeverity
-	89,  // 14: backup_manager.BackupProviderResult.outputs:type_name -> backup_manager.BackupProviderResult.OutputsEntry
-	90,  // 15: backup_manager.BackupProviderResult.restore_inputs:type_name -> backup_manager.BackupProviderResult.RestoreInputsEntry
+	92,  // 14: backup_manager.BackupProviderResult.outputs:type_name -> backup_manager.BackupProviderResult.OutputsEntry
+	93,  // 15: backup_manager.BackupProviderResult.restore_inputs:type_name -> backup_manager.BackupProviderResult.RestoreInputsEntry
 	1,   // 16: backup_manager.BackupJob.state:type_name -> backup_manager.BackupJobState
 	14,  // 17: backup_manager.BackupJob.plan:type_name -> backup_manager.BackupPlan
 	17,  // 18: backup_manager.BackupJob.results:type_name -> backup_manager.BackupProviderResult
@@ -6148,7 +6335,7 @@ var file_backup_manager_proto_depIdxs = []int32{
 	15,  // 22: backup_manager.BackupArtifact.replications:type_name -> backup_manager.ReplicationResult
 	5,   // 23: backup_manager.BackupArtifact.mode:type_name -> backup_manager.BackupMode
 	8,   // 24: backup_manager.BackupArtifact.scope:type_name -> backup_manager.BackupScope
-	91,  // 25: backup_manager.BackupArtifact.labels:type_name -> backup_manager.BackupArtifact.LabelsEntry
+	94,  // 25: backup_manager.BackupArtifact.labels:type_name -> backup_manager.BackupArtifact.LabelsEntry
 	6,   // 26: backup_manager.BackupArtifact.quality_state:type_name -> backup_manager.QualityState
 	9,   // 27: backup_manager.BackupArtifact.cluster:type_name -> backup_manager.ClusterInfo
 	11,  // 28: backup_manager.BackupArtifact.hooks:type_name -> backup_manager.HookSummary
@@ -6159,7 +6346,7 @@ var file_backup_manager_proto_depIdxs = []int32{
 	14,  // 33: backup_manager.RunBackupRequest.plan:type_name -> backup_manager.BackupPlan
 	5,   // 34: backup_manager.RunBackupRequest.mode:type_name -> backup_manager.BackupMode
 	8,   // 35: backup_manager.RunBackupRequest.scope:type_name -> backup_manager.BackupScope
-	92,  // 36: backup_manager.RunBackupRequest.labels:type_name -> backup_manager.RunBackupRequest.LabelsEntry
+	95,  // 36: backup_manager.RunBackupRequest.labels:type_name -> backup_manager.RunBackupRequest.LabelsEntry
 	18,  // 37: backup_manager.GetBackupJobResponse.job:type_name -> backup_manager.BackupJob
 	1,   // 38: backup_manager.ListBackupJobsRequest.state:type_name -> backup_manager.BackupJobState
 	18,  // 39: backup_manager.ListBackupJobsResponse.jobs:type_name -> backup_manager.BackupJob
@@ -6189,74 +6376,77 @@ var file_backup_manager_proto_depIdxs = []int32{
 	6,   // 63: backup_manager.DemoteBackupResponse.quality_state:type_name -> backup_manager.QualityState
 	5,   // 64: backup_manager.PrepareBackupHookRequest.mode:type_name -> backup_manager.BackupMode
 	8,   // 65: backup_manager.PrepareBackupHookRequest.scope:type_name -> backup_manager.BackupScope
-	93,  // 66: backup_manager.PrepareBackupHookRequest.labels:type_name -> backup_manager.PrepareBackupHookRequest.LabelsEntry
-	94,  // 67: backup_manager.PrepareBackupHookResponse.details:type_name -> backup_manager.PrepareBackupHookResponse.DetailsEntry
+	96,  // 66: backup_manager.PrepareBackupHookRequest.labels:type_name -> backup_manager.PrepareBackupHookRequest.LabelsEntry
+	97,  // 67: backup_manager.PrepareBackupHookResponse.details:type_name -> backup_manager.PrepareBackupHookResponse.DetailsEntry
 	5,   // 68: backup_manager.FinalizeBackupHookRequest.mode:type_name -> backup_manager.BackupMode
 	8,   // 69: backup_manager.FinalizeBackupHookRequest.scope:type_name -> backup_manager.BackupScope
-	95,  // 70: backup_manager.FinalizeBackupHookRequest.labels:type_name -> backup_manager.FinalizeBackupHookRequest.LabelsEntry
-	96,  // 71: backup_manager.FinalizeBackupHookResponse.details:type_name -> backup_manager.FinalizeBackupHookResponse.DetailsEntry
+	98,  // 70: backup_manager.FinalizeBackupHookRequest.labels:type_name -> backup_manager.FinalizeBackupHookRequest.LabelsEntry
+	99,  // 71: backup_manager.FinalizeBackupHookResponse.details:type_name -> backup_manager.FinalizeBackupHookResponse.DetailsEntry
 	69,  // 72: backup_manager.ListMinioBucketsResponse.buckets:type_name -> backup_manager.MinioBucketInfo
-	97,  // 73: backup_manager.RecoverySeedDestination.options:type_name -> backup_manager.RecoverySeedDestination.OptionsEntry
+	100, // 73: backup_manager.RecoverySeedDestination.options:type_name -> backup_manager.RecoverySeedDestination.OptionsEntry
 	79,  // 74: backup_manager.GetRecoveryStatusResponse.destination:type_name -> backup_manager.RecoverySeedDestination
 	78,  // 75: backup_manager.GetRecoveryStatusResponse.last_backup:type_name -> backup_manager.RecoverySeedLastBackup
 	79,  // 76: backup_manager.ApplyRecoverySeedResponse.applied_destination:type_name -> backup_manager.RecoverySeedDestination
-	21,  // 77: backup_manager.BackupManagerService.RunBackup:input_type -> backup_manager.RunBackupRequest
-	23,  // 78: backup_manager.BackupManagerService.GetBackupJob:input_type -> backup_manager.GetBackupJobRequest
-	25,  // 79: backup_manager.BackupManagerService.ListBackupJobs:input_type -> backup_manager.ListBackupJobsRequest
-	27,  // 80: backup_manager.BackupManagerService.ListBackups:input_type -> backup_manager.ListBackupsRequest
-	29,  // 81: backup_manager.BackupManagerService.GetBackup:input_type -> backup_manager.GetBackupRequest
-	31,  // 82: backup_manager.BackupManagerService.DeleteBackup:input_type -> backup_manager.DeleteBackupRequest
-	34,  // 83: backup_manager.BackupManagerService.ValidateBackup:input_type -> backup_manager.ValidateBackupRequest
-	37,  // 84: backup_manager.BackupManagerService.RestorePlan:input_type -> backup_manager.RestorePlanRequest
-	40,  // 85: backup_manager.BackupManagerService.RestoreBackup:input_type -> backup_manager.RestoreBackupRequest
-	42,  // 86: backup_manager.BackupManagerService.CancelBackupJob:input_type -> backup_manager.CancelBackupJobRequest
-	44,  // 87: backup_manager.BackupManagerService.DeleteBackupJob:input_type -> backup_manager.DeleteBackupJobRequest
-	46,  // 88: backup_manager.BackupManagerService.RunRetention:input_type -> backup_manager.RunRetentionRequest
-	48,  // 89: backup_manager.BackupManagerService.GetRetentionStatus:input_type -> backup_manager.GetRetentionStatusRequest
-	50,  // 90: backup_manager.BackupManagerService.PreflightCheck:input_type -> backup_manager.PreflightCheckRequest
-	57,  // 91: backup_manager.BackupManagerService.RunRestoreTest:input_type -> backup_manager.RunRestoreTestRequest
-	61,  // 92: backup_manager.BackupManagerService.PromoteBackup:input_type -> backup_manager.PromoteBackupRequest
-	63,  // 93: backup_manager.BackupManagerService.DemoteBackup:input_type -> backup_manager.DemoteBackupRequest
-	70,  // 94: backup_manager.BackupManagerService.ListMinioBuckets:input_type -> backup_manager.ListMinioBucketsRequest
-	72,  // 95: backup_manager.BackupManagerService.CreateMinioBucket:input_type -> backup_manager.CreateMinioBucketRequest
-	74,  // 96: backup_manager.BackupManagerService.DeleteMinioBucket:input_type -> backup_manager.DeleteMinioBucketRequest
-	76,  // 97: backup_manager.BackupManagerService.GetScheduleStatus:input_type -> backup_manager.GetScheduleStatusRequest
-	80,  // 98: backup_manager.BackupManagerService.GetRecoveryStatus:input_type -> backup_manager.GetRecoveryStatusRequest
-	82,  // 99: backup_manager.BackupManagerService.ApplyRecoverySeed:input_type -> backup_manager.ApplyRecoverySeedRequest
-	84,  // 100: backup_manager.BackupManagerService.Stop:input_type -> backup_manager.StopRequest
-	65,  // 101: backup_manager.BackupHookService.PrepareBackup:input_type -> backup_manager.PrepareBackupHookRequest
-	67,  // 102: backup_manager.BackupHookService.FinalizeBackup:input_type -> backup_manager.FinalizeBackupHookRequest
-	22,  // 103: backup_manager.BackupManagerService.RunBackup:output_type -> backup_manager.RunBackupResponse
-	24,  // 104: backup_manager.BackupManagerService.GetBackupJob:output_type -> backup_manager.GetBackupJobResponse
-	26,  // 105: backup_manager.BackupManagerService.ListBackupJobs:output_type -> backup_manager.ListBackupJobsResponse
-	28,  // 106: backup_manager.BackupManagerService.ListBackups:output_type -> backup_manager.ListBackupsResponse
-	30,  // 107: backup_manager.BackupManagerService.GetBackup:output_type -> backup_manager.GetBackupResponse
-	32,  // 108: backup_manager.BackupManagerService.DeleteBackup:output_type -> backup_manager.DeleteBackupResponse
-	35,  // 109: backup_manager.BackupManagerService.ValidateBackup:output_type -> backup_manager.ValidateBackupResponse
-	38,  // 110: backup_manager.BackupManagerService.RestorePlan:output_type -> backup_manager.RestorePlanResponse
-	41,  // 111: backup_manager.BackupManagerService.RestoreBackup:output_type -> backup_manager.RestoreBackupResponse
-	43,  // 112: backup_manager.BackupManagerService.CancelBackupJob:output_type -> backup_manager.CancelBackupJobResponse
-	45,  // 113: backup_manager.BackupManagerService.DeleteBackupJob:output_type -> backup_manager.DeleteBackupJobResponse
-	47,  // 114: backup_manager.BackupManagerService.RunRetention:output_type -> backup_manager.RunRetentionResponse
-	49,  // 115: backup_manager.BackupManagerService.GetRetentionStatus:output_type -> backup_manager.GetRetentionStatusResponse
-	51,  // 116: backup_manager.BackupManagerService.PreflightCheck:output_type -> backup_manager.PreflightCheckResponse
-	58,  // 117: backup_manager.BackupManagerService.RunRestoreTest:output_type -> backup_manager.RunRestoreTestResponse
-	62,  // 118: backup_manager.BackupManagerService.PromoteBackup:output_type -> backup_manager.PromoteBackupResponse
-	64,  // 119: backup_manager.BackupManagerService.DemoteBackup:output_type -> backup_manager.DemoteBackupResponse
-	71,  // 120: backup_manager.BackupManagerService.ListMinioBuckets:output_type -> backup_manager.ListMinioBucketsResponse
-	73,  // 121: backup_manager.BackupManagerService.CreateMinioBucket:output_type -> backup_manager.CreateMinioBucketResponse
-	75,  // 122: backup_manager.BackupManagerService.DeleteMinioBucket:output_type -> backup_manager.DeleteMinioBucketResponse
-	77,  // 123: backup_manager.BackupManagerService.GetScheduleStatus:output_type -> backup_manager.GetScheduleStatusResponse
-	81,  // 124: backup_manager.BackupManagerService.GetRecoveryStatus:output_type -> backup_manager.GetRecoveryStatusResponse
-	83,  // 125: backup_manager.BackupManagerService.ApplyRecoverySeed:output_type -> backup_manager.ApplyRecoverySeedResponse
-	85,  // 126: backup_manager.BackupManagerService.Stop:output_type -> backup_manager.StopResponse
-	66,  // 127: backup_manager.BackupHookService.PrepareBackup:output_type -> backup_manager.PrepareBackupHookResponse
-	68,  // 128: backup_manager.BackupHookService.FinalizeBackup:output_type -> backup_manager.FinalizeBackupHookResponse
-	103, // [103:129] is the sub-list for method output_type
-	77,  // [77:103] is the sub-list for method input_type
-	77,  // [77:77] is the sub-list for extension type_name
-	77,  // [77:77] is the sub-list for extension extendee
-	0,   // [0:77] is the sub-list for field type_name
+	86,  // 77: backup_manager.TestScyllaConnectionResponse.checks:type_name -> backup_manager.ScyllaConnectionCheck
+	21,  // 78: backup_manager.BackupManagerService.RunBackup:input_type -> backup_manager.RunBackupRequest
+	23,  // 79: backup_manager.BackupManagerService.GetBackupJob:input_type -> backup_manager.GetBackupJobRequest
+	25,  // 80: backup_manager.BackupManagerService.ListBackupJobs:input_type -> backup_manager.ListBackupJobsRequest
+	27,  // 81: backup_manager.BackupManagerService.ListBackups:input_type -> backup_manager.ListBackupsRequest
+	29,  // 82: backup_manager.BackupManagerService.GetBackup:input_type -> backup_manager.GetBackupRequest
+	31,  // 83: backup_manager.BackupManagerService.DeleteBackup:input_type -> backup_manager.DeleteBackupRequest
+	34,  // 84: backup_manager.BackupManagerService.ValidateBackup:input_type -> backup_manager.ValidateBackupRequest
+	37,  // 85: backup_manager.BackupManagerService.RestorePlan:input_type -> backup_manager.RestorePlanRequest
+	40,  // 86: backup_manager.BackupManagerService.RestoreBackup:input_type -> backup_manager.RestoreBackupRequest
+	42,  // 87: backup_manager.BackupManagerService.CancelBackupJob:input_type -> backup_manager.CancelBackupJobRequest
+	44,  // 88: backup_manager.BackupManagerService.DeleteBackupJob:input_type -> backup_manager.DeleteBackupJobRequest
+	46,  // 89: backup_manager.BackupManagerService.RunRetention:input_type -> backup_manager.RunRetentionRequest
+	48,  // 90: backup_manager.BackupManagerService.GetRetentionStatus:input_type -> backup_manager.GetRetentionStatusRequest
+	50,  // 91: backup_manager.BackupManagerService.PreflightCheck:input_type -> backup_manager.PreflightCheckRequest
+	57,  // 92: backup_manager.BackupManagerService.RunRestoreTest:input_type -> backup_manager.RunRestoreTestRequest
+	61,  // 93: backup_manager.BackupManagerService.PromoteBackup:input_type -> backup_manager.PromoteBackupRequest
+	63,  // 94: backup_manager.BackupManagerService.DemoteBackup:input_type -> backup_manager.DemoteBackupRequest
+	70,  // 95: backup_manager.BackupManagerService.ListMinioBuckets:input_type -> backup_manager.ListMinioBucketsRequest
+	72,  // 96: backup_manager.BackupManagerService.CreateMinioBucket:input_type -> backup_manager.CreateMinioBucketRequest
+	74,  // 97: backup_manager.BackupManagerService.DeleteMinioBucket:input_type -> backup_manager.DeleteMinioBucketRequest
+	76,  // 98: backup_manager.BackupManagerService.GetScheduleStatus:input_type -> backup_manager.GetScheduleStatusRequest
+	80,  // 99: backup_manager.BackupManagerService.GetRecoveryStatus:input_type -> backup_manager.GetRecoveryStatusRequest
+	82,  // 100: backup_manager.BackupManagerService.ApplyRecoverySeed:input_type -> backup_manager.ApplyRecoverySeedRequest
+	84,  // 101: backup_manager.BackupManagerService.TestScyllaConnection:input_type -> backup_manager.TestScyllaConnectionRequest
+	87,  // 102: backup_manager.BackupManagerService.Stop:input_type -> backup_manager.StopRequest
+	65,  // 103: backup_manager.BackupHookService.PrepareBackup:input_type -> backup_manager.PrepareBackupHookRequest
+	67,  // 104: backup_manager.BackupHookService.FinalizeBackup:input_type -> backup_manager.FinalizeBackupHookRequest
+	22,  // 105: backup_manager.BackupManagerService.RunBackup:output_type -> backup_manager.RunBackupResponse
+	24,  // 106: backup_manager.BackupManagerService.GetBackupJob:output_type -> backup_manager.GetBackupJobResponse
+	26,  // 107: backup_manager.BackupManagerService.ListBackupJobs:output_type -> backup_manager.ListBackupJobsResponse
+	28,  // 108: backup_manager.BackupManagerService.ListBackups:output_type -> backup_manager.ListBackupsResponse
+	30,  // 109: backup_manager.BackupManagerService.GetBackup:output_type -> backup_manager.GetBackupResponse
+	32,  // 110: backup_manager.BackupManagerService.DeleteBackup:output_type -> backup_manager.DeleteBackupResponse
+	35,  // 111: backup_manager.BackupManagerService.ValidateBackup:output_type -> backup_manager.ValidateBackupResponse
+	38,  // 112: backup_manager.BackupManagerService.RestorePlan:output_type -> backup_manager.RestorePlanResponse
+	41,  // 113: backup_manager.BackupManagerService.RestoreBackup:output_type -> backup_manager.RestoreBackupResponse
+	43,  // 114: backup_manager.BackupManagerService.CancelBackupJob:output_type -> backup_manager.CancelBackupJobResponse
+	45,  // 115: backup_manager.BackupManagerService.DeleteBackupJob:output_type -> backup_manager.DeleteBackupJobResponse
+	47,  // 116: backup_manager.BackupManagerService.RunRetention:output_type -> backup_manager.RunRetentionResponse
+	49,  // 117: backup_manager.BackupManagerService.GetRetentionStatus:output_type -> backup_manager.GetRetentionStatusResponse
+	51,  // 118: backup_manager.BackupManagerService.PreflightCheck:output_type -> backup_manager.PreflightCheckResponse
+	58,  // 119: backup_manager.BackupManagerService.RunRestoreTest:output_type -> backup_manager.RunRestoreTestResponse
+	62,  // 120: backup_manager.BackupManagerService.PromoteBackup:output_type -> backup_manager.PromoteBackupResponse
+	64,  // 121: backup_manager.BackupManagerService.DemoteBackup:output_type -> backup_manager.DemoteBackupResponse
+	71,  // 122: backup_manager.BackupManagerService.ListMinioBuckets:output_type -> backup_manager.ListMinioBucketsResponse
+	73,  // 123: backup_manager.BackupManagerService.CreateMinioBucket:output_type -> backup_manager.CreateMinioBucketResponse
+	75,  // 124: backup_manager.BackupManagerService.DeleteMinioBucket:output_type -> backup_manager.DeleteMinioBucketResponse
+	77,  // 125: backup_manager.BackupManagerService.GetScheduleStatus:output_type -> backup_manager.GetScheduleStatusResponse
+	81,  // 126: backup_manager.BackupManagerService.GetRecoveryStatus:output_type -> backup_manager.GetRecoveryStatusResponse
+	83,  // 127: backup_manager.BackupManagerService.ApplyRecoverySeed:output_type -> backup_manager.ApplyRecoverySeedResponse
+	85,  // 128: backup_manager.BackupManagerService.TestScyllaConnection:output_type -> backup_manager.TestScyllaConnectionResponse
+	88,  // 129: backup_manager.BackupManagerService.Stop:output_type -> backup_manager.StopResponse
+	66,  // 130: backup_manager.BackupHookService.PrepareBackup:output_type -> backup_manager.PrepareBackupHookResponse
+	68,  // 131: backup_manager.BackupHookService.FinalizeBackup:output_type -> backup_manager.FinalizeBackupHookResponse
+	105, // [105:132] is the sub-list for method output_type
+	78,  // [78:105] is the sub-list for method input_type
+	78,  // [78:78] is the sub-list for extension type_name
+	78,  // [78:78] is the sub-list for extension extendee
+	0,   // [0:78] is the sub-list for field type_name
 }
 
 func init() { file_backup_manager_proto_init() }
@@ -6270,7 +6460,7 @@ func file_backup_manager_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_manager_proto_rawDesc), len(file_backup_manager_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   90,
+			NumMessages:   93,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

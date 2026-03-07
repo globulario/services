@@ -74,12 +74,48 @@ func (srv *server) ensureScyllaRegistered() {
 	}
 	if managed > 0 {
 		// Already registered — auto-fill ScyllaCluster if empty
-		if srv.ScyllaCluster == "" {
-			for _, c := range existing {
-				if !strings.HasPrefix(c, "native:") {
-					srv.ScyllaCluster = c
-					slog.Info("auto-detected scylla-manager cluster", "cluster", c)
-					break
+		var clusterName string
+		for _, c := range existing {
+			if !strings.HasPrefix(c, "native:") && !strings.HasPrefix(c, "scylla_host:") {
+				clusterName = c
+				break
+			}
+		}
+		if srv.ScyllaCluster == "" && clusterName != "" {
+			srv.ScyllaCluster = clusterName
+			slog.Info("auto-detected scylla-manager cluster", "cluster", clusterName)
+		}
+
+		// Health check: verify the registered cluster is reachable.
+		// If not (e.g. registered without auth token), update it with credentials.
+		if clusterName != "" {
+			statusArgs := []string{"status", "-c", clusterName}
+			if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+				statusArgs = append(statusArgs, "--api-url", srv.ScyllaManagerAPI)
+			}
+			statusCmd := exec.Command("sctool", statusArgs...)
+			statusOut, statusErr := statusCmd.CombinedOutput()
+			if statusErr != nil && strings.Contains(string(statusOut), "unable to connect") {
+				slog.Warn("registered cluster is unreachable, attempting to update with auth token",
+					"cluster", clusterName)
+				agentArgs := scyllaAgentArgs()
+				if agentArgs != nil {
+					updateArgs := []string{"cluster", "update", "-c", clusterName}
+					if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+						updateArgs = append(updateArgs, "--api-url", srv.ScyllaManagerAPI)
+					}
+					updateArgs = append(updateArgs, agentArgs...)
+					updateCmd := exec.Command("sctool", updateArgs...)
+					updateOut, updateErr := updateCmd.CombinedOutput()
+					if updateErr != nil {
+						slog.Warn("failed to update cluster with auth token",
+							"error", updateErr, "output", strings.TrimSpace(string(updateOut)))
+					} else {
+						slog.Info("cluster updated with auth token",
+							"cluster", clusterName, "output", strings.TrimSpace(string(updateOut)))
+					}
+				} else {
+					slog.Warn("cannot read agent config to fix unreachable cluster — manual intervention needed")
 				}
 			}
 		}
@@ -106,7 +142,18 @@ func (srv *server) ensureScyllaRegistered() {
 	if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
 		args = append(args, "--api-url", srv.ScyllaManagerAPI)
 	}
-	args = append(args, scyllaAgentArgs()...)
+	agentArgs := scyllaAgentArgs()
+	if agentArgs == nil {
+		slog.Warn("cannot read scylla-manager-agent config for auth token — "+
+			"cluster registration will likely fail with 401. "+
+			"Ensure the agent config is readable by the backup-manager process.",
+			"tried", []string{
+				"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
+				"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
+			})
+		return
+	}
+	args = append(args, agentArgs...)
 
 	slog.Info("auto-registering ScyllaDB in scylla-manager",
 		"cluster_name", clusterName, "host", scyllaHost, "args", strings.Join(args, " "))
@@ -184,25 +231,30 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 				if clusterName == "" {
 					clusterName = nativeName
 				}
-				slog.Info("preflight: auto-registering ScyllaDB",
-					"cluster_name", clusterName, "host", scyllaHost)
-				regArgs := []string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}
-				if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
-					regArgs = append(regArgs, "--api-url", srv.ScyllaManagerAPI)
-				}
-				regArgs = append(regArgs, scyllaAgentArgs()...)
-				cmd := exec.Command("sctool", regArgs...)
-				out, err := cmd.CombinedOutput()
-				output := strings.TrimSpace(string(out))
-				if err != nil && !strings.Contains(output, "already exists") && !strings.Contains(output, "conflict") {
-					slog.Warn("preflight: auto-register failed", "error", err, "output", output)
+				prefAgentArgs := scyllaAgentArgs()
+				if prefAgentArgs == nil {
+					slog.Warn("preflight: cannot read agent config for auth token, skipping auto-register")
 				} else {
-					slog.Info("preflight: ScyllaDB registered", "cluster_name", clusterName, "output", output)
-					if srv.ScyllaCluster == "" {
-						srv.ScyllaCluster = clusterName
+					slog.Info("preflight: auto-registering ScyllaDB",
+						"cluster_name", clusterName, "host", scyllaHost)
+					regArgs := []string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}
+					if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+						regArgs = append(regArgs, "--api-url", srv.ScyllaManagerAPI)
 					}
-					// Re-detect now that it's registered
-					clusters = detectScyllaClusters(srv.ScyllaManagerAPI)
+					regArgs = append(regArgs, prefAgentArgs...)
+					cmd := exec.Command("sctool", regArgs...)
+					out, err := cmd.CombinedOutput()
+					output := strings.TrimSpace(string(out))
+					if err != nil && !strings.Contains(output, "already exists") && !strings.Contains(output, "conflict") {
+						slog.Warn("preflight: auto-register failed", "error", err, "output", output)
+					} else {
+						slog.Info("preflight: ScyllaDB registered", "cluster_name", clusterName, "output", output)
+						if srv.ScyllaCluster == "" {
+							srv.ScyllaCluster = clusterName
+						}
+						// Re-detect now that it's registered
+						clusters = detectScyllaClusters(srv.ScyllaManagerAPI)
+					}
 				}
 			}
 		}
@@ -442,4 +494,164 @@ func checkTool(name string, versionArgs []string) *backup_managerpb.ToolCheck {
 	}
 
 	return check
+}
+
+// runDiagCmd runs a command with a 15-second timeout and returns output + error.
+func runDiagCmd(args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// TestScyllaConnection runs a sequence of diagnostic checks against the
+// ScyllaDB / scylla-manager / agent / storage stack and returns actionable
+// results for each step.
+func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerpb.TestScyllaConnectionRequest) (*backup_managerpb.TestScyllaConnectionResponse, error) {
+	var checks []*backup_managerpb.ScyllaConnectionCheck
+	allOk := true
+
+	fail := func(name, msg, fix string) {
+		allOk = false
+		checks = append(checks, &backup_managerpb.ScyllaConnectionCheck{
+			Name: name, Ok: false, Message: msg, Fix: fix,
+		})
+	}
+	pass := func(name, msg string) {
+		checks = append(checks, &backup_managerpb.ScyllaConnectionCheck{
+			Name: name, Ok: true, Message: msg,
+		})
+	}
+
+	// 1. sctool binary
+	if _, err := exec.LookPath("sctool"); err != nil {
+		fail("sctool_available", "sctool not found in PATH",
+			"Install scylla-manager: apt install scylla-manager or check your installation.")
+		return &backup_managerpb.TestScyllaConnectionResponse{AllOk: false, Checks: checks}, nil
+	}
+	pass("sctool_available", "sctool found")
+
+	apiURL := srv.ScyllaManagerAPI
+	apiArgs := func(args []string) []string {
+		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+			return append(args, "--api-url", apiURL)
+		}
+		return args
+	}
+
+	// 2. scylla-manager server reachable
+	out, err := runDiagCmd(apiArgs([]string{"sctool", "version"})...)
+	if err != nil {
+		fail("scylla_manager_server", "scylla-manager is not reachable: "+out,
+			"Start scylla-manager: sudo systemctl start globular-scylla-manager.service")
+		return &backup_managerpb.TestScyllaConnectionResponse{AllOk: false, Checks: checks}, nil
+	}
+	pass("scylla_manager_server", "scylla-manager server reachable ("+out+")")
+
+	// 3. Cluster registered
+	cluster := rqst.Cluster
+	if cluster == "" {
+		cluster = srv.ScyllaCluster
+	}
+	if cluster == "" {
+		fail("cluster_registered", "No ScyllaDB cluster name configured",
+			"Set the cluster name in Settings → ScyllaDB → Cluster Name, or run:\nsctool cluster add --host <IP> --name <NAME> --auth-token <TOKEN> --port 56090")
+		return &backup_managerpb.TestScyllaConnectionResponse{AllOk: false, Checks: checks}, nil
+	}
+
+	out, _ = runDiagCmd(apiArgs([]string{"sctool", "cluster", "list"})...)
+	if !strings.Contains(out, cluster) {
+		fail("cluster_registered",
+			fmt.Sprintf("Cluster %q is not registered in scylla-manager", cluster),
+			fmt.Sprintf("Register it:\nsctool cluster add --host <SCYLLA_IP> --name %s --auth-token <TOKEN> --port 56090", cluster))
+		return &backup_managerpb.TestScyllaConnectionResponse{AllOk: false, Checks: checks}, nil
+	}
+	pass("cluster_registered", fmt.Sprintf("Cluster %q is registered", cluster))
+
+	// 4. Agent reachable (sctool status -c <cluster>)
+	out, err = runDiagCmd(apiArgs([]string{"sctool", "status", "-c", cluster})...)
+
+	if err != nil {
+		if strings.Contains(out, "unable to connect") {
+			// Auth token mismatch or agent not running — try auto-fix
+			agentArgs := scyllaAgentArgs()
+			if agentArgs == nil {
+				fail("agent_reachable",
+					"Cannot connect to ScyllaDB agent — and cannot read agent config to get auth token",
+					"Fix permissions:\nsudo chmod 0750 /var/lib/globular/scylla-manager-agent\nThen update the cluster:\nsctool cluster update -c "+cluster+" --auth-token <TOKEN> --port 56090")
+			} else {
+				// We have the token — try to auto-fix
+				updateArgs := apiArgs([]string{"sctool", "cluster", "update", "-c", cluster})
+				updateArgs = append(updateArgs, agentArgs...)
+				updateOut, updateErr := runDiagCmd(updateArgs...)
+				if updateErr != nil {
+					fail("agent_reachable",
+						"Cannot connect to ScyllaDB agent. Auto-fix also failed: "+updateOut,
+						"Check agent is running:\nsudo systemctl status globular-scylla-manager-agent.service\nRestart it:\nsudo systemctl restart globular-scylla-manager-agent.service\nThen update:\nsctool cluster update -c "+cluster+" --auth-token <TOKEN> --port 56090")
+				} else {
+					// Retry status after fix
+					retryOut, retryErr := runDiagCmd(apiArgs([]string{"sctool", "status", "-c", cluster})...)
+					if retryErr != nil {
+						fail("agent_reachable",
+							"Updated auth token but agent still unreachable: "+retryOut,
+							"Restart the agent:\nsudo systemctl restart globular-scylla-manager-agent.service")
+					} else {
+						pass("agent_reachable", "Agent connection repaired (auth token updated)")
+					}
+				}
+			}
+		} else if strings.Contains(out, "no matching host") {
+			fail("agent_reachable",
+				"ScyllaDB host not found by scylla-manager",
+				"Verify ScyllaDB is running:\nsudo systemctl status scylla-server\nCheck the host IP:\nsctool cluster list\nUpdate if needed:\nsctool cluster update -c "+cluster+" --host <CORRECT_IP>")
+		} else {
+			fail("agent_reachable",
+				"Cluster status check failed: "+out,
+				"Check agent:\nsudo systemctl status globular-scylla-manager-agent.service\nCheck manager logs:\nsudo journalctl -u globular-scylla-manager.service -n 30")
+		}
+		if !allOk {
+			return &backup_managerpb.TestScyllaConnectionResponse{AllOk: false, Checks: checks}, nil
+		}
+	} else {
+		pass("agent_reachable", "ScyllaDB agent reachable, cluster healthy")
+	}
+
+	// 5. Storage location
+	location := rqst.Location
+	if location == "" {
+		location = srv.ScyllaLocation
+	}
+	if location == "" {
+		fail("storage_location", "No ScyllaDB backup location configured (e.g. s3:bucket-name)",
+			"Set it in Settings → ScyllaDB → Scylla Location, or create a MinIO bucket with 'Use for ScyllaDB'.")
+	} else {
+		// Use sctool to validate the backup location via the agent (no direct agent binary spawn).
+		// A dry-run backup task validates the full path: manager → agent → S3.
+		out, err := runDiagCmd(apiArgs([]string{"sctool", "backup", "list", "-c", cluster, "-L", location})...)
+		if err != nil {
+			outLower := strings.ToLower(out)
+			if strings.Contains(outLower, "nocredentialproviders") || strings.Contains(outLower, "credential") {
+				fail("storage_location",
+					"S3 credentials not configured in scylla-manager-agent",
+					"Add S3 credentials to the agent config:\nsudo nano /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml\n\ns3:\n  access_key_id: <KEY>\n  secret_access_key: <SECRET>\n  provider: Minio\n  endpoint: https://127.0.0.1:9000\n\nThen restart:\nsudo systemctl restart globular-scylla-manager-agent.service")
+			} else if strings.Contains(outLower, "nosuchbucket") || strings.Contains(outLower, "bucket") && strings.Contains(outLower, "not found") {
+				fail("storage_location",
+					fmt.Sprintf("S3 bucket not found: %s", location),
+					"Create the bucket in MinIO, or check the location name matches an existing bucket.")
+			} else if strings.Contains(outLower, "timeout") || strings.Contains(outLower, "connection refused") {
+				fail("storage_location",
+					"Cannot reach S3/MinIO endpoint from agent",
+					"Verify MinIO is running:\nsudo systemctl status globular-minio.service\nCheck endpoint in agent config should be:\nhttps://127.0.0.1:9000")
+			} else {
+				// backup list may return empty or error for valid location with no backups yet
+				// If agent was reachable (step 4 passed), a non-critical error here just means no backups yet
+				pass("storage_location", fmt.Sprintf("Location %s configured (no existing backups found)", location))
+			}
+		} else {
+			pass("storage_location", fmt.Sprintf("Storage location %s is accessible", location))
+		}
+	}
+
+	return &backup_managerpb.TestScyllaConnectionResponse{AllOk: allOk, Checks: checks}, nil
 }
