@@ -315,20 +315,32 @@ func (srv *server) runResticBackup(ctx context.Context, spec *backup_managerpb.B
 	}
 
 	// Get latest snapshot ID
-	snapCmd := exec.CommandContext(ctx, "restic", "snapshots", "--latest", "1", "--json")
+	snapCmd := exec.CommandContext(ctx, "restic", "snapshots", "--latest", "1", "--json", "--repo", repo)
 	snapCmd.Env = append(os.Environ(), env...)
 	snapOut, snapErr := snapCmd.CombinedOutput()
-	if snapErr == nil {
+	if snapErr != nil {
+		slog.Warn("restic snapshots command failed", "error", snapErr, "output", strings.TrimSpace(string(snapOut)))
+	} else {
 		snapJSON := strings.TrimSpace(string(snapOut))
 		outputs["latest_snapshot"] = snapJSON
 		_ = CapsuleWriteFile(cc.ProviderDir, "snapshot.json", []byte(snapJSON))
 
-		// Extract snapshot ID from JSON (simple parse)
-		if idx := strings.Index(snapJSON, `"short_id":"`); idx >= 0 {
-			rest := snapJSON[idx+len(`"short_id":"`):]
-			if end := strings.Index(rest, `"`); end >= 0 {
-				outputs["snapshot_id"] = rest[:end]
+		// Parse snapshot ID from JSON array
+		var snapshots []struct {
+			ID      string `json:"id"`
+			ShortID string `json:"short_id"`
+		}
+		if err := json.Unmarshal([]byte(snapJSON), &snapshots); err != nil {
+			slog.Warn("failed to parse restic snapshot JSON", "error", err, "json", snapJSON[:min(len(snapJSON), 200)])
+		} else if len(snapshots) > 0 {
+			if snapshots[0].ShortID != "" {
+				outputs["snapshot_id"] = snapshots[0].ShortID
+			} else if snapshots[0].ID != "" {
+				outputs["snapshot_id"] = snapshots[0].ID[:8]
 			}
+			slog.Info("restic snapshot recorded", "snapshot_id", outputs["snapshot_id"])
+		} else {
+			slog.Warn("restic snapshots returned empty array", "json", snapJSON)
 		}
 	}
 

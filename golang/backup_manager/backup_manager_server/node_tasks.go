@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -148,6 +149,15 @@ func (srv *server) runProviderOnAllNodes(
 		if snapID, exists := nr.Result.Outputs["snapshot_id"]; exists && snapID != "" {
 			snapshotIDs = append(snapshotIDs, nr.NodeID+":"+snapID)
 			aggregatedOutputs["snapshot_id_"+nr.NodeID] = snapID
+		}
+	}
+
+	// Set top-level snapshot_id from the first (or only) node so validation can find it
+	if len(snapshotIDs) > 0 {
+		// Use the first node's snapshot_id as the canonical one
+		parts := strings.SplitN(snapshotIDs[0], ":", 2)
+		if len(parts) == 2 {
+			aggregatedOutputs["snapshot_id"] = parts[1]
 		}
 	}
 

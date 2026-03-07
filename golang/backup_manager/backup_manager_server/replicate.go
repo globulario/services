@@ -241,6 +241,53 @@ func destType(t string) backup_managerpb.BackupDestinationType {
 	}
 }
 
+// rcloneArgsForDest returns extra rclone flags (--s3-provider, --s3-endpoint, etc.)
+// needed to access a destination. This ensures validation uses the same credentials
+// as replication.
+func (srv *server) rcloneArgsForDest(destName string, destType backup_managerpb.BackupDestinationType) []string {
+	// Find destination config by name
+	var dest *DestinationConfig
+	for i := range srv.Destinations {
+		if srv.Destinations[i].Name == destName {
+			dest = &srv.Destinations[i]
+			break
+		}
+	}
+	if dest == nil {
+		return nil
+	}
+
+	var args []string
+	switch destType {
+	case backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_MINIO:
+		args = append(args, "--s3-provider", "Minio")
+		if ep := dest.Options["endpoint"]; ep != "" {
+			args = append(args, "--s3-endpoint", ep)
+		}
+		args = append(args, "--s3-env-auth=false")
+		if ak := dest.Options["access_key"]; ak != "" {
+			args = append(args, "--s3-access-key-id", ak)
+		}
+		if sk := dest.Options["secret_key"]; sk != "" {
+			args = append(args, "--s3-secret-access-key", sk)
+		}
+		if ep := dest.Options["endpoint"]; strings.HasPrefix(ep, "https") {
+			args = append(args, "--no-check-certificate")
+		}
+	case backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_S3:
+		if r := dest.Options["region"]; r != "" {
+			args = append(args, "--s3-region", r)
+		}
+		if ak := dest.Options["access_key"]; ak != "" {
+			args = append(args, "--s3-access-key-id", ak)
+		}
+		if sk := dest.Options["secret_key"]; sk != "" {
+			args = append(args, "--s3-secret-access-key", sk)
+		}
+	}
+	return args
+}
+
 // dirSize returns the total size of all files in a directory tree.
 func dirSize(path string) uint64 {
 	var total uint64

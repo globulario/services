@@ -784,6 +784,25 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		}
 		_ = archivePath // archive is available alongside the capsule dir for replication
 
+		// Write a preliminary manifest before replication so that the capsule
+		// directory contains manifest.json + manifest.sha256 when copied to
+		// remote destinations. The manifest is updated again after replication
+		// with the final replication results.
+		manifestSHAPre := computeCapsuleSHA(srv.CapsuleDir(backupID))
+		preArt := &backup_managerpb.BackupArtifact{
+			BackupId:        backupID,
+			CreatedUnixMs:   time.Now().UnixMilli(),
+			Location:        srv.CapsuleDir(backupID),
+			PlanName:        job.PlanName,
+			Domain:          srv.Domain,
+			ProviderResults: results,
+			SchemaVersion:   2,
+			ManifestSha256:  manifestSHAPre,
+		}
+		if err := srv.store.SaveArtifact(preArt); err != nil {
+			slog.Warn("failed to write pre-replication manifest", "backup_id", backupID, "error", err)
+		}
+
 		// Replicate capsule to configured destinations
 		job.Message = "replicating to destinations"
 		_ = srv.store.SaveJob(job)
@@ -953,9 +972,9 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 			snapID := pr.Outputs["snapshot_id"]
 			if snapID == "" {
 				issues = append(issues, &backup_managerpb.ValidationIssue{
-					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
+					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_WARN,
 					Code:     "RESTIC_SNAPSHOT_ID_MISSING",
-					Message:  "no snapshot_id recorded for restic provider",
+					Message:  "no snapshot_id recorded for restic provider (backup created before snapshot tracking was added)",
 				})
 				continue
 			}
@@ -992,12 +1011,20 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 				continue
 			}
 			// Check task status
-			stdout, _, err := runCmd("sctool", "task", "progress", taskID, "--cluster", srv.ScyllaCluster, "--api-url", srv.ScyllaManagerAPI)
+			scyllaArgs := []string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}
+			if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+				scyllaArgs = append(scyllaArgs, "--api-url", srv.ScyllaManagerAPI)
+			}
+			stdout, stderr, err := runCmd("sctool", scyllaArgs...)
 			if err != nil {
+				detail := strings.TrimSpace(stderr)
+				if detail == "" {
+					detail = err.Error()
+				}
 				issues = append(issues, &backup_managerpb.ValidationIssue{
 					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
 					Code:     "SCYLLA_TASK_FAILED",
-					Message:  fmt.Sprintf("scylla backup task check failed: %v", err),
+					Message:  fmt.Sprintf("scylla backup task check failed: %s", detail),
 				})
 			} else if !containsAny(stdout, "DONE", "SUCCESS") {
 				issues = append(issues, &backup_managerpb.ValidationIssue{
@@ -1147,7 +1174,8 @@ func (srv *server) validateReplications(backupID string) []*backup_managerpb.Rep
 				rep.DestinationType == backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_S3 {
 				remotePath = fmt.Sprintf(":s3:%s/artifacts/%s", rep.DestinationPath, backupID)
 			}
-			rv.Ok, rv.MissingFiles, rv.ErrorMessage = verifyRemoteCapsule(remotePath, requiredFiles)
+			extraArgs := srv.rcloneArgsForDest(rep.DestinationName, rep.DestinationType)
+			rv.Ok, rv.MissingFiles, rv.ErrorMessage = verifyRemoteCapsule(remotePath, requiredFiles, extraArgs)
 		}
 
 		if !rv.Ok && rv.ErrorMessage == "" {
@@ -1171,9 +1199,10 @@ func verifyLocalCapsule(capsulePath string, requiredFiles []string) (bool, []str
 	return len(missing) == 0, missing
 }
 
-func verifyRemoteCapsule(remotePath string, requiredFiles []string) (bool, []string, string) {
+func verifyRemoteCapsule(remotePath string, requiredFiles []string, extraArgs []string) (bool, []string, string) {
 	// Use rclone lsf to list remote files
-	stdout, stderr, err := runCmd("rclone", "lsf", remotePath, "--recursive")
+	args := append([]string{"lsf", remotePath, "--recursive"}, extraArgs...)
+	stdout, stderr, err := runCmd("rclone", args...)
 	if err != nil {
 		return false, nil, fmt.Sprintf("rclone lsf failed: %s: %v", strings.TrimSpace(stderr), err)
 	}
