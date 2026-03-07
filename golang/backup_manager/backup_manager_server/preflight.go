@@ -216,6 +216,37 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 		}
 	}
 
+	// Recovery readiness checks
+	dest := srv.resolveRecoveryDestination()
+	checks = append(checks, &backup_managerpb.ToolCheck{
+		Name:      "recovery_destination_configured",
+		Available: dest != nil,
+	})
+
+	seed, seedErr := loadRecoverySeed()
+	checks = append(checks, &backup_managerpb.ToolCheck{
+		Name:      "recovery_seed_present",
+		Available: seedErr == nil,
+	})
+
+	if seed != nil {
+		checks = append(checks, &backup_managerpb.ToolCheck{
+			Name:      "recovery_credentials_available",
+			Available: seedCredentialsAvailable(seed),
+		})
+
+		seedMatches := false
+		if dest != nil {
+			seedMatches = dest.Name == seed.Destination.Name &&
+				dest.Type == seed.Destination.Type &&
+				dest.Path == seed.Destination.Path
+		}
+		checks = append(checks, &backup_managerpb.ToolCheck{
+			Name:      "recovery_seed_matches_current_config",
+			Available: seedMatches,
+		})
+	}
+
 	return &backup_managerpb.PreflightCheckResponse{
 		Tools: checks,
 		AllOk: allOk,

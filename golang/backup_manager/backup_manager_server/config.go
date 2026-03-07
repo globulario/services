@@ -118,11 +118,12 @@ type HookTargetConfig struct {
 }
 
 type DestinationConfig struct {
-	Name    string            `json:"Name"`
-	Type    string            `json:"Type"`    // local, minio, nfs, s3, rclone
-	Path    string            `json:"Path"`
-	Options map[string]string `json:"Options"` // endpoint, access_key, secret_key, region, etc.
-	Primary bool              `json:"Primary"` // if true, this is the primary storage location
+	Name                     string            `json:"Name"`
+	Type                     string            `json:"Type"`    // local, minio, nfs, s3, rclone
+	Path                     string            `json:"Path"`
+	Options                  map[string]string `json:"Options"` // endpoint, access_key, secret_key, region, etc.
+	Primary                  bool              `json:"Primary"` // if true, this is the primary storage location
+	AuthoritativeForRecovery bool              `json:"AuthoritativeForRecovery,omitempty"` // if true, recovery seed is written from this destination
 }
 
 func DefaultConfig() *Config {

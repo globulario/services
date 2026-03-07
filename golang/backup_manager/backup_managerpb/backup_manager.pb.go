@@ -702,14 +702,15 @@ func (x *HookSummary) GetFinalize() []*HookResult {
 }
 
 type BackupDestination struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Type          BackupDestinationType  `protobuf:"varint,2,opt,name=type,proto3,enum=backup_manager.BackupDestinationType" json:"type,omitempty"`
-	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`                                                                                 // filesystem path, bucket/prefix, or rclone remote:path
-	Options       map[string]string      `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // type-specific options (endpoint, access_key, etc.)
-	Primary       bool                   `protobuf:"varint,5,opt,name=primary,proto3" json:"primary,omitempty"`                                                                          // if true, providers write directly here
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Name                     string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type                     BackupDestinationType  `protobuf:"varint,2,opt,name=type,proto3,enum=backup_manager.BackupDestinationType" json:"type,omitempty"`
+	Path                     string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`                                                                                 // filesystem path, bucket/prefix, or rclone remote:path
+	Options                  map[string]string      `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // type-specific options (endpoint, access_key, etc.)
+	Primary                  bool                   `protobuf:"varint,5,opt,name=primary,proto3" json:"primary,omitempty"`                                                                          // if true, providers write directly here
+	AuthoritativeForRecovery bool                   `protobuf:"varint,6,opt,name=authoritative_for_recovery,json=authoritativeForRecovery,proto3" json:"authoritative_for_recovery,omitempty"`      // if true, recovery seed is written from this destination
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *BackupDestination) Reset() {
@@ -773,6 +774,13 @@ func (x *BackupDestination) GetOptions() map[string]string {
 func (x *BackupDestination) GetPrimary() bool {
 	if x != nil {
 		return x.Primary
+	}
+	return false
+}
+
+func (x *BackupDestination) GetAuthoritativeForRecovery() bool {
+	if x != nil {
+		return x.AuthoritativeForRecovery
 	}
 	return false
 }
@@ -1377,8 +1385,13 @@ type BackupArtifact struct {
 	Cluster          *ClusterInfo            `protobuf:"bytes,18,opt,name=cluster,proto3" json:"cluster,omitempty"`                                                                         // cluster context at backup time
 	Hooks            *HookSummary            `protobuf:"bytes,19,opt,name=hooks,proto3" json:"hooks,omitempty"`                                                                             // quiesce hook results (if cluster mode)
 	SkippedProviders []*SkippedProvider      `protobuf:"bytes,20,rep,name=skipped_providers,json=skippedProviders,proto3" json:"skipped_providers,omitempty"`                               // providers that were skipped (unavailable, etc.)
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// --- Persisted evidence (populated after validate/restore-test/backup) ---
+	ValidationReport  *ValidationReport     `protobuf:"bytes,21,opt,name=validation_report,json=validationReport,proto3" json:"validation_report,omitempty"`      // persisted validation evidence
+	RestoreTestReport *RestoreTestReport    `protobuf:"bytes,22,opt,name=restore_test_report,json=restoreTestReport,proto3" json:"restore_test_report,omitempty"` // persisted restore-test evidence
+	NodeCoverage      []*NodeCoverageReport `protobuf:"bytes,23,rep,name=node_coverage,json=nodeCoverage,proto3" json:"node_coverage,omitempty"`                  // per-provider node coverage (cluster mode)
+	CompletedUnixMs   int64                 `protobuf:"varint,24,opt,name=completed_unix_ms,json=completedUnixMs,proto3" json:"completed_unix_ms,omitempty"`      // when backup completed (job finished)
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *BackupArtifact) Reset() {
@@ -1549,6 +1562,34 @@ func (x *BackupArtifact) GetSkippedProviders() []*SkippedProvider {
 		return x.SkippedProviders
 	}
 	return nil
+}
+
+func (x *BackupArtifact) GetValidationReport() *ValidationReport {
+	if x != nil {
+		return x.ValidationReport
+	}
+	return nil
+}
+
+func (x *BackupArtifact) GetRestoreTestReport() *RestoreTestReport {
+	if x != nil {
+		return x.RestoreTestReport
+	}
+	return nil
+}
+
+func (x *BackupArtifact) GetNodeCoverage() []*NodeCoverageReport {
+	if x != nil {
+		return x.NodeCoverage
+	}
+	return nil
+}
+
+func (x *BackupArtifact) GetCompletedUnixMs() int64 {
+	if x != nil {
+		return x.CompletedUnixMs
+	}
+	return 0
 }
 
 // Retention policy configuration.
@@ -3544,6 +3585,228 @@ func (x *SkippedProvider) GetReason() string {
 	return ""
 }
 
+// Persisted validation evidence attached to the artifact.
+type ValidationReport struct {
+	state             protoimpl.MessageState   `protogen:"open.v1"`
+	Valid             bool                     `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	ValidatedAtUnixMs int64                    `protobuf:"varint,2,opt,name=validated_at_unix_ms,json=validatedAtUnixMs,proto3" json:"validated_at_unix_ms,omitempty"`
+	Issues            []*ValidationIssue       `protobuf:"bytes,3,rep,name=issues,proto3" json:"issues,omitempty"`
+	ReplicationChecks []*ReplicationValidation `protobuf:"bytes,4,rep,name=replication_checks,json=replicationChecks,proto3" json:"replication_checks,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ValidationReport) Reset() {
+	*x = ValidationReport{}
+	mi := &file_backup_manager_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidationReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidationReport) ProtoMessage() {}
+
+func (x *ValidationReport) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidationReport.ProtoReflect.Descriptor instead.
+func (*ValidationReport) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *ValidationReport) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidationReport) GetValidatedAtUnixMs() int64 {
+	if x != nil {
+		return x.ValidatedAtUnixMs
+	}
+	return 0
+}
+
+func (x *ValidationReport) GetIssues() []*ValidationIssue {
+	if x != nil {
+		return x.Issues
+	}
+	return nil
+}
+
+func (x *ValidationReport) GetReplicationChecks() []*ReplicationValidation {
+	if x != nil {
+		return x.ReplicationChecks
+	}
+	return nil
+}
+
+// Per-provider node coverage for cluster-mode backups.
+type NodeCoverageReport struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Provider      string                     `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	Entries       []*NodeCoverageReportEntry `protobuf:"bytes,2,rep,name=entries,proto3" json:"entries,omitempty"`
+	Succeeded     uint32                     `protobuf:"varint,3,opt,name=succeeded,proto3" json:"succeeded,omitempty"`
+	Failed        uint32                     `protobuf:"varint,4,opt,name=failed,proto3" json:"failed,omitempty"`
+	Skipped       uint32                     `protobuf:"varint,5,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	Total         uint32                     `protobuf:"varint,6,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeCoverageReport) Reset() {
+	*x = NodeCoverageReport{}
+	mi := &file_backup_manager_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeCoverageReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeCoverageReport) ProtoMessage() {}
+
+func (x *NodeCoverageReport) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeCoverageReport.ProtoReflect.Descriptor instead.
+func (*NodeCoverageReport) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *NodeCoverageReport) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *NodeCoverageReport) GetEntries() []*NodeCoverageReportEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *NodeCoverageReport) GetSucceeded() uint32 {
+	if x != nil {
+		return x.Succeeded
+	}
+	return 0
+}
+
+func (x *NodeCoverageReport) GetFailed() uint32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *NodeCoverageReport) GetSkipped() uint32 {
+	if x != nil {
+		return x.Skipped
+	}
+	return 0
+}
+
+func (x *NodeCoverageReport) GetTotal() uint32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type NodeCoverageReportEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Ok            bool                   `protobuf:"varint,3,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeCoverageReportEntry) Reset() {
+	*x = NodeCoverageReportEntry{}
+	mi := &file_backup_manager_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeCoverageReportEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeCoverageReportEntry) ProtoMessage() {}
+
+func (x *NodeCoverageReportEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeCoverageReportEntry.ProtoReflect.Descriptor instead.
+func (*NodeCoverageReportEntry) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *NodeCoverageReportEntry) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NodeCoverageReportEntry) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *NodeCoverageReportEntry) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *NodeCoverageReportEntry) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 type RunRestoreTestRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BackupId      string                 `protobuf:"bytes,1,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`                 // backup to test (empty = pick latest UNVERIFIED/VALIDATED)
@@ -3555,7 +3818,7 @@ type RunRestoreTestRequest struct {
 
 func (x *RunRestoreTestRequest) Reset() {
 	*x = RunRestoreTestRequest{}
-	mi := &file_backup_manager_proto_msgTypes[46]
+	mi := &file_backup_manager_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3567,7 +3830,7 @@ func (x *RunRestoreTestRequest) String() string {
 func (*RunRestoreTestRequest) ProtoMessage() {}
 
 func (x *RunRestoreTestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[46]
+	mi := &file_backup_manager_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3580,7 +3843,7 @@ func (x *RunRestoreTestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunRestoreTestRequest.ProtoReflect.Descriptor instead.
 func (*RunRestoreTestRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{46}
+	return file_backup_manager_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RunRestoreTestRequest) GetBackupId() string {
@@ -3615,7 +3878,7 @@ type RunRestoreTestResponse struct {
 
 func (x *RunRestoreTestResponse) Reset() {
 	*x = RunRestoreTestResponse{}
-	mi := &file_backup_manager_proto_msgTypes[47]
+	mi := &file_backup_manager_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3627,7 +3890,7 @@ func (x *RunRestoreTestResponse) String() string {
 func (*RunRestoreTestResponse) ProtoMessage() {}
 
 func (x *RunRestoreTestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[47]
+	mi := &file_backup_manager_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3640,7 +3903,7 @@ func (x *RunRestoreTestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunRestoreTestResponse.ProtoReflect.Descriptor instead.
 func (*RunRestoreTestResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{47}
+	return file_backup_manager_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *RunRestoreTestResponse) GetJobId() string {
@@ -3678,7 +3941,7 @@ type RestoreTestReport struct {
 
 func (x *RestoreTestReport) Reset() {
 	*x = RestoreTestReport{}
-	mi := &file_backup_manager_proto_msgTypes[48]
+	mi := &file_backup_manager_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3690,7 +3953,7 @@ func (x *RestoreTestReport) String() string {
 func (*RestoreTestReport) ProtoMessage() {}
 
 func (x *RestoreTestReport) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[48]
+	mi := &file_backup_manager_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3703,7 +3966,7 @@ func (x *RestoreTestReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreTestReport.ProtoReflect.Descriptor instead.
 func (*RestoreTestReport) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{48}
+	return file_backup_manager_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *RestoreTestReport) GetBackupId() string {
@@ -3760,7 +4023,7 @@ type RestoreTestCheck struct {
 
 func (x *RestoreTestCheck) Reset() {
 	*x = RestoreTestCheck{}
-	mi := &file_backup_manager_proto_msgTypes[49]
+	mi := &file_backup_manager_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3772,7 +4035,7 @@ func (x *RestoreTestCheck) String() string {
 func (*RestoreTestCheck) ProtoMessage() {}
 
 func (x *RestoreTestCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[49]
+	mi := &file_backup_manager_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3785,7 +4048,7 @@ func (x *RestoreTestCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreTestCheck.ProtoReflect.Descriptor instead.
 func (*RestoreTestCheck) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{49}
+	return file_backup_manager_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *RestoreTestCheck) GetProvider() string {
@@ -3825,7 +4088,7 @@ type PromoteBackupRequest struct {
 
 func (x *PromoteBackupRequest) Reset() {
 	*x = PromoteBackupRequest{}
-	mi := &file_backup_manager_proto_msgTypes[50]
+	mi := &file_backup_manager_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3837,7 +4100,7 @@ func (x *PromoteBackupRequest) String() string {
 func (*PromoteBackupRequest) ProtoMessage() {}
 
 func (x *PromoteBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[50]
+	mi := &file_backup_manager_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3850,7 +4113,7 @@ func (x *PromoteBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteBackupRequest.ProtoReflect.Descriptor instead.
 func (*PromoteBackupRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{50}
+	return file_backup_manager_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *PromoteBackupRequest) GetBackupId() string {
@@ -3871,7 +4134,7 @@ type PromoteBackupResponse struct {
 
 func (x *PromoteBackupResponse) Reset() {
 	*x = PromoteBackupResponse{}
-	mi := &file_backup_manager_proto_msgTypes[51]
+	mi := &file_backup_manager_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3883,7 +4146,7 @@ func (x *PromoteBackupResponse) String() string {
 func (*PromoteBackupResponse) ProtoMessage() {}
 
 func (x *PromoteBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[51]
+	mi := &file_backup_manager_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3896,7 +4159,7 @@ func (x *PromoteBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteBackupResponse.ProtoReflect.Descriptor instead.
 func (*PromoteBackupResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{51}
+	return file_backup_manager_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *PromoteBackupResponse) GetOk() bool {
@@ -3929,7 +4192,7 @@ type DemoteBackupRequest struct {
 
 func (x *DemoteBackupRequest) Reset() {
 	*x = DemoteBackupRequest{}
-	mi := &file_backup_manager_proto_msgTypes[52]
+	mi := &file_backup_manager_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3941,7 +4204,7 @@ func (x *DemoteBackupRequest) String() string {
 func (*DemoteBackupRequest) ProtoMessage() {}
 
 func (x *DemoteBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[52]
+	mi := &file_backup_manager_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3954,7 +4217,7 @@ func (x *DemoteBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemoteBackupRequest.ProtoReflect.Descriptor instead.
 func (*DemoteBackupRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{52}
+	return file_backup_manager_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *DemoteBackupRequest) GetBackupId() string {
@@ -3975,7 +4238,7 @@ type DemoteBackupResponse struct {
 
 func (x *DemoteBackupResponse) Reset() {
 	*x = DemoteBackupResponse{}
-	mi := &file_backup_manager_proto_msgTypes[53]
+	mi := &file_backup_manager_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3987,7 +4250,7 @@ func (x *DemoteBackupResponse) String() string {
 func (*DemoteBackupResponse) ProtoMessage() {}
 
 func (x *DemoteBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[53]
+	mi := &file_backup_manager_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4000,7 +4263,7 @@ func (x *DemoteBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemoteBackupResponse.ProtoReflect.Descriptor instead.
 func (*DemoteBackupResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{53}
+	return file_backup_manager_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *DemoteBackupResponse) GetOk() bool {
@@ -4037,7 +4300,7 @@ type PrepareBackupHookRequest struct {
 
 func (x *PrepareBackupHookRequest) Reset() {
 	*x = PrepareBackupHookRequest{}
-	mi := &file_backup_manager_proto_msgTypes[54]
+	mi := &file_backup_manager_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4049,7 +4312,7 @@ func (x *PrepareBackupHookRequest) String() string {
 func (*PrepareBackupHookRequest) ProtoMessage() {}
 
 func (x *PrepareBackupHookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[54]
+	mi := &file_backup_manager_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4062,7 +4325,7 @@ func (x *PrepareBackupHookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareBackupHookRequest.ProtoReflect.Descriptor instead.
 func (*PrepareBackupHookRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{54}
+	return file_backup_manager_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *PrepareBackupHookRequest) GetBackupId() string {
@@ -4111,7 +4374,7 @@ type PrepareBackupHookResponse struct {
 
 func (x *PrepareBackupHookResponse) Reset() {
 	*x = PrepareBackupHookResponse{}
-	mi := &file_backup_manager_proto_msgTypes[55]
+	mi := &file_backup_manager_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4123,7 +4386,7 @@ func (x *PrepareBackupHookResponse) String() string {
 func (*PrepareBackupHookResponse) ProtoMessage() {}
 
 func (x *PrepareBackupHookResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[55]
+	mi := &file_backup_manager_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4136,7 +4399,7 @@ func (x *PrepareBackupHookResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareBackupHookResponse.ProtoReflect.Descriptor instead.
 func (*PrepareBackupHookResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{55}
+	return file_backup_manager_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *PrepareBackupHookResponse) GetOk() bool {
@@ -4173,7 +4436,7 @@ type FinalizeBackupHookRequest struct {
 
 func (x *FinalizeBackupHookRequest) Reset() {
 	*x = FinalizeBackupHookRequest{}
-	mi := &file_backup_manager_proto_msgTypes[56]
+	mi := &file_backup_manager_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4185,7 +4448,7 @@ func (x *FinalizeBackupHookRequest) String() string {
 func (*FinalizeBackupHookRequest) ProtoMessage() {}
 
 func (x *FinalizeBackupHookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[56]
+	mi := &file_backup_manager_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4198,7 +4461,7 @@ func (x *FinalizeBackupHookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeBackupHookRequest.ProtoReflect.Descriptor instead.
 func (*FinalizeBackupHookRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{56}
+	return file_backup_manager_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *FinalizeBackupHookRequest) GetBackupId() string {
@@ -4247,7 +4510,7 @@ type FinalizeBackupHookResponse struct {
 
 func (x *FinalizeBackupHookResponse) Reset() {
 	*x = FinalizeBackupHookResponse{}
-	mi := &file_backup_manager_proto_msgTypes[57]
+	mi := &file_backup_manager_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4259,7 +4522,7 @@ func (x *FinalizeBackupHookResponse) String() string {
 func (*FinalizeBackupHookResponse) ProtoMessage() {}
 
 func (x *FinalizeBackupHookResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[57]
+	mi := &file_backup_manager_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4272,7 +4535,7 @@ func (x *FinalizeBackupHookResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeBackupHookResponse.ProtoReflect.Descriptor instead.
 func (*FinalizeBackupHookResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{57}
+	return file_backup_manager_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *FinalizeBackupHookResponse) GetOk() bool {
@@ -4308,7 +4571,7 @@ type MinioBucketInfo struct {
 
 func (x *MinioBucketInfo) Reset() {
 	*x = MinioBucketInfo{}
-	mi := &file_backup_manager_proto_msgTypes[58]
+	mi := &file_backup_manager_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4320,7 +4583,7 @@ func (x *MinioBucketInfo) String() string {
 func (*MinioBucketInfo) ProtoMessage() {}
 
 func (x *MinioBucketInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[58]
+	mi := &file_backup_manager_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4333,7 +4596,7 @@ func (x *MinioBucketInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MinioBucketInfo.ProtoReflect.Descriptor instead.
 func (*MinioBucketInfo) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{58}
+	return file_backup_manager_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *MinioBucketInfo) GetName() string {
@@ -4372,7 +4635,7 @@ type ListMinioBucketsRequest struct {
 
 func (x *ListMinioBucketsRequest) Reset() {
 	*x = ListMinioBucketsRequest{}
-	mi := &file_backup_manager_proto_msgTypes[59]
+	mi := &file_backup_manager_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4384,7 +4647,7 @@ func (x *ListMinioBucketsRequest) String() string {
 func (*ListMinioBucketsRequest) ProtoMessage() {}
 
 func (x *ListMinioBucketsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[59]
+	mi := &file_backup_manager_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4397,7 +4660,7 @@ func (x *ListMinioBucketsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMinioBucketsRequest.ProtoReflect.Descriptor instead.
 func (*ListMinioBucketsRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{59}
+	return file_backup_manager_proto_rawDescGZIP(), []int{62}
 }
 
 type ListMinioBucketsResponse struct {
@@ -4410,7 +4673,7 @@ type ListMinioBucketsResponse struct {
 
 func (x *ListMinioBucketsResponse) Reset() {
 	*x = ListMinioBucketsResponse{}
-	mi := &file_backup_manager_proto_msgTypes[60]
+	mi := &file_backup_manager_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4422,7 +4685,7 @@ func (x *ListMinioBucketsResponse) String() string {
 func (*ListMinioBucketsResponse) ProtoMessage() {}
 
 func (x *ListMinioBucketsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[60]
+	mi := &file_backup_manager_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4435,7 +4698,7 @@ func (x *ListMinioBucketsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMinioBucketsResponse.ProtoReflect.Descriptor instead.
 func (*ListMinioBucketsResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{60}
+	return file_backup_manager_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ListMinioBucketsResponse) GetBuckets() []*MinioBucketInfo {
@@ -4463,7 +4726,7 @@ type CreateMinioBucketRequest struct {
 
 func (x *CreateMinioBucketRequest) Reset() {
 	*x = CreateMinioBucketRequest{}
-	mi := &file_backup_manager_proto_msgTypes[61]
+	mi := &file_backup_manager_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4475,7 +4738,7 @@ func (x *CreateMinioBucketRequest) String() string {
 func (*CreateMinioBucketRequest) ProtoMessage() {}
 
 func (x *CreateMinioBucketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[61]
+	mi := &file_backup_manager_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4488,7 +4751,7 @@ func (x *CreateMinioBucketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMinioBucketRequest.ProtoReflect.Descriptor instead.
 func (*CreateMinioBucketRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{61}
+	return file_backup_manager_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *CreateMinioBucketRequest) GetName() string {
@@ -4523,7 +4786,7 @@ type CreateMinioBucketResponse struct {
 
 func (x *CreateMinioBucketResponse) Reset() {
 	*x = CreateMinioBucketResponse{}
-	mi := &file_backup_manager_proto_msgTypes[62]
+	mi := &file_backup_manager_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4535,7 +4798,7 @@ func (x *CreateMinioBucketResponse) String() string {
 func (*CreateMinioBucketResponse) ProtoMessage() {}
 
 func (x *CreateMinioBucketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[62]
+	mi := &file_backup_manager_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4548,7 +4811,7 @@ func (x *CreateMinioBucketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMinioBucketResponse.ProtoReflect.Descriptor instead.
 func (*CreateMinioBucketResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{62}
+	return file_backup_manager_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CreateMinioBucketResponse) GetOk() bool {
@@ -4582,7 +4845,7 @@ type DeleteMinioBucketRequest struct {
 
 func (x *DeleteMinioBucketRequest) Reset() {
 	*x = DeleteMinioBucketRequest{}
-	mi := &file_backup_manager_proto_msgTypes[63]
+	mi := &file_backup_manager_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4594,7 +4857,7 @@ func (x *DeleteMinioBucketRequest) String() string {
 func (*DeleteMinioBucketRequest) ProtoMessage() {}
 
 func (x *DeleteMinioBucketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[63]
+	mi := &file_backup_manager_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4607,7 +4870,7 @@ func (x *DeleteMinioBucketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMinioBucketRequest.ProtoReflect.Descriptor instead.
 func (*DeleteMinioBucketRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{63}
+	return file_backup_manager_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *DeleteMinioBucketRequest) GetName() string {
@@ -4634,7 +4897,7 @@ type DeleteMinioBucketResponse struct {
 
 func (x *DeleteMinioBucketResponse) Reset() {
 	*x = DeleteMinioBucketResponse{}
-	mi := &file_backup_manager_proto_msgTypes[64]
+	mi := &file_backup_manager_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4646,7 +4909,7 @@ func (x *DeleteMinioBucketResponse) String() string {
 func (*DeleteMinioBucketResponse) ProtoMessage() {}
 
 func (x *DeleteMinioBucketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[64]
+	mi := &file_backup_manager_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4659,7 +4922,7 @@ func (x *DeleteMinioBucketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMinioBucketResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMinioBucketResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{64}
+	return file_backup_manager_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *DeleteMinioBucketResponse) GetOk() bool {
@@ -4684,7 +4947,7 @@ type GetScheduleStatusRequest struct {
 
 func (x *GetScheduleStatusRequest) Reset() {
 	*x = GetScheduleStatusRequest{}
-	mi := &file_backup_manager_proto_msgTypes[65]
+	mi := &file_backup_manager_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4696,7 +4959,7 @@ func (x *GetScheduleStatusRequest) String() string {
 func (*GetScheduleStatusRequest) ProtoMessage() {}
 
 func (x *GetScheduleStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[65]
+	mi := &file_backup_manager_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4709,7 +4972,7 @@ func (x *GetScheduleStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetScheduleStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetScheduleStatusRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{65}
+	return file_backup_manager_proto_rawDescGZIP(), []int{68}
 }
 
 type GetScheduleStatusResponse struct {
@@ -4724,7 +4987,7 @@ type GetScheduleStatusResponse struct {
 
 func (x *GetScheduleStatusResponse) Reset() {
 	*x = GetScheduleStatusResponse{}
-	mi := &file_backup_manager_proto_msgTypes[66]
+	mi := &file_backup_manager_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4736,7 +4999,7 @@ func (x *GetScheduleStatusResponse) String() string {
 func (*GetScheduleStatusResponse) ProtoMessage() {}
 
 func (x *GetScheduleStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[66]
+	mi := &file_backup_manager_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4749,7 +5012,7 @@ func (x *GetScheduleStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetScheduleStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetScheduleStatusResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{66}
+	return file_backup_manager_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *GetScheduleStatusResponse) GetEnabled() bool {
@@ -4780,6 +5043,406 @@ func (x *GetScheduleStatusResponse) GetNextFireUnixMs() int64 {
 	return 0
 }
 
+type RecoverySeedLastBackup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BackupId      string                 `protobuf:"bytes,1,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	CreatedUnixMs int64                  `protobuf:"varint,2,opt,name=created_unix_ms,json=createdUnixMs,proto3" json:"created_unix_ms,omitempty"`
+	PlanName      string                 `protobuf:"bytes,3,opt,name=plan_name,json=planName,proto3" json:"plan_name,omitempty"`
+	QualityState  string                 `protobuf:"bytes,4,opt,name=quality_state,json=qualityState,proto3" json:"quality_state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecoverySeedLastBackup) Reset() {
+	*x = RecoverySeedLastBackup{}
+	mi := &file_backup_manager_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecoverySeedLastBackup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecoverySeedLastBackup) ProtoMessage() {}
+
+func (x *RecoverySeedLastBackup) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecoverySeedLastBackup.ProtoReflect.Descriptor instead.
+func (*RecoverySeedLastBackup) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *RecoverySeedLastBackup) GetBackupId() string {
+	if x != nil {
+		return x.BackupId
+	}
+	return ""
+}
+
+func (x *RecoverySeedLastBackup) GetCreatedUnixMs() int64 {
+	if x != nil {
+		return x.CreatedUnixMs
+	}
+	return 0
+}
+
+func (x *RecoverySeedLastBackup) GetPlanName() string {
+	if x != nil {
+		return x.PlanName
+	}
+	return ""
+}
+
+func (x *RecoverySeedLastBackup) GetQualityState() string {
+	if x != nil {
+		return x.QualityState
+	}
+	return ""
+}
+
+type RecoverySeedDestination struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Options       map[string]string      `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // endpoint, region, etc. (never credentials)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecoverySeedDestination) Reset() {
+	*x = RecoverySeedDestination{}
+	mi := &file_backup_manager_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecoverySeedDestination) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecoverySeedDestination) ProtoMessage() {}
+
+func (x *RecoverySeedDestination) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecoverySeedDestination.ProtoReflect.Descriptor instead.
+func (*RecoverySeedDestination) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *RecoverySeedDestination) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RecoverySeedDestination) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *RecoverySeedDestination) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RecoverySeedDestination) GetOptions() map[string]string {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+type GetRecoveryStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRecoveryStatusRequest) Reset() {
+	*x = GetRecoveryStatusRequest{}
+	mi := &file_backup_manager_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRecoveryStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRecoveryStatusRequest) ProtoMessage() {}
+
+func (x *GetRecoveryStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRecoveryStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetRecoveryStatusRequest) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{72}
+}
+
+type GetRecoveryStatusResponse struct {
+	state                 protoimpl.MessageState   `protogen:"open.v1"`
+	SeedPresent           bool                     `protobuf:"varint,1,opt,name=seed_present,json=seedPresent,proto3" json:"seed_present,omitempty"`
+	DestinationConfigured bool                     `protobuf:"varint,2,opt,name=destination_configured,json=destinationConfigured,proto3" json:"destination_configured,omitempty"`
+	CredentialsAvailable  bool                     `protobuf:"varint,3,opt,name=credentials_available,json=credentialsAvailable,proto3" json:"credentials_available,omitempty"`
+	SeedMatchesConfig     bool                     `protobuf:"varint,4,opt,name=seed_matches_config,json=seedMatchesConfig,proto3" json:"seed_matches_config,omitempty"`
+	ClusterName           string                   `protobuf:"bytes,5,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterId             string                   `protobuf:"bytes,6,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	Domain                string                   `protobuf:"bytes,7,opt,name=domain,proto3" json:"domain,omitempty"`
+	Destination           *RecoverySeedDestination `protobuf:"bytes,8,opt,name=destination,proto3" json:"destination,omitempty"`
+	LastBackup            *RecoverySeedLastBackup  `protobuf:"bytes,9,opt,name=last_backup,json=lastBackup,proto3" json:"last_backup,omitempty"`
+	SeedVersion           string                   `protobuf:"bytes,10,opt,name=seed_version,json=seedVersion,proto3" json:"seed_version,omitempty"`
+	Message               string                   `protobuf:"bytes,11,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *GetRecoveryStatusResponse) Reset() {
+	*x = GetRecoveryStatusResponse{}
+	mi := &file_backup_manager_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRecoveryStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRecoveryStatusResponse) ProtoMessage() {}
+
+func (x *GetRecoveryStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRecoveryStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetRecoveryStatusResponse) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *GetRecoveryStatusResponse) GetSeedPresent() bool {
+	if x != nil {
+		return x.SeedPresent
+	}
+	return false
+}
+
+func (x *GetRecoveryStatusResponse) GetDestinationConfigured() bool {
+	if x != nil {
+		return x.DestinationConfigured
+	}
+	return false
+}
+
+func (x *GetRecoveryStatusResponse) GetCredentialsAvailable() bool {
+	if x != nil {
+		return x.CredentialsAvailable
+	}
+	return false
+}
+
+func (x *GetRecoveryStatusResponse) GetSeedMatchesConfig() bool {
+	if x != nil {
+		return x.SeedMatchesConfig
+	}
+	return false
+}
+
+func (x *GetRecoveryStatusResponse) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
+
+func (x *GetRecoveryStatusResponse) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *GetRecoveryStatusResponse) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *GetRecoveryStatusResponse) GetDestination() *RecoverySeedDestination {
+	if x != nil {
+		return x.Destination
+	}
+	return nil
+}
+
+func (x *GetRecoveryStatusResponse) GetLastBackup() *RecoverySeedLastBackup {
+	if x != nil {
+		return x.LastBackup
+	}
+	return nil
+}
+
+func (x *GetRecoveryStatusResponse) GetSeedVersion() string {
+	if x != nil {
+		return x.SeedVersion
+	}
+	return ""
+}
+
+func (x *GetRecoveryStatusResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ApplyRecoverySeedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Force         bool                   `protobuf:"varint,1,opt,name=force,proto3" json:"force,omitempty"` // apply even if current config has non-local destinations
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyRecoverySeedRequest) Reset() {
+	*x = ApplyRecoverySeedRequest{}
+	mi := &file_backup_manager_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyRecoverySeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyRecoverySeedRequest) ProtoMessage() {}
+
+func (x *ApplyRecoverySeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyRecoverySeedRequest.ProtoReflect.Descriptor instead.
+func (*ApplyRecoverySeedRequest) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *ApplyRecoverySeedRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+type ApplyRecoverySeedResponse struct {
+	state              protoimpl.MessageState   `protogen:"open.v1"`
+	Ok                 bool                     `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Message            string                   `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	AppliedDestination *RecoverySeedDestination `protobuf:"bytes,3,opt,name=applied_destination,json=appliedDestination,proto3" json:"applied_destination,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ApplyRecoverySeedResponse) Reset() {
+	*x = ApplyRecoverySeedResponse{}
+	mi := &file_backup_manager_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyRecoverySeedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyRecoverySeedResponse) ProtoMessage() {}
+
+func (x *ApplyRecoverySeedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_manager_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyRecoverySeedResponse.ProtoReflect.Descriptor instead.
+func (*ApplyRecoverySeedResponse) Descriptor() ([]byte, []int) {
+	return file_backup_manager_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *ApplyRecoverySeedResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ApplyRecoverySeedResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ApplyRecoverySeedResponse) GetAppliedDestination() *RecoverySeedDestination {
+	if x != nil {
+		return x.AppliedDestination
+	}
+	return nil
+}
+
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -4788,7 +5451,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_backup_manager_proto_msgTypes[67]
+	mi := &file_backup_manager_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4800,7 +5463,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[67]
+	mi := &file_backup_manager_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4813,7 +5476,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{67}
+	return file_backup_manager_proto_rawDescGZIP(), []int{76}
 }
 
 type StopResponse struct {
@@ -4824,7 +5487,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_backup_manager_proto_msgTypes[68]
+	mi := &file_backup_manager_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4836,7 +5499,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_manager_proto_msgTypes[68]
+	mi := &file_backup_manager_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4849,7 +5512,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_backup_manager_proto_rawDescGZIP(), []int{68}
+	return file_backup_manager_proto_rawDescGZIP(), []int{77}
 }
 
 var File_backup_manager_proto protoreflect.FileDescriptor
@@ -4879,13 +5542,14 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"{\n" +
 	"\vHookSummary\x124\n" +
 	"\aprepare\x18\x01 \x03(\v2\x1a.backup_manager.HookResultR\aprepare\x126\n" +
-	"\bfinalize\x18\x02 \x03(\v2\x1a.backup_manager.HookResultR\bfinalize\"\x96\x02\n" +
+	"\bfinalize\x18\x02 \x03(\v2\x1a.backup_manager.HookResultR\bfinalize\"\xd4\x02\n" +
 	"\x11BackupDestination\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x129\n" +
 	"\x04type\x18\x02 \x01(\x0e2%.backup_manager.BackupDestinationTypeR\x04type\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12H\n" +
 	"\aoptions\x18\x04 \x03(\v2..backup_manager.BackupDestination.OptionsEntryR\aoptions\x12\x18\n" +
-	"\aprimary\x18\x05 \x01(\bR\aprimary\x1a:\n" +
+	"\aprimary\x18\x05 \x01(\bR\aprimary\x12<\n" +
+	"\x1aauthoritative_for_recovery\x18\x06 \x01(\bR\x18authoritativeForRecovery\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x96\x02\n" +
@@ -4951,7 +5615,7 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\amessage\x18\n" +
 	" \x01(\tR\amessage\x12E\n" +
 	"\freplications\x18\v \x03(\v2!.backup_manager.ReplicationResultR\freplications\x128\n" +
-	"\bjob_type\x18\f \x01(\x0e2\x1d.backup_manager.BackupJobTypeR\ajobType\"\xe8\a\n" +
+	"\bjob_type\x18\f \x01(\x0e2\x1d.backup_manager.BackupJobTypeR\ajobType\"\xff\t\n" +
 	"\x0eBackupArtifact\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12&\n" +
 	"\x0fcreated_unix_ms\x18\x02 \x01(\x03R\rcreatedUnixMs\x12\x1a\n" +
@@ -4976,7 +5640,11 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\rquality_state\x18\x11 \x01(\x0e2\x1c.backup_manager.QualityStateR\fqualityState\x125\n" +
 	"\acluster\x18\x12 \x01(\v2\x1b.backup_manager.ClusterInfoR\acluster\x121\n" +
 	"\x05hooks\x18\x13 \x01(\v2\x1b.backup_manager.HookSummaryR\x05hooks\x12L\n" +
-	"\x11skipped_providers\x18\x14 \x03(\v2\x1f.backup_manager.SkippedProviderR\x10skippedProviders\x1a9\n" +
+	"\x11skipped_providers\x18\x14 \x03(\v2\x1f.backup_manager.SkippedProviderR\x10skippedProviders\x12M\n" +
+	"\x11validation_report\x18\x15 \x01(\v2 .backup_manager.ValidationReportR\x10validationReport\x12Q\n" +
+	"\x13restore_test_report\x18\x16 \x01(\v2!.backup_manager.RestoreTestReportR\x11restoreTestReport\x12G\n" +
+	"\rnode_coverage\x18\x17 \x03(\v2\".backup_manager.NodeCoverageReportR\fnodeCoverage\x12*\n" +
+	"\x11completed_unix_ms\x18\x18 \x01(\x03R\x0fcompletedUnixMs\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb2\x01\n" +
@@ -5114,7 +5782,24 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"=\n" +
 	"\x0fSkippedProvider\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x8d\x01\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xe8\x01\n" +
+	"\x10ValidationReport\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12/\n" +
+	"\x14validated_at_unix_ms\x18\x02 \x01(\x03R\x11validatedAtUnixMs\x127\n" +
+	"\x06issues\x18\x03 \x03(\v2\x1f.backup_manager.ValidationIssueR\x06issues\x12T\n" +
+	"\x12replication_checks\x18\x04 \x03(\v2%.backup_manager.ReplicationValidationR\x11replicationChecks\"\xd9\x01\n" +
+	"\x12NodeCoverageReport\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12A\n" +
+	"\aentries\x18\x02 \x03(\v2'.backup_manager.NodeCoverageReportEntryR\aentries\x12\x1c\n" +
+	"\tsucceeded\x18\x03 \x01(\rR\tsucceeded\x12\x16\n" +
+	"\x06failed\x18\x04 \x01(\rR\x06failed\x12\x18\n" +
+	"\askipped\x18\x05 \x01(\rR\askipped\x12\x14\n" +
+	"\x05total\x18\x06 \x01(\rR\x05total\"\x83\x01\n" +
+	"\x17NodeCoverageReportEntry\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x0e\n" +
+	"\x02ok\x18\x03 \x01(\bR\x02ok\x12#\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x8d\x01\n" +
 	"\x15RunRestoreTestRequest\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x126\n" +
 	"\x05level\x18\x02 \x01(\x0e2 .backup_manager.RestoreTestLevelR\x05level\x12\x1f\n" +
@@ -5211,7 +5896,42 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\binterval\x18\x02 \x01(\tR\binterval\x12\x1f\n" +
 	"\vinterval_ms\x18\x03 \x01(\x03R\n" +
 	"intervalMs\x12)\n" +
-	"\x11next_fire_unix_ms\x18\x04 \x01(\x03R\x0enextFireUnixMs\"\r\n" +
+	"\x11next_fire_unix_ms\x18\x04 \x01(\x03R\x0enextFireUnixMs\"\x9f\x01\n" +
+	"\x16RecoverySeedLastBackup\x12\x1b\n" +
+	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12&\n" +
+	"\x0fcreated_unix_ms\x18\x02 \x01(\x03R\rcreatedUnixMs\x12\x1b\n" +
+	"\tplan_name\x18\x03 \x01(\tR\bplanName\x12#\n" +
+	"\rquality_state\x18\x04 \x01(\tR\fqualityState\"\xe1\x01\n" +
+	"\x17RecoverySeedDestination\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12N\n" +
+	"\aoptions\x18\x04 \x03(\v24.backup_manager.RecoverySeedDestination.OptionsEntryR\aoptions\x1a:\n" +
+	"\fOptionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1a\n" +
+	"\x18GetRecoveryStatusRequest\"\x85\x04\n" +
+	"\x19GetRecoveryStatusResponse\x12!\n" +
+	"\fseed_present\x18\x01 \x01(\bR\vseedPresent\x125\n" +
+	"\x16destination_configured\x18\x02 \x01(\bR\x15destinationConfigured\x123\n" +
+	"\x15credentials_available\x18\x03 \x01(\bR\x14credentialsAvailable\x12.\n" +
+	"\x13seed_matches_config\x18\x04 \x01(\bR\x11seedMatchesConfig\x12!\n" +
+	"\fcluster_name\x18\x05 \x01(\tR\vclusterName\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x06 \x01(\tR\tclusterId\x12\x16\n" +
+	"\x06domain\x18\a \x01(\tR\x06domain\x12I\n" +
+	"\vdestination\x18\b \x01(\v2'.backup_manager.RecoverySeedDestinationR\vdestination\x12G\n" +
+	"\vlast_backup\x18\t \x01(\v2&.backup_manager.RecoverySeedLastBackupR\n" +
+	"lastBackup\x12!\n" +
+	"\fseed_version\x18\n" +
+	" \x01(\tR\vseedVersion\x12\x18\n" +
+	"\amessage\x18\v \x01(\tR\amessage\"0\n" +
+	"\x18ApplyRecoverySeedRequest\x12\x14\n" +
+	"\x05force\x18\x01 \x01(\bR\x05force\"\x9f\x01\n" +
+	"\x19ApplyRecoverySeedResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12X\n" +
+	"\x13applied_destination\x18\x03 \x01(\v2'.backup_manager.RecoverySeedDestinationR\x12appliedDestination\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
 	"\fStopResponse*\xa7\x01\n" +
 	"\x12BackupProviderType\x12$\n" +
@@ -5258,7 +5978,7 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x10RestoreTestLevel\x12\"\n" +
 	"\x1eRESTORE_TEST_LEVEL_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESTORE_TEST_LIGHT\x10\x01\x12\x16\n" +
-	"\x12RESTORE_TEST_HEAVY\x10\x022\xb3\x10\n" +
+	"\x12RESTORE_TEST_HEAVY\x10\x022\x87\x12\n" +
 	"\x14BackupManagerService\x12P\n" +
 	"\tRunBackup\x12 .backup_manager.RunBackupRequest\x1a!.backup_manager.RunBackupResponse\x12Y\n" +
 	"\fGetBackupJob\x12#.backup_manager.GetBackupJobRequest\x1a$.backup_manager.GetBackupJobResponse\x12_\n" +
@@ -5280,7 +6000,9 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x10ListMinioBuckets\x12'.backup_manager.ListMinioBucketsRequest\x1a(.backup_manager.ListMinioBucketsResponse\x12h\n" +
 	"\x11CreateMinioBucket\x12(.backup_manager.CreateMinioBucketRequest\x1a).backup_manager.CreateMinioBucketResponse\x12h\n" +
 	"\x11DeleteMinioBucket\x12(.backup_manager.DeleteMinioBucketRequest\x1a).backup_manager.DeleteMinioBucketResponse\x12h\n" +
-	"\x11GetScheduleStatus\x12(.backup_manager.GetScheduleStatusRequest\x1a).backup_manager.GetScheduleStatusResponse\x12A\n" +
+	"\x11GetScheduleStatus\x12(.backup_manager.GetScheduleStatusRequest\x1a).backup_manager.GetScheduleStatusResponse\x12h\n" +
+	"\x11GetRecoveryStatus\x12(.backup_manager.GetRecoveryStatusRequest\x1a).backup_manager.GetRecoveryStatusResponse\x12h\n" +
+	"\x11ApplyRecoverySeed\x12(.backup_manager.ApplyRecoverySeedRequest\x1a).backup_manager.ApplyRecoverySeedResponse\x12A\n" +
 	"\x04Stop\x12\x1b.backup_manager.StopRequest\x1a\x1c.backup_manager.StopResponse2\xe2\x01\n" +
 	"\x11BackupHookService\x12d\n" +
 	"\rPrepareBackup\x12(.backup_manager.PrepareBackupHookRequest\x1a).backup_manager.PrepareBackupHookResponse\x12g\n" +
@@ -5299,7 +6021,7 @@ func file_backup_manager_proto_rawDescGZIP() []byte {
 }
 
 var file_backup_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_backup_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
+var file_backup_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
 var file_backup_manager_proto_goTypes = []any{
 	(BackupProviderType)(0),            // 0: backup_manager.BackupProviderType
 	(BackupJobState)(0),                // 1: backup_manager.BackupJobState
@@ -5355,162 +6077,186 @@ var file_backup_manager_proto_goTypes = []any{
 	(*PreflightCheckResponse)(nil),     // 51: backup_manager.PreflightCheckResponse
 	(*ToolCheck)(nil),                  // 52: backup_manager.ToolCheck
 	(*SkippedProvider)(nil),            // 53: backup_manager.SkippedProvider
-	(*RunRestoreTestRequest)(nil),      // 54: backup_manager.RunRestoreTestRequest
-	(*RunRestoreTestResponse)(nil),     // 55: backup_manager.RunRestoreTestResponse
-	(*RestoreTestReport)(nil),          // 56: backup_manager.RestoreTestReport
-	(*RestoreTestCheck)(nil),           // 57: backup_manager.RestoreTestCheck
-	(*PromoteBackupRequest)(nil),       // 58: backup_manager.PromoteBackupRequest
-	(*PromoteBackupResponse)(nil),      // 59: backup_manager.PromoteBackupResponse
-	(*DemoteBackupRequest)(nil),        // 60: backup_manager.DemoteBackupRequest
-	(*DemoteBackupResponse)(nil),       // 61: backup_manager.DemoteBackupResponse
-	(*PrepareBackupHookRequest)(nil),   // 62: backup_manager.PrepareBackupHookRequest
-	(*PrepareBackupHookResponse)(nil),  // 63: backup_manager.PrepareBackupHookResponse
-	(*FinalizeBackupHookRequest)(nil),  // 64: backup_manager.FinalizeBackupHookRequest
-	(*FinalizeBackupHookResponse)(nil), // 65: backup_manager.FinalizeBackupHookResponse
-	(*MinioBucketInfo)(nil),            // 66: backup_manager.MinioBucketInfo
-	(*ListMinioBucketsRequest)(nil),    // 67: backup_manager.ListMinioBucketsRequest
-	(*ListMinioBucketsResponse)(nil),   // 68: backup_manager.ListMinioBucketsResponse
-	(*CreateMinioBucketRequest)(nil),   // 69: backup_manager.CreateMinioBucketRequest
-	(*CreateMinioBucketResponse)(nil),  // 70: backup_manager.CreateMinioBucketResponse
-	(*DeleteMinioBucketRequest)(nil),   // 71: backup_manager.DeleteMinioBucketRequest
-	(*DeleteMinioBucketResponse)(nil),  // 72: backup_manager.DeleteMinioBucketResponse
-	(*GetScheduleStatusRequest)(nil),   // 73: backup_manager.GetScheduleStatusRequest
-	(*GetScheduleStatusResponse)(nil),  // 74: backup_manager.GetScheduleStatusResponse
-	(*StopRequest)(nil),                // 75: backup_manager.StopRequest
-	(*StopResponse)(nil),               // 76: backup_manager.StopResponse
-	nil,                                // 77: backup_manager.HookResult.DetailsEntry
-	nil,                                // 78: backup_manager.BackupDestination.OptionsEntry
-	nil,                                // 79: backup_manager.BackupProviderSpec.OptionsEntry
-	nil,                                // 80: backup_manager.BackupProviderResult.OutputsEntry
-	nil,                                // 81: backup_manager.BackupProviderResult.RestoreInputsEntry
-	nil,                                // 82: backup_manager.BackupArtifact.LabelsEntry
-	nil,                                // 83: backup_manager.RunBackupRequest.LabelsEntry
-	nil,                                // 84: backup_manager.PrepareBackupHookRequest.LabelsEntry
-	nil,                                // 85: backup_manager.PrepareBackupHookResponse.DetailsEntry
-	nil,                                // 86: backup_manager.FinalizeBackupHookRequest.LabelsEntry
-	nil,                                // 87: backup_manager.FinalizeBackupHookResponse.DetailsEntry
+	(*ValidationReport)(nil),           // 54: backup_manager.ValidationReport
+	(*NodeCoverageReport)(nil),         // 55: backup_manager.NodeCoverageReport
+	(*NodeCoverageReportEntry)(nil),    // 56: backup_manager.NodeCoverageReportEntry
+	(*RunRestoreTestRequest)(nil),      // 57: backup_manager.RunRestoreTestRequest
+	(*RunRestoreTestResponse)(nil),     // 58: backup_manager.RunRestoreTestResponse
+	(*RestoreTestReport)(nil),          // 59: backup_manager.RestoreTestReport
+	(*RestoreTestCheck)(nil),           // 60: backup_manager.RestoreTestCheck
+	(*PromoteBackupRequest)(nil),       // 61: backup_manager.PromoteBackupRequest
+	(*PromoteBackupResponse)(nil),      // 62: backup_manager.PromoteBackupResponse
+	(*DemoteBackupRequest)(nil),        // 63: backup_manager.DemoteBackupRequest
+	(*DemoteBackupResponse)(nil),       // 64: backup_manager.DemoteBackupResponse
+	(*PrepareBackupHookRequest)(nil),   // 65: backup_manager.PrepareBackupHookRequest
+	(*PrepareBackupHookResponse)(nil),  // 66: backup_manager.PrepareBackupHookResponse
+	(*FinalizeBackupHookRequest)(nil),  // 67: backup_manager.FinalizeBackupHookRequest
+	(*FinalizeBackupHookResponse)(nil), // 68: backup_manager.FinalizeBackupHookResponse
+	(*MinioBucketInfo)(nil),            // 69: backup_manager.MinioBucketInfo
+	(*ListMinioBucketsRequest)(nil),    // 70: backup_manager.ListMinioBucketsRequest
+	(*ListMinioBucketsResponse)(nil),   // 71: backup_manager.ListMinioBucketsResponse
+	(*CreateMinioBucketRequest)(nil),   // 72: backup_manager.CreateMinioBucketRequest
+	(*CreateMinioBucketResponse)(nil),  // 73: backup_manager.CreateMinioBucketResponse
+	(*DeleteMinioBucketRequest)(nil),   // 74: backup_manager.DeleteMinioBucketRequest
+	(*DeleteMinioBucketResponse)(nil),  // 75: backup_manager.DeleteMinioBucketResponse
+	(*GetScheduleStatusRequest)(nil),   // 76: backup_manager.GetScheduleStatusRequest
+	(*GetScheduleStatusResponse)(nil),  // 77: backup_manager.GetScheduleStatusResponse
+	(*RecoverySeedLastBackup)(nil),     // 78: backup_manager.RecoverySeedLastBackup
+	(*RecoverySeedDestination)(nil),    // 79: backup_manager.RecoverySeedDestination
+	(*GetRecoveryStatusRequest)(nil),   // 80: backup_manager.GetRecoveryStatusRequest
+	(*GetRecoveryStatusResponse)(nil),  // 81: backup_manager.GetRecoveryStatusResponse
+	(*ApplyRecoverySeedRequest)(nil),   // 82: backup_manager.ApplyRecoverySeedRequest
+	(*ApplyRecoverySeedResponse)(nil),  // 83: backup_manager.ApplyRecoverySeedResponse
+	(*StopRequest)(nil),                // 84: backup_manager.StopRequest
+	(*StopResponse)(nil),               // 85: backup_manager.StopResponse
+	nil,                                // 86: backup_manager.HookResult.DetailsEntry
+	nil,                                // 87: backup_manager.BackupDestination.OptionsEntry
+	nil,                                // 88: backup_manager.BackupProviderSpec.OptionsEntry
+	nil,                                // 89: backup_manager.BackupProviderResult.OutputsEntry
+	nil,                                // 90: backup_manager.BackupProviderResult.RestoreInputsEntry
+	nil,                                // 91: backup_manager.BackupArtifact.LabelsEntry
+	nil,                                // 92: backup_manager.RunBackupRequest.LabelsEntry
+	nil,                                // 93: backup_manager.PrepareBackupHookRequest.LabelsEntry
+	nil,                                // 94: backup_manager.PrepareBackupHookResponse.DetailsEntry
+	nil,                                // 95: backup_manager.FinalizeBackupHookRequest.LabelsEntry
+	nil,                                // 96: backup_manager.FinalizeBackupHookResponse.DetailsEntry
+	nil,                                // 97: backup_manager.RecoverySeedDestination.OptionsEntry
 }
 var file_backup_manager_proto_depIdxs = []int32{
-	77, // 0: backup_manager.HookResult.details:type_name -> backup_manager.HookResult.DetailsEntry
-	10, // 1: backup_manager.HookSummary.prepare:type_name -> backup_manager.HookResult
-	10, // 2: backup_manager.HookSummary.finalize:type_name -> backup_manager.HookResult
-	4,  // 3: backup_manager.BackupDestination.type:type_name -> backup_manager.BackupDestinationType
-	78, // 4: backup_manager.BackupDestination.options:type_name -> backup_manager.BackupDestination.OptionsEntry
-	0,  // 5: backup_manager.BackupProviderSpec.type:type_name -> backup_manager.BackupProviderType
-	79, // 6: backup_manager.BackupProviderSpec.options:type_name -> backup_manager.BackupProviderSpec.OptionsEntry
-	13, // 7: backup_manager.BackupPlan.providers:type_name -> backup_manager.BackupProviderSpec
-	12, // 8: backup_manager.BackupPlan.destinations:type_name -> backup_manager.BackupDestination
-	4,  // 9: backup_manager.ReplicationResult.destination_type:type_name -> backup_manager.BackupDestinationType
-	1,  // 10: backup_manager.ReplicationResult.state:type_name -> backup_manager.BackupJobState
-	0,  // 11: backup_manager.BackupProviderResult.type:type_name -> backup_manager.BackupProviderType
-	1,  // 12: backup_manager.BackupProviderResult.state:type_name -> backup_manager.BackupJobState
-	3,  // 13: backup_manager.BackupProviderResult.severity:type_name -> backup_manager.BackupSeverity
-	80, // 14: backup_manager.BackupProviderResult.outputs:type_name -> backup_manager.BackupProviderResult.OutputsEntry
-	81, // 15: backup_manager.BackupProviderResult.restore_inputs:type_name -> backup_manager.BackupProviderResult.RestoreInputsEntry
-	1,  // 16: backup_manager.BackupJob.state:type_name -> backup_manager.BackupJobState
-	14, // 17: backup_manager.BackupJob.plan:type_name -> backup_manager.BackupPlan
-	17, // 18: backup_manager.BackupJob.results:type_name -> backup_manager.BackupProviderResult
-	15, // 19: backup_manager.BackupJob.replications:type_name -> backup_manager.ReplicationResult
-	2,  // 20: backup_manager.BackupJob.job_type:type_name -> backup_manager.BackupJobType
-	17, // 21: backup_manager.BackupArtifact.provider_results:type_name -> backup_manager.BackupProviderResult
-	15, // 22: backup_manager.BackupArtifact.replications:type_name -> backup_manager.ReplicationResult
-	5,  // 23: backup_manager.BackupArtifact.mode:type_name -> backup_manager.BackupMode
-	8,  // 24: backup_manager.BackupArtifact.scope:type_name -> backup_manager.BackupScope
-	82, // 25: backup_manager.BackupArtifact.labels:type_name -> backup_manager.BackupArtifact.LabelsEntry
-	6,  // 26: backup_manager.BackupArtifact.quality_state:type_name -> backup_manager.QualityState
-	9,  // 27: backup_manager.BackupArtifact.cluster:type_name -> backup_manager.ClusterInfo
-	11, // 28: backup_manager.BackupArtifact.hooks:type_name -> backup_manager.HookSummary
-	53, // 29: backup_manager.BackupArtifact.skipped_providers:type_name -> backup_manager.SkippedProvider
-	14, // 30: backup_manager.RunBackupRequest.plan:type_name -> backup_manager.BackupPlan
-	5,  // 31: backup_manager.RunBackupRequest.mode:type_name -> backup_manager.BackupMode
-	8,  // 32: backup_manager.RunBackupRequest.scope:type_name -> backup_manager.BackupScope
-	83, // 33: backup_manager.RunBackupRequest.labels:type_name -> backup_manager.RunBackupRequest.LabelsEntry
-	18, // 34: backup_manager.GetBackupJobResponse.job:type_name -> backup_manager.BackupJob
-	1,  // 35: backup_manager.ListBackupJobsRequest.state:type_name -> backup_manager.BackupJobState
-	18, // 36: backup_manager.ListBackupJobsResponse.jobs:type_name -> backup_manager.BackupJob
-	5,  // 37: backup_manager.ListBackupsRequest.mode:type_name -> backup_manager.BackupMode
-	6,  // 38: backup_manager.ListBackupsRequest.quality_state:type_name -> backup_manager.QualityState
-	19, // 39: backup_manager.ListBackupsResponse.backups:type_name -> backup_manager.BackupArtifact
-	19, // 40: backup_manager.GetBackupResponse.backup:type_name -> backup_manager.BackupArtifact
-	33, // 41: backup_manager.DeleteBackupResponse.provider_results:type_name -> backup_manager.DeleteResult
-	33, // 42: backup_manager.DeleteBackupResponse.replication_results:type_name -> backup_manager.DeleteResult
-	36, // 43: backup_manager.ValidateBackupResponse.issues:type_name -> backup_manager.ValidationIssue
-	16, // 44: backup_manager.ValidateBackupResponse.replication_checks:type_name -> backup_manager.ReplicationValidation
-	3,  // 45: backup_manager.ValidationIssue.severity:type_name -> backup_manager.BackupSeverity
-	39, // 46: backup_manager.RestorePlanResponse.steps:type_name -> backup_manager.RestoreStep
-	36, // 47: backup_manager.RestorePlanResponse.warnings:type_name -> backup_manager.ValidationIssue
-	39, // 48: backup_manager.RestoreBackupResponse.steps:type_name -> backup_manager.RestoreStep
-	36, // 49: backup_manager.RestoreBackupResponse.warnings:type_name -> backup_manager.ValidationIssue
-	20, // 50: backup_manager.GetRetentionStatusResponse.policy:type_name -> backup_manager.RetentionPolicy
-	52, // 51: backup_manager.PreflightCheckResponse.tools:type_name -> backup_manager.ToolCheck
-	7,  // 52: backup_manager.RunRestoreTestRequest.level:type_name -> backup_manager.RestoreTestLevel
-	7,  // 53: backup_manager.RunRestoreTestResponse.level:type_name -> backup_manager.RestoreTestLevel
-	7,  // 54: backup_manager.RestoreTestReport.level:type_name -> backup_manager.RestoreTestLevel
-	57, // 55: backup_manager.RestoreTestReport.checks:type_name -> backup_manager.RestoreTestCheck
-	6,  // 56: backup_manager.PromoteBackupResponse.quality_state:type_name -> backup_manager.QualityState
-	6,  // 57: backup_manager.DemoteBackupResponse.quality_state:type_name -> backup_manager.QualityState
-	5,  // 58: backup_manager.PrepareBackupHookRequest.mode:type_name -> backup_manager.BackupMode
-	8,  // 59: backup_manager.PrepareBackupHookRequest.scope:type_name -> backup_manager.BackupScope
-	84, // 60: backup_manager.PrepareBackupHookRequest.labels:type_name -> backup_manager.PrepareBackupHookRequest.LabelsEntry
-	85, // 61: backup_manager.PrepareBackupHookResponse.details:type_name -> backup_manager.PrepareBackupHookResponse.DetailsEntry
-	5,  // 62: backup_manager.FinalizeBackupHookRequest.mode:type_name -> backup_manager.BackupMode
-	8,  // 63: backup_manager.FinalizeBackupHookRequest.scope:type_name -> backup_manager.BackupScope
-	86, // 64: backup_manager.FinalizeBackupHookRequest.labels:type_name -> backup_manager.FinalizeBackupHookRequest.LabelsEntry
-	87, // 65: backup_manager.FinalizeBackupHookResponse.details:type_name -> backup_manager.FinalizeBackupHookResponse.DetailsEntry
-	66, // 66: backup_manager.ListMinioBucketsResponse.buckets:type_name -> backup_manager.MinioBucketInfo
-	21, // 67: backup_manager.BackupManagerService.RunBackup:input_type -> backup_manager.RunBackupRequest
-	23, // 68: backup_manager.BackupManagerService.GetBackupJob:input_type -> backup_manager.GetBackupJobRequest
-	25, // 69: backup_manager.BackupManagerService.ListBackupJobs:input_type -> backup_manager.ListBackupJobsRequest
-	27, // 70: backup_manager.BackupManagerService.ListBackups:input_type -> backup_manager.ListBackupsRequest
-	29, // 71: backup_manager.BackupManagerService.GetBackup:input_type -> backup_manager.GetBackupRequest
-	31, // 72: backup_manager.BackupManagerService.DeleteBackup:input_type -> backup_manager.DeleteBackupRequest
-	34, // 73: backup_manager.BackupManagerService.ValidateBackup:input_type -> backup_manager.ValidateBackupRequest
-	37, // 74: backup_manager.BackupManagerService.RestorePlan:input_type -> backup_manager.RestorePlanRequest
-	40, // 75: backup_manager.BackupManagerService.RestoreBackup:input_type -> backup_manager.RestoreBackupRequest
-	42, // 76: backup_manager.BackupManagerService.CancelBackupJob:input_type -> backup_manager.CancelBackupJobRequest
-	44, // 77: backup_manager.BackupManagerService.DeleteBackupJob:input_type -> backup_manager.DeleteBackupJobRequest
-	46, // 78: backup_manager.BackupManagerService.RunRetention:input_type -> backup_manager.RunRetentionRequest
-	48, // 79: backup_manager.BackupManagerService.GetRetentionStatus:input_type -> backup_manager.GetRetentionStatusRequest
-	50, // 80: backup_manager.BackupManagerService.PreflightCheck:input_type -> backup_manager.PreflightCheckRequest
-	54, // 81: backup_manager.BackupManagerService.RunRestoreTest:input_type -> backup_manager.RunRestoreTestRequest
-	58, // 82: backup_manager.BackupManagerService.PromoteBackup:input_type -> backup_manager.PromoteBackupRequest
-	60, // 83: backup_manager.BackupManagerService.DemoteBackup:input_type -> backup_manager.DemoteBackupRequest
-	67, // 84: backup_manager.BackupManagerService.ListMinioBuckets:input_type -> backup_manager.ListMinioBucketsRequest
-	69, // 85: backup_manager.BackupManagerService.CreateMinioBucket:input_type -> backup_manager.CreateMinioBucketRequest
-	71, // 86: backup_manager.BackupManagerService.DeleteMinioBucket:input_type -> backup_manager.DeleteMinioBucketRequest
-	73, // 87: backup_manager.BackupManagerService.GetScheduleStatus:input_type -> backup_manager.GetScheduleStatusRequest
-	75, // 88: backup_manager.BackupManagerService.Stop:input_type -> backup_manager.StopRequest
-	62, // 89: backup_manager.BackupHookService.PrepareBackup:input_type -> backup_manager.PrepareBackupHookRequest
-	64, // 90: backup_manager.BackupHookService.FinalizeBackup:input_type -> backup_manager.FinalizeBackupHookRequest
-	22, // 91: backup_manager.BackupManagerService.RunBackup:output_type -> backup_manager.RunBackupResponse
-	24, // 92: backup_manager.BackupManagerService.GetBackupJob:output_type -> backup_manager.GetBackupJobResponse
-	26, // 93: backup_manager.BackupManagerService.ListBackupJobs:output_type -> backup_manager.ListBackupJobsResponse
-	28, // 94: backup_manager.BackupManagerService.ListBackups:output_type -> backup_manager.ListBackupsResponse
-	30, // 95: backup_manager.BackupManagerService.GetBackup:output_type -> backup_manager.GetBackupResponse
-	32, // 96: backup_manager.BackupManagerService.DeleteBackup:output_type -> backup_manager.DeleteBackupResponse
-	35, // 97: backup_manager.BackupManagerService.ValidateBackup:output_type -> backup_manager.ValidateBackupResponse
-	38, // 98: backup_manager.BackupManagerService.RestorePlan:output_type -> backup_manager.RestorePlanResponse
-	41, // 99: backup_manager.BackupManagerService.RestoreBackup:output_type -> backup_manager.RestoreBackupResponse
-	43, // 100: backup_manager.BackupManagerService.CancelBackupJob:output_type -> backup_manager.CancelBackupJobResponse
-	45, // 101: backup_manager.BackupManagerService.DeleteBackupJob:output_type -> backup_manager.DeleteBackupJobResponse
-	47, // 102: backup_manager.BackupManagerService.RunRetention:output_type -> backup_manager.RunRetentionResponse
-	49, // 103: backup_manager.BackupManagerService.GetRetentionStatus:output_type -> backup_manager.GetRetentionStatusResponse
-	51, // 104: backup_manager.BackupManagerService.PreflightCheck:output_type -> backup_manager.PreflightCheckResponse
-	55, // 105: backup_manager.BackupManagerService.RunRestoreTest:output_type -> backup_manager.RunRestoreTestResponse
-	59, // 106: backup_manager.BackupManagerService.PromoteBackup:output_type -> backup_manager.PromoteBackupResponse
-	61, // 107: backup_manager.BackupManagerService.DemoteBackup:output_type -> backup_manager.DemoteBackupResponse
-	68, // 108: backup_manager.BackupManagerService.ListMinioBuckets:output_type -> backup_manager.ListMinioBucketsResponse
-	70, // 109: backup_manager.BackupManagerService.CreateMinioBucket:output_type -> backup_manager.CreateMinioBucketResponse
-	72, // 110: backup_manager.BackupManagerService.DeleteMinioBucket:output_type -> backup_manager.DeleteMinioBucketResponse
-	74, // 111: backup_manager.BackupManagerService.GetScheduleStatus:output_type -> backup_manager.GetScheduleStatusResponse
-	76, // 112: backup_manager.BackupManagerService.Stop:output_type -> backup_manager.StopResponse
-	63, // 113: backup_manager.BackupHookService.PrepareBackup:output_type -> backup_manager.PrepareBackupHookResponse
-	65, // 114: backup_manager.BackupHookService.FinalizeBackup:output_type -> backup_manager.FinalizeBackupHookResponse
-	91, // [91:115] is the sub-list for method output_type
-	67, // [67:91] is the sub-list for method input_type
-	67, // [67:67] is the sub-list for extension type_name
-	67, // [67:67] is the sub-list for extension extendee
-	0,  // [0:67] is the sub-list for field type_name
+	86,  // 0: backup_manager.HookResult.details:type_name -> backup_manager.HookResult.DetailsEntry
+	10,  // 1: backup_manager.HookSummary.prepare:type_name -> backup_manager.HookResult
+	10,  // 2: backup_manager.HookSummary.finalize:type_name -> backup_manager.HookResult
+	4,   // 3: backup_manager.BackupDestination.type:type_name -> backup_manager.BackupDestinationType
+	87,  // 4: backup_manager.BackupDestination.options:type_name -> backup_manager.BackupDestination.OptionsEntry
+	0,   // 5: backup_manager.BackupProviderSpec.type:type_name -> backup_manager.BackupProviderType
+	88,  // 6: backup_manager.BackupProviderSpec.options:type_name -> backup_manager.BackupProviderSpec.OptionsEntry
+	13,  // 7: backup_manager.BackupPlan.providers:type_name -> backup_manager.BackupProviderSpec
+	12,  // 8: backup_manager.BackupPlan.destinations:type_name -> backup_manager.BackupDestination
+	4,   // 9: backup_manager.ReplicationResult.destination_type:type_name -> backup_manager.BackupDestinationType
+	1,   // 10: backup_manager.ReplicationResult.state:type_name -> backup_manager.BackupJobState
+	0,   // 11: backup_manager.BackupProviderResult.type:type_name -> backup_manager.BackupProviderType
+	1,   // 12: backup_manager.BackupProviderResult.state:type_name -> backup_manager.BackupJobState
+	3,   // 13: backup_manager.BackupProviderResult.severity:type_name -> backup_manager.BackupSeverity
+	89,  // 14: backup_manager.BackupProviderResult.outputs:type_name -> backup_manager.BackupProviderResult.OutputsEntry
+	90,  // 15: backup_manager.BackupProviderResult.restore_inputs:type_name -> backup_manager.BackupProviderResult.RestoreInputsEntry
+	1,   // 16: backup_manager.BackupJob.state:type_name -> backup_manager.BackupJobState
+	14,  // 17: backup_manager.BackupJob.plan:type_name -> backup_manager.BackupPlan
+	17,  // 18: backup_manager.BackupJob.results:type_name -> backup_manager.BackupProviderResult
+	15,  // 19: backup_manager.BackupJob.replications:type_name -> backup_manager.ReplicationResult
+	2,   // 20: backup_manager.BackupJob.job_type:type_name -> backup_manager.BackupJobType
+	17,  // 21: backup_manager.BackupArtifact.provider_results:type_name -> backup_manager.BackupProviderResult
+	15,  // 22: backup_manager.BackupArtifact.replications:type_name -> backup_manager.ReplicationResult
+	5,   // 23: backup_manager.BackupArtifact.mode:type_name -> backup_manager.BackupMode
+	8,   // 24: backup_manager.BackupArtifact.scope:type_name -> backup_manager.BackupScope
+	91,  // 25: backup_manager.BackupArtifact.labels:type_name -> backup_manager.BackupArtifact.LabelsEntry
+	6,   // 26: backup_manager.BackupArtifact.quality_state:type_name -> backup_manager.QualityState
+	9,   // 27: backup_manager.BackupArtifact.cluster:type_name -> backup_manager.ClusterInfo
+	11,  // 28: backup_manager.BackupArtifact.hooks:type_name -> backup_manager.HookSummary
+	53,  // 29: backup_manager.BackupArtifact.skipped_providers:type_name -> backup_manager.SkippedProvider
+	54,  // 30: backup_manager.BackupArtifact.validation_report:type_name -> backup_manager.ValidationReport
+	59,  // 31: backup_manager.BackupArtifact.restore_test_report:type_name -> backup_manager.RestoreTestReport
+	55,  // 32: backup_manager.BackupArtifact.node_coverage:type_name -> backup_manager.NodeCoverageReport
+	14,  // 33: backup_manager.RunBackupRequest.plan:type_name -> backup_manager.BackupPlan
+	5,   // 34: backup_manager.RunBackupRequest.mode:type_name -> backup_manager.BackupMode
+	8,   // 35: backup_manager.RunBackupRequest.scope:type_name -> backup_manager.BackupScope
+	92,  // 36: backup_manager.RunBackupRequest.labels:type_name -> backup_manager.RunBackupRequest.LabelsEntry
+	18,  // 37: backup_manager.GetBackupJobResponse.job:type_name -> backup_manager.BackupJob
+	1,   // 38: backup_manager.ListBackupJobsRequest.state:type_name -> backup_manager.BackupJobState
+	18,  // 39: backup_manager.ListBackupJobsResponse.jobs:type_name -> backup_manager.BackupJob
+	5,   // 40: backup_manager.ListBackupsRequest.mode:type_name -> backup_manager.BackupMode
+	6,   // 41: backup_manager.ListBackupsRequest.quality_state:type_name -> backup_manager.QualityState
+	19,  // 42: backup_manager.ListBackupsResponse.backups:type_name -> backup_manager.BackupArtifact
+	19,  // 43: backup_manager.GetBackupResponse.backup:type_name -> backup_manager.BackupArtifact
+	33,  // 44: backup_manager.DeleteBackupResponse.provider_results:type_name -> backup_manager.DeleteResult
+	33,  // 45: backup_manager.DeleteBackupResponse.replication_results:type_name -> backup_manager.DeleteResult
+	36,  // 46: backup_manager.ValidateBackupResponse.issues:type_name -> backup_manager.ValidationIssue
+	16,  // 47: backup_manager.ValidateBackupResponse.replication_checks:type_name -> backup_manager.ReplicationValidation
+	3,   // 48: backup_manager.ValidationIssue.severity:type_name -> backup_manager.BackupSeverity
+	39,  // 49: backup_manager.RestorePlanResponse.steps:type_name -> backup_manager.RestoreStep
+	36,  // 50: backup_manager.RestorePlanResponse.warnings:type_name -> backup_manager.ValidationIssue
+	39,  // 51: backup_manager.RestoreBackupResponse.steps:type_name -> backup_manager.RestoreStep
+	36,  // 52: backup_manager.RestoreBackupResponse.warnings:type_name -> backup_manager.ValidationIssue
+	20,  // 53: backup_manager.GetRetentionStatusResponse.policy:type_name -> backup_manager.RetentionPolicy
+	52,  // 54: backup_manager.PreflightCheckResponse.tools:type_name -> backup_manager.ToolCheck
+	36,  // 55: backup_manager.ValidationReport.issues:type_name -> backup_manager.ValidationIssue
+	16,  // 56: backup_manager.ValidationReport.replication_checks:type_name -> backup_manager.ReplicationValidation
+	56,  // 57: backup_manager.NodeCoverageReport.entries:type_name -> backup_manager.NodeCoverageReportEntry
+	7,   // 58: backup_manager.RunRestoreTestRequest.level:type_name -> backup_manager.RestoreTestLevel
+	7,   // 59: backup_manager.RunRestoreTestResponse.level:type_name -> backup_manager.RestoreTestLevel
+	7,   // 60: backup_manager.RestoreTestReport.level:type_name -> backup_manager.RestoreTestLevel
+	60,  // 61: backup_manager.RestoreTestReport.checks:type_name -> backup_manager.RestoreTestCheck
+	6,   // 62: backup_manager.PromoteBackupResponse.quality_state:type_name -> backup_manager.QualityState
+	6,   // 63: backup_manager.DemoteBackupResponse.quality_state:type_name -> backup_manager.QualityState
+	5,   // 64: backup_manager.PrepareBackupHookRequest.mode:type_name -> backup_manager.BackupMode
+	8,   // 65: backup_manager.PrepareBackupHookRequest.scope:type_name -> backup_manager.BackupScope
+	93,  // 66: backup_manager.PrepareBackupHookRequest.labels:type_name -> backup_manager.PrepareBackupHookRequest.LabelsEntry
+	94,  // 67: backup_manager.PrepareBackupHookResponse.details:type_name -> backup_manager.PrepareBackupHookResponse.DetailsEntry
+	5,   // 68: backup_manager.FinalizeBackupHookRequest.mode:type_name -> backup_manager.BackupMode
+	8,   // 69: backup_manager.FinalizeBackupHookRequest.scope:type_name -> backup_manager.BackupScope
+	95,  // 70: backup_manager.FinalizeBackupHookRequest.labels:type_name -> backup_manager.FinalizeBackupHookRequest.LabelsEntry
+	96,  // 71: backup_manager.FinalizeBackupHookResponse.details:type_name -> backup_manager.FinalizeBackupHookResponse.DetailsEntry
+	69,  // 72: backup_manager.ListMinioBucketsResponse.buckets:type_name -> backup_manager.MinioBucketInfo
+	97,  // 73: backup_manager.RecoverySeedDestination.options:type_name -> backup_manager.RecoverySeedDestination.OptionsEntry
+	79,  // 74: backup_manager.GetRecoveryStatusResponse.destination:type_name -> backup_manager.RecoverySeedDestination
+	78,  // 75: backup_manager.GetRecoveryStatusResponse.last_backup:type_name -> backup_manager.RecoverySeedLastBackup
+	79,  // 76: backup_manager.ApplyRecoverySeedResponse.applied_destination:type_name -> backup_manager.RecoverySeedDestination
+	21,  // 77: backup_manager.BackupManagerService.RunBackup:input_type -> backup_manager.RunBackupRequest
+	23,  // 78: backup_manager.BackupManagerService.GetBackupJob:input_type -> backup_manager.GetBackupJobRequest
+	25,  // 79: backup_manager.BackupManagerService.ListBackupJobs:input_type -> backup_manager.ListBackupJobsRequest
+	27,  // 80: backup_manager.BackupManagerService.ListBackups:input_type -> backup_manager.ListBackupsRequest
+	29,  // 81: backup_manager.BackupManagerService.GetBackup:input_type -> backup_manager.GetBackupRequest
+	31,  // 82: backup_manager.BackupManagerService.DeleteBackup:input_type -> backup_manager.DeleteBackupRequest
+	34,  // 83: backup_manager.BackupManagerService.ValidateBackup:input_type -> backup_manager.ValidateBackupRequest
+	37,  // 84: backup_manager.BackupManagerService.RestorePlan:input_type -> backup_manager.RestorePlanRequest
+	40,  // 85: backup_manager.BackupManagerService.RestoreBackup:input_type -> backup_manager.RestoreBackupRequest
+	42,  // 86: backup_manager.BackupManagerService.CancelBackupJob:input_type -> backup_manager.CancelBackupJobRequest
+	44,  // 87: backup_manager.BackupManagerService.DeleteBackupJob:input_type -> backup_manager.DeleteBackupJobRequest
+	46,  // 88: backup_manager.BackupManagerService.RunRetention:input_type -> backup_manager.RunRetentionRequest
+	48,  // 89: backup_manager.BackupManagerService.GetRetentionStatus:input_type -> backup_manager.GetRetentionStatusRequest
+	50,  // 90: backup_manager.BackupManagerService.PreflightCheck:input_type -> backup_manager.PreflightCheckRequest
+	57,  // 91: backup_manager.BackupManagerService.RunRestoreTest:input_type -> backup_manager.RunRestoreTestRequest
+	61,  // 92: backup_manager.BackupManagerService.PromoteBackup:input_type -> backup_manager.PromoteBackupRequest
+	63,  // 93: backup_manager.BackupManagerService.DemoteBackup:input_type -> backup_manager.DemoteBackupRequest
+	70,  // 94: backup_manager.BackupManagerService.ListMinioBuckets:input_type -> backup_manager.ListMinioBucketsRequest
+	72,  // 95: backup_manager.BackupManagerService.CreateMinioBucket:input_type -> backup_manager.CreateMinioBucketRequest
+	74,  // 96: backup_manager.BackupManagerService.DeleteMinioBucket:input_type -> backup_manager.DeleteMinioBucketRequest
+	76,  // 97: backup_manager.BackupManagerService.GetScheduleStatus:input_type -> backup_manager.GetScheduleStatusRequest
+	80,  // 98: backup_manager.BackupManagerService.GetRecoveryStatus:input_type -> backup_manager.GetRecoveryStatusRequest
+	82,  // 99: backup_manager.BackupManagerService.ApplyRecoverySeed:input_type -> backup_manager.ApplyRecoverySeedRequest
+	84,  // 100: backup_manager.BackupManagerService.Stop:input_type -> backup_manager.StopRequest
+	65,  // 101: backup_manager.BackupHookService.PrepareBackup:input_type -> backup_manager.PrepareBackupHookRequest
+	67,  // 102: backup_manager.BackupHookService.FinalizeBackup:input_type -> backup_manager.FinalizeBackupHookRequest
+	22,  // 103: backup_manager.BackupManagerService.RunBackup:output_type -> backup_manager.RunBackupResponse
+	24,  // 104: backup_manager.BackupManagerService.GetBackupJob:output_type -> backup_manager.GetBackupJobResponse
+	26,  // 105: backup_manager.BackupManagerService.ListBackupJobs:output_type -> backup_manager.ListBackupJobsResponse
+	28,  // 106: backup_manager.BackupManagerService.ListBackups:output_type -> backup_manager.ListBackupsResponse
+	30,  // 107: backup_manager.BackupManagerService.GetBackup:output_type -> backup_manager.GetBackupResponse
+	32,  // 108: backup_manager.BackupManagerService.DeleteBackup:output_type -> backup_manager.DeleteBackupResponse
+	35,  // 109: backup_manager.BackupManagerService.ValidateBackup:output_type -> backup_manager.ValidateBackupResponse
+	38,  // 110: backup_manager.BackupManagerService.RestorePlan:output_type -> backup_manager.RestorePlanResponse
+	41,  // 111: backup_manager.BackupManagerService.RestoreBackup:output_type -> backup_manager.RestoreBackupResponse
+	43,  // 112: backup_manager.BackupManagerService.CancelBackupJob:output_type -> backup_manager.CancelBackupJobResponse
+	45,  // 113: backup_manager.BackupManagerService.DeleteBackupJob:output_type -> backup_manager.DeleteBackupJobResponse
+	47,  // 114: backup_manager.BackupManagerService.RunRetention:output_type -> backup_manager.RunRetentionResponse
+	49,  // 115: backup_manager.BackupManagerService.GetRetentionStatus:output_type -> backup_manager.GetRetentionStatusResponse
+	51,  // 116: backup_manager.BackupManagerService.PreflightCheck:output_type -> backup_manager.PreflightCheckResponse
+	58,  // 117: backup_manager.BackupManagerService.RunRestoreTest:output_type -> backup_manager.RunRestoreTestResponse
+	62,  // 118: backup_manager.BackupManagerService.PromoteBackup:output_type -> backup_manager.PromoteBackupResponse
+	64,  // 119: backup_manager.BackupManagerService.DemoteBackup:output_type -> backup_manager.DemoteBackupResponse
+	71,  // 120: backup_manager.BackupManagerService.ListMinioBuckets:output_type -> backup_manager.ListMinioBucketsResponse
+	73,  // 121: backup_manager.BackupManagerService.CreateMinioBucket:output_type -> backup_manager.CreateMinioBucketResponse
+	75,  // 122: backup_manager.BackupManagerService.DeleteMinioBucket:output_type -> backup_manager.DeleteMinioBucketResponse
+	77,  // 123: backup_manager.BackupManagerService.GetScheduleStatus:output_type -> backup_manager.GetScheduleStatusResponse
+	81,  // 124: backup_manager.BackupManagerService.GetRecoveryStatus:output_type -> backup_manager.GetRecoveryStatusResponse
+	83,  // 125: backup_manager.BackupManagerService.ApplyRecoverySeed:output_type -> backup_manager.ApplyRecoverySeedResponse
+	85,  // 126: backup_manager.BackupManagerService.Stop:output_type -> backup_manager.StopResponse
+	66,  // 127: backup_manager.BackupHookService.PrepareBackup:output_type -> backup_manager.PrepareBackupHookResponse
+	68,  // 128: backup_manager.BackupHookService.FinalizeBackup:output_type -> backup_manager.FinalizeBackupHookResponse
+	103, // [103:129] is the sub-list for method output_type
+	77,  // [77:103] is the sub-list for method input_type
+	77,  // [77:77] is the sub-list for extension type_name
+	77,  // [77:77] is the sub-list for extension extendee
+	0,   // [0:77] is the sub-list for field type_name
 }
 
 func init() { file_backup_manager_proto_init() }
@@ -5524,7 +6270,7 @@ func file_backup_manager_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_manager_proto_rawDesc), len(file_backup_manager_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   80,
+			NumMessages:   90,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

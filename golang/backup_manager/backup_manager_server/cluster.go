@@ -175,18 +175,22 @@ func (srv *server) executeRestoreTest(job *backup_managerpb.BackupJob, art *back
 	// Write restore-test report
 	srv.writeRestoreTestReport(capsuleDir, report)
 
+	// Persist restore-test evidence into the artifact
+	art.RestoreTestReport = report
+
 	// Update quality state if passed
 	if report.Passed {
 		if art.QualityState != backup_managerpb.QualityState_QUALITY_PROMOTED {
 			art.QualityState = backup_managerpb.QualityState_QUALITY_RESTORE_TESTED
-			_ = srv.store.SaveArtifact(art)
 		}
+		_ = srv.store.SaveArtifact(art)
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.Message = "restore test passed"
 		metricsJobsTotal.WithLabelValues("restore_test_succeeded").Inc()
 		metricsRestoreTestedTotal.Inc()
 		slog.Info("restore test passed", "job_id", job.JobId, "backup_id", art.BackupId)
 	} else {
+		_ = srv.store.SaveArtifact(art)
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 		job.Message = "restore test failed"
 		metricsJobsTotal.WithLabelValues("restore_test_failed").Inc()

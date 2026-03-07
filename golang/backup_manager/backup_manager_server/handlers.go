@@ -125,12 +125,160 @@ func (srv *server) ListBackups(ctx context.Context, rqst *backup_managerpb.ListB
 }
 
 // GetBackup returns a single backup artifact.
+// It enriches the artifact with evidence from disk if not already persisted in the manifest.
 func (srv *server) GetBackup(ctx context.Context, rqst *backup_managerpb.GetBackupRequest) (*backup_managerpb.GetBackupResponse, error) {
 	art, err := srv.store.GetArtifact(rqst.BackupId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "backup %s not found", rqst.BackupId)
 	}
+	srv.enrichArtifactEvidence(art)
 	return &backup_managerpb.GetBackupResponse{Backup: art}, nil
+}
+
+// enrichArtifactEvidence loads evidence from disk reports if the artifact
+// doesn't already have them persisted (backward compatibility for older artifacts).
+func (srv *server) enrichArtifactEvidence(art *backup_managerpb.BackupArtifact) {
+	capsuleDir := srv.CapsuleDir(art.BackupId)
+	reportsDir := filepath.Join(capsuleDir, "reports")
+
+	// Validation report
+	if art.ValidationReport == nil {
+		data, err := os.ReadFile(filepath.Join(reportsDir, "validate.json"))
+		if err == nil {
+			var rpt struct {
+				Valid            bool                     `json:"valid"`
+				ValidatedAtUnix  int64                    `json:"validated_at_unix"`
+				Issues           []struct {
+					Severity string `json:"severity"`
+					Code     string `json:"code"`
+					Message  string `json:"message"`
+				} `json:"issues"`
+				ReplicationChecks []struct {
+					Destination  string   `json:"destination"`
+					Ok           bool     `json:"ok"`
+					MissingFiles []string `json:"missing_files"`
+					Error        string   `json:"error"`
+				} `json:"replication_checks"`
+			}
+			if json.Unmarshal(data, &rpt) == nil {
+				vr := &backup_managerpb.ValidationReport{
+					Valid:             rpt.Valid,
+					ValidatedAtUnixMs: rpt.ValidatedAtUnix,
+				}
+				for _, iss := range rpt.Issues {
+					vr.Issues = append(vr.Issues, &backup_managerpb.ValidationIssue{
+						Severity: parseSeverity(iss.Severity),
+						Code:     iss.Code,
+						Message:  iss.Message,
+					})
+				}
+				for _, rc := range rpt.ReplicationChecks {
+					vr.ReplicationChecks = append(vr.ReplicationChecks, &backup_managerpb.ReplicationValidation{
+						DestinationName: rc.Destination,
+						Ok:              rc.Ok,
+						MissingFiles:    rc.MissingFiles,
+						ErrorMessage:    rc.Error,
+					})
+				}
+				art.ValidationReport = vr
+			}
+		}
+	}
+
+	// Restore-test report
+	if art.RestoreTestReport == nil {
+		data, err := os.ReadFile(filepath.Join(reportsDir, "restore-test.json"))
+		if err == nil {
+			var rpt struct {
+				BackupID string `json:"backup_id"`
+				Level    string `json:"level"`
+				Passed   bool   `json:"passed"`
+				Started  int64  `json:"started"`
+				Finished int64  `json:"finished"`
+				Checks   []struct {
+					Provider string `json:"provider"`
+					Ok       bool   `json:"ok"`
+					Summary  string `json:"summary"`
+					Error    string `json:"error"`
+				} `json:"checks"`
+			}
+			if json.Unmarshal(data, &rpt) == nil {
+				rt := &backup_managerpb.RestoreTestReport{
+					BackupId:       rpt.BackupID,
+					Passed:         rpt.Passed,
+					StartedUnixMs:  rpt.Started,
+					FinishedUnixMs: rpt.Finished,
+				}
+				// Parse level string back to enum
+				switch rpt.Level {
+				case "RESTORE_TEST_LIGHT":
+					rt.Level = backup_managerpb.RestoreTestLevel_RESTORE_TEST_LIGHT
+				case "RESTORE_TEST_HEAVY":
+					rt.Level = backup_managerpb.RestoreTestLevel_RESTORE_TEST_HEAVY
+				}
+				for _, c := range rpt.Checks {
+					rt.Checks = append(rt.Checks, &backup_managerpb.RestoreTestCheck{
+						Provider:     c.Provider,
+						Ok:           c.Ok,
+						Summary:      c.Summary,
+						ErrorMessage: c.Error,
+					})
+				}
+				art.RestoreTestReport = rt
+			}
+		}
+	}
+
+	// Node coverage
+	if len(art.NodeCoverage) == 0 {
+		data, err := os.ReadFile(filepath.Join(capsuleDir, "meta", "coverage.json"))
+		if err == nil {
+			var coverages []struct {
+				Provider string `json:"provider"`
+				Nodes    []struct {
+					NodeID   string `json:"node_id"`
+					Hostname string `json:"hostname"`
+					Ok       bool   `json:"ok"`
+					Error    string `json:"error"`
+				} `json:"nodes"`
+			}
+			if json.Unmarshal(data, &coverages) == nil {
+				for _, cov := range coverages {
+					report := &backup_managerpb.NodeCoverageReport{
+						Provider: cov.Provider,
+						Total:    uint32(len(cov.Nodes)),
+					}
+					for _, n := range cov.Nodes {
+						report.Entries = append(report.Entries, &backup_managerpb.NodeCoverageReportEntry{
+							NodeId:       n.NodeID,
+							Hostname:     n.Hostname,
+							Ok:           n.Ok,
+							ErrorMessage: n.Error,
+						})
+						if n.Ok {
+							report.Succeeded++
+						} else {
+							report.Failed++
+						}
+					}
+					art.NodeCoverage = append(art.NodeCoverage, report)
+				}
+			}
+		}
+	}
+}
+
+func parseSeverity(s string) backup_managerpb.BackupSeverity {
+	switch s {
+	case "BACKUP_SEVERITY_INFO":
+		return backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO
+	case "BACKUP_SEVERITY_WARN":
+		return backup_managerpb.BackupSeverity_BACKUP_SEVERITY_WARN
+	case "BACKUP_SEVERITY_ERROR":
+		return backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR
+	default:
+		return backup_managerpb.BackupSeverity_BACKUP_SEVERITY_UNSPECIFIED
+	}
 }
 
 // DeleteBackup removes a backup artifact and optionally cleans up provider data.
@@ -241,14 +389,21 @@ func (srv *server) ValidateBackup(ctx context.Context, rqst *backup_managerpb.Va
 	if rqst.Deep {
 		srv.writeValidateReport(rqst.BackupId, valid, issues, repChecks)
 
-		// Upgrade quality state on successful deep validation
-		if valid {
-			art, err := srv.store.GetArtifact(rqst.BackupId)
-			if err == nil && art.QualityState != backup_managerpb.QualityState_QUALITY_PROMOTED &&
+		// Persist validation evidence into the artifact
+		art, err := srv.store.GetArtifact(rqst.BackupId)
+		if err == nil {
+			art.ValidationReport = &backup_managerpb.ValidationReport{
+				Valid:             valid,
+				ValidatedAtUnixMs: time.Now().UnixMilli(),
+				Issues:            issues,
+				ReplicationChecks: repChecks,
+			}
+			// Upgrade quality state on successful deep validation
+			if valid && art.QualityState != backup_managerpb.QualityState_QUALITY_PROMOTED &&
 				art.QualityState != backup_managerpb.QualityState_QUALITY_RESTORE_TESTED {
 				art.QualityState = backup_managerpb.QualityState_QUALITY_VALIDATED
-				_ = srv.store.SaveArtifact(art)
 			}
+			_ = srv.store.SaveArtifact(art)
 		}
 	}
 
@@ -678,10 +833,34 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			createdBy = labels["created_by"]
 		}
 
+		// Build node coverage proto from internal coverages
+		var nodeCovProtos []*backup_managerpb.NodeCoverageReport
+		for _, cov := range coverages {
+			report := &backup_managerpb.NodeCoverageReport{
+				Provider: cov.Provider,
+				Total:    uint32(len(cov.Nodes)),
+			}
+			for _, entry := range cov.Nodes {
+				report.Entries = append(report.Entries, &backup_managerpb.NodeCoverageReportEntry{
+					NodeId:       entry.NodeID,
+					Hostname:     entry.Hostname,
+					Ok:           entry.Ok,
+					ErrorMessage: entry.Error,
+				})
+				if entry.Ok {
+					report.Succeeded++
+				} else {
+					report.Failed++
+				}
+			}
+			nodeCovProtos = append(nodeCovProtos, report)
+		}
+
 		// Create artifact
 		art := &backup_managerpb.BackupArtifact{
 			BackupId:         backupID,
 			CreatedUnixMs:    time.Now().UnixMilli(),
+			CompletedUnixMs:  job.FinishedUnixMs,
 			Location:         srv.CapsuleDir(backupID),
 			Locations:        locations,
 			PlanName:         job.PlanName,
@@ -699,10 +878,12 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			Hooks:            hookSummary,
 			TotalBytes:       totalBytes,
 			ManifestSha256:   manifestSHA,
+			NodeCoverage:     nodeCovProtos,
 		}
 		if err := srv.store.SaveArtifact(art); err != nil {
 			slog.Error("failed to save artifact", "job_id", job.JobId, "err", err)
 		}
+		srv.updateRecoverySeedAfterBackup(art)
 		metricsArtifactsTotal.Inc()
 		metricsLastSuccess.SetToCurrentTime()
 		metricsLastDuration.Set(durationSec)

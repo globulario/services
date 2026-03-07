@@ -40,6 +40,8 @@ const (
 	BackupManagerService_CreateMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/CreateMinioBucket"
 	BackupManagerService_DeleteMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/DeleteMinioBucket"
 	BackupManagerService_GetScheduleStatus_FullMethodName  = "/backup_manager.BackupManagerService/GetScheduleStatus"
+	BackupManagerService_GetRecoveryStatus_FullMethodName  = "/backup_manager.BackupManagerService/GetRecoveryStatus"
+	BackupManagerService_ApplyRecoverySeed_FullMethodName  = "/backup_manager.BackupManagerService/ApplyRecoverySeed"
 	BackupManagerService_Stop_FullMethodName               = "/backup_manager.BackupManagerService/Stop"
 )
 
@@ -89,6 +91,10 @@ type BackupManagerServiceClient interface {
 	DeleteMinioBucket(ctx context.Context, in *DeleteMinioBucketRequest, opts ...grpc.CallOption) (*DeleteMinioBucketResponse, error)
 	// Get the current automatic backup schedule status.
 	GetScheduleStatus(ctx context.Context, in *GetScheduleStatusRequest, opts ...grpc.CallOption) (*GetScheduleStatusResponse, error)
+	// Get recovery seed status (read-only, does not apply).
+	GetRecoveryStatus(ctx context.Context, in *GetRecoveryStatusRequest, opts ...grpc.CallOption) (*GetRecoveryStatusResponse, error)
+	// Explicitly apply recovery seed to restore config from a fresh install.
+	ApplyRecoverySeed(ctx context.Context, in *ApplyRecoverySeedRequest, opts ...grpc.CallOption) (*ApplyRecoverySeedResponse, error)
 	// Stop the service.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 }
@@ -311,6 +317,26 @@ func (c *backupManagerServiceClient) GetScheduleStatus(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *backupManagerServiceClient) GetRecoveryStatus(ctx context.Context, in *GetRecoveryStatusRequest, opts ...grpc.CallOption) (*GetRecoveryStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRecoveryStatusResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_GetRecoveryStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupManagerServiceClient) ApplyRecoverySeed(ctx context.Context, in *ApplyRecoverySeedRequest, opts ...grpc.CallOption) (*ApplyRecoverySeedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyRecoverySeedResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_ApplyRecoverySeed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *backupManagerServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StopResponse)
@@ -367,6 +393,10 @@ type BackupManagerServiceServer interface {
 	DeleteMinioBucket(context.Context, *DeleteMinioBucketRequest) (*DeleteMinioBucketResponse, error)
 	// Get the current automatic backup schedule status.
 	GetScheduleStatus(context.Context, *GetScheduleStatusRequest) (*GetScheduleStatusResponse, error)
+	// Get recovery seed status (read-only, does not apply).
+	GetRecoveryStatus(context.Context, *GetRecoveryStatusRequest) (*GetRecoveryStatusResponse, error)
+	// Explicitly apply recovery seed to restore config from a fresh install.
+	ApplyRecoverySeed(context.Context, *ApplyRecoverySeedRequest) (*ApplyRecoverySeedResponse, error)
 	// Stop the service.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 }
@@ -440,6 +470,12 @@ func (UnimplementedBackupManagerServiceServer) DeleteMinioBucket(context.Context
 }
 func (UnimplementedBackupManagerServiceServer) GetScheduleStatus(context.Context, *GetScheduleStatusRequest) (*GetScheduleStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetScheduleStatus not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) GetRecoveryStatus(context.Context, *GetRecoveryStatusRequest) (*GetRecoveryStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRecoveryStatus not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) ApplyRecoverySeed(context.Context, *ApplyRecoverySeedRequest) (*ApplyRecoverySeedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyRecoverySeed not implemented")
 }
 func (UnimplementedBackupManagerServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
@@ -842,6 +878,42 @@ func _BackupManagerService_GetScheduleStatus_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupManagerService_GetRecoveryStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRecoveryStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).GetRecoveryStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_GetRecoveryStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).GetRecoveryStatus(ctx, req.(*GetRecoveryStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupManagerService_ApplyRecoverySeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyRecoverySeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).ApplyRecoverySeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_ApplyRecoverySeed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).ApplyRecoverySeed(ctx, req.(*ApplyRecoverySeedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BackupManagerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopRequest)
 	if err := dec(in); err != nil {
@@ -950,6 +1022,14 @@ var BackupManagerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetScheduleStatus",
 			Handler:    _BackupManagerService_GetScheduleStatus_Handler,
+		},
+		{
+			MethodName: "GetRecoveryStatus",
+			Handler:    _BackupManagerService_GetRecoveryStatus_Handler,
+		},
+		{
+			MethodName: "ApplyRecoverySeed",
+			Handler:    _BackupManagerService_ApplyRecoverySeed_Handler,
 		},
 		{
 			MethodName: "Stop",

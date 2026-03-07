@@ -68,6 +68,12 @@ service BackupManagerService {
   // Get the current automatic backup schedule status.
   rpc GetScheduleStatus(GetScheduleStatusRequest) returns (GetScheduleStatusResponse);
 
+  // Get recovery seed status (read-only, does not apply).
+  rpc GetRecoveryStatus(GetRecoveryStatusRequest) returns (GetRecoveryStatusResponse);
+
+  // Explicitly apply recovery seed to restore config from a fresh install.
+  rpc ApplyRecoverySeed(ApplyRecoverySeedRequest) returns (ApplyRecoverySeedResponse);
+
   // Stop the service.
   rpc Stop(StopRequest) returns (StopResponse);
 }
@@ -171,6 +177,7 @@ message BackupDestination {
   string path = 3;                    // filesystem path, bucket/prefix, or rclone remote:path
   map<string, string> options = 4;    // type-specific options (endpoint, access_key, etc.)
   bool primary = 5;                   // if true, providers write directly here
+  bool authoritative_for_recovery = 6; // if true, recovery seed is written from this destination
 }
 
 message BackupProviderSpec {
@@ -259,6 +266,12 @@ message BackupArtifact {
   ClusterInfo cluster = 18;                          // cluster context at backup time
   HookSummary hooks = 19;                            // quiesce hook results (if cluster mode)
   repeated SkippedProvider skipped_providers = 20;    // providers that were skipped (unavailable, etc.)
+
+  // --- Persisted evidence (populated after validate/restore-test/backup) ---
+  ValidationReport validation_report = 21;            // persisted validation evidence
+  RestoreTestReport restore_test_report = 22;          // persisted restore-test evidence
+  repeated NodeCoverageReport node_coverage = 23;      // per-provider node coverage (cluster mode)
+  int64 completed_unix_ms = 24;                        // when backup completed (job finished)
 }
 
 // Retention policy configuration.
@@ -462,6 +475,31 @@ message SkippedProvider {
   string reason = 2;     // why it was skipped (e.g. "scylla-manager not configured")
 }
 
+// Persisted validation evidence attached to the artifact.
+message ValidationReport {
+  bool valid = 1;
+  int64 validated_at_unix_ms = 2;
+  repeated ValidationIssue issues = 3;
+  repeated ReplicationValidation replication_checks = 4;
+}
+
+// Per-provider node coverage for cluster-mode backups.
+message NodeCoverageReport {
+  string provider = 1;
+  repeated NodeCoverageReportEntry entries = 2;
+  uint32 succeeded = 3;
+  uint32 failed = 4;
+  uint32 skipped = 5;
+  uint32 total = 6;
+}
+
+message NodeCoverageReportEntry {
+  string node_id = 1;
+  string hostname = 2;
+  bool ok = 3;
+  string error_message = 4;
+}
+
 // --- Restore Test ---
 
 message RunRestoreTestRequest {
@@ -594,6 +632,48 @@ message GetScheduleStatusResponse {
   string interval         = 2;  // configured interval string (e.g. "daily", "6h")
   int64  interval_ms      = 3;  // interval in milliseconds
   int64  next_fire_unix_ms = 4; // exact wall-clock time of next scheduled backup (0 if disabled)
+}
+
+// --- Recovery Seed ---
+
+message RecoverySeedLastBackup {
+  string backup_id = 1;
+  int64  created_unix_ms = 2;
+  string plan_name = 3;
+  string quality_state = 4;
+}
+
+message RecoverySeedDestination {
+  string name = 1;
+  string type = 2;
+  string path = 3;
+  map<string, string> options = 4;   // endpoint, region, etc. (never credentials)
+}
+
+message GetRecoveryStatusRequest {}
+
+message GetRecoveryStatusResponse {
+  bool   seed_present = 1;
+  bool   destination_configured = 2;
+  bool   credentials_available = 3;
+  bool   seed_matches_config = 4;
+  string cluster_name = 5;
+  string cluster_id = 6;
+  string domain = 7;
+  RecoverySeedDestination destination = 8;
+  RecoverySeedLastBackup  last_backup = 9;
+  string seed_version = 10;
+  string message = 11;
+}
+
+message ApplyRecoverySeedRequest {
+  bool force = 1;   // apply even if current config has non-local destinations
+}
+
+message ApplyRecoverySeedResponse {
+  bool   ok = 1;
+  string message = 2;
+  RecoverySeedDestination applied_destination = 3;
 }
 
 message StopRequest {}

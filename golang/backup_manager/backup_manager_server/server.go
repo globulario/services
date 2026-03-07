@@ -331,6 +331,25 @@ func (srv *server) Init() error {
 	// Start the backup scheduler (no-op if ScheduleInterval is empty/disabled).
 	srv.stopScheduler = srv.startScheduler()
 
+	// Recovery mode: if BACKUP_MANAGER_RECOVERY_MODE=true and a valid seed exists,
+	// apply it to inject the recovery destination into runtime config.
+	// This is the explicit entry point for Day 0 / bootstrap recovery.
+	if os.Getenv("BACKUP_MANAGER_RECOVERY_MODE") == "true" {
+		seed, seedErr := loadRecoverySeed()
+		if seedErr != nil {
+			slog.Warn("recovery mode enabled but no valid seed found", "error", seedErr)
+		} else if !seedCredentialsAvailable(seed) {
+			slog.Warn("recovery mode enabled but credentials not available", "creds_file", seed.CredsFile)
+		} else {
+			slog.Info("recovery mode: applying recovery seed", "destination", seed.Destination.Name)
+			if _, applyErr := srv.ApplyRecoverySeed(context.Background(), &backup_managerpb.ApplyRecoverySeedRequest{Force: false}); applyErr != nil {
+				slog.Warn("recovery mode: seed apply failed", "error", applyErr)
+			} else {
+				slog.Info("recovery mode: recovery destination applied successfully")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -386,7 +405,27 @@ func (srv *server) forceReleaseClusterLock() {
 	}
 }
 
-func (srv *server) Save() error { return globular.SaveService(srv) }
+func (srv *server) Save() error {
+	// Validate recovery destination constraints
+	authCount := 0
+	for _, d := range srv.Destinations {
+		if d.AuthoritativeForRecovery {
+			authCount++
+			if d.Type == "local" {
+				return fmt.Errorf("local destinations cannot be marked as recovery source for full reinstall recovery; configure an external durable destination")
+			}
+		}
+	}
+	if authCount > 1 {
+		return fmt.Errorf("at most one destination may be marked AuthoritativeForRecovery (found %d)", authCount)
+	}
+
+	err := globular.SaveService(srv)
+	if err == nil {
+		srv.updateRecoverySeedOnConfigSave()
+	}
+	return err
+}
 
 func (srv *server) Stop(ctx context.Context, _ *backup_managerpb.StopRequest) (*backup_managerpb.StopResponse, error) {
 	return &backup_managerpb.StopResponse{}, srv.StopService()
