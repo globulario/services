@@ -65,6 +65,9 @@ service BackupManagerService {
   // Delete a MinIO bucket.
   rpc DeleteMinioBucket(DeleteMinioBucketRequest) returns (DeleteMinioBucketResponse);
 
+  // Get the current automatic backup schedule status.
+  rpc GetScheduleStatus(GetScheduleStatusRequest) returns (GetScheduleStatusResponse);
+
   // Stop the service.
   rpc Stop(StopRequest) returns (StopResponse);
 }
@@ -260,9 +263,10 @@ message BackupArtifact {
 
 // Retention policy configuration.
 message RetentionPolicy {
-  uint32 keep_last_n = 1;       // keep at most N recent backups (0 = unlimited)
-  uint32 keep_days = 2;         // keep backups from last N days (0 = unlimited)
-  uint64 max_total_bytes = 3;   // max total backup size in bytes (0 = unlimited)
+  uint32 keep_last_n = 1;                // keep at most N recent backups (0 = unlimited)
+  uint32 keep_days = 2;                  // keep backups from last N days (0 = unlimited)
+  uint64 max_total_bytes = 3;            // max total backup size in bytes (0 = unlimited)
+  uint32 min_restore_tested_to_keep = 4; // minimum restore-tested backups to always keep (0 = disabled)
 }
 
 // ---- RPC messages ----
@@ -581,6 +585,15 @@ message DeleteMinioBucketRequest {
 message DeleteMinioBucketResponse {
   bool ok = 1;
   string message = 2;
+}
+
+message GetScheduleStatusRequest {}
+
+message GetScheduleStatusResponse {
+  bool   enabled          = 1;  // true if automatic backups are active
+  string interval         = 2;  // configured interval string (e.g. "daily", "6h")
+  int64  interval_ms      = 3;  // interval in milliseconds
+  int64  next_fire_unix_ms = 4; // exact wall-clock time of next scheduled backup (0 if disabled)
 }
 
 message StopRequest {}

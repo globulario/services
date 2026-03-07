@@ -1297,6 +1297,67 @@ proto.backup_manager.BackupManagerServicePromiseClient.prototype.deleteMinioBuck
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.backup_manager.GetScheduleStatusRequest,
+ *   !proto.backup_manager.GetScheduleStatusResponse>}
+ */
+const methodDescriptor_BackupManagerService_GetScheduleStatus = new grpc.web.MethodDescriptor(
+  '/backup_manager.BackupManagerService/GetScheduleStatus',
+  grpc.web.MethodType.UNARY,
+  proto.backup_manager.GetScheduleStatusRequest,
+  proto.backup_manager.GetScheduleStatusResponse,
+  /**
+   * @param {!proto.backup_manager.GetScheduleStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.backup_manager.GetScheduleStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.backup_manager.GetScheduleStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.backup_manager.GetScheduleStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.backup_manager.GetScheduleStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.backup_manager.BackupManagerServiceClient.prototype.getScheduleStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/backup_manager.BackupManagerService/GetScheduleStatus',
+      request,
+      metadata || {},
+      methodDescriptor_BackupManagerService_GetScheduleStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.backup_manager.GetScheduleStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.backup_manager.GetScheduleStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.backup_manager.BackupManagerServicePromiseClient.prototype.getScheduleStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/backup_manager.BackupManagerService/GetScheduleStatus',
+      request,
+      metadata || {},
+      methodDescriptor_BackupManagerService_GetScheduleStatus);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.backup_manager.StopRequest,
  *   !proto.backup_manager.StopResponse>}
  */

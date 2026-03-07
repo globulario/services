@@ -344,7 +344,7 @@ func parseScyllaClusterList(output string) []string {
 		isBorder := true
 		for _, r := range line {
 			if r != '─' && r != '┼' && r != '├' && r != '┤' && r != '╰' && r != '╯' &&
-				r != '┴' && r != '─' && r != '-' && r != '+' && r != ' ' {
+				r != '┴' && r != '-' && r != '+' && r != ' ' {
 				isBorder = false
 				break
 			}

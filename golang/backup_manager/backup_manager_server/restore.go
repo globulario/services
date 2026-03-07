@@ -539,7 +539,25 @@ func (srv *server) FetchCapsuleFromRemote(backupID string, art *backup_managerpb
 		case backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_MINIO,
 			backup_managerpb.BackupDestinationType_BACKUP_DESTINATION_S3:
 			remotePath := fmt.Sprintf(":s3:%s/artifacts/%s", rep.DestinationPath, backupID)
-			_, stderr, syncErr := runCmd("rclone", "sync", remotePath, capsuleDir)
+			args := []string{"sync", remotePath, capsuleDir}
+			// Look up destination config for MinIO credentials
+			dest := srv.findDestinationByName(rep.DestinationName)
+			if dest != nil && dest.Type == "minio" {
+				endpoint := dest.Options["endpoint"]
+				if endpoint != "" {
+					args = append(args, "--s3-provider", "Minio", "--s3-endpoint", endpoint, "--s3-env-auth=false")
+				}
+				if ak := dest.Options["access_key"]; ak != "" {
+					args = append(args, "--s3-access-key-id", ak)
+				}
+				if sk := dest.Options["secret_key"]; sk != "" {
+					args = append(args, "--s3-secret-access-key", sk)
+				}
+				if strings.HasPrefix(endpoint, "https") {
+					args = append(args, "--no-check-certificate")
+				}
+			}
+			_, stderr, syncErr := runCmd("rclone", args...)
 			if syncErr != nil {
 				err = fmt.Errorf("rclone: %s: %w", stderr, syncErr)
 			}
@@ -649,4 +667,14 @@ func isSystemdActive(unit string) bool {
 		return false
 	}
 	return strings.TrimSpace(string(out)) == "active"
+}
+
+// findDestinationByName looks up a configured destination by its name.
+func (srv *server) findDestinationByName(name string) *DestinationConfig {
+	for i := range srv.Destinations {
+		if srv.Destinations[i].Name == name {
+			return &srv.Destinations[i]
+		}
+	}
+	return nil
 }

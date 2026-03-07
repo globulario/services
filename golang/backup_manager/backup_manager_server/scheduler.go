@@ -15,6 +15,7 @@ func (srv *server) startScheduler() context.CancelFunc {
 	interval := srv.parseScheduleInterval()
 	if interval <= 0 {
 		slog.Info("backup scheduler disabled (ScheduleInterval not set)")
+		srv.nextFireTime.Store(0)
 		return func() {}
 	}
 
@@ -24,6 +25,8 @@ func (srv *server) startScheduler() context.CancelFunc {
 		slog.Info("backup scheduler started", "interval", interval.String())
 
 		// Wait one interval before the first scheduled backup.
+		next := time.Now().Add(interval)
+		srv.nextFireTime.Store(next.UnixMilli())
 		timer := time.NewTimer(interval)
 		defer timer.Stop()
 
@@ -31,9 +34,12 @@ func (srv *server) startScheduler() context.CancelFunc {
 			select {
 			case <-ctx.Done():
 				slog.Info("backup scheduler stopped")
+				srv.nextFireTime.Store(0)
 				return
 			case <-timer.C:
 				srv.runScheduledBackup()
+				next = time.Now().Add(interval)
+				srv.nextFireTime.Store(next.UnixMilli())
 				timer.Reset(interval)
 			}
 		}
@@ -63,6 +69,17 @@ func (srv *server) runScheduledBackup() {
 		return
 	}
 	slog.Info("scheduled backup triggered")
+}
+
+// GetScheduleStatus returns the current automatic backup schedule status.
+func (srv *server) GetScheduleStatus(_ context.Context, _ *backup_managerpb.GetScheduleStatusRequest) (*backup_managerpb.GetScheduleStatusResponse, error) {
+	interval := srv.parseScheduleInterval()
+	return &backup_managerpb.GetScheduleStatusResponse{
+		Enabled:        interval > 0,
+		Interval:       srv.ScheduleInterval,
+		IntervalMs:     interval.Milliseconds(),
+		NextFireUnixMs: srv.nextFireTime.Load(),
+	}, nil
 }
 
 // parseScheduleInterval parses the ScheduleInterval config string into a

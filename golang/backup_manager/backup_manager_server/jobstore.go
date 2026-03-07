@@ -160,7 +160,7 @@ func (s *jobStore) GetArtifact(backupID string) (*backup_managerpb.BackupArtifac
 	return art, nil
 }
 
-func (s *jobStore) ListArtifacts(planName string, limit, offset uint32) ([]*backup_managerpb.BackupArtifact, uint32, error) {
+func (s *jobStore) ListArtifacts(planName string, mode backup_managerpb.BackupMode, qualityState backup_managerpb.QualityState, limit, offset uint32) ([]*backup_managerpb.BackupArtifact, uint32, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -179,6 +179,12 @@ func (s *jobStore) ListArtifacts(planName string, limit, offset uint32) ([]*back
 			continue
 		}
 		if planName != "" && art.PlanName != planName {
+			continue
+		}
+		if mode != backup_managerpb.BackupMode_BACKUP_MODE_UNSPECIFIED && art.Mode != mode {
+			continue
+		}
+		if qualityState != backup_managerpb.QualityState_QUALITY_STATE_UNSPECIFIED && art.QualityState != qualityState {
 			continue
 		}
 		all = append(all, art)

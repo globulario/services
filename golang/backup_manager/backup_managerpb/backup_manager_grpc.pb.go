@@ -39,6 +39,7 @@ const (
 	BackupManagerService_ListMinioBuckets_FullMethodName   = "/backup_manager.BackupManagerService/ListMinioBuckets"
 	BackupManagerService_CreateMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/CreateMinioBucket"
 	BackupManagerService_DeleteMinioBucket_FullMethodName  = "/backup_manager.BackupManagerService/DeleteMinioBucket"
+	BackupManagerService_GetScheduleStatus_FullMethodName  = "/backup_manager.BackupManagerService/GetScheduleStatus"
 	BackupManagerService_Stop_FullMethodName               = "/backup_manager.BackupManagerService/Stop"
 )
 
@@ -86,6 +87,8 @@ type BackupManagerServiceClient interface {
 	CreateMinioBucket(ctx context.Context, in *CreateMinioBucketRequest, opts ...grpc.CallOption) (*CreateMinioBucketResponse, error)
 	// Delete a MinIO bucket.
 	DeleteMinioBucket(ctx context.Context, in *DeleteMinioBucketRequest, opts ...grpc.CallOption) (*DeleteMinioBucketResponse, error)
+	// Get the current automatic backup schedule status.
+	GetScheduleStatus(ctx context.Context, in *GetScheduleStatusRequest, opts ...grpc.CallOption) (*GetScheduleStatusResponse, error)
 	// Stop the service.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 }
@@ -298,6 +301,16 @@ func (c *backupManagerServiceClient) DeleteMinioBucket(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *backupManagerServiceClient) GetScheduleStatus(ctx context.Context, in *GetScheduleStatusRequest, opts ...grpc.CallOption) (*GetScheduleStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetScheduleStatusResponse)
+	err := c.cc.Invoke(ctx, BackupManagerService_GetScheduleStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *backupManagerServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StopResponse)
@@ -352,6 +365,8 @@ type BackupManagerServiceServer interface {
 	CreateMinioBucket(context.Context, *CreateMinioBucketRequest) (*CreateMinioBucketResponse, error)
 	// Delete a MinIO bucket.
 	DeleteMinioBucket(context.Context, *DeleteMinioBucketRequest) (*DeleteMinioBucketResponse, error)
+	// Get the current automatic backup schedule status.
+	GetScheduleStatus(context.Context, *GetScheduleStatusRequest) (*GetScheduleStatusResponse, error)
 	// Stop the service.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 }
@@ -422,6 +437,9 @@ func (UnimplementedBackupManagerServiceServer) CreateMinioBucket(context.Context
 }
 func (UnimplementedBackupManagerServiceServer) DeleteMinioBucket(context.Context, *DeleteMinioBucketRequest) (*DeleteMinioBucketResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteMinioBucket not implemented")
+}
+func (UnimplementedBackupManagerServiceServer) GetScheduleStatus(context.Context, *GetScheduleStatusRequest) (*GetScheduleStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetScheduleStatus not implemented")
 }
 func (UnimplementedBackupManagerServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
@@ -806,6 +824,24 @@ func _BackupManagerService_DeleteMinioBucket_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupManagerService_GetScheduleStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetScheduleStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupManagerServiceServer).GetScheduleStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupManagerService_GetScheduleStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupManagerServiceServer).GetScheduleStatus(ctx, req.(*GetScheduleStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BackupManagerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopRequest)
 	if err := dec(in); err != nil {
@@ -910,6 +946,10 @@ var BackupManagerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteMinioBucket",
 			Handler:    _BackupManagerService_DeleteMinioBucket_Handler,
+		},
+		{
+			MethodName: "GetScheduleStatus",
+			Handler:    _BackupManagerService_GetScheduleStatus_Handler,
 		},
 		{
 			MethodName: "Stop",

@@ -117,7 +117,7 @@ func (srv *server) ListBackupJobs(ctx context.Context, rqst *backup_managerpb.Li
 
 // ListBackups returns completed backup artifacts.
 func (srv *server) ListBackups(ctx context.Context, rqst *backup_managerpb.ListBackupsRequest) (*backup_managerpb.ListBackupsResponse, error) {
-	arts, total, err := srv.store.ListArtifacts(rqst.PlanName, rqst.Limit, rqst.Offset)
+	arts, total, err := srv.store.ListArtifacts(rqst.PlanName, rqst.Mode, rqst.QualityState, rqst.Limit, rqst.Offset)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list backups: %v", err)
 	}
@@ -357,8 +357,8 @@ func (srv *server) RestorePlan(ctx context.Context, rqst *backup_managerpb.Resto
 			if rqst.IncludeMinio {
 				steps = append(steps, &backup_managerpb.RestoreStep{
 					Order:   order,
-					Title:   "Verify MinIO replication",
-					Details: "Check MinIO mirror status and resync if needed.",
+					Title:   "Restore MinIO object data",
+					Details: "Sync backed-up objects back into the MinIO source bucket using rclone. This overwrites existing objects in the source bucket with the backed-up versions.",
 				})
 				order++
 			}

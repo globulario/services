@@ -23,7 +23,7 @@ func (srv *server) RunRestoreTest(ctx context.Context, rqst *backup_managerpb.Ru
 
 	// If no backup_id, pick the latest UNVERIFIED or VALIDATED backup
 	if backupID == "" {
-		arts, _, err := srv.store.ListArtifacts("", 0, 0)
+		arts, _, err := srv.store.ListArtifacts("", 0, 0, 0, 0)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "list artifacts: %v", err)
 		}

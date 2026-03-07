@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
@@ -132,6 +133,7 @@ type server struct {
 	// Scheduled backups
 	ScheduleInterval string         `json:"ScheduleInterval"`
 	stopScheduler    context.CancelFunc
+	nextFireTime     atomic.Int64   // unix ms of next scheduled backup
 
 	// MinIO connection
 	MinioEndpoint  string `json:"MinioEndpoint"`

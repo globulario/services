@@ -8,19 +8,44 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 
 // RunRetention executes the retention policy, deleting old backups.
+// Retention runs are tracked as jobs for auditability.
 func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunRetentionRequest) (*backup_managerpb.RunRetentionResponse, error) {
-	arts, _, err := srv.store.ListArtifacts("", 0, 0) // all artifacts
+	arts, _, err := srv.store.ListArtifacts("", 0, 0, 0, 0) // all artifacts
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list artifacts: %v", err)
 	}
 
+	// Create a tracked job
+	jobID := Utility.RandomUUID()
+	now := time.Now().UnixMilli()
+	job := &backup_managerpb.BackupJob{
+		JobId:         jobID,
+		PlanName:      "retention",
+		State:         backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING,
+		JobType:       backup_managerpb.BackupJobType_BACKUP_JOB_TYPE_RETENTION,
+		CreatedUnixMs: now,
+		StartedUnixMs: now,
+	}
+
+	if rqst.DryRun {
+		job.Message = "retention dry-run"
+	} else {
+		job.Message = "applying retention policy"
+	}
+	_ = srv.store.SaveJob(job)
+
 	if len(arts) == 0 {
+		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
+		job.FinishedUnixMs = time.Now().UnixMilli()
+		job.Message = "no backups to evaluate"
+		_ = srv.store.SaveJob(job)
 		return &backup_managerpb.RunRetentionResponse{
 			DryRun:  rqst.DryRun,
 			Message: "no backups to evaluate",
@@ -45,6 +70,10 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 		for _, a := range toDelete {
 			deletedIDs = append(deletedIDs, a.BackupId)
 		}
+		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
+		job.FinishedUnixMs = time.Now().UnixMilli()
+		job.Message = fmt.Sprintf("dry-run: would delete %d backups", len(toDelete))
+		_ = srv.store.SaveJob(job)
 		return &backup_managerpb.RunRetentionResponse{
 			DeletedBackupIds: deletedIDs,
 			KeptBackupIds:    keptIDs,
@@ -70,6 +99,11 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 
 	metricsJobsTotal.WithLabelValues("retention").Inc()
 
+	job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
+	job.FinishedUnixMs = time.Now().UnixMilli()
+	job.Message = fmt.Sprintf("deleted %d backups, kept %d", len(deletedIDs), len(keptIDs))
+	_ = srv.store.SaveJob(job)
+
 	return &backup_managerpb.RunRetentionResponse{
 		DeletedBackupIds: deletedIDs,
 		KeptBackupIds:    keptIDs,
@@ -79,16 +113,17 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 
 // GetRetentionStatus returns the current retention policy and backup stats.
 func (srv *server) GetRetentionStatus(ctx context.Context, rqst *backup_managerpb.GetRetentionStatusRequest) (*backup_managerpb.GetRetentionStatusResponse, error) {
-	arts, _, err := srv.store.ListArtifacts("", 0, 0)
+	arts, _, err := srv.store.ListArtifacts("", 0, 0, 0, 0)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list artifacts: %v", err)
 	}
 
 	resp := &backup_managerpb.GetRetentionStatusResponse{
 		Policy: &backup_managerpb.RetentionPolicy{
-			KeepLastN:     uint32(srv.RetentionKeepLastN),
-			KeepDays:      uint32(srv.RetentionKeepDays),
-			MaxTotalBytes: srv.RetentionMaxTotalBytes,
+			KeepLastN:              uint32(srv.RetentionKeepLastN),
+			KeepDays:               uint32(srv.RetentionKeepDays),
+			MaxTotalBytes:          srv.RetentionMaxTotalBytes,
+			MinRestoreTestedToKeep: uint32(srv.MinRestoreTestedToKeep),
 		},
 		CurrentBackupCount: uint32(len(arts)),
 	}
@@ -131,8 +166,9 @@ func (srv *server) evaluateRetention(arts []*backup_managerpb.BackupArtifact) (t
 
 	var totalBytes uint64
 	var candidates []*backup_managerpb.BackupArtifact // potential deletions
+	nonPromotedIdx := 0
 
-	for i, a := range arts {
+	for _, a := range arts {
 		// Never delete PROMOTED backups
 		if a.QualityState == backup_managerpb.QualityState_QUALITY_PROMOTED {
 			toKeep = append(toKeep, a)
@@ -143,9 +179,10 @@ func (srv *server) evaluateRetention(arts []*backup_managerpb.BackupArtifact) (t
 		keep := true
 
 		// Check keep_last_n (counts only non-promoted)
-		if keepN > 0 && i >= keepN {
+		if keepN > 0 && nonPromotedIdx >= keepN {
 			keep = false
 		}
+		nonPromotedIdx++
 
 		// Check keep_days
 		if keep && keepDays > 0 {
