@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -190,7 +191,9 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 	job.State = backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING
 	job.StartedUnixMs = time.Now().UnixMilli()
 	job.Message = "restoring"
-	_ = srv.store.SaveJob(job)
+	if err := srv.store.SaveJob(job); err != nil {
+		slog.Error("failed to save restore job state", "job_id", job.JobId, "state", "RUNNING", "err", err)
+	}
 
 	capsuleDir := srv.CapsuleDir(art.BackupId)
 
@@ -200,7 +203,9 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = fmt.Sprintf("capsule missing and remote fetch failed: %v", err)
 			job.FinishedUnixMs = time.Now().UnixMilli()
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save restore job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("restore_failed").Inc()
 			return
 		}
@@ -219,49 +224,55 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 			job.Message = "restore canceled"
 			job.FinishedUnixMs = time.Now().UnixMilli()
 			job.Results = results
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save restore job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("restore_canceled").Inc()
 			return
 		}
 
-		var result *backup_managerpb.BackupProviderResult
 		name := providerName(pr.Type)
+
+		// Build restore options from the artifact's provider outputs/inputs
+		var opts map[string]string
+		var include bool
 
 		switch pr.Type {
 		case backup_managerpb.BackupProviderType_BACKUP_PROVIDER_ETCD:
-			if rqst.IncludeEtcd {
-				result = srv.restoreEtcd(ctx, capsuleDir, pr, rqst.Force)
-			}
+			include = rqst.IncludeEtcd
+			opts = srv.buildEtcdRestoreOpts(capsuleDir, pr)
 		case backup_managerpb.BackupProviderType_BACKUP_PROVIDER_RESTIC:
-			if rqst.IncludeConfig {
-				target := "/"
-				if rqst.TargetNode != "" {
-					target = rqst.TargetNode
-				}
-				result = srv.restoreRestic(ctx, pr, target)
+			include = rqst.IncludeConfig
+			target := "/"
+			if rqst.TargetNode != "" {
+				target = rqst.TargetNode
 			}
+			opts = srv.buildResticRestoreOpts(pr, target)
 		case backup_managerpb.BackupProviderType_BACKUP_PROVIDER_MINIO:
-			if rqst.IncludeMinio {
-				result = srv.restoreMinio(ctx, pr)
-			}
+			include = rqst.IncludeMinio
+			opts = srv.buildMinioRestoreOpts(pr)
 		case backup_managerpb.BackupProviderType_BACKUP_PROVIDER_SCYLLA:
-			if rqst.IncludeScylla {
-				result = srv.restoreScylla(ctx, pr)
-			}
+			include = rqst.IncludeScylla
+			opts = srv.buildScyllaRestoreOpts(pr)
 		}
 
-		if result != nil {
-			// Write per-provider restore log into capsule
-			logPath := filepath.Join(capsuleDir, "provider", name, "restore.log")
-			_ = os.MkdirAll(filepath.Dir(logPath), 0755)
-			logData := fmt.Sprintf("state=%s\nsummary=%s\nerror=%s\noutputs=%v\n",
-				result.State, result.Summary, result.ErrorMessage, result.Outputs)
-			_ = os.WriteFile(logPath, []byte(logData), 0644)
+		if !include || opts == nil {
+			continue
+		}
 
-			results = append(results, result)
-			if result.State == backup_managerpb.BackupJobState_BACKUP_JOB_FAILED {
-				allOk = false
-			}
+		// Dispatch restore to the local node-agent
+		result := srv.restoreViaNodeAgent(ctx, pr.Type, name, art.BackupId, opts, rqst.Force)
+
+		// Write per-provider restore log into capsule
+		logPath := filepath.Join(capsuleDir, "provider", name, "restore.log")
+		_ = os.MkdirAll(filepath.Dir(logPath), 0755)
+		logData := fmt.Sprintf("state=%s\nsummary=%s\nerror=%s\noutputs=%v\n",
+			result.State, result.Summary, result.ErrorMessage, result.Outputs)
+		_ = os.WriteFile(logPath, []byte(logData), 0644)
+
+		results = append(results, result)
+		if result.State == backup_managerpb.BackupJobState_BACKUP_JOB_FAILED {
+			allOk = false
 		}
 	}
 
@@ -280,190 +291,73 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 		slog.Warn("restore failed", "job_id", job.JobId, "backup_id", art.BackupId)
 	}
 
-	_ = srv.store.SaveJob(job)
+	if err := srv.store.SaveJob(job); err != nil {
+		slog.Error("failed to save final restore job state", "job_id", job.JobId, "state", job.State, "err", err)
+	}
 
 	// Write restore report into capsule
 	srv.writeRestoreReport(capsuleDir, job)
 }
 
-// --- Provider restore implementations ---
+// --- Option builders (resolve provider-specific options from artifact) ---
 
-func (srv *server) restoreEtcd(ctx context.Context, capsuleDir string, pr *backup_managerpb.BackupProviderResult, force bool) *backup_managerpb.BackupProviderResult {
-	outputs := make(map[string]string)
-	start := time.Now().UnixMilli()
-
+func (srv *server) buildEtcdRestoreOpts(capsuleDir string, pr *backup_managerpb.BackupProviderResult) map[string]string {
 	snapshotPath := filepath.Join(capsuleDir, "payload", "etcd", "etcd-snapshot.db")
-	if !fileExists(snapshotPath) {
-		return restoreFailResult(pr.Type, "etcd snapshot file not found in capsule",
-			fmt.Sprintf("missing: %s", snapshotPath), outputs, start)
-	}
-
-	// Safety: check if etcd is running (port 2379 or systemd)
-	if !force {
-		if isPortOpen("127.0.0.1", 2379) {
-			return restoreFailResult(pr.Type, "etcd appears to be running on port 2379; stop etcd first or use force=true",
-				"ETCD_RUNNING", outputs, start)
-		}
-		// Also check systemd
-		if isSystemdActive("etcd.service") {
-			return restoreFailResult(pr.Type, "etcd.service is active; stop it first or use force=true",
-				"ETCD_SERVICE_ACTIVE", outputs, start)
-		}
-	}
-
-	dataDir := "/var/lib/etcd"
-	if d, ok := pr.RestoreInputs["data_dir"]; ok && d != "" {
-		dataDir = d
-	}
-
-	args := []string{
-		"snapshot", "restore", snapshotPath,
-		"--data-dir", dataDir + ".restore",
-	}
-
-	slog.Info("restoring etcd snapshot", "snapshot", snapshotPath, "data_dir", dataDir)
-	stdout, stderr, err := runCmdCtx(ctx, "etcdctl", args...)
-	outputs["stdout"] = strings.TrimSpace(stdout)
-	outputs["stderr"] = strings.TrimSpace(stderr)
-
-	if err != nil {
-		return restoreFailResult(pr.Type, fmt.Sprintf("etcdctl snapshot restore failed: %v", err),
-			err.Error(), outputs, start)
-	}
-
-	outputs["restored_data_dir"] = dataDir + ".restore"
-	outputs["note"] = "Restored to .restore suffix. Move to actual data-dir and restart etcd to complete."
-
-	return &backup_managerpb.BackupProviderResult{
-		Type: pr.Type, Enabled: true,
-		State:         backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED,
-		Severity:      backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO,
-		Summary:       "etcd snapshot restored (move data-dir and restart etcd to complete)",
-		Outputs:       outputs,
-		StartedUnixMs: start, FinishedUnixMs: time.Now().UnixMilli(),
-	}
+	// Node-agent knows the correct data-dir (/var/lib/globular/etcd);
+	// only pass snapshot_path — don't forward stale data_dir from old artifacts.
+	return map[string]string{"snapshot_path": snapshotPath}
 }
 
-func (srv *server) restoreRestic(ctx context.Context, pr *backup_managerpb.BackupProviderResult, target string) *backup_managerpb.BackupProviderResult {
-	outputs := make(map[string]string)
-	start := time.Now().UnixMilli()
-
+func (srv *server) buildResticRestoreOpts(pr *backup_managerpb.BackupProviderResult, target string) map[string]string {
 	snapID := pr.Outputs["snapshot_id"]
 	if snapID == "" {
-		if id, ok := pr.RestoreInputs["snapshot_id"]; ok {
-			snapID = id
-		}
+		snapID = pr.RestoreInputs["snapshot_id"]
 	}
-	if snapID == "" {
-		return restoreFailResult(pr.Type, "no snapshot_id recorded; cannot restore", "", outputs, start)
-	}
-
 	repo := pr.Outputs["repo_path"]
 	if repo == "" {
-		if r, ok := pr.RestoreInputs["repo"]; ok {
-			repo = r
-		}
+		repo = pr.RestoreInputs["repo"]
 	}
 	if repo == "" {
 		repo = srv.ResticRepo
 	}
-	password := srv.ResticPassword
-
-	if t, ok := pr.RestoreInputs["target"]; ok && t != "" && target == "/" {
+	if t := pr.RestoreInputs["target"]; t != "" && target == "/" {
 		target = t
 	}
-
-	args := []string{"restore", snapID, "--target", target, "--repo", repo}
-
-	cmd := exec.CommandContext(ctx, "restic", args...)
-	cmd.Env = appendResticEnv(repo, password)
-
-	slog.Info("restoring restic snapshot", "snapshot", snapID, "target", target)
-	out, err := cmd.CombinedOutput()
-	outputs["output"] = strings.TrimSpace(string(out))
-	outputs["snapshot_id"] = snapID
-	outputs["target"] = target
-
-	if err != nil {
-		return restoreFailResult(pr.Type, fmt.Sprintf("restic restore failed: %v", err),
-			err.Error(), outputs, start)
-	}
-
-	return &backup_managerpb.BackupProviderResult{
-		Type: pr.Type, Enabled: true,
-		State:         backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED,
-		Severity:      backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO,
-		Summary:       fmt.Sprintf("restic snapshot %s restored to %s", snapID, target),
-		Outputs:       outputs,
-		StartedUnixMs: start, FinishedUnixMs: time.Now().UnixMilli(),
+	return map[string]string{
+		"snapshot_id": snapID,
+		"repo":        repo,
+		"password":    srv.ResticPassword,
+		"target":      target,
 	}
 }
 
-func (srv *server) restoreMinio(ctx context.Context, pr *backup_managerpb.BackupProviderResult) *backup_managerpb.BackupProviderResult {
-	outputs := make(map[string]string)
-	start := time.Now().UnixMilli()
-
+func (srv *server) buildMinioRestoreOpts(pr *backup_managerpb.BackupProviderResult) map[string]string {
 	remote := pr.Outputs["remote"]
-	source := pr.Outputs["source"]
 	if remote == "" {
-		if r, ok := pr.RestoreInputs["remote"]; ok {
-			remote = r
-		}
+		remote = pr.RestoreInputs["remote"]
 	}
+	source := pr.Outputs["source"]
 	if source == "" {
-		if s, ok := pr.RestoreInputs["source"]; ok {
-			source = s
-		}
+		source = pr.RestoreInputs["source"]
 	}
-	if remote == "" || source == "" {
-		return restoreFailResult(pr.Type, "missing remote/source in provider outputs; cannot restore", "", outputs, start)
-	}
-
-	// Reverse sync: remote -> local source
-	args := []string{"sync", remote, source, "--stats-one-line", "-v"}
-
-	slog.Info("restoring minio/rclone data", "remote", remote, "target", source)
-	cmd := exec.CommandContext(ctx, "rclone", args...)
-	out, err := cmd.CombinedOutput()
-	outputs["output"] = strings.TrimSpace(string(out))
-
-	if err != nil {
-		return restoreFailResult(pr.Type, fmt.Sprintf("rclone restore failed: %v", err),
-			err.Error(), outputs, start)
-	}
-
-	return &backup_managerpb.BackupProviderResult{
-		Type: pr.Type, Enabled: true,
-		State:         backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED,
-		Severity:      backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO,
-		Summary:       fmt.Sprintf("rclone data restored from %s to %s", remote, source),
-		Outputs:       outputs,
-		StartedUnixMs: start, FinishedUnixMs: time.Now().UnixMilli(),
-	}
+	return map[string]string{"remote": remote, "source": source}
 }
 
-func (srv *server) restoreScylla(ctx context.Context, pr *backup_managerpb.BackupProviderResult) *backup_managerpb.BackupProviderResult {
-	outputs := make(map[string]string)
-	start := time.Now().UnixMilli()
-
+func (srv *server) buildScyllaRestoreOpts(pr *backup_managerpb.BackupProviderResult) map[string]string {
 	cluster := pr.Outputs["cluster"]
 	if cluster == "" {
-		if c, ok := pr.RestoreInputs["cluster"]; ok {
-			cluster = c
-		}
+		cluster = pr.RestoreInputs["cluster"]
 	}
 	if cluster == "" {
 		cluster = srv.ScyllaCluster
 	}
 
-	// Derive locations: try restore inputs first, then configured destinations
 	var locations []string
 	if l := pr.Outputs["locations"]; l != "" {
 		locations = strings.Split(l, ",")
 	} else if l := pr.RestoreInputs["locations"]; l != "" {
 		locations = strings.Split(l, ",")
 	} else if l := pr.Outputs["location"]; l != "" {
-		// backwards compat with old capsules
 		locations = []string{l}
 	} else if l := pr.RestoreInputs["location"]; l != "" {
 		locations = []string{l}
@@ -476,36 +370,126 @@ func (srv *server) restoreScylla(ctx context.Context, pr *backup_managerpb.Backu
 		}
 	}
 
-	if cluster == "" || len(locations) == 0 {
-		return restoreFailResult(pr.Type, "scylla cluster/location not configured; cannot restore", "", outputs, start)
+	snapshotTag := pr.Outputs["snapshot_tag"]
+	if snapshotTag == "" {
+		snapshotTag = pr.RestoreInputs["snapshot_tag"]
+	}
+	if snapshotTag == "" {
+		snapshotTag = srv.extractScyllaSnapshotTag(cluster, srv.ScyllaManagerAPI, locations)
 	}
 
-	args := []string{
-		"restore",
-		"--cluster", cluster,
-		"--api-url", srv.ScyllaManagerAPI,
+	return map[string]string{
+		"cluster":      cluster,
+		"locations":    strings.Join(locations, ","),
+		"snapshot_tag": snapshotTag,
+		"api_url":      srv.ScyllaManagerAPI,
 	}
-	for _, loc := range locations {
-		args = append(args, "--location", loc)
-	}
+}
 
-	slog.Info("restoring scylladb", "cluster", cluster, "locations", strings.Join(locations, ","))
-	cmd := exec.CommandContext(ctx, "sctool", args...)
-	out, err := cmd.CombinedOutput()
-	outputs["output"] = strings.TrimSpace(string(out))
+// --- Node-agent restore dispatch ---
 
+// restoreViaNodeAgent dispatches a restore to the local node-agent via gRPC.
+func (srv *server) restoreViaNodeAgent(
+	ctx context.Context,
+	provType backup_managerpb.BackupProviderType,
+	provName, backupID string,
+	opts map[string]string,
+	force bool,
+) *backup_managerpb.BackupProviderResult {
+
+	start := time.Now().UnixMilli()
+
+	endpoint := fmt.Sprintf("127.0.0.1:%d", nodeAgentDefaultPort)
+	slog.Info("dispatching restore to node-agent", "provider", provName, "endpoint", endpoint)
+
+	conn, err := srv.dialNodeAgent(ctx, endpoint)
 	if err != nil {
-		return restoreFailResult(pr.Type, fmt.Sprintf("sctool restore failed: %v", err),
-			err.Error(), outputs, start)
+		return restoreFailResult(provType,
+			fmt.Sprintf("dial node-agent for restore: %v", err),
+			err.Error(), nil, start)
+	}
+	defer conn.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+	spec := &node_agentpb.RestoreProviderSpec{
+		Provider:       provName,
+		Options:        opts,
+		TimeoutSeconds: uint32(srv.ProviderTimeoutSeconds),
+		Force:          force,
+	}
+
+	runResp, err := client.RunRestoreProvider(ctx, &node_agentpb.RunRestoreProviderRequest{
+		BackupId: backupID,
+		Spec:     spec,
+		NodeId:   srv.Id,
+	})
+	if err != nil {
+		return restoreFailResult(provType,
+			fmt.Sprintf("RunRestoreProvider RPC failed: %v", err),
+			err.Error(), nil, start)
+	}
+
+	taskID := runResp.TaskId
+	slog.Info("restore task started on node-agent", "provider", provName, "task_id", taskID)
+
+	// Poll until done
+	result, err := srv.pollRestoreTask(ctx, client, taskID, provName)
+	if err != nil {
+		return restoreFailResult(provType,
+			fmt.Sprintf("poll restore task: %v", err),
+			err.Error(), nil, start)
+	}
+
+	// Convert node-agent result to backup-manager result
+	state := backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
+	severity := backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO
+	if !result.Ok {
+		state = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
+		severity = backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR
 	}
 
 	return &backup_managerpb.BackupProviderResult{
-		Type: pr.Type, Enabled: true,
-		State:         backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED,
-		Severity:      backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO,
-		Summary:       "scylladb restore triggered via sctool",
-		Outputs:       outputs,
-		StartedUnixMs: start, FinishedUnixMs: time.Now().UnixMilli(),
+		Type:          provType,
+		Enabled:       true,
+		State:         state,
+		Severity:      severity,
+		Summary:       result.Summary,
+		ErrorMessage:  result.ErrorMessage,
+		Outputs:       result.Outputs,
+		StartedUnixMs: result.StartedUnixMs,
+		FinishedUnixMs: result.FinishedUnixMs,
+	}
+}
+
+// pollRestoreTask polls GetRestoreTaskResult until done or context expires.
+func (srv *server) pollRestoreTask(
+	ctx context.Context,
+	client node_agentpb.NodeAgentServiceClient,
+	taskID, provName string,
+) (*node_agentpb.BackupProviderResult, error) {
+	ticker := time.NewTicker(nodeAgentPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context cancelled waiting for restore task %s", taskID)
+		case <-ticker.C:
+			resp, err := client.GetRestoreTaskResult(ctx, &node_agentpb.GetRestoreTaskResultRequest{
+				TaskId: taskID,
+			})
+			if err != nil {
+				slog.Warn("poll restore task error (will retry)",
+					"task_id", taskID, "provider", provName, "error", err)
+				continue
+			}
+			if resp.Result != nil && resp.Result.Done {
+				slog.Info("restore task completed",
+					"task_id", taskID, "provider", provName, "ok", resp.Result.Ok)
+				return resp.Result, nil
+			}
+		}
 	}
 }
 

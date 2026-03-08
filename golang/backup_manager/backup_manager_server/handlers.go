@@ -570,7 +570,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 	job.State = backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING
 	job.StartedUnixMs = time.Now().UnixMilli()
 	job.Message = "running"
-	_ = srv.store.SaveJob(job)
+	if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 
 	slog.Info("backup job started", "job_id", job.JobId, "plan", job.PlanName, "mode", mode)
 
@@ -586,7 +588,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = fmt.Sprintf("cluster lock: %v", lockErr)
 			job.FinishedUnixMs = time.Now().UnixMilli()
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("failed").Inc()
 			slog.Warn("cluster lock acquisition failed", "job_id", job.JobId, "error", lockErr)
 			return
@@ -599,7 +603,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 		job.Message = fmt.Sprintf("create capsule dir: %v", err)
 		job.FinishedUnixMs = time.Now().UnixMilli()
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 		metricsJobsTotal.WithLabelValues("failed").Inc()
 		return
 	}
@@ -626,7 +632,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 		job.Message = fmt.Sprintf("provider resolution failed: %v", err)
 		job.FinishedUnixMs = time.Now().UnixMilli()
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 		metricsJobsTotal.WithLabelValues("failed").Inc()
 		slog.Warn("provider resolution failed", "job_id", job.JobId, "error", err)
 		return
@@ -655,7 +663,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = fmt.Sprintf("hook coverage validation failed: %v", err)
 			job.FinishedUnixMs = time.Now().UnixMilli()
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("failed").Inc()
 			slog.Warn("hook coverage validation failed", "job_id", job.JobId, "error", err)
 			return
@@ -669,7 +679,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = "aborted: prepare hook failed (HookStrict=true)"
 			job.FinishedUnixMs = time.Now().UnixMilli()
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("failed").Inc()
 
 			finalizeResults := srv.runFinalizeHooks(ctx, backupID, mode, scope, labels, false)
@@ -702,7 +714,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			job.Message = "canceled by user"
 			job.FinishedUnixMs = time.Now().UnixMilli()
 			job.Results = results
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 			metricsJobsTotal.WithLabelValues("canceled").Inc()
 			slog.Info("backup job canceled", "job_id", job.JobId)
 
@@ -718,7 +732,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		// Update job progress before running provider
 		job.Message = fmt.Sprintf("running %s (%d/%d)", name, providerIdx, totalProviders)
 		job.Results = results
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 
 		// Phase 5: Classify provider scope
 		if mode == backup_managerpb.BackupMode_BACKUP_MODE_CLUSTER && providerScope(spec.Type) == ProviderScopeNode {
@@ -746,7 +762,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 
 		// Save intermediate results so the UI can see completed providers
 		job.Results = results
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 	}
 
 	// Quiesce hooks: FinalizeBackup (CLUSTER mode only, always runs)
@@ -805,7 +823,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 
 		// Replicate capsule to configured destinations
 		job.Message = "replicating to destinations"
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 		repResults := srv.replicateToDestinations(backupID, job.Plan)
 		job.Replications = repResults
 
@@ -916,7 +936,9 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		slog.Warn("backup job failed", "job_id", job.JobId, "duration_s", durationSec)
 	}
 
-	_ = srv.store.SaveJob(job)
+	if err := srv.store.SaveJob(job); err != nil {
+		slog.Error("failed to save final job state", "job_id", job.JobId, "state", job.State, "err", err)
+	}
 }
 
 func defaultPlan() *backup_managerpb.BackupPlan {

@@ -39,13 +39,17 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 	} else {
 		job.Message = "applying retention policy"
 	}
-	_ = srv.store.SaveJob(job)
+	if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 
 	if len(arts) == 0 {
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.FinishedUnixMs = time.Now().UnixMilli()
 		job.Message = "no backups to evaluate"
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 		return &backup_managerpb.RunRetentionResponse{
 			DryRun:  rqst.DryRun,
 			Message: "no backups to evaluate",
@@ -73,7 +77,9 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.FinishedUnixMs = time.Now().UnixMilli()
 		job.Message = fmt.Sprintf("dry-run: would delete %d backups", len(toDelete))
-		_ = srv.store.SaveJob(job)
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 		return &backup_managerpb.RunRetentionResponse{
 			DeletedBackupIds: deletedIDs,
 			KeptBackupIds:    keptIDs,
@@ -102,7 +108,9 @@ func (srv *server) RunRetention(ctx context.Context, rqst *backup_managerpb.RunR
 	job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 	job.FinishedUnixMs = time.Now().UnixMilli()
 	job.Message = fmt.Sprintf("deleted %d backups, kept %d", len(deletedIDs), len(keptIDs))
-	_ = srv.store.SaveJob(job)
+	if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 
 	return &backup_managerpb.RunRetentionResponse{
 		DeletedBackupIds: deletedIDs,

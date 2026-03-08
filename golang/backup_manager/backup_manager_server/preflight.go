@@ -307,7 +307,7 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 
 // detectScyllaClusters runs "sctool cluster list" and parses registered cluster names.
 // Also attempts to detect the native ScyllaDB cluster name via its REST API
-// (port 10000) in case no clusters are registered in scylla-manager yet.
+// (port 56093 or 10000) in case no clusters are registered in scylla-manager yet.
 func detectScyllaClusters(apiURL string) []string {
 	var clusters []string
 
@@ -339,8 +339,9 @@ func detectScyllaClusters(apiURL string) []string {
 	return clusters
 }
 
-// detectNativeScyllaDB tries to reach the ScyllaDB REST API (port 10000) on
-// localhost and all local interface IPs. Returns the reachable host and cluster name.
+// detectNativeScyllaDB tries to reach the ScyllaDB REST API on localhost and
+// all local interface IPs. It tries port 56093 (Globular default) first, then
+// falls back to 10000 (ScyllaDB default). Returns the reachable host and cluster name.
 func detectNativeScyllaDB() (host, clusterName string) {
 	// Build list of addresses to try: localhost first, then all local IPs
 	candidates := []string{"127.0.0.1"}
@@ -356,17 +357,22 @@ func detectNativeScyllaDB() (host, clusterName string) {
 		}
 	}
 
-	for _, addr := range candidates {
-		url := fmt.Sprintf("http://%s:10000/storage_service/cluster_name", addr)
-		cmd := exec.Command("curl", "-sf", "--connect-timeout", "2", url)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			continue
-		}
-		name := strings.TrimSpace(string(out))
-		name = strings.Trim(name, `"`)
-		if name != "" {
-			return addr, name
+	// Try Globular's configured port first, then ScyllaDB default
+	ports := []int{56093, 10000}
+
+	for _, port := range ports {
+		for _, addr := range candidates {
+			url := fmt.Sprintf("http://%s:%d/storage_service/cluster_name", addr, port)
+			cmd := exec.Command("curl", "-sf", "--connect-timeout", "2", url)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				continue
+			}
+			name := strings.TrimSpace(string(out))
+			name = strings.Trim(name, `"`)
+			if name != "" {
+				return addr, name
+			}
 		}
 	}
 	return "", ""

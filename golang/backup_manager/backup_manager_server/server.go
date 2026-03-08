@@ -353,8 +353,10 @@ func (srv *server) Init() error {
 	return nil
 }
 
-// recoverOrphanedJobs marks any jobs left in running/queued state as failed.
-// This happens when the server crashes or restarts while a job is in progress.
+// recoverOrphanedJobs handles jobs left in running/queued state after a restart.
+// Jobs with no BackupId are zombies (e.g. restored from a restic snapshot) and
+// are deleted outright. Jobs with a BackupId are legitimate orphans from a crash
+// and are marked as failed.
 func (srv *server) recoverOrphanedJobs() {
 	hadOrphans := false
 	jobs, _, err := srv.store.ListJobs(backup_managerpb.BackupJobState_BACKUP_JOB_STATE_UNSPECIFIED, "", 0, 0)
@@ -366,6 +368,18 @@ func (srv *server) recoverOrphanedJobs() {
 		if job.State == backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING ||
 			job.State == backup_managerpb.BackupJobState_BACKUP_JOB_QUEUED {
 			hadOrphans = true
+
+			// Jobs with no BackupId never completed — they are zombies
+			// (likely restored from an old restic snapshot). Delete them.
+			if job.BackupId == "" {
+				if err := srv.store.DeleteJob(job.JobId); err != nil {
+					slog.Warn("failed to delete zombie job", "job_id", job.JobId, "error", err)
+				} else {
+					slog.Info("deleted zombie job (no backup_id)", "job_id", job.JobId)
+				}
+				continue
+			}
+
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = "server restarted while job was in progress"
 			job.FinishedUnixMs = time.Now().UnixMilli()

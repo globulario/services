@@ -20,6 +20,9 @@ type jobStore struct {
 	dataDir string
 	jobsDir string
 	artsDir string
+	// deleted tracks job IDs that have been deleted during this process lifetime.
+	// SaveJob refuses to write jobs in this set, preventing zombie resurrection.
+	deleted map[string]struct{}
 }
 
 func newJobStore(dataDir string) (*jobStore, error) {
@@ -27,10 +30,20 @@ func newJobStore(dataDir string) (*jobStore, error) {
 		dataDir: dataDir,
 		jobsDir: filepath.Join(dataDir, "jobs"),
 		artsDir: filepath.Join(dataDir, "artifacts"),
+		deleted: make(map[string]struct{}),
 	}
 	for _, d := range []string{s.jobsDir, s.artsDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
+		}
+	}
+	// Clean up any leftover .tmp files from incomplete atomic writes.
+	// These can cause zombie jobs if they later get renamed to .json.
+	if entries, err := os.ReadDir(s.jobsDir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".json.tmp") {
+				_ = os.Remove(filepath.Join(s.jobsDir, e.Name()))
+			}
 		}
 	}
 	return s, nil
@@ -65,6 +78,9 @@ func readMsg(path string, msg proto.Message) error {
 func (s *jobStore) SaveJob(job *backup_managerpb.BackupJob) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.deleted[job.JobId]; ok {
+		return nil // job was deleted, refuse to recreate it
+	}
 	return writeMsg(filepath.Join(s.jobsDir, job.JobId+".json"), job)
 }
 
@@ -124,7 +140,14 @@ func (s *jobStore) ListJobs(state backup_managerpb.BackupJobState, planName stri
 func (s *jobStore) DeleteJob(jobID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return os.Remove(filepath.Join(s.jobsDir, jobID+".json"))
+	path := filepath.Join(s.jobsDir, jobID+".json")
+	// Remove the main file
+	err := os.Remove(path)
+	// Also remove any leftover .tmp file from writeMsg
+	_ = os.Remove(path + ".tmp")
+	// Record deletion so SaveJob won't resurrect this job
+	s.deleted[jobID] = struct{}{}
+	return err
 }
 
 // --- Artifacts ---

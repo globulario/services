@@ -146,7 +146,7 @@ func DefaultConfig() *Config {
 		KeepAlive:       true,
 		KeepUpToDate:    true,
 
-		DataDir:           "/var/lib/globular/backups",
+		DataDir:           "/var/backups/globular",
 		MaxConcurrentJobs: 1,
 		AllowResticPruneOnDelete: false,
 		AllowRemoteDelete:        true,
@@ -155,7 +155,7 @@ func DefaultConfig() *Config {
 			{
 				Name:    "local",
 				Type:    "local",
-				Path:    "/var/lib/globular/backups",
+				Path:    "/var/backups/globular",
 				Primary: true,
 			},
 		},
@@ -165,7 +165,7 @@ func DefaultConfig() *Config {
 		EtcdCert:      "/var/lib/globular/pki/issued/services/service.crt",
 		EtcdKey:       "/var/lib/globular/pki/issued/services/service.key",
 
-		ResticRepo:     "/var/lib/globular/backups/restic",
+		ResticRepo:     "/var/backups/globular/restic",
 		ResticPassword: "globular-backup",
 		ResticPaths:    "/var/lib/globular",
 

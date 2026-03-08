@@ -95,7 +95,9 @@ func (srv *server) executeRestoreTest(job *backup_managerpb.BackupJob, art *back
 	job.State = backup_managerpb.BackupJobState_BACKUP_JOB_RUNNING
 	job.StartedUnixMs = time.Now().UnixMilli()
 	job.Message = "running restore test"
-	_ = srv.store.SaveJob(job)
+	if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 
 	capsuleDir := srv.CapsuleDir(art.BackupId)
 
@@ -105,7 +107,9 @@ func (srv *server) executeRestoreTest(job *backup_managerpb.BackupJob, art *back
 			job.State = backup_managerpb.BackupJobState_BACKUP_JOB_FAILED
 			job.Message = fmt.Sprintf("capsule missing and fetch failed: %v", err)
 			job.FinishedUnixMs = time.Now().UnixMilli()
-			_ = srv.store.SaveJob(job)
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 			return
 		}
 	}
@@ -198,7 +202,9 @@ func (srv *server) executeRestoreTest(job *backup_managerpb.BackupJob, art *back
 	}
 
 	job.FinishedUnixMs = time.Now().UnixMilli()
-	_ = srv.store.SaveJob(job)
+	if saveErr := srv.store.SaveJob(job); saveErr != nil {
+		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+	}
 }
 
 // --- Provider-specific restore test checks ---
@@ -324,12 +330,20 @@ func (srv *server) restoreTestScylla(ctx context.Context, pr *backup_managerpb.B
 	}
 
 	// LIGHT: confirm task success
-	stdout, _, err := runCmdCtx(ctx, "sctool", "task", "progress", taskID, "--cluster", srv.ScyllaCluster, "--api-url", srv.ScyllaManagerAPI)
+	progressArgs := []string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}
+	if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+		progressArgs = append(progressArgs, "--api-url", srv.ScyllaManagerAPI)
+	}
+	stdout, stderr, err := runCmdCtx(ctx, "sctool", progressArgs...)
 	if err != nil {
+		detail := strings.TrimSpace(stderr)
+		if detail == "" {
+			detail = strings.TrimSpace(stdout)
+		}
 		return &backup_managerpb.RestoreTestCheck{
 			Provider: "scylla", Ok: false,
 			Summary:      "scylla task check failed",
-			ErrorMessage: err.Error(),
+			ErrorMessage: fmt.Sprintf("%s: %v", detail, err),
 		}
 	}
 

@@ -214,7 +214,7 @@ func (srv *server) runEtcdBackup(ctx context.Context, spec *backup_managerpb.Bac
 	result.OutputFiles = []string{"provider/etcd/status.txt", "provider/etcd/log.txt"}
 	result.RestoreInputs = map[string]string{
 		"snapshot_path": "payload/etcd/etcd-snapshot.db",
-		"data_dir":      "/var/lib/etcd",
+		"data_dir":      "/var/lib/globular/etcd",
 	}
 	return result
 }
@@ -267,11 +267,12 @@ func (srv *server) runResticBackup(ctx context.Context, spec *backup_managerpb.B
 
 	outputs["paths"] = strings.Join(validPaths, ",")
 
-	// Exclude the restic repo itself and backup artifacts to avoid
-	// backing up transient temp files that disappear during the run.
+	// Exclude backup data dir and the restic repo itself — backup metadata
+	// lives outside the cluster dir (/var/backups/globular) and must never
+	// be included in snapshots (causes zombie jobs, circular backups).
 	args := []string{"backup", "--json",
+		"--exclude", srv.DataDir,
 		"--exclude", repo,
-		"--exclude", srv.DataDir + "/artifacts",
 	}
 	args = append(args, validPaths...)
 	cmd := exec.CommandContext(ctx, "restic", args...)
@@ -619,13 +620,20 @@ done:
 		return result
 	}
 
+	// Extract the snapshot tag from the most recent backup for restore
+	snapshotTag := srv.extractScyllaSnapshotTag(cluster, apiURL, locations)
+	if snapshotTag != "" {
+		outputs["snapshot_tag"] = snapshotTag
+	}
+
 	result := successResult(spec.Type, summary, outputs)
 	result.BytesWritten = scyllaBytes
 	result.OutputFiles = []string{"provider/scylla/task.json", "provider/scylla/log.txt"}
 	result.RestoreInputs = map[string]string{
-		"cluster":   cluster,
-		"locations": locJoin,
-		"task_id":   taskID,
+		"cluster":      cluster,
+		"locations":    locJoin,
+		"task_id":      taskID,
+		"snapshot_tag": snapshotTag,
 	}
 	return result
 }
@@ -650,6 +658,41 @@ func (srv *server) findExistingScyllaBackupTask(cluster, apiURL string) string {
 			}
 		}
 	}
+	return ""
+}
+
+// extractScyllaSnapshotTag queries sctool backup list to find the most recent
+// snapshot tag (format: sm_YYYYMMDDHHMMSSUTC) for the given cluster/locations.
+func (srv *server) extractScyllaSnapshotTag(cluster, apiURL string, locations []string) string {
+	if cluster == "" || len(locations) == 0 {
+		return ""
+	}
+
+	args := []string{"backup", "list", "--cluster", cluster}
+	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		args = append(args, "--api-url", apiURL)
+	}
+	for _, loc := range locations {
+		args = append(args, "--location", loc)
+	}
+
+	stdout, _, err := runCmd("sctool", args...)
+	if err != nil {
+		slog.Warn("failed to list scylla backups for snapshot tag", "error", err)
+		return ""
+	}
+
+	// Parse output for snapshot tags (sm_YYYYMMDDHHMMSSUTC)
+	// The most recent one appears first in the listing
+	for _, line := range strings.Split(stdout, "\n") {
+		for _, field := range strings.Fields(line) {
+			if strings.HasPrefix(field, "sm_") && len(field) >= 19 {
+				slog.Info("found scylla snapshot tag", "tag", field)
+				return field
+			}
+		}
+	}
+
 	return ""
 }
 

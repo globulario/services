@@ -321,12 +321,20 @@ func (srv *server) convertAgentResult(
 
 // dialNodeAgent connects to a node-agent gRPC endpoint.
 // Uses TLS if the backup-manager has TLS configured, otherwise plaintext.
+// Loopback connections (127.0.0.1, localhost, ::1) always use insecure transport
+// since the node-agent on localhost typically runs with NODE_AGENT_INSECURE=true.
 func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var opts []grpc.DialOption
-	if srv.TLS {
+
+	// For loopback endpoints, always use insecure transport to avoid TLS
+	// mismatch with the local node-agent (which often runs insecure).
+	host, _, _ := net.SplitHostPort(endpoint)
+	isLoopback := host == "127.0.0.1" || host == "localhost" || host == "::1"
+
+	if srv.TLS && !isLoopback {
 		tlsCfg, err := srv.hookTLSConfig(endpoint)
 		if err != nil {
 			slog.Warn("node-agent TLS config failed, falling back to insecure",
