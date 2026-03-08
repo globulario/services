@@ -247,6 +247,11 @@ func (srv *server) Init() error {
 	if srv.DataDir == "" {
 		srv.DataDir = "/var/backups/globular"
 	}
+
+	// On a fresh install after a cluster wipe, restore previous backup settings
+	// from <DataDir>/settings.json so the user doesn't have to re-enter everything.
+	srv.restoreSettingsFromBackupDir()
+
 	if srv.MaxConcurrentJobs < 1 {
 		srv.MaxConcurrentJobs = 1
 	}
@@ -440,8 +445,143 @@ func (srv *server) Save() error {
 	err := globular.SaveService(srv)
 	if err == nil {
 		srv.updateRecoverySeedOnConfigSave()
+		srv.saveSettingsToBackupDir()
 	}
 	return err
+}
+
+// savedSettings is the subset of backup-manager config that matters for
+// disaster recovery.  Written to <DataDir>/settings.json on every Save()
+// so that after a cluster wipe + reinstall the user can recover previous
+// backup settings without remembering all the values.
+type savedSettings struct {
+	SavedAt            string              `json:"saved_at"`
+	Destinations       []DestinationConfig `json:"Destinations"`
+	ResticRepo         string              `json:"ResticRepo"`
+	ResticPassword     string              `json:"ResticPassword"`
+	ResticPaths        string              `json:"ResticPaths"`
+	RcloneRemote       string              `json:"RcloneRemote"`
+	RcloneSource       string              `json:"RcloneSource"`
+	ScyllaManagerAPI   string              `json:"ScyllaManagerAPI"`
+	ScyllaCluster      string              `json:"ScyllaCluster"`
+	ScyllaLocation     string              `json:"ScyllaLocation"`
+	ScheduleInterval   string              `json:"ScheduleInterval"`
+	MinioEndpoint      string              `json:"MinioEndpoint"`
+	MinioAccessKey     string              `json:"MinioAccessKey"`
+	MinioSecretKey     string              `json:"MinioSecretKey"`
+	MinioSecure        bool                `json:"MinioSecure"`
+	RetentionKeepLastN int                 `json:"RetentionKeepLastN"`
+	RetentionKeepDays  int                 `json:"RetentionKeepDays"`
+	ClusterDefaultProviders []string       `json:"ClusterDefaultProviders"`
+}
+
+const savedSettingsFile = "settings.json"
+
+func (srv *server) saveSettingsToBackupDir() {
+	if srv.DataDir == "" {
+		return
+	}
+	ss := savedSettings{
+		SavedAt:            time.Now().UTC().Format(time.RFC3339),
+		Destinations:       srv.Destinations,
+		ResticRepo:         srv.ResticRepo,
+		ResticPassword:     srv.ResticPassword,
+		ResticPaths:        srv.ResticPaths,
+		RcloneRemote:       srv.RcloneRemote,
+		RcloneSource:       srv.RcloneSource,
+		ScyllaManagerAPI:   srv.ScyllaManagerAPI,
+		ScyllaCluster:      srv.ScyllaCluster,
+		ScyllaLocation:     srv.ScyllaLocation,
+		ScheduleInterval:   srv.ScheduleInterval,
+		MinioEndpoint:      srv.MinioEndpoint,
+		MinioAccessKey:     srv.MinioAccessKey,
+		MinioSecretKey:     srv.MinioSecretKey,
+		MinioSecure:        srv.MinioSecure,
+		RetentionKeepLastN: srv.RetentionKeepLastN,
+		RetentionKeepDays:  srv.RetentionKeepDays,
+		ClusterDefaultProviders: srv.ClusterDefaultProviders,
+	}
+	data, err := json.MarshalIndent(ss, "", "  ")
+	if err != nil {
+		slog.Warn("failed to marshal backup settings", "error", err)
+		return
+	}
+	path := filepath.Join(srv.DataDir, savedSettingsFile)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0640); err != nil {
+		slog.Warn("failed to write backup settings", "path", tmp, "error", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		slog.Warn("failed to rename backup settings", "error", err)
+		return
+	}
+	slog.Info("backup settings saved to backup dir", "path", path)
+}
+
+// restoreSettingsFromBackupDir loads previously-saved settings from
+// <DataDir>/settings.json on startup.  Only applied when the current
+// config looks like a fresh default (no MinIO keys, no scylla cluster).
+func (srv *server) restoreSettingsFromBackupDir() {
+	if srv.DataDir == "" {
+		return
+	}
+	path := filepath.Join(srv.DataDir, savedSettingsFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return // no saved settings — normal on first install
+	}
+	var ss savedSettings
+	if err := json.Unmarshal(data, &ss); err != nil {
+		slog.Warn("failed to parse saved backup settings", "path", path, "error", err)
+		return
+	}
+
+	// Only apply if current config looks like a fresh default
+	if srv.MinioAccessKey != "" || srv.ScyllaCluster != "" {
+		slog.Debug("backup settings file exists but current config is already customized, skipping restore")
+		return
+	}
+
+	slog.Info("restoring backup settings from previous installation", "path", path, "saved_at", ss.SavedAt)
+
+	if len(ss.Destinations) > 0 {
+		srv.Destinations = ss.Destinations
+	}
+	if ss.ResticRepo != "" {
+		srv.ResticRepo = ss.ResticRepo
+	}
+	if ss.ResticPassword != "" {
+		srv.ResticPassword = ss.ResticPassword
+	}
+	if ss.ResticPaths != "" {
+		srv.ResticPaths = ss.ResticPaths
+	}
+	srv.RcloneRemote = ss.RcloneRemote
+	srv.RcloneSource = ss.RcloneSource
+	if ss.ScyllaManagerAPI != "" {
+		srv.ScyllaManagerAPI = ss.ScyllaManagerAPI
+	}
+	srv.ScyllaCluster = ss.ScyllaCluster
+	srv.ScyllaLocation = ss.ScyllaLocation
+	if ss.ScheduleInterval != "" {
+		srv.ScheduleInterval = ss.ScheduleInterval
+	}
+	if ss.MinioEndpoint != "" {
+		srv.MinioEndpoint = ss.MinioEndpoint
+	}
+	srv.MinioAccessKey = ss.MinioAccessKey
+	srv.MinioSecretKey = ss.MinioSecretKey
+	srv.MinioSecure = ss.MinioSecure
+	if ss.RetentionKeepLastN > 0 {
+		srv.RetentionKeepLastN = ss.RetentionKeepLastN
+	}
+	if ss.RetentionKeepDays > 0 {
+		srv.RetentionKeepDays = ss.RetentionKeepDays
+	}
+	if len(ss.ClusterDefaultProviders) > 0 {
+		srv.ClusterDefaultProviders = ss.ClusterDefaultProviders
+	}
 }
 
 func (srv *server) Stop(ctx context.Context, _ *backup_managerpb.StopRequest) (*backup_managerpb.StopResponse, error) {
