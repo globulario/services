@@ -504,6 +504,12 @@ func (srv *server) ensureMinioClient() error {
 // For loopback endpoints with no CA bundle, InsecureSkipVerify is used
 // (acceptable because traffic is local-only).
 func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
+	// Loopback endpoints always skip verification — traffic is local-only and
+	// after a backup restore the CA may not match MinIO's current cert.
+	host, _, _ := net.SplitHostPort(cfg.Endpoint)
+	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
+		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
+	}
 	if cfg.CABundlePath != "" {
 		caCert, err := os.ReadFile(cfg.CABundlePath)
 		if err != nil {
@@ -512,11 +518,6 @@ func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caCert)
 		return &tls.Config{RootCAs: pool}, nil
-	}
-	// Fallback: InsecureSkipVerify for loopback MinIO with self-signed cert.
-	host, _, _ := net.SplitHostPort(cfg.Endpoint)
-	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
-		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
 	}
 	return nil, nil
 }

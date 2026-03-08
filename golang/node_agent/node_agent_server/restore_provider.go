@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -273,10 +277,14 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	//   zombie jobs and circular backup-of-backups issues
 	// - keys/tokens: restoring old crypto keys invalidates all active sessions
 	//   and causes "ed25519: verification error" on every authenticated request
+	// - pki/tls: restoring old CA/certs breaks every TLS connection because
+	//   running services (MinIO, gRPC, Envoy) use certs from the current CA
 	excludes := []string{
 		"var/backups/globular",
 		"var/lib/globular/keys",
 		"var/lib/globular/tokens",
+		"var/lib/globular/pki",
+		"var/lib/globular/config/tls",
 	}
 
 	log.Printf("restic restore: snapshot=%s target=%s repo=%s", snapshotID, target, repo)
@@ -359,18 +367,33 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 		}
 	}
 
-	// Phase 1: restore schema (best-effort)
-	schemaArgs := append(append([]string{}, baseArgs...), "--restore-schema")
-	log.Printf("scylla restore: restoring schema cluster=%s tag=%s", cluster, snapshotTag)
-	schemaOut, schemaErr := exec.CommandContext(ctx, "sctool", schemaArgs...).CombinedOutput()
-	schemaOutStr := strings.TrimSpace(string(schemaOut))
-	outputs["schema_output"] = schemaOutStr
-	if schemaErr != nil {
-		log.Printf("scylla restore: schema restore failed (may be expected): %s", schemaOutStr)
-		outputs["schema_error"] = schemaOutStr
-	} else {
-		outputs["schema_restored"] = "true"
+	// Stop all Globular workload services that use ScyllaDB before restore.
+	// If left running, they recreate empty keyspaces on startup, racing with
+	// schema restore and causing "already exists" errors (keyspace exists but
+	// tables are missing).
+	stoppedUnits := stopScyllaWorkloadServices(ctx, outputs)
+	defer startScyllaWorkloadServices(ctx, stoppedUnits, outputs)
+
+	// Phase 1: restore schema directly via cqlsh.
+	//
+	// We bypass sctool --restore-schema because it always fails with
+	// "Cannot add existing keyspace scylla_manager" — the backup includes
+	// scylla_manager schema, but we can't drop it (sctool needs it).
+	// sctool rolls back ALL schema changes on error, so user keyspaces
+	// are never created.
+	//
+	// Instead, we download the schema JSON from the backup in MinIO,
+	// filter out scylla_manager entries, and apply CQL directly via cqlsh.
+	dropUserKeyspaces(ctx, cluster, apiURL, outputs)
+
+	if err := restoreSchemaFromBackup(ctx, snapshotTag, locations, outputs); err != nil {
+		return restoreFail("scylla", fmt.Sprintf("direct schema restore failed: %v", err), outputs)
 	}
+
+	if !verifyUserKeyspacesExist(ctx, outputs) {
+		return restoreFail("scylla", "schema restore completed but no user keyspaces found", outputs)
+	}
+	log.Printf("scylla restore: schema restored via cqlsh, proceeding to table restore")
 
 	// Phase 2: restore tables
 	tablesArgs := append(append([]string{}, baseArgs...), "--restore-tables")
@@ -430,6 +453,383 @@ pollDone:
 		BytesWritten: restoredBytes,
 		Outputs:      outputs,
 	}
+}
+
+// scyllaListenAddr returns the ScyllaDB listen address from scylla.yaml,
+// falling back to common defaults.
+func scyllaListenAddr() string {
+	data, err := os.ReadFile("/etc/scylla/scylla.yaml")
+	if err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "listen_address:") {
+				addr := strings.TrimSpace(strings.TrimPrefix(line, "listen_address:"))
+				if addr != "" {
+					return addr
+				}
+			}
+		}
+	}
+	// Try common addresses
+	for _, addr := range []string{"127.0.0.1", "localhost"} {
+		out, err := exec.Command("cqlsh", addr, "9042", "-e", "SELECT now() FROM system.local").CombinedOutput()
+		if err == nil && !strings.Contains(string(out), "Connection") {
+			return addr
+		}
+	}
+	return "127.0.0.1"
+}
+
+// scyllaWorkloadUnits lists systemd units for Globular services that create
+// ScyllaDB keyspaces on startup.  We stop them before schema restore to prevent
+// a race where they recreate empty keyspaces (without tables) before sctool
+// finishes restoring the backed-up schema.
+var scyllaWorkloadUnits = []string{
+	"globular-persistence.service",
+	"globular-resource.service",
+	"globular-storage.service",
+	"globular-rbac.service",
+	"globular-media.service",
+	"globular-log.service",
+	"globular-file.service",
+}
+
+// stopScyllaWorkloadServices stops workload services that use ScyllaDB.
+// Returns the list of units that were actually running (and stopped).
+func stopScyllaWorkloadServices(ctx context.Context, outputs map[string]string) []string {
+	var stopped []string
+	for _, unit := range scyllaWorkloadUnits {
+		// Check if the unit is active before stopping
+		if err := exec.CommandContext(ctx, "sudo", "systemctl", "is-active", "--quiet", unit).Run(); err != nil {
+			continue // not running
+		}
+		log.Printf("scylla restore: stopping %s before schema restore", unit)
+		if out, err := exec.CommandContext(ctx, "sudo", "systemctl", "stop", unit).CombinedOutput(); err != nil {
+			log.Printf("scylla restore: failed to stop %s: %s", unit, string(out))
+		} else {
+			stopped = append(stopped, unit)
+		}
+	}
+	if len(stopped) > 0 {
+		outputs["stopped_services"] = strings.Join(stopped, ",")
+		log.Printf("scylla restore: stopped %d workload services: %s", len(stopped), strings.Join(stopped, ", "))
+		// Give services a moment to fully shut down
+		select {
+		case <-ctx.Done():
+		case <-time.After(3 * time.Second):
+		}
+	}
+	return stopped
+}
+
+// startScyllaWorkloadServices restarts the units that were stopped.
+func startScyllaWorkloadServices(ctx context.Context, units []string, outputs map[string]string) {
+	if len(units) == 0 {
+		return
+	}
+	log.Printf("scylla restore: restarting %d workload services", len(units))
+	for _, unit := range units {
+		if out, err := exec.CommandContext(ctx, "sudo", "systemctl", "start", unit).CombinedOutput(); err != nil {
+			log.Printf("scylla restore: failed to restart %s: %s", unit, string(out))
+		} else {
+			log.Printf("scylla restore: restarted %s", unit)
+		}
+	}
+	outputs["restarted_services"] = strings.Join(units, ",")
+}
+
+// verifyUserKeyspacesExist checks that at least one non-system keyspace exists.
+func verifyUserKeyspacesExist(ctx context.Context, outputs map[string]string) bool {
+	cqlHost := scyllaListenAddr()
+	out, err := exec.CommandContext(ctx, "cqlsh", cqlHost, "9042",
+		"-e", "DESCRIBE KEYSPACES").CombinedOutput()
+	if err != nil {
+		log.Printf("scylla restore: failed to verify keyspaces: %s", string(out))
+		return false
+	}
+
+	systemKS := map[string]bool{
+		"system": true, "system_schema": true, "system_auth": true,
+		"system_distributed": true, "system_distributed_everywhere": true,
+		"system_traces": true, "system_virtual_schema": true,
+		"scylla_manager": true,
+	}
+
+	var userKS []string
+	for _, ks := range strings.Fields(string(out)) {
+		ks = strings.TrimSpace(ks)
+		if ks == "" || systemKS[ks] || strings.HasPrefix(ks, "system") {
+			continue
+		}
+		userKS = append(userKS, ks)
+	}
+	if len(userKS) > 0 {
+		outputs["verified_keyspaces"] = strings.Join(userKS, ",")
+		log.Printf("scylla restore: found %d user keyspaces: %s", len(userKS), strings.Join(userKS, ", "))
+		return true
+	}
+	log.Printf("scylla restore: no user keyspaces found")
+	return false
+}
+
+// schemaEntry represents one entry in the sctool schema JSON backup file.
+type schemaEntry struct {
+	Keyspace string `json:"keyspace"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	CQLStmt  string `json:"cql_stmt"`
+}
+
+// restoreSchemaFromBackup downloads the schema JSON from the backup in MinIO,
+// filters out scylla_manager entries, and applies CQL statements via cqlsh.
+// This bypasses sctool --restore-schema which always fails because the backup
+// includes scylla_manager schema and that keyspace already exists.
+func restoreSchemaFromBackup(ctx context.Context, snapshotTag, locations string, outputs map[string]string) error {
+	// Parse the S3 bucket from locations (format: "s3:bucket-name")
+	bucket := ""
+	for _, loc := range strings.Split(locations, ",") {
+		loc = strings.TrimSpace(loc)
+		if strings.HasPrefix(loc, "s3:") {
+			bucket = strings.TrimPrefix(loc, "s3:")
+			break
+		}
+	}
+	if bucket == "" {
+		return fmt.Errorf("no s3: location found in locations=%q", locations)
+	}
+
+	// Read MinIO credentials from scylla-manager-agent config
+	agentCfgPath := "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
+	minioEndpoint := "127.0.0.1:9000"
+	minioAccessKey := "globular"
+	minioSecretKey := "globularadmin"
+	if data, err := os.ReadFile(agentCfgPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "endpoint:") {
+				ep := strings.TrimSpace(strings.TrimPrefix(line, "endpoint:"))
+				ep = strings.Trim(ep, "\"'")
+				ep = strings.TrimPrefix(ep, "https://")
+				ep = strings.TrimPrefix(ep, "http://")
+				if ep != "" {
+					minioEndpoint = ep
+				}
+			}
+			if strings.HasPrefix(line, "access_key_id:") {
+				v := strings.TrimSpace(strings.TrimPrefix(line, "access_key_id:"))
+				if v != "" {
+					minioAccessKey = v
+				}
+			}
+			if strings.HasPrefix(line, "secret_access_key:") {
+				v := strings.TrimSpace(strings.TrimPrefix(line, "secret_access_key:"))
+				if v != "" {
+					minioSecretKey = v
+				}
+			}
+		}
+	}
+
+	// Set up mc alias
+	log.Printf("scylla restore: setting up mc alias for MinIO at %s", minioEndpoint)
+	setupOut, err := exec.CommandContext(ctx, "mc", "alias", "set", "globular-restore",
+		"https://"+minioEndpoint, minioAccessKey, minioSecretKey, "--insecure").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mc alias set failed: %s", string(setupOut))
+	}
+
+	// Find schema file matching snapshot tag
+	log.Printf("scylla restore: searching for schema file with tag %s in bucket %s", snapshotTag, bucket)
+	findOut, err := exec.CommandContext(ctx, "mc", "find",
+		"globular-restore/"+bucket+"/backup/schema/",
+		"--name", "*"+snapshotTag+"*", "--insecure").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mc find failed: %s", string(findOut))
+	}
+
+	schemaPath := ""
+	for _, line := range strings.Split(strings.TrimSpace(string(findOut)), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, snapshotTag) && strings.HasSuffix(line, ".json.gz") {
+			schemaPath = line
+			break
+		}
+	}
+	if schemaPath == "" {
+		return fmt.Errorf("no schema file found for tag %s", snapshotTag)
+	}
+	log.Printf("scylla restore: found schema file: %s", schemaPath)
+
+	// Download to temp file
+	tmpDir := os.TempDir()
+	gzPath := filepath.Join(tmpDir, "scylla_schema_restore.json.gz")
+	defer os.Remove(gzPath)
+	cpOut, err := exec.CommandContext(ctx, "mc", "cp", schemaPath, gzPath, "--insecure").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mc cp failed: %s", string(cpOut))
+	}
+
+	// Read and decompress
+	gzFile, err := os.Open(gzPath)
+	if err != nil {
+		return fmt.Errorf("open schema gz: %w", err)
+	}
+	defer gzFile.Close()
+
+	gzReader, err := gzip.NewReader(gzFile)
+	if err != nil {
+		return fmt.Errorf("gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	jsonData, err := io.ReadAll(gzReader)
+	if err != nil {
+		return fmt.Errorf("read schema json: %w", err)
+	}
+
+	// Parse JSON
+	var entries []schemaEntry
+	if err := json.Unmarshal(jsonData, &entries); err != nil {
+		return fmt.Errorf("parse schema json: %w", err)
+	}
+
+	// Filter: skip scylla_manager, system keyspaces, and roles
+	skipKeyspaces := map[string]bool{
+		"scylla_manager": true,
+		"system":         true, "system_schema": true, "system_auth": true,
+		"system_distributed": true, "system_distributed_everywhere": true,
+		"system_traces": true, "system_virtual_schema": true,
+	}
+
+	var cqlStatements []string
+	for _, e := range entries {
+		if skipKeyspaces[e.Keyspace] || strings.HasPrefix(e.Keyspace, "system") {
+			continue
+		}
+		if e.Type == "role" {
+			continue // skip roles
+		}
+		cqlStatements = append(cqlStatements, e.CQLStmt)
+	}
+
+	if len(cqlStatements) == 0 {
+		return fmt.Errorf("no user schema CQL statements found in backup")
+	}
+
+	log.Printf("scylla restore: applying %d CQL statements via cqlsh (skipped scylla_manager)", len(cqlStatements))
+	outputs["schema_statements"] = fmt.Sprintf("%d", len(cqlStatements))
+
+	// Write CQL to temp file and execute via cqlsh
+	cqlHost := scyllaListenAddr()
+	cqlPath := filepath.Join(tmpDir, "scylla_schema_restore.cql")
+	defer os.Remove(cqlPath)
+
+	cqlContent := strings.Join(cqlStatements, "\n")
+	if err := os.WriteFile(cqlPath, []byte(cqlContent), 0600); err != nil {
+		return fmt.Errorf("write cql file: %w", err)
+	}
+
+	cqlOut, err := exec.CommandContext(ctx, "cqlsh", cqlHost, "9042", "-f", cqlPath).CombinedOutput()
+	cqlOutStr := strings.TrimSpace(string(cqlOut))
+	if cqlOutStr != "" {
+		outputs["cqlsh_output"] = cqlOutStr
+		log.Printf("scylla restore: cqlsh output: %s", cqlOutStr)
+	}
+	if err != nil {
+		return fmt.Errorf("cqlsh apply schema failed: %s", cqlOutStr)
+	}
+
+	log.Printf("scylla restore: schema applied successfully via cqlsh")
+	outputs["schema_restored"] = "direct_cqlsh"
+
+	// Wait for schema to propagate
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context cancelled waiting for schema propagation")
+	case <-time.After(5 * time.Second):
+	}
+
+	return nil
+}
+
+// dropUserKeyspaces drops non-system keyspaces so that --restore-schema can
+// recreate them cleanly.  On a fresh install the resource service may have
+// already created empty keyspaces, causing "Cannot add existing keyspace".
+func dropUserKeyspaces(ctx context.Context, cluster, apiURL string, outputs map[string]string) {
+	cqlHost := scyllaListenAddr()
+	log.Printf("scylla restore: using cqlsh host %s for keyspace cleanup", cqlHost)
+
+	// List keyspaces via cqlsh
+	out, err := exec.CommandContext(ctx, "cqlsh", cqlHost, "9042",
+		"-e", "DESCRIBE KEYSPACES").CombinedOutput()
+	if err != nil {
+		log.Printf("scylla restore: failed to list keyspaces for cleanup: %s", string(out))
+		return
+	}
+
+	systemKS := map[string]bool{
+		"system": true, "system_schema": true, "system_auth": true,
+		"system_distributed": true, "system_distributed_everywhere": true,
+		"system_traces": true, "system_virtual_schema": true,
+		"scylla_manager": true,
+	}
+
+	var dropped []string
+	for _, ks := range strings.Fields(string(out)) {
+		ks = strings.TrimSpace(ks)
+		if ks == "" || systemKS[ks] || strings.HasPrefix(ks, "system") {
+			continue
+		}
+		log.Printf("scylla restore: dropping keyspace %s before schema restore", ks)
+		dropOut, dropErr := exec.CommandContext(ctx, "cqlsh", cqlHost, "9042",
+			"-e", fmt.Sprintf("DROP KEYSPACE IF EXISTS %s", ks)).CombinedOutput()
+		if dropErr != nil {
+			log.Printf("scylla restore: failed to drop keyspace %s: %s", ks, string(dropOut))
+		} else {
+			dropped = append(dropped, ks)
+		}
+	}
+	if len(dropped) > 0 {
+		outputs["dropped_keyspaces"] = strings.Join(dropped, ",")
+		log.Printf("scylla restore: dropped %d user keyspaces: %s", len(dropped), strings.Join(dropped, ", "))
+		// Wait for schema to settle after drops
+		select {
+		case <-ctx.Done():
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+// pollScyllaTask polls a sctool task until it completes (DONE/ERROR/ABORTED).
+// Returns true if the task completed successfully (DONE).
+func pollScyllaTask(ctx context.Context, taskID, cluster, apiURL string, outputs map[string]string, label string) bool {
+	progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
+	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		progressArgs = append(progressArgs, "--api-url", apiURL)
+	}
+	for pollCount := 0; pollCount < 120; pollCount++ { // up to 20 min
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(10 * time.Second):
+		}
+		pOut, pErr := exec.CommandContext(ctx, "sctool", progressArgs...).CombinedOutput()
+		if pErr != nil {
+			continue
+		}
+		pStr := string(pOut)
+		outputs[label+"_progress"] = strings.TrimSpace(pStr)
+		statusLine := extractScyllaStatusLine(pStr)
+		log.Printf("scylla restore: %s task status: %s", label, strings.TrimSpace(statusLine))
+		if strings.Contains(statusLine, "DONE") {
+			log.Printf("scylla restore: %s task completed", label)
+			return true
+		}
+		if strings.Contains(statusLine, "ERROR") || strings.Contains(statusLine, "ABORTED") {
+			return false
+		}
+	}
+	return false
 }
 
 // extractScyllaTaskID extracts a task ID from sctool output.
