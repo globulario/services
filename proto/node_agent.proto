@@ -134,6 +134,33 @@ message GetBackupTaskResultResponse {
   BackupProviderResult result = 1;
 }
 
+// --- Restore provider execution (called by backup-manager to restore on a node) ---
+
+message RestoreProviderSpec {
+  string provider = 1;             // "etcd", "restic", "scylla"
+  map<string, string> options = 2; // provider-specific options
+  uint32 timeout_seconds = 3;
+  bool force = 4;                  // override safety checks (e.g. stop running services)
+}
+
+message RunRestoreProviderRequest {
+  string backup_id = 1;
+  RestoreProviderSpec spec = 2;
+  string node_id = 3;
+}
+
+message RunRestoreProviderResponse {
+  string task_id = 1;
+}
+
+message GetRestoreTaskResultRequest {
+  string task_id = 1;
+}
+
+message GetRestoreTaskResultResponse {
+  BackupProviderResult result = 1; // reuse: ok, summary, outputs, etc.
+}
+
 service NodeAgentService {
   rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
   rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
@@ -147,4 +174,8 @@ service NodeAgentService {
   // Backup provider execution (called by backup-manager for cluster-wide fan-out)
   rpc RunBackupProvider(RunBackupProviderRequest) returns (RunBackupProviderResponse);
   rpc GetBackupTaskResult(GetBackupTaskResultRequest) returns (GetBackupTaskResultResponse);
+
+  // Restore provider execution (called by backup-manager to restore on a node)
+  rpc RunRestoreProvider(RunRestoreProviderRequest) returns (RunRestoreProviderResponse);
+  rpc GetRestoreTaskResult(GetRestoreTaskResultRequest) returns (GetRestoreTaskResultResponse);
 }

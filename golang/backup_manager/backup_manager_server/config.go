@@ -79,7 +79,7 @@ type Config struct {
 	ProviderTimeoutSeconds int `json:"ProviderTimeoutSeconds"`
 
 	// restic provider
-	ResticRepo     string `json:"ResticRepo"`     // e.g. "/var/lib/globular/backups/restic" or "s3:..."
+	ResticRepo     string `json:"ResticRepo"`     // e.g. "/var/backups/globular/restic" or "s3:..."
 	ResticPassword string `json:"ResticPassword"` // repository password
 	ResticPaths    string `json:"ResticPaths"`     // comma-separated paths to back up
 

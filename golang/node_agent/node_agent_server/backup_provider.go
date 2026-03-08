@@ -139,7 +139,7 @@ func (s *NodeAgentServer) runResticProvider(ctx context.Context, req *node_agent
 
 	repo := opts["repo"]
 	if repo == "" {
-		repo = "/var/lib/globular/backups/restic"
+		repo = "/var/backups/globular/restic"
 	}
 	password := opts["password"]
 	if password == "" {
@@ -223,7 +223,7 @@ func (s *NodeAgentServer) runResticProvider(ctx context.Context, req *node_agent
 	}
 
 	// Write capsule-compatible output files
-	capsuleBase := filepath.Join("/var/lib/globular/backups/artifacts", req.BackupId)
+	capsuleBase := filepath.Join("/var/backups/globular/artifacts", req.BackupId)
 	providerDir := filepath.Join(capsuleBase, "provider", "restic", nodeID)
 	payloadDir := filepath.Join(capsuleBase, "payload", "nodes", nodeID, "restic")
 	_ = os.MkdirAll(providerDir, 0755)

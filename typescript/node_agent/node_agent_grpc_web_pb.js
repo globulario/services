@@ -680,5 +680,127 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getBackupTaskResult =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.RunRestoreProviderRequest,
+ *   !proto.node_agent.RunRestoreProviderResponse>}
+ */
+const methodDescriptor_NodeAgentService_RunRestoreProvider = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/RunRestoreProvider',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.RunRestoreProviderRequest,
+  proto.node_agent.RunRestoreProviderResponse,
+  /**
+   * @param {!proto.node_agent.RunRestoreProviderRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.RunRestoreProviderResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.RunRestoreProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.RunRestoreProviderResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.RunRestoreProviderResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.runRestoreProvider =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunRestoreProvider',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunRestoreProvider,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.RunRestoreProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.RunRestoreProviderResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.runRestoreProvider =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunRestoreProvider',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunRestoreProvider);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetRestoreTaskResultRequest,
+ *   !proto.node_agent.GetRestoreTaskResultResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetRestoreTaskResult = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetRestoreTaskResult',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetRestoreTaskResultRequest,
+  proto.node_agent.GetRestoreTaskResultResponse,
+  /**
+   * @param {!proto.node_agent.GetRestoreTaskResultRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetRestoreTaskResultResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetRestoreTaskResultRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetRestoreTaskResultResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetRestoreTaskResultResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getRestoreTaskResult =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetRestoreTaskResult',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetRestoreTaskResult,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetRestoreTaskResultRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetRestoreTaskResultResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getRestoreTaskResult =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetRestoreTaskResult',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetRestoreTaskResult);
+};
+
+
 module.exports = proto.node_agent;
 

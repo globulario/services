@@ -218,11 +218,17 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 	}
 
 	outputs["data_dir"] = dataDir
+	var snapshotBytes uint64
+	if info, err := os.Stat(snapshotPath); err == nil {
+		snapshotBytes = uint64(info.Size())
+		outputs["snapshot_bytes"] = fmt.Sprintf("%d", snapshotBytes)
+	}
 	return &node_agentpb.BackupProviderResult{
-		Provider: "etcd",
-		Ok:       true,
-		Summary:  "etcd snapshot restored and service restarted",
-		Outputs:  outputs,
+		Provider:     "etcd",
+		Ok:           true,
+		Summary:      "etcd snapshot restored and service restarted",
+		BytesWritten: snapshotBytes,
+		Outputs:      outputs,
 	}
 }
 
@@ -242,7 +248,7 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 
 	repo := opts["repo"]
 	if repo == "" {
-		repo = "/var/lib/globular/backups/restic"
+		repo = "/var/backups/globular/restic"
 	}
 	password := opts["password"]
 	if password == "" {
@@ -300,11 +306,23 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 		return restoreFail("restic", fmt.Sprintf("restic restore failed: %s", detail), outputs)
 	}
 
+	// Parse restored bytes from restic output (e.g. "restored 1234 files, 567.8 MiB")
+	var restoredBytes uint64
+	combined := stdoutStr + "\n" + stderrStr
+	for _, line := range strings.Split(combined, "\n") {
+		restoredBytes = parseResticRestoredBytes(line)
+		if restoredBytes > 0 {
+			outputs["bytes_restored"] = fmt.Sprintf("%d", restoredBytes)
+			break
+		}
+	}
+
 	return &node_agentpb.BackupProviderResult{
-		Provider: "restic",
-		Ok:       true,
-		Summary:  fmt.Sprintf("restic snapshot %s restored to %s", snapshotID, target),
-		Outputs:  outputs,
+		Provider:     "restic",
+		Ok:           true,
+		Summary:      fmt.Sprintf("restic snapshot %s restored to %s", snapshotID, target),
+		BytesWritten: restoredBytes,
+		Outputs:      outputs,
 	}
 }
 
@@ -369,17 +387,115 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 		return restoreFail("scylla", fmt.Sprintf("sctool restore --restore-tables failed: %s", detail), outputs)
 	}
 
+	// Poll sctool task progress to get transferred bytes (same as backup side).
+	// sctool restore returns a task ID like "restore/xxxxxxxx-..."
+	var restoredBytes uint64
+	taskID := extractScyllaTaskID(tablesOutStr)
+	if taskID != "" {
+		outputs["task_id"] = taskID
+		progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
+		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+			progressArgs = append(progressArgs, "--api-url", apiURL)
+		}
+		for pollCount := 0; pollCount < 180; pollCount++ { // up to 30 min
+			select {
+			case <-ctx.Done():
+				goto pollDone
+			case <-time.After(10 * time.Second):
+			}
+			pOut, pErr := exec.CommandContext(ctx, "sctool", progressArgs...).CombinedOutput()
+			if pErr != nil {
+				continue
+			}
+			pStr := string(pOut)
+			outputs["progress"] = strings.TrimSpace(pStr)
+			statusLine := extractScyllaStatusLine(pStr)
+			if strings.Contains(statusLine, "DONE") || strings.Contains(statusLine, "ERROR") || strings.Contains(statusLine, "ABORTED") {
+				restoredBytes = parseScyllaRestoreBytes(pStr)
+				break
+			}
+		}
+	}
+pollDone:
+
 	summary := "scylladb tables restored via sctool"
 	if outputs["schema_restored"] == "true" {
 		summary = "scylladb schema and tables restored via sctool"
 	}
 
 	return &node_agentpb.BackupProviderResult{
-		Provider: "scylla",
-		Ok:       true,
-		Summary:  summary,
-		Outputs:  outputs,
+		Provider:     "scylla",
+		Ok:           true,
+		Summary:      summary,
+		BytesWritten: restoredBytes,
+		Outputs:      outputs,
 	}
+}
+
+// extractScyllaTaskID extracts a task ID from sctool output.
+// sctool restore prints lines like "restore/xxxxxxxx-xxxx-..." or just the task UUID.
+func extractScyllaTaskID(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "restore/") {
+			return line
+		}
+		// Some versions just print the task ID on a line by itself
+		if len(line) >= 36 && strings.Count(line, "-") == 4 {
+			return line
+		}
+	}
+	return ""
+}
+
+// extractScyllaStatusLine finds the "Status:" line from sctool progress output.
+func extractScyllaStatusLine(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "Status:") {
+			return line
+		}
+	}
+	return ""
+}
+
+// parseScyllaRestoreBytes extracts transferred bytes from sctool progress output.
+func parseScyllaRestoreBytes(output string) uint64 {
+	var maxBytes uint64
+	for _, line := range strings.Split(output, "\n") {
+		for _, field := range strings.Fields(line) {
+			b := parseScyllaSize(field)
+			if b > maxBytes {
+				maxBytes = b
+			}
+		}
+	}
+	return maxBytes
+}
+
+// parseScyllaSize parses a human-readable size like "123.45MiB" into bytes.
+func parseScyllaSize(s string) uint64 {
+	s = strings.TrimSpace(s)
+	type suffix struct {
+		s string
+		m float64
+	}
+	for _, sf := range []suffix{
+		{"TiB", 1024 * 1024 * 1024 * 1024},
+		{"GiB", 1024 * 1024 * 1024},
+		{"MiB", 1024 * 1024},
+		{"KiB", 1024},
+		{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"KB", 1e3},
+		{"B", 1},
+	} {
+		if strings.HasSuffix(s, sf.s) {
+			numStr := strings.TrimSuffix(s, sf.s)
+			var val float64
+			if _, err := fmt.Sscanf(numStr, "%f", &val); err == nil && val > 0 {
+				return uint64(val * sf.m)
+			}
+		}
+	}
+	return 0
 }
 
 // --- minio/rclone restore ---
@@ -454,4 +570,43 @@ func runRestore(ctx context.Context, name string, args ...string) (stdout, stder
 func fileExistsNA(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// parseResticRestoredBytes parses byte count from restic restore output.
+// Restic prints lines like "Summary: Restored 1234 files, 567.890 MiB".
+func parseResticRestoredBytes(line string) uint64 {
+	// Look for size patterns like "567.8 MiB", "1.2 GiB", "456 KiB"
+	multipliers := []struct {
+		suffix string
+		mult   float64
+	}{
+		{"TiB", 1024 * 1024 * 1024 * 1024},
+		{"GiB", 1024 * 1024 * 1024},
+		{"MiB", 1024 * 1024},
+		{"KiB", 1024},
+		{"B", 1},
+	}
+	for _, m := range multipliers {
+		idx := strings.Index(line, m.suffix)
+		if idx < 1 {
+			continue
+		}
+		// Walk backwards to find the number
+		numEnd := idx
+		for numEnd > 0 && line[numEnd-1] == ' ' {
+			numEnd--
+		}
+		numStart := numEnd
+		for numStart > 0 && (line[numStart-1] >= '0' && line[numStart-1] <= '9' || line[numStart-1] == '.') {
+			numStart--
+		}
+		if numStart == numEnd {
+			continue
+		}
+		var val float64
+		if _, err := fmt.Sscanf(line[numStart:numEnd], "%f", &val); err == nil && val > 0 {
+			return uint64(val * m.mult)
+		}
+	}
+	return 0
 }

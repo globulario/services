@@ -245,7 +245,7 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 
 	if srv.DataDir == "" {
-		srv.DataDir = "/var/lib/globular/backups"
+		srv.DataDir = "/var/backups/globular"
 	}
 	if srv.MaxConcurrentJobs < 1 {
 		srv.MaxConcurrentJobs = 1
@@ -271,7 +271,7 @@ func (srv *server) Init() error {
 		srv.EtcdKey = "/var/lib/globular/pki/issued/services/service.key"
 	}
 	if srv.ResticRepo == "" {
-		srv.ResticRepo = "/var/lib/globular/backups/restic"
+		srv.ResticRepo = "/var/backups/globular/restic"
 	}
 	if srv.ResticPassword == "" {
 		srv.ResticPassword = "globular-backup"
@@ -309,6 +309,9 @@ func (srv *server) Init() error {
 		}
 	}
 
+	if err := os.MkdirAll(srv.DataDir, 0755); err != nil {
+		return fmt.Errorf("create data dir %s: %w", srv.DataDir, err)
+	}
 	srv.store, err = newJobStore(srv.DataDir)
 	if err != nil {
 		return fmt.Errorf("init job store: %w", err)
@@ -496,13 +499,13 @@ func initializeServerDefaults() *server {
 	srv.Dependencies = make([]string, 0)
 	srv.Permissions = make([]any, 0)
 
-	srv.DataDir = "/var/lib/globular/backups"
+	srv.DataDir = "/var/backups/globular"
 	srv.MaxConcurrentJobs = 1
 	srv.AllowResticPruneOnDelete = false
 	srv.AllowRemoteDelete = true
 	srv.ProviderTimeoutSeconds = 1800
 	srv.Destinations = []DestinationConfig{
-		{Name: "local", Type: "local", Path: "/var/lib/globular/backups", Primary: true},
+		{Name: "local", Type: "local", Path: "/var/backups/globular", Primary: true},
 	}
 
 	srv.EtcdEndpoints = "127.0.0.1:2379"
@@ -510,7 +513,7 @@ func initializeServerDefaults() *server {
 	srv.EtcdCert = "/var/lib/globular/pki/issued/services/service.crt"
 	srv.EtcdKey = "/var/lib/globular/pki/issued/services/service.key"
 
-	srv.ResticRepo = "/var/lib/globular/backups/restic"
+	srv.ResticRepo = "/var/backups/globular/restic"
 	srv.ResticPassword = "globular-backup"
 	srv.ResticPaths = "/var/lib/globular"
 

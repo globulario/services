@@ -450,14 +450,15 @@ func (srv *server) restoreViaNodeAgent(
 	}
 
 	return &backup_managerpb.BackupProviderResult{
-		Type:          provType,
-		Enabled:       true,
-		State:         state,
-		Severity:      severity,
-		Summary:       result.Summary,
-		ErrorMessage:  result.ErrorMessage,
-		Outputs:       result.Outputs,
-		StartedUnixMs: result.StartedUnixMs,
+		Type:           provType,
+		Enabled:        true,
+		State:          state,
+		Severity:       severity,
+		Summary:        result.Summary,
+		ErrorMessage:   result.ErrorMessage,
+		Outputs:        result.Outputs,
+		BytesWritten:   result.BytesWritten,
+		StartedUnixMs:  result.StartedUnixMs,
 		FinishedUnixMs: result.FinishedUnixMs,
 	}
 }

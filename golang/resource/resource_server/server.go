@@ -756,8 +756,10 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
 
-		// Connect to the store with retry logic (90 seconds total)
-		err := retryWithBackoff(90*time.Second, func() error {
+		// Connect to the store with retry logic (5 minutes total).
+		// ScyllaDB can take 2+ minutes to fully initialize after a fresh install
+		// or data directory removal.
+		err := retryWithBackoff(5*time.Minute, func() error {
 			if connErr := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str); connErr != nil {
 				return fmt.Errorf("connect to %s:%d: %w", srv.Backend_address, srv.Backend_port, connErr)
 			}
@@ -1593,6 +1595,9 @@ func main() {
 		if s.bootstrapMode && isLikelyRbacError(err, rbacEndpoint) {
 			logger.Warn("StartService failed due to RBAC in bootstrap mode; continuing",
 				"service", s.Name, "id", s.Id, "err", err, "rbac_endpoint", rbacEndpoint)
+		} else if s.bootstrapMode && isLikelyScyllaError(err) {
+			logger.Warn("StartService failed due to ScyllaDB in bootstrap mode; continuing — systemd will restart",
+				"service", s.Name, "id", s.Id, "err", err)
 		} else {
 			logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
 			os.Exit(1)
@@ -1807,5 +1812,27 @@ func isLikelyRbacError(err error, rbacEndpoint string) bool {
 		}
 	}
 
+	return false
+}
+
+func isLikelyScyllaError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, kw := range []string{
+		"scylla",
+		"cassandra",
+		"cql",
+		"9042",
+		"9142",
+		"connect to",
+		"ping",
+		"unavailable after retries",
+	} {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
 	return false
 }

@@ -344,7 +344,7 @@ func TestCredentialsLoading(t *testing.T) {
 func TestLocalOnlyDisasterRecoveryNotReady(t *testing.T) {
 	srv := &server{}
 	srv.Destinations = []DestinationConfig{
-		{Name: "local", Type: "local", Path: "/var/lib/globular/backups", Primary: true},
+		{Name: "local", Type: "local", Path: "/var/backups/globular", Primary: true},
 	}
 
 	// No recovery destination should be resolved
@@ -359,7 +359,7 @@ func TestSaveRejectsLocalAuthoritativeDestination(t *testing.T) {
 	// because it requires globular.SaveService internals, but the validation
 	// is inline and testable).
 	dests := []DestinationConfig{
-		{Name: "local", Type: "local", Path: "/var/lib/globular/backups", Primary: true, AuthoritativeForRecovery: true},
+		{Name: "local", Type: "local", Path: "/var/backups/globular", Primary: true, AuthoritativeForRecovery: true},
 	}
 
 	for _, d := range dests {
