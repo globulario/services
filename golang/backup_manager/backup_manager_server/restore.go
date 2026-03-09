@@ -280,6 +280,11 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 	job.FinishedUnixMs = time.Now().UnixMilli()
 
 	if allOk {
+		// After a successful restore, restart all gRPC services so they
+		// re-register in etcd with their current ports. The restored etcd
+		// snapshot may contain stale port assignments from the old cluster.
+		srv.restartAllServices(ctx)
+
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.Message = "restore completed successfully"
 		metricsJobsTotal.WithLabelValues("restore_succeeded").Inc()
@@ -635,6 +640,55 @@ func restoreFailResult(provType backup_managerpb.BackupProviderType, summary, er
 		Outputs:       outputs,
 		StartedUnixMs: start, FinishedUnixMs: time.Now().UnixMilli(),
 	}
+}
+
+// restartAllServices restarts all gRPC service systemd units so they
+// re-register in etcd with their current ports. Infrastructure services
+// (etcd, envoy, xds, gateway, minio) are skipped — they don't register
+// in etcd and restarting them could disrupt the restore flow itself.
+func (srv *server) restartAllServices(ctx context.Context) {
+	// List all globular service units
+	out, err := exec.CommandContext(ctx, "systemctl", "list-units", "globular-*", "--no-legend", "--no-pager", "--plain").Output()
+	if err != nil {
+		slog.Warn("restartAllServices: failed to list units", "err", err)
+		return
+	}
+
+	skip := map[string]bool{
+		"globular-etcd.service":                 true,
+		"globular-envoy.service":                true,
+		"globular-xds.service":                  true,
+		"globular-gateway.service":              true,
+		"globular-minio.service":                true,
+		"globular-node-agent.service":           true,
+		"globular-backup-manager.service":        true,
+		"globular-prometheus.service":            true,
+		"globular-node-exporter.service":         true,
+		"globular-scylla-manager.service":        true,
+		"globular-scylla-manager-agent.service":  true,
+	}
+
+	var restarted []string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		unit := fields[0]
+		if !strings.HasPrefix(unit, "globular-") || !strings.HasSuffix(unit, ".service") {
+			continue
+		}
+		if skip[unit] {
+			continue
+		}
+		slog.Info("restartAllServices: restarting", "unit", unit)
+		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", unit).Run(); err != nil {
+			slog.Warn("restartAllServices: restart failed", "unit", unit, "err", err)
+		} else {
+			restarted = append(restarted, unit)
+		}
+	}
+	slog.Info("restartAllServices: done", "restarted", restarted)
 }
 
 func isPortOpen(host string, port int) bool {
