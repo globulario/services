@@ -168,8 +168,40 @@ func (srv *server) runPrepareHooks(ctx context.Context, backupID string, mode ba
 			Message:     resp.Message,
 			Details:     resp.Details,
 			DurationMs:  dur,
+			ServiceData: convertServiceDataEntries(resp.ServiceData),
 		}
 	})
+}
+
+// convertServiceDataEntries converts from backup_hookpb types to backup_managerpb types.
+func convertServiceDataEntries(src []*backup_hookpb.ServiceDataEntry) []*backup_managerpb.ServiceDataEntry {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]*backup_managerpb.ServiceDataEntry, len(src))
+	for i, e := range src {
+		out[i] = &backup_managerpb.ServiceDataEntry{
+			ServiceName:      e.ServiceName,
+			LogicalName:      e.LogicalName,
+			Path:             e.Path,
+			DataClass:        e.DataClass,
+			Description:      e.Description,
+			BackupByDefault:  e.BackupByDefault,
+			RestoreByDefault: e.RestoreByDefault,
+			PathExists:       e.PathExists,
+			SizeBytes:        e.SizeBytes,
+		}
+	}
+	return out
+}
+
+// collectServiceDataEntries gathers all service data entries from hook results.
+func collectServiceDataEntries(results []*backup_managerpb.HookResult) []*backup_managerpb.ServiceDataEntry {
+	var all []*backup_managerpb.ServiceDataEntry
+	for _, r := range results {
+		all = append(all, r.ServiceData...)
+	}
+	return all
 }
 
 // runFinalizeHooks calls FinalizeBackup on all resolved hook targets in parallel.

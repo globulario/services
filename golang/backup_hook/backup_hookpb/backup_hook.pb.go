@@ -110,6 +110,7 @@ type PrepareBackupResponse struct {
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Details       map[string]string      `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // e.g. flushed_items, blocked_writes
+	ServiceData   []*ServiceDataEntry    `protobuf:"bytes,4,rep,name=service_data,json=serviceData,proto3" json:"service_data,omitempty"`                                                // local data paths to include in backup
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -165,6 +166,122 @@ func (x *PrepareBackupResponse) GetDetails() map[string]string {
 	return nil
 }
 
+func (x *PrepareBackupResponse) GetServiceData() []*ServiceDataEntry {
+	if x != nil {
+		return x.ServiceData
+	}
+	return nil
+}
+
+// ServiceDataEntry declares a local data path a service needs backed up or tracked.
+type ServiceDataEntry struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ServiceName      string                 `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`                   // e.g. "title.TitleService"
+	LogicalName      string                 `protobuf:"bytes,2,opt,name=logical_name,json=logicalName,proto3" json:"logical_name,omitempty"`                   // short identifier, e.g. "file_associations"
+	Path             string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`                                                    // absolute filesystem path
+	DataClass        string                 `protobuf:"bytes,4,opt,name=data_class,json=dataClass,proto3" json:"data_class,omitempty"`                         // "AUTHORITATIVE" or "DERIVED"
+	Description      string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`                                      // human-readable, e.g. "file-title associations (Badger)"
+	BackupByDefault  bool                   `protobuf:"varint,6,opt,name=backup_by_default,json=backupByDefault,proto3" json:"backup_by_default,omitempty"`    // include in backup unless explicitly excluded
+	RestoreByDefault bool                   `protobuf:"varint,7,opt,name=restore_by_default,json=restoreByDefault,proto3" json:"restore_by_default,omitempty"` // include in restore unless explicitly excluded
+	PathExists       bool                   `protobuf:"varint,8,opt,name=path_exists,json=pathExists,proto3" json:"path_exists,omitempty"`                     // true if path existed at declaration time
+	SizeBytes        uint64                 `protobuf:"varint,9,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`                        // approximate size (0 if unknown)
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ServiceDataEntry) Reset() {
+	*x = ServiceDataEntry{}
+	mi := &file_backup_hook_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServiceDataEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServiceDataEntry) ProtoMessage() {}
+
+func (x *ServiceDataEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_backup_hook_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServiceDataEntry.ProtoReflect.Descriptor instead.
+func (*ServiceDataEntry) Descriptor() ([]byte, []int) {
+	return file_backup_hook_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ServiceDataEntry) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *ServiceDataEntry) GetLogicalName() string {
+	if x != nil {
+		return x.LogicalName
+	}
+	return ""
+}
+
+func (x *ServiceDataEntry) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ServiceDataEntry) GetDataClass() string {
+	if x != nil {
+		return x.DataClass
+	}
+	return ""
+}
+
+func (x *ServiceDataEntry) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ServiceDataEntry) GetBackupByDefault() bool {
+	if x != nil {
+		return x.BackupByDefault
+	}
+	return false
+}
+
+func (x *ServiceDataEntry) GetRestoreByDefault() bool {
+	if x != nil {
+		return x.RestoreByDefault
+	}
+	return false
+}
+
+func (x *ServiceDataEntry) GetPathExists() bool {
+	if x != nil {
+		return x.PathExists
+	}
+	return false
+}
+
+func (x *ServiceDataEntry) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
 type FinalizeBackupRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	BackupId        string                 `protobuf:"bytes,1,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
@@ -179,7 +296,7 @@ type FinalizeBackupRequest struct {
 
 func (x *FinalizeBackupRequest) Reset() {
 	*x = FinalizeBackupRequest{}
-	mi := &file_backup_hook_proto_msgTypes[2]
+	mi := &file_backup_hook_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -191,7 +308,7 @@ func (x *FinalizeBackupRequest) String() string {
 func (*FinalizeBackupRequest) ProtoMessage() {}
 
 func (x *FinalizeBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_hook_proto_msgTypes[2]
+	mi := &file_backup_hook_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -204,7 +321,7 @@ func (x *FinalizeBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeBackupRequest.ProtoReflect.Descriptor instead.
 func (*FinalizeBackupRequest) Descriptor() ([]byte, []int) {
-	return file_backup_hook_proto_rawDescGZIP(), []int{2}
+	return file_backup_hook_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *FinalizeBackupRequest) GetBackupId() string {
@@ -260,7 +377,7 @@ type FinalizeBackupResponse struct {
 
 func (x *FinalizeBackupResponse) Reset() {
 	*x = FinalizeBackupResponse{}
-	mi := &file_backup_hook_proto_msgTypes[3]
+	mi := &file_backup_hook_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -272,7 +389,7 @@ func (x *FinalizeBackupResponse) String() string {
 func (*FinalizeBackupResponse) ProtoMessage() {}
 
 func (x *FinalizeBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_backup_hook_proto_msgTypes[3]
+	mi := &file_backup_hook_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -285,7 +402,7 @@ func (x *FinalizeBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeBackupResponse.ProtoReflect.Descriptor instead.
 func (*FinalizeBackupResponse) Descriptor() ([]byte, []int) {
-	return file_backup_hook_proto_rawDescGZIP(), []int{3}
+	return file_backup_hook_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *FinalizeBackupResponse) GetOk() bool {
@@ -323,14 +440,28 @@ const file_backup_hook_proto_rawDesc = "" +
 	"\x10deadline_seconds\x18\x06 \x01(\x05R\x0fdeadlineSeconds\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8a\x02\n" +
 	"\x15PrepareBackupResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12I\n" +
-	"\adetails\x18\x03 \x03(\v2/.backup_hook.PrepareBackupResponse.DetailsEntryR\adetails\x1a:\n" +
+	"\adetails\x18\x03 \x03(\v2/.backup_hook.PrepareBackupResponse.DetailsEntryR\adetails\x12@\n" +
+	"\fservice_data\x18\x04 \x03(\v2\x1d.backup_hook.ServiceDataEntryR\vserviceData\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb0\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc7\x02\n" +
+	"\x10ServiceDataEntry\x12!\n" +
+	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12!\n" +
+	"\flogical_name\x18\x02 \x01(\tR\vlogicalName\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"data_class\x18\x04 \x01(\tR\tdataClass\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x12*\n" +
+	"\x11backup_by_default\x18\x06 \x01(\bR\x0fbackupByDefault\x12,\n" +
+	"\x12restore_by_default\x18\a \x01(\bR\x10restoreByDefault\x12\x1f\n" +
+	"\vpath_exists\x18\b \x01(\bR\n" +
+	"pathExists\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\t \x01(\x04R\tsizeBytes\"\xb0\x02\n" +
 	"\x15FinalizeBackupRequest\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x1c\n" +
@@ -364,31 +495,33 @@ func file_backup_hook_proto_rawDescGZIP() []byte {
 	return file_backup_hook_proto_rawDescData
 }
 
-var file_backup_hook_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_backup_hook_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_backup_hook_proto_goTypes = []any{
 	(*PrepareBackupRequest)(nil),   // 0: backup_hook.PrepareBackupRequest
 	(*PrepareBackupResponse)(nil),  // 1: backup_hook.PrepareBackupResponse
-	(*FinalizeBackupRequest)(nil),  // 2: backup_hook.FinalizeBackupRequest
-	(*FinalizeBackupResponse)(nil), // 3: backup_hook.FinalizeBackupResponse
-	nil,                            // 4: backup_hook.PrepareBackupRequest.LabelsEntry
-	nil,                            // 5: backup_hook.PrepareBackupResponse.DetailsEntry
-	nil,                            // 6: backup_hook.FinalizeBackupRequest.LabelsEntry
-	nil,                            // 7: backup_hook.FinalizeBackupResponse.DetailsEntry
+	(*ServiceDataEntry)(nil),       // 2: backup_hook.ServiceDataEntry
+	(*FinalizeBackupRequest)(nil),  // 3: backup_hook.FinalizeBackupRequest
+	(*FinalizeBackupResponse)(nil), // 4: backup_hook.FinalizeBackupResponse
+	nil,                            // 5: backup_hook.PrepareBackupRequest.LabelsEntry
+	nil,                            // 6: backup_hook.PrepareBackupResponse.DetailsEntry
+	nil,                            // 7: backup_hook.FinalizeBackupRequest.LabelsEntry
+	nil,                            // 8: backup_hook.FinalizeBackupResponse.DetailsEntry
 }
 var file_backup_hook_proto_depIdxs = []int32{
-	4, // 0: backup_hook.PrepareBackupRequest.labels:type_name -> backup_hook.PrepareBackupRequest.LabelsEntry
-	5, // 1: backup_hook.PrepareBackupResponse.details:type_name -> backup_hook.PrepareBackupResponse.DetailsEntry
-	6, // 2: backup_hook.FinalizeBackupRequest.labels:type_name -> backup_hook.FinalizeBackupRequest.LabelsEntry
-	7, // 3: backup_hook.FinalizeBackupResponse.details:type_name -> backup_hook.FinalizeBackupResponse.DetailsEntry
-	0, // 4: backup_hook.BackupHookService.PrepareBackup:input_type -> backup_hook.PrepareBackupRequest
-	2, // 5: backup_hook.BackupHookService.FinalizeBackup:input_type -> backup_hook.FinalizeBackupRequest
-	1, // 6: backup_hook.BackupHookService.PrepareBackup:output_type -> backup_hook.PrepareBackupResponse
-	3, // 7: backup_hook.BackupHookService.FinalizeBackup:output_type -> backup_hook.FinalizeBackupResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 0: backup_hook.PrepareBackupRequest.labels:type_name -> backup_hook.PrepareBackupRequest.LabelsEntry
+	6, // 1: backup_hook.PrepareBackupResponse.details:type_name -> backup_hook.PrepareBackupResponse.DetailsEntry
+	2, // 2: backup_hook.PrepareBackupResponse.service_data:type_name -> backup_hook.ServiceDataEntry
+	7, // 3: backup_hook.FinalizeBackupRequest.labels:type_name -> backup_hook.FinalizeBackupRequest.LabelsEntry
+	8, // 4: backup_hook.FinalizeBackupResponse.details:type_name -> backup_hook.FinalizeBackupResponse.DetailsEntry
+	0, // 5: backup_hook.BackupHookService.PrepareBackup:input_type -> backup_hook.PrepareBackupRequest
+	3, // 6: backup_hook.BackupHookService.FinalizeBackup:input_type -> backup_hook.FinalizeBackupRequest
+	1, // 7: backup_hook.BackupHookService.PrepareBackup:output_type -> backup_hook.PrepareBackupResponse
+	4, // 8: backup_hook.BackupHookService.FinalizeBackup:output_type -> backup_hook.FinalizeBackupResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_backup_hook_proto_init() }
@@ -402,7 +535,7 @@ func file_backup_hook_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_backup_hook_proto_rawDesc), len(file_backup_hook_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

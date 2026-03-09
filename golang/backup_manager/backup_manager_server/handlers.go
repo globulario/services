@@ -914,10 +914,11 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			QualityState:     backup_managerpb.QualityState_QUALITY_UNVERIFIED,
 			SkippedProviders: resolved.Skipped,
 			Cluster:          clusterInfo,
-			Hooks:            hookSummary,
-			TotalBytes:       totalBytes,
-			ManifestSha256:   manifestSHA,
-			NodeCoverage:     nodeCovProtos,
+			Hooks:              hookSummary,
+			ServiceDataEntries: collectServiceDataEntries(hookSummary.GetPrepare()),
+			TotalBytes:         totalBytes,
+			ManifestSha256:     manifestSHA,
+			NodeCoverage:       nodeCovProtos,
 		}
 		if err := srv.store.SaveArtifact(art); err != nil {
 			slog.Error("failed to save artifact", "job_id", job.JobId, "err", err)

@@ -166,6 +166,7 @@ message HookResult {
   string message = 3;
   map<string, string> details = 4;
   int64 duration_ms = 5;
+  repeated ServiceDataEntry service_data = 6;  // service-declared local data paths
 }
 
 // Summary of hook results for a backup.
@@ -275,6 +276,7 @@ message BackupArtifact {
   RestoreTestReport restore_test_report = 22;          // persisted restore-test evidence
   repeated NodeCoverageReport node_coverage = 23;      // per-provider node coverage (cluster mode)
   int64 completed_unix_ms = 24;                        // when backup completed (job finished)
+  repeated ServiceDataEntry service_data_entries = 25; // service-declared local data paths included in backup
 }
 
 // Retention policy configuration.
@@ -382,6 +384,8 @@ message RestorePlanRequest {
   bool include_config = 3;
   bool include_minio = 4;
   bool include_scylla = 5;
+  bool include_service_data = 6;          // restore service-declared local data
+  repeated string service_data_services = 7;  // restrict to specific services (empty = all)
 }
 
 message RestorePlanResponse {
@@ -407,6 +411,8 @@ message RestoreBackupRequest {
   bool force = 7;                      // bypass safety gates (e.g. active jobs check)
   string confirmation_token = 8;       // from RestorePlanResponse; required unless force=true
   string target_node = 9;             // optional: target node for restore (future)
+  bool include_service_data = 10;      // restore service-declared local data
+  repeated string service_data_services = 11;  // restrict to specific services (empty = all)
 }
 
 message RestoreBackupResponse {
@@ -574,6 +580,20 @@ message PrepareBackupHookResponse {
   bool ok = 1;
   string message = 2;
   map<string, string> details = 3;
+  repeated ServiceDataEntry service_data = 4;  // local data paths declared by service
+}
+
+// ServiceDataEntry declares a local data path a service needs backed up or tracked.
+message ServiceDataEntry {
+  string service_name = 1;         // e.g. "title.TitleService"
+  string logical_name = 2;        // short identifier, e.g. "file_associations"
+  string path = 3;                 // absolute filesystem path
+  string data_class = 4;           // "AUTHORITATIVE" or "DERIVED"
+  string description = 5;          // human-readable
+  bool   backup_by_default = 6;
+  bool   restore_by_default = 7;
+  bool   path_exists = 8;
+  uint64 size_bytes = 9;
 }
 
 message FinalizeBackupHookRequest {
