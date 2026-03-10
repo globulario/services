@@ -22,10 +22,12 @@ import (
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
 	planstore "github.com/globulario/services/golang/plan/store"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/keepalive"
+	"path/filepath"
 )
 
 // jsonCodec registers a "json" gRPC codec so that ResourcesService messages
@@ -229,7 +231,7 @@ func main() {
 	}
 }
 
-// startPprofServer starts the pprof debug HTTP server.
+// startPprofServer starts the pprof + Prometheus metrics HTTP server.
 func startPprofServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -237,11 +239,31 @@ func startPprofServer() {
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.Handle("/metrics", promhttp.Handler())
 
-	logger.Info("starting pprof server", "address", "127.0.0.1:6060")
-	if err := http.ListenAndServe("127.0.0.1:6060", mux); err != nil {
-		logger.Error("pprof server error", "error", err)
+	// Bind to :0 so we get a free port, then register with Prometheus.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		logger.Error("metrics/pprof: listen failed", "error", err)
+		return
 	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	logger.Info("metrics/pprof listening", "addr", ln.Addr().String())
+	writePromTargetFile("cluster_controller", port)
+
+	if err := http.Serve(ln, mux); err != nil {
+		logger.Error("metrics/pprof server error", "error", err)
+	}
+}
+
+const promTargetsDir = "/var/lib/globular/prometheus/targets"
+
+func writePromTargetFile(job string, port int) {
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(promTargetsDir, job+".yaml"), []byte(content), 0644)
 }
 
 // startDNSReconciler starts the DNS reconciler if cluster domain is configured.

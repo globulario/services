@@ -17,8 +17,10 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/internal/recovery"
 	"github.com/globulario/services/golang/config"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
+	"path/filepath"
 )
 
 // Version information (set via ldflags during build)
@@ -156,10 +158,31 @@ func startPprofServer() {
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	addr := fmt.Sprintf(":%d", pprofPort)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		logger.Debug("pprof server stopped", "error", err)
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// Bind to :0 so we get a free port, then register with Prometheus.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		logger.Error("metrics/pprof: listen failed", "error", err)
+		return
 	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	logger.Info("metrics/pprof listening", "addr", ln.Addr().String())
+	writePromTargetFile("cluster_doctor", port)
+
+	if err := http.Serve(ln, mux); err != nil {
+		logger.Error("metrics/pprof server error", "error", err)
+	}
+}
+
+const promTargetsDir = "/var/lib/globular/prometheus/targets"
+
+func writePromTargetFile(job string, port int) {
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(promTargetsDir, job+".yaml"), []byte(content), 0644)
 }
 
 func printVersion() {

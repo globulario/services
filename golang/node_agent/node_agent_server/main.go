@@ -17,9 +17,13 @@ import (
 	"syscall"
 	"time"
 
+	"net/http"
+	"path/filepath"
+
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	planstore "github.com/globulario/services/golang/plan/store"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -136,10 +140,39 @@ func main() {
 		}
 	}
 
+	// Start Prometheus metrics server on a free port.
+	go startMetricsServer()
+
 	log.Printf("node agent listening on %s", address)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("grpc serve failed: %v", err)
 	}
+}
+
+func startMetricsServer() {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Printf("metrics: listen failed: %v", err)
+		return
+	}
+	metricsPort := ln.Addr().(*net.TCPAddr).Port
+	log.Printf("metrics listening on 127.0.0.1:%d", metricsPort)
+	writePromTargetFile("node_agent", metricsPort)
+	if err := http.Serve(ln, mux); err != nil {
+		log.Printf("metrics server error: %v", err)
+	}
+}
+
+const promTargetsDir = "/var/lib/globular/prometheus/targets"
+
+func writePromTargetFile(job string, port int) {
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(promTargetsDir, job+".yaml"), []byte(content), 0644)
 }
 
 func loadBootstrapPlan(path string) ([]string, error) {
