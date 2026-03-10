@@ -251,8 +251,24 @@ func (r *Reconciler) reconcileDomain(ctx context.Context, spec *ExternalDomainSp
 		}
 	}
 
-	// Step 3: Update status to Ready
-	if err := r.setStatus(ctx, spec.FQDN, "Ready", "Domain reconciled successfully"); err != nil {
+	// Step 3: Update status to Ready (with cert expiry and current IP)
+	status := &ExternalDomainStatus{
+		LastReconcile: time.Now(),
+		Phase:         "Ready",
+		Message:       "Domain reconciled successfully",
+		CurrentIP:     spec.TargetIP,
+	}
+	// Read cert expiry from disk
+	if exp := r.readCertExpiry(spec.FQDN); exp != nil {
+		status.CertExpiry = exp
+	}
+	// Resolve actual IP if "auto"
+	if spec.TargetIP == "auto" || spec.TargetIP == "" {
+		if ip := r.resolvePublicIP(); ip != "" {
+			status.CurrentIP = ip
+		}
+	}
+	if err := r.store.PutStatus(ctx, spec.FQDN, status); err != nil {
 		return fmt.Errorf("failed to set status: %w", err)
 	}
 
@@ -333,22 +349,57 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 	return nil
 }
 
+// RenewRequestedMarker is the filename the admin handler writes to signal
+// a forced renewal. Must match the constant in the admin handler package.
+const RenewRequestedMarker = ".renew-requested"
+
 // ensureCertificate ensures the ACME certificate exists and is valid.
+//
+// Safety: new certificates are obtained into a staging subdirectory first.
+// Only after successful validation are the files atomically swapped into
+// the live directory. Old certificates remain on disk throughout the
+// entire ACME cycle — there is never a gap where no cert is present.
+//
+// When a .renew-requested marker file is present (written by the admin
+// handler), renewal is forced even if the current cert is still valid.
+// The marker is removed only after the new cert is successfully installed.
 func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomainSpec, provider dnsprovider.Provider) error {
 	domainDir := filepath.Join(r.certsDir, spec.FQDN)
 	certFile := filepath.Join(domainDir, "fullchain.pem")
+	markerFile := filepath.Join(domainDir, RenewRequestedMarker)
 
-	// Check if certificate exists and is still valid
-	if r.isCertificateValid(certFile, spec.FQDN, spec.UseWildcardCert, spec.Zone) {
+	// Check for forced renewal marker
+	forceRenew := false
+	if _, err := os.Stat(markerFile); err == nil {
+		forceRenew = true
+		r.logger.Info("forced renewal requested via marker",
+			"fqdn", spec.FQDN,
+			"marker", markerFile)
+	}
+
+	// Check if certificate exists and is still valid (skip if forced)
+	if !forceRenew && r.isCertificateValid(certFile, spec.FQDN, spec.UseWildcardCert, spec.Zone) {
 		r.logger.Debug("certificate still valid", "fqdn", spec.FQDN)
 		return nil
+	}
+
+	// Also handle legacy .renew-backup files from older handler versions:
+	// if fullchain.pem is missing but a .renew-backup exists, restore it
+	// first so there's no gap while we obtain the new one.
+	backupFile := certFile + ".renew-backup"
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		if _, err := os.Stat(backupFile); err == nil {
+			r.logger.Info("restoring legacy backup cert while renewing", "fqdn", spec.FQDN)
+			_ = os.Rename(backupFile, certFile)
+		}
 	}
 
 	// Need to obtain/renew certificate
 	r.logger.Info("obtaining ACME certificate",
 		"fqdn", spec.FQDN,
 		"email", spec.ACME.Email,
-		"challenge", spec.ACME.ChallengeType)
+		"challenge", spec.ACME.ChallengeType,
+		"forced", forceRenew)
 
 	// Create domain directory
 	if err := os.MkdirAll(domainDir, 0755); err != nil {
@@ -397,13 +448,10 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	// We must request BOTH the apex domain AND the wildcard in the same certificate.
 	var certDomains []string
 	if spec.UseWildcardCert {
-		// Request certificate with BOTH apex domain and wildcard
-		// This allows the certificate to cover both "globular.app" and "*.globular.app"
 		certDomains = []string{spec.Zone, "*." + spec.Zone}
 		r.logger.Info("requesting wildcard certificate with apex domain",
 			"domains", certDomains)
 	} else {
-		// Request only the specific FQDN
 		certDomains = []string{spec.FQDN}
 	}
 
@@ -414,17 +462,107 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 
 	certificates, err := client.Certificate.Obtain(request)
 	if err != nil {
+		r.logger.Error("ACME obtain failed — old certificate remains active",
+			"fqdn", spec.FQDN,
+			"error", err)
 		return fmt.Errorf("failed to obtain certificate: %w", err)
 	}
 
-	// Write certificate files
-	if err := r.writeCertificate(domainDir, certificates); err != nil {
-		return fmt.Errorf("failed to write certificate: %w", err)
+	// Stage new certificate into a temporary directory, validate, then swap.
+	if err := r.stageThenSwapCertificate(domainDir, spec.FQDN, spec.UseWildcardCert, spec.Zone, certificates); err != nil {
+		return fmt.Errorf("failed to stage certificate: %w", err)
 	}
 
-	r.logger.Info("certificate obtained successfully",
+	// Success — remove the renewal marker and any legacy backup
+	_ = os.Remove(markerFile)
+	_ = os.Remove(backupFile)
+
+	r.logger.Info("certificate obtained and installed successfully",
 		"fqdn", spec.FQDN,
-		"cert_file", certFile)
+		"cert_file", certFile,
+		"forced", forceRenew)
+
+	return nil
+}
+
+// stageThenSwapCertificate writes new cert files to a staging subdirectory,
+// validates the certificate is parseable and matches the expected domain,
+// then atomically swaps each file into the live directory.
+// If anything fails, the staging dir is cleaned up and old certs are untouched.
+func (r *Reconciler) stageThenSwapCertificate(domainDir, fqdn string, useWildcard bool, zone string, certs *certificate.Resource) error {
+	stagingDir := filepath.Join(domainDir, ".staging")
+
+	// Clean up any leftover staging dir from a previous failed attempt
+	_ = os.RemoveAll(stagingDir)
+
+	if err := os.MkdirAll(stagingDir, 0755); err != nil {
+		return fmt.Errorf("failed to create staging directory: %w", err)
+	}
+
+	// Ensure staging dir is cleaned up on failure
+	success := false
+	defer func() {
+		if !success {
+			_ = os.RemoveAll(stagingDir)
+		}
+	}()
+
+	// Write to staging directory
+	if err := writeFileAtomic(filepath.Join(stagingDir, "fullchain.pem"), certs.Certificate, 0644); err != nil {
+		return fmt.Errorf("failed to write staged certificate: %w", err)
+	}
+	if err := writeFileAtomic(filepath.Join(stagingDir, "privkey.pem"), certs.PrivateKey, 0600); err != nil {
+		return fmt.Errorf("failed to write staged private key: %w", err)
+	}
+	if err := writeFileAtomic(filepath.Join(stagingDir, "chain.pem"), certs.IssuerCertificate, 0644); err != nil {
+		return fmt.Errorf("failed to write staged issuer certificate: %w", err)
+	}
+
+	// Validate the staged certificate before swapping
+	stagedCert := filepath.Join(stagingDir, "fullchain.pem")
+	if !r.isCertificateValid(stagedCert, fqdn, useWildcard, zone) {
+		return fmt.Errorf("staged certificate failed validation for %s", fqdn)
+	}
+
+	r.logger.Info("staged certificate validated, swapping into place",
+		"fqdn", fqdn,
+		"staging_dir", stagingDir)
+
+	// Atomically swap each file from staging into the live directory
+	files := []struct {
+		name string
+		perm os.FileMode
+	}{
+		{"fullchain.pem", 0644},
+		{"privkey.pem", 0600},
+		{"chain.pem", 0644},
+	}
+
+	for _, f := range files {
+		src := filepath.Join(stagingDir, f.name)
+		dst := filepath.Join(domainDir, f.name)
+
+		// Read the staged file content
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("failed to read staged %s: %w", f.name, err)
+		}
+
+		// Atomic write to the live path (temp file + rename)
+		if err := writeFileAtomic(dst, data, f.perm); err != nil {
+			return fmt.Errorf("failed to swap %s into place: %w", f.name, err)
+		}
+
+		// Set ownership
+		if r.certUID > 0 && r.certGID > 0 {
+			_ = os.Chown(dst, r.certUID, r.certGID)
+		}
+	}
+
+	success = true
+
+	// Clean up staging directory
+	_ = os.RemoveAll(stagingDir)
 
 	return nil
 }
@@ -476,36 +614,6 @@ func (r *Reconciler) isCertificateValid(certFile string, domain string, useWildc
 	}
 
 	return true
-}
-
-// writeCertificate writes the certificate and key files.
-func (r *Reconciler) writeCertificate(domainDir string, certificates *certificate.Resource) error {
-	// Write certificate atomically (fullchain)
-	certFile := filepath.Join(domainDir, "fullchain.pem")
-	if err := writeFileAtomic(certFile, certificates.Certificate, 0644); err != nil {
-		return fmt.Errorf("failed to write certificate: %w", err)
-	}
-
-	// Write private key atomically (secure permissions)
-	keyFile := filepath.Join(domainDir, "privkey.pem")
-	if err := writeFileAtomic(keyFile, certificates.PrivateKey, 0600); err != nil {
-		return fmt.Errorf("failed to write private key: %w", err)
-	}
-
-	// Write issuer cert atomically (CA chain)
-	issuerFile := filepath.Join(domainDir, "chain.pem")
-	if err := writeFileAtomic(issuerFile, certificates.IssuerCertificate, 0644); err != nil {
-		return fmt.Errorf("failed to write issuer certificate: %w", err)
-	}
-
-	// Set ownership after all files are written atomically
-	if r.certUID > 0 && r.certGID > 0 {
-		os.Chown(certFile, r.certUID, r.certGID)
-		os.Chown(keyFile, r.certUID, r.certGID)
-		os.Chown(issuerFile, r.certUID, r.certGID)
-	}
-
-	return nil
 }
 
 // getProvider loads a DNS provider from etcd cache.
@@ -663,6 +771,33 @@ func (r *Reconciler) setStatus(ctx context.Context, fqdn string, phase string, m
 // setStatusError updates the domain status to Error phase with the given error message.
 func (r *Reconciler) setStatusError(ctx context.Context, fqdn string, err error) error {
 	return r.setStatus(ctx, fqdn, "Error", err.Error())
+}
+
+// readCertExpiry reads the fullchain.pem for a domain and returns its NotAfter time.
+func (r *Reconciler) readCertExpiry(fqdn string) *time.Time {
+	certFile := filepath.Join(r.certsDir, fqdn, "fullchain.pem")
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil
+	}
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil
+	}
+	return &cert.NotAfter
+}
+
+// resolvePublicIP returns the current public IP, or empty string on failure.
+func (r *Reconciler) resolvePublicIP() string {
+	ip, err := r.discoverPublicIP()
+	if err != nil {
+		return ""
+	}
+	return ip
 }
 
 // acmeUser is now defined in acme_account.go

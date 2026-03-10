@@ -46,8 +46,8 @@ func TestProviderConfigKey(t *testing.T) {
 		ref      string
 		expected string
 	}{
-		{"godaddy-prod", "/globular/dns/providers/godaddy-prod"},
-		{"route53-dev", "/globular/dns/providers/route53-dev"},
+		{"godaddy-prod", "/globular/providers/v1/godaddy-prod"},
+		{"route53-dev", "/globular/providers/v1/route53-dev"},
 	}
 
 	for _, tt := range tests {

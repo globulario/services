@@ -106,6 +106,12 @@ type ExternalDomainStatus struct {
 
 	// Message is a human-readable status message.
 	Message string `json:"message,omitempty"`
+
+	// CurrentIP is the resolved public IP for the domain.
+	CurrentIP string `json:"current_ip,omitempty"`
+
+	// CertExpiry is when the TLS certificate expires (if available).
+	CertExpiry *time.Time `json:"cert_expiry,omitempty"`
 }
 
 // Condition represents the status of a specific reconciliation step.

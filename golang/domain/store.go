@@ -13,7 +13,9 @@ import (
 const (
 	DomainSpecPrefix     = "/globular/domains/v1/"
 	DomainStatusSuffix   = "/status"
-	ProviderConfigPrefix = "/globular/dns/providers/"
+	// ProviderConfigPrefix must match EtcdProviderPrefix in spec.go
+	// so that the store, CLI, and reconciler all use the same etcd keys.
+	ProviderConfigPrefix = "/globular/providers/v1/"
 )
 
 // DomainStore provides storage operations for domain specs and status, with separation
@@ -33,6 +35,8 @@ type DomainStore interface {
 	// Provider config operations
 	ListProviderConfigs(ctx context.Context) ([]*dnsprovider.Config, error)
 	GetProviderConfig(ctx context.Context, ref string) (*dnsprovider.Config, int64, error)
+	PutProviderConfig(ctx context.Context, name string, cfg *dnsprovider.Config) error
+	DeleteProviderConfig(ctx context.Context, name string) error
 }
 
 // EtcdDomainStore implements DomainStore using etcd as the backend.
@@ -213,6 +217,32 @@ func (s *EtcdDomainStore) ListProviderConfigs(ctx context.Context) ([]*dnsprovid
 	return configs, nil
 }
 
+// NamedProviderConfig pairs a provider config with its storage name (etcd key suffix).
+type NamedProviderConfig struct {
+	Name   string            `json:"name"`
+	Config *dnsprovider.Config `json:"config"`
+}
+
+// ListNamedProviderConfigs returns all provider configs with their names.
+func (s *EtcdDomainStore) ListNamedProviderConfigs(ctx context.Context) ([]NamedProviderConfig, error) {
+	resp, err := s.cli.Get(ctx, ProviderConfigPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("etcd get failed: %w", err)
+	}
+
+	var out []NamedProviderConfig
+	for _, kv := range resp.Kvs {
+		var cfg dnsprovider.Config
+		if err := json.Unmarshal(kv.Value, &cfg); err != nil {
+			continue
+		}
+		name := strings.TrimPrefix(string(kv.Key), ProviderConfigPrefix)
+		out = append(out, NamedProviderConfig{Name: name, Config: &cfg})
+	}
+
+	return out, nil
+}
+
 // GetProviderConfig retrieves a provider config and its modification revision.
 func (s *EtcdDomainStore) GetProviderConfig(ctx context.Context, ref string) (*dnsprovider.Config, int64, error) {
 	key := ProviderConfigKey(ref)
@@ -230,4 +260,49 @@ func (s *EtcdDomainStore) GetProviderConfig(ctx context.Context, ref string) (*d
 	}
 
 	return &cfg, resp.Kvs[0].ModRevision, nil
+}
+
+// PutProviderConfig creates or updates a DNS provider configuration.
+func (s *EtcdDomainStore) PutProviderConfig(ctx context.Context, name string, cfg *dnsprovider.Config) error {
+	key := ProviderConfigKey(name)
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal provider config: %w", err)
+	}
+	_, err = s.cli.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("etcd put failed: %w", err)
+	}
+	return nil
+}
+
+// DeleteProviderConfig removes a DNS provider configuration.
+func (s *EtcdDomainStore) DeleteProviderConfig(ctx context.Context, name string) error {
+	key := ProviderConfigKey(name)
+	_, err := s.cli.Delete(ctx, key)
+	if err != nil {
+		return fmt.Errorf("etcd delete failed: %w", err)
+	}
+	return nil
+}
+
+// MaskCredentials returns a copy of the config with credential values masked.
+// Shows "****" + last 4 chars for values longer than 4, otherwise just "****".
+// This must be used before returning provider configs in API responses.
+func MaskCredentials(cfg *dnsprovider.Config) *dnsprovider.Config {
+	out := *cfg
+	out.Credentials = make(map[string]string, len(cfg.Credentials))
+	for k, v := range cfg.Credentials {
+		if len(v) > 4 {
+			out.Credentials[k] = "****" + v[len(v)-4:]
+		} else {
+			out.Credentials[k] = "****"
+		}
+	}
+	return &out
+}
+
+// IsMaskedValue returns true if the value looks like a masked credential.
+func IsMaskedValue(v string) bool {
+	return strings.HasPrefix(v, "****")
 }
