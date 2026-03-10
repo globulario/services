@@ -187,22 +187,65 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 	return p, nil
 }
 
-// GetPersonById returns a Person by ID.
+// GetPersonById returns a Person by ID. If the person has no biography or details,
+// it attempts to enrich from TMDb and persists the result before returning.
+// If the person is not found by ID and the ID looks like a name (not nm*),
+// it searches TMDb by name and creates the person entry.
 func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByIdRequest) (*titlepb.GetPersonByIdResponse, error) {
-	p, err := srv.getPersonById(rqst.IndexPath, rqst.PersonId)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
 	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	p, err := srv.getPersonById(resolved, rqst.PersonId)
+	if err != nil {
+		// If lookup failed and the ID looks like a name (not nm*), try TMDb name search.
+		name := strings.TrimSpace(rqst.PersonId)
+		if name != "" && !imdbNameIDRE.MatchString(name) {
+			// Check if we have a stored name→ID mapping from a previous lookup.
+			if resolvedID := srv.getPersonIDByName(resolved, name); resolvedID != "" {
+				if p, err = srv.getPersonById(resolved, resolvedID); err == nil {
+					if personNeedsTMDB(p) {
+						srv.enrichSinglePersonFromTMDB(resolved, p)
+					}
+					return &titlepb.GetPersonByIdResponse{Person: p}, nil
+				}
+			}
+			// No mapping yet — search TMDb by name.
+			p = &titlepb.Person{FullName: name}
+			if srv.enrichSinglePersonFromTMDB(resolved, p) {
+				// Store a name→ID mapping so future lookups by name are instant.
+				srv.storePersonNameMapping(resolved, name, p.ID)
+				return &titlepb.GetPersonByIdResponse{Person: p}, nil
+			}
+		}
 		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	// Auto-enrich from TMDb if person is missing key details.
+	if personNeedsTMDB(p) {
+		srv.enrichSinglePersonFromTMDB(resolved, p)
 	}
 	return &titlepb.GetPersonByIdResponse{Person: p}, nil
 }
 
 // saveTitleCasting merges and persists casting info for a title.
 func (srv *server) saveTitleCasting(indexPath, titleId, role string, persons []*titlepb.Person) []*titlepb.Person {
+	// Deduplicate input list first (by ID then by name).
+	persons = deduplicatePersons(persons)
+
 	out := make([]*titlepb.Person, 0, len(persons))
 	for _, person := range persons {
-		if person == nil || person.ID == "" {
+		if person == nil {
 			out = append(out, person)
 			continue
+		}
+		// If person has no ID but has a name, try to resolve via TMDb name search.
+		if person.ID == "" && strings.TrimSpace(person.FullName) != "" {
+			srv.enrichSinglePersonFromTMDB(indexPath, person)
+			// If enrichment didn't find an ID, skip indexing but keep in list.
+			if person.ID == "" {
+				out = append(out, person)
+				continue
+			}
 		}
 
 		existing, err := srv.getPersonById(indexPath, person.ID)
@@ -447,4 +490,38 @@ func (srv *server) SearchPersons(
 	}
 
 	return nil
+}
+
+// personNameKey returns the internal-store key for a name→ID mapping.
+func personNameKey(name string) []byte {
+	return []byte("person_name:" + strings.ToLower(strings.TrimSpace(name)))
+}
+
+// storePersonNameMapping saves a name→imdbID mapping in the Bleve internal store
+// so that subsequent lookups by name resolve without hitting TMDb again.
+func (srv *server) storePersonNameMapping(indexPath, name, imdbID string) {
+	if name == "" || imdbID == "" {
+		return
+	}
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return
+	}
+	_ = index.SetInternal(personNameKey(name), []byte(imdbID))
+}
+
+// getPersonIDByName looks up a previously stored name→ID mapping.
+func (srv *server) getPersonIDByName(indexPath, name string) string {
+	if name == "" {
+		return ""
+	}
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return ""
+	}
+	raw, err := index.GetInternal(personNameKey(name))
+	if err != nil || len(raw) == 0 {
+		return ""
+	}
+	return string(raw)
 }

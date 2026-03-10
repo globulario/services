@@ -530,7 +530,7 @@ func findYouTubeID(path string) (string, bool) {
 }
 
 func (srv *server) resolveIMDBFromFilenameOrTitleHint(videoPath, titleHint string) (string, bool) {
-	apiKey := strings.TrimSpace(os.Getenv("TMDB_API_KEY"))
+	apiKey := tmdbAPIKey()
 	if apiKey == "" {
 		return "", false
 	}
@@ -636,6 +636,47 @@ type tmdbSearchTVResp struct {
 
 type tmdbExternalIDsResp struct {
 	IMDBID string `json:"imdb_id"`
+}
+
+// tmdbAPIKey returns the TMDb API key, trying env var first, then etcd config
+// from the title service.
+var (
+	tmdbKeyMu    sync.Mutex
+	tmdbKeyValue string
+	tmdbKeyDone  bool
+)
+
+func tmdbAPIKey() string {
+	tmdbKeyMu.Lock()
+	defer tmdbKeyMu.Unlock()
+	if tmdbKeyDone {
+		return tmdbKeyValue
+	}
+
+	// 1. Environment variable.
+	if k := strings.TrimSpace(os.Getenv("TMDB_API_KEY")); k != "" {
+		tmdbKeyValue = k
+		tmdbKeyDone = true
+		return k
+	}
+
+	// 2. Read from title or media service config in etcd.
+	for _, svcName := range []string{"title.TitleService", "media.MediaService"} {
+		cfg, err := config.GetServiceConfigurationById(svcName)
+		if err != nil || cfg == nil {
+			continue
+		}
+		if v, ok := cfg["TmdbApiKey"]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				tmdbKeyValue = strings.TrimSpace(s)
+				tmdbKeyDone = true
+				return tmdbKeyValue
+			}
+		}
+	}
+
+	// Don't set tmdbKeyDone so we retry next call (etcd may not be ready yet).
+	return ""
 }
 
 func tmdbResolveMovieIMDB(apiKey, title string, year int) (string, bool) {
@@ -1032,10 +1073,10 @@ func (srv *server) processVideoLoop(token string, dirs []string) {
 	}
 }
 
-// enrichTitleFromIMDB populates Poster/ratings/cast from IMDB and writes a local thumbnail.
+// enrichTitleFromIMDB populates Poster/ratings/cast from TMDb (primary) or IMDb (fallback).
 func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error {
 	if t == nil || t.ID == "" {
-		return errors.New("missing title id for IMDB enrichment")
+		return errors.New("missing title id for enrichment")
 	}
 	if !imdbIDRegex.MatchString(strings.ToLower(t.ID)) {
 		return nil
@@ -1047,6 +1088,14 @@ func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error
 		return nil
 	}
 
+	// ---- 1. Try TMDb first (reliable, no WAF issues) ----
+	if err := srv.enrichTitleFromTMDB(t); err == nil {
+		srv.ensurePosterArtifacts(t, videoPath, true)
+		cacheIMDBMetadata(t)
+		return nil
+	}
+
+	// ---- 2. Fallback: IMDb scraping ----
 	httpCli := getHTTPClient()
 	it, err := imdb.NewTitle(httpCli, t.ID)
 	if err != nil {
@@ -1057,11 +1106,9 @@ func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error
 		t.Type = strings.TrimSpace(it.Type)
 	}
 
-	// Ratings.
 	t.Rating = float32(Utility.ToNumeric(it.Rating))
 	t.RatingCount = int32(it.RatingCount)
 
-	// Cast/crew.
 	t.Actors = make([]*titlepb.Person, 0, len(it.Actors))
 	for _, a := range it.Actors {
 		t.Actors = append(t.Actors, &titlepb.Person{ID: a.ID, FullName: a.FullName, URL: a.URL})
@@ -1096,6 +1143,192 @@ func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error
 	return nil
 }
 
+// enrichTitleFromTMDB enriches a title using TMDb find-by-IMDb-ID API.
+func (srv *server) enrichTitleFromTMDB(t *titlepb.Title) error {
+	apiKey := tmdbAPIKey()
+	if apiKey == "" {
+		return fmt.Errorf("TMDB_API_KEY not available (env or etcd)")
+	}
+
+	findURL := fmt.Sprintf("https://api.themoviedb.org/3/find/%s?api_key=%s&external_source=imdb_id",
+		url.PathEscape(t.ID), url.QueryEscape(apiKey))
+
+	var findResp struct {
+		MovieResults []struct {
+			ID          int     `json:"id"`
+			Title       string  `json:"title"`
+			Overview    string  `json:"overview"`
+			ReleaseDate string  `json:"release_date"`
+			VoteAverage float32 `json:"vote_average"`
+			VoteCount   int     `json:"vote_count"`
+			PosterPath  string  `json:"poster_path"`
+		} `json:"movie_results"`
+		TvResults []struct {
+			ID           int     `json:"id"`
+			Name         string  `json:"name"`
+			Overview     string  `json:"overview"`
+			FirstAirDate string  `json:"first_air_date"`
+			VoteAverage  float32 `json:"vote_average"`
+			VoteCount    int     `json:"vote_count"`
+			PosterPath   string  `json:"poster_path"`
+		} `json:"tv_results"`
+		TvEpisodeResults []struct {
+			ID            int     `json:"id"`
+			Name          string  `json:"name"`
+			Overview      string  `json:"overview"`
+			AirDate       string  `json:"air_date"`
+			VoteAverage   float32 `json:"vote_average"`
+			VoteCount     int     `json:"vote_count"`
+			StillPath     string  `json:"still_path"`
+			ShowID        int     `json:"show_id"`
+			SeasonNumber  int     `json:"season_number"`
+			EpisodeNumber int     `json:"episode_number"`
+		} `json:"tv_episode_results"`
+	}
+	if err := tmdbGETJSON(findURL, &findResp); err != nil {
+		return err
+	}
+
+	const tmdbImg = "https://image.tmdb.org/t/p/w500"
+	tmdbID := 0
+	mediaType := ""
+
+	if len(findResp.MovieResults) > 0 {
+		r := findResp.MovieResults[0]
+		tmdbID = r.ID
+		mediaType = "movie"
+		if t.Type == "" {
+			t.Type = "Movie"
+		}
+		if t.Name == "" {
+			t.Name = r.Title
+		}
+		t.Description = r.Overview
+		t.Rating = r.VoteAverage
+		t.RatingCount = int32(r.VoteCount)
+		if r.PosterPath != "" && (t.Poster == nil || t.Poster.URL == "") {
+			if t.Poster == nil {
+				t.Poster = &titlepb.Poster{}
+			}
+			t.Poster.URL = tmdbImg + r.PosterPath
+		}
+	} else if len(findResp.TvResults) > 0 {
+		r := findResp.TvResults[0]
+		tmdbID = r.ID
+		mediaType = "tv"
+		if t.Type == "" {
+			t.Type = "TVSeries"
+		}
+		if t.Name == "" {
+			t.Name = r.Name
+		}
+		t.Description = r.Overview
+		t.Rating = r.VoteAverage
+		t.RatingCount = int32(r.VoteCount)
+		if r.PosterPath != "" && (t.Poster == nil || t.Poster.URL == "") {
+			if t.Poster == nil {
+				t.Poster = &titlepb.Poster{}
+			}
+			t.Poster.URL = tmdbImg + r.PosterPath
+		}
+	} else if len(findResp.TvEpisodeResults) > 0 {
+		r := findResp.TvEpisodeResults[0]
+		tmdbID = r.ShowID
+		mediaType = "tv_episode"
+		if t.Type == "" {
+			t.Type = "TVEpisode"
+		}
+		if t.Name == "" {
+			t.Name = r.Name
+		}
+		t.Description = r.Overview
+		t.Rating = r.VoteAverage
+		t.RatingCount = int32(r.VoteCount)
+		t.Season = int32(r.SeasonNumber)
+		t.Episode = int32(r.EpisodeNumber)
+		if r.StillPath != "" && (t.Poster == nil || t.Poster.URL == "") {
+			if t.Poster == nil {
+				t.Poster = &titlepb.Poster{}
+			}
+			t.Poster.URL = tmdbImg + r.StillPath
+		}
+		// Resolve parent series IMDb ID.
+		if r.ShowID != 0 && t.Serie == "" {
+			extURL := fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/external_ids?api_key=%s",
+				r.ShowID, url.QueryEscape(apiKey))
+			var ext tmdbExternalIDsResp
+			if err := tmdbGETJSON(extURL, &ext); err == nil && ext.IMDBID != "" {
+				t.Serie = ext.IMDBID
+			}
+		}
+	} else {
+		return fmt.Errorf("tmdb: no result for %s", t.ID)
+	}
+
+	// Fetch credits.
+	if tmdbID != 0 {
+		creditsURL := ""
+		switch mediaType {
+		case "movie":
+			creditsURL = fmt.Sprintf("https://api.themoviedb.org/3/movie/%d/credits?api_key=%s", tmdbID, url.QueryEscape(apiKey))
+		case "tv":
+			creditsURL = fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/credits?api_key=%s", tmdbID, url.QueryEscape(apiKey))
+		case "tv_episode":
+			ep := findResp.TvEpisodeResults[0]
+			creditsURL = fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/season/%d/episode/%d/credits?api_key=%s",
+				ep.ShowID, ep.SeasonNumber, ep.EpisodeNumber, url.QueryEscape(apiKey))
+		}
+		if creditsURL != "" {
+			var credits struct {
+				Cast []struct {
+					Name string `json:"name"`
+				} `json:"cast"`
+				GuestStars []struct {
+					Name string `json:"name"`
+				} `json:"guest_stars"`
+				Crew []struct {
+					Name       string `json:"name"`
+					Department string `json:"department"`
+					Job        string `json:"job"`
+				} `json:"crew"`
+			}
+			if err := tmdbGETJSON(creditsURL, &credits); err == nil {
+				if len(t.Actors) == 0 {
+					seen := make(map[string]bool)
+					for _, c := range credits.Cast {
+						if c.Name != "" && !seen[c.Name] {
+							t.Actors = append(t.Actors, &titlepb.Person{FullName: c.Name})
+							seen[c.Name] = true
+						}
+					}
+					for _, c := range credits.GuestStars {
+						if c.Name != "" && !seen[c.Name] {
+							t.Actors = append(t.Actors, &titlepb.Person{FullName: c.Name})
+							seen[c.Name] = true
+						}
+					}
+				}
+				if len(t.Directors) == 0 {
+					for _, c := range credits.Crew {
+						if c.Job == "Director" && c.Name != "" {
+							t.Directors = append(t.Directors, &titlepb.Person{FullName: c.Name})
+						}
+					}
+				}
+				if len(t.Writers) == 0 {
+					for _, c := range credits.Crew {
+						if (c.Department == "Writing" || c.Job == "Writer" || c.Job == "Screenplay") && c.Name != "" {
+							t.Writers = append(t.Writers, &titlepb.Person{FullName: c.Name})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (srv *server) ensureIMDBTitleName(t *titlepb.Title, videoPath string) {
 	if t == nil || t.ID == "" || strings.TrimSpace(t.Name) != "" {
 		return
@@ -1112,9 +1345,9 @@ func (srv *server) ensureIMDBTitleName(t *titlepb.Title, videoPath string) {
 }
 
 var (
-	imdbEpisodeSERex        = regexp.MustCompile(`>S\d{1,2}<!-- -->\.<!-- -->E\d{1,2}<`)
-	imdbEpisodeSeasonRegex  = regexp.MustCompile(`S(\d{1,2})`)
-	imdbEpisodeEpisodeRegex = regexp.MustCompile(`E(\d{1,2})`)
+	imdbEpisodeSERex        = regexp.MustCompile(`>S(\d+)<!-- -->\.<!-- -->E(\d+)<`)
+	imdbEpisodeSeasonRegex  = regexp.MustCompile(`S(\d+)`)
+	imdbEpisodeEpisodeRegex = regexp.MustCompile(`E(\d+)`)
 	imdbSeriesLinkRegex     = regexp.MustCompile(`data-testid="hero-title-block__series-link".*?href="/title/(tt\d{7,8})/`)
 )
 

@@ -516,6 +516,13 @@ func (srv *server) walkDir(root string, fn fs.WalkDirFunc) error {
 		if err != nil {
 			return fn(actual, d, err)
 		}
+		// Skip files/dirs whose name starts with '#' (e.g. #recycle).
+		if name := d.Name(); len(name) > 0 && name[0] == '#' {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 		logicalPath := logicalRoot
 		if actual != actualRoot {
 			if rel, relErr := filepath.Rel(actualRoot, actual); relErr == nil && rel != "." {
@@ -587,6 +594,10 @@ func (srv *server) walkMinioDir(root string, fn fs.WalkDirFunc) error {
 		}
 		key = strings.Trim(key, "/")
 		if key == "" {
+			continue
+		}
+		// Skip files/dirs whose name starts with '#' (e.g. #recycle).
+		if base := filepath.Base(key); len(base) > 0 && base[0] == '#' {
 			continue
 		}
 		logicalPath := filepath.ToSlash(filepath.Join(root, key))

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/blevesearch/bleve/v2"
@@ -42,11 +43,15 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 		if err := protojson.Unmarshal(raw, t); err != nil {
 			return nil, err
 		}
+		normalizeTitleType(t)
 
 		if needsFix := srv.titleNeedsFix(t); needsFix && imdbIDRE.MatchString(t.ID) {
 			titleCopy := proto.Clone(t).(*titlepb.Title)
 			go srv.asyncEnrichTitle(resolved, titleCopy)
 		}
+
+		// If this is a TVEpisode, ensure the parent series title exists.
+		srv.triggerSeriesEnsure(resolved, t)
 
 		return t, nil
 	}
@@ -85,10 +90,42 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 			logger.Warn("marshal imdb-built title", "titleID", enriched.ID, "err", err)
 		}
 
+		// If this is a TVEpisode, ensure the parent series title exists.
+		srv.triggerSeriesEnsure(resolved, enriched)
+
 		return enriched, nil
 	}
 
 	return nil, errors.New("no title found with id " + titleId)
+}
+
+// triggerSeriesEnsure fires a background goroutine to ensure the parent series
+// title exists when the given title is a TVEpisode with a Serie field.
+// Used on read paths (getTitleById) where eventual consistency is fine.
+func (srv *server) triggerSeriesEnsure(indexPath string, t *titlepb.Title) {
+	if t == nil || t.Type != "TVEpisode" || t.Serie == "" || !imdbIDRE.MatchString(t.Serie) {
+		return
+	}
+
+	// Fast check: if the series is already indexed, skip the goroutine entirely.
+	uuid := Utility.GenerateUUID(t.Serie)
+	if idx, err := srv.getIndex(indexPath); err == nil {
+		if raw, err := idx.GetInternal([]byte(uuid)); err == nil && len(raw) > 0 {
+			return
+		}
+	}
+
+	go srv.ensureSeriesTitle(indexPath, t.Serie)
+}
+
+// ensureSeriesSync is the synchronous variant of triggerSeriesEnsure.
+// Used on write paths (CreateTitle, UpdateTitleMetadata, reindexTitles) so
+// the parent series exists before the call returns.
+func (srv *server) ensureSeriesSync(indexPath string, t *titlepb.Title) {
+	if t == nil || t.Type != "TVEpisode" || t.Serie == "" || !imdbIDRE.MatchString(t.Serie) {
+		return
+	}
+	srv.ensureSeriesTitle(indexPath, t.Serie)
 }
 
 // GetTitleById returns Title with associated file paths, if any.
@@ -127,6 +164,147 @@ func (srv *server) titleNeedsFix(t *titlepb.Title) bool {
 		return true
 	}
 	return false
+}
+
+// castNeedsEnrich returns true if any person across actors/directors/writers
+// is missing an ID or biography, indicating TMDb enrichment is needed.
+func (srv *server) castNeedsEnrich(t *titlepb.Title) bool {
+	if t == nil {
+		return false
+	}
+	for _, group := range [][]*titlepb.Person{t.Actors, t.Directors, t.Writers} {
+		for _, p := range group {
+			if p != nil && (p.ID == "" || p.Biography == "") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ensureSeriesTitle checks if the parent series title exists in the index.
+// If not, it builds it from IMDb/TMDb and persists it. This runs in the
+// background so it doesn't block episode creation.
+func (srv *server) ensureSeriesTitle(indexPath, seriesIMDbID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("ensureSeriesTitle: panic recovered", "seriesID", seriesIMDbID, "err", r)
+		}
+	}()
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		logger.Warn("ensureSeriesTitle: open index failed", "indexPath", indexPath, "err", err)
+		return
+	}
+
+	// Check if the series title already exists.
+	uuid := Utility.GenerateUUID(seriesIMDbID)
+	if raw, err := index.GetInternal([]byte(uuid)); err == nil && len(raw) > 0 {
+		logger.Debug("ensureSeriesTitle: series already exists", "seriesID", seriesIMDbID)
+		return
+	}
+
+	logger.Info("ensureSeriesTitle: auto-creating parent series", "seriesID", seriesIMDbID)
+	enriched, err := srv.buildTitleFromIMDB(seriesIMDbID)
+	if err != nil || enriched == nil {
+		if err != nil {
+			logger.Warn("ensureSeriesTitle: buildTitleFromIMDB failed", "seriesID", seriesIMDbID, "err", err)
+		}
+		return
+	}
+
+	if enriched.UUID == "" {
+		enriched.UUID = Utility.GenerateUUID(enriched.ID)
+	}
+	enriched.Actors = srv.saveTitleCasting(indexPath, enriched.ID, "Acting", enriched.Actors)
+	enriched.Writers = srv.saveTitleCasting(indexPath, enriched.ID, "Writing", enriched.Writers)
+	enriched.Directors = srv.saveTitleCasting(indexPath, enriched.ID, "Directing", enriched.Directors)
+
+	if err := index.Index(enriched.UUID, enriched); err != nil {
+		logger.Warn("ensureSeriesTitle: index failed", "seriesID", enriched.ID, "err", err)
+	}
+	if rawOut, err := protojson.Marshal(enriched); err == nil {
+		if err := index.SetInternal([]byte(enriched.UUID), rawOut); err != nil {
+			logger.Warn("ensureSeriesTitle: store raw failed", "seriesID", enriched.ID, "err", err)
+		}
+	}
+
+	// Also persist to metadata store.
+	if err := srv.persistMetadata(indexPath, "titles", enriched.ID, enriched); err != nil {
+		logger.Warn("ensureSeriesTitle: persistMetadata failed", "seriesID", enriched.ID, "err", err)
+	}
+
+	logger.Info("ensureSeriesTitle: parent series created", "seriesID", enriched.ID, "name", enriched.Name, "type", enriched.Type)
+}
+
+// listEpisodesBySeries scans the Bleve internal store for all TVEpisode titles
+// whose Serie field matches seriesId. Results are sorted by season then episode.
+// If season > 0, only episodes of that season are returned.
+func (srv *server) listEpisodesBySeries(indexPath, seriesId string, season int32) ([]*titlepb.Title, error) {
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use a Bleve field-scoped query to find episodes with matching Serie.
+	q := bleve.NewQueryStringQuery(fmt.Sprintf(`+Type:TVEpisode +Serie:"%s"`, seriesId))
+	req := bleve.NewSearchRequest(q)
+	req.Size = 10000 // upper bound — a series rarely exceeds a few hundred episodes
+	req.From = 0
+
+	result, err := index.Search(req)
+	if err != nil {
+		return nil, fmt.Errorf("search episodes for series %s: %w", seriesId, err)
+	}
+
+	episodes := make([]*titlepb.Title, 0, len(result.Hits))
+	for _, hit := range result.Hits {
+		raw, err := index.GetInternal([]byte(hit.ID))
+		if err != nil || len(raw) == 0 {
+			continue
+		}
+		t := new(titlepb.Title)
+		if err := protojson.Unmarshal(raw, t); err != nil {
+			continue
+		}
+		// Double-check: Serie must match exactly (Bleve may tokenize).
+		if t.Type != "TVEpisode" || t.Serie != seriesId {
+			continue
+		}
+		if season > 0 && t.Season != season {
+			continue
+		}
+		episodes = append(episodes, t)
+	}
+
+	sort.Slice(episodes, func(i, j int) bool {
+		if episodes[i].Season != episodes[j].Season {
+			return episodes[i].Season < episodes[j].Season
+		}
+		return episodes[i].Episode < episodes[j].Episode
+	})
+
+	return episodes, nil
+}
+
+// GetSeriesEpisodes returns all episodes for a given series, sorted by season/episode.
+func (srv *server) GetSeriesEpisodes(ctx context.Context, rqst *titlepb.GetSeriesEpisodesRequest) (*titlepb.GetSeriesEpisodesResponse, error) {
+	if rqst.SeriesId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "seriesId is required")
+	}
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	episodes, err := srv.listEpisodesBySeries(resolved, rqst.SeriesId, rqst.Season)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+
+	logger.Info("GetSeriesEpisodes", "seriesId", rqst.SeriesId, "season", rqst.Season, "count", len(episodes))
+	return &titlepb.GetSeriesEpisodesResponse{Episodes: episodes}, nil
 }
 
 func (srv *server) asyncEnrichTitle(indexPath string, title *titlepb.Title) {
@@ -205,23 +383,53 @@ func (srv *server) mergeTitleWithEnriched(target, enriched *titlepb.Title) {
 
 	mergePersons := func(dst []*titlepb.Person, src []*titlepb.Person) []*titlepb.Person {
 		if len(src) == 0 {
-			return dst
+			return deduplicatePersons(dst)
 		}
-		seen := make(map[string]struct{}, len(dst))
-		for _, p := range dst {
-			if p != nil && p.ID != "" {
-				seen[p.ID] = struct{}{}
+		seenID := make(map[string]int, len(dst))   // ID → index in dst
+		seenName := make(map[string]int, len(dst)) // lowercase FullName → index in dst
+		for i, p := range dst {
+			if p == nil {
+				continue
+			}
+			if p.ID != "" {
+				seenID[p.ID] = i
+			}
+			if n := strings.ToLower(strings.TrimSpace(p.FullName)); n != "" {
+				seenName[n] = i
 			}
 		}
 		for _, p := range src {
-			if p == nil || p.ID == "" {
+			if p == nil {
 				continue
 			}
-			if _, ok := seen[p.ID]; ok {
-				continue
+			// Check by ID first.
+			if p.ID != "" {
+				if idx, ok := seenID[p.ID]; ok {
+					// Existing entry — upgrade if the new one has more data.
+					if dst[idx].Biography == "" && p.Biography != "" {
+						dst[idx] = p
+					}
+					continue
+				}
+			}
+			// Check by name (catches no-ID duplicates).
+			nameKey := strings.ToLower(strings.TrimSpace(p.FullName))
+			if nameKey != "" {
+				if idx, ok := seenName[nameKey]; ok {
+					// Keep the one with more data (prefer one with ID).
+					if (dst[idx].ID == "" && p.ID != "") || (dst[idx].Biography == "" && p.Biography != "") {
+						dst[idx] = p
+					}
+					continue
+				}
+			}
+			if p.ID != "" {
+				seenID[p.ID] = len(dst)
+			}
+			if nameKey != "" {
+				seenName[nameKey] = len(dst)
 			}
 			dst = append(dst, p)
-			seen[p.ID] = struct{}{}
 		}
 		return dst
 	}
@@ -240,6 +448,106 @@ func (srv *server) mergeTitleWithEnriched(target, enriched *titlepb.Title) {
 			target.Serie = enriched.Serie
 		}
 	}
+}
+
+// normalizeTitleType fixes inconsistent type strings produced by different
+// IMDb data sources (StalkR scraper vs suggestion API fallback).
+// Canonical values follow Schema.org: TVSeries, TVEpisode, TVMiniSeries, etc.
+// deduplicatePersons removes duplicate persons from a single list, matching
+// by ID first, then by lowercase FullName. Prefers the entry with more data.
+func deduplicatePersons(list []*titlepb.Person) []*titlepb.Person {
+	if len(list) <= 1 {
+		return list
+	}
+	out := make([]*titlepb.Person, 0, len(list))
+	seenID := make(map[string]int)
+	seenName := make(map[string]int)
+	for _, p := range list {
+		if p == nil {
+			continue
+		}
+		if p.ID != "" {
+			if idx, ok := seenID[p.ID]; ok {
+				if out[idx].Biography == "" && p.Biography != "" {
+					out[idx] = p
+				}
+				continue
+			}
+		}
+		nameKey := strings.ToLower(strings.TrimSpace(p.FullName))
+		if nameKey != "" {
+			if idx, ok := seenName[nameKey]; ok {
+				if (out[idx].ID == "" && p.ID != "") || (out[idx].Biography == "" && p.Biography != "") {
+					out[idx] = p
+				}
+				continue
+			}
+		}
+		if p.ID != "" {
+			seenID[p.ID] = len(out)
+		}
+		if nameKey != "" {
+			seenName[nameKey] = len(out)
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func normalizeTitleType(t *titlepb.Title) {
+	if t == nil {
+		return
+	}
+	switch t.Type {
+	case "TV Series":
+		t.Type = "TVSeries"
+	case "TV Mini Series":
+		t.Type = "TVMiniSeries"
+	case "TV Movie":
+		t.Type = "TVMovie"
+	case "TV Special":
+		t.Type = "TVSpecial"
+	case "Video Game":
+		t.Type = "VideoGame"
+	}
+}
+
+// enforceTitleInvariants normalises the type and Serie/Season/Episode fields:
+//   - TVEpisode must have Serie, Season > 0, Episode > 0 — attempts IMDb enrichment if missing
+//   - non-episode types have those fields cleared
+//
+// Returns an error only if the title is a TVEpisode and Serie is still empty
+// after enrichment (Season/Episode=0 are tolerated as some episodes lack numbering).
+func (srv *server) enforceTitleInvariants(t *titlepb.Title) error {
+	if t == nil {
+		return nil
+	}
+	normalizeTitleType(t)
+	if t.Type == "TVEpisode" {
+		// Attempt to fill missing fields from IMDb if the title ID looks valid.
+		if (t.Serie == "" || t.Season == 0 || t.Episode == 0) && imdbIDRE.MatchString(t.ID) {
+			if enriched, err := srv.buildTitleFromIMDB(t.ID); err == nil && enriched != nil {
+				if t.Serie == "" && enriched.Serie != "" {
+					t.Serie = enriched.Serie
+				}
+				if t.Season == 0 && enriched.Season != 0 {
+					t.Season = enriched.Season
+				}
+				if t.Episode == 0 && enriched.Episode != 0 {
+					t.Episode = enriched.Episode
+				}
+			}
+		}
+		if t.Serie == "" {
+			return fmt.Errorf("TVEpisode %q requires a parent series ID (Serie field)", t.ID)
+		}
+	} else {
+		// Non-episode: clear episode-only fields to prevent bad data.
+		t.Serie = ""
+		t.Season = 0
+		t.Episode = 0
+	}
+	return nil
 }
 
 // CreateTitle indexes or updates a Title, enriches poster with a thumbnail, sets RBAC ownership, and publishes update event.
@@ -270,6 +578,17 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if existing, err := srv.getTitleById(resolved, rqst.Title.ID); err == nil && existing != nil {
 		srv.mergeTitleWithEnriched(rqst.Title, existing)
 	}
+	if err := srv.enforceTitleInvariants(rqst.Title); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	// Enrich cast details (biography, picture, IDs) when persons are incomplete.
+	if srv.castNeedsEnrich(rqst.Title) && imdbIDRE.MatchString(rqst.Title.ID) {
+		if enriched, err := srv.buildTitleFromIMDB(rqst.Title.ID); err == nil && enriched != nil {
+			srv.mergeTitleWithEnriched(rqst.Title, enriched)
+		}
+	}
+
 	rqst.Title.Actors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Acting", rqst.Title.Actors)
 	rqst.Title.Writers = srv.saveTitleCasting(resolved, rqst.Title.ID, "Writing", rqst.Title.Writers)
 	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
@@ -277,6 +596,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err := srv.indexTitleDoc(index, rqst.Title); err != nil {
 		return nil, status.Errorf(codes.Internal, "index title: %v", err)
 	}
+
+	logger.Info("CreateTitle indexed", "titleID", rqst.Title.ID, "type", rqst.Title.Type, "serie", rqst.Title.Serie, "season", rqst.Title.Season, "episode", rqst.Title.Episode)
 
 	// Poster thumbnail enrichment
 	if rqst.Title.Poster != nil {
@@ -311,6 +632,10 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 	evt.Publish("update_title_infos_evt", []byte(fmt.Sprintf(`{"id":%q}`, rqst.Title.ID)))
 	logger.Info("title created", "titleID", rqst.Title.ID)
+
+	// Synchronously ensure the parent series title exists if this is a TVEpisode.
+	srv.ensureSeriesSync(resolved, rqst.Title)
+
 	return &titlepb.CreateTitleResponse{}, nil
 }
 
@@ -344,6 +669,9 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 		srv.mergeTitleWithEnriched(rqst.Title, enriched)
 	}
 
+	if err := srv.enforceTitleInvariants(rqst.Title); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
 	rqst.Title.Actors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Acting", rqst.Title.Actors)
 	rqst.Title.Writers = srv.saveTitleCasting(resolved, rqst.Title.ID, "Writing", rqst.Title.Writers)
 	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
@@ -356,6 +684,9 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 	if err := srv.persistMetadata(rqst.IndexPath, "titles", rqst.Title.ID, rqst.Title); err != nil {
 		logger.Warn("persistMetadata title failed", "titleID", rqst.Title.ID, "err", err)
 	}
+
+	// Synchronously ensure the parent series title exists if this is a TVEpisode.
+	srv.ensureSeriesSync(resolved, rqst.Title)
 
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
 }
@@ -661,6 +992,8 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		req.Size = 50
 	}
 
+	logger.Debug("SearchTitles", "query", rqst.Query, "indexPath", rqst.IndexPath, "size", req.Size, "from", req.From)
+
 	// Facets
 	req.AddFacet("Genres", bleve.NewFacetRequest("Genres", req.Size))
 	req.AddFacet("Types", bleve.NewFacetRequest("Type", req.Size))
@@ -685,6 +1018,8 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	if err != nil {
 		return err
 	}
+
+	logger.Debug("SearchTitles results", "query", rqst.Query, "total", result.Total, "hits", len(result.Hits))
 
 	// Summary first
 	if err := stream.Send(&titlepb.SearchTitlesResponse{
@@ -761,6 +1096,7 @@ func tryUnmarshalTitleAndPopulate(raw []byte, indexPath string, srv *server, h *
 	if err := protojson.Unmarshal(raw, title); err != nil || title.GetID() == "" {
 		return false
 	}
+	normalizeTitleType(title)
 
 	actors := make([]*titlepb.Person, 0, len(title.Actors))
 	for _, actorRef := range title.Actors {

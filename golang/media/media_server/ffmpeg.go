@@ -800,13 +800,14 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	cache.RemoveItem(path)
 	_ = srv.extractSubtitleTracks(path)
 
-	if !strings.Contains(path, ".") {
+	path = filepath.ToSlash(path)
+	base := filepath.Base(path)
+	dotIdx := strings.LastIndex(base, ".")
+	if dotIdx <= 0 {
 		return "", fmt.Errorf("%s: missing file extension", path)
 	}
-
-	path = filepath.ToSlash(path)
-	dir := path[:strings.LastIndex(path, "/")]
-	name := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
+	dir := filepath.ToSlash(filepath.Dir(path))
+	name := base[:dotIdx]
 	out := dir + "/" + name + ".mp4"
 
 	if !strings.HasSuffix(strings.ToLower(path), ".mp4") {
@@ -865,22 +866,24 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 		args = append(args, "-map", fmt.Sprintf("0:a:%d?", i), "-c:a:"+fmt.Sprint(i), "aac")
 	}
 
-	// map compatible subtitles
-	subIdx := 0
-	streamIdx := 0
+	// map compatible (text-based) subtitles — skip bitmap formats (PGS, DVB, DVDSUB)
+	// that cannot be converted to mov_text.
+	subIdx := 0    // index into subtitle streams only (for -map 0:s:N)
+	mappedIdx := 0 // index into mapped output subtitle streams (for -c:s:N)
 	for _, s := range streams["streams"].([]any) {
 		sm := s.(map[string]any)
-		if sm["codec_type"].(string) == "subtitle" {
-			codec := sm["codec_name"].(string)
-			if codec == "subrip" || codec == "ass" || codec == "ssa" {
-				args = append(args,
-					"-map", fmt.Sprintf("0:s:%d?", streamIdx),
-					"-c:s:"+fmt.Sprint(subIdx), "mov_text",
-				)
-				subIdx++
-			}
+		if sm["codec_type"].(string) != "subtitle" {
+			continue
 		}
-		streamIdx++
+		codec := sm["codec_name"].(string)
+		if codec == "subrip" || codec == "ass" || codec == "ssa" || codec == "mov_text" || codec == "webvtt" {
+			args = append(args,
+				"-map", fmt.Sprintf("0:s:%d?", subIdx),
+				"-c:s:"+fmt.Sprint(mappedIdx), "mov_text",
+			)
+			mappedIdx++
+		}
+		subIdx++
 	}
 	args = append(args, "-movflags", "+faststart", out)
 
