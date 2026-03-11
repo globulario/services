@@ -1178,3 +1178,29 @@ func saveServiceConfigFile(id string, desired map[string]interface{}) error {
 	}
 	return nil
 }
+
+// DumpServiceConfigsToDisk reads all service configs from etcd and writes
+// each one to <ServicesConfigDir>/<id>.json.  This is useful after an etcd
+// snapshot restore so that the disk mirror is re-populated before services
+// start.  Errors are collected but never fatal.
+func DumpServiceConfigsToDisk() (int, []string) {
+	cfgs, err := GetServicesConfigurations()
+	if err != nil {
+		return 0, []string{fmt.Sprintf("list services: %v", err)}
+	}
+
+	var errs []string
+	count := 0
+	for _, cfg := range cfgs {
+		id := Utility.ToString(cfg["Id"])
+		if id == "" {
+			continue
+		}
+		if err := saveServiceConfigFile(id, cfg); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", id, err))
+			continue
+		}
+		count++
+	}
+	return count, errs
+}

@@ -279,12 +279,13 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 	job.Results = results
 	job.FinishedUnixMs = time.Now().UnixMilli()
 
-	if allOk {
-		// After a successful restore, restart all gRPC services so they
-		// re-register in etcd with their current ports. The restored etcd
-		// snapshot may contain stale port assignments from the old cluster.
-		srv.restartAllServices(ctx)
+	// Always restart services after restore — even if some providers failed.
+	// The etcd restore alone changes the cluster ID and stales LastSeen timestamps,
+	// causing "node unreachable" until controller and node-agent are restarted.
+	// gRPC services also need to re-register their ports in the restored etcd.
+	srv.restartAllServices(ctx)
 
+	if allOk {
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.Message = "restore completed successfully"
 		metricsJobsTotal.WithLabelValues("restore_succeeded").Inc()
@@ -734,22 +735,36 @@ func (srv *server) restartAllServices(ctx context.Context) {
 	slog.Info("restartAllServices: phase 1 done (gRPC services)", "restarted", restarted)
 
 	// Phase 2: restart controller first, then node agent.
-	// Controller must be ready before node agent sends its first heartbeat,
+	// Controller must be listening before node agent sends its first heartbeat,
 	// otherwise the heartbeat is lost and the node stays "unreachable" until
 	// the next 30-second tick.
-	for _, unit := range []string{"globular-cluster-controller.service", "globular-node-agent.service"} {
-		if !isSystemdActive(unit) {
-			slog.Info("restartAllServices: skipping (not active)", "unit", unit)
-			continue
-		}
-		slog.Info("restartAllServices: restarting control-plane", "unit", unit)
-		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", unit).Run(); err != nil {
-			slog.Warn("restartAllServices: restart failed", "unit", unit, "err", err)
+
+	// 2a. Restart controller
+	if isSystemdActive("globular-cluster-controller.service") {
+		slog.Info("restartAllServices: restarting cluster-controller")
+		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", "globular-cluster-controller.service").Run(); err != nil {
+			slog.Warn("restartAllServices: controller restart failed", "err", err)
 		} else {
-			restarted = append(restarted, unit)
+			restarted = append(restarted, "globular-cluster-controller.service")
 		}
-		// Brief pause to let the unit fully initialize before starting the next.
-		time.Sleep(3 * time.Second)
+		// Wait for controller to be ready (port 12000), up to 15 seconds.
+		for i := 0; i < 30; i++ {
+			if isPortOpen("127.0.0.1", 12000) {
+				slog.Info("restartAllServices: controller ready on :12000")
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	// 2b. Restart node agent — controller is now ready to accept heartbeats.
+	if isSystemdActive("globular-node-agent.service") {
+		slog.Info("restartAllServices: restarting node-agent")
+		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", "globular-node-agent.service").Run(); err != nil {
+			slog.Warn("restartAllServices: node-agent restart failed", "err", err)
+		} else {
+			restarted = append(restarted, "globular-node-agent.service")
+		}
 	}
 	slog.Info("restartAllServices: phase 2 done (control-plane)", "restarted", restarted)
 }

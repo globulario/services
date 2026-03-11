@@ -64,6 +64,9 @@ func (srv *server) ensureScyllaRegistered() {
 		return
 	}
 
+	// Clean up duplicate cluster entries (accumulate across wipe+Day0 cycles).
+	deduplicateScyllaManagerClusters(srv.ScyllaManagerAPI)
+
 	// Check if any cluster is already registered
 	existing := detectScyllaClusters(srv.ScyllaManagerAPI)
 	managed := 0
@@ -461,6 +464,151 @@ func parseScyllaClusterList(output string) []string {
 	}
 
 	return clusters
+}
+
+// deduplicateScyllaManagerClusters removes stale duplicate cluster entries
+// from scylla-manager. After repeated wipe+Day0 cycles, scylla-manager's
+// SQLite DB accumulates multiple entries with the same name. This breaks
+// every sctool command that uses --cluster <name>.
+func deduplicateScyllaManagerClusters(apiURL string) {
+	args := []string{"cluster", "list"}
+	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		args = append(args, "--api-url", apiURL)
+	}
+	out, err := exec.Command("sctool", args...).CombinedOutput()
+	if err != nil {
+		return
+	}
+
+	type entry struct{ id, name string }
+	var entries []entry
+
+	// Parse ID and Name columns.
+	lines := strings.Split(string(out), "\n")
+	idCol, nameCol, headerIdx := -1, -1, -1
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		var sep string
+		if strings.Contains(line, "│") {
+			sep = "│"
+		} else if strings.Contains(line, "|") {
+			sep = "|"
+		} else {
+			continue
+		}
+		parts := strings.Split(line, sep)
+		for j, p := range parts {
+			col := strings.TrimSpace(p)
+			if col == "ID" {
+				idCol = j
+			}
+			if col == "Name" {
+				nameCol = j
+			}
+		}
+		if idCol >= 0 && nameCol >= 0 {
+			headerIdx = i
+			break
+		}
+	}
+	if headerIdx < 0 {
+		return
+	}
+
+	for i := headerIdx + 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		isBorder := true
+		for _, r := range line {
+			if r != '─' && r != '┼' && r != '├' && r != '┤' && r != '╰' && r != '╯' &&
+				r != '┴' && r != '-' && r != '+' && r != ' ' {
+				isBorder = false
+				break
+			}
+		}
+		if isBorder {
+			continue
+		}
+		var sep string
+		if strings.Contains(line, "│") {
+			sep = "│"
+		} else if strings.Contains(line, "|") {
+			sep = "|"
+		} else {
+			continue
+		}
+		parts := strings.Split(line, sep)
+		if idCol < len(parts) && nameCol < len(parts) {
+			id := strings.TrimSpace(parts[idCol])
+			name := strings.TrimSpace(parts[nameCol])
+			if id != "" && name != "" {
+				entries = append(entries, entry{id: id, name: name})
+			}
+		}
+	}
+
+	// Group by name, find duplicates.
+	byName := map[string][]entry{}
+	for _, e := range entries {
+		byName[e.name] = append(byName[e.name], e)
+	}
+
+	for name, group := range byName {
+		if len(group) <= 1 {
+			continue
+		}
+
+		// Determine which cluster is active by checking healthcheck tasks.
+		activeID := ""
+		for _, e := range group {
+			taskArgs := []string{"tasks", "-c", e.id}
+			if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+				taskArgs = append(taskArgs, "--api-url", apiURL)
+			}
+			tOut, tErr := exec.Command("sctool", taskArgs...).CombinedOutput()
+			if tErr != nil {
+				continue
+			}
+			// Active cluster has healthchecks with a scheduled Next run.
+			for _, tLine := range strings.Split(string(tOut), "\n") {
+				if strings.Contains(tLine, "healthcheck/") && strings.Contains(tLine, "DONE") {
+					fields := strings.Fields(tLine)
+					for _, f := range fields {
+						if len(f) == 4 && f >= "2025" && f <= "2030" {
+							activeID = e.id
+							break
+						}
+					}
+					if activeID != "" {
+						break
+					}
+				}
+			}
+			if activeID != "" {
+				break
+			}
+		}
+		if activeID == "" {
+			activeID = group[len(group)-1].id // fallback: keep newest
+		}
+
+		for _, e := range group {
+			if e.id == activeID {
+				continue
+			}
+			delArgs := []string{"cluster", "delete", "-c", e.id}
+			if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+				delArgs = append(delArgs, "--api-url", apiURL)
+			}
+			if err := exec.Command("sctool", delArgs...).Run(); err != nil {
+				slog.Warn("dedup: failed to delete stale cluster", "id", e.id, "name", name, "err", err)
+			} else {
+				slog.Info("dedup: deleted stale scylla-manager cluster", "id", e.id, "name", name, "kept", activeID)
+			}
+		}
+	}
 }
 
 func checkTool(name string, versionArgs []string) *backup_managerpb.ToolCheck {
