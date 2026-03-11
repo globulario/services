@@ -285,16 +285,14 @@ func validateTokenInternal(tokenStr string, expectedAudience string) (*Claims, e
 	}
 
 	// v2 Conformance: Audience validation (security violation INV-4.1)
-	// CHANGED: jwt.WithAudience("") disables validation - now enforced when expectedAudience provided
 	var parseOpts []jwt.ParserOption
 	parseOpts = append(parseOpts, jwt.WithLeeway(tokenExpirySkew))
 	if expectedAudience != "" {
 		// Enforce audience matching - prevents cross-service token replay
 		parseOpts = append(parseOpts, jwt.WithAudience(expectedAudience))
-	} else {
-		// Legacy behavior: no audience validation (less secure)
-		parseOpts = append(parseOpts, jwt.WithAudience(""))
 	}
+	// When expectedAudience is empty, skip audience validation entirely.
+	// jwt.WithAudience("") would reject tokens that carry a non-empty audience.
 
 	parsed, err := jwt.ParseWithClaims(tokenStr, claims, keyFunc, parseOpts...)
 	if err != nil {

@@ -25,6 +25,43 @@ message InstalledComponent {
   bool installed = 3;
 }
 
+// InstalledPackage is the canonical installed-state record for a package on a node.
+// Written by Node Agent after successful lifecycle execution for all package kinds.
+// Stored in etcd at: /globular/nodes/{node_id}/packages/{kind}/{name}
+message InstalledPackage {
+  string node_id = 1;
+  string name = 2;
+  string version = 3;
+  string publisher_id = 4;
+  string platform = 5;
+  string kind = 6;              // "SERVICE", "APPLICATION", "INFRASTRUCTURE"
+  string checksum = 7;           // SHA256 of installed archive
+  int64 installed_unix = 8;      // when first installed
+  int64 updated_unix = 9;        // last update timestamp
+  string status = 10;            // "installed", "updating", "failed", "removing"
+  string operation_id = 11;      // last operation that modified this
+  map<string, string> metadata = 12; // additional key-value pairs
+}
+
+message ListInstalledPackagesRequest {
+  string node_id = 1;            // required
+  string kind = 2;               // optional filter: "SERVICE", "APPLICATION", etc.
+}
+
+message ListInstalledPackagesResponse {
+  repeated InstalledPackage packages = 1;
+}
+
+message GetInstalledPackageRequest {
+  string node_id = 1;
+  string kind = 2;
+  string name = 3;
+}
+
+message GetInstalledPackageResponse {
+  InstalledPackage package = 1;
+}
+
 message UnitStatus {
   string name = 1;
   string state = 2;
@@ -60,7 +97,8 @@ message ApplyPlanV1Response {
 }
 
 message GetPlanStatusV1Request {
-  string node_id = 1; // optional: defaults to the node-agent's node id
+  string node_id = 1;      // optional: defaults to the node-agent's node id
+  string operation_id = 2;  // optional: if set, return status for this specific operation
 }
 message GetPlanStatusV1Response {
   globular.plan.v1.NodePlanStatus status = 1;
@@ -178,4 +216,8 @@ service NodeAgentService {
   // Restore provider execution (called by backup-manager to restore on a node)
   rpc RunRestoreProvider(RunRestoreProviderRequest) returns (RunRestoreProviderResponse);
   rpc GetRestoreTaskResult(GetRestoreTaskResultRequest) returns (GetRestoreTaskResultResponse);
+
+  // Installed-state registry — canonical package inventory on this node.
+  rpc ListInstalledPackages(ListInstalledPackagesRequest) returns (ListInstalledPackagesResponse);
+  rpc GetInstalledPackage(GetInstalledPackageRequest) returns (GetInstalledPackageResponse);
 }

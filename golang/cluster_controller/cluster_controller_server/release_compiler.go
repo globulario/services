@@ -102,6 +102,15 @@ func CompileReleasePlan(
 			"version": resolvedVersion,
 			"path":    marker,
 		}),
+		planStep("package.report_state", map[string]interface{}{
+			"node_id":      nodeID,
+			"name":         svcCanonical,
+			"version":      resolvedVersion,
+			"kind":         "SERVICE",
+			"publisher_id": spec.PublisherID,
+			"platform":     platform,
+			"checksum":     status.ResolvedArtifactDigest,
+		}),
 		planStep("service.restart", map[string]interface{}{
 			"unit": unit,
 		}),
@@ -137,6 +146,15 @@ func CompileReleasePlan(
 				"service": svcName,
 				"version": installedVersion,
 				"path":    marker,
+			}),
+			planStep("package.report_state", map[string]interface{}{
+				"node_id":      nodeID,
+				"name":         svcCanonical,
+				"version":      installedVersion,
+				"kind":         "SERVICE",
+				"publisher_id": spec.PublisherID,
+				"platform":     platform,
+				"status":       "installed",
 			}),
 			planStep("service.restart", map[string]interface{}{"unit": unit}),
 		}

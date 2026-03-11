@@ -26,6 +26,9 @@ const (
 	PackageRepository_DownloadArtifact_FullMethodName    = "/repository.PackageRepository/DownloadArtifact"
 	PackageRepository_GetArtifactManifest_FullMethodName = "/repository.PackageRepository/GetArtifactManifest"
 	PackageRepository_ListBundles_FullMethodName         = "/repository.PackageRepository/ListBundles"
+	PackageRepository_SearchArtifacts_FullMethodName     = "/repository.PackageRepository/SearchArtifacts"
+	PackageRepository_GetArtifactVersions_FullMethodName = "/repository.PackageRepository/GetArtifactVersions"
+	PackageRepository_DeleteArtifact_FullMethodName      = "/repository.PackageRepository/DeleteArtifact"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -52,6 +55,12 @@ type PackageRepositoryClient interface {
 	GetArtifactManifest(ctx context.Context, in *GetArtifactManifestRequest, opts ...grpc.CallOption) (*GetArtifactManifestResponse, error)
 	// Lists all bundles published to the repository (from the Resource service index).
 	ListBundles(ctx context.Context, in *ListBundlesRequest, opts ...grpc.CallOption) (*ListBundlesResponse, error)
+	// Searches artifacts with optional text query and filters.
+	SearchArtifacts(ctx context.Context, in *SearchArtifactsRequest, opts ...grpc.CallOption) (*SearchArtifactsResponse, error)
+	// Returns all published versions of a given package.
+	GetArtifactVersions(ctx context.Context, in *GetArtifactVersionsRequest, opts ...grpc.CallOption) (*GetArtifactVersionsResponse, error)
+	// Deletes a specific artifact version from the repository.
+	DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -156,6 +165,36 @@ func (c *packageRepositoryClient) ListBundles(ctx context.Context, in *ListBundl
 	return out, nil
 }
 
+func (c *packageRepositoryClient) SearchArtifacts(ctx context.Context, in *SearchArtifactsRequest, opts ...grpc.CallOption) (*SearchArtifactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchArtifactsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_SearchArtifacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) GetArtifactVersions(ctx context.Context, in *GetArtifactVersionsRequest, opts ...grpc.CallOption) (*GetArtifactVersionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetArtifactVersionsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_GetArtifactVersions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_DeleteArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -180,6 +219,12 @@ type PackageRepositoryServer interface {
 	GetArtifactManifest(context.Context, *GetArtifactManifestRequest) (*GetArtifactManifestResponse, error)
 	// Lists all bundles published to the repository (from the Resource service index).
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
+	// Searches artifacts with optional text query and filters.
+	SearchArtifacts(context.Context, *SearchArtifactsRequest) (*SearchArtifactsResponse, error)
+	// Returns all published versions of a given package.
+	GetArtifactVersions(context.Context, *GetArtifactVersionsRequest) (*GetArtifactVersionsResponse, error)
+	// Deletes a specific artifact version from the repository.
+	DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -209,6 +254,15 @@ func (UnimplementedPackageRepositoryServer) GetArtifactManifest(context.Context,
 }
 func (UnimplementedPackageRepositoryServer) ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListBundles not implemented")
+}
+func (UnimplementedPackageRepositoryServer) SearchArtifacts(context.Context, *SearchArtifactsRequest) (*SearchArtifactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchArtifacts not implemented")
+}
+func (UnimplementedPackageRepositoryServer) GetArtifactVersions(context.Context, *GetArtifactVersionsRequest) (*GetArtifactVersionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetArtifactVersions not implemented")
+}
+func (UnimplementedPackageRepositoryServer) DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteArtifact not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -320,6 +374,60 @@ func _PackageRepository_ListBundles_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_SearchArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchArtifactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).SearchArtifacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_SearchArtifacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).SearchArtifacts(ctx, req.(*SearchArtifactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_GetArtifactVersions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetArtifactVersionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).GetArtifactVersions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_GetArtifactVersions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).GetArtifactVersions(ctx, req.(*GetArtifactVersionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_DeleteArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).DeleteArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_DeleteArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).DeleteArtifact(ctx, req.(*DeleteArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -338,6 +446,18 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListBundles",
 			Handler:    _PackageRepository_ListBundles_Handler,
+		},
+		{
+			MethodName: "SearchArtifacts",
+			Handler:    _PackageRepository_SearchArtifacts_Handler,
+		},
+		{
+			MethodName: "GetArtifactVersions",
+			Handler:    _PackageRepository_GetArtifactVersions_Handler,
+		},
+		{
+			MethodName: "DeleteArtifact",
+			Handler:    _PackageRepository_DeleteArtifact_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -11,6 +11,7 @@ enum ArtifactKind {
   APPLICATION = 2;
   AGENT = 3;
   SUBSYSTEM = 4;
+  INFRASTRUCTURE = 5;
 }
 
 message ArtifactRef {
@@ -23,13 +24,62 @@ message ArtifactRef {
 
 message ArtifactManifest {
   ArtifactRef ref = 1;
-  string checksum = 2;
+  string checksum = 2;          // sha256 of the archive
   int64 size_bytes = 3;
   int64 modified_unix = 4;
+
+  // Dependency graph
   repeated string provides = 10;
   repeated string requires = 11;
   map<string,string> defaults = 12;
   repeated string entrypoints = 13;
+
+  // Universal metadata
+  string description = 14;
+  repeated string keywords = 15;
+  string icon = 16;              // base64 data-uri or URL
+  string alias = 17;             // human-friendly display name
+  string license = 18;
+  string min_globular_version = 19;
+  int64 published_unix = 20;
+
+  // Type-specific detail — exactly one set per manifest, determined by ref.kind.
+  oneof type_detail {
+    ServiceDetail service_detail = 30;
+    ApplicationDetail application_detail = 31;
+    InfrastructureDetail infrastructure_detail = 32;
+  }
+}
+
+// ServiceDetail contains fields specific to SERVICE packages.
+message ServiceDetail {
+  string proto_file = 1;                    // e.g. "repository.proto"
+  string grpc_service_name = 2;             // e.g. "repository.PackageRepository"
+  int32 default_port = 3;
+  string systemd_unit = 4;                  // e.g. "globular-repository.service"
+  repeated string service_dependencies = 5; // gRPC names of required services
+}
+
+// ApplicationDetail contains fields specific to APPLICATION packages.
+message ApplicationDetail {
+  string route = 1;                         // URL path, e.g. "/apps/myapp"
+  string index_file = 2;                    // entry HTML file, e.g. "index.html"
+  repeated string actions = 3;              // RBAC action declarations
+  repeated string roles = 4;               // RBAC role names
+  repeated string groups = 5;              // RBAC group names
+  bool set_as_default = 6;                 // become default application on install
+  repeated string required_services = 7;   // backend services this app needs
+  map<string,string> app_config = 8;       // optional application config/defaults
+}
+
+// InfrastructureDetail contains fields specific to INFRASTRUCTURE packages.
+message InfrastructureDetail {
+  string component = 1;                    // e.g. "etcd", "minio", "envoy"
+  string config_template = 2;             // default config content or path
+  repeated string data_dirs = 3;          // directories to create with ownership
+  string health_endpoint = 4;             // health check URL or command
+  string upgrade_strategy = 5;            // "stop-start", "rolling", "blue-green"
+  repeated string required_privileges = 6; // e.g. "root", "cap_net_bind"
 }
 
 message ListArtifactsRequest {}
@@ -108,6 +158,50 @@ message ListBundlesResponse {
   repeated BundleSummary bundles = 1;
 }
 
+// ── Search / Version History / Delete (Phase 2 RPCs) ────────────────────────
+
+// SearchArtifactsRequest queries the artifact catalog with optional filters.
+message SearchArtifactsRequest {
+  string query = 1;              // free-text search across name/description/keywords
+  ArtifactKind kind = 2;         // filter by package type (0 = all)
+  string publisher_id = 3;       // filter by publisher
+  string platform = 4;           // filter by platform
+  int32 page_size = 5;           // max results per page (0 = server default)
+  string page_token = 6;         // opaque token for next page
+}
+
+message SearchArtifactsResponse {
+  repeated ArtifactManifest artifacts = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// GetArtifactVersionsRequest returns all versions of a given package.
+message GetArtifactVersionsRequest {
+  string publisher_id = 1;
+  string name = 2;
+  string platform = 3;           // optional: filter by platform
+}
+
+message GetArtifactVersionsResponse {
+  repeated ArtifactManifest versions = 1;
+}
+
+// DeleteArtifactRequest removes a specific artifact version from the repository.
+// This is a repository/catalog operation only — it never uninstalls from nodes.
+// When force is false (default), deletion is rejected if any node still has this
+// artifact installed. Set force=true to delete from the repository even if
+// installed instances exist on nodes.
+message DeleteArtifactRequest {
+  ArtifactRef ref = 1;
+  bool force = 2;
+}
+
+message DeleteArtifactResponse {
+  bool result = 1;
+  string message = 2;  // Human-readable status or rejection reason
+}
+
 // Service for managing package uploads and downloads in a repository.
 service PackageRepository {
   // Downloads a package bundle from the package repository.
@@ -134,4 +228,13 @@ service PackageRepository {
 
   // Lists all bundles published to the repository (from the Resource service index).
   rpc ListBundles(ListBundlesRequest) returns(ListBundlesResponse);
+
+  // Searches artifacts with optional text query and filters.
+  rpc SearchArtifacts(SearchArtifactsRequest) returns(SearchArtifactsResponse);
+
+  // Returns all published versions of a given package.
+  rpc GetArtifactVersions(GetArtifactVersionsRequest) returns(GetArtifactVersionsResponse);
+
+  // Deletes a specific artifact version from the repository.
+  rpc DeleteArtifact(DeleteArtifactRequest) returns(DeleteArtifactResponse);
 }

@@ -20,18 +20,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NodeAgentService_JoinCluster_FullMethodName          = "/node_agent.NodeAgentService/JoinCluster"
-	NodeAgentService_GetInventory_FullMethodName         = "/node_agent.NodeAgentService/GetInventory"
-	NodeAgentService_ApplyPlan_FullMethodName            = "/node_agent.NodeAgentService/ApplyPlan"
-	NodeAgentService_ApplyPlanV1_FullMethodName          = "/node_agent.NodeAgentService/ApplyPlanV1"
-	NodeAgentService_GetPlanStatusV1_FullMethodName      = "/node_agent.NodeAgentService/GetPlanStatusV1"
-	NodeAgentService_WatchPlanStatusV1_FullMethodName    = "/node_agent.NodeAgentService/WatchPlanStatusV1"
-	NodeAgentService_WatchOperation_FullMethodName       = "/node_agent.NodeAgentService/WatchOperation"
-	NodeAgentService_BootstrapFirstNode_FullMethodName   = "/node_agent.NodeAgentService/BootstrapFirstNode"
-	NodeAgentService_RunBackupProvider_FullMethodName    = "/node_agent.NodeAgentService/RunBackupProvider"
-	NodeAgentService_GetBackupTaskResult_FullMethodName  = "/node_agent.NodeAgentService/GetBackupTaskResult"
-	NodeAgentService_RunRestoreProvider_FullMethodName   = "/node_agent.NodeAgentService/RunRestoreProvider"
-	NodeAgentService_GetRestoreTaskResult_FullMethodName = "/node_agent.NodeAgentService/GetRestoreTaskResult"
+	NodeAgentService_JoinCluster_FullMethodName           = "/node_agent.NodeAgentService/JoinCluster"
+	NodeAgentService_GetInventory_FullMethodName          = "/node_agent.NodeAgentService/GetInventory"
+	NodeAgentService_ApplyPlan_FullMethodName             = "/node_agent.NodeAgentService/ApplyPlan"
+	NodeAgentService_ApplyPlanV1_FullMethodName           = "/node_agent.NodeAgentService/ApplyPlanV1"
+	NodeAgentService_GetPlanStatusV1_FullMethodName       = "/node_agent.NodeAgentService/GetPlanStatusV1"
+	NodeAgentService_WatchPlanStatusV1_FullMethodName     = "/node_agent.NodeAgentService/WatchPlanStatusV1"
+	NodeAgentService_WatchOperation_FullMethodName        = "/node_agent.NodeAgentService/WatchOperation"
+	NodeAgentService_BootstrapFirstNode_FullMethodName    = "/node_agent.NodeAgentService/BootstrapFirstNode"
+	NodeAgentService_RunBackupProvider_FullMethodName     = "/node_agent.NodeAgentService/RunBackupProvider"
+	NodeAgentService_GetBackupTaskResult_FullMethodName   = "/node_agent.NodeAgentService/GetBackupTaskResult"
+	NodeAgentService_RunRestoreProvider_FullMethodName    = "/node_agent.NodeAgentService/RunRestoreProvider"
+	NodeAgentService_GetRestoreTaskResult_FullMethodName  = "/node_agent.NodeAgentService/GetRestoreTaskResult"
+	NodeAgentService_ListInstalledPackages_FullMethodName = "/node_agent.NodeAgentService/ListInstalledPackages"
+	NodeAgentService_GetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/GetInstalledPackage"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -52,6 +54,9 @@ type NodeAgentServiceClient interface {
 	// Restore provider execution (called by backup-manager to restore on a node)
 	RunRestoreProvider(ctx context.Context, in *RunRestoreProviderRequest, opts ...grpc.CallOption) (*RunRestoreProviderResponse, error)
 	GetRestoreTaskResult(ctx context.Context, in *GetRestoreTaskResultRequest, opts ...grpc.CallOption) (*GetRestoreTaskResultResponse, error)
+	// Installed-state registry — canonical package inventory on this node.
+	ListInstalledPackages(ctx context.Context, in *ListInstalledPackagesRequest, opts ...grpc.CallOption) (*ListInstalledPackagesResponse, error)
+	GetInstalledPackage(ctx context.Context, in *GetInstalledPackageRequest, opts ...grpc.CallOption) (*GetInstalledPackageResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -200,6 +205,26 @@ func (c *nodeAgentServiceClient) GetRestoreTaskResult(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) ListInstalledPackages(ctx context.Context, in *ListInstalledPackagesRequest, opts ...grpc.CallOption) (*ListInstalledPackagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstalledPackagesResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_ListInstalledPackages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) GetInstalledPackage(ctx context.Context, in *GetInstalledPackageRequest, opts ...grpc.CallOption) (*GetInstalledPackageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInstalledPackageResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetInstalledPackage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -218,6 +243,9 @@ type NodeAgentServiceServer interface {
 	// Restore provider execution (called by backup-manager to restore on a node)
 	RunRestoreProvider(context.Context, *RunRestoreProviderRequest) (*RunRestoreProviderResponse, error)
 	GetRestoreTaskResult(context.Context, *GetRestoreTaskResultRequest) (*GetRestoreTaskResultResponse, error)
+	// Installed-state registry — canonical package inventory on this node.
+	ListInstalledPackages(context.Context, *ListInstalledPackagesRequest) (*ListInstalledPackagesResponse, error)
+	GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -262,6 +290,12 @@ func (UnimplementedNodeAgentServiceServer) RunRestoreProvider(context.Context, *
 }
 func (UnimplementedNodeAgentServiceServer) GetRestoreTaskResult(context.Context, *GetRestoreTaskResultRequest) (*GetRestoreTaskResultResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRestoreTaskResult not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) ListInstalledPackages(context.Context, *ListInstalledPackagesRequest) (*ListInstalledPackagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListInstalledPackages not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetInstalledPackage not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -485,6 +519,42 @@ func _NodeAgentService_GetRestoreTaskResult_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_ListInstalledPackages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstalledPackagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).ListInstalledPackages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_ListInstalledPackages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).ListInstalledPackages(ctx, req.(*ListInstalledPackagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_GetInstalledPackage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstalledPackageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetInstalledPackage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetInstalledPackage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetInstalledPackage(ctx, req.(*GetInstalledPackageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -531,6 +601,14 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRestoreTaskResult",
 			Handler:    _NodeAgentService_GetRestoreTaskResult_Handler,
+		},
+		{
+			MethodName: "ListInstalledPackages",
+			Handler:    _NodeAgentService_ListInstalledPackages_Handler,
+		},
+		{
+			MethodName: "GetInstalledPackage",
+			Handler:    _NodeAgentService_GetInstalledPackage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

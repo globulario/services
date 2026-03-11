@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -181,15 +182,17 @@ func convertServiceDataEntries(src []*backup_hookpb.ServiceDataEntry) []*backup_
 	out := make([]*backup_managerpb.ServiceDataEntry, len(src))
 	for i, e := range src {
 		out[i] = &backup_managerpb.ServiceDataEntry{
-			ServiceName:      e.ServiceName,
-			LogicalName:      e.LogicalName,
-			Path:             e.Path,
-			DataClass:        e.DataClass,
-			Description:      e.Description,
-			BackupByDefault:  e.BackupByDefault,
-			RestoreByDefault: e.RestoreByDefault,
-			PathExists:       e.PathExists,
-			SizeBytes:        e.SizeBytes,
+			ServiceName:       e.ServiceName,
+			DatasetName:       e.DatasetName,
+			Path:              e.Path,
+			DataClass:         e.DataClass,
+			Description:       e.Description,
+			BackupByDefault:   e.BackupByDefault,
+			RestoreByDefault:  e.RestoreByDefault,
+			PathExists:        e.PathExists,
+			SizeBytes:         e.SizeBytes,
+			RebuildSupported:  e.RebuildSupported,
+			Scope:             e.Scope,
 		}
 	}
 	return out
@@ -202,6 +205,82 @@ func collectServiceDataEntries(results []*backup_managerpb.HookResult) []*backup
 		all = append(all, r.ServiceData...)
 	}
 	return all
+}
+
+// allowedServiceDataPrefixes lists the directory prefixes that service data paths
+// are allowed to reside under. Paths outside these directories are rejected to
+// prevent hooks from triggering backup of arbitrary system directories.
+var allowedServiceDataPrefixes = []string{
+	"/var/lib/globular/",
+	"/var/data/globular/",
+}
+
+// validateServiceDataPath checks that a service data path is safe to include in backup.
+// Returns an error if the path is invalid.
+func validateServiceDataPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path is not absolute: %s", path)
+	}
+	// Clean the path to prevent traversal attacks (e.g. /var/lib/globular/../../etc/shadow)
+	cleaned := filepath.Clean(path)
+	allowed := false
+	for _, prefix := range allowedServiceDataPrefixes {
+		if strings.HasPrefix(cleaned, prefix) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return fmt.Errorf("path %s is outside allowed directories %v", cleaned, allowedServiceDataPrefixes)
+	}
+	return nil
+}
+
+// filterServiceDataByPolicy applies the server's service data policy to the collected entries.
+// If EnableServiceData is false, returns nil (no datasets tracked).
+// Classification policy:
+//   - AUTHORITATIVE: always included/restored by default
+//   - REBUILDABLE: optional, controlled by IncludeRebuildableServiceData config
+//   - CACHE: never included, never restored
+// Invalid or duplicate paths are rejected with warnings.
+func (srv *server) filterServiceDataByPolicy(entries []*backup_managerpb.ServiceDataEntry) []*backup_managerpb.ServiceDataEntry {
+	if !srv.EnableServiceData || len(entries) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool) // dedup by cleaned path
+	var filtered []*backup_managerpb.ServiceDataEntry
+	for _, e := range entries {
+		// CACHE datasets are never included in backups
+		if e.DataClass == "CACHE" {
+			slog.Info("service data: skipping CACHE entry", "service", e.ServiceName, "name", e.DatasetName)
+			continue
+		}
+		// REBUILDABLE datasets are optional, controlled by config
+		if e.DataClass == "REBUILDABLE" && !srv.IncludeRebuildableServiceData {
+			slog.Info("service data: skipping REBUILDABLE entry", "service", e.ServiceName, "name", e.DatasetName)
+			continue
+		}
+		if err := validateServiceDataPath(e.Path); err != nil {
+			slog.Warn("service data: rejecting invalid path", "service", e.ServiceName, "name", e.DatasetName, "error", err)
+			continue
+		}
+		cleaned := filepath.Clean(e.Path)
+		if seen[cleaned] {
+			slog.Info("service data: skipping duplicate path", "service", e.ServiceName, "path", cleaned)
+			continue
+		}
+		if !e.PathExists {
+			slog.Warn("service data: path does not exist, skipping", "service", e.ServiceName, "path", cleaned)
+			continue
+		}
+		seen[cleaned] = true
+		filtered = append(filtered, e)
+	}
+	return filtered
 }
 
 // runFinalizeHooks calls FinalizeBackup on all resolved hook targets in parallel.

@@ -95,12 +95,16 @@ type server struct {
 	// Runtime
 	grpcServer *grpc.Server
 
+	// TMDb API key for title enrichment (stored in config, persists across reinstalls)
+	TmdbApiKey string `json:"TmdbApiKey"`
+
 	// Cache for search indices and associations
 	CacheAddress           string
 	CacheReplicationFactor int
 	CacheType              string
 	indexs                 map[string]bleve.Index
 	associations           *sync.Map
+	indexPathsBeforeBackup []string // saved before backup close
 }
 
 // ---------------- Globular contract: documented getters/setters ----------------
@@ -422,6 +426,35 @@ func (srv *server) Init() error {
 
 // Save persists the current configuration.
 func (srv *server) Save() error { return globular.SaveService(srv) }
+
+// loadCustomConfig reads the service config from etcd and extracts
+// service-specific fields that the generic Service interface doesn't cover
+// (e.g. TmdbApiKey, CacheAddress, CacheType).
+// Returns the extracted values so they can be applied after Init().
+func loadCustomConfigFromEtcd(id string) (tmdbKey, cacheAddr, cacheType string, cacheRF int) {
+	cfg, err := config.GetServiceConfigurationById(id)
+	if err != nil || cfg == nil {
+		// Also try by name.
+		cfgs, err2 := config.GetServicesConfigurationsByName("title.TitleService")
+		if err2 != nil || len(cfgs) == 0 {
+			return
+		}
+		cfg = cfgs[0]
+	}
+	if v, ok := cfg["TmdbApiKey"].(string); ok {
+		tmdbKey = v
+	}
+	if v, ok := cfg["CacheAddress"].(string); ok {
+		cacheAddr = v
+	}
+	if v, ok := cfg["CacheType"].(string); ok {
+		cacheType = v
+	}
+	if v, ok := cfg["CacheReplicationFactor"].(float64); ok && v > 0 {
+		cacheRF = int(v)
+	}
+	return
+}
 
 // StartService begins serving gRPC (and proxy if configured).
 func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
@@ -929,6 +962,10 @@ func main() {
 		"cache_type", srv.CacheType,
 	)
 
+	// Pre-read custom fields from etcd BEFORE Init(), because Init() calls
+	// SaveService() which would overwrite them with empty defaults.
+	tmdbKey, customCacheAddr, customCacheType, customCacheRF := loadCustomConfigFromEtcd(srv.Id)
+
 	start := time.Now()
 	logger.Debug("initializing service", "service", srv.Name, "id", srv.Id)
 	if err := srv.Init(); err != nil {
@@ -936,6 +973,25 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Debug("service init completed", "duration_ms", time.Since(start).Milliseconds())
+
+	// Restore custom fields and re-save so they persist in etcd.
+	if tmdbKey != "" {
+		srv.TmdbApiKey = tmdbKey
+		logger.Info("TMDb API key loaded from config")
+	}
+	if customCacheAddr != "" {
+		srv.CacheAddress = customCacheAddr
+	}
+	if customCacheType != "" {
+		srv.CacheType = customCacheType
+	}
+	if customCacheRF > 0 {
+		srv.CacheReplicationFactor = customCacheRF
+	}
+	// Re-save to persist the restored custom fields.
+	if tmdbKey != "" || customCacheAddr != "" || customCacheType != "" || customCacheRF > 0 {
+		_ = srv.Save()
+	}
 
 	// non-blocking TSV pre-download
 	logger.Debug("starting IMDB dataset prewarm (background)")

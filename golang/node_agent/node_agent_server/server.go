@@ -1097,6 +1097,13 @@ func (srv *NodeAgentServer) GetPlanStatusV1(ctx context.Context, req *node_agent
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "fetch plan status: %v", err)
 	}
+	// When an operation_id is requested, verify it matches the current plan.
+	// The operation_id equals plan_id (set in ApplyPlanV1).
+	if reqOpID := strings.TrimSpace(req.GetOperationId()); reqOpID != "" {
+		if statusMsg == nil || statusMsg.GetPlanId() != reqOpID {
+			return nil, status.Errorf(codes.NotFound, "no active plan for operation_id %q", reqOpID)
+		}
+	}
 	return &node_agentpb.GetPlanStatusV1Response{Status: statusMsg}, nil
 }
 

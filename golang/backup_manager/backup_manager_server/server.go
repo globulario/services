@@ -116,6 +116,11 @@ type server struct {
 	HookDiscovery           bool             `json:"HookDiscovery"`           // auto-discover hook targets from etcd
 	HookAllowInsecureFallback bool           `json:"HookAllowInsecureFallback"` // allow plaintext fallback when TLS fails
 
+	// Service data policy
+	EnableServiceData          bool `json:"EnableServiceData"`          // collect service-declared datasets during backup
+	IncludeRebuildableServiceData bool `json:"IncludeRebuildableServiceData"` // include REBUILDABLE datasets in backups (e.g. Bleve indices)
+	RestoreRebuildableServiceData bool `json:"RestoreRebuildableServiceData"` // restore REBUILDABLE datasets during restore (default: skip)
+
 	// Provider config
 	EtcdEndpoints    string `json:"EtcdEndpoints"`
 	EtcdCACert       string `json:"EtcdCACert"`
@@ -339,6 +344,9 @@ func (srv *server) Init() error {
 	// Start the backup scheduler (no-op if ScheduleInterval is empty/disabled).
 	srv.stopScheduler = srv.startScheduler()
 
+	// Persist current settings to backup dir so they survive a cluster wipe.
+	srv.saveSettingsToBackupDir()
+
 	// Recovery mode: if BACKUP_MANAGER_RECOVERY_MODE=true and a valid seed exists,
 	// apply it to inject the recovery destination into runtime config.
 	// This is the explicit entry point for Day 0 / bootstrap recovery.
@@ -539,7 +547,8 @@ func (srv *server) restoreSettingsFromBackupDir() {
 
 	// Only apply if current config looks like a fresh default
 	if srv.MinioAccessKey != "" || srv.ScyllaCluster != "" {
-		slog.Debug("backup settings file exists but current config is already customized, skipping restore")
+		slog.Info("backup settings file exists but current config is already customized, skipping restore",
+			"minio_key_set", srv.MinioAccessKey != "", "scylla_cluster_set", srv.ScyllaCluster != "")
 		return
 	}
 
@@ -581,6 +590,13 @@ func (srv *server) restoreSettingsFromBackupDir() {
 	}
 	if len(ss.ClusterDefaultProviders) > 0 {
 		srv.ClusterDefaultProviders = ss.ClusterDefaultProviders
+	}
+
+	// Persist restored settings to etcd so the UI sees them immediately
+	if err := globular.SaveService(srv); err != nil {
+		slog.Warn("failed to persist restored backup settings to etcd", "error", err)
+	} else {
+		slog.Info("restored backup settings persisted to etcd")
 	}
 }
 

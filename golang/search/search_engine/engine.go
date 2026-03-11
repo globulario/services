@@ -28,4 +28,14 @@ type SearchEngine interface {
 
 	// Count returns the number of documents in an index, or -1 on error.
 	Count(path string) int32
+
+	// GetIndexPaths returns the paths of all currently open indices.
+	GetIndexPaths() []string
+
+	// CloseAll closes all open indices, flushing pending writes to disk.
+	// After CloseAll the engine will not serve queries until ReopenAll is called.
+	CloseAll() error
+
+	// ReopenAll reopens the given index paths after a backup or restore.
+	ReopenAll(paths []string) error
 }

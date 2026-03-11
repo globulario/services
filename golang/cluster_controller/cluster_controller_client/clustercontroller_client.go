@@ -221,3 +221,17 @@ func (client *ClusterControllerClient) WatchOperations(ctx context.Context, req 
 	}
 	return client.c.WatchOperations(ctx, req, opts...)
 }
+
+func (client *ClusterControllerClient) PlanServiceUpgrades(ctx context.Context, req *cluster_controllerpb.PlanServiceUpgradesRequest) (*cluster_controllerpb.PlanServiceUpgradesResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.PlanServiceUpgrades(ctx, req)
+}
+
+func (client *ClusterControllerClient) ApplyServiceUpgrades(ctx context.Context, req *cluster_controllerpb.ApplyServiceUpgradesRequest) (*cluster_controllerpb.ApplyServiceUpgradesResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.ApplyServiceUpgrades(ctx, req)
+}

@@ -25,9 +25,9 @@ type FlushFunc func(ctx context.Context, backupID string) (details map[string]st
 // ResumeFunc is called during FinalizeBackup to resume normal operation.
 type ResumeFunc func(ctx context.Context, backupID string) error
 
-// ServiceDataFunc returns the list of local data paths this service declares for backup.
+// DatasetsFunc returns the list of local datasets this service declares for backup.
 // Called during PrepareBackup after flush completes.
-type ServiceDataFunc func(ctx context.Context, backupID string) ([]*backup_hookpb.ServiceDataEntry, error)
+type DatasetsFunc func(ctx context.Context, backupID string) ([]*backup_hookpb.ServiceDataEntry, error)
 
 // HookHandler implements BackupHookServiceServer with write-gate support.
 type HookHandler struct {
@@ -36,7 +36,7 @@ type HookHandler struct {
 	// Callbacks
 	OnFlush       FlushFunc
 	OnResume      ResumeFunc
-	OnServiceData ServiceDataFunc
+	OnDatasets DatasetsFunc
 
 	// Write-gate state
 	writeGateEnabled bool
@@ -81,8 +81,8 @@ func (h *HookHandler) PrepareBackup(ctx context.Context, rqst *backup_hookpb.Pre
 
 	// Collect service data paths
 	var serviceData []*backup_hookpb.ServiceDataEntry
-	if h.OnServiceData != nil {
-		entries, err := h.OnServiceData(ctx, rqst.BackupId)
+	if h.OnDatasets != nil {
+		entries, err := h.OnDatasets(ctx, rqst.BackupId)
 		if err != nil {
 			slog.Warn("backup hook: service data collection failed", "service", h.ServiceName, "error", err)
 			details["service_data_error"] = err.Error()

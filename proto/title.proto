@@ -138,7 +138,7 @@ message Title {
 	string Duration = 17; // Duration of the title.
 	int32 Season = 18; // Season number, if applicable.
 	int32 Episode = 19; // Episode number, if applicable.
-	string Serie = 20; // Series name, if part of a series.
+	string Serie = 20; // Parent series title ID (e.g. "tt0903747") for TVEpisode; empty for other types.
 	string UUID = 21; // Unique identifier.
 }
 
@@ -529,6 +529,17 @@ message RebuildIndexRequest {
   bool incremental = 2;
 }
 
+// Returns all episodes belonging to a series, sorted by season then episode.
+message GetSeriesEpisodesRequest {
+  string seriesId = 1;   // Parent series title ID (e.g. "tt0903747")
+  string indexPath = 2;  // Bleve index path
+  int32  season = 3;     // Optional: filter to a specific season (0 = all)
+}
+
+message GetSeriesEpisodesResponse {
+  repeated Title episodes = 1;
+}
+
 
 /**
 * Service for managing and accessing title information. It provides
@@ -632,4 +643,7 @@ message RebuildIndexRequest {
 
     // Rebuilds Bleve indices from the persisted KV store.
     rpc RebuildIndexFromStore(RebuildIndexRequest) returns (.google.protobuf.Empty);
+
+    // Returns all episodes for a given series, sorted by season/episode.
+    rpc GetSeriesEpisodes(GetSeriesEpisodesRequest) returns (GetSeriesEpisodesResponse);
 }

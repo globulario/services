@@ -16154,14 +16154,16 @@ proto.backup_manager.ServiceDataEntry.prototype.toObject = function(opt_includeI
 proto.backup_manager.ServiceDataEntry.toObject = function(includeInstance, msg) {
   var f, obj = {
 serviceName: jspb.Message.getFieldWithDefault(msg, 1, ""),
-logicalName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+datasetName: jspb.Message.getFieldWithDefault(msg, 2, ""),
 path: jspb.Message.getFieldWithDefault(msg, 3, ""),
 dataClass: jspb.Message.getFieldWithDefault(msg, 4, ""),
 description: jspb.Message.getFieldWithDefault(msg, 5, ""),
 backupByDefault: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
 restoreByDefault: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
 pathExists: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
-sizeBytes: jspb.Message.getFieldWithDefault(msg, 9, 0)
+sizeBytes: jspb.Message.getFieldWithDefault(msg, 9, 0),
+rebuildSupported: jspb.Message.getBooleanFieldWithDefault(msg, 10, false),
+scope: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -16204,7 +16206,7 @@ proto.backup_manager.ServiceDataEntry.deserializeBinaryFromReader = function(msg
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLogicalName(value);
+      msg.setDatasetName(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -16233,6 +16235,14 @@ proto.backup_manager.ServiceDataEntry.deserializeBinaryFromReader = function(msg
     case 9:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setSizeBytes(value);
+      break;
+    case 10:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRebuildSupported(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setScope(value);
       break;
     default:
       reader.skipField();
@@ -16270,7 +16280,7 @@ proto.backup_manager.ServiceDataEntry.serializeBinaryToWriter = function(message
       f
     );
   }
-  f = message.getLogicalName();
+  f = message.getDatasetName();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -16326,6 +16336,20 @@ proto.backup_manager.ServiceDataEntry.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getRebuildSupported();
+  if (f) {
+    writer.writeBool(
+      10,
+      f
+    );
+  }
+  f = message.getScope();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
+      f
+    );
+  }
 };
 
 
@@ -16348,10 +16372,10 @@ proto.backup_manager.ServiceDataEntry.prototype.setServiceName = function(value)
 
 
 /**
- * optional string logical_name = 2;
+ * optional string dataset_name = 2;
  * @return {string}
  */
-proto.backup_manager.ServiceDataEntry.prototype.getLogicalName = function() {
+proto.backup_manager.ServiceDataEntry.prototype.getDatasetName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -16360,7 +16384,7 @@ proto.backup_manager.ServiceDataEntry.prototype.getLogicalName = function() {
  * @param {string} value
  * @return {!proto.backup_manager.ServiceDataEntry} returns this
  */
-proto.backup_manager.ServiceDataEntry.prototype.setLogicalName = function(value) {
+proto.backup_manager.ServiceDataEntry.prototype.setDatasetName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -16488,6 +16512,42 @@ proto.backup_manager.ServiceDataEntry.prototype.getSizeBytes = function() {
  */
 proto.backup_manager.ServiceDataEntry.prototype.setSizeBytes = function(value) {
   return jspb.Message.setProto3IntField(this, 9, value);
+};
+
+
+/**
+ * optional bool rebuild_supported = 10;
+ * @return {boolean}
+ */
+proto.backup_manager.ServiceDataEntry.prototype.getRebuildSupported = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 10, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.backup_manager.ServiceDataEntry} returns this
+ */
+proto.backup_manager.ServiceDataEntry.prototype.setRebuildSupported = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 10, value);
+};
+
+
+/**
+ * optional string scope = 11;
+ * @return {string}
+ */
+proto.backup_manager.ServiceDataEntry.prototype.getScope = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.backup_manager.ServiceDataEntry} returns this
+ */
+proto.backup_manager.ServiceDataEntry.prototype.setScope = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 

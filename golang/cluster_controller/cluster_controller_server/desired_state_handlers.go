@@ -463,6 +463,7 @@ func buildPackageIndex(rc *repository_client.Repository_Service_Client) (
 		}
 	}
 
+	// TODO(migration): Remove legacy bundle fallback once all packages use artifacts.
 	if bundles, err := rc.ListBundles(); err == nil {
 		for _, b := range bundles {
 			nameSet[b.GetName()] = true

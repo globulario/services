@@ -325,6 +325,14 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 		}
 	}
 
+	// Post-restore: verify TLS symlinks in config/tls/ still exist.
+	// Restic excludes config/tls but restoring config/ may recreate the
+	// parent directory, leaving stale or missing symlinks. Re-create them
+	// from the PKI issued certs if needed.
+	if repaired := repairTLSSymlinks(); repaired != "" {
+		outputs["tls_repair"] = repaired
+	}
+
 	return &node_agentpb.BackupProviderResult{
 		Provider:     "restic",
 		Ok:           true,
@@ -332,6 +340,56 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 		BytesWritten: restoredBytes,
 		Outputs:      outputs,
 	}
+}
+
+// repairTLSSymlinks ensures /var/lib/globular/config/tls/ has the expected
+// symlinks (server.crt→fullchain.pem, server.key→privkey.pem, ca.crt→ca.pem).
+// Returns a human-readable summary of what was repaired, or "" if nothing needed.
+func repairTLSSymlinks() string {
+	tlsDir := "/var/lib/globular/config/tls"
+	pkiCA := "/var/lib/globular/pki/ca.pem"
+
+	// Ensure tls dir exists.
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return fmt.Sprintf("mkdir %s failed: %v", tlsDir, err)
+	}
+
+	// Map of expected symlinks: name → possible targets (first existing wins).
+	links := map[string][]string{
+		"server.crt": {filepath.Join(tlsDir, "fullchain.pem")},
+		"server.key": {filepath.Join(tlsDir, "privkey.pem")},
+		"ca.crt":     {filepath.Join(tlsDir, "ca.pem"), pkiCA},
+	}
+
+	var repaired []string
+	for name, targets := range links {
+		linkPath := filepath.Join(tlsDir, name)
+		// If symlink already exists and its target is valid, skip.
+		if dest, err := os.Readlink(linkPath); err == nil {
+			if _, err2 := os.Stat(dest); err2 == nil {
+				continue // valid symlink
+			}
+			// Broken symlink — remove and recreate.
+			os.Remove(linkPath)
+		} else if _, err := os.Stat(linkPath); err == nil {
+			continue // regular file exists, don't touch it
+		}
+
+		// Find first existing target.
+		for _, tgt := range targets {
+			if _, err := os.Stat(tgt); err == nil {
+				if err := os.Symlink(tgt, linkPath); err == nil {
+					repaired = append(repaired, fmt.Sprintf("%s→%s", name, tgt))
+				}
+				break
+			}
+		}
+	}
+
+	if len(repaired) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("repaired %d symlink(s): %s", len(repaired), strings.Join(repaired, ", "))
 }
 
 // --- scylla restore ---
@@ -413,6 +471,7 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 	// Poll sctool task progress to get transferred bytes (same as backup side).
 	// sctool restore returns a task ID like "restore/xxxxxxxx-..."
 	var restoredBytes uint64
+	var finalStatus string
 	taskID := extractScyllaTaskID(tablesOutStr)
 	if taskID != "" {
 		outputs["task_id"] = taskID
@@ -433,13 +492,31 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 			pStr := string(pOut)
 			outputs["progress"] = strings.TrimSpace(pStr)
 			statusLine := extractScyllaStatusLine(pStr)
-			if strings.Contains(statusLine, "DONE") || strings.Contains(statusLine, "ERROR") || strings.Contains(statusLine, "ABORTED") {
+			if strings.Contains(statusLine, "DONE") {
+				finalStatus = "DONE"
 				restoredBytes = parseScyllaRestoreBytes(pStr)
+				break
+			}
+			if strings.Contains(statusLine, "ERROR") || strings.Contains(statusLine, "ABORTED") {
+				finalStatus = "ERROR"
+				// Extract the Cause line for a clear error message.
+				if cause := extractScyllaCauseLine(pStr); cause != "" {
+					outputs["error_cause"] = cause
+				}
 				break
 			}
 		}
 	}
 pollDone:
+
+	// If sctool task ended in ERROR/ABORTED, report failure.
+	if finalStatus == "ERROR" {
+		cause := outputs["error_cause"]
+		if cause == "" {
+			cause = "sctool restore task failed (check sctool task progress)"
+		}
+		return restoreFail("scylla", fmt.Sprintf("table restore failed: %s", cause), outputs)
+	}
 
 	summary := "scylladb tables restored via sctool"
 	if outputs["schema_restored"] == "true" {
@@ -492,6 +569,8 @@ var scyllaWorkloadUnits = []string{
 	"globular-media.service",
 	"globular-log.service",
 	"globular-file.service",
+	"globular-title.service",
+	"globular-search.service",
 }
 
 // stopScyllaWorkloadServices stops workload services that use ScyllaDB.
@@ -853,6 +932,18 @@ func extractScyllaStatusLine(output string) string {
 	for _, line := range strings.Split(output, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "Status:") {
 			return line
+		}
+	}
+	return ""
+}
+
+// extractScyllaCauseLine finds the "Cause:" line from sctool progress output.
+// Example: "Cause:\t\tvalidate free disk space: not enough disk space"
+func extractScyllaCauseLine(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Cause:") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "Cause:"))
 		}
 	}
 	return ""

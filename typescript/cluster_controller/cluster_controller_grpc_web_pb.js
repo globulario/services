@@ -1961,5 +1961,127 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.preview
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.PlanServiceUpgradesRequest,
+ *   !proto.cluster_controller.PlanServiceUpgradesResponse>}
+ */
+const methodDescriptor_ClusterControllerService_PlanServiceUpgrades = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/PlanServiceUpgrades',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.PlanServiceUpgradesRequest,
+  proto.cluster_controller.PlanServiceUpgradesResponse,
+  /**
+   * @param {!proto.cluster_controller.PlanServiceUpgradesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.PlanServiceUpgradesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.PlanServiceUpgradesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.PlanServiceUpgradesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.PlanServiceUpgradesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.planServiceUpgrades =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/PlanServiceUpgrades',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PlanServiceUpgrades,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.PlanServiceUpgradesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.PlanServiceUpgradesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.planServiceUpgrades =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/PlanServiceUpgrades',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PlanServiceUpgrades);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ApplyServiceUpgradesRequest,
+ *   !proto.cluster_controller.ApplyServiceUpgradesResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ApplyServiceUpgrades = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ApplyServiceUpgrades',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ApplyServiceUpgradesRequest,
+  proto.cluster_controller.ApplyServiceUpgradesResponse,
+  /**
+   * @param {!proto.cluster_controller.ApplyServiceUpgradesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ApplyServiceUpgradesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ApplyServiceUpgradesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ApplyServiceUpgradesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ApplyServiceUpgradesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.applyServiceUpgrades =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApplyServiceUpgrades',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyServiceUpgrades,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ApplyServiceUpgradesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ApplyServiceUpgradesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.applyServiceUpgrades =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApplyServiceUpgrades',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyServiceUpgrades);
+};
+
+
 module.exports = proto.cluster_controller;
 

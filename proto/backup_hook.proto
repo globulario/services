@@ -30,17 +30,19 @@ message PrepareBackupResponse {
   repeated ServiceDataEntry service_data = 4;  // local data paths to include in backup
 }
 
-// ServiceDataEntry declares a local data path a service needs backed up or tracked.
+// ServiceDataEntry declares a local dataset a service needs backed up or tracked.
 message ServiceDataEntry {
   string service_name = 1;         // e.g. "title.TitleService"
-  string logical_name = 2;        // short identifier, e.g. "file_associations"
+  string dataset_name = 2;        // short identifier, e.g. "file_associations"
   string path = 3;                 // absolute filesystem path
-  string data_class = 4;           // "AUTHORITATIVE" or "DERIVED"
+  string data_class = 4;           // "AUTHORITATIVE", "REBUILDABLE", or "CACHE"
   string description = 5;          // human-readable, e.g. "file-title associations (Badger)"
   bool   backup_by_default = 6;   // include in backup unless explicitly excluded
   bool   restore_by_default = 7;  // include in restore unless explicitly excluded
   bool   path_exists = 8;         // true if path existed at declaration time
   uint64 size_bytes = 9;          // approximate size (0 if unknown)
+  bool   rebuild_supported = 10;  // true if automatic rebuild path is implemented
+  string scope = 11;              // "node" (node-local) or "cluster" (cluster-scoped)
 }
 
 message FinalizeBackupRequest {

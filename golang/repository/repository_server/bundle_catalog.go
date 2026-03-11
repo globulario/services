@@ -2,8 +2,9 @@ package main
 
 // bundle_catalog.go — ListBundles handler for the Repository PackageRepository service.
 //
-// Retrieves the bundle inventory from the Resource service (local_resource.Bundles)
-// and returns lightweight BundleSummary records for the admin UI catalog.
+// Deprecated: This handler serves legacy bundle summaries via the Resource service.
+// The modern artifact catalog (ListArtifacts, SearchArtifacts) supersedes this.
+// Retained for backward compatibility with older CLI versions and admin UI fallback.
 
 import (
 	"context"
@@ -15,10 +16,9 @@ import (
 )
 
 // ListBundles returns a summary of all bundles stored in the repository.
-// It queries the Resource service for the bundle index and maps each record
-// to a BundleSummary. If the Resource service is unreachable or the index is
-// empty, an empty list is returned without error so the UI can show an
-// appropriate empty-state message.
+//
+// Deprecated: Use ListArtifacts or SearchArtifacts instead. This method queries
+// the legacy Resource service bundle index and will be removed in a future version.
 func (srv *server) ListBundles(ctx context.Context, req *repopb.ListBundlesRequest) (*repopb.ListBundlesResponse, error) {
 	resourceClient, err := srv.getResourceClient()
 	if err != nil {

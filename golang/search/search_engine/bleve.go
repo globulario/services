@@ -88,6 +88,17 @@ func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
 // GetVersion returns the underlying query engine version label.
 func (engine *BleveSearchEngine) GetVersion() string { return "2.x" }
 
+// GetIndexPaths returns the paths of all currently open indices.
+func (engine *BleveSearchEngine) GetIndexPaths() []string {
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
+	paths := make([]string, 0, len(engine.indexs))
+	for p := range engine.indexs {
+		paths = append(paths, p)
+	}
+	return paths
+}
+
 // SearchDocuments executes a query against one or more index paths.
 // Public prototype preserved.
 func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) { //nolint
@@ -240,6 +251,45 @@ func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, la
 	default:
 		return errors.New("JSON must be an object or array of objects")
 	}
+}
+
+// CloseAll closes every open index, flushing writes to disk, and clears the map.
+// Returns the first error encountered but attempts to close all indexes.
+func (engine *BleveSearchEngine) CloseAll() error {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	var firstErr error
+	for path, idx := range engine.indexs {
+		if idx == nil {
+			continue
+		}
+		if err := idx.Close(); err != nil {
+			logger.Error("close index failed", "path", path, "err", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			logger.Info("closed index for backup", "path", path)
+		}
+	}
+	engine.indexs = make(map[string]bleve.Index)
+	return firstErr
+}
+
+// ReopenAll reopens the given index paths after a backup or restore.
+func (engine *BleveSearchEngine) ReopenAll(paths []string) error {
+	var firstErr error
+	for _, p := range paths {
+		if _, err := engine.getIndex(p); err != nil {
+			logger.Error("reopen index failed", "path", p, "err", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			logger.Info("reopened index after backup", "path", p)
+		}
+	}
+	return firstErr
 }
 
 // Count returns the number of documents in an index.

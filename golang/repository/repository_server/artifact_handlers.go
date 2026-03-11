@@ -15,9 +15,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
@@ -190,6 +192,252 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		"size", len(data),
 	)
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
+}
+
+// SearchArtifacts queries the artifact catalog with optional text/filter criteria.
+// It scans all manifests and applies in-memory filtering. For the expected catalog
+// sizes (hundreds, not millions) this is efficient and avoids a secondary index.
+func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifactsRequest) (*repopb.SearchArtifactsResponse, error) {
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		return &repopb.SearchArtifactsResponse{}, nil
+	}
+
+	query := strings.ToLower(strings.TrimSpace(req.GetQuery()))
+	filterKind := req.GetKind()
+	filterPub := strings.TrimSpace(req.GetPublisherId())
+	filterPlat := strings.TrimSpace(req.GetPlatform())
+
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+
+	var all []*repopb.ArtifactManifest
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(name, ".manifest.json")
+		m, err := srv.readManifestByKey(ctx, key)
+		if err != nil {
+			continue
+		}
+
+		// Filter by kind.
+		if filterKind != repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED && m.GetRef().GetKind() != filterKind {
+			continue
+		}
+		// Filter by publisher.
+		if filterPub != "" && !strings.EqualFold(m.GetRef().GetPublisherId(), filterPub) {
+			continue
+		}
+		// Filter by platform.
+		if filterPlat != "" && !strings.EqualFold(m.GetRef().GetPlatform(), filterPlat) {
+			continue
+		}
+		// Free-text search across name, description, keywords.
+		if query != "" && !matchesQuery(m, query) {
+			continue
+		}
+		all = append(all, m)
+	}
+
+	// Sort by published_unix desc (newest first), then name asc.
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].GetPublishedUnix() != all[j].GetPublishedUnix() {
+			return all[i].GetPublishedUnix() > all[j].GetPublishedUnix()
+		}
+		return all[i].GetRef().GetName() < all[j].GetRef().GetName()
+	})
+
+	totalCount := int32(len(all))
+
+	// Pagination via page_token (token = index offset as string).
+	startIdx := 0
+	if tok := req.GetPageToken(); tok != "" {
+		if idx, err := parseInt32(tok); err == nil && int(idx) < len(all) {
+			startIdx = int(idx)
+		}
+	}
+
+	end := startIdx + pageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	page := all[startIdx:end]
+
+	var nextToken string
+	if end < len(all) {
+		nextToken = fmt.Sprintf("%d", end)
+	}
+
+	return &repopb.SearchArtifactsResponse{
+		Artifacts:     page,
+		NextPageToken: nextToken,
+		TotalCount:    totalCount,
+	}, nil
+}
+
+// GetArtifactVersions returns all versions of a given package (publisher + name),
+// optionally filtered by platform.
+func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtifactVersionsRequest) (*repopb.GetArtifactVersionsResponse, error) {
+	pub := strings.TrimSpace(req.GetPublisherId())
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	filterPlat := strings.TrimSpace(req.GetPlatform())
+
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		return &repopb.GetArtifactVersionsResponse{}, nil
+	}
+
+	var versions []*repopb.ArtifactManifest
+	for _, e := range entries {
+		fname := e.Name()
+		if !strings.HasSuffix(fname, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(fname, ".manifest.json")
+		m, err := srv.readManifestByKey(ctx, key)
+		if err != nil {
+			continue
+		}
+		ref := m.GetRef()
+		if !strings.EqualFold(ref.GetName(), name) {
+			continue
+		}
+		if pub != "" && !strings.EqualFold(ref.GetPublisherId(), pub) {
+			continue
+		}
+		if filterPlat != "" && !strings.EqualFold(ref.GetPlatform(), filterPlat) {
+			continue
+		}
+		versions = append(versions, m)
+	}
+
+	// Sort by version descending (newest first).
+	sort.Slice(versions, func(i, j int) bool {
+		cmp, err := versionutil.Compare(versions[i].GetRef().GetVersion(), versions[j].GetRef().GetVersion())
+		if err != nil {
+			return versions[i].GetRef().GetVersion() > versions[j].GetRef().GetVersion()
+		}
+		return cmp > 0
+	})
+
+	return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
+}
+
+// DeleteArtifact removes a specific artifact version (manifest + binary) from the repository.
+// This is a repository/catalog operation only — it never uninstalls from nodes.
+// When force is false (default), deletion is rejected if any node still has
+// this artifact installed. Set force=true to remove repository availability
+// while leaving installed instances in place.
+func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifactRequest) (*repopb.DeleteArtifactResponse, error) {
+	ref := req.GetRef()
+	if ref == nil {
+		return nil, status.Error(codes.InvalidArgument, "ref is required")
+	}
+	if strings.TrimSpace(ref.GetName()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "ref.name is required")
+	}
+	if strings.TrimSpace(ref.GetVersion()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "ref.version is required")
+	}
+
+	// Normalize version.
+	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
+		ref.Version = cv
+	}
+
+	key := artifactKey(ref)
+	mKey := manifestStorageKey(key)
+	bKey := binaryStorageKey(key)
+
+	// Check manifest exists.
+	if _, err := srv.Storage().ReadFile(ctx, mKey); err != nil {
+		return nil, status.Errorf(codes.NotFound, "artifact %q not found", key)
+	}
+
+	// Safety check: verify the artifact is not currently installed on any node.
+	// This prevents accidental removal of packages still in use.
+	installedNodes := findInstalledReferences(ctx, ref)
+	if len(installedNodes) > 0 && !req.GetForce() {
+		nodeList := strings.Join(installedNodes, ", ")
+		return &repopb.DeleteArtifactResponse{
+			Result:  false,
+			Message: fmt.Sprintf("artifact %s@%s is still installed on node(s): %s — use force=true to delete from repository only (does not uninstall from nodes)", ref.GetName(), ref.GetVersion(), nodeList),
+		}, nil
+	}
+
+	// Remove manifest and binary (best-effort for binary — it might not exist).
+	if err := srv.Storage().Remove(ctx, mKey); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete manifest %q: %v", key, err)
+	}
+	_ = srv.Storage().Remove(ctx, bKey)
+
+	msg := fmt.Sprintf("artifact %s@%s deleted from repository", ref.GetName(), ref.GetVersion())
+	if len(installedNodes) > 0 {
+		msg += fmt.Sprintf(" (warning: still installed on %d node(s) — this does NOT uninstall from nodes)", len(installedNodes))
+	}
+
+	slog.Info("artifact deleted", "key", key, "force", req.GetForce(), "installed_nodes", len(installedNodes))
+	return &repopb.DeleteArtifactResponse{Result: true, Message: msg}, nil
+}
+
+// findInstalledReferences queries the installed-state registry (etcd) for any
+// node that has the given artifact installed. Returns a list of node IDs.
+// Best-effort: returns nil on etcd errors to avoid blocking deletion.
+func findInstalledReferences(ctx context.Context, ref *repopb.ArtifactRef) []string {
+	kind := ref.GetKind().String()
+	if kind == "" || kind == "ARTIFACT_KIND_UNSPECIFIED" {
+		kind = "SERVICE"
+	}
+
+	pkgs, err := installed_state.ListAllNodes(ctx, kind)
+	if err != nil {
+		slog.Warn("DeleteArtifact: installed-state query failed (proceeding)", "err", err)
+		return nil
+	}
+
+	var nodes []string
+	for _, pkg := range pkgs {
+		if strings.EqualFold(pkg.GetName(), ref.GetName()) && pkg.GetVersion() == ref.GetVersion() {
+			nodes = append(nodes, pkg.GetNodeId())
+		}
+	}
+	return nodes
+}
+
+// ── search helpers ───────────────────────────────────────────────────────────
+
+// matchesQuery returns true if the manifest matches a free-text query.
+func matchesQuery(m *repopb.ArtifactManifest, query string) bool {
+	if strings.Contains(strings.ToLower(m.GetRef().GetName()), query) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(m.GetDescription()), query) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(m.GetAlias()), query) {
+		return true
+	}
+	for _, kw := range m.GetKeywords() {
+		if strings.Contains(strings.ToLower(kw), query) {
+			return true
+		}
+	}
+	return false
+}
+
+// parseInt32 parses a string as an int32.
+func parseInt32(s string) (int32, error) {
+	var v int32
+	_, err := fmt.Sscanf(s, "%d", &v)
+	return v, err
 }
 
 // DownloadArtifact streams the binary for a stored artifact.

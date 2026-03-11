@@ -163,9 +163,10 @@ func (client *Repository_Service_Client) SetCaFile(caFile string)     { client.c
 
 ////////////////// Api //////////////////////
 
-/**
- * Download bundle from a repository and return it as an object in memory.
- */
+// DownloadBundle fetches a legacy PackageBundle from the repository.
+//
+// Deprecated: Use DownloadArtifact instead. Legacy bundle support will be
+// removed once all callers migrate to the artifact path.
 func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
@@ -208,9 +209,11 @@ func getResourceClient(address string) (*resource_client.Resource_Client, error)
 	return client.(*resource_client.Resource_Client), nil
 }
 
-/**
- * Upload a service bundle.
- */
+// UploadBundle uploads a legacy service bundle to the repository.
+// The server performs a dual-write, storing both the legacy bundle and a
+// modern artifact copy. New code should use UploadArtifact directly.
+//
+// Deprecated: Use UploadArtifact instead.
 func (client *Repository_Service_Client) UploadBundle(token, discoveryId, serviceId, PublisherID, version, platform, packagePath string) (int, error) {
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = platform
@@ -237,9 +240,9 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 	return client.uploadBundle(token, bundle, len(data))
 }
 
-/**
- * Upload a bundle into the service repository.
- */
+// uploadBundle streams a legacy PackageBundle to the repository.
+//
+// Deprecated: internal helper for UploadBundle; will be removed with it.
 func (client *Repository_Service_Client) uploadBundle(token string, bundle *resourcepb.PackageBundle, total int) (int, error) {
 	ctx := client.GetCtx()
 	if len(token) > 0 {
@@ -305,6 +308,9 @@ func (client *Repository_Service_Client) ListArtifacts() ([]*repositorypb.Artifa
 }
 
 // ListBundles returns all bundle summaries stored in the repository.
+//
+// Deprecated: Use ListArtifacts instead. Bundle summaries are a subset of
+// the artifact catalog and will be removed in a future version.
 func (client *Repository_Service_Client) ListBundles() ([]*repositorypb.BundleSummary, error) {
 	resp, err := client.c.ListBundles(client.GetCtx(), &repositorypb.ListBundlesRequest{})
 	if err != nil {
@@ -347,6 +353,42 @@ func (client *Repository_Service_Client) DownloadArtifact(ref *repositorypb.Arti
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+// SearchArtifacts queries the artifact catalog with optional text and filter criteria.
+func (client *Repository_Service_Client) SearchArtifacts(req *repositorypb.SearchArtifactsRequest) (*repositorypb.SearchArtifactsResponse, error) {
+	if req == nil {
+		req = &repositorypb.SearchArtifactsRequest{}
+	}
+	return client.c.SearchArtifacts(client.GetCtx(), req)
+}
+
+// GetArtifactVersions returns all published versions of a given package.
+func (client *Repository_Service_Client) GetArtifactVersions(publisherID, name, platform string) ([]*repositorypb.ArtifactManifest, error) {
+	resp, err := client.c.GetArtifactVersions(client.GetCtx(), &repositorypb.GetArtifactVersionsRequest{
+		PublisherId: publisherID,
+		Name:        name,
+		Platform:    platform,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetVersions(), nil
+}
+
+// DeleteArtifact removes a specific artifact version from the repository.
+func (client *Repository_Service_Client) DeleteArtifact(ref *repositorypb.ArtifactRef) error {
+	if ref == nil {
+		return errors.New("artifact ref required")
+	}
+	resp, err := client.c.DeleteArtifact(client.GetCtx(), &repositorypb.DeleteArtifactRequest{Ref: ref})
+	if err != nil {
+		return err
+	}
+	if !resp.GetResult() {
+		return fmt.Errorf("delete artifact failed")
+	}
+	return nil
 }
 
 func (client *Repository_Service_Client) UploadArtifact(ref *repositorypb.ArtifactRef, data []byte) error {

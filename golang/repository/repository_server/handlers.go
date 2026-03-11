@@ -1,8 +1,11 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -238,7 +241,20 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 				Checksum:     bundle.Checksum,
 				SizeBytes:    int64(bundle.Size),
 				ModifiedUnix: bundle.Modified,
+				PublishedUnix: time.Now().Unix(),
 			}
+
+			// Enrich manifest from embedded manifest.json in the .tgz archive.
+			enrichManifestFromArchive(manifest, bundle.Binairies)
+
+			// Also populate from PackageDescriptor fields if manifest.json was absent.
+			if manifest.Description == "" {
+				manifest.Description = d.Description
+			}
+			if len(manifest.Keywords) == 0 {
+				manifest.Keywords = d.Keywords
+			}
+
 			if mjson, merr := protojson.Marshal(manifest); merr == nil {
 				_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
 			}
@@ -260,4 +276,78 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		"key", storageKey,
 	)
 	return nil
+}
+
+// enrichManifestFromArchive attempts to extract a manifest.json from a .tgz
+// archive and populate the ArtifactManifest's enriched fields (description,
+// keywords, icon, alias, license, etc.). If the archive doesn't contain a
+// manifest.json or parsing fails, the manifest is left unchanged.
+func enrichManifestFromArchive(m *repopb.ArtifactManifest, tgzData []byte) {
+	gr, err := gzip.NewReader(bytes.NewReader(tgzData))
+	if err != nil {
+		return
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return
+		}
+		// Look for manifest.json at any nesting level.
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		name := hdr.Name
+		// Match "manifest.json" or "*/manifest.json"
+		if name != "manifest.json" && !isManifestJSON(name) {
+			continue
+		}
+
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return
+		}
+
+		// Parse as a loose JSON map — we only extract known fields.
+		var raw map[string]interface{}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return
+		}
+
+		if v, ok := raw["description"].(string); ok && v != "" {
+			m.Description = v
+		}
+		if v, ok := raw["alias"].(string); ok && v != "" {
+			m.Alias = v
+		}
+		if v, ok := raw["icon"].(string); ok && v != "" {
+			m.Icon = v
+		}
+		if v, ok := raw["license"].(string); ok && v != "" {
+			m.License = v
+		}
+		if v, ok := raw["min_globular_version"].(string); ok && v != "" {
+			m.MinGlobularVersion = v
+		}
+		if kws, ok := raw["keywords"].([]interface{}); ok && len(kws) > 0 {
+			var keywords []string
+			for _, kw := range kws {
+				if s, ok := kw.(string); ok {
+					keywords = append(keywords, s)
+				}
+			}
+			if len(keywords) > 0 {
+				m.Keywords = keywords
+			}
+		}
+		return // done after first manifest.json
+	}
+}
+
+// isManifestJSON returns true if the tar entry name ends with "/manifest.json".
+func isManifestJSON(name string) bool {
+	i := len(name) - len("/manifest.json")
+	return i > 0 && name[i:] == "/manifest.json"
 }

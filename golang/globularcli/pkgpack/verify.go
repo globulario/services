@@ -16,6 +16,7 @@ type VerificationSummary struct {
 	Version      string
 	Platform     string
 	Publisher    string
+	Type         string // "service" (default), "application", "infrastructure"
 	Entrypoint   string
 	ConfigCount  int
 	SystemdCount int
@@ -87,12 +88,36 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 	if !required["package.json"] {
 		return nil, fmt.Errorf("package.json missing from archive")
 	}
-	if len(binFiles) == 0 {
-		return nil, fmt.Errorf("no bin entries found")
+
+	pkgType := strings.ToLower(strings.TrimSpace(manifest.Type))
+	if pkgType == "" {
+		pkgType = "service"
 	}
-	if len(specFiles) != 1 {
-		return nil, fmt.Errorf("expected exactly one spec file, found %d", len(specFiles))
+
+	// Validation rules depend on package type.
+	switch pkgType {
+	case "application":
+		// Applications contain web content — bin/ and specs/ are not required.
+		// At least one content file must be present (besides package.json).
+		if len(files) <= 1 {
+			return nil, fmt.Errorf("application archive contains no content files")
+		}
+	case "infrastructure":
+		// Infrastructure packages require bin/ but specs/ is optional
+		// (they use systemd/ and config/ instead).
+		if len(binFiles) == 0 {
+			return nil, fmt.Errorf("no bin entries found")
+		}
+	default:
+		// Service packages require bin/ and exactly one spec.
+		if len(binFiles) == 0 {
+			return nil, fmt.Errorf("no bin entries found")
+		}
+		if len(specFiles) != 1 {
+			return nil, fmt.Errorf("expected exactly one spec file, found %d", len(specFiles))
+		}
 	}
+
 	if manifest.Entrypoint != "" {
 		if _, ok := files[path.Clean(manifest.Entrypoint)]; !ok {
 			return nil, fmt.Errorf("entrypoint %s missing in archive", manifest.Entrypoint)
@@ -112,6 +137,7 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		Version:      manifest.Version,
 		Platform:     manifest.Platform,
 		Publisher:    manifest.Publisher,
+		Type:         pkgType,
 		Entrypoint:   manifest.Entrypoint,
 		ConfigCount:  configCount,
 		SystemdCount: systemdCount,

@@ -53,6 +53,8 @@ const (
 	ClusterControllerService_SeedDesiredState_FullMethodName       = "/cluster_controller.ClusterControllerService/SeedDesiredState"
 	ClusterControllerService_ValidateArtifact_FullMethodName       = "/cluster_controller.ClusterControllerService/ValidateArtifact"
 	ClusterControllerService_PreviewDesiredServices_FullMethodName = "/cluster_controller.ClusterControllerService/PreviewDesiredServices"
+	ClusterControllerService_PlanServiceUpgrades_FullMethodName    = "/cluster_controller.ClusterControllerService/PlanServiceUpgrades"
+	ClusterControllerService_ApplyServiceUpgrades_FullMethodName   = "/cluster_controller.ClusterControllerService/ApplyServiceUpgrades"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -94,6 +96,9 @@ type ClusterControllerServiceClient interface {
 	// ── Artifact validation + dry-run ──
 	ValidateArtifact(ctx context.Context, in *ValidateArtifactRequest, opts ...grpc.CallOption) (*ValidationReport, error)
 	PreviewDesiredServices(ctx context.Context, in *DesiredServicesDelta, opts ...grpc.CallOption) (*PlanPreview, error)
+	// ── Upgrade planning (canonical authority for plan generation) ──
+	PlanServiceUpgrades(ctx context.Context, in *PlanServiceUpgradesRequest, opts ...grpc.CallOption) (*PlanServiceUpgradesResponse, error)
+	ApplyServiceUpgrades(ctx context.Context, in *ApplyServiceUpgradesRequest, opts ...grpc.CallOption) (*ApplyServiceUpgradesResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -432,6 +437,26 @@ func (c *clusterControllerServiceClient) PreviewDesiredServices(ctx context.Cont
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) PlanServiceUpgrades(ctx context.Context, in *PlanServiceUpgradesRequest, opts ...grpc.CallOption) (*PlanServiceUpgradesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlanServiceUpgradesResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_PlanServiceUpgrades_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ApplyServiceUpgrades(ctx context.Context, in *ApplyServiceUpgradesRequest, opts ...grpc.CallOption) (*ApplyServiceUpgradesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyServiceUpgradesResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApplyServiceUpgrades_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -471,6 +496,9 @@ type ClusterControllerServiceServer interface {
 	// ── Artifact validation + dry-run ──
 	ValidateArtifact(context.Context, *ValidateArtifactRequest) (*ValidationReport, error)
 	PreviewDesiredServices(context.Context, *DesiredServicesDelta) (*PlanPreview, error)
+	// ── Upgrade planning (canonical authority for plan generation) ──
+	PlanServiceUpgrades(context.Context, *PlanServiceUpgradesRequest) (*PlanServiceUpgradesResponse, error)
+	ApplyServiceUpgrades(context.Context, *ApplyServiceUpgradesRequest) (*ApplyServiceUpgradesResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -572,6 +600,12 @@ func (UnimplementedClusterControllerServiceServer) ValidateArtifact(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) PreviewDesiredServices(context.Context, *DesiredServicesDelta) (*PlanPreview, error) {
 	return nil, status.Error(codes.Unimplemented, "method PreviewDesiredServices not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) PlanServiceUpgrades(context.Context, *PlanServiceUpgradesRequest) (*PlanServiceUpgradesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PlanServiceUpgrades not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ApplyServiceUpgrades(context.Context, *ApplyServiceUpgradesRequest) (*ApplyServiceUpgradesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyServiceUpgrades not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -1137,6 +1171,42 @@ func _ClusterControllerService_PreviewDesiredServices_Handler(srv interface{}, c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_PlanServiceUpgrades_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlanServiceUpgradesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).PlanServiceUpgrades(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_PlanServiceUpgrades_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).PlanServiceUpgrades(ctx, req.(*PlanServiceUpgradesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ApplyServiceUpgrades_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyServiceUpgradesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ApplyServiceUpgrades(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ApplyServiceUpgrades_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ApplyServiceUpgrades(ctx, req.(*ApplyServiceUpgradesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1259,6 +1329,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PreviewDesiredServices",
 			Handler:    _ClusterControllerService_PreviewDesiredServices_Handler,
+		},
+		{
+			MethodName: "PlanServiceUpgrades",
+			Handler:    _ClusterControllerService_PlanServiceUpgrades_Handler,
+		},
+		{
+			MethodName: "ApplyServiceUpgrades",
+			Handler:    _ClusterControllerService_ApplyServiceUpgrades_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

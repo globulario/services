@@ -58,8 +58,9 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	}
 
 	data, err := store.GetItem(titleId)
-	if err != nil {
-		return nil, fmt.Errorf("read associations for title %s: %w", titleId, err)
+	if err != nil || len(data) == 0 {
+		// No associations found — this is normal for auto-created series titles.
+		return nil, nil
 	}
 
 	assoc := &fileTileAssociation{ID: titleId}

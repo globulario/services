@@ -534,6 +534,31 @@ func (srv *server) RestorePlan(ctx context.Context, rqst *backup_managerpb.Resto
 		}
 	}
 
+	// Service data restore step
+	if rqst.IncludeServiceData && len(art.ServiceDataEntries) > 0 {
+		entries := srv.serviceDataForRestore(art.ServiceDataEntries, rqst.ServiceDataServices)
+		if len(entries) > 0 {
+			desc := fmt.Sprintf("Restore %d service-declared local data path(s) from restic snapshot.", len(entries))
+			steps = append(steps, &backup_managerpb.RestoreStep{
+				Order:   order,
+				Title:   "Restore service local data",
+				Details: desc,
+			})
+			order++
+
+			// Warn if rebuildable data is included
+			for _, e := range entries {
+				if e.DataClass == "REBUILDABLE" {
+					warnings = append(warnings, &backup_managerpb.ValidationIssue{
+						Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_INFO,
+						Code:     "REBUILDABLE_DATA_INCLUDED",
+						Message:  fmt.Sprintf("REBUILDABLE dataset '%s' from %s will be restored (could be rebuilt instead)", e.DatasetName, e.ServiceName),
+					})
+				}
+			}
+		}
+	}
+
 	if len(steps) == 0 {
 		steps = append(steps, &backup_managerpb.RestoreStep{
 			Order:   1,
@@ -915,7 +940,7 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 			SkippedProviders: resolved.Skipped,
 			Cluster:          clusterInfo,
 			Hooks:              hookSummary,
-			ServiceDataEntries: collectServiceDataEntries(hookSummary.GetPrepare()),
+			ServiceDataEntries: srv.filterServiceDataByPolicy(collectServiceDataEntries(hookSummary.GetPrepare())),
 			TotalBytes:         totalBytes,
 			ManifestSha256:     manifestSHA,
 			NodeCoverage:       nodeCovProtos,

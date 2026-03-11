@@ -371,5 +371,188 @@ proto.repository.PackageRepositoryPromiseClient.prototype.listBundles =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.SearchArtifactsRequest,
+ *   !proto.repository.SearchArtifactsResponse>}
+ */
+const methodDescriptor_PackageRepository_SearchArtifacts = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/SearchArtifacts',
+  grpc.web.MethodType.UNARY,
+  proto.repository.SearchArtifactsRequest,
+  proto.repository.SearchArtifactsResponse,
+  /**
+   * @param {!proto.repository.SearchArtifactsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.SearchArtifactsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.SearchArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.SearchArtifactsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.SearchArtifactsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.searchArtifacts =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/SearchArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SearchArtifacts,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.SearchArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.SearchArtifactsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.searchArtifacts =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/SearchArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SearchArtifacts);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.GetArtifactVersionsRequest,
+ *   !proto.repository.GetArtifactVersionsResponse>}
+ */
+const methodDescriptor_PackageRepository_GetArtifactVersions = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/GetArtifactVersions',
+  grpc.web.MethodType.UNARY,
+  proto.repository.GetArtifactVersionsRequest,
+  proto.repository.GetArtifactVersionsResponse,
+  /**
+   * @param {!proto.repository.GetArtifactVersionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.GetArtifactVersionsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.GetArtifactVersionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.GetArtifactVersionsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.GetArtifactVersionsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.getArtifactVersions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/GetArtifactVersions',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetArtifactVersions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.GetArtifactVersionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.GetArtifactVersionsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.getArtifactVersions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/GetArtifactVersions',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetArtifactVersions);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.DeleteArtifactRequest,
+ *   !proto.repository.DeleteArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_DeleteArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/DeleteArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.DeleteArtifactRequest,
+  proto.repository.DeleteArtifactResponse,
+  /**
+   * @param {!proto.repository.DeleteArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.DeleteArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.DeleteArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.DeleteArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.DeleteArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.deleteArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/DeleteArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DeleteArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.DeleteArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.DeleteArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.deleteArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/DeleteArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DeleteArtifact);
+};
+
+
 module.exports = proto.repository;
 

@@ -608,14 +608,47 @@ func (srv *server) writeRestoreReport(capsuleDir string, job *backup_managerpb.B
 
 func (srv *server) buildRestorePlan(art *backup_managerpb.BackupArtifact, rqst *backup_managerpb.RestoreBackupRequest) *backup_managerpb.RestorePlanResponse {
 	planRqst := &backup_managerpb.RestorePlanRequest{
-		BackupId:      rqst.BackupId,
-		IncludeEtcd:   rqst.IncludeEtcd,
-		IncludeConfig: rqst.IncludeConfig,
-		IncludeMinio:  rqst.IncludeMinio,
-		IncludeScylla: rqst.IncludeScylla,
+		BackupId:            rqst.BackupId,
+		IncludeEtcd:         rqst.IncludeEtcd,
+		IncludeConfig:       rqst.IncludeConfig,
+		IncludeMinio:        rqst.IncludeMinio,
+		IncludeScylla:       rqst.IncludeScylla,
+		IncludeServiceData:  rqst.IncludeServiceData,
+		ServiceDataServices: rqst.ServiceDataServices,
 	}
 	resp, _ := srv.RestorePlan(context.Background(), planRqst)
 	return resp
+}
+
+// serviceDataForRestore filters service data entries for restore based on policy and service filter.
+// Classification policy:
+//   - AUTHORITATIVE: always restored
+//   - REBUILDABLE: optional, controlled by RestoreRebuildableServiceData config
+//   - CACHE: never restored
+func (srv *server) serviceDataForRestore(entries []*backup_managerpb.ServiceDataEntry, services []string) []*backup_managerpb.ServiceDataEntry {
+	serviceFilter := make(map[string]bool)
+	for _, s := range services {
+		serviceFilter[s] = true
+	}
+
+	var result []*backup_managerpb.ServiceDataEntry
+	for _, e := range entries {
+		// Filter by specific services if requested
+		if len(serviceFilter) > 0 && !serviceFilter[e.ServiceName] {
+			continue
+		}
+		// CACHE datasets are never restored
+		if e.DataClass == "CACHE" {
+			continue
+		}
+		// Skip REBUILDABLE unless RestoreRebuildableServiceData is enabled
+		if e.DataClass == "REBUILDABLE" && !srv.RestoreRebuildableServiceData {
+			slog.Info("restore: skipping REBUILDABLE entry", "service", e.ServiceName, "name", e.DatasetName)
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
 }
 
 // generateConfirmationToken creates a TTL-based token via the server's token store.
@@ -646,6 +679,12 @@ func restoreFailResult(provType backup_managerpb.BackupProviderType, summary, er
 // re-register in etcd with their current ports. Infrastructure services
 // (etcd, envoy, xds, gateway, minio) are skipped — they don't register
 // in etcd and restarting them could disrupt the restore flow itself.
+//
+// After restarting gRPC services, the cluster controller and node agent
+// are restarted last (in that order) so the controller is ready to
+// accept heartbeats when the node agent comes back up. Without this,
+// restored etcd state contains stale LastSeen timestamps and the
+// controller marks nodes as unreachable.
 func (srv *server) restartAllServices(ctx context.Context) {
 	// List all globular service units
 	out, err := exec.CommandContext(ctx, "systemctl", "list-units", "globular-*", "--no-legend", "--no-pager", "--plain").Output()
@@ -654,14 +693,18 @@ func (srv *server) restartAllServices(ctx context.Context) {
 		return
 	}
 
+	// Phase 1: skip infra + control-plane services.
+	// Node agent and controller are restarted in phase 2 after all
+	// gRPC services are back, so heartbeats land on a ready controller.
 	skip := map[string]bool{
 		"globular-etcd.service":                 true,
 		"globular-envoy.service":                true,
 		"globular-xds.service":                  true,
 		"globular-gateway.service":              true,
 		"globular-minio.service":                true,
-		"globular-node-agent.service":           true,
-		"globular-backup-manager.service":        true,
+		"globular-node-agent.service":           true, // restarted in phase 2
+		"globular-cluster-controller.service":   true, // restarted in phase 2
+		"globular-backup-manager.service":        true, // self — cannot restart ourselves
 		"globular-prometheus.service":            true,
 		"globular-node-exporter.service":         true,
 		"globular-scylla-manager.service":        true,
@@ -688,7 +731,27 @@ func (srv *server) restartAllServices(ctx context.Context) {
 			restarted = append(restarted, unit)
 		}
 	}
-	slog.Info("restartAllServices: done", "restarted", restarted)
+	slog.Info("restartAllServices: phase 1 done (gRPC services)", "restarted", restarted)
+
+	// Phase 2: restart controller first, then node agent.
+	// Controller must be ready before node agent sends its first heartbeat,
+	// otherwise the heartbeat is lost and the node stays "unreachable" until
+	// the next 30-second tick.
+	for _, unit := range []string{"globular-cluster-controller.service", "globular-node-agent.service"} {
+		if !isSystemdActive(unit) {
+			slog.Info("restartAllServices: skipping (not active)", "unit", unit)
+			continue
+		}
+		slog.Info("restartAllServices: restarting control-plane", "unit", unit)
+		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", unit).Run(); err != nil {
+			slog.Warn("restartAllServices: restart failed", "unit", unit, "err", err)
+		} else {
+			restarted = append(restarted, unit)
+		}
+		// Brief pause to let the unit fully initialize before starting the next.
+		time.Sleep(3 * time.Second)
+	}
+	slog.Info("restartAllServices: phase 2 done (control-plane)", "restarted", restarted)
 }
 
 func isPortOpen(host string, port int) bool {

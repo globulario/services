@@ -115,6 +115,8 @@ func (srv *server) reindexTitles(ctx context.Context, indexPath string, index bl
 		if err := srv.indexTitleDoc(index, title); err != nil {
 			logger.Warn("rebuild: index title failed", "titleID", title.GetID(), "err", err)
 		}
+		// Synchronously ensure the parent series title exists for any TVEpisode.
+		srv.ensureSeriesSync(indexPath, title)
 	}
 	return nil
 }

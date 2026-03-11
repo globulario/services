@@ -126,6 +126,78 @@ type ServiceRelease struct {
 	Status *ServiceReleaseStatus `json:"status,omitempty"`
 }
 
+// ── Application Lifecycle v1 ──────────────────────────────────────────────────
+
+// ApplicationReleaseSpec declares the desired state of a web application deployment.
+type ApplicationReleaseSpec struct {
+	PublisherID     string            `json:"publisher_id,omitempty"`
+	AppName         string            `json:"app_name,omitempty"`
+	Version         string            `json:"version,omitempty"`
+	Channel         string            `json:"channel,omitempty"`
+	RepositoryID    string            `json:"repository_id,omitempty"`
+	Platform        string            `json:"platform,omitempty"`
+	NodeAssignments []*NodeAssignment `json:"node_assignments,omitempty"`
+	Route           string            `json:"route,omitempty"`      // URL path, e.g. "/apps/myapp"
+	IndexFile       string            `json:"index_file,omitempty"` // Entry HTML file, default "index.html"
+}
+
+// ApplicationReleaseStatus is the controller-managed status of an ApplicationRelease.
+type ApplicationReleaseStatus struct {
+	Phase                  string               `json:"phase,omitempty"`
+	ResolvedVersion        string               `json:"resolved_version,omitempty"`
+	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
+	DesiredHash            string               `json:"desired_hash,omitempty"`
+	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
+	Message                string               `json:"message,omitempty"`
+	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
+	ObservedGeneration     int64                `json:"observed_generation,omitempty"`
+}
+
+// ApplicationRelease is the top-level desired-state object for web application lifecycle.
+type ApplicationRelease struct {
+	Meta   *ObjectMeta               `json:"meta,omitempty"`
+	Spec   *ApplicationReleaseSpec   `json:"spec,omitempty"`
+	Status *ApplicationReleaseStatus `json:"status,omitempty"`
+}
+
+// ── Infrastructure Lifecycle v1 ───────────────────────────────────────────────
+
+// InfrastructureReleaseSpec declares the desired state of an infrastructure component (etcd, minio, envoy, etc.).
+type InfrastructureReleaseSpec struct {
+	PublisherID      string            `json:"publisher_id,omitempty"`
+	Component        string            `json:"component,omitempty"` // e.g. "etcd", "minio", "envoy"
+	Version          string            `json:"version,omitempty"`
+	Channel          string            `json:"channel,omitempty"`
+	RepositoryID     string            `json:"repository_id,omitempty"`
+	Platform         string            `json:"platform,omitempty"`
+	NodeAssignments  []*NodeAssignment `json:"node_assignments,omitempty"`
+	DataDirs         string            `json:"data_dirs,omitempty"`          // Comma-separated directories to create
+	Unit             string            `json:"unit,omitempty"`               // Systemd unit name (default: globular-{component}.service)
+	UpgradeStrategy  string            `json:"upgrade_strategy,omitempty"`   // "stop-start" (default), "rolling"
+	HealthEndpoint   string            `json:"health_endpoint,omitempty"`    // Health check URL or command
+	RolloutStrategy  string            `json:"rollout_strategy,omitempty"`   // RolloutRolling | RolloutAllAtOnce
+	MaxParallelNodes uint32            `json:"max_parallel_nodes,omitempty"`
+}
+
+// InfrastructureReleaseStatus is the controller-managed status of an InfrastructureRelease.
+type InfrastructureReleaseStatus struct {
+	Phase                  string               `json:"phase,omitempty"`
+	ResolvedVersion        string               `json:"resolved_version,omitempty"`
+	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
+	DesiredHash            string               `json:"desired_hash,omitempty"`
+	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
+	Message                string               `json:"message,omitempty"`
+	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
+	ObservedGeneration     int64                `json:"observed_generation,omitempty"`
+}
+
+// InfrastructureRelease is the top-level desired-state object for infrastructure component lifecycle.
+type InfrastructureRelease struct {
+	Meta   *ObjectMeta                  `json:"meta,omitempty"`
+	Spec   *InfrastructureReleaseSpec   `json:"spec,omitempty"`
+	Status *InfrastructureReleaseStatus `json:"status,omitempty"`
+}
+
 // WatchEvent is a resource change notification sent over the Watch stream.
 type WatchEvent struct {
 	EventType             string                 `json:"event_type,omitempty"`
@@ -133,4 +205,6 @@ type WatchEvent struct {
 	ClusterNetwork        *ClusterNetwork        `json:"cluster_network,omitempty"`
 	ServiceDesiredVersion *ServiceDesiredVersion `json:"service_desired_version,omitempty"`
 	ServiceRelease        *ServiceRelease        `json:"service_release,omitempty"`
+	ApplicationRelease    *ApplicationRelease    `json:"application_release,omitempty"`
+	InfrastructureRelease *InfrastructureRelease `json:"infrastructure_release,omitempty"`
 }

@@ -7,6 +7,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	planpb "github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -212,6 +213,22 @@ func (client *NodeAgentClient) WatchOperation(ctx context.Context, operationID s
 	return client.c.WatchOperation(ctx, req)
 }
 
+func (client *NodeAgentClient) ApplyPlanV1(ctx context.Context, plan *planpb.NodePlan) (*node_agentpb.ApplyPlanV1Response, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.ApplyPlanV1(ctx, &node_agentpb.ApplyPlanV1Request{Plan: plan})
+}
+
+func (client *NodeAgentClient) GetPlanStatusV1(ctx context.Context, operationID string) (*node_agentpb.GetPlanStatusV1Response, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.GetPlanStatusV1(ctx, &node_agentpb.GetPlanStatusV1Request{
+		OperationId: operationID,
+	})
+}
+
 func (client *NodeAgentClient) BootstrapFirstNode(ctx context.Context, clusterDomain, controllerBind string, profiles []string) (*node_agentpb.BootstrapFirstNodeResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
@@ -222,4 +239,35 @@ func (client *NodeAgentClient) BootstrapFirstNode(ctx context.Context, clusterDo
 		Profiles:       profiles,
 	}
 	return client.c.BootstrapFirstNode(ctx, req)
+}
+
+// ListInstalledPackages returns all installed packages on a node, optionally filtered by kind.
+func (client *NodeAgentClient) ListInstalledPackages(ctx context.Context, nodeID, kind string) ([]*node_agentpb.InstalledPackage, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	resp, err := client.c.ListInstalledPackages(ctx, &node_agentpb.ListInstalledPackagesRequest{
+		NodeId: nodeID,
+		Kind:   kind,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetPackages(), nil
+}
+
+// GetInstalledPackage returns a single installed package record from a node.
+func (client *NodeAgentClient) GetInstalledPackage(ctx context.Context, nodeID, kind, name string) (*node_agentpb.InstalledPackage, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	resp, err := client.c.GetInstalledPackage(ctx, &node_agentpb.GetInstalledPackageRequest{
+		NodeId: nodeID,
+		Kind:   kind,
+		Name:   name,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetPackage(), nil
 }

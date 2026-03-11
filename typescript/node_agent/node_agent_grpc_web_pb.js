@@ -802,5 +802,127 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getRestoreTaskResult =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.ListInstalledPackagesRequest,
+ *   !proto.node_agent.ListInstalledPackagesResponse>}
+ */
+const methodDescriptor_NodeAgentService_ListInstalledPackages = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/ListInstalledPackages',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.ListInstalledPackagesRequest,
+  proto.node_agent.ListInstalledPackagesResponse,
+  /**
+   * @param {!proto.node_agent.ListInstalledPackagesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.ListInstalledPackagesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.ListInstalledPackagesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.ListInstalledPackagesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.ListInstalledPackagesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.listInstalledPackages =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ListInstalledPackages',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ListInstalledPackages,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.ListInstalledPackagesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.ListInstalledPackagesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.listInstalledPackages =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ListInstalledPackages',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ListInstalledPackages);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetInstalledPackageRequest,
+ *   !proto.node_agent.GetInstalledPackageResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetInstalledPackage = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetInstalledPackage',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetInstalledPackageRequest,
+  proto.node_agent.GetInstalledPackageResponse,
+  /**
+   * @param {!proto.node_agent.GetInstalledPackageRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetInstalledPackageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetInstalledPackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetInstalledPackageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetInstalledPackageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getInstalledPackage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetInstalledPackage',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetInstalledPackage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetInstalledPackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetInstalledPackageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getInstalledPackage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetInstalledPackage',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetInstalledPackage);
+};
+
+
 module.exports = proto.node_agent;
 

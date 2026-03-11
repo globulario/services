@@ -56,9 +56,17 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", fmt.Errorf("create dest dir: %w", err)
 	}
-	// Artifact already present and valid — skip fetch.
+	// Artifact already present — verify hash if expected, then skip fetch.
 	if _, err := os.Stat(dest); err == nil {
-		return "artifact already present", nil
+		if expectedSHA != "" {
+			if err := verifyFileSHA256(dest, expectedSHA); err != nil {
+				os.Remove(dest) // corrupted — remove and re-fetch
+			} else {
+				return "artifact already present (verified)", nil
+			}
+		} else {
+			return "artifact already present", nil
+		}
 	}
 
 	// Resolve local source path if not explicitly provided.
@@ -124,7 +132,10 @@ func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (s
 		return "", fmt.Errorf("artifact missing: %w", err)
 	}
 	if expected == "" {
-		return "artifact verified (no checksum)", nil
+		if allowMissingSHA256() {
+			return "artifact verified (no checksum — dev bypass)", nil
+		}
+		return "", fmt.Errorf("expected_sha256 is required: refusing to install unverified artifact")
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -367,11 +378,13 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 	}
 	tmpPath := tmp.Name()
 
-	hasher := sha256.New()
-	var hw io.Writer = tmp
-	if expectedSHA256 != "" {
-		hw = io.MultiWriter(tmp, hasher)
+	if expectedSHA256 == "" && !allowMissingSHA256() {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("expected_sha256 is required for remote artifact fetch: refusing to download unverified artifact")
 	}
+	hasher := sha256.New()
+	hw := io.MultiWriter(tmp, hasher) // always hash downloads
 
 	for {
 		resp, err := stream.Recv()
@@ -401,6 +414,9 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 			os.Remove(tmpPath)
 			return fmt.Errorf("artifact digest mismatch: want %s got %s", expectedSHA256, got)
 		}
+	} else {
+		// No expected hash but we still computed one — log for auditability.
+		fmt.Printf("WARN artifact downloaded without SHA256 verification (dev bypass): sha256=%s\n", hex.EncodeToString(hasher.Sum(nil)))
 	}
 
 	if err := os.Rename(tmpPath, dest); err != nil {
@@ -605,6 +621,30 @@ func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {
 	// write to /etc/systemd/system/. Set GLOBULAR_SKIP_SYSTEMD=0 to override.
 	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") != "0"
 	return
+}
+
+// verifyFileSHA256 checks that the file at path matches the expected lowercase hex SHA256.
+func verifyFileSHA256(path, expected string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if got != strings.ToLower(expected) {
+		return fmt.Errorf("sha256 mismatch: want %s got %s", expected, got)
+	}
+	return nil
+}
+
+// allowMissingSHA256 returns true only when the non-default dev flag is set.
+// Production systems must always provide SHA256 for artifact verification.
+func allowMissingSHA256() bool {
+	return strings.EqualFold(os.Getenv("GLOBULAR_ALLOW_MISSING_SHA256"), "true")
 }
 
 func init() {

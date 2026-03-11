@@ -436,6 +436,10 @@ service ClusterControllerService {
   // ── Artifact validation + dry-run ──
   rpc ValidateArtifact(ValidateArtifactRequest) returns (ValidationReport);
   rpc PreviewDesiredServices(DesiredServicesDelta) returns (PlanPreview);
+
+  // ── Upgrade planning (canonical authority for plan generation) ──
+  rpc PlanServiceUpgrades(PlanServiceUpgradesRequest) returns (PlanServiceUpgradesResponse);
+  rpc ApplyServiceUpgrades(ApplyServiceUpgradesRequest) returns (ApplyServiceUpgradesResponse);
 }
 
 message DesiredNetwork {
@@ -607,4 +611,47 @@ message NodeChange {
 message PlanPreview {
   repeated NodeChange      node_changes    = 1;
   repeated ValidationIssue blocking_issues = 2;
+}
+
+// ── Upgrade planning messages ──────────────────────────────────────────────
+
+message PlanServiceUpgradesRequest {
+  repeated string services = 1;    // service names to upgrade (empty = all available)
+  string node_id = 2;             // target node (empty = local node)
+  string platform = 3;            // e.g. "linux_amd64" (empty = auto-detect)
+}
+
+message UpgradePlanItem {
+  string service = 1;
+  string from_version = 2;
+  string to_version = 3;
+  string package_name = 4;
+  string sha256 = 5;
+  bool restart_required = 6;
+  repeated string impacts = 7;
+}
+
+message PlanServiceUpgradesResponse {
+  repeated UpgradePlanItem items = 1;
+  string repository_status = 2;   // ok | unreachable | empty
+}
+
+message ApplyServiceUpgradesRequest {
+  repeated string services = 1;    // service names to upgrade
+  string node_id = 2;             // target node (empty = all nodes = cluster-wide)
+  string platform = 3;
+}
+
+message ApplyServiceUpgradesResponse {
+  bool ok = 1;
+  string operation_id = 2;
+  string message = 3;
+  repeated NodeUpgradeStatus node_statuses = 4; // per-node results (for cluster-wide)
+}
+
+message NodeUpgradeStatus {
+  string node_id = 1;
+  string status = 2;     // pending | running | success | failed
+  string operation_id = 3;
+  string error = 4;
 }

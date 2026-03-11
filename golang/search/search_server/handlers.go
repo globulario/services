@@ -67,8 +67,9 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// Search engine implementation
-	search_engine search_engine.SearchEngine
-	logger        *slog.Logger
+	search_engine          search_engine.SearchEngine
+	logger                 *slog.Logger
+	indexPathsBeforeBackup []string // saved before backup close
 }
 
 // GetKeywords implements globular_service.Service.

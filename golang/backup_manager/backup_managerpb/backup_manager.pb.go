@@ -4479,18 +4479,20 @@ func (x *PrepareBackupHookResponse) GetServiceData() []*ServiceDataEntry {
 	return nil
 }
 
-// ServiceDataEntry declares a local data path a service needs backed up or tracked.
+// ServiceDataEntry declares a local dataset a service needs backed up or tracked.
 type ServiceDataEntry struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ServiceName      string                 `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"` // e.g. "title.TitleService"
-	LogicalName      string                 `protobuf:"bytes,2,opt,name=logical_name,json=logicalName,proto3" json:"logical_name,omitempty"` // short identifier, e.g. "file_associations"
+	DatasetName      string                 `protobuf:"bytes,2,opt,name=dataset_name,json=datasetName,proto3" json:"dataset_name,omitempty"` // short identifier, e.g. "file_associations"
 	Path             string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`                                  // absolute filesystem path
-	DataClass        string                 `protobuf:"bytes,4,opt,name=data_class,json=dataClass,proto3" json:"data_class,omitempty"`       // "AUTHORITATIVE" or "DERIVED"
+	DataClass        string                 `protobuf:"bytes,4,opt,name=data_class,json=dataClass,proto3" json:"data_class,omitempty"`       // "AUTHORITATIVE", "REBUILDABLE", or "CACHE"
 	Description      string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`                    // human-readable
 	BackupByDefault  bool                   `protobuf:"varint,6,opt,name=backup_by_default,json=backupByDefault,proto3" json:"backup_by_default,omitempty"`
 	RestoreByDefault bool                   `protobuf:"varint,7,opt,name=restore_by_default,json=restoreByDefault,proto3" json:"restore_by_default,omitempty"`
 	PathExists       bool                   `protobuf:"varint,8,opt,name=path_exists,json=pathExists,proto3" json:"path_exists,omitempty"`
 	SizeBytes        uint64                 `protobuf:"varint,9,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	RebuildSupported bool                   `protobuf:"varint,10,opt,name=rebuild_supported,json=rebuildSupported,proto3" json:"rebuild_supported,omitempty"` // true if automatic rebuild path is implemented
+	Scope            string                 `protobuf:"bytes,11,opt,name=scope,proto3" json:"scope,omitempty"`                                                // "node" (node-local) or "cluster" (cluster-scoped)
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -4532,9 +4534,9 @@ func (x *ServiceDataEntry) GetServiceName() string {
 	return ""
 }
 
-func (x *ServiceDataEntry) GetLogicalName() string {
+func (x *ServiceDataEntry) GetDatasetName() string {
 	if x != nil {
-		return x.LogicalName
+		return x.DatasetName
 	}
 	return ""
 }
@@ -4586,6 +4588,20 @@ func (x *ServiceDataEntry) GetSizeBytes() uint64 {
 		return x.SizeBytes
 	}
 	return 0
+}
+
+func (x *ServiceDataEntry) GetRebuildSupported() bool {
+	if x != nil {
+		return x.RebuildSupported
+	}
+	return false
+}
+
+func (x *ServiceDataEntry) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
 }
 
 type FinalizeBackupHookRequest struct {
@@ -6194,10 +6210,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\fservice_data\x18\x04 \x03(\v2 .backup_manager.ServiceDataEntryR\vserviceData\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8a\x03\n" +
 	"\x10ServiceDataEntry\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12!\n" +
-	"\flogical_name\x18\x02 \x01(\tR\vlogicalName\x12\x12\n" +
+	"\fdataset_name\x18\x02 \x01(\tR\vdatasetName\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1d\n" +
 	"\n" +
 	"data_class\x18\x04 \x01(\tR\tdataClass\x12 \n" +
@@ -6207,7 +6223,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\vpath_exists\x18\b \x01(\bR\n" +
 	"pathExists\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\t \x01(\x04R\tsizeBytes\"\xd0\x02\n" +
+	"size_bytes\x18\t \x01(\x04R\tsizeBytes\x12+\n" +
+	"\x11rebuild_supported\x18\n" +
+	" \x01(\bR\x10rebuildSupported\x12\x14\n" +
+	"\x05scope\x18\v \x01(\tR\x05scope\"\xd0\x02\n" +
 	"\x19FinalizeBackupHookRequest\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12.\n" +
 	"\x04mode\x18\x02 \x01(\x0e2\x1a.backup_manager.BackupModeR\x04mode\x121\n" +

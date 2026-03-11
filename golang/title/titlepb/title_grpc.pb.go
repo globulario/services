@@ -52,6 +52,7 @@ const (
 	TitleService_SaveWatching_FullMethodName            = "/title.TitleService/SaveWatching"
 	TitleService_RemoveWatching_FullMethodName          = "/title.TitleService/RemoveWatching"
 	TitleService_RebuildIndexFromStore_FullMethodName   = "/title.TitleService/RebuildIndexFromStore"
+	TitleService_GetSeriesEpisodes_FullMethodName       = "/title.TitleService/GetSeriesEpisodes"
 )
 
 // TitleServiceClient is the client API for TitleService service.
@@ -127,6 +128,8 @@ type TitleServiceClient interface {
 	RemoveWatching(ctx context.Context, in *RemoveWatchingRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Rebuilds Bleve indices from the persisted KV store.
 	RebuildIndexFromStore(ctx context.Context, in *RebuildIndexRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Returns all episodes for a given series, sorted by season/episode.
+	GetSeriesEpisodes(ctx context.Context, in *GetSeriesEpisodesRequest, opts ...grpc.CallOption) (*GetSeriesEpisodesResponse, error)
 }
 
 type titleServiceClient struct {
@@ -475,6 +478,16 @@ func (c *titleServiceClient) RebuildIndexFromStore(ctx context.Context, in *Rebu
 	return out, nil
 }
 
+func (c *titleServiceClient) GetSeriesEpisodes(ctx context.Context, in *GetSeriesEpisodesRequest, opts ...grpc.CallOption) (*GetSeriesEpisodesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSeriesEpisodesResponse)
+	err := c.cc.Invoke(ctx, TitleService_GetSeriesEpisodes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TitleServiceServer is the server API for TitleService service.
 // All implementations should embed UnimplementedTitleServiceServer
 // for forward compatibility.
@@ -548,6 +561,8 @@ type TitleServiceServer interface {
 	RemoveWatching(context.Context, *RemoveWatchingRequest) (*emptypb.Empty, error)
 	// Rebuilds Bleve indices from the persisted KV store.
 	RebuildIndexFromStore(context.Context, *RebuildIndexRequest) (*emptypb.Empty, error)
+	// Returns all episodes for a given series, sorted by season/episode.
+	GetSeriesEpisodes(context.Context, *GetSeriesEpisodesRequest) (*GetSeriesEpisodesResponse, error)
 }
 
 // UnimplementedTitleServiceServer should be embedded to have
@@ -652,6 +667,9 @@ func (UnimplementedTitleServiceServer) RemoveWatching(context.Context, *RemoveWa
 }
 func (UnimplementedTitleServiceServer) RebuildIndexFromStore(context.Context, *RebuildIndexRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method RebuildIndexFromStore not implemented")
+}
+func (UnimplementedTitleServiceServer) GetSeriesEpisodes(context.Context, *GetSeriesEpisodesRequest) (*GetSeriesEpisodesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSeriesEpisodes not implemented")
 }
 func (UnimplementedTitleServiceServer) testEmbeddedByValue() {}
 
@@ -1235,6 +1253,24 @@ func _TitleService_RebuildIndexFromStore_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TitleService_GetSeriesEpisodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSeriesEpisodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).GetSeriesEpisodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_GetSeriesEpisodes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).GetSeriesEpisodes(ctx, req.(*GetSeriesEpisodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TitleService_ServiceDesc is the grpc.ServiceDesc for TitleService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1361,6 +1397,10 @@ var TitleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RebuildIndexFromStore",
 			Handler:    _TitleService_RebuildIndexFromStore_Handler,
+		},
+		{
+			MethodName: "GetSeriesEpisodes",
+			Handler:    _TitleService_GetSeriesEpisodes_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

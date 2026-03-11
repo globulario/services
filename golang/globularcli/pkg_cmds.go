@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/globularcli/pkgpack"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
@@ -520,8 +521,20 @@ func publishOne(file, token string) pkgPublishOne {
 		return r
 	}
 
+	// Resolve package type from manifest.
+	pkgType := resourcepb.PackageType_SERVICE_TYPE
+	artifactKind := repopb.ArtifactKind_SERVICE
+	switch summary.Type {
+	case "application":
+		pkgType = resourcepb.PackageType_APPLICATION_TYPE
+		artifactKind = repopb.ArtifactKind_APPLICATION
+	case "infrastructure":
+		// Legacy descriptor has no INFRASTRUCTURE type; use SERVICE for compat.
+		artifactKind = repopb.ArtifactKind_INFRASTRUCTURE
+	}
+
 	// Step A: upsert descriptor under user identity.
-	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, resourcepb.PackageType_SERVICE_TYPE)
+	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, pkgType)
 	if err != nil {
 		r.err = err
 		if isAuthErr(err) {
@@ -564,6 +577,22 @@ func publishOne(file, token string) pkgPublishOne {
 
 	r.sizeBytes = int64(size)
 	r.bundleID = pkgBundleID(summary.Name, summary.Version, summary.Platform)
+
+	// Step D: best-effort dual-write to artifact path.
+	// This populates the modern ArtifactManifest alongside the legacy PackageBundle.
+	// TODO(migration): Once all consumers use ListArtifacts/DownloadArtifact,
+	// make UploadArtifact the primary path and remove the UploadBundle call above.
+	if archiveData, err := os.ReadFile(file); err == nil {
+		ref := &repopb.ArtifactRef{
+			PublisherId: publisher,
+			Name:        summary.Name,
+			Version:     summary.Version,
+			Platform:    summary.Platform,
+			Kind:        artifactKind,
+		}
+		_ = client.UploadArtifact(ref, archiveData) // best-effort; legacy bundle already saved
+	}
+
 	r.duration = time.Since(start)
 	return r
 }

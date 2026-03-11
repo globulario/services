@@ -179,19 +179,31 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		publisherID = "core@globular.io"
 	}
 
+	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion)
+
 	fetchArgs := map[string]interface{}{
 		"service":         svcName,
 		"version":         desiredVersion,
 		"platform":        platform,
-		"artifact_path":   fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
+		"artifact_path":   artifactPath,
 		"repository_addr": repoAddr,
 		"publisher_id":    publisherID,
+	}
+	if desiredHash != "" {
+		fetchArgs["expected_sha256"] = desiredHash
 	}
 	if !repo.TLS {
 		fetchArgs["repository_insecure"] = true
 	}
 	if repo.CAPath != "" {
 		fetchArgs["repository_ca_path"] = repo.CAPath
+	}
+
+	verifyArgs := map[string]interface{}{
+		"artifact_path": artifactPath,
+	}
+	if desiredHash != "" {
+		verifyArgs["expected_sha256"] = desiredHash
 	}
 
 	return &planpb.NodePlan{
@@ -209,9 +221,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		Spec: &planpb.PlanSpec{
 			Steps: []*planpb.PlanStep{
 				planStep("artifact.fetch", fetchArgs),
-				planStep("artifact.verify", map[string]interface{}{
-					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
-				}),
+				planStep("artifact.verify", verifyArgs),
 				planStep("service.install_payload", map[string]interface{}{
 					"service":       svcName,
 					"version":       desiredVersion,
@@ -221,6 +231,15 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 					"service": svcName,
 					"version": desiredVersion,
 					"path":    marker,
+				}),
+				planStep("package.report_state", map[string]interface{}{
+					"node_id":      nodeID,
+					"name":         svcCanonical,
+					"version":      desiredVersion,
+					"kind":         "SERVICE",
+					"publisher_id": publisherID,
+					"platform":     platform,
+					"checksum":     desiredHash,
 				}),
 				planStep("service.restart", map[string]interface{}{
 					"unit": unit,

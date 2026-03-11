@@ -2018,5 +2018,66 @@ proto.title.TitleServicePromiseClient.prototype.rebuildIndexFromStore =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.GetSeriesEpisodesRequest,
+ *   !proto.title.GetSeriesEpisodesResponse>}
+ */
+const methodDescriptor_TitleService_GetSeriesEpisodes = new grpc.web.MethodDescriptor(
+  '/title.TitleService/GetSeriesEpisodes',
+  grpc.web.MethodType.UNARY,
+  proto.title.GetSeriesEpisodesRequest,
+  proto.title.GetSeriesEpisodesResponse,
+  /**
+   * @param {!proto.title.GetSeriesEpisodesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.GetSeriesEpisodesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.GetSeriesEpisodesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.GetSeriesEpisodesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.GetSeriesEpisodesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.getSeriesEpisodes =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/GetSeriesEpisodes',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetSeriesEpisodes,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.GetSeriesEpisodesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.GetSeriesEpisodesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.getSeriesEpisodes =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/GetSeriesEpisodes',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetSeriesEpisodes);
+};
+
+
 module.exports = proto.title;
 
