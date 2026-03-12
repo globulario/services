@@ -917,6 +917,7 @@ ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance
 checksum: jspb.Message.getFieldWithDefault(msg, 2, ""),
 sizeBytes: jspb.Message.getFieldWithDefault(msg, 3, 0),
 modifiedUnix: jspb.Message.getFieldWithDefault(msg, 4, 0),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 5, 0),
 providesList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
 requiresList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
 defaultsMap: (f = msg.getDefaultsMap()) ? f.toObject(includeInstance, undefined) : [],
@@ -928,6 +929,10 @@ alias: jspb.Message.getFieldWithDefault(msg, 17, ""),
 license: jspb.Message.getFieldWithDefault(msg, 18, ""),
 minGlobularVersion: jspb.Message.getFieldWithDefault(msg, 19, ""),
 publishedUnix: jspb.Message.getFieldWithDefault(msg, 20, 0),
+buildCommit: jspb.Message.getFieldWithDefault(msg, 21, ""),
+buildTimestampUnix: jspb.Message.getFieldWithDefault(msg, 22, 0),
+buildSource: jspb.Message.getFieldWithDefault(msg, 23, ""),
+buildNotes: jspb.Message.getFieldWithDefault(msg, 24, ""),
 serviceDetail: (f = msg.getServiceDetail()) && proto.repository.ServiceDetail.toObject(includeInstance, f),
 applicationDetail: (f = msg.getApplicationDetail()) && proto.repository.ApplicationDetail.toObject(includeInstance, f),
 infrastructureDetail: (f = msg.getInfrastructureDetail()) && proto.repository.InfrastructureDetail.toObject(includeInstance, f)
@@ -984,6 +989,10 @@ proto.repository.ArtifactManifest.deserializeBinaryFromReader = function(msg, re
       var value = /** @type {number} */ (reader.readInt64());
       msg.setModifiedUnix(value);
       break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addProvides(value);
@@ -1029,6 +1038,22 @@ proto.repository.ArtifactManifest.deserializeBinaryFromReader = function(msg, re
     case 20:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setPublishedUnix(value);
+      break;
+    case 21:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildCommit(value);
+      break;
+    case 22:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildTimestampUnix(value);
+      break;
+    case 23:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildSource(value);
+      break;
+    case 24:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildNotes(value);
       break;
     case 30:
       var value = new proto.repository.ServiceDetail;
@@ -1103,6 +1128,13 @@ proto.repository.ArtifactManifest.serializeBinaryToWriter = function(message, wr
       f
     );
   }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
   f = message.getProvidesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
@@ -1174,6 +1206,34 @@ proto.repository.ArtifactManifest.serializeBinaryToWriter = function(message, wr
   if (f !== 0) {
     writer.writeInt64(
       20,
+      f
+    );
+  }
+  f = message.getBuildCommit();
+  if (f.length > 0) {
+    writer.writeString(
+      21,
+      f
+    );
+  }
+  f = message.getBuildTimestampUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      22,
+      f
+    );
+  }
+  f = message.getBuildSource();
+  if (f.length > 0) {
+    writer.writeString(
+      23,
+      f
+    );
+  }
+  f = message.getBuildNotes();
+  if (f.length > 0) {
+    writer.writeString(
+      24,
       f
     );
   }
@@ -1292,6 +1352,24 @@ proto.repository.ArtifactManifest.prototype.getModifiedUnix = function() {
  */
 proto.repository.ArtifactManifest.prototype.setModifiedUnix = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int64 build_number = 5;
+ * @return {number}
+ */
+proto.repository.ArtifactManifest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
 };
 
 
@@ -1571,6 +1649,78 @@ proto.repository.ArtifactManifest.prototype.getPublishedUnix = function() {
  */
 proto.repository.ArtifactManifest.prototype.setPublishedUnix = function(value) {
   return jspb.Message.setProto3IntField(this, 20, value);
+};
+
+
+/**
+ * optional string build_commit = 21;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getBuildCommit = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 21, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setBuildCommit = function(value) {
+  return jspb.Message.setProto3StringField(this, 21, value);
+};
+
+
+/**
+ * optional int64 build_timestamp_unix = 22;
+ * @return {number}
+ */
+proto.repository.ArtifactManifest.prototype.getBuildTimestampUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 22, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setBuildTimestampUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 22, value);
+};
+
+
+/**
+ * optional string build_source = 23;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getBuildSource = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 23, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setBuildSource = function(value) {
+  return jspb.Message.setProto3StringField(this, 23, value);
+};
+
+
+/**
+ * optional string build_notes = 24;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getBuildNotes = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 24, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setBuildNotes = function(value) {
+  return jspb.Message.setProto3StringField(this, 24, value);
 };
 
 
@@ -3009,7 +3159,8 @@ proto.repository.UploadArtifactRequest.toObject = function(includeInstance, msg)
 user: jspb.Message.getFieldWithDefault(msg, 1, ""),
 organization: jspb.Message.getFieldWithDefault(msg, 2, ""),
 ref: (f = msg.getRef()) && proto.repository.ArtifactRef.toObject(includeInstance, f),
-data: msg.getData_asB64()
+data: msg.getData_asB64(),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -3062,6 +3213,10 @@ proto.repository.UploadArtifactRequest.deserializeBinaryFromReader = function(ms
     case 4:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setData(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
       break;
     default:
       reader.skipField();
@@ -3118,6 +3273,13 @@ proto.repository.UploadArtifactRequest.serializeBinaryToWriter = function(messag
   if (f.length > 0) {
     writer.writeBytes(
       4,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
       f
     );
   }
@@ -3236,6 +3398,24 @@ proto.repository.UploadArtifactRequest.prototype.getData_asU8 = function() {
  */
 proto.repository.UploadArtifactRequest.prototype.setData = function(value) {
   return jspb.Message.setProto3BytesField(this, 4, value);
+};
+
+
+/**
+ * optional int64 build_number = 5;
+ * @return {number}
+ */
+proto.repository.UploadArtifactRequest.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.UploadArtifactRequest} returns this
+ */
+proto.repository.UploadArtifactRequest.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
 };
 
 
@@ -4694,7 +4874,8 @@ publisherId: jspb.Message.getFieldWithDefault(msg, 4, ""),
 serviceId: jspb.Message.getFieldWithDefault(msg, 5, ""),
 sizeBytes: jspb.Message.getFieldWithDefault(msg, 6, 0),
 publishedUnix: jspb.Message.getFieldWithDefault(msg, 7, 0),
-sha256: jspb.Message.getFieldWithDefault(msg, 8, "")
+sha256: jspb.Message.getFieldWithDefault(msg, 8, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 9, 0)
   };
 
   if (includeInstance) {
@@ -4762,6 +4943,10 @@ proto.repository.BundleSummary.deserializeBinaryFromReader = function(msg, reade
     case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.setSha256(value);
+      break;
+    case 9:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
       break;
     default:
       reader.skipField();
@@ -4845,6 +5030,13 @@ proto.repository.BundleSummary.serializeBinaryToWriter = function(message, write
   if (f.length > 0) {
     writer.writeString(
       8,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      9,
       f
     );
   }
@@ -4992,6 +5184,24 @@ proto.repository.BundleSummary.prototype.getSha256 = function() {
  */
 proto.repository.BundleSummary.prototype.setSha256 = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional int64 build_number = 9;
+ * @return {number}
+ */
+proto.repository.BundleSummary.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 9, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.BundleSummary} returns this
+ */
+proto.repository.BundleSummary.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 9, value);
 };
 
 

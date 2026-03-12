@@ -67,6 +67,7 @@ message PackageDescriptor {
   string alias = 15; // Alias or short name for the package.
 
   string typeName = 16; // Type name for object type identification.
+  int64 build_number = 17; // Build iteration within version (0 = legacy)
 }
 
 message GetPackageDescriptorRequest {

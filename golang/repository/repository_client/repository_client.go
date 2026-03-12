@@ -392,6 +392,12 @@ func (client *Repository_Service_Client) DeleteArtifact(ref *repositorypb.Artifa
 }
 
 func (client *Repository_Service_Client) UploadArtifact(ref *repositorypb.ArtifactRef, data []byte) error {
+	return client.UploadArtifactWithBuild(ref, data, 0)
+}
+
+// UploadArtifactWithBuild uploads an artifact with an explicit build number.
+// Build number 0 means legacy (no build iteration tracking).
+func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repositorypb.ArtifactRef, data []byte, buildNumber int64) error {
 	if ref == nil {
 		return errors.New("artifact ref required")
 	}
@@ -400,8 +406,9 @@ func (client *Repository_Service_Client) UploadArtifact(ref *repositorypb.Artifa
 		return err
 	}
 	if err := stream.Send(&repositorypb.UploadArtifactRequest{
-		Ref:  ref,
-		Data: data,
+		Ref:         ref,
+		Data:        data,
+		BuildNumber: buildNumber,
 	}); err != nil {
 		return err
 	}

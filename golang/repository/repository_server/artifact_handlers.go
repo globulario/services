@@ -2,12 +2,16 @@ package main
 
 // artifact_handlers.go — repository RPC handlers for artifact management.
 //
-// Implements: ListArtifacts, GetArtifactManifest, UploadArtifact, DownloadArtifact.
+// Implements: ListArtifacts, GetArtifactManifest, UploadArtifact, DownloadArtifact,
+// SearchArtifacts, GetArtifactVersions, DeleteArtifact.
 //
 // Storage layout (relative to the configured backend root):
 //
-//	artifacts/{publisherID}%{name}%{version}%{platform}.manifest.json  — protojson manifest
-//	artifacts/{publisherID}%{name}%{version}%{platform}.bin            — raw binary
+//	artifacts/{publisherID}%{name}%{version}%{platform}%{buildNumber}.manifest.json
+//	artifacts/{publisherID}%{name}%{version}%{platform}%{buildNumber}.bin
+//
+// Legacy artifacts (build_number=0) may still exist under the old 4-field key
+// format without the trailing %0 segment. The read path tries both.
 
 import (
 	"context"
@@ -16,6 +20,7 @@ import (
 	"io"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,16 +37,22 @@ const artifactsDir = "artifacts"
 
 // ── storage key helpers ───────────────────────────────────────────────────────
 
-// artifactKey returns a flat, filesystem-safe key component from an ArtifactRef.
-// Format: {publisherID}%{name}%{version}%{platform}
-func artifactKey(ref *repopb.ArtifactRef) string {
+// artifactKeyWithBuild returns a flat, filesystem-safe key including build_number.
+// Format: {publisherID}%{name}%{version}%{platform}%{buildNumber}
+func artifactKeyWithBuild(ref *repopb.ArtifactRef, buildNumber int64) string {
+	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%" + strconv.FormatInt(buildNumber, 10)
+}
+
+// artifactKeyLegacy returns the old 4-field key without build_number.
+// Used for backward-compat reads of pre-build-number artifacts.
+func artifactKeyLegacy(ref *repopb.ArtifactRef) string {
 	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform()
 }
 
 func manifestStorageKey(key string) string { return artifactsDir + "/" + key + ".manifest.json" }
 func binaryStorageKey(key string) string   { return artifactsDir + "/" + key + ".bin" }
 
-// ── manifest helpers ──────────────────────────────────────────────────────────
+// ── manifest helpers ──────────────────────────────────────────────────────
 
 // readManifestByKey reads and unmarshals a single manifest JSON from storage.
 func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.ArtifactManifest, error) {
@@ -56,29 +67,87 @@ func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.A
 	return m, nil
 }
 
-// ── stream helpers ────────────────────────────────────────────────────────────
+// readManifestWithFallback tries the new 5-field key, then falls back to
+// the legacy 4-field key (for pre-build-number artifacts with build_number=0).
+func (srv *server) readManifestWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (*repopb.ArtifactManifest, error) {
+	key := artifactKeyWithBuild(ref, buildNumber)
+	m, err := srv.readManifestByKey(ctx, key)
+	if err == nil {
+		return m, nil
+	}
+	if buildNumber == 0 {
+		legacyKey := artifactKeyLegacy(ref)
+		if lm, lerr := srv.readManifestByKey(ctx, legacyKey); lerr == nil {
+			return lm, nil
+		}
+	}
+	return nil, err
+}
+
+// readBinaryWithFallback tries the new 5-field key, then legacy 4-field key.
+func (srv *server) readBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) ([]byte, error) {
+	key := artifactKeyWithBuild(ref, buildNumber)
+	data, err := srv.Storage().ReadFile(ctx, binaryStorageKey(key))
+	if err == nil {
+		return data, nil
+	}
+	if buildNumber == 0 {
+		legacyKey := artifactKeyLegacy(ref)
+		if ld, lerr := srv.Storage().ReadFile(ctx, binaryStorageKey(legacyKey)); lerr == nil {
+			return ld, nil
+		}
+	}
+	return nil, err
+}
+
+// ── sorting helpers ──────────────────────────────────────────────────────
+
+// sortManifestsByVersionDesc sorts manifests by semver descending, then
+// build_number descending within the same semver.
+func sortManifestsByVersionDesc(ms []*repopb.ArtifactManifest) {
+	sort.Slice(ms, func(i, j int) bool {
+		cmp, err := versionutil.Compare(
+			ms[i].GetRef().GetVersion(),
+			ms[j].GetRef().GetVersion(),
+		)
+		if err != nil {
+			// Fallback: lexicographic.
+			return ms[i].GetRef().GetVersion() > ms[j].GetRef().GetVersion()
+		}
+		if cmp != 0 {
+			return cmp > 0
+		}
+		// Same semver → higher build_number first.
+		return ms[i].GetBuildNumber() > ms[j].GetBuildNumber()
+	})
+}
+
+// ── stream helpers ────────────────────────────────────────────────────────
 
 // recvArtifactStream accumulates all chunks from an UploadArtifact stream.
 // The ArtifactRef is taken from the first message that carries a non-nil ref.
-func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*repopb.ArtifactRef, []byte, error) {
+// Returns the ref, aggregated data, and the build_number from the first manifest-bearing message.
+func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*repopb.ArtifactRef, []byte, int64, error) {
 	var ref *repopb.ArtifactRef
 	var data []byte
+	var buildNumber int64
 	for {
 		msg, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			return ref, data, nil
+			return ref, data, buildNumber, nil
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("recv artifact: %w", err)
+			return nil, nil, 0, fmt.Errorf("recv artifact: %w", err)
 		}
 		if ref == nil && msg.GetRef() != nil {
 			ref = msg.GetRef()
+			buildNumber = msg.GetBuildNumber()
 		}
 		data = append(data, msg.GetData()...)
 	}
 }
 
-// ── public handlers ───────────────────────────────────────────────────────────
+// ── public handlers ───────────────────────────────────────────────────────
 
 // ListArtifacts returns all manifests stored in the repository.
 // If the artifacts directory does not yet exist, an empty list is returned.
@@ -104,10 +173,14 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 		}
 		manifests = append(manifests, m)
 	}
+
+	sortManifestsByVersionDesc(manifests)
 	return &repopb.ListArtifactsResponse{Artifacts: manifests}, nil
 }
 
 // GetArtifactManifest returns metadata for a specific artifact reference.
+// The build_number is read from the manifest's build_number field in the request.
+// When build_number is 0, also tries legacy 4-field key for backward compat.
 func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtifactManifestRequest) (*repopb.GetArtifactManifestResponse, error) {
 	ref := req.GetRef()
 	if ref == nil {
@@ -118,19 +191,26 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 	}
 
 	// Normalize version to canonical semver for key lookup.
-	if canonVer, err := versionutil.Canonical(ref.GetVersion()); err == nil {
-		ref.Version = canonVer
+	canonVer := ref.GetVersion()
+	if cv, err := versionutil.Canonical(canonVer); err == nil {
+		canonVer = cv
+		ref.Version = cv
 	}
 
-	key := artifactKey(ref)
-	m, err := srv.readManifestByKey(ctx, key)
+	// build_number comes from the manifest-level field, not from ArtifactRef.
+	// For GetArtifactManifest, we use 0 (legacy) unless the caller explicitly
+	// provides a build_number via a wrapper. Since the proto request only has
+	// an ArtifactRef, we default to 0 and try fallback.
+	buildNumber := int64(0)
+
+	m, err := srv.readManifestWithFallback(ctx, ref, buildNumber)
 	if err != nil {
 		// Fallback: try v-prefixed key for backward compat with existing storage.
-		ref.Version = "v" + ref.GetVersion()
-		fallbackKey := artifactKey(ref)
-		if fm, ferr := srv.readManifestByKey(ctx, fallbackKey); ferr == nil {
+		ref.Version = "v" + canonVer
+		if fm, ferr := srv.readManifestWithFallback(ctx, ref, buildNumber); ferr == nil {
 			return &repopb.GetArtifactManifestResponse{Manifest: fm}, nil
 		}
+		key := artifactKeyWithBuild(ref, buildNumber)
 		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
 	}
 	return &repopb.GetArtifactManifestResponse{Manifest: m}, nil
@@ -138,8 +218,13 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 
 // UploadArtifact receives a (possibly multi-chunk) artifact binary stream,
 // stores the binary and a derived manifest.
+//
+// Build-number uniqueness: if a manifest already exists for the same
+// (publisher, name, version, platform, build_number) and the checksum matches,
+// the upload is treated as idempotent (success, no overwrite). If the checksum
+// differs, the upload is rejected with AlreadyExists.
 func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifactServer) error {
-	ref, data, err := recvArtifactStream(stream)
+	ref, data, buildNumber, err := recvArtifactStream(stream)
 	if err != nil {
 		return status.Errorf(codes.Internal, "receive stream: %v", err)
 	}
@@ -159,7 +244,27 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	}
 
 	ctx := stream.Context()
-	key := artifactKey(ref)
+	newChecksum := checksumBytes(data)
+
+	// buildNumber was extracted from the first UploadArtifactRequest message
+	// by recvArtifactStream. Zero means legacy (no build iteration tracking).
+
+	key := artifactKeyWithBuild(ref, buildNumber)
+
+	// ── Uniqueness check ──────────────────────────────────────────────────
+	// If an artifact with this exact identity already exists, enforce the
+	// content-addressable invariant: same identity + same checksum = idempotent,
+	// same identity + different checksum = rejected.
+	if existing, err := srv.readManifestByKey(ctx, key); err == nil {
+		if existing.GetChecksum() == newChecksum {
+			// Idempotent re-upload — return success without overwriting.
+			slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
+			return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
+		}
+		return status.Errorf(codes.AlreadyExists,
+			"artifact %s@%s build %d already exists with different content (existing checksum %s, new %s) — bump build_number to publish a new build",
+			ref.GetName(), ref.GetVersion(), buildNumber, existing.GetChecksum(), newChecksum)
+	}
 
 	// Ensure artifacts directory exists.
 	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
@@ -174,7 +279,8 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// Build and persist manifest.
 	manifest := &repopb.ArtifactManifest{
 		Ref:          ref,
-		Checksum:     checksumBytes(data),
+		BuildNumber:  buildNumber,
+		Checksum:     newChecksum,
 		SizeBytes:    int64(len(data)),
 		ModifiedUnix: time.Now().Unix(),
 	}
@@ -189,6 +295,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	slog.Info("artifact uploaded",
 		"key", key,
 		"kind", ref.GetKind(),
+		"build", buildNumber,
 		"size", len(data),
 	)
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
@@ -244,13 +351,8 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 		all = append(all, m)
 	}
 
-	// Sort by published_unix desc (newest first), then name asc.
-	sort.Slice(all, func(i, j int) bool {
-		if all[i].GetPublishedUnix() != all[j].GetPublishedUnix() {
-			return all[i].GetPublishedUnix() > all[j].GetPublishedUnix()
-		}
-		return all[i].GetRef().GetName() < all[j].GetRef().GetName()
-	})
+	// Sort by semver desc, build_number desc, then name asc for ties.
+	sortManifestsByVersionDesc(all)
 
 	totalCount := int32(len(all))
 
@@ -281,7 +383,8 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 }
 
 // GetArtifactVersions returns all versions of a given package (publisher + name),
-// optionally filtered by platform.
+// optionally filtered by platform. Results are sorted by semver desc then
+// build_number desc.
 func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtifactVersionsRequest) (*repopb.GetArtifactVersionsResponse, error) {
 	pub := strings.TrimSpace(req.GetPublisherId())
 	name := strings.TrimSpace(req.GetName())
@@ -319,15 +422,7 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 		versions = append(versions, m)
 	}
 
-	// Sort by version descending (newest first).
-	sort.Slice(versions, func(i, j int) bool {
-		cmp, err := versionutil.Compare(versions[i].GetRef().GetVersion(), versions[j].GetRef().GetVersion())
-		if err != nil {
-			return versions[i].GetRef().GetVersion() > versions[j].GetRef().GetVersion()
-		}
-		return cmp > 0
-	})
-
+	sortManifestsByVersionDesc(versions)
 	return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
 }
 
@@ -353,13 +448,24 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 		ref.Version = cv
 	}
 
-	key := artifactKey(ref)
+	// For delete, use build_number=0 and try legacy fallback.
+	buildNumber := int64(0)
+	key := artifactKeyWithBuild(ref, buildNumber)
 	mKey := manifestStorageKey(key)
 	bKey := binaryStorageKey(key)
 
-	// Check manifest exists.
+	// Check manifest exists (new key format first, then legacy).
 	if _, err := srv.Storage().ReadFile(ctx, mKey); err != nil {
-		return nil, status.Errorf(codes.NotFound, "artifact %q not found", key)
+		// Try legacy key.
+		legacyKey := artifactKeyLegacy(ref)
+		legacyMKey := manifestStorageKey(legacyKey)
+		if _, lerr := srv.Storage().ReadFile(ctx, legacyMKey); lerr != nil {
+			return nil, status.Errorf(codes.NotFound, "artifact %q not found", key)
+		}
+		// Found under legacy key — use those paths for deletion.
+		mKey = legacyMKey
+		bKey = binaryStorageKey(legacyKey)
+		key = legacyKey
 	}
 
 	// Safety check: verify the artifact is not currently installed on any node.
@@ -452,22 +558,22 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		ref.Version = canonVer
 	}
 
-	key := artifactKey(ref)
-	canonVer := ref.GetVersion() // already normalized above
-	data, err := srv.Storage().ReadFile(stream.Context(), binaryStorageKey(key))
+	canonVer := ref.GetVersion()
+	buildNumber := int64(0)
+
+	// Try new 5-field key, then legacy 4-field key.
+	data, err := srv.readBinaryWithFallback(stream.Context(), ref, buildNumber)
 	if err != nil {
-		// Fallback 1: try v-prefixed key for backward compat with existing storage.
+		// Fallback: try v-prefixed key for backward compat with existing storage.
 		ref.Version = "v" + canonVer
-		fallbackKey := artifactKey(ref)
-		if fdata, ferr := srv.Storage().ReadFile(stream.Context(), binaryStorageKey(fallbackKey)); ferr == nil {
+		if fdata, ferr := srv.readBinaryWithFallback(stream.Context(), ref, buildNumber); ferr == nil {
 			data = fdata
 			err = nil
 		}
 		ref.Version = canonVer // restore
 	}
 	if err != nil {
-		// Fallback 2: try the legacy bundle storage path (packages-repository/{UUID}.tar.gz).
-		// Bundles uploaded via UploadBundle use a different key scheme.
+		// Fallback: try the legacy bundle storage path (packages-repository/{UUID}.tar.gz).
 		desc := &resourcepb.PackageDescriptor{
 			PublisherID: ref.GetPublisherId(),
 			Name:        ref.GetName(),
@@ -479,10 +585,11 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		if fdata, ferr := srv.Storage().ReadFile(stream.Context(), bundleKey); ferr == nil {
 			data = fdata
 			err = nil
-			slog.Info("artifact served from legacy bundle path", "key", key, "bundle_key", bundleKey)
+			slog.Info("artifact served from legacy bundle path", "bundle_key", bundleKey)
 		}
 	}
 	if err != nil {
+		key := artifactKeyWithBuild(ref, buildNumber)
 		return status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
 	}
 

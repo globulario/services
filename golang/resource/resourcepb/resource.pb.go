@@ -543,21 +543,22 @@ func (x *GetPackageBundlesResponse) GetBundles() []*PackageBundle {
 // publisher, and other metadata.
 type PackageDescriptor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                // Unique identifier of the package.
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                            // Name of the package.
-	Type          PackageType            `protobuf:"varint,3,opt,name=type,proto3,enum=resource.PackageType" json:"type,omitempty"` // Type of the package (service or application).
-	PublisherID   string                 `protobuf:"bytes,4,opt,name=PublisherID,proto3" json:"PublisherID,omitempty"`              // Identifier of the publisher (organization or individual).
-	Version       string                 `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`                      // Version of the package.
-	Description   string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`              // Description of the package.
-	Repositories  []string               `protobuf:"bytes,8,rep,name=repositories,proto3" json:"repositories,omitempty"`            // List of repositories containing the package.
-	Discoveries   []string               `protobuf:"bytes,9,rep,name=discoveries,proto3" json:"discoveries,omitempty"`              // List of discoveries related to the package.
-	Keywords      []string               `protobuf:"bytes,10,rep,name=keywords,proto3" json:"keywords,omitempty"`                   // Keywords describing the package.
-	Actions       []string               `protobuf:"bytes,11,rep,name=actions,proto3" json:"actions,omitempty"`                     // Actions required by the package.
-	Roles         []*Role                `protobuf:"bytes,12,rep,name=roles,proto3" json:"roles,omitempty"`                         // Roles required for using the package.
-	Groups        []*Group               `protobuf:"bytes,13,rep,name=groups,proto3" json:"groups,omitempty"`                       // Groups associated with the package.
-	Icon          string                 `protobuf:"bytes,14,opt,name=icon,proto3" json:"icon,omitempty"`                           // Icon representing the package.
-	Alias         string                 `protobuf:"bytes,15,opt,name=alias,proto3" json:"alias,omitempty"`                         // Alias or short name for the package.
-	TypeName      string                 `protobuf:"bytes,16,opt,name=typeName,proto3" json:"typeName,omitempty"`                   // Type name for object type identification.
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                        // Unique identifier of the package.
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                    // Name of the package.
+	Type          PackageType            `protobuf:"varint,3,opt,name=type,proto3,enum=resource.PackageType" json:"type,omitempty"`         // Type of the package (service or application).
+	PublisherID   string                 `protobuf:"bytes,4,opt,name=PublisherID,proto3" json:"PublisherID,omitempty"`                      // Identifier of the publisher (organization or individual).
+	Version       string                 `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`                              // Version of the package.
+	Description   string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`                      // Description of the package.
+	Repositories  []string               `protobuf:"bytes,8,rep,name=repositories,proto3" json:"repositories,omitempty"`                    // List of repositories containing the package.
+	Discoveries   []string               `protobuf:"bytes,9,rep,name=discoveries,proto3" json:"discoveries,omitempty"`                      // List of discoveries related to the package.
+	Keywords      []string               `protobuf:"bytes,10,rep,name=keywords,proto3" json:"keywords,omitempty"`                           // Keywords describing the package.
+	Actions       []string               `protobuf:"bytes,11,rep,name=actions,proto3" json:"actions,omitempty"`                             // Actions required by the package.
+	Roles         []*Role                `protobuf:"bytes,12,rep,name=roles,proto3" json:"roles,omitempty"`                                 // Roles required for using the package.
+	Groups        []*Group               `protobuf:"bytes,13,rep,name=groups,proto3" json:"groups,omitempty"`                               // Groups associated with the package.
+	Icon          string                 `protobuf:"bytes,14,opt,name=icon,proto3" json:"icon,omitempty"`                                   // Icon representing the package.
+	Alias         string                 `protobuf:"bytes,15,opt,name=alias,proto3" json:"alias,omitempty"`                                 // Alias or short name for the package.
+	TypeName      string                 `protobuf:"bytes,16,opt,name=typeName,proto3" json:"typeName,omitempty"`                           // Type name for object type identification.
+	BuildNumber   int64                  `protobuf:"varint,17,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -695,6 +696,13 @@ func (x *PackageDescriptor) GetTypeName() string {
 		return x.TypeName
 	}
 	return ""
+}
+
+func (x *PackageDescriptor) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 type GetPackageDescriptorRequest struct {
@@ -8819,7 +8827,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x18GetPackageBundlesRequest\x12!\n" +
 	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\"N\n" +
 	"\x19GetPackageBundlesResponse\x121\n" +
-	"\abundles\x18\x01 \x03(\v2\x17.resource.PackageBundleR\abundles\"\xd1\x03\n" +
+	"\abundles\x18\x01 \x03(\v2\x17.resource.PackageBundleR\abundles\"\xf4\x03\n" +
 	"\x11PackageDescriptor\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12)\n" +
@@ -8836,7 +8844,8 @@ const file_resource_proto_rawDesc = "" +
 	"\x06groups\x18\r \x03(\v2\x0f.resource.GroupR\x06groups\x12\x12\n" +
 	"\x04icon\x18\x0e \x01(\tR\x04icon\x12\x14\n" +
 	"\x05alias\x18\x0f \x01(\tR\x05alias\x12\x1a\n" +
-	"\btypeName\x18\x10 \x01(\tR\btypeName\"]\n" +
+	"\btypeName\x18\x10 \x01(\tR\btypeName\x12!\n" +
+	"\fbuild_number\x18\x11 \x01(\x03R\vbuildNumber\"]\n" +
 	"\x1bGetPackageDescriptorRequest\x12\x1c\n" +
 	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12 \n" +
 	"\vPublisherID\x18\x02 \x01(\tR\vPublisherID\"U\n" +

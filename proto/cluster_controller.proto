@@ -548,6 +548,7 @@ message DesiredService {
   string service_id = 1;
   string version    = 2;
   string platform   = 3;  // optional; e.g. "linux_amd64"
+  int64 build_number = 4; // build iteration within version (0 = legacy)
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.
@@ -629,6 +630,8 @@ message UpgradePlanItem {
   string sha256 = 5;
   bool restart_required = 6;
   repeated string impacts = 7;
+  int64 from_build_number = 8; // installed build (0 = legacy)
+  int64 to_build_number = 9;   // target build
 }
 
 message PlanServiceUpgradesResponse {

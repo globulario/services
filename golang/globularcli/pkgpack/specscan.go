@@ -11,6 +11,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// SpecMetadata contains optional package metadata from the spec's metadata: section.
+type SpecMetadata struct {
+	Kind        string   // "service", "infrastructure", "application"
+	Description string
+	Keywords    []string
+	License     string
+}
+
 // SpecInfo contains derived data from a spec.
 type SpecInfo struct {
 	SpecPath    string
@@ -20,6 +28,7 @@ type SpecInfo struct {
 	ExecPath    string
 	ConfigDirs  []string
 	Systemd     []SystemdFile
+	Metadata    SpecMetadata
 }
 
 type SystemdFile struct {
@@ -67,6 +76,8 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		return nil, fmt.Errorf("spec %s: %w", specPath, err)
 	}
 
+	meta := extractMetadata(doc, specPath)
+
 	return &SpecInfo{
 		SpecPath:    specPath,
 		SpecFile:    filepath.Base(specPath),
@@ -75,7 +86,57 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ExecPath:    execPath,
 		ConfigDirs:  configDirs,
 		Systemd:     systemdFiles,
+		Metadata:    meta,
 	}, nil
+}
+
+// extractMetadata reads the optional metadata: section from the spec YAML.
+func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
+	var meta SpecMetadata
+
+	// Derive default kind from filename
+	base := filepath.Base(specPath)
+	if strings.HasSuffix(base, "_cmd.yaml") || strings.HasSuffix(base, "_command.yaml") {
+		meta.Kind = "infrastructure"
+	} else {
+		meta.Kind = "service"
+	}
+
+	m := lookupMap(doc, "metadata")
+	if m == nil {
+		return meta
+	}
+
+	if kind := lookupString(m, "kind"); kind != "" {
+		meta.Kind = strings.ToLower(kind)
+	}
+	if desc := lookupString(m, "description"); desc != "" {
+		meta.Description = desc
+	}
+	if lic := lookupString(m, "license"); lic != "" {
+		meta.License = lic
+	}
+
+	// keywords can be a list of strings
+	if kw, ok := m["keywords"]; ok {
+		switch v := kw.(type) {
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					meta.Keywords = append(meta.Keywords, s)
+				}
+			}
+		case string:
+			for _, s := range strings.Split(v, ",") {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					meta.Keywords = append(meta.Keywords, s)
+				}
+			}
+		}
+	}
+
+	return meta
 }
 
 func deriveServiceName(specPath string, doc map[string]any) string {

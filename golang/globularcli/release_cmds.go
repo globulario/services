@@ -267,9 +267,13 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 		fmt.Printf("Nodes:            %d total, %d healthy\n", len(st.Nodes), healthy)
-		fmt.Printf("\n  %-12s %-12s %-12s %s\n", "NODE", "VERSION", "PHASE", "ERROR")
+		fmt.Printf("\n  %-12s %-16s %-12s %s\n", "NODE", "VERSION", "PHASE", "ERROR")
 		for _, n := range st.Nodes {
-			fmt.Printf("  %-12s %-12s %-12s %s\n", n.NodeID, n.InstalledVersion, n.Phase, n.ErrorMessage)
+			ver := n.InstalledVersion
+			if n.InstalledBuildNumber > 0 {
+				ver = fmt.Sprintf("%s+b%d", ver, n.InstalledBuildNumber)
+			}
+			fmt.Printf("  %-12s %-16s %-12s %s\n", n.NodeID, ver, n.Phase, n.ErrorMessage)
 		}
 	}
 	return nil

@@ -122,15 +122,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize etcd client and plan store
+	// Create a DEDICATED etcd client for the cluster controller.
+	// This is independent of the config package's shared singleton so that
+	// health-probe reconnects in the config layer cannot destroy leader
+	// election sessions, watches, or plan-store operations.
 	var (
 		planStore  planstore.PlanStore
 		etcdClient *clientv3.Client
 	)
-	if c, err := config.GetEtcdClient(); err == nil {
+	if c, err := config.NewEtcdClient(); err == nil {
 		etcdClient = c
 		planStore = planstore.NewEtcdPlanStore(c)
-		logger.Info("etcd client connected", "endpoints", etcdClient.Endpoints())
+		logger.Info("etcd client connected (dedicated)", "endpoints", etcdClient.Endpoints())
 	} else {
 		logger.Warn("plan store unavailable", "error", err)
 	}

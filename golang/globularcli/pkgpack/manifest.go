@@ -7,13 +7,17 @@ import (
 
 // Manifest describes the packaged service.
 type Manifest struct {
-	Type       string          `json:"type"`
-	Name       string          `json:"name"`
-	Version    string          `json:"version"`
-	Platform   string          `json:"platform"`
-	Publisher  string          `json:"publisher"`
-	Entrypoint string          `json:"entrypoint"`
-	Defaults   ManifestDefault `json:"defaults"`
+	Type        string          `json:"type"`
+	Name        string          `json:"name"`
+	Version     string          `json:"version"`
+	BuildNumber int64           `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	Platform    string          `json:"platform"`
+	Publisher   string          `json:"publisher"`
+	Entrypoint  string          `json:"entrypoint"`
+	Defaults    ManifestDefault `json:"defaults"`
+	Description string          `json:"description,omitempty"`
+	Keywords    []string        `json:"keywords,omitempty"`
+	License     string          `json:"license,omitempty"`
 }
 
 // ManifestDefault provides default paths inside the package.

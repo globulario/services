@@ -81,10 +81,13 @@ Example:
 
 var servicesSeedCmd = &cobra.Command{
 	Use:   "seed",
-	Short: "Seed the controller's desired state from installed services",
-	Long: `Import all locally-installed services into the cluster controller's desired
-state. This ensures that services installed by the installer or manually are
-tracked by the controller and no longer appear as "Unmanaged".
+	Short: "Import installed services into the controller's desired state (idempotent)",
+	Long: `Idempotent import: scans locally-installed services and creates matching
+desired-state entries in the cluster controller. Safe to run multiple times —
+existing entries are left unchanged.
+
+After import, services transition from "Unmanaged" to "Installed" in the
+4-layer state model (Artifact → Desired Release → Installed Observed → Runtime).
 
 Example:
   globular services seed --insecure`,
@@ -142,14 +145,32 @@ Example:
 
 var servicesAdoptInstalledCmd = &cobra.Command{
 	Use:   "adopt-installed",
-	Short: "Import locally-installed services into the desired state",
-	Long: `Alias for 'services seed'. Imports all locally-installed services into
-the controller's desired state so they become declaratively managed.
+	Short: "Import locally-installed services into the desired state (alias for seed)",
+	Long: `Alias for 'services seed'. Idempotent import of all locally-installed
+services into the controller's desired state so they become declaratively
+managed and visible across all 4 state layers.
 
 Example:
   globular services adopt-installed --insecure`,
 	RunE: runServicesSeed,
 }
+
+var servicesRepairCmd = &cobra.Command{
+	Use:   "repair",
+	Short: "Diagnose and repair state alignment across all layers",
+	Long: `Cross-references the 4 state layers (artifact/repository, desired release,
+installed observed, runtime health) and reports per-package alignment status.
+
+Without --dry-run, also repairs missing desired-state entries by importing
+from installed packages.
+
+Example:
+  globular services repair --insecure
+  globular services repair --dry-run --insecure`,
+	RunE: runServicesRepair,
+}
+
+var servicesRepairDryRun bool
 
 func init() {
 	servicesApplyCmd.Flags().StringVar(&svcApplyService, "service", "", "Service name (required)")
@@ -169,12 +190,15 @@ func init() {
 	servicesDesiredCmd.AddCommand(servicesDesiredListCmd)
 	servicesDesiredCmd.AddCommand(servicesDesiredDiffCmd)
 
+	servicesRepairCmd.Flags().BoolVar(&servicesRepairDryRun, "dry-run", false, "Report only — do not repair")
+
 	servicesCmd.AddCommand(servicesApplyCmd)
 	servicesCmd.AddCommand(servicesApplyDesiredCmd)
 	servicesCmd.AddCommand(servicesSeedCmd)
 	servicesCmd.AddCommand(servicesDesiredCmd)
 	servicesCmd.AddCommand(servicesAdoptInstalledCmd)
 	servicesCmd.AddCommand(servicesListDesiredCmd)
+	servicesCmd.AddCommand(servicesRepairCmd)
 }
 
 // ─── apply ───────────────────────────────────────────────────────────────────
@@ -185,8 +209,10 @@ func runServicesApply(cmd *cobra.Command, args []string) error {
 			"Use the declarative workflow instead:\n" +
 			"  globular services desired set <service> <version>\n" +
 			"  globular services apply-desired\n\n" +
-			"To adopt existing installations into the desired state:\n" +
-			"  globular services adopt-installed\n\n" +
+			"To import existing installations into the desired state:\n" +
+			"  globular services seed\n\n" +
+			"To diagnose and repair alignment across all 4 state layers:\n" +
+			"  globular services repair\n\n" +
 			"To force legacy imperative install (unsupported), pass --dangerous-imperative")
 	}
 
@@ -438,6 +464,69 @@ func runServicesSeed(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// ─── repair ──────────────────────────────────────────────────────────────────
+
+func runServicesRepair(cmd *cobra.Command, args []string) error {
+	autoDiscoverController(cmd)
+
+	conn, err := controllerClient()
+	if err != nil {
+		return fmt.Errorf("connect to controller %s: %w", rootCfg.controllerAddr, err)
+	}
+	defer conn.Close()
+
+	client := cluster_controllerpb.NewResourcesServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
+	defer cancel()
+
+	report, err := client.RepairStateAlignment(ctx, &cluster_controllerpb.RepairStateAlignmentRequest{
+		DryRun: servicesRepairDryRun,
+	})
+	if err != nil {
+		return fmt.Errorf("RepairStateAlignment: %w", err)
+	}
+
+	if servicesRepairDryRun {
+		fmt.Println("DRY RUN — no changes applied")
+	}
+	if report.RepositoryAddr != "" {
+		fmt.Printf("Repository: %s\n", report.RepositoryAddr)
+	}
+	fmt.Println()
+
+	// Print per-package table.
+	fmt.Printf("%-35s %-16s %-12s %-12s %-12s %s\n",
+		"PACKAGE", "KIND", "INSTALLED", "DESIRED", "REPO", "STATUS")
+	fmt.Printf("%-35s %-16s %-12s %-12s %-12s %s\n",
+		strings.Repeat("─", 35), strings.Repeat("─", 16),
+		strings.Repeat("─", 12), strings.Repeat("─", 12),
+		strings.Repeat("─", 12), strings.Repeat("─", 20))
+
+	for _, pkg := range report.Packages {
+		fmt.Printf("%-35s %-16s %-12s %-12s %-12s %s\n",
+			pkg.Name, pkg.Kind,
+			orDash(fmtVer(pkg.InstalledVersion, pkg.InstalledBuildNum)),
+			orDash(fmtVer(pkg.DesiredVersion, pkg.DesiredBuildNum)),
+			orDash(fmtVer(pkg.RepoVersion, pkg.RepoBuildNum)),
+			pkg.Status)
+	}
+
+	// Summary.
+	fmt.Println()
+	fmt.Printf("Aligned: %d  Repaired: %d  Drifted: %d  Unmanaged: %d  Missing in repo: %d\n",
+		report.Aligned, report.Repaired, report.Drifted, report.Unmanaged, report.MissingInRepo)
+
+	if report.Drifted > 0 {
+		fmt.Println("\nDrifted packages have installed versions different from desired.")
+		fmt.Println("The controller reconciler will converge them automatically.")
+	}
+	if report.Unmanaged > 0 {
+		fmt.Println("\nUnmanaged packages are installed but have no desired release.")
+		fmt.Printf("Run without --dry-run to import them: globular services repair\n")
+	}
+	return nil
+}
+
 // ─── desired set ─────────────────────────────────────────────────────────────
 
 func runDesiredSet(cmd *cobra.Command, args []string) error {
@@ -529,7 +618,7 @@ func runDesiredList(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%-40s %s\n", "SERVICE", "VERSION")
 	fmt.Printf("%-40s %s\n", strings.Repeat("─", 40), strings.Repeat("─", 20))
 	for _, ds := range desired {
-		fmt.Printf("%-40s %s\n", ds.GetServiceId(), ds.GetVersion())
+		fmt.Printf("%-40s %s\n", ds.GetServiceId(), fmtVer(ds.GetVersion(), ds.GetBuildNumber()))
 	}
 	return nil
 }
@@ -1085,6 +1174,17 @@ func orDash(s string) string {
 		return "—"
 	}
 	return s
+}
+
+// fmtVer formats a version string with an optional build number suffix.
+func fmtVer(version string, buildNumber int64) string {
+	if version == "" {
+		return ""
+	}
+	if buildNumber > 0 {
+		return fmt.Sprintf("%s+b%d", version, buildNumber)
+	}
+	return version
 }
 
 // ─── list-desired implementation ─────────────────────────────────────────────

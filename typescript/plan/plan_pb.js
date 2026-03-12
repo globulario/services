@@ -2958,7 +2958,8 @@ proto.globular.plan.v1.DesiredService.toObject = function(includeInstance, msg) 
   var f, obj = {
 name: jspb.Message.getFieldWithDefault(msg, 1, ""),
 version: jspb.Message.getFieldWithDefault(msg, 2, ""),
-unit: jspb.Message.getFieldWithDefault(msg, 3, "")
+unit: jspb.Message.getFieldWithDefault(msg, 3, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -3007,6 +3008,10 @@ proto.globular.plan.v1.DesiredService.deserializeBinaryFromReader = function(msg
       var value = /** @type {string} */ (reader.readString());
       msg.setUnit(value);
       break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3054,6 +3059,13 @@ proto.globular.plan.v1.DesiredService.serializeBinaryToWriter = function(message
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
       f
     );
   }
@@ -3111,6 +3123,24 @@ proto.globular.plan.v1.DesiredService.prototype.getUnit = function() {
  */
 proto.globular.plan.v1.DesiredService.prototype.setUnit = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int64 build_number = 4;
+ * @return {number}
+ */
+proto.globular.plan.v1.DesiredService.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.globular.plan.v1.DesiredService} returns this
+ */
+proto.globular.plan.v1.DesiredService.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
 };
 
 

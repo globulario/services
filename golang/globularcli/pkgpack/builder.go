@@ -24,6 +24,7 @@ type BuildOptions struct {
 	BinDir             string
 	ConfigDir          string
 	Version            string
+	BuildNumber        int64
 	Publisher          string
 	Platform           string
 	OutDir             string
@@ -47,6 +48,9 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		return nil, fmt.Errorf("invalid version %q: %w", opts.Version, err)
 	}
 	opts.Version = canonical
+	if opts.BuildNumber < 0 {
+		return nil, fmt.Errorf("build-number must be >= 0 (got %d)", opts.BuildNumber)
+	}
 	if opts.OutDir == "" {
 		return nil, fmt.Errorf("out directory is required")
 	}
@@ -231,17 +235,26 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 	}
 
+	pkgType := info.Metadata.Kind
+	if pkgType == "" {
+		pkgType = "service"
+	}
+
 	manifest := Manifest{
-		Type:       "service",
-		Name:       info.ServiceName,
-		Version:    opts.Version,
-		Platform:   fmt.Sprintf("%s_%s", goos, goarch),
-		Publisher:  opts.Publisher,
-		Entrypoint: path.Join("bin", info.ExecName),
+		Type:        pkgType,
+		Name:        info.ServiceName,
+		Version:     opts.Version,
+		BuildNumber: opts.BuildNumber,
+		Platform:    fmt.Sprintf("%s_%s", goos, goarch),
+		Publisher:   opts.Publisher,
+		Entrypoint:  path.Join("bin", info.ExecName),
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),
 		},
+		Description: info.Metadata.Description,
+		Keywords:    info.Metadata.Keywords,
+		License:     info.Metadata.License,
 	}
 	if copiedConfig > 0 {
 		manifest.Defaults.ConfigDir = path.Join("config", info.ServiceName)

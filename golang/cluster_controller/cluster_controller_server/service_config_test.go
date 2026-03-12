@@ -563,7 +563,7 @@ func TestRenderServiceConfigs(t *testing.T) {
 		}
 
 		expectedPaths := []string{
-			"/var/lib/globular/etcd/etcd.yaml",
+			"/var/lib/globular/config/etcd.yaml",
 			"/var/lib/globular/minio/minio.env",
 			"/var/lib/globular/xds/config.json",
 			"/var/lib/globular/dns/dns_init.json",
@@ -598,7 +598,7 @@ func TestRenderServiceConfigs(t *testing.T) {
 		if _, ok := configs["/var/lib/globular/xds/config.json"]; !ok {
 			t.Error("gateway should have xds config")
 		}
-		if _, ok := configs["/var/lib/globular/etcd/etcd.yaml"]; ok {
+		if _, ok := configs["/var/lib/globular/config/etcd.yaml"]; ok {
 			t.Error("gateway should not have etcd config")
 		}
 		if _, ok := configs["/var/lib/globular/minio/minio.env"]; ok {
@@ -685,7 +685,7 @@ func TestValidateRenderersCollisionDetection(t *testing.T) {
 	renderers = append(renderers, rendererSpec{
 		name:    "etcd-dup",
 		profiles: profilesForEtcd,
-		outputs: []string{"/var/lib/globular/etcd/etcd.yaml"}, // same as etcd
+		outputs: []string{"/var/lib/globular/config/etcd.yaml"}, // same as etcd
 		render:  renderEtcdConfig,
 	})
 

@@ -49,6 +49,46 @@ type DeleteServiceReleaseRequest struct {
 	Name string
 }
 
+// ApplicationRelease CRUD request/response types.
+
+type ApplyApplicationReleaseRequest struct {
+	Object *ApplicationRelease
+}
+
+type GetApplicationReleaseRequest struct {
+	Name string
+}
+
+type ListApplicationReleasesRequest struct{}
+
+type ListApplicationReleasesResponse struct {
+	Items []*ApplicationRelease
+}
+
+type DeleteApplicationReleaseRequest struct {
+	Name string
+}
+
+// InfrastructureRelease CRUD request/response types.
+
+type ApplyInfrastructureReleaseRequest struct {
+	Object *InfrastructureRelease
+}
+
+type GetInfrastructureReleaseRequest struct {
+	Name string
+}
+
+type ListInfrastructureReleasesRequest struct{}
+
+type ListInfrastructureReleasesResponse struct {
+	Items []*InfrastructureRelease
+}
+
+type DeleteInfrastructureReleaseRequest struct {
+	Name string
+}
+
 type WatchRequest struct {
 	Type                string
 	Prefix              string
@@ -98,6 +138,48 @@ func (x *DeleteServiceReleaseRequest) GetName() string {
 	return ""
 }
 
+func (x *ApplyApplicationReleaseRequest) GetObject() *ApplicationRelease {
+	if x != nil {
+		return x.Object
+	}
+	return nil
+}
+
+func (x *GetApplicationReleaseRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteApplicationReleaseRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ApplyInfrastructureReleaseRequest) GetObject() *InfrastructureRelease {
+	if x != nil {
+		return x.Object
+	}
+	return nil
+}
+
+func (x *GetInfrastructureReleaseRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteInfrastructureReleaseRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 func (x *WatchRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -138,6 +220,18 @@ type ResourcesServiceServer interface {
 	GetServiceRelease(context.Context, *GetServiceReleaseRequest) (*ServiceRelease, error)
 	ListServiceReleases(context.Context, *ListServiceReleasesRequest) (*ListServiceReleasesResponse, error)
 	DeleteServiceRelease(context.Context, *DeleteServiceReleaseRequest) (*emptypb.Empty, error)
+	// Application Lifecycle v1
+	ApplyApplicationRelease(context.Context, *ApplyApplicationReleaseRequest) (*ApplicationRelease, error)
+	GetApplicationRelease(context.Context, *GetApplicationReleaseRequest) (*ApplicationRelease, error)
+	ListApplicationReleases(context.Context, *ListApplicationReleasesRequest) (*ListApplicationReleasesResponse, error)
+	DeleteApplicationRelease(context.Context, *DeleteApplicationReleaseRequest) (*emptypb.Empty, error)
+	// Infrastructure Lifecycle v1
+	ApplyInfrastructureRelease(context.Context, *ApplyInfrastructureReleaseRequest) (*InfrastructureRelease, error)
+	GetInfrastructureRelease(context.Context, *GetInfrastructureReleaseRequest) (*InfrastructureRelease, error)
+	ListInfrastructureReleases(context.Context, *ListInfrastructureReleasesRequest) (*ListInfrastructureReleasesResponse, error)
+	DeleteInfrastructureRelease(context.Context, *DeleteInfrastructureReleaseRequest) (*emptypb.Empty, error)
+	// State Alignment
+	RepairStateAlignment(context.Context, *RepairStateAlignmentRequest) (*StateAlignmentReport, error)
 }
 
 type UnimplementedResourcesServiceServer struct{}
@@ -171,6 +265,33 @@ func (UnimplementedResourcesServiceServer) ListServiceReleases(context.Context, 
 }
 func (UnimplementedResourcesServiceServer) DeleteServiceRelease(context.Context, *DeleteServiceReleaseRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteServiceRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) ApplyApplicationRelease(context.Context, *ApplyApplicationReleaseRequest) (*ApplicationRelease, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApplyApplicationRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) GetApplicationRelease(context.Context, *GetApplicationReleaseRequest) (*ApplicationRelease, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApplicationRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) ListApplicationReleases(context.Context, *ListApplicationReleasesRequest) (*ListApplicationReleasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListApplicationReleases not implemented")
+}
+func (UnimplementedResourcesServiceServer) DeleteApplicationRelease(context.Context, *DeleteApplicationReleaseRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteApplicationRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) ApplyInfrastructureRelease(context.Context, *ApplyInfrastructureReleaseRequest) (*InfrastructureRelease, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApplyInfrastructureRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) GetInfrastructureRelease(context.Context, *GetInfrastructureReleaseRequest) (*InfrastructureRelease, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInfrastructureRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) ListInfrastructureReleases(context.Context, *ListInfrastructureReleasesRequest) (*ListInfrastructureReleasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInfrastructureReleases not implemented")
+}
+func (UnimplementedResourcesServiceServer) DeleteInfrastructureRelease(context.Context, *DeleteInfrastructureReleaseRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteInfrastructureRelease not implemented")
+}
+func (UnimplementedResourcesServiceServer) RepairStateAlignment(context.Context, *RepairStateAlignmentRequest) (*StateAlignmentReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RepairStateAlignment not implemented")
 }
 
 type ResourcesService_WatchServer interface {
@@ -218,6 +339,42 @@ func RegisterResourcesServiceServer(s *grpc.Server, srv ResourcesServiceServer) 
 			{
 				MethodName: "DeleteServiceRelease",
 				Handler:    _ResourcesService_DeleteServiceRelease_Handler,
+			},
+			{
+				MethodName: "ApplyApplicationRelease",
+				Handler:    _ResourcesService_ApplyApplicationRelease_Handler,
+			},
+			{
+				MethodName: "GetApplicationRelease",
+				Handler:    _ResourcesService_GetApplicationRelease_Handler,
+			},
+			{
+				MethodName: "ListApplicationReleases",
+				Handler:    _ResourcesService_ListApplicationReleases_Handler,
+			},
+			{
+				MethodName: "DeleteApplicationRelease",
+				Handler:    _ResourcesService_DeleteApplicationRelease_Handler,
+			},
+			{
+				MethodName: "ApplyInfrastructureRelease",
+				Handler:    _ResourcesService_ApplyInfrastructureRelease_Handler,
+			},
+			{
+				MethodName: "GetInfrastructureRelease",
+				Handler:    _ResourcesService_GetInfrastructureRelease_Handler,
+			},
+			{
+				MethodName: "ListInfrastructureReleases",
+				Handler:    _ResourcesService_ListInfrastructureReleases_Handler,
+			},
+			{
+				MethodName: "DeleteInfrastructureRelease",
+				Handler:    _ResourcesService_DeleteInfrastructureRelease_Handler,
+			},
+			{
+				MethodName: "RepairStateAlignment",
+				Handler:    _ResourcesService_RepairStateAlignment_Handler,
 			},
 		},
 		Streams: []grpc.StreamDesc{
@@ -349,6 +506,18 @@ type ResourcesServiceClient interface {
 	GetServiceRelease(ctx context.Context, in *GetServiceReleaseRequest, opts ...grpc.CallOption) (*ServiceRelease, error)
 	ListServiceReleases(ctx context.Context, in *ListServiceReleasesRequest, opts ...grpc.CallOption) (*ListServiceReleasesResponse, error)
 	DeleteServiceRelease(ctx context.Context, in *DeleteServiceReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Application Lifecycle v1
+	ApplyApplicationRelease(ctx context.Context, in *ApplyApplicationReleaseRequest, opts ...grpc.CallOption) (*ApplicationRelease, error)
+	GetApplicationRelease(ctx context.Context, in *GetApplicationReleaseRequest, opts ...grpc.CallOption) (*ApplicationRelease, error)
+	ListApplicationReleases(ctx context.Context, in *ListApplicationReleasesRequest, opts ...grpc.CallOption) (*ListApplicationReleasesResponse, error)
+	DeleteApplicationRelease(ctx context.Context, in *DeleteApplicationReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Infrastructure Lifecycle v1
+	ApplyInfrastructureRelease(ctx context.Context, in *ApplyInfrastructureReleaseRequest, opts ...grpc.CallOption) (*InfrastructureRelease, error)
+	GetInfrastructureRelease(ctx context.Context, in *GetInfrastructureReleaseRequest, opts ...grpc.CallOption) (*InfrastructureRelease, error)
+	ListInfrastructureReleases(ctx context.Context, in *ListInfrastructureReleasesRequest, opts ...grpc.CallOption) (*ListInfrastructureReleasesResponse, error)
+	DeleteInfrastructureRelease(ctx context.Context, in *DeleteInfrastructureReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// State Alignment
+	RepairStateAlignment(ctx context.Context, in *RepairStateAlignmentRequest, opts ...grpc.CallOption) (*StateAlignmentReport, error)
 }
 
 type resourcesServiceClient struct {
@@ -533,6 +702,234 @@ func (c *resourcesServiceClient) ListServiceReleases(ctx context.Context, in *Li
 func (c *resourcesServiceClient) DeleteServiceRelease(ctx context.Context, in *DeleteServiceReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/DeleteServiceRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ── ApplicationRelease server-side handlers ──────────────────────────────────
+
+func _ResourcesService_ApplyApplicationRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyApplicationReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).ApplyApplicationRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/ApplyApplicationRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).ApplyApplicationRelease(ctx, req.(*ApplyApplicationReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_GetApplicationRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetApplicationReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).GetApplicationRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/GetApplicationRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).GetApplicationRelease(ctx, req.(*GetApplicationReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_ListApplicationReleases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListApplicationReleasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).ListApplicationReleases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/ListApplicationReleases"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).ListApplicationReleases(ctx, req.(*ListApplicationReleasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_DeleteApplicationRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteApplicationReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).DeleteApplicationRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/DeleteApplicationRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).DeleteApplicationRelease(ctx, req.(*DeleteApplicationReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ── ApplicationRelease client-side methods ───────────────────────────────────
+
+func (c *resourcesServiceClient) ApplyApplicationRelease(ctx context.Context, in *ApplyApplicationReleaseRequest, opts ...grpc.CallOption) (*ApplicationRelease, error) {
+	out := new(ApplicationRelease)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ApplyApplicationRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) GetApplicationRelease(ctx context.Context, in *GetApplicationReleaseRequest, opts ...grpc.CallOption) (*ApplicationRelease, error) {
+	out := new(ApplicationRelease)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/GetApplicationRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) ListApplicationReleases(ctx context.Context, in *ListApplicationReleasesRequest, opts ...grpc.CallOption) (*ListApplicationReleasesResponse, error) {
+	out := new(ListApplicationReleasesResponse)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ListApplicationReleases", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) DeleteApplicationRelease(ctx context.Context, in *DeleteApplicationReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/DeleteApplicationRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ── InfrastructureRelease server-side handlers ───────────────────────────────
+
+func _ResourcesService_ApplyInfrastructureRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyInfrastructureReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).ApplyInfrastructureRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/ApplyInfrastructureRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).ApplyInfrastructureRelease(ctx, req.(*ApplyInfrastructureReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_GetInfrastructureRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInfrastructureReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).GetInfrastructureRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/GetInfrastructureRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).GetInfrastructureRelease(ctx, req.(*GetInfrastructureReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_ListInfrastructureReleases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInfrastructureReleasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).ListInfrastructureReleases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/ListInfrastructureReleases"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).ListInfrastructureReleases(ctx, req.(*ListInfrastructureReleasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourcesService_DeleteInfrastructureRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteInfrastructureReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).DeleteInfrastructureRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/DeleteInfrastructureRelease"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).DeleteInfrastructureRelease(ctx, req.(*DeleteInfrastructureReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ── InfrastructureRelease client-side methods ────────────────────────────────
+
+func (c *resourcesServiceClient) ApplyInfrastructureRelease(ctx context.Context, in *ApplyInfrastructureReleaseRequest, opts ...grpc.CallOption) (*InfrastructureRelease, error) {
+	out := new(InfrastructureRelease)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ApplyInfrastructureRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) GetInfrastructureRelease(ctx context.Context, in *GetInfrastructureReleaseRequest, opts ...grpc.CallOption) (*InfrastructureRelease, error) {
+	out := new(InfrastructureRelease)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/GetInfrastructureRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) ListInfrastructureReleases(ctx context.Context, in *ListInfrastructureReleasesRequest, opts ...grpc.CallOption) (*ListInfrastructureReleasesResponse, error) {
+	out := new(ListInfrastructureReleasesResponse)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ListInfrastructureReleases", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) DeleteInfrastructureRelease(ctx context.Context, in *DeleteInfrastructureReleaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/DeleteInfrastructureRelease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ── RepairStateAlignment server-side handler ─────────────────────────────────
+
+func _ResourcesService_RepairStateAlignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepairStateAlignmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServiceServer).RepairStateAlignment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/clustercontroller.ResourcesService/RepairStateAlignment"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServiceServer).RepairStateAlignment(ctx, req.(*RepairStateAlignmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ── RepairStateAlignment client-side method ──────────────────────────────────
+
+func (c *resourcesServiceClient) RepairStateAlignment(ctx context.Context, in *RepairStateAlignmentRequest, opts ...grpc.CallOption) (*StateAlignmentReport, error) {
+	out := new(StateAlignmentReport)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/RepairStateAlignment", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}

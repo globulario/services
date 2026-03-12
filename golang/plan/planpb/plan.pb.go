@@ -860,6 +860,7 @@ type DesiredService struct {
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	Unit          string                 `protobuf:"bytes,3,opt,name=unit,proto3" json:"unit,omitempty"`
+	BuildNumber   int64                  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -913,6 +914,13 @@ func (x *DesiredService) GetUnit() string {
 		return x.Unit
 	}
 	return ""
+}
+
+func (x *DesiredService) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 type DesiredFile struct {
@@ -1328,11 +1336,12 @@ const file_plan_proto_rawDesc = "" +
 	"\x04args\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x04args\"\x81\x01\n" +
 	"\fDesiredState\x12<\n" +
 	"\bservices\x18\x01 \x03(\v2 .globular.plan.v1.DesiredServiceR\bservices\x123\n" +
-	"\x05files\x18\x02 \x03(\v2\x1d.globular.plan.v1.DesiredFileR\x05files\"R\n" +
+	"\x05files\x18\x02 \x03(\v2\x1d.globular.plan.v1.DesiredFileR\x05files\"u\n" +
 	"\x0eDesiredService\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04unit\x18\x03 \x01(\tR\x04unit\"l\n" +
+	"\x04unit\x18\x03 \x01(\tR\x04unit\x12!\n" +
+	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\"l\n" +
 	"\vDesiredFile\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1f\n" +
 	"\vcontent_ref\x18\x02 \x01(\tR\n" +

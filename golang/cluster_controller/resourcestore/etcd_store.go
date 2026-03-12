@@ -192,6 +192,18 @@ func decodeObject(typ string, data []byte) (interface{}, error) {
 			return nil, err
 		}
 		return obj, nil
+	case "ApplicationRelease":
+		obj := &cluster_controllerpb.ApplicationRelease{}
+		if err := json.Unmarshal(data, obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "InfrastructureRelease":
+		obj := &cluster_controllerpb.InfrastructureRelease{}
+		if err := json.Unmarshal(data, obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
 	default:
 		return nil, fmt.Errorf("unknown type %s", typ)
 	}

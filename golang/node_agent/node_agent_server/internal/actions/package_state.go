@@ -67,6 +67,12 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 		status = "installed"
 	}
 
+	// Build number: read from plan args (int64 via NumberValue, 0 = legacy).
+	var buildNumber int64
+	if bn := fields["build_number"]; bn != nil {
+		buildNumber = int64(bn.GetNumberValue())
+	}
+
 	now := time.Now().Unix()
 
 	// Check if there's an existing record (to preserve installed_unix).
@@ -81,7 +87,7 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 	for k, v := range fields {
 		switch k {
 		case "node_id", "name", "version", "kind", "publisher_id", "platform",
-			"checksum", "operation_id", "status":
+			"checksum", "operation_id", "status", "build_number":
 			continue
 		default:
 			if s := v.GetStringValue(); s != "" {
@@ -94,18 +100,19 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 	}
 
 	pkg := &node_agentpb.InstalledPackage{
-		NodeId:       nodeID,
-		Name:         name,
-		Version:      version,
-		PublisherId:  publisherID,
-		Platform:     platform,
-		Kind:         kind,
-		Checksum:     checksum,
+		NodeId:        nodeID,
+		Name:          name,
+		Version:       version,
+		PublisherId:   publisherID,
+		Platform:      platform,
+		Kind:          kind,
+		Checksum:      checksum,
 		InstalledUnix: installedUnix,
-		UpdatedUnix:  now,
-		Status:       status,
-		OperationId:  operationID,
-		Metadata:     metadata,
+		UpdatedUnix:   now,
+		Status:        status,
+		OperationId:   operationID,
+		BuildNumber:   buildNumber,
+		Metadata:      metadata,
 	}
 
 	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
@@ -115,6 +122,49 @@ func (packageReportStateAction) Apply(ctx context.Context, args *structpb.Struct
 	return fmt.Sprintf("installed-state written: %s/%s@%s on %s", kind, name, version, nodeID), nil
 }
 
+// packageClearStateAction removes an InstalledPackage record from etcd after
+// successful uninstall. This is the counterpart to packageReportStateAction.
+//
+// Plan step args:
+//
+//	node_id (string, required)
+//	name    (string, required)
+//	kind    (string, required: "SERVICE", "APPLICATION", "INFRASTRUCTURE")
+type packageClearStateAction struct{}
+
+func (packageClearStateAction) Name() string { return "package.clear_state" }
+
+func (packageClearStateAction) Validate(args *structpb.Struct) error {
+	fields := args.GetFields()
+	if strings.TrimSpace(fields["node_id"].GetStringValue()) == "" {
+		return fmt.Errorf("package.clear_state: node_id is required")
+	}
+	if strings.TrimSpace(fields["name"].GetStringValue()) == "" {
+		return fmt.Errorf("package.clear_state: name is required")
+	}
+	kind := strings.ToUpper(strings.TrimSpace(fields["kind"].GetStringValue()))
+	switch kind {
+	case "SERVICE", "APPLICATION", "INFRASTRUCTURE":
+		// valid
+	default:
+		return fmt.Errorf("package.clear_state: kind must be SERVICE, APPLICATION, or INFRASTRUCTURE (got %q)", kind)
+	}
+	return nil
+}
+
+func (packageClearStateAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
+	fields := args.GetFields()
+	nodeID := strings.TrimSpace(fields["node_id"].GetStringValue())
+	name := strings.TrimSpace(fields["name"].GetStringValue())
+	kind := strings.ToUpper(strings.TrimSpace(fields["kind"].GetStringValue()))
+
+	if err := installed_state.DeleteInstalledPackage(ctx, nodeID, kind, name); err != nil {
+		return "", fmt.Errorf("package.clear_state: %w", err)
+	}
+	return fmt.Sprintf("installed-state cleared: %s/%s on %s", kind, name, nodeID), nil
+}
+
 func init() {
 	Register(packageReportStateAction{})
+	Register(packageClearStateAction{})
 }

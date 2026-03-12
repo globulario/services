@@ -10,10 +10,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"google.golang.org/grpc/codes"
@@ -52,8 +54,9 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 		}
 		seen[canon] = true
 		ds.Services = append(ds.Services, &cluster_controllerpb.DesiredService{
-			ServiceId: canon,
-			Version:   sdv.Spec.Version,
+			ServiceId:   canon,
+			Version:     sdv.Spec.Version,
+			BuildNumber: sdv.Spec.BuildNumber,
 		})
 	}
 	return ds, nil
@@ -148,6 +151,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
 			ServiceName: canon,
 			Version:     version,
+			BuildNumber: svc.BuildNumber,
 		},
 	}
 	_, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
@@ -193,28 +197,61 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 	return srv.listAllDesiredServices(ctx)
 }
 
-// SeedDesiredState bulk-populates desired state.
+// importStats tracks the results of an import-from-installed operation.
+type importStats struct {
+	Imported      int      // new desired-state entries created
+	AlreadyPresent int     // entries skipped (desired version already matches)
+	Updated       int      // entries updated (desired version changed to match installed)
+	Failed        int      // entries that failed to upsert
+	FailedNames   []string // names of failed entries
+}
+
+// importInstalledToDesired is the core idempotent logic for importing
+// installed services into the desired-state store. It:
+//   - collects installed versions from all reporting nodes (union, first-seen wins)
+//   - compares against existing desired-state entries
+//   - creates/updates only what is missing or different
+//   - returns import statistics
 //
-// IMPORT_FROM_INSTALLED: reads installed_versions from all nodes (union),
-// creates one DesiredService per unique service (first-seen version wins).
-//
-// DEFAULT_CORE_PROFILE: not yet defined; returns an error until a core
-// profile catalogue is available.
-func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controllerpb.SeedDesiredStateRequest) (*cluster_controllerpb.DesiredState, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+// This is safe to call repeatedly — already-present entries are skipped.
+func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, error) {
+	var stats importStats
+
+	if srv.resources == nil {
+		return stats, fmt.Errorf("resource store unavailable")
 	}
 
-	// Clean up any stale domain-prefixed keys from previous seeds.
-	if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
-		fmt.Printf("SeedDesiredState: cleaned up %d stale domain-prefixed entries\n", n)
+	// Step 1: Collect installed versions from canonical installed-state registry (etcd).
+	// Union across all nodes, first-seen wins.
+	allPkgs, err := installed_state.ListAllNodes(ctx, "SERVICE")
+	if err != nil {
+		// Fallback to in-memory node state if registry is unavailable.
+		logger.Warn("importInstalledToDesired: installed-state registry unavailable, falling back to in-memory state", "error", err)
+		allPkgs = nil
 	}
 
-	switch req.GetMode() {
-	case cluster_controllerpb.SeedDesiredStateRequest_IMPORT_FROM_INSTALLED:
-		// Collect installed versions from all nodes (union, first-seen wins).
-		srv.lock("SeedDesiredState")
-		installed := make(map[string]string) // canonical name → version
+	type installedInfo struct {
+		version     string
+		buildNumber int64
+	}
+	installed := make(map[string]installedInfo) // canonical name → version+build
+	if len(allPkgs) > 0 {
+		for _, pkg := range allPkgs {
+			canon := canonicalServiceName(pkg.GetName())
+			if canon == "" || pkg.GetVersion() == "" {
+				continue
+			}
+			if _, exists := installed[canon]; !exists {
+				ver := pkg.GetVersion()
+				if cv, err := versionutil.Canonical(ver); err == nil {
+					ver = cv
+				}
+				installed[canon] = installedInfo{version: ver, buildNumber: pkg.GetBuildNumber()}
+			}
+		}
+	} else {
+		// Fallback: read from in-memory node state (legacy path, no build number).
+		srv.lock("importInstalledToDesired")
 		for _, node := range srv.state.Nodes {
 			for svcID, ver := range node.InstalledVersions {
 				canon := canonicalServiceName(svcID)
@@ -225,24 +262,300 @@ func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controller
 					if cv, err := versionutil.Canonical(ver); err == nil {
 						ver = cv
 					}
-					installed[canon] = ver
+					installed[canon] = installedInfo{version: ver}
 				}
 			}
 		}
 		srv.unlock()
+	}
 
-		if len(installed) == 0 {
-			return nil, status.Error(codes.FailedPrecondition,
-				"no installed services found on any node; cannot seed from installed")
+	srv.lock("importInstalledToDesired:nodeCount")
+	nodeCount := len(srv.state.Nodes)
+	srv.unlock()
+
+	if nodeCount == 0 && len(allPkgs) == 0 {
+		return stats, fmt.Errorf("no nodes have reported status yet; " +
+			"wait for node-agent to start and report installed services")
+	}
+	if len(installed) == 0 {
+		return stats, fmt.Errorf("nodes have reported but no installed services found")
+	}
+
+	// Step 2: Load existing desired state to compare.
+	type existingInfo struct {
+		version     string
+		buildNumber int64
+	}
+	existingMap := make(map[string]existingInfo) // canonical name → version+build
+	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return stats, fmt.Errorf("list existing desired services: %w", err)
+	}
+	for _, obj := range items {
+		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+		if !ok || sdv.Spec == nil {
+			continue
+		}
+		canon := canonicalServiceName(sdv.Spec.ServiceName)
+		if canon == "" {
+			canon = sdv.Spec.ServiceName
+		}
+		existingMap[canon] = existingInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber}
+	}
+
+	// Step 3: Upsert only what is missing or different.
+	for name, inst := range installed {
+		ex, found := existingMap[name]
+		if found && versionutil.EqualFull(ex.version, ex.buildNumber, inst.version, inst.buildNumber) {
+			// Already present with matching version+build — skip.
+			stats.AlreadyPresent++
+			continue
 		}
 
-		for name, ver := range installed {
-			if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
-				ServiceId: name,
-				Version:   ver,
-			}); err != nil {
-				return nil, status.Errorf(codes.Internal, "seed %q: %v", name, err)
+		if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
+			ServiceId:   name,
+			Version:     inst.version,
+			BuildNumber: inst.buildNumber,
+		}); err != nil {
+			stats.Failed++
+			stats.FailedNames = append(stats.FailedNames, name)
+			logger.Warn("importInstalledToDesired: failed to upsert",
+				slog.String("service", name),
+				slog.String("version", inst.version),
+				slog.Any("error", err))
+			continue
+		}
+
+		if found {
+			stats.Updated++
+			logger.Info("importInstalledToDesired: updated desired version",
+				slog.String("service", name),
+				slog.String("from", ex.version),
+				slog.String("to", inst.version))
+		} else {
+			stats.Imported++
+			logger.Info("importInstalledToDesired: imported new desired service",
+				slog.String("service", name),
+				slog.String("version", inst.version))
+		}
+	}
+
+	// Step 4: Import APPLICATION packages as ApplicationRelease desired-state.
+	appStats := srv.importInstalledAppsToDesired(ctx)
+	stats.Imported += appStats.Imported
+	stats.AlreadyPresent += appStats.AlreadyPresent
+	stats.Updated += appStats.Updated
+	stats.Failed += appStats.Failed
+	stats.FailedNames = append(stats.FailedNames, appStats.FailedNames...)
+
+	// Step 5: Import INFRASTRUCTURE packages as InfrastructureRelease desired-state.
+	infraStats := srv.importInstalledInfraToDesired(ctx)
+	stats.Imported += infraStats.Imported
+	stats.AlreadyPresent += infraStats.AlreadyPresent
+	stats.Updated += infraStats.Updated
+	stats.Failed += infraStats.Failed
+	stats.FailedNames = append(stats.FailedNames, infraStats.FailedNames...)
+
+	return stats, nil
+}
+
+// importInstalledAppsToDesired creates ApplicationRelease desired-state objects
+// for APPLICATION packages found in the installed-state registry that don't
+// already have a corresponding ApplicationRelease.
+func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats {
+	var stats importStats
+	if srv.resources == nil {
+		return stats
+	}
+
+	allPkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION")
+	if err != nil || len(allPkgs) == 0 {
+		return stats
+	}
+
+	// Collect unique apps (first-seen version wins).
+	type appInfo struct {
+		name        string
+		version     string
+		buildNumber int64
+		publisherID string
+	}
+	apps := make(map[string]appInfo)
+	for _, pkg := range allPkgs {
+		name := strings.TrimSpace(pkg.GetName())
+		if name == "" || pkg.GetVersion() == "" {
+			continue
+		}
+		if _, exists := apps[name]; !exists {
+			apps[name] = appInfo{
+				name:        name,
+				version:     pkg.GetVersion(),
+				buildNumber: pkg.GetBuildNumber(),
+				publisherID: pkg.GetPublisherId(),
 			}
+		}
+	}
+
+	// Check which ApplicationReleases already exist.
+	existingApps := make(map[string]bool)
+	if items, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
+		for _, obj := range items {
+			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
+				existingApps[rel.Meta.Name] = true
+			}
+		}
+	}
+
+	// Create missing ApplicationRelease objects.
+	for _, app := range apps {
+		if existingApps[app.name] {
+			stats.AlreadyPresent++
+			continue
+		}
+		rel := &cluster_controllerpb.ApplicationRelease{
+			Meta: &cluster_controllerpb.ObjectMeta{Name: app.name},
+			Spec: &cluster_controllerpb.ApplicationReleaseSpec{
+				PublisherID:  app.publisherID,
+				AppName:      app.name,
+				Version:      app.version,
+				BuildNumber:  app.buildNumber,
+			},
+			Status: &cluster_controllerpb.ApplicationReleaseStatus{},
+		}
+		if _, err := srv.resources.Apply(ctx, "ApplicationRelease", rel); err != nil {
+			stats.Failed++
+			stats.FailedNames = append(stats.FailedNames, "app:"+app.name)
+			logger.Warn("importInstalledAppsToDesired: failed to create",
+				slog.String("app", app.name), slog.Any("error", err))
+			continue
+		}
+		stats.Imported++
+		logger.Info("importInstalledAppsToDesired: imported",
+			slog.String("app", app.name), slog.String("version", app.version))
+	}
+
+	return stats
+}
+
+// importInstalledInfraToDesired creates InfrastructureRelease desired-state
+// objects for INFRASTRUCTURE packages found in the installed-state registry
+// that don't already have a corresponding InfrastructureRelease.
+func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStats {
+	var stats importStats
+	if srv.resources == nil {
+		return stats
+	}
+
+	allPkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE")
+	if err != nil || len(allPkgs) == 0 {
+		return stats
+	}
+
+	// Collect unique infra components (first-seen version wins).
+	type infraInfo struct {
+		name        string
+		version     string
+		buildNumber int64
+		publisherID string
+		platform    string
+	}
+	components := make(map[string]infraInfo)
+	for _, pkg := range allPkgs {
+		name := strings.TrimSpace(pkg.GetName())
+		if name == "" || pkg.GetVersion() == "" {
+			continue
+		}
+		if _, exists := components[name]; !exists {
+			components[name] = infraInfo{
+				name:        name,
+				version:     pkg.GetVersion(),
+				buildNumber: pkg.GetBuildNumber(),
+				publisherID: pkg.GetPublisherId(),
+				platform:    pkg.GetPlatform(),
+			}
+		}
+	}
+
+	// Check which InfrastructureReleases already exist.
+	existingInfra := make(map[string]bool)
+	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range items {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				existingInfra[rel.Meta.Name] = true
+			}
+		}
+	}
+
+	// Create missing InfrastructureRelease objects.
+	for _, comp := range components {
+		if existingInfra[comp.name] {
+			stats.AlreadyPresent++
+			continue
+		}
+		rel := &cluster_controllerpb.InfrastructureRelease{
+			Meta: &cluster_controllerpb.ObjectMeta{Name: comp.name},
+			Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+				PublisherID:  comp.publisherID,
+				Component:    comp.name,
+				Version:      comp.version,
+				BuildNumber:  comp.buildNumber,
+				Platform:     comp.platform,
+			},
+			Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
+		}
+		if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", rel); err != nil {
+			stats.Failed++
+			stats.FailedNames = append(stats.FailedNames, "infra:"+comp.name)
+			logger.Warn("importInstalledInfraToDesired: failed to create",
+				slog.String("component", comp.name), slog.Any("error", err))
+			continue
+		}
+		stats.Imported++
+		logger.Info("importInstalledInfraToDesired: imported",
+			slog.String("component", comp.name), slog.String("version", comp.version))
+	}
+
+	return stats
+}
+
+// SeedDesiredState bulk-populates desired state.
+//
+// IMPORT_FROM_INSTALLED: reads installed_versions from all nodes (union),
+// creates one DesiredService per unique service (first-seen version wins).
+// Idempotent — safe to call repeatedly. Existing entries are preserved unless
+// the installed version differs.
+//
+// DEFAULT_CORE_PROFILE: not yet defined; returns an error until a core
+// profile catalogue is available.
+func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controllerpb.SeedDesiredStateRequest) (*cluster_controllerpb.DesiredState, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+
+	// Clean up any stale domain-prefixed keys from previous seeds.
+	if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
+		logger.Info("SeedDesiredState: cleaned up stale entries",
+			slog.Int("count", n))
+	}
+
+	switch req.GetMode() {
+	case cluster_controllerpb.SeedDesiredStateRequest_IMPORT_FROM_INSTALLED:
+		stats, err := srv.importInstalledToDesired(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"import from installed: %v", err)
+		}
+
+		logger.Info("SeedDesiredState: import complete",
+			slog.Int("imported", stats.Imported),
+			slog.Int("updated", stats.Updated),
+			slog.Int("already_present", stats.AlreadyPresent),
+			slog.Int("failed", stats.Failed))
+
+		if stats.Failed > 0 {
+			return nil, status.Errorf(codes.Internal,
+				"import partially failed: %d imported, %d failed (%v)",
+				stats.Imported, stats.Failed, stats.FailedNames)
 		}
 
 	default:

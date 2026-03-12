@@ -20,7 +20,7 @@ func TestPipeline_ServiceUpgrade_EndToEnd(t *testing.T) {
 	}
 
 	// Step 2: Verify installed version lookup.
-	installed := lookupInstalledVersion(node, "gateway")
+	installed, _ := lookupInstalledVersion(node, "gateway")
 	if installed != "1.0.0" {
 		t.Fatalf("lookupInstalledVersion: expected 1.0.0, got %q", installed)
 	}
@@ -96,7 +96,7 @@ func TestPipeline_InfrastructureUpgrade_EndToEnd(t *testing.T) {
 	}
 
 	// Step 2: Verify installed version lookup.
-	installed := lookupInstalledVersion(node, "etcd")
+	installed, _ := lookupInstalledVersion(node, "etcd")
 	if installed != "3.5.13" {
 		t.Fatalf("lookupInstalledVersion: expected 3.5.13, got %q", installed)
 	}
@@ -250,22 +250,22 @@ func TestPipeline_VersionLookup_AllFormats(t *testing.T) {
 		},
 	}
 
-	if v := lookupInstalledVersion(node, "gateway"); v != "1.0.0" {
+	if v, _ := lookupInstalledVersion(node, "gateway"); v != "1.0.0" {
 		t.Errorf("direct name: expected 1.0.0, got %q", v)
 	}
 
 	// Publisher prefix lookup.
-	if v := lookupInstalledVersion(node, "rbac"); v != "1.5.0" {
+	if v, _ := lookupInstalledVersion(node, "rbac"); v != "1.5.0" {
 		t.Errorf("publisher prefix: expected 1.5.0, got %q", v)
 	}
 
 	// Nil node returns empty.
-	if v := lookupInstalledVersion(nil, "gateway"); v != "" {
+	if v, _ := lookupInstalledVersion(nil, "gateway"); v != "" {
 		t.Errorf("nil node: expected empty, got %q", v)
 	}
 
 	// Unknown service returns empty.
-	if v := lookupInstalledVersion(node, "nonexistent"); v != "" {
+	if v, _ := lookupInstalledVersion(node, "nonexistent"); v != "" {
 		t.Errorf("unknown service: expected empty, got %q", v)
 	}
 }

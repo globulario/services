@@ -1388,7 +1388,8 @@ installedUnix: jspb.Message.getFieldWithDefault(msg, 8, 0),
 updatedUnix: jspb.Message.getFieldWithDefault(msg, 9, 0),
 status: jspb.Message.getFieldWithDefault(msg, 10, ""),
 operationId: jspb.Message.getFieldWithDefault(msg, 11, ""),
-metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : []
+metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : [],
+buildNumber: jspb.Message.getFieldWithDefault(msg, 13, 0)
   };
 
   if (includeInstance) {
@@ -1474,6 +1475,10 @@ proto.node_agent.InstalledPackage.deserializeBinaryFromReader = function(msg, re
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
          });
+      break;
+    case 13:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
       break;
     default:
       reader.skipField();
@@ -1584,6 +1589,13 @@ proto.node_agent.InstalledPackage.serializeBinaryToWriter = function(message, wr
   f = message.getMetadataMap(true);
   if (f && f.getLength() > 0) {
     f.serializeBinary(12, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      13,
+      f
+    );
   }
 };
 
@@ -1806,6 +1818,24 @@ proto.node_agent.InstalledPackage.prototype.getMetadataMap = function(opt_noLazy
 proto.node_agent.InstalledPackage.prototype.clearMetadataMap = function() {
   this.getMetadataMap().clear();
   return this;
+};
+
+
+/**
+ * optional int64 build_number = 13;
+ * @return {number}
+ */
+proto.node_agent.InstalledPackage.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 13, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.node_agent.InstalledPackage} returns this
+ */
+proto.node_agent.InstalledPackage.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 13, value);
 };
 
 

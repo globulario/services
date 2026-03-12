@@ -61,6 +61,7 @@ func CompileInfrastructurePlan(
 	}
 
 	component := spec.Component
+	buildNumber := spec.BuildNumber
 	unit := strings.TrimSpace(spec.Unit)
 	if unit == "" {
 		unit = "globular-" + component + ".service"
@@ -102,13 +103,14 @@ func CompileInfrastructurePlan(
 		}),
 		planStep("infrastructure.install", installArgs),
 		planStep("package.report_state", map[string]interface{}{
-			"node_id":      nodeID,
-			"name":         component,
-			"version":      resolvedVersion,
-			"kind":         "INFRASTRUCTURE",
-			"publisher_id": spec.PublisherID,
-			"platform":     platform,
-			"checksum":     status.ResolvedArtifactDigest,
+			"node_id":       nodeID,
+			"name":          component,
+			"version":       resolvedVersion,
+			"kind":          "INFRASTRUCTURE",
+			"publisher_id":  spec.PublisherID,
+			"platform":      platform,
+			"checksum":      status.ResolvedArtifactDigest,
+			"build_number":  buildNumber,
 		}),
 		planStep("service.restart", map[string]interface{}{"unit": unit}),
 	}
@@ -177,6 +179,41 @@ func CompileInfrastructurePlan(
 			},
 		},
 	}, nil
+}
+
+// CompileInfrastructureUninstallPlan produces a NodePlan for removing an
+// infrastructure component from a node. The plan stops the service, removes
+// files via infrastructure.uninstall, and clears the installed-state record.
+func CompileInfrastructureUninstallPlan(nodeID, component, unit, clusterID string) *planpb.NodePlan {
+	if unit == "" {
+		unit = "globular-" + component + ".service"
+	}
+	return &planpb.NodePlan{
+		ApiVersion:    "globular.io/plan/v1",
+		Kind:          "NodePlan",
+		ClusterId:     clusterID,
+		NodeId:        nodeID,
+		Reason:        "infrastructure_uninstall",
+		Locks:         []string{fmt.Sprintf("infrastructure:%s", component)},
+		CreatedUnixMs: uint64(time.Now().UnixMilli()),
+		Policy: &planpb.PlanPolicy{
+			MaxRetries:  1,
+			FailureMode: planpb.FailureMode_FAILURE_MODE_ABORT,
+		},
+		Spec: &planpb.PlanSpec{
+			Steps: []*planpb.PlanStep{
+				planStep("infrastructure.uninstall", map[string]interface{}{
+					"name": component,
+					"unit": unit,
+				}),
+				planStep("package.clear_state", map[string]interface{}{
+					"node_id": nodeID,
+					"name":    component,
+					"kind":    "INFRASTRUCTURE",
+				}),
+			},
+		},
+	}
 }
 
 // ComputeInfrastructureDesiredHash returns a SHA256 (lowercase hex) fingerprint for an

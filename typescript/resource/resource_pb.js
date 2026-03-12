@@ -4969,7 +4969,8 @@ groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
     proto.resource.Group.toObject, includeInstance),
 icon: jspb.Message.getFieldWithDefault(msg, 14, ""),
 alias: jspb.Message.getFieldWithDefault(msg, 15, ""),
-typename: jspb.Message.getFieldWithDefault(msg, 16, "")
+typename: jspb.Message.getFieldWithDefault(msg, 16, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 17, 0)
   };
 
   if (includeInstance) {
@@ -5067,6 +5068,10 @@ proto.resource.PackageDescriptor.deserializeBinaryFromReader = function(msg, rea
     case 16:
       var value = /** @type {string} */ (reader.readString());
       msg.setTypename(value);
+      break;
+    case 17:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
       break;
     default:
       reader.skipField();
@@ -5201,6 +5206,13 @@ proto.resource.PackageDescriptor.serializeBinaryToWriter = function(message, wri
   if (f.length > 0) {
     writer.writeString(
       16,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      17,
       f
     );
   }
@@ -5590,6 +5602,24 @@ proto.resource.PackageDescriptor.prototype.getTypename = function() {
  */
 proto.resource.PackageDescriptor.prototype.setTypename = function(value) {
   return jspb.Message.setProto3StringField(this, 16, value);
+};
+
+
+/**
+ * optional int64 build_number = 17;
+ * @return {number}
+ */
+proto.resource.PackageDescriptor.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 17, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.resource.PackageDescriptor} returns this
+ */
+proto.resource.PackageDescriptor.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 17, value);
 };
 
 

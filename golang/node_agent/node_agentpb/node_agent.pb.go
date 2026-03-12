@@ -221,6 +221,7 @@ type InstalledPackage struct {
 	Status        string                 `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                                                                               // "installed", "updating", "failed", "removing"
 	OperationId   string                 `protobuf:"bytes,11,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`                                                  // last operation that modified this
 	Metadata      map[string]string      `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // additional key-value pairs
+	BuildNumber   int64                  `protobuf:"varint,13,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`                                                 // build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -337,6 +338,13 @@ func (x *InstalledPackage) GetMetadata() map[string]string {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *InstalledPackage) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 type ListInstalledPackagesRequest struct {
@@ -2015,7 +2023,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x12InstalledComponent\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +
-	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"\xd2\x03\n" +
+	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"\xf5\x03\n" +
 	"\x10InstalledPackage\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2029,7 +2037,8 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x06status\x18\n" +
 	" \x01(\tR\x06status\x12!\n" +
 	"\foperation_id\x18\v \x01(\tR\voperationId\x12F\n" +
-	"\bmetadata\x18\f \x03(\v2*.node_agent.InstalledPackage.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\f \x03(\v2*.node_agent.InstalledPackage.MetadataEntryR\bmetadata\x12!\n" +
+	"\fbuild_number\x18\r \x01(\x03R\vbuildNumber\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"K\n" +

@@ -8,7 +8,7 @@ import (
 // are emitted when rendered content is identical to the stored hashes.
 func TestRestartActionsForChangedConfigs_NoChange(t *testing.T) {
 	rendered := map[string]string{
-		"/var/lib/globular/etcd/etcd.yaml": "name: node1\ndata-dir: /var/lib/globular/etcd\n",
+		"/var/lib/globular/config/etcd.yaml": "name: node1\ndata-dir: /var/lib/globular/etcd\n",
 	}
 	// Compute the hashes as they would be stored after a dispatch.
 	stored := HashRenderedConfigs(rendered)
@@ -27,13 +27,13 @@ func TestRestartActionsForChangedConfigs_Changed(t *testing.T) {
 
 	// Simulate old stored hash (from previous dispatch).
 	oldRendered := map[string]string{
-		"/var/lib/globular/etcd/etcd.yaml": original,
+		"/var/lib/globular/config/etcd.yaml": original,
 	}
 	stored := HashRenderedConfigs(oldRendered)
 
 	// New render has different content.
 	newRendered := map[string]string{
-		"/var/lib/globular/etcd/etcd.yaml": updated,
+		"/var/lib/globular/config/etcd.yaml": updated,
 	}
 
 	actions := restartActionsForChangedConfigs(stored, newRendered)
@@ -71,13 +71,13 @@ func TestRestartActionsForChangedConfigs_NewFile(t *testing.T) {
 // two renderers' outputs produces restart actions for both, not each other's.
 func TestRestartActionsForChangedConfigs_MultipleRenderers(t *testing.T) {
 	old := map[string]string{
-		"/var/lib/globular/etcd/etcd.yaml":  "name: node1\n",
+		"/var/lib/globular/config/etcd.yaml":  "name: node1\n",
 		"/var/lib/globular/minio/minio.env": "MINIO_VOLUMES=/path\n",
 	}
 	stored := HashRenderedConfigs(old)
 
 	newRendered := map[string]string{
-		"/var/lib/globular/etcd/etcd.yaml":  "name: node2\n",   // changed
+		"/var/lib/globular/config/etcd.yaml":  "name: node2\n",   // changed
 		"/var/lib/globular/minio/minio.env": "MINIO_VOLUMES=/path\n", // unchanged
 	}
 

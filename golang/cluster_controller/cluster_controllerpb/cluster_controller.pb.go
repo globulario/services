@@ -4643,7 +4643,8 @@ type DesiredService struct {
 	// otherwise just "<name>". The controller normalises to lowercase.
 	ServiceId     string `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
 	Version       string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Platform      string `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"` // optional; e.g. "linux_amd64"
+	Platform      string `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`                           // optional; e.g. "linux_amd64"
+	BuildNumber   int64  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4697,6 +4698,13 @@ func (x *DesiredService) GetPlatform() string {
 		return x.Platform
 	}
 	return ""
+}
+
+func (x *DesiredService) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.
@@ -5306,6 +5314,8 @@ type UpgradePlanItem struct {
 	Sha256          string                 `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
 	RestartRequired bool                   `protobuf:"varint,6,opt,name=restart_required,json=restartRequired,proto3" json:"restart_required,omitempty"`
 	Impacts         []string               `protobuf:"bytes,7,rep,name=impacts,proto3" json:"impacts,omitempty"`
+	FromBuildNumber int64                  `protobuf:"varint,8,opt,name=from_build_number,json=fromBuildNumber,proto3" json:"from_build_number,omitempty"` // installed build (0 = legacy)
+	ToBuildNumber   int64                  `protobuf:"varint,9,opt,name=to_build_number,json=toBuildNumber,proto3" json:"to_build_number,omitempty"`       // target build
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -5387,6 +5397,20 @@ func (x *UpgradePlanItem) GetImpacts() []string {
 		return x.Impacts
 	}
 	return nil
+}
+
+func (x *UpgradePlanItem) GetFromBuildNumber() int64 {
+	if x != nil {
+		return x.FromBuildNumber
+	}
+	return 0
+}
+
+func (x *UpgradePlanItem) GetToBuildNumber() int64 {
+	if x != nil {
+		return x.ToBuildNumber
+	}
+	return 0
 }
 
 type PlanServiceUpgradesResponse struct {
@@ -6012,12 +6036,13 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\vconfig_diff\x18\x03 \x03(\v2\".cluster_controller.ConfigFileDiffR\n" +
 	"configDiff\x12#\n" +
 	"\rrestart_units\x18\x04 \x03(\tR\frestartUnits\x12K\n" +
-	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"e\n" +
+	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\x88\x01\n" +
 	"\x0eDesiredService\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
-	"\bplatform\x18\x03 \x01(\tR\bplatform\"j\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x12!\n" +
+	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\"j\n" +
 	"\fDesiredState\x12>\n" +
 	"\bservices\x18\x01 \x03(\v2\".cluster_controller.DesiredServiceR\bservices\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"[\n" +
@@ -6065,7 +6090,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x1aPlanServiceUpgradesRequest\x12\x1a\n" +
 	"\bservices\x18\x01 \x03(\tR\bservices\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x1a\n" +
-	"\bplatform\x18\x03 \x01(\tR\bplatform\"\xed\x01\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\"\xc1\x02\n" +
 	"\x0fUpgradePlanItem\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12!\n" +
 	"\ffrom_version\x18\x02 \x01(\tR\vfromVersion\x12\x1d\n" +
@@ -6074,7 +6099,9 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\fpackage_name\x18\x04 \x01(\tR\vpackageName\x12\x16\n" +
 	"\x06sha256\x18\x05 \x01(\tR\x06sha256\x12)\n" +
 	"\x10restart_required\x18\x06 \x01(\bR\x0frestartRequired\x12\x18\n" +
-	"\aimpacts\x18\a \x03(\tR\aimpacts\"\x85\x01\n" +
+	"\aimpacts\x18\a \x03(\tR\aimpacts\x12*\n" +
+	"\x11from_build_number\x18\b \x01(\x03R\x0ffromBuildNumber\x12&\n" +
+	"\x0fto_build_number\x18\t \x01(\x03R\rtoBuildNumber\"\x85\x01\n" +
 	"\x1bPlanServiceUpgradesResponse\x129\n" +
 	"\x05items\x18\x01 \x03(\v2#.cluster_controller.UpgradePlanItemR\x05items\x12+\n" +
 	"\x11repository_status\x18\x02 \x01(\tR\x10repositoryStatus\"n\n" +

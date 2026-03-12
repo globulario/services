@@ -25,6 +25,7 @@ type ClusterNetwork struct {
 type ServiceDesiredVersionSpec struct {
 	ServiceName string `json:"service_name,omitempty"`
 	Version     string `json:"version,omitempty"`
+	BuildNumber int64  `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 }
 
 type ServiceDesiredVersion struct {
@@ -76,8 +77,9 @@ type NodeAssignment struct {
 type ServiceReleaseSpec struct {
 	PublisherID      string            `json:"publisher_id,omitempty"`
 	ServiceName      string            `json:"service_name,omitempty"`
-	Version          string            `json:"version,omitempty"` // Exact; empty = resolve via Channel
-	Channel          string            `json:"channel,omitempty"` // "stable" | "nightly" | "beta"
+	Version          string            `json:"version,omitempty"`      // Exact; empty = resolve via Channel
+	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	Channel          string            `json:"channel,omitempty"`      // "stable" | "nightly" | "beta"
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`         // e.g. "linux_amd64"
 	RolloutStrategy  string            `json:"rollout_strategy,omitempty"` // RolloutRolling | RolloutAllAtOnce
@@ -98,20 +100,22 @@ type ReplicaSpec struct {
 
 // NodeReleaseStatus tracks per-node progress within a ServiceRelease rollout.
 type NodeReleaseStatus struct {
-	NodeID           string `json:"node_id,omitempty"`
-	PlanID           string `json:"plan_id,omitempty"`
-	Phase            string `json:"phase,omitempty"` // ReleasePhase* constants
-	InstalledVersion string `json:"installed_version,omitempty"`
-	ErrorMessage     string `json:"error_message,omitempty"`
-	UpdatedUnixMs    int64  `json:"updated_unix_ms,omitempty"`
+	NodeID                string `json:"node_id,omitempty"`
+	PlanID                string `json:"plan_id,omitempty"`
+	Phase                 string `json:"phase,omitempty"` // ReleasePhase* constants
+	InstalledVersion      string `json:"installed_version,omitempty"`
+	InstalledBuildNumber  int64  `json:"installed_build_number,omitempty"` // build iteration on this node
+	ErrorMessage          string `json:"error_message,omitempty"`
+	UpdatedUnixMs         int64  `json:"updated_unix_ms,omitempty"`
 }
 
 // ServiceReleaseStatus is the controller-managed status of a ServiceRelease.
 type ServiceReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`    // resolved build iteration
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"` // SHA256 hex
-	DesiredHash            string               `json:"desired_hash,omitempty"`             // SHA256 of (publisher+name+version+config)
+	DesiredHash            string               `json:"desired_hash,omitempty"`             // SHA256 of (publisher+name+version+build_number+config)
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
@@ -133,6 +137,7 @@ type ApplicationReleaseSpec struct {
 	PublisherID     string            `json:"publisher_id,omitempty"`
 	AppName         string            `json:"app_name,omitempty"`
 	Version         string            `json:"version,omitempty"`
+	BuildNumber     int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	Channel         string            `json:"channel,omitempty"`
 	RepositoryID    string            `json:"repository_id,omitempty"`
 	Platform        string            `json:"platform,omitempty"`
@@ -145,6 +150,7 @@ type ApplicationReleaseSpec struct {
 type ApplicationReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
 	DesiredHash            string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
@@ -167,6 +173,7 @@ type InfrastructureReleaseSpec struct {
 	PublisherID      string            `json:"publisher_id,omitempty"`
 	Component        string            `json:"component,omitempty"` // e.g. "etcd", "minio", "envoy"
 	Version          string            `json:"version,omitempty"`
+	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	Channel          string            `json:"channel,omitempty"`
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`
@@ -183,6 +190,7 @@ type InfrastructureReleaseSpec struct {
 type InfrastructureReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
+	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
 	DesiredHash            string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
@@ -196,6 +204,41 @@ type InfrastructureRelease struct {
 	Meta   *ObjectMeta                  `json:"meta,omitempty"`
 	Spec   *InfrastructureReleaseSpec   `json:"spec,omitempty"`
 	Status *InfrastructureReleaseStatus `json:"status,omitempty"`
+}
+
+// ── State Alignment Report ───────────────────────────────────────────────────
+
+// PackageAlignmentStatus describes the state alignment of a single package
+// across the 4 layers: artifact, desired release, installed observed, runtime.
+type PackageAlignmentStatus struct {
+	Name                string `json:"name"`
+	Kind                string `json:"kind"`                              // SERVICE, APPLICATION, INFRASTRUCTURE
+	Status              string `json:"status"`                            // aligned, repaired, missing_in_repo, unmanaged, drifted, orphaned
+	InstalledVersion    string `json:"installed_version,omitempty"`       // from installed-state registry
+	InstalledBuildNum   int64  `json:"installed_build_number,omitempty"`  // installed build iteration
+	DesiredVersion      string `json:"desired_version,omitempty"`         // from desired release
+	DesiredBuildNum     int64  `json:"desired_build_number,omitempty"`    // desired build iteration
+	RepoVersion         string `json:"repo_version,omitempty"`            // latest available in repository
+	RepoBuildNum        int64  `json:"repo_build_number,omitempty"`       // latest build in repository
+	Message             string `json:"message,omitempty"`                 // human-readable explanation
+}
+
+// StateAlignmentReport is the result of a repair/convergence check.
+type StateAlignmentReport struct {
+	Packages       []*PackageAlignmentStatus `json:"packages"`
+	Aligned        int                       `json:"aligned"`
+	Repaired       int                       `json:"repaired"`
+	Drifted        int                       `json:"drifted"`
+	Unmanaged      int                       `json:"unmanaged"`
+	MissingInRepo  int                       `json:"missing_in_repo"`
+	Orphaned       int                       `json:"orphaned"`
+	Errors         int                       `json:"errors"`
+	RepositoryAddr string                    `json:"repository_addr,omitempty"`
+}
+
+// RepairStateAlignmentRequest controls the repair operation.
+type RepairStateAlignmentRequest struct {
+	DryRun bool `json:"dry_run,omitempty"` // if true, report only — don't repair
 }
 
 // WatchEvent is a resource change notification sent over the Watch stream.

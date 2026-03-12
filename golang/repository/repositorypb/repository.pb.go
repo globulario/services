@@ -162,6 +162,10 @@ type ArtifactManifest struct {
 	Checksum     string                 `protobuf:"bytes,2,opt,name=checksum,proto3" json:"checksum,omitempty"` // sha256 of the archive
 	SizeBytes    int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	ModifiedUnix int64                  `protobuf:"varint,4,opt,name=modified_unix,json=modifiedUnix,proto3" json:"modified_unix,omitempty"`
+	// Build identification — build_number disambiguates multiple builds within the
+	// same semantic version. Legacy artifacts without a build number default to 0.
+	// Repository uniqueness: (ref.publisher_id, ref.name, ref.platform, ref.version, build_number).
+	BuildNumber int64 `protobuf:"varint,5,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`
 	// Dependency graph
 	Provides    []string          `protobuf:"bytes,10,rep,name=provides,proto3" json:"provides,omitempty"`
 	Requires    []string          `protobuf:"bytes,11,rep,name=requires,proto3" json:"requires,omitempty"`
@@ -175,6 +179,11 @@ type ArtifactManifest struct {
 	License            string   `protobuf:"bytes,18,opt,name=license,proto3" json:"license,omitempty"`
 	MinGlobularVersion string   `protobuf:"bytes,19,opt,name=min_globular_version,json=minGlobularVersion,proto3" json:"min_globular_version,omitempty"`
 	PublishedUnix      int64    `protobuf:"varint,20,opt,name=published_unix,json=publishedUnix,proto3" json:"published_unix,omitempty"`
+	// Optional build metadata
+	BuildCommit        string `protobuf:"bytes,21,opt,name=build_commit,json=buildCommit,proto3" json:"build_commit,omitempty"`                         // git short-SHA at build time
+	BuildTimestampUnix int64  `protobuf:"varint,22,opt,name=build_timestamp_unix,json=buildTimestampUnix,proto3" json:"build_timestamp_unix,omitempty"` // when the build was produced
+	BuildSource        string `protobuf:"bytes,23,opt,name=build_source,json=buildSource,proto3" json:"build_source,omitempty"`                         // build host / CI job identifier
+	BuildNotes         string `protobuf:"bytes,24,opt,name=build_notes,json=buildNotes,proto3" json:"build_notes,omitempty"`                            // free-text changelog for this build
 	// Type-specific detail — exactly one set per manifest, determined by ref.kind.
 	//
 	// Types that are valid to be assigned to TypeDetail:
@@ -241,6 +250,13 @@ func (x *ArtifactManifest) GetSizeBytes() int64 {
 func (x *ArtifactManifest) GetModifiedUnix() int64 {
 	if x != nil {
 		return x.ModifiedUnix
+	}
+	return 0
+}
+
+func (x *ArtifactManifest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
 	}
 	return 0
 }
@@ -320,6 +336,34 @@ func (x *ArtifactManifest) GetPublishedUnix() int64 {
 		return x.PublishedUnix
 	}
 	return 0
+}
+
+func (x *ArtifactManifest) GetBuildCommit() string {
+	if x != nil {
+		return x.BuildCommit
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetBuildTimestampUnix() int64 {
+	if x != nil {
+		return x.BuildTimestampUnix
+	}
+	return 0
+}
+
+func (x *ArtifactManifest) GetBuildSource() string {
+	if x != nil {
+		return x.BuildSource
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetBuildNotes() string {
+	if x != nil {
+		return x.BuildNotes
+	}
+	return ""
 }
 
 func (x *ArtifactManifest) GetTypeDetail() isArtifactManifest_TypeDetail {
@@ -727,6 +771,7 @@ type UploadArtifactRequest struct {
 	Organization  string                 `protobuf:"bytes,2,opt,name=organization,proto3" json:"organization,omitempty"`
 	Ref           *ArtifactRef           `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
 	Data          []byte                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
+	BuildNumber   int64                  `protobuf:"varint,5,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -787,6 +832,13 @@ func (x *UploadArtifactRequest) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *UploadArtifactRequest) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 type UploadArtifactResponse struct {
@@ -1224,6 +1276,7 @@ type BundleSummary struct {
 	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`             // archive size
 	PublishedUnix int64                  `protobuf:"varint,7,opt,name=published_unix,json=publishedUnix,proto3" json:"published_unix,omitempty"` // upload timestamp (unix seconds)
 	Sha256        string                 `protobuf:"bytes,8,opt,name=sha256,proto3" json:"sha256,omitempty"`                                     // checksum of the archive
+	BuildNumber   int64                  `protobuf:"varint,9,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`       // build iteration within version (0 = legacy)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1312,6 +1365,13 @@ func (x *BundleSummary) GetSha256() string {
 		return x.Sha256
 	}
 	return ""
+}
+
+func (x *BundleSummary) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
 }
 
 type ListBundlesRequest struct {
@@ -1772,13 +1832,14 @@ const file_repository_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12,\n" +
-	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\xd3\x06\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\x8f\b\n" +
 	"\x10ArtifactManifest\x12)\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12#\n" +
-	"\rmodified_unix\x18\x04 \x01(\x03R\fmodifiedUnix\x12\x1a\n" +
+	"\rmodified_unix\x18\x04 \x01(\x03R\fmodifiedUnix\x12!\n" +
+	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\x12\x1a\n" +
 	"\bprovides\x18\n" +
 	" \x03(\tR\bprovides\x12\x1a\n" +
 	"\brequires\x18\v \x03(\tR\brequires\x12F\n" +
@@ -1790,7 +1851,12 @@ const file_repository_proto_rawDesc = "" +
 	"\x05alias\x18\x11 \x01(\tR\x05alias\x12\x18\n" +
 	"\alicense\x18\x12 \x01(\tR\alicense\x120\n" +
 	"\x14min_globular_version\x18\x13 \x01(\tR\x12minGlobularVersion\x12%\n" +
-	"\x0epublished_unix\x18\x14 \x01(\x03R\rpublishedUnix\x12B\n" +
+	"\x0epublished_unix\x18\x14 \x01(\x03R\rpublishedUnix\x12!\n" +
+	"\fbuild_commit\x18\x15 \x01(\tR\vbuildCommit\x120\n" +
+	"\x14build_timestamp_unix\x18\x16 \x01(\x03R\x12buildTimestampUnix\x12!\n" +
+	"\fbuild_source\x18\x17 \x01(\tR\vbuildSource\x12\x1f\n" +
+	"\vbuild_notes\x18\x18 \x01(\tR\n" +
+	"buildNotes\x12B\n" +
 	"\x0eservice_detail\x18\x1e \x01(\v2\x19.repository.ServiceDetailH\x00R\rserviceDetail\x12N\n" +
 	"\x12application_detail\x18\x1f \x01(\v2\x1d.repository.ApplicationDetailH\x00R\x11applicationDetail\x12W\n" +
 	"\x15infrastructure_detail\x18  \x01(\v2 .repository.InfrastructureDetailH\x00R\x14infrastructureDetail\x1a;\n" +
@@ -1828,12 +1894,13 @@ const file_repository_proto_rawDesc = "" +
 	"\x13required_privileges\x18\x06 \x03(\tR\x12requiredPrivileges\"\x16\n" +
 	"\x14ListArtifactsRequest\"S\n" +
 	"\x15ListArtifactsResponse\x12:\n" +
-	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\x8e\x01\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\xb1\x01\n" +
 	"\x15UploadArtifactRequest\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\"\n" +
 	"\forganization\x18\x02 \x01(\tR\forganization\x12)\n" +
 	"\x03ref\x18\x03 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x12\n" +
-	"\x04data\x18\x04 \x01(\fR\x04data\"0\n" +
+	"\x04data\x18\x04 \x01(\fR\x04data\x12!\n" +
+	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\"0\n" +
 	"\x16UploadArtifactResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"D\n" +
 	"\x17DownloadArtifactRequest\x12)\n" +
@@ -1856,7 +1923,7 @@ const file_repository_proto_rawDesc = "" +
 	"descriptor\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\",\n" +
 	"\x16DownloadBundleResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"\xf9\x01\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\x9c\x02\n" +
 	"\rBundleSummary\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
@@ -1867,7 +1934,8 @@ const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12%\n" +
 	"\x0epublished_unix\x18\a \x01(\x03R\rpublishedUnix\x12\x16\n" +
-	"\x06sha256\x18\b \x01(\tR\x06sha256\",\n" +
+	"\x06sha256\x18\b \x01(\tR\x06sha256\x12!\n" +
+	"\fbuild_number\x18\t \x01(\x03R\vbuildNumber\",\n" +
 	"\x12ListBundlesRequest\x12\x16\n" +
 	"\x06prefix\x18\x01 \x01(\tR\x06prefix\"J\n" +
 	"\x13ListBundlesResponse\x123\n" +

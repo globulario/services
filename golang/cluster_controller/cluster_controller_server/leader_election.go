@@ -40,6 +40,7 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 				return
 			default:
 			}
+
 			ttl := 15
 			if env := strings.TrimSpace(os.Getenv("CLUSTER_CONTROLLER_LEASE_TTL_SECONDS")); env != "" {
 				if v, err := strconv.Atoi(env); err == nil && v > 0 {
@@ -105,6 +106,7 @@ func startLeaderWatcher(ctx context.Context, cli *clientv3.Client, srv *server) 
 		backoff := 250 * time.Millisecond
 		maxBackoff := 5 * time.Second
 		var rev int64
+
 		syncState := func() {
 			if resp, err := cli.Get(ctx, key); err == nil {
 				if len(resp.Kvs) > 0 {

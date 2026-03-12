@@ -14,12 +14,16 @@ import (
 type VerificationSummary struct {
 	Name         string
 	Version      string
+	BuildNumber  int64
 	Platform     string
 	Publisher    string
 	Type         string // "service" (default), "application", "infrastructure"
 	Entrypoint   string
 	ConfigCount  int
 	SystemdCount int
+	Description  string
+	Keywords     []string
+	License      string
 }
 
 // VerifyTGZ validates package contents and returns a summary.
@@ -135,11 +139,15 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 	return &VerificationSummary{
 		Name:         manifest.Name,
 		Version:      manifest.Version,
+		BuildNumber:  manifest.BuildNumber,
 		Platform:     manifest.Platform,
 		Publisher:    manifest.Publisher,
 		Type:         pkgType,
 		Entrypoint:   manifest.Entrypoint,
 		ConfigCount:  configCount,
 		SystemdCount: systemdCount,
+		Description:  manifest.Description,
+		Keywords:     manifest.Keywords,
+		License:      manifest.License,
 	}, nil
 }

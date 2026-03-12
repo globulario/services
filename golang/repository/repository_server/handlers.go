@@ -231,7 +231,7 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 			PublisherId: d.PublisherID,
 			Kind:        repopb.ArtifactKind_SERVICE,
 		}
-		aKey := artifactKey(aRef)
+		aKey := artifactKeyWithBuild(aRef, 0)
 		_ = srv.Storage().MkdirAll(stream.Context(), artifactsDir, 0o755)
 		if werr := srv.Storage().WriteFile(stream.Context(), binaryStorageKey(aKey), bundle.Binairies, 0o644); werr != nil {
 			slog.Warn("dual-write artifact binary failed", "key", aKey, "err", werr)

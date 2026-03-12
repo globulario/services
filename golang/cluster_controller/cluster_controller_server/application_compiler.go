@@ -60,6 +60,7 @@ func CompileApplicationPlan(
 	}
 
 	appName := spec.AppName
+	buildNumber := spec.BuildNumber
 	artPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/%s.artifact", spec.PublisherID, appName, resolvedVersion)
 	desiredHash := ComputeApplicationDesiredHash(spec.PublisherID, appName, resolvedVersion)
 
@@ -98,13 +99,14 @@ func CompileApplicationPlan(
 		}),
 		planStep("application.install", installArgs),
 		planStep("package.report_state", map[string]interface{}{
-			"node_id":      nodeID,
-			"name":         appName,
-			"version":      resolvedVersion,
-			"kind":         "APPLICATION",
-			"publisher_id": spec.PublisherID,
-			"platform":     platform,
-			"checksum":     status.ResolvedArtifactDigest,
+			"node_id":       nodeID,
+			"name":          appName,
+			"version":       resolvedVersion,
+			"kind":          "APPLICATION",
+			"publisher_id":  spec.PublisherID,
+			"platform":      platform,
+			"checksum":      status.ResolvedArtifactDigest,
+			"build_number":  buildNumber,
 		}),
 	}
 
@@ -167,6 +169,37 @@ func CompileApplicationPlan(
 			},
 		},
 	}, nil
+}
+
+// CompileApplicationUninstallPlan produces a NodePlan for removing an
+// application from a node. The plan removes files via application.uninstall
+// and clears the installed-state record.
+func CompileApplicationUninstallPlan(nodeID, appName, clusterID string) *planpb.NodePlan {
+	return &planpb.NodePlan{
+		ApiVersion:    "globular.io/plan/v1",
+		Kind:          "NodePlan",
+		ClusterId:     clusterID,
+		NodeId:        nodeID,
+		Reason:        "application_uninstall",
+		Locks:         []string{fmt.Sprintf("application:%s", appName)},
+		CreatedUnixMs: uint64(time.Now().UnixMilli()),
+		Policy: &planpb.PlanPolicy{
+			MaxRetries:  1,
+			FailureMode: planpb.FailureMode_FAILURE_MODE_ABORT,
+		},
+		Spec: &planpb.PlanSpec{
+			Steps: []*planpb.PlanStep{
+				planStep("application.uninstall", map[string]interface{}{
+					"name": appName,
+				}),
+				planStep("package.clear_state", map[string]interface{}{
+					"node_id": nodeID,
+					"name":    appName,
+					"kind":    "APPLICATION",
+				}),
+			},
+		},
+	}
 }
 
 // ComputeApplicationDesiredHash returns a SHA256 (lowercase hex) fingerprint for an application release.

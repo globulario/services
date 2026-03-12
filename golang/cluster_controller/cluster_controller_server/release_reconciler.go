@@ -8,11 +8,14 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/google/uuid"
 )
 
 const releaseKeyPrefix = "release/"
+const appReleaseKeyPrefix = "app-release/"
+const infraReleaseKeyPrefix = "infra-release/"
 
 func isReleaseKey(key string) bool {
 	return strings.HasPrefix(key, releaseKeyPrefix)
@@ -22,8 +25,24 @@ func releaseNameFromKey(key string) string {
 	return strings.TrimPrefix(key, releaseKeyPrefix)
 }
 
-// startReleaseReconciler adds a ServiceRelease watcher to the work queue and enqueues
-// any existing releases for initial reconciliation. Call from startControllerRuntime().
+func isAppReleaseKey(key string) bool {
+	return strings.HasPrefix(key, appReleaseKeyPrefix)
+}
+
+func appReleaseNameFromKey(key string) string {
+	return strings.TrimPrefix(key, appReleaseKeyPrefix)
+}
+
+func isInfraReleaseKey(key string) bool {
+	return strings.HasPrefix(key, infraReleaseKeyPrefix)
+}
+
+func infraReleaseNameFromKey(key string) string {
+	return strings.TrimPrefix(key, infraReleaseKeyPrefix)
+}
+
+// startReleaseReconciler adds release watchers to the work queue and enqueues
+// existing releases for initial reconciliation. Call from startControllerRuntime().
 func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue) {
 	if srv.resources == nil {
 		return
@@ -45,6 +64,46 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 		for evt := range ch {
 			if rel, ok := evt.Object.(*cluster_controllerpb.ServiceRelease); ok && rel.Meta != nil {
 				queue.Enqueue(releaseKeyPrefix + rel.Meta.Name)
+			}
+		}
+	})
+
+	// Initial enqueue of ApplicationRelease objects.
+	if items, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
+		for _, obj := range items {
+			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
+				queue.Enqueue(appReleaseKeyPrefix + rel.Meta.Name)
+			}
+		}
+	}
+	safeGo("watch-application-release", func() {
+		ch, err := srv.resources.Watch(ctx, "ApplicationRelease", "", "")
+		if err != nil {
+			return
+		}
+		for evt := range ch {
+			if rel, ok := evt.Object.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
+				queue.Enqueue(appReleaseKeyPrefix + rel.Meta.Name)
+			}
+		}
+	})
+
+	// Initial enqueue of InfrastructureRelease objects.
+	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range items {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
+			}
+		}
+	}
+	safeGo("watch-infrastructure-release", func() {
+		ch, err := srv.resources.Watch(ctx, "InfrastructureRelease", "", "")
+		if err != nil {
+			return
+		}
+		for evt := range ch {
+			if rel, ok := evt.Object.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
 			}
 		}
 	})
@@ -511,6 +570,10 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 // getInstalledVersionForRelease returns the InstalledVersion for the given node from
 // the existing release status, used as the candidate prior version for rollback.
 // Returns "" if unknown (first deployment or not yet reported).
+//
+// Lookup order:
+//  1. Release status (in-memory, from previous reconcile cycle)
+//  2. Installed-state registry in etcd (canonical source, written by Node Agent)
 func (srv *server) getInstalledVersionForRelease(rel *cluster_controllerpb.ServiceRelease, nodeID string) string {
 	if rel.Status != nil {
 		for _, nrs := range rel.Status.Nodes {
@@ -519,19 +582,10 @@ func (srv *server) getInstalledVersionForRelease(rel *cluster_controllerpb.Servi
 			}
 		}
 	}
-	// Fallback to node-reported installed versions if present.
-	srv.lock("state:snapshot")
-	node := srv.state.Nodes[nodeID]
-	srv.unlock()
-	if node != nil && len(node.InstalledVersions) > 0 {
-		// Accept either "publisher/service" or raw service name keys.
-		canon := canonicalServiceName(rel.Spec.ServiceName)
-		pub := strings.TrimSpace(rel.Spec.PublisherID)
-		keyWithPublisher := fmt.Sprintf("%s/%s", pub, canon)
-		if v := strings.TrimSpace(node.InstalledVersions[keyWithPublisher]); v != "" {
-			return v
-		}
-		if v := strings.TrimSpace(node.InstalledVersions[canon]); v != "" {
+	// Canonical source: installed-state registry in etcd.
+	canon := canonicalServiceName(rel.Spec.ServiceName)
+	if pkg, err := installed_state.GetInstalledPackage(context.Background(), nodeID, "SERVICE", canon); err == nil && pkg != nil {
+		if v := strings.TrimSpace(pkg.GetVersion()); v != "" {
 			return v
 		}
 	}
@@ -570,4 +624,169 @@ func (srv *server) hasActivePlanWithLock(ctx context.Context, nodeID, lock strin
 		}
 	}
 	return false
+}
+
+// ── ApplicationRelease reconciler (unified pipeline) ─────────────────────────
+
+// reconcileAppRelease drives the phase state machine for one ApplicationRelease
+// using the shared release pipeline.
+func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) {
+	if srv.resources == nil {
+		return
+	}
+	obj, _, err := srv.resources.Get(ctx, "ApplicationRelease", releaseName)
+	if err != nil {
+		log.Printf("app-release %s: get: %v", releaseName, err)
+		return
+	}
+	if obj == nil {
+		return
+	}
+	rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
+	if !ok || rel.Spec == nil {
+		log.Printf("app-release %s: unexpected object type", releaseName)
+		return
+	}
+	if rel.Status == nil {
+		rel.Status = &cluster_controllerpb.ApplicationReleaseStatus{}
+	}
+
+	h := srv.appReleaseHandle(rel)
+	switch h.Phase {
+	case "", cluster_controllerpb.ReleasePhasePending:
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseResolved:
+		srv.reconcileResolved(ctx, h)
+	case cluster_controllerpb.ReleasePhaseApplying:
+		srv.reconcileApplying(ctx, h)
+	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
+		srv.reconcileAvailable(ctx, h)
+	}
+}
+
+func (srv *server) patchAppReleaseStatus(ctx context.Context, releaseName string, f func(*cluster_controllerpb.ApplicationReleaseStatus)) error {
+	obj, _, err := srv.resources.Get(ctx, "ApplicationRelease", releaseName)
+	if err != nil || obj == nil {
+		return fmt.Errorf("get app release %s for status patch: %w", releaseName, err)
+	}
+	rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
+	if !ok {
+		return fmt.Errorf("unexpected type for app release %s", releaseName)
+	}
+	if rel.Status == nil {
+		rel.Status = &cluster_controllerpb.ApplicationReleaseStatus{}
+	}
+	f(rel.Status)
+	_, err = srv.resources.Apply(ctx, "ApplicationRelease", rel)
+	return err
+}
+
+func appRepoAddr(spec *cluster_controllerpb.ApplicationReleaseSpec) string {
+	if spec != nil && strings.TrimSpace(spec.RepositoryID) != "" {
+		return strings.TrimSpace(spec.RepositoryID)
+	}
+	return ""
+}
+
+// ── InfrastructureRelease reconciler (unified pipeline) ──────────────────────
+
+// reconcileInfraRelease drives the phase state machine for one InfrastructureRelease
+// using the shared release pipeline.
+func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string) {
+	if srv.resources == nil {
+		return
+	}
+	obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", releaseName)
+	if err != nil {
+		log.Printf("infra-release %s: get: %v", releaseName, err)
+		return
+	}
+	if obj == nil {
+		return
+	}
+	rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+	if !ok || rel.Spec == nil {
+		log.Printf("infra-release %s: unexpected object type", releaseName)
+		return
+	}
+	if rel.Status == nil {
+		rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+	}
+
+	h := srv.infraReleaseHandle(rel)
+	switch h.Phase {
+	case "", cluster_controllerpb.ReleasePhasePending:
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseResolved:
+		srv.reconcileResolved(ctx, h)
+	case cluster_controllerpb.ReleasePhaseApplying:
+		srv.reconcileApplying(ctx, h)
+	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
+		srv.reconcileAvailable(ctx, h)
+	}
+}
+
+func (srv *server) patchInfraReleaseStatus(ctx context.Context, releaseName string, f func(*cluster_controllerpb.InfrastructureReleaseStatus)) error {
+	obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", releaseName)
+	if err != nil || obj == nil {
+		return fmt.Errorf("get infra release %s for status patch: %w", releaseName, err)
+	}
+	rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+	if !ok {
+		return fmt.Errorf("unexpected type for infra release %s", releaseName)
+	}
+	if rel.Status == nil {
+		rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+	}
+	f(rel.Status)
+	_, err = srv.resources.Apply(ctx, "InfrastructureRelease", rel)
+	return err
+}
+
+func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string {
+	if spec != nil && strings.TrimSpace(spec.RepositoryID) != "" {
+		return strings.TrimSpace(spec.RepositoryID)
+	}
+	return ""
+}
+
+// checkNodePlanStatuses inspects the plan store for each node in the list and
+// returns updated statuses plus counts of succeeded, failed, and running nodes.
+// When resolvedVersion is non-empty and a plan succeeds, InstalledVersion is set.
+// Shared by ApplicationRelease and InfrastructureRelease reconcilers.
+func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, running int) {
+	for _, nrs := range nodes {
+		if nrs == nil {
+			continue
+		}
+		u := *nrs
+		ps, err := srv.planStore.GetStatus(ctx, nrs.NodeID)
+		if err != nil || ps == nil {
+			running++
+			updated = append(updated, &u)
+			continue
+		}
+		if nrs.PlanID != "" && ps.GetPlanId() != nrs.PlanID {
+			running++
+			updated = append(updated, &u)
+			continue
+		}
+		switch ps.GetState() {
+		case planpb.PlanState_PLAN_SUCCEEDED:
+			succeeded++
+			u.Phase = cluster_controllerpb.ReleasePhaseAvailable
+			u.InstalledVersion = resolvedVersion
+			u.ErrorMessage = ""
+			u.UpdatedUnixMs = time.Now().UnixMilli()
+		case planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED:
+			failed++
+			u.Phase = cluster_controllerpb.ReleasePhaseFailed
+			u.ErrorMessage = ps.GetErrorMessage()
+			u.UpdatedUnixMs = time.Now().UnixMilli()
+		default:
+			running++
+		}
+		updated = append(updated, &u)
+	}
+	return
 }

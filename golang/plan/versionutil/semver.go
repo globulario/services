@@ -67,6 +67,33 @@ func Compare(a, b string) (int, error) {
 	return pa.Compare(*pb), nil
 }
 
+// CompareFull compares two (version, build_number) tuples.
+// Semantic version is compared first; build number breaks ties within the same version.
+// Returns -1, 0, or 1.
+func CompareFull(verA string, buildA int64, verB string, buildB int64) (int, error) {
+	cmp, err := Compare(verA, verB)
+	if err != nil {
+		return 0, err
+	}
+	if cmp != 0 {
+		return cmp, nil
+	}
+	// Same semver — compare build numbers.
+	switch {
+	case buildA < buildB:
+		return -1, nil
+	case buildA > buildB:
+		return 1, nil
+	default:
+		return 0, nil
+	}
+}
+
+// EqualFull returns true if both semantic version and build number match.
+func EqualFull(verA string, buildA int64, verB string, buildB int64) bool {
+	return Equal(verA, verB) && buildA == buildB
+}
+
 // PickLatestSemver returns the highest semantic version from the input slice
 // in canonical form (no leading "v").
 //

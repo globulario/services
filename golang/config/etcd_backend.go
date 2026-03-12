@@ -41,44 +41,27 @@ func etcdClient() (*clientv3.Client, error) {
 	cliMu.Lock()
 	defer cliMu.Unlock()
 
-	// Reuse if still healthy.
+	// Reuse existing client if available.
 	if cliShared != nil {
-		if err := probeEtcdHealthy(cliShared, 1500*time.Millisecond); err == nil {
+		if err := probeEtcdHealthy(cliShared, 4*time.Second); err == nil {
 			return cliShared, nil
-		} else {
+		} else if errors.Is(err, ErrEtcdCorrupt) {
+			// Hard corruption — close and report.
 			_ = cliShared.Close()
 			cliShared = nil
-			// If etcd is corrupt, bubble that up instead of retrying forever.
-			if errors.Is(err, ErrEtcdCorrupt) {
-				return nil, ErrEtcdCorrupt
-			}
+			return nil, ErrEtcdCorrupt
 		}
+		// Transient failure (timeout, reconnecting, etc.) — return the
+		// existing client anyway.  The etcd client library handles
+		// reconnection internally; closing it here destroys the connection
+		// for ALL goroutines that hold a reference (leader election,
+		// resource store watches, etc.) and causes cascading failures.
+		return cliShared, nil
 	}
 
 	// Build endpoints (with scheme hints) from env / local config.
 	raw := etcdEndpointsFromEnv() // may contain https://
-
-	// TLS is MANDATORY - no longer optional for security
-	// Normalize to host:port for the client (TLS is specified separately).
-	hostports := make([]string, 0, len(raw))
-	for _, ep := range raw {
-		u, err := url.Parse(ep)
-		if err != nil {
-			continue
-		}
-		h := u.Host
-		if h == "" {
-			h = strings.TrimPrefix(ep, "https://")
-			h = strings.TrimPrefix(h, "http://")
-		}
-		// Ensure a port is present.
-		host, port, err := net.SplitHostPort(h)
-		if err != nil {
-			host = h
-			port = "2379"
-		}
-		hostports = append(hostports, net.JoinHostPort(host, port))
-	}
+	hostports := normalizeEndpoints(raw)
 
 	if len(hostports) == 0 {
 		return nil, fmt.Errorf("no valid etcd endpoints after normalization")
@@ -115,6 +98,40 @@ func etcdClient() (*clientv3.Client, error) {
 // GetEtcdClient returns the shared healthy etcd client.
 func GetEtcdClient() (*clientv3.Client, error) {
 	return etcdClient()
+}
+
+// NewEtcdClient creates a brand-new, independent etcd client with the same
+// TLS configuration and endpoints as the shared client.  The caller owns the
+// returned client and must Close() it when done.  Use this when you need a
+// long-lived client whose lifecycle must NOT be coupled to the shared
+// singleton (e.g. leader election sessions, watches that must survive config
+// probes).
+func NewEtcdClient() (*clientv3.Client, error) {
+	raw := etcdEndpointsFromEnv()
+	hostports := normalizeEndpoints(raw)
+	if len(hostports) == 0 {
+		return nil, fmt.Errorf("no valid etcd endpoints after normalization")
+	}
+
+	tlsCfg, err := GetEtcdTLS()
+	if err != nil {
+		return nil, fmt.Errorf("TLS required but not available: %w", err)
+	}
+
+	c, err := clientv3.New(clientv3.Config{
+		Endpoints:        hostports,
+		DialTimeout:      4 * time.Second,
+		AutoSyncInterval: 30 * time.Second,
+		TLS:              tlsCfg,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	return c, nil
 }
 
 // GetEtcdEndpointsHostPorts exposes the resolved endpoints (currently as URL strings).
@@ -190,6 +207,30 @@ func hasServerTriplet(base string) bool {
 	}
 	ca := filepath.Join(base, "ca.crt")
 	return fileExists(crt) && fileExists(key) && fileExists(ca)
+}
+
+// normalizeEndpoints strips URL schemes and ensures host:port format for the
+// etcd client library (which requires bare host:port, TLS is configured separately).
+func normalizeEndpoints(raw []string) []string {
+	hostports := make([]string, 0, len(raw))
+	for _, ep := range raw {
+		u, err := url.Parse(ep)
+		if err != nil {
+			continue
+		}
+		h := u.Host
+		if h == "" {
+			h = strings.TrimPrefix(ep, "https://")
+			h = strings.TrimPrefix(h, "http://")
+		}
+		host, port, err := net.SplitHostPort(h)
+		if err != nil {
+			host = h
+			port = "2379"
+		}
+		hostports = append(hostports, net.JoinHostPort(host, port))
+	}
+	return hostports
 }
 
 // etcdEndpointsFromEnv: prefer HTTPS if TLS exists, else HTTP. Always emit scheme.

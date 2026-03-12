@@ -85,6 +85,7 @@ message DesiredService {
   string name = 1;
   string version = 2;
   string unit = 3;
+  int64 build_number = 4; // build iteration within version (0 = legacy)
 }
 
 message DesiredFile {

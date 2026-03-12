@@ -17065,7 +17065,8 @@ proto.cluster_controller.DesiredService.toObject = function(includeInstance, msg
   var f, obj = {
 serviceId: jspb.Message.getFieldWithDefault(msg, 1, ""),
 version: jspb.Message.getFieldWithDefault(msg, 2, ""),
-platform: jspb.Message.getFieldWithDefault(msg, 3, "")
+platform: jspb.Message.getFieldWithDefault(msg, 3, ""),
+buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -17114,6 +17115,10 @@ proto.cluster_controller.DesiredService.deserializeBinaryFromReader = function(m
       var value = /** @type {string} */ (reader.readString());
       msg.setPlatform(value);
       break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setBuildNumber(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -17161,6 +17166,13 @@ proto.cluster_controller.DesiredService.serializeBinaryToWriter = function(messa
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
       f
     );
   }
@@ -17218,6 +17230,24 @@ proto.cluster_controller.DesiredService.prototype.getPlatform = function() {
  */
 proto.cluster_controller.DesiredService.prototype.setPlatform = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int64 build_number = 4;
+ * @return {number}
+ */
+proto.cluster_controller.DesiredService.prototype.getBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.setBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
 };
 
 
@@ -19431,7 +19461,9 @@ toVersion: jspb.Message.getFieldWithDefault(msg, 3, ""),
 packageName: jspb.Message.getFieldWithDefault(msg, 4, ""),
 sha256: jspb.Message.getFieldWithDefault(msg, 5, ""),
 restartRequired: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
-impactsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
+impactsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+fromBuildNumber: jspb.Message.getFieldWithDefault(msg, 8, 0),
+toBuildNumber: jspb.Message.getFieldWithDefault(msg, 9, 0)
   };
 
   if (includeInstance) {
@@ -19495,6 +19527,14 @@ proto.cluster_controller.UpgradePlanItem.deserializeBinaryFromReader = function(
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.addImpacts(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setFromBuildNumber(value);
+      break;
+    case 9:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setToBuildNumber(value);
       break;
     default:
       reader.skipField();
@@ -19571,6 +19611,20 @@ proto.cluster_controller.UpgradePlanItem.serializeBinaryToWriter = function(mess
   if (f.length > 0) {
     writer.writeRepeatedString(
       7,
+      f
+    );
+  }
+  f = message.getFromBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      8,
+      f
+    );
+  }
+  f = message.getToBuildNumber();
+  if (f !== 0) {
+    writer.writeInt64(
+      9,
       f
     );
   }
@@ -19719,6 +19773,42 @@ proto.cluster_controller.UpgradePlanItem.prototype.addImpacts = function(value, 
  */
 proto.cluster_controller.UpgradePlanItem.prototype.clearImpactsList = function() {
   return this.setImpactsList([]);
+};
+
+
+/**
+ * optional int64 from_build_number = 8;
+ * @return {number}
+ */
+proto.cluster_controller.UpgradePlanItem.prototype.getFromBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.UpgradePlanItem} returns this
+ */
+proto.cluster_controller.UpgradePlanItem.prototype.setFromBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional int64 to_build_number = 9;
+ * @return {number}
+ */
+proto.cluster_controller.UpgradePlanItem.prototype.getToBuildNumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 9, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.UpgradePlanItem} returns this
+ */
+proto.cluster_controller.UpgradePlanItem.prototype.setToBuildNumber = function(value) {
+  return jspb.Message.setProto3IntField(this, 9, value);
 };
 
 

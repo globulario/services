@@ -258,6 +258,10 @@ func extractMeta(obj interface{}) *cluster_controllerpb.ObjectMeta {
 		return o.Meta
 	case *cluster_controllerpb.ServiceRelease:
 		return o.Meta
+	case *cluster_controllerpb.ApplicationRelease:
+		return o.Meta
+	case *cluster_controllerpb.InfrastructureRelease:
+		return o.Meta
 	default:
 		return nil
 	}
@@ -273,6 +277,16 @@ func extractStatus(obj interface{}) *cluster_controllerpb.ObjectStatus {
 		return o.Status
 	case *cluster_controllerpb.ServiceRelease:
 		// ServiceRelease has its own rich status; return a stub for generation tracking.
+		if o.Status != nil {
+			return &cluster_controllerpb.ObjectStatus{ObservedGeneration: o.Status.ObservedGeneration}
+		}
+		return nil
+	case *cluster_controllerpb.ApplicationRelease:
+		if o.Status != nil {
+			return &cluster_controllerpb.ObjectStatus{ObservedGeneration: o.Status.ObservedGeneration}
+		}
+		return nil
+	case *cluster_controllerpb.InfrastructureRelease:
 		if o.Status != nil {
 			return &cluster_controllerpb.ObjectStatus{ObservedGeneration: o.Status.ObservedGeneration}
 		}
@@ -296,6 +310,14 @@ func setStatus(obj interface{}, st *cluster_controllerpb.ObjectStatus) {
 		if o.Status == nil {
 			o.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 		}
+	case *cluster_controllerpb.ApplicationRelease:
+		if o.Status == nil {
+			o.Status = &cluster_controllerpb.ApplicationReleaseStatus{}
+		}
+	case *cluster_controllerpb.InfrastructureRelease:
+		if o.Status == nil {
+			o.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+		}
 	}
 }
 
@@ -308,6 +330,10 @@ func specForHash(obj interface{}) interface{} {
 	case *cluster_controllerpb.Node:
 		return o.Spec
 	case *cluster_controllerpb.ServiceRelease:
+		return o.Spec
+	case *cluster_controllerpb.ApplicationRelease:
+		return o.Spec
+	case *cluster_controllerpb.InfrastructureRelease:
 		return o.Spec
 	default:
 		return nil
@@ -348,6 +374,14 @@ func deepCopy(obj interface{}) interface{} {
 		dst = tmp
 	case *cluster_controllerpb.ServiceRelease:
 		tmp := &cluster_controllerpb.ServiceRelease{}
+		_ = json.Unmarshal(b, tmp)
+		dst = tmp
+	case *cluster_controllerpb.ApplicationRelease:
+		tmp := &cluster_controllerpb.ApplicationRelease{}
+		_ = json.Unmarshal(b, tmp)
+		dst = tmp
+	case *cluster_controllerpb.InfrastructureRelease:
+		tmp := &cluster_controllerpb.InfrastructureRelease{}
 		_ = json.Unmarshal(b, tmp)
 		dst = tmp
 	default:

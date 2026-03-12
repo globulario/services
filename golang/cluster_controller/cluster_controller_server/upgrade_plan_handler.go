@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -20,6 +21,7 @@ import (
 // bundleEntry describes the latest available version of a package from the repository.
 type bundleEntry struct {
 	version     string
+	buildNumber int64
 	sha256      string
 	publisherID string
 	sizeBytes   int64
@@ -99,19 +101,22 @@ func (srv *server) PlanServiceUpgrades(ctx context.Context, req *cluster_control
 		if cv, err := versionutil.Canonical(ver); err == nil {
 			ver = cv
 		}
+		bn := b.GetBuildNumber()
 		existing, ok := latestByService[name]
 		if !ok {
 			latestByService[name] = bundleEntry{
 				version:     ver,
+				buildNumber: bn,
 				sha256:      strings.TrimSpace(b.GetSha256()),
 				publisherID: b.GetPublisherId(),
 				sizeBytes:   b.GetSizeBytes(),
 			}
 			continue
 		}
-		if cmp, err := versionutil.Compare(existing.version, ver); err == nil && cmp < 0 {
+		if cmp, err := versionutil.CompareFull(existing.version, existing.buildNumber, ver, bn); err == nil && cmp < 0 {
 			latestByService[name] = bundleEntry{
 				version:     ver,
+				buildNumber: bn,
 				sha256:      strings.TrimSpace(b.GetSha256()),
 				publisherID: b.GetPublisherId(),
 				sizeBytes:   b.GetSizeBytes(),
@@ -134,9 +139,9 @@ func (srv *server) PlanServiceUpgrades(ctx context.Context, req *cluster_control
 		if len(requestedSet) > 0 && !requestedSet[name] {
 			continue
 		}
-		installed := lookupInstalledVersion(node, name)
-		if installed != "" {
-			if cmp, err := versionutil.Compare(installed, entry.version); err == nil && cmp >= 0 {
+		installedVer, installedBuild := lookupInstalledVersion(node, name)
+		if installedVer != "" {
+			if cmp, err := versionutil.CompareFull(installedVer, installedBuild, entry.version, entry.buildNumber); err == nil && cmp >= 0 {
 				continue // already up to date
 			}
 		}
@@ -146,8 +151,10 @@ func (srv *server) PlanServiceUpgrades(ctx context.Context, req *cluster_control
 
 		items = append(items, &cluster_controllerpb.UpgradePlanItem{
 			Service:         name,
-			FromVersion:     installed,
+			FromVersion:     installedVer,
+			FromBuildNumber: installedBuild,
 			ToVersion:       entry.version,
+			ToBuildNumber:   entry.buildNumber,
 			PackageName:     fmt.Sprintf("%s@%s", name, entry.version),
 			Sha256:          entry.sha256,
 			RestartRequired: unit != "",
@@ -291,23 +298,32 @@ func (srv *server) applySingleNodeUpgrades(ctx context.Context, req *cluster_con
 	}, nil
 }
 
-// lookupInstalledVersion finds a service's installed version from node state.
-func lookupInstalledVersion(node *nodeState, canonicalName string) string {
+// lookupInstalledVersion finds a service's installed version and build number.
+// Primary source: canonical installed-state registry in etcd.
+// Fallback: in-memory node state from ReportNodeStatus (build number = 0).
+func lookupInstalledVersion(node *nodeState, canonicalName string) (string, int64) {
+	// Canonical source: installed-state registry.
+	if node != nil && node.NodeID != "" {
+		if pkg, err := installed_state.GetInstalledPackage(context.Background(), node.NodeID, "SERVICE", canonicalName); err == nil && pkg != nil {
+			if v := strings.TrimSpace(pkg.GetVersion()); v != "" {
+				return v, pkg.GetBuildNumber()
+			}
+		}
+	}
+	// Fallback: in-memory node state (no build number available).
 	if node == nil || len(node.InstalledVersions) == 0 {
-		return ""
+		return "", 0
 	}
-	// Direct lookup.
 	if v := strings.TrimSpace(node.InstalledVersions[canonicalName]); v != "" {
-		return v
+		return v, 0
 	}
-	// Try with publisher prefix.
 	for k, v := range node.InstalledVersions {
 		parts := strings.SplitN(k, "/", 2)
 		if len(parts) == 2 && canonicalServiceName(parts[1]) == canonicalName {
-			return strings.TrimSpace(v)
+			return strings.TrimSpace(v), 0
 		}
 	}
-	return ""
+	return "", 0
 }
 
 // upgradeImpacts returns a list of known impacts for upgrading a service.
@@ -407,15 +423,17 @@ func mergeArtifactVersions(rc *repository_client.Repository_Service_Client, plat
 		if cv, err := versionutil.Canonical(ver); err == nil {
 			ver = cv
 		}
+		bn := m.GetBuildNumber()
 
 		existing, ok := latestByService[name]
 		if ok {
-			if cmp, err := versionutil.Compare(existing.version, ver); err == nil && cmp >= 0 {
+			if cmp, err := versionutil.CompareFull(existing.version, existing.buildNumber, ver, bn); err == nil && cmp >= 0 {
 				continue // existing is same or newer
 			}
 		}
 		latestByService[name] = bundleEntry{
 			version:     ver,
+			buildNumber: bn,
 			sha256:      strings.TrimSpace(m.GetChecksum()),
 			publisherID: ref.GetPublisherId(),
 			sizeBytes:   m.GetSizeBytes(),

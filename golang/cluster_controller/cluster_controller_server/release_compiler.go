@@ -69,6 +69,7 @@ func CompileReleasePlan(
 	marker := versionutil.MarkerPath(svcName)
 	// Staging path scoped by publisher to prevent collisions in multi-tenant clusters.
 	artPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/%s.artifact", spec.PublisherID, svcName, resolvedVersion)
+	buildNumber := spec.BuildNumber
 	desiredHash := ComputeReleaseDesiredHash(spec.PublisherID, svcCanonical, resolvedVersion, spec.Config)
 
 	fetchArgs := map[string]interface{}{
@@ -103,13 +104,14 @@ func CompileReleasePlan(
 			"path":    marker,
 		}),
 		planStep("package.report_state", map[string]interface{}{
-			"node_id":      nodeID,
-			"name":         svcCanonical,
-			"version":      resolvedVersion,
-			"kind":         "SERVICE",
-			"publisher_id": spec.PublisherID,
-			"platform":     platform,
-			"checksum":     status.ResolvedArtifactDigest,
+			"node_id":       nodeID,
+			"name":          svcCanonical,
+			"version":       resolvedVersion,
+			"kind":          "SERVICE",
+			"publisher_id":  spec.PublisherID,
+			"platform":      platform,
+			"checksum":      status.ResolvedArtifactDigest,
+			"build_number":  buildNumber,
 		}),
 		planStep("service.restart", map[string]interface{}{
 			"unit": unit,

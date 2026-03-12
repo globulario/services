@@ -76,6 +76,28 @@ Services implement two interfaces:
 
 See `golang/MIGRATION_GUIDE.md` and `golang/SHARED_PRIMITIVES.md` for details.
 
+## 4-Layer State Model
+
+The platform tracks each package across 4 state layers:
+
+| Layer | Source | Owner |
+|-------|--------|-------|
+| **Artifact** | Repository catalog (`repository.PackageRepository`) | `pkg publish` / `ensure-bootstrap-artifacts.sh` |
+| **Desired Release** | Controller etcd (`/globular/resources/DesiredRelease/…`) | `globular services desired set` / `seed` |
+| **Installed Observed** | Node Agent etcd (`/globular/nodes/{id}/packages/…`) | Node Agent (auto-populated from systemd) |
+| **Runtime Health** | systemd + gRPC health checks | Gateway / admin metrics |
+
+Status vocabulary (design-doc-aligned):
+- **Installed** — desired == installed, converged
+- **Planned** — desired set, not yet installed
+- **Available** — in repo, no desired release
+- **Drifted** — installed version differs from desired
+- **Unmanaged** — installed without a desired-state entry
+- **Missing in repo** — desired/installed but artifact not in repository
+- **Orphaned** — in repo, not desired, not installed
+
+CLI tools: `globular services repair [--dry-run]`, `globular services seed`
+
 ## Key Dependencies
 
 - `google.golang.org/grpc` v1.78.0 - gRPC framework

@@ -41,6 +41,7 @@ message InstalledPackage {
   string status = 10;            // "installed", "updating", "failed", "removing"
   string operation_id = 11;      // last operation that modified this
   map<string, string> metadata = 12; // additional key-value pairs
+  int64 build_number = 13;      // build iteration within version (0 = legacy)
 }
 
 message ListInstalledPackagesRequest {

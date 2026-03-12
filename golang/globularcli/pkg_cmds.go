@@ -118,6 +118,7 @@ var (
 	pkgPublisher          string
 	pkgPlatform           string
 	pkgOutDir             string
+	pkgBuildNumber        int64
 	pkgSkipMissingConfig  bool
 	pkgSkipMissingSystemd bool
 
@@ -158,6 +159,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgBinDir, "bin-dir", "", "explicit path to bin directory")
 	pkgBuildCmd.Flags().StringVar(&pkgConfigDir, "config-dir", "", "explicit path to config directory")
 	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "", "package version (required)")
+	pkgBuildCmd.Flags().Int64Var(&pkgBuildNumber, "build-number", 0, "build iteration within version (0 = legacy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "target platform (goos_goarch)")
 	pkgBuildCmd.Flags().StringVar(&pkgOutDir, "out", "", "output directory (required)")
@@ -224,6 +226,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		BinDir:             pkgBinDir,
 		ConfigDir:          pkgConfigDir,
 		Version:            pkgVersion,
+		BuildNumber:        pkgBuildNumber,
 		Publisher:          pkgPublisher,
 		Platform:           pkgPlatform,
 		OutDir:             pkgOutDir,
@@ -263,8 +266,12 @@ func runPkgValidate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	verStr := summary.Version
+	if summary.BuildNumber > 0 {
+		verStr = fmt.Sprintf("%s+b%d", summary.Version, summary.BuildNumber)
+	}
 	fmt.Printf("verified: name=%s version=%s platform=%s entrypoint=%s configs=%d systemd=%d file=%s\n",
-		summary.Name, summary.Version, summary.Platform, summary.Entrypoint,
+		summary.Name, verStr, summary.Platform, summary.Entrypoint,
 		summary.ConfigCount, summary.SystemdCount, pkgVerifyFile)
 	return nil
 }
@@ -305,6 +312,9 @@ func runPkgDescribe(cmd *cobra.Command, args []string) error {
 	default:
 		fmt.Printf("%-14s: %s\n", "Name", summary.Name)
 		fmt.Printf("%-14s: %s\n", "Version", summary.Version)
+		if summary.BuildNumber > 0 {
+			fmt.Printf("%-14s: %d\n", "Build", summary.BuildNumber)
+		}
 		fmt.Printf("%-14s: %s\n", "Platform", summary.Platform)
 		fmt.Printf("%-14s: %s\n", "Publisher", summary.Publisher)
 		fmt.Printf("%-14s: %s\n", "Entrypoint", summary.Entrypoint)
@@ -364,7 +374,7 @@ func runPkgRegister(cmd *cobra.Command, args []string) error {
 		pkgType = resourcepb.PackageType_APPLICATION_TYPE
 	}
 
-	action, err := setPackageDescriptor(name, publisher, version, pkgType)
+	action, err := setPackageDescriptor(name, publisher, version, "", nil, pkgType)
 	if err != nil {
 		return err
 	}
@@ -465,6 +475,7 @@ type pkgPublishOne struct {
 	file             string
 	name             string
 	version          string
+	buildNumber      int64
 	platform         string
 	publisher        string
 	digest           string
@@ -487,6 +498,7 @@ func publishOne(file, token string) pkgPublishOne {
 		return r
 	}
 	r.name = summary.Name
+	r.buildNumber = summary.BuildNumber
 	r.platform = summary.Platform
 
 	// Normalize version to canonical semver.
@@ -534,7 +546,7 @@ func publishOne(file, token string) pkgPublishOne {
 	}
 
 	// Step A: upsert descriptor under user identity.
-	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, pkgType)
+	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, summary.Description, summary.Keywords, pkgType)
 	if err != nil {
 		r.err = err
 		if isAuthErr(err) {
@@ -590,7 +602,7 @@ func publishOne(file, token string) pkgPublishOne {
 			Platform:    summary.Platform,
 			Kind:        artifactKind,
 		}
-		_ = client.UploadArtifact(ref, archiveData) // best-effort; legacy bundle already saved
+		_ = client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber) // best-effort; legacy bundle already saved
 	}
 
 	r.duration = time.Since(start)
@@ -600,10 +612,11 @@ func publishOne(file, token string) pkgPublishOne {
 func singlePublishOutput(r pkgPublishOne) *PkgPublishOutput {
 	out := &PkgPublishOutput{
 		Package: PkgPublishPackage{
-			Name:      r.name,
-			Version:   r.version,
-			Platform:  r.platform,
-			Publisher: r.publisher,
+			Name:        r.name,
+			Version:     r.version,
+			BuildNumber: r.buildNumber,
+			Platform:    r.platform,
+			Publisher:   r.publisher,
 		},
 		Repository: pkgPublishRepository,
 		DurationMS: pkgMillis(r.duration),
@@ -629,12 +642,13 @@ func dirPublishOutput(results []pkgPublishOne, total time.Duration) *PkgPublishO
 	var perPkg []PkgPublishResult
 	for _, r := range results {
 		pr := PkgPublishResult{
-			Name:       r.name,
-			Version:    r.version,
-			Platform:   r.platform,
-			Publisher:  r.publisher,
-			Repository: pkgPublishRepository,
-			DurationMS: pkgMillis(r.duration),
+			Name:        r.name,
+			Version:     r.version,
+			BuildNumber: r.buildNumber,
+			Platform:    r.platform,
+			Publisher:   r.publisher,
+			Repository:  pkgPublishRepository,
+			DurationMS:  pkgMillis(r.duration),
 		}
 		if r.err != nil {
 			pr.Status = "failed"
@@ -697,7 +711,7 @@ const defaultResourcePort = 10010
 // "updated", falling back to "upserted" when the probe itself errors.
 //
 // Returns the descriptor action ("created"|"updated"|"upserted") and any error.
-func setPackageDescriptor(name, publisherID, version string, pkgType resourcepb.PackageType) (string, error) {
+func setPackageDescriptor(name, publisherID, version, description string, keywords []string, pkgType resourcepb.PackageType) (string, error) {
 	if cv, err := versionutil.Canonical(version); err == nil {
 		version = cv
 	}
@@ -734,6 +748,8 @@ func setPackageDescriptor(name, publisherID, version string, pkgType resourcepb.
 		Type:        pkgType,
 		PublisherID: publisherID,
 		Version:     version,
+		Description: description,
+		Keywords:    keywords,
 	}
 	_, err = rc.SetPackageDescriptor(ctxWithTimeout(), &resourcepb.SetPackageDescriptorRequest{
 		PackageDescriptor: desc,

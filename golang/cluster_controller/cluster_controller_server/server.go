@@ -184,6 +184,11 @@ type server struct {
 	// can immediately trigger a reconcile cycle after saving profile changes.
 	enqueueReconcile func()
 
+	// autoImportDone is set to true after the first successful auto-import
+	// of installed services into desired state. Prevents repeated imports
+	// on every ReportNodeStatus heartbeat.
+	autoImportDone atomic.Bool
+
 	// event publishing (fire-and-forget, nil-safe)
 	eventClient *event_client.Event_Client
 
@@ -1534,6 +1539,38 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		}()
 	}
 
+	// Trigger B: When a node reports installed versions and desired state is
+	// empty, auto-import from installed. This catches the case where a node
+	// joins or reports before the startup auto-import has run.
+	// Debounced by autoImportDone to avoid running on every heartbeat.
+	if len(installedVersions) > 0 && srv.resources != nil && !srv.autoImportDone.Load() {
+		resources := srv.resources
+		safeGo("report-node-auto-import", func() {
+			items, _, err := resources.List(context.Background(), "ServiceDesiredVersion", "")
+			if err != nil || len(items) > 0 {
+				if len(items) > 0 {
+					srv.autoImportDone.Store(true)
+				}
+				return
+			}
+			// Desired state is empty — import from installed.
+			logger.Info("ReportNodeStatus: desired state empty, auto-importing from installed")
+			stats, err := srv.importInstalledToDesired(context.Background())
+			if err != nil {
+				logger.Warn("ReportNodeStatus: auto-import failed", "error", err)
+				return
+			}
+			srv.autoImportDone.Store(true)
+			logger.Info("ReportNodeStatus: auto-import complete",
+				"imported", stats.Imported,
+				"already_present", stats.AlreadyPresent,
+				"failed", stats.Failed)
+			if (stats.Imported > 0 || stats.Updated > 0) && srv.enqueueReconcile != nil {
+				srv.enqueueReconcile()
+			}
+		})
+	}
+
 	if endpointToClose != "" {
 		srv.closeAgentClient(endpointToClose)
 	}
@@ -2011,6 +2048,164 @@ func (srv *server) DeleteServiceRelease(ctx context.Context, req *cluster_contro
 	}
 	if err := srv.resources.Delete(ctx, "ServiceRelease", name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete service release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ── ApplicationRelease CRUD ──────────────────────────────────────────────────
+
+func (srv *server) ApplyApplicationRelease(ctx context.Context, req *cluster_controllerpb.ApplyApplicationReleaseRequest) (*cluster_controllerpb.ApplicationRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.AppName) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.app_name are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + obj.Spec.AppName
+	}
+	applied, err := srv.resources.Apply(ctx, "ApplicationRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply application release: %v", err)
+	}
+	return applied.(*cluster_controllerpb.ApplicationRelease), nil
+}
+
+func (srv *server) GetApplicationRelease(ctx context.Context, req *cluster_controllerpb.GetApplicationReleaseRequest) (*cluster_controllerpb.ApplicationRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ApplicationRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get application release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "application release %q not found", name)
+	}
+	return obj.(*cluster_controllerpb.ApplicationRelease), nil
+}
+
+func (srv *server) ListApplicationReleases(ctx context.Context, _ *cluster_controllerpb.ListApplicationReleasesRequest) (*cluster_controllerpb.ListApplicationReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ApplicationRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list application releases: %v", err)
+	}
+	out := &cluster_controllerpb.ListApplicationReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.ApplicationRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteApplicationRelease(ctx context.Context, req *cluster_controllerpb.DeleteApplicationReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ApplicationRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete application release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ── InfrastructureRelease CRUD ───────────────────────────────────────────────
+
+func (srv *server) ApplyInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.ApplyInfrastructureReleaseRequest) (*cluster_controllerpb.InfrastructureRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.Component) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.component are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + obj.Spec.Component
+	}
+	applied, err := srv.resources.Apply(ctx, "InfrastructureRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply infrastructure release: %v", err)
+	}
+	return applied.(*cluster_controllerpb.InfrastructureRelease), nil
+}
+
+func (srv *server) GetInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.GetInfrastructureReleaseRequest) (*cluster_controllerpb.InfrastructureRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get infrastructure release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "infrastructure release %q not found", name)
+	}
+	return obj.(*cluster_controllerpb.InfrastructureRelease), nil
+}
+
+func (srv *server) ListInfrastructureReleases(ctx context.Context, _ *cluster_controllerpb.ListInfrastructureReleasesRequest) (*cluster_controllerpb.ListInfrastructureReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list infrastructure releases: %v", err)
+	}
+	out := &cluster_controllerpb.ListInfrastructureReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.InfrastructureRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.DeleteInfrastructureReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "InfrastructureRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete infrastructure release: %v", err)
 	}
 	return &emptypb.Empty{}, nil
 }

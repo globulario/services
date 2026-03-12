@@ -28,6 +28,11 @@ message ArtifactManifest {
   int64 size_bytes = 3;
   int64 modified_unix = 4;
 
+  // Build identification — build_number disambiguates multiple builds within the
+  // same semantic version. Legacy artifacts without a build number default to 0.
+  // Repository uniqueness: (ref.publisher_id, ref.name, ref.platform, ref.version, build_number).
+  int64 build_number = 5;
+
   // Dependency graph
   repeated string provides = 10;
   repeated string requires = 11;
@@ -42,6 +47,12 @@ message ArtifactManifest {
   string license = 18;
   string min_globular_version = 19;
   int64 published_unix = 20;
+
+  // Optional build metadata
+  string build_commit = 21;          // git short-SHA at build time
+  int64 build_timestamp_unix = 22;   // when the build was produced
+  string build_source = 23;          // build host / CI job identifier
+  string build_notes = 24;           // free-text changelog for this build
 
   // Type-specific detail — exactly one set per manifest, determined by ref.kind.
   oneof type_detail {
@@ -93,6 +104,7 @@ message UploadArtifactRequest {
   string organization = 2;
   ArtifactRef ref = 3;
   bytes data = 4;
+  int64 build_number = 5;       // build iteration within version (0 = legacy)
 }
 
 message UploadArtifactResponse {
@@ -148,6 +160,7 @@ message BundleSummary {
   int64  size_bytes = 6;     // archive size
   int64  published_unix = 7; // upload timestamp (unix seconds)
   string sha256 = 8;         // checksum of the archive
+  int64  build_number = 9;   // build iteration within version (0 = legacy)
 }
 
 message ListBundlesRequest {

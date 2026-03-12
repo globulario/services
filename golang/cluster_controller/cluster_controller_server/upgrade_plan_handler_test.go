@@ -110,13 +110,13 @@ func TestLookupInstalledVersion_DirectMatch(t *testing.T) {
 		},
 	}
 
-	if v := lookupInstalledVersion(node, "rbac"); v != "1.0.0" {
+	if v, _ := lookupInstalledVersion(node, "rbac"); v != "1.0.0" {
 		t.Fatalf("expected 1.0.0, got %q", v)
 	}
-	if v := lookupInstalledVersion(node, "gateway"); v != "2.0.0" {
+	if v, _ := lookupInstalledVersion(node, "gateway"); v != "2.0.0" {
 		t.Fatalf("expected 2.0.0, got %q", v)
 	}
-	if v := lookupInstalledVersion(node, "unknown"); v != "" {
+	if v, _ := lookupInstalledVersion(node, "unknown"); v != "" {
 		t.Fatalf("expected empty for unknown, got %q", v)
 	}
 }
@@ -128,13 +128,13 @@ func TestLookupInstalledVersion_PublisherPrefix(t *testing.T) {
 		},
 	}
 
-	if v := lookupInstalledVersion(node, "rbac"); v != "1.5.0" {
+	if v, _ := lookupInstalledVersion(node, "rbac"); v != "1.5.0" {
 		t.Fatalf("expected 1.5.0 via publisher prefix, got %q", v)
 	}
 }
 
 func TestLookupInstalledVersion_NilNode(t *testing.T) {
-	if v := lookupInstalledVersion(nil, "rbac"); v != "" {
+	if v, _ := lookupInstalledVersion(nil, "rbac"); v != "" {
 		t.Fatalf("expected empty for nil node, got %q", v)
 	}
 }

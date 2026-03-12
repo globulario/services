@@ -59,10 +59,11 @@ type PkgPublishOutput struct {
 
 // PkgPublishPackage holds the identifying fields of the published package.
 type PkgPublishPackage struct {
-	Name      string `json:"name,omitempty"      yaml:"name,omitempty"`
-	Version   string `json:"version,omitempty"   yaml:"version,omitempty"`
-	Platform  string `json:"platform,omitempty"  yaml:"platform,omitempty"`
-	Publisher string `json:"publisher,omitempty" yaml:"publisher,omitempty"`
+	Name        string `json:"name,omitempty"         yaml:"name,omitempty"`
+	Version     string `json:"version,omitempty"      yaml:"version,omitempty"`
+	BuildNumber int64  `json:"build_number,omitempty" yaml:"build_number,omitempty"`
+	Platform    string `json:"platform,omitempty"     yaml:"platform,omitempty"`
+	Publisher   string `json:"publisher,omitempty"    yaml:"publisher,omitempty"`
 }
 
 // PkgPublishError carries a gRPC-style error code and message.
@@ -86,10 +87,11 @@ type PkgPublishResult struct {
 	// "success" | "failed"
 	Status string `json:"status,omitempty" yaml:"status,omitempty"`
 
-	Name      string `json:"name,omitempty"      yaml:"name,omitempty"`
-	Version   string `json:"version,omitempty"   yaml:"version,omitempty"`
-	Platform  string `json:"platform,omitempty"  yaml:"platform,omitempty"`
-	Publisher string `json:"publisher,omitempty" yaml:"publisher,omitempty"`
+	Name        string `json:"name,omitempty"         yaml:"name,omitempty"`
+	Version     string `json:"version,omitempty"      yaml:"version,omitempty"`
+	BuildNumber int64  `json:"build_number,omitempty" yaml:"build_number,omitempty"`
+	Platform    string `json:"platform,omitempty"     yaml:"platform,omitempty"`
+	Publisher   string `json:"publisher,omitempty"    yaml:"publisher,omitempty"`
 
 	Repository       string `json:"repository,omitempty"        yaml:"repository,omitempty"`
 	DescriptorAction string `json:"descriptor_action,omitempty" yaml:"descriptor_action,omitempty"`
@@ -179,6 +181,9 @@ func renderPkgPublishTable(out *PkgPublishOutput) {
 	if out.Package.Name != "" {
 		fmt.Printf("%-12s: %s\n", "Name", out.Package.Name)
 		fmt.Printf("%-12s: %s\n", "Version", out.Package.Version)
+		if out.Package.BuildNumber > 0 {
+			fmt.Printf("%-12s: %d\n", "Build", out.Package.BuildNumber)
+		}
 		fmt.Printf("%-12s: %s\n", "Platform", out.Package.Platform)
 		fmt.Printf("%-12s: %s\n", "Publisher", out.Package.Publisher)
 	}

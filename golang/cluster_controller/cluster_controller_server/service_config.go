@@ -104,7 +104,7 @@ func sanitizeEtcdName(hostname string) string {
 }
 
 // renderEtcdConfig generates the etcd configuration YAML for a node.
-// File path: /var/lib/globular/etcd/etcd.yaml
+// File path: /var/lib/globular/config/etcd.yaml
 func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	if ctx == nil || ctx.CurrentNode == nil {
 		return "", false
@@ -446,7 +446,7 @@ var renderers = []rendererSpec{
 	{
 		name:         "etcd",
 		profiles:     profilesForEtcd,
-		outputs:      []string{"/var/lib/globular/etcd/etcd.yaml"},
+		outputs:      []string{"/var/lib/globular/config/etcd.yaml"},
 		restartUnits: []string{"globular-etcd.service"},
 		render:       renderEtcdConfig,
 	},
