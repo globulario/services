@@ -333,6 +333,18 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 		"var/lib/globular/etcd",
 	}
 
+	// Stop services whose data directories will be overwritten by restic.
+	// Prometheus TSDB requires WAL segments to be sequential — restoring
+	// old data on top of a running instance causes fatal corruption.
+	stopBeforeRestore := []string{"globular-prometheus.service"}
+	for _, svc := range stopBeforeRestore {
+		log.Printf("restic restore: stopping %s before restore", svc)
+		stopCmd := exec.CommandContext(ctx, "systemctl", "stop", svc)
+		if out, err := stopCmd.CombinedOutput(); err != nil {
+			log.Printf("restic restore: warning: failed to stop %s: %v (%s)", svc, err, strings.TrimSpace(string(out)))
+		}
+	}
+
 	log.Printf("restic restore: snapshot=%s target=%s repo=%s", snapshotID, target, repo)
 	args := []string{"restore", snapshotID, "--target", target}
 	for _, ex := range excludes {
@@ -352,7 +364,47 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 		outputs["stderr"] = stderrStr
 	}
 
+	// Restart services that were stopped before restore, regardless of outcome.
+	// If a service fails to start (corrupted backup data), clear only the
+	// volatile TSDB state (wal/ and chunks_head/) while preserving compacted
+	// blocks that contain historical metrics, then retry.
+	restartStopped := func() {
+		for _, svc := range stopBeforeRestore {
+			log.Printf("restic restore: starting %s after restore", svc)
+			startCmd := exec.CommandContext(ctx, "systemctl", "start", svc)
+			if out, startErr := startCmd.CombinedOutput(); startErr != nil {
+				log.Printf("restic restore: %s failed to start: %v (%s)", svc, startErr, strings.TrimSpace(string(out)))
+
+				if svc == "globular-prometheus.service" {
+					dataDir := "/var/lib/globular/prometheus/data"
+					// Only remove WAL and chunks_head — these are the volatile
+					// parts that cause "segments are not sequential" errors.
+					// Compacted block directories (01XXXX...) contain the actual
+					// historical time-series data and are self-contained.
+					for _, sub := range []string{"wal", "chunks_head"} {
+						p := filepath.Join(dataDir, sub)
+						if _, statErr := os.Stat(p); statErr == nil {
+							log.Printf("restic restore: removing corrupted %s", p)
+							_ = os.RemoveAll(p)
+						}
+					}
+					// Also remove the lock file so Prometheus can re-acquire it.
+					_ = os.Remove(filepath.Join(dataDir, "lock"))
+					outputs[svc+"_wal_cleared"] = dataDir
+
+					retryCmd := exec.CommandContext(ctx, "systemctl", "start", svc)
+					if retryOut, retryErr := retryCmd.CombinedOutput(); retryErr != nil {
+						log.Printf("restic restore: warning: %s still failed after WAL cleanup: %v (%s)", svc, retryErr, strings.TrimSpace(string(retryOut)))
+					} else {
+						log.Printf("restic restore: %s started with historical blocks preserved", svc)
+					}
+				}
+			}
+		}
+	}
+
 	if err != nil {
+		restartStopped()
 		detail := stderrStr
 		if detail == "" {
 			detail = stdoutStr
@@ -378,6 +430,8 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	if repaired := repairTLSSymlinks(); repaired != "" {
 		outputs["tls_repair"] = repaired
 	}
+
+	restartStopped()
 
 	return &node_agentpb.BackupProviderResult{
 		Provider:     "restic",
