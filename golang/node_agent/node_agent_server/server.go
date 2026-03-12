@@ -111,6 +111,12 @@ type NodeAgentServer struct {
 
 	lastCertRestart time.Time
 	lastSpec        *cluster_controllerpb.ClusterNetworkSpec
+
+	// Plan verification (Phase 1B)
+	signerCache      map[string]signerCacheEntry
+	signerCacheMu    sync.RWMutex
+	rejectionTracker *planRejectionTracker
+	lastSeenPlanID   string // for quarantine clearing
 }
 
 type lockablePlanStore interface {
@@ -154,7 +160,7 @@ func planLockKey(nodeID, lock string) string {
 
 func isTerminalState(state planpb.PlanState) bool {
 	switch state {
-	case planpb.PlanState_PLAN_SUCCEEDED, planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED:
+	case planpb.PlanState_PLAN_SUCCEEDED, planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED, planpb.PlanState_PLAN_REJECTED, planpb.PlanState_PLAN_QUARANTINED:
 		return true
 	default:
 		return false
@@ -262,6 +268,8 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		lastNetworkGeneration:    state.NetworkGeneration,
 		controllerDialer:         grpc.DialContext,
 		controllerClientFactory:  cluster_controllerpb.NewClusterControllerServiceClient,
+		rejectionTracker:         newPlanRejectionTracker(),
+		signerCache:              make(map[string]signerCacheEntry),
 	}
 }
 
@@ -505,6 +513,21 @@ func (srv *NodeAgentServer) pollPlan(ctx context.Context) {
 		srv.markPlanExpired(pollCtx, plan)
 		return
 	}
+	// Plan verification (Phase 1B): new plan_id clears quarantine
+	planID := plan.GetPlanId()
+	if planID != srv.lastSeenPlanID {
+		srv.rejectionTracker.clearAll()
+		srv.lastSeenPlanID = planID
+	}
+	if srv.rejectionTracker.isQuarantined(planID) {
+		log.Printf("poll-plan: SKIP quarantined plan_id=%s", planID)
+		return
+	}
+	if err := srv.verifyPlan(plan); err != nil {
+		srv.reportPlanRejection(plan, err)
+		return
+	}
+
 	log.Printf("poll-plan: executing plan %s gen=%d", plan.GetPlanId(), plan.GetGeneration())
 	srv.runStoredPlan(ctx, plan, status)
 }
@@ -627,6 +650,12 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 		srv.state.LastPlanGeneration = plan.GetGeneration()
 		if err := srv.state.save(srv.statePath); err != nil {
 			log.Printf("save state: %v", err)
+		}
+		// Persist generation to file for replay protection (only on success).
+		if updated.GetState() == planpb.PlanState_PLAN_SUCCEEDED && plan.GetGeneration() > 0 {
+			if err := saveLastAppliedGeneration(plan.GetGeneration()); err != nil {
+				log.Printf("WARN: failed to persist generation %d: %v", plan.GetGeneration(), err)
+			}
 		}
 	}
 	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_SUCCEEDED, "plan reconciled", 100, true, ""))
@@ -2890,6 +2919,15 @@ func (srv *NodeAgentServer) watchJoinStatus(ctx context.Context, requestID strin
 			if nodeID := resp.GetNodeId(); nodeID != "" {
 				srv.applyApprovedNodeID(nodeID)
 				log.Printf("join request %s approved (node %s)", requestID, nodeID)
+			}
+			// Store node-scoped identity token if provided
+			if token := resp.GetNodeToken(); token != "" {
+				principal := resp.GetNodePrincipal()
+				if err := srv.storeNodeToken(token, principal); err != nil {
+					log.Printf("WARN: failed to store node token: %v", err)
+				} else {
+					log.Printf("node identity set: principal=%s", principal)
+				}
 			}
 			return
 		case "rejected":

@@ -81,9 +81,10 @@ func TestReconcileSkipsWhenHashUnchanged(t *testing.T) {
 			NodeID:       "n1",
 			Capabilities: &storedCapabilities{CanApplyPrivileged: true},
 		}}},
-		kv:        kv,
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
+		kv:              kv,
+		planStore:        ps,
+		resources:        resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
 	}
 	net := &cluster_controllerpb.DesiredNetwork{Domain: "example.com", Protocol: "http", PortHttp: 80}
 	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &cluster_controllerpb.ClusterNetwork{

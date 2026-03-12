@@ -2083,5 +2083,66 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.applySe
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ReportPlanRejectionRequest,
+ *   !proto.cluster_controller.ReportPlanRejectionResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ReportPlanRejection = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ReportPlanRejection',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ReportPlanRejectionRequest,
+  proto.cluster_controller.ReportPlanRejectionResponse,
+  /**
+   * @param {!proto.cluster_controller.ReportPlanRejectionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ReportPlanRejectionResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ReportPlanRejectionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ReportPlanRejectionResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ReportPlanRejectionResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.reportPlanRejection =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ReportPlanRejection',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReportPlanRejection,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ReportPlanRejectionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ReportPlanRejectionResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.reportPlanRejection =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ReportPlanRejection',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReportPlanRejection);
+};
+
+
 module.exports = proto.cluster_controller;
 

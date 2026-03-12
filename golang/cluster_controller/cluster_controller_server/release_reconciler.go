@@ -287,6 +287,16 @@ func (srv *server) reconcileReleaseResolved(ctx context.Context, rel *cluster_co
 		if plan.GetCreatedUnixMs() == 0 {
 			plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
 		}
+		if err := srv.signOrAbort(plan); err != nil {
+			log.Printf("release %s: signing aborted for node %s: %v", name, nodeID, err)
+			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
+				NodeID:        nodeID,
+				Phase:         cluster_controllerpb.ReleasePhaseFailed,
+				ErrorMessage:  fmt.Sprintf("plan signing failed: %v", err),
+				UpdatedUnixMs: time.Now().UnixMilli(),
+			})
+			continue
+		}
 
 		if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 			log.Printf("release %s: persist plan for node %s: %v", name, nodeID, err)
@@ -522,6 +532,9 @@ func (srv *server) dispatchReleasePlan(ctx context.Context, rel *cluster_control
 	plan.IssuedBy = "cluster-controller"
 	if plan.GetCreatedUnixMs() == 0 {
 		plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
+	}
+	if err := srv.signOrAbort(plan); err != nil {
+		return nil, err
 	}
 	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 		return nil, err

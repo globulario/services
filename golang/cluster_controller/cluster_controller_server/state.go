@@ -40,6 +40,8 @@ type joinRequestRecord struct {
 	Reason            string              `json:"reason,omitempty"`
 	Profiles          []string            `json:"profiles,omitempty"`
 	AssignedNodeID    string              `json:"assigned_node_id,omitempty"`
+	NodeToken         string              `json:"node_token,omitempty"`
+	NodePrincipal     string              `json:"node_principal,omitempty"`
 	Capabilities      *storedCapabilities `json:"capabilities,omitempty"`
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 }

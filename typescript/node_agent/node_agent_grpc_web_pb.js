@@ -924,5 +924,66 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getInstalledPackage =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.RotateNodeTokenRequest,
+ *   !proto.node_agent.RotateNodeTokenResponse>}
+ */
+const methodDescriptor_NodeAgentService_RotateNodeToken = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/RotateNodeToken',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.RotateNodeTokenRequest,
+  proto.node_agent.RotateNodeTokenResponse,
+  /**
+   * @param {!proto.node_agent.RotateNodeTokenRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.RotateNodeTokenResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.RotateNodeTokenRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.RotateNodeTokenResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.RotateNodeTokenResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.rotateNodeToken =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RotateNodeToken',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RotateNodeToken,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.RotateNodeTokenRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.RotateNodeTokenResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.rotateNodeToken =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RotateNodeToken',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RotateNodeToken);
+};
+
+
 module.exports = proto.node_agent;
 

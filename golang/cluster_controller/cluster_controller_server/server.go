@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -191,6 +192,9 @@ type server struct {
 
 	// event publishing (fire-and-forget, nil-safe)
 	eventClient *event_client.Event_Client
+
+	// plan signing (Ed25519)
+	planSignerState *planSigner
 
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
@@ -482,6 +486,23 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	}
 	srv.state.Nodes[nodeID] = node
 
+	// Generate node-scoped identity token
+	nodePrincipal := "node_" + nodeID
+	nodeToken, err := security.GenerateToken(
+		365*24*60,                   // 1 year TTL
+		nodeID,                      // audience = node ID
+		nodePrincipal,               // principal_id = node_<uuid>
+		"node-agent",                // display name
+		"",                          // email (not applicable)
+	)
+	if err != nil {
+		log.Printf("WARN: failed to generate node token for %s: %v", nodeID, err)
+		// Non-fatal: node falls back to existing auth
+	} else {
+		jr.NodeToken = nodeToken
+		jr.NodePrincipal = nodePrincipal
+	}
+
 	if err := srv.persistStateLocked(true); err != nil {
 		srv.unlock()
 		return nil, status.Errorf(codes.Internal, "persist node state: %v", err)
@@ -493,9 +514,16 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	srv.unlock()
 	// NOTE: lock is released here; remaining code below does not need the lock.
 
+	// Create RBAC binding for node-executor role (best-effort, async)
+	if nodePrincipal != "" {
+		go srv.ensureNodeExecutorBinding(nodePrincipal)
+	}
+
 	return &cluster_controllerpb.ApproveJoinResponse{
-		NodeId:  nodeID,
-		Message: "approved; node will receive configuration on first heartbeat",
+		NodeId:        nodeID,
+		Message:       "approved; node will receive configuration on first heartbeat",
+		NodeToken:     jr.NodeToken,
+		NodePrincipal: jr.NodePrincipal,
 	}, nil
 }
 
@@ -1025,6 +1053,10 @@ func (srv *server) reconcileNetworkPlans(ctx context.Context, spec *cluster_cont
 		if plan.GetCreatedUnixMs() == 0 {
 			plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
 		}
+		if err := srv.signOrAbort(plan); err != nil {
+			log.Printf("reconcile: signing aborted for node %s: %v", nodeID, err)
+			continue
+		}
 		if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 			log.Printf("persist plan for node %s: %v", nodeID, err)
 			continue
@@ -1318,6 +1350,9 @@ func (srv *server) UpgradeGlobular(ctx context.Context, req *cluster_controllerp
 	expires := time.Now().Add(upgradePlanTTL)
 	plan := buildUpgradePlan(planID, nodeID, srv.state.ClusterId, generation, expires, targetPath, fetchDest, ref, sha, req.GetProbePort(), minPath)
 
+	if err := srv.signOrAbort(plan); err != nil {
+		return nil, status.Errorf(codes.Internal, "plan signing failed: %v", err)
+	}
 	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist plan: %v", err)
 	}
@@ -1363,6 +1398,11 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	}
 	if req == nil || req.GetStatus() == nil || req.GetStatus().GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "status.node_id is required")
+	}
+
+	// Node identity + own-node scope enforcement
+	if err := enforceNodeScope(ctx, req.GetStatus().GetNodeId(), "/clustercontroller.ClusterControllerService/ReportNodeStatus"); err != nil {
+		return nil, err
 	}
 	nodeStatus := req.GetStatus()
 	ns := nodeStatus
@@ -1579,6 +1619,33 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	}, nil
 }
 
+func (srv *server) ReportPlanRejection(ctx context.Context, req *cluster_controllerpb.ReportPlanRejectionRequest) (*cluster_controllerpb.ReportPlanRejectionResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is nil")
+	}
+
+	// Node identity + own-node scope enforcement
+	if err := enforceNodeScope(ctx, req.GetNodeId(), "/clustercontroller.ClusterControllerService/ReportPlanRejection"); err != nil {
+		return nil, err
+	}
+
+	log.Printf("WARN plan-rejection: node=%s plan=%s gen=%d reason=%s detail=%s",
+		req.GetNodeId(), req.GetPlanId(), req.GetGeneration(), req.GetReason(), req.GetDetail())
+
+	// Emit cluster event for observability
+	srv.emitClusterEvent("plan_rejected", map[string]interface{}{
+		"severity":       "WARN",
+		"node_id":        req.GetNodeId(),
+		"plan_id":        req.GetPlanId(),
+		"generation":     req.GetGeneration(),
+		"reason":         req.GetReason(),
+		"detail":         req.GetDetail(),
+		"rejected_at_ms": req.GetRejectedAtUnixMs(),
+	})
+
+	return &cluster_controllerpb.ReportPlanRejectionResponse{}, nil
+}
+
 func (srv *server) GetJoinRequestStatus(ctx context.Context, req *cluster_controllerpb.GetJoinRequestStatusRequest) (*cluster_controllerpb.GetJoinRequestStatusResponse, error) {
 	if req == nil || req.GetRequestId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "request_id is required")
@@ -1590,10 +1657,12 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *cluster_contro
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
 	return &cluster_controllerpb.GetJoinRequestStatusResponse{
-		Status:   jr.Status,
-		NodeId:   jr.AssignedNodeID,
-		Message:  jr.Reason,
-		Profiles: append([]string(nil), jr.Profiles...),
+		Status:        jr.Status,
+		NodeId:        jr.AssignedNodeID,
+		Message:       jr.Reason,
+		Profiles:      append([]string(nil), jr.Profiles...),
+		NodeToken:     jr.NodeToken,
+		NodePrincipal: jr.NodePrincipal,
 	}, nil
 }
 
@@ -2706,6 +2775,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				continue
 			}
 
+			if err := srv.signOrAbort(plan); err != nil {
+				log.Printf("reconcile: signing aborted for %s: %v", node.NodeID, err)
+				continue
+			}
 			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
 				log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
 				continue
@@ -2783,6 +2856,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				rmPlan.CreatedUnixMs = uint64(now.UnixMilli())
 			}
 			rmPlan.IssuedBy = "cluster-controller"
+			if err := srv.signOrAbort(rmPlan); err != nil {
+				log.Printf("reconcile: signing aborted for removal plan %s on %s: %v", rmPlan.GetPlanId(), node.NodeID, err)
+				continue
+			}
 			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, rmPlan); err == nil {
 				if appendable, ok := srv.planStore.(interface {
 					AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
@@ -2960,6 +3037,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			plan.CreatedUnixMs = uint64(now.UnixMilli())
 		}
 		plan.IssuedBy = "cluster-controller"
+		if err := srv.signOrAbort(plan); err != nil {
+			log.Printf("reconcile: signing aborted for service plan on %s: %v", node.NodeID, err)
+			continue
+		}
 		if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
 			log.Printf("reconcile: persist service plan for %s: %v", node.NodeID, err)
 			continue

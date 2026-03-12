@@ -34,6 +34,7 @@ const (
 	NodeAgentService_GetRestoreTaskResult_FullMethodName  = "/node_agent.NodeAgentService/GetRestoreTaskResult"
 	NodeAgentService_ListInstalledPackages_FullMethodName = "/node_agent.NodeAgentService/ListInstalledPackages"
 	NodeAgentService_GetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/GetInstalledPackage"
+	NodeAgentService_RotateNodeToken_FullMethodName       = "/node_agent.NodeAgentService/RotateNodeToken"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -57,6 +58,8 @@ type NodeAgentServiceClient interface {
 	// Installed-state registry — canonical package inventory on this node.
 	ListInstalledPackages(ctx context.Context, in *ListInstalledPackagesRequest, opts ...grpc.CallOption) (*ListInstalledPackagesResponse, error)
 	GetInstalledPackage(ctx context.Context, in *GetInstalledPackageRequest, opts ...grpc.CallOption) (*GetInstalledPackageResponse, error)
+	// Node identity token rotation (Phase 2)
+	RotateNodeToken(ctx context.Context, in *RotateNodeTokenRequest, opts ...grpc.CallOption) (*RotateNodeTokenResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -225,6 +228,16 @@ func (c *nodeAgentServiceClient) GetInstalledPackage(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) RotateNodeToken(ctx context.Context, in *RotateNodeTokenRequest, opts ...grpc.CallOption) (*RotateNodeTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RotateNodeTokenResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_RotateNodeToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -246,6 +259,8 @@ type NodeAgentServiceServer interface {
 	// Installed-state registry — canonical package inventory on this node.
 	ListInstalledPackages(context.Context, *ListInstalledPackagesRequest) (*ListInstalledPackagesResponse, error)
 	GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error)
+	// Node identity token rotation (Phase 2)
+	RotateNodeToken(context.Context, *RotateNodeTokenRequest) (*RotateNodeTokenResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -296,6 +311,9 @@ func (UnimplementedNodeAgentServiceServer) ListInstalledPackages(context.Context
 }
 func (UnimplementedNodeAgentServiceServer) GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInstalledPackage not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) RotateNodeToken(context.Context, *RotateNodeTokenRequest) (*RotateNodeTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RotateNodeToken not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -555,6 +573,24 @@ func _NodeAgentService_GetInstalledPackage_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_RotateNodeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RotateNodeTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).RotateNodeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_RotateNodeToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).RotateNodeToken(ctx, req.(*RotateNodeTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -609,6 +645,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstalledPackage",
 			Handler:    _NodeAgentService_GetInstalledPackage_Handler,
+		},
+		{
+			MethodName: "RotateNodeToken",
+			Handler:    _NodeAgentService_RotateNodeToken_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

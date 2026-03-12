@@ -16,6 +16,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/recovery"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
@@ -172,6 +173,20 @@ func main() {
 	logger.Info("initializing cluster controller server")
 	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
 	srv.initResourceStore(etcdClient)
+
+	// Gap 4: Verify built-in roles exist (including node-executor) at startup
+	if err := security.EnsureBuiltinRolesExist(); err != nil {
+		logger.Error("FATAL: built-in role bootstrap failed", "err", err)
+		os.Exit(1)
+	}
+	logger.Info("built-in roles verified (including node-executor)")
+
+	// Initialize plan signing (Ed25519 keypair for signed plans)
+	if err := srv.initPlanSigner(); err != nil {
+		logger.Warn("plan-signer: init failed (plans will be unsigned)", "err", err)
+	}
+	// Log dispatch mode (hardened vs compatibility)
+	logPlanDispatchMode()
 
 	// Register gRPC services
 	cluster_controllerpb.RegisterClusterControllerServiceServer(grpcServer, srv)

@@ -235,6 +235,9 @@ func (srv *server) stampAndDispatchPlan(ctx context.Context, nodeID string, plan
 	if plan.GetCreatedUnixMs() == 0 {
 		plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
 	}
+	if err := srv.signOrAbort(plan); err != nil {
+		return err
+	}
 	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 		return err
 	}

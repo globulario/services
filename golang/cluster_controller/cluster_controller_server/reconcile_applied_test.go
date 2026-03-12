@@ -11,7 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func newTestServerWithNode(kv *mapKV, ps *fakePlanStore) *server {
+func newTestServerWithNode(t *testing.T, kv *mapKV, ps *fakePlanStore) *server {
+	t.Helper()
 	return &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
@@ -20,9 +21,10 @@ func newTestServerWithNode(kv *mapKV, ps *fakePlanStore) *server {
 				Capabilities: &storedCapabilities{CanApplyPrivileged: true},
 			},
 		}},
-		kv:        kv,
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
+		kv:              kv,
+		planStore:        ps,
+		resources:        resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
 	}
 }
 
@@ -72,7 +74,7 @@ func applyDesiredForTests(t *testing.T, srv *server, net *cluster_controllerpb.D
 func TestReconcileDoesNotMarkAppliedOnEmit(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	applyDesiredForTests(t, srv, desiredNetworkForTests(), nil)
 	srv.reconcileNodes(context.Background())
 	if ps.count != 1 {
@@ -90,7 +92,7 @@ func TestReconcileDoesNotMarkAppliedOnEmit(t *testing.T) {
 func TestReconcileDoesNotReemitWhileRunning(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, nil)
 	srv.reconcileNodes(context.Background())
@@ -114,7 +116,7 @@ func TestReconcileDoesNotReemitWhileRunning(t *testing.T) {
 func TestReconcileMarksAppliedOnSuccess(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, nil)
 	srv.reconcileNodes(context.Background())
@@ -143,7 +145,7 @@ func TestReconcileMarksAppliedOnSuccess(t *testing.T) {
 func TestReconcileReemitsAfterFailure(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, nil)
 	srv.reconcileNodes(context.Background())
@@ -177,7 +179,7 @@ func mustHash(t *testing.T, net *cluster_controllerpb.DesiredNetwork) string {
 func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
 	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{"globular-ldap.service": "1.2.3"})
 	// Mark network converged so service reconcile can proceed.
@@ -212,7 +214,7 @@ func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, map[string]string{
@@ -242,7 +244,7 @@ func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 func TestServiceReconcileReemitsAfterFailure(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
-	srv := newTestServerWithNode(kv, ps)
+	srv := newTestServerWithNode(t, kv, ps)
 	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("ldap")}}
 	net := desiredNetworkForTests()
 	applyDesiredForTests(t, srv, net, map[string]string{

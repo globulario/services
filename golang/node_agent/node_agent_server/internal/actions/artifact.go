@@ -617,9 +617,9 @@ func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {
 	if configDir == "" {
 		configDir = "/etc/globular"
 	}
-	// Default: skip systemd writes — the node-agent runs as globular and cannot
-	// write to /etc/systemd/system/. Set GLOBULAR_SKIP_SYSTEMD=0 to override.
-	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") != "0"
+	// Default: enable systemd writes — the node-agent runs as root.
+	// Set GLOBULAR_SKIP_SYSTEMD=1 to disable systemd unit installation.
+	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") == "1"
 	return
 }
 

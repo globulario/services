@@ -221,4 +221,18 @@ service NodeAgentService {
   // Installed-state registry — canonical package inventory on this node.
   rpc ListInstalledPackages(ListInstalledPackagesRequest) returns (ListInstalledPackagesResponse);
   rpc GetInstalledPackage(GetInstalledPackageRequest) returns (GetInstalledPackageResponse);
+
+  // Node identity token rotation (Phase 2)
+  rpc RotateNodeToken(RotateNodeTokenRequest) returns (RotateNodeTokenResponse);
+}
+
+// ── Node identity token rotation (Phase 2) ──
+
+message RotateNodeTokenRequest {
+  string new_token = 1;
+  string new_principal = 2;
+}
+
+message RotateNodeTokenResponse {
+  bool ok = 1;
 }

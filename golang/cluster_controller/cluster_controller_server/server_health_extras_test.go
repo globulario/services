@@ -212,9 +212,10 @@ func TestReconcileExternalInstallSetsAppliedHash(t *testing.T) {
 				},
 			},
 		}},
-		kv:        kv,
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
+		kv:              kv,
+		planStore:        ps,
+		resources:        resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
 	}
 
 	ctx := context.Background()

@@ -55,6 +55,7 @@ const (
 	ClusterControllerService_PreviewDesiredServices_FullMethodName = "/cluster_controller.ClusterControllerService/PreviewDesiredServices"
 	ClusterControllerService_PlanServiceUpgrades_FullMethodName    = "/cluster_controller.ClusterControllerService/PlanServiceUpgrades"
 	ClusterControllerService_ApplyServiceUpgrades_FullMethodName   = "/cluster_controller.ClusterControllerService/ApplyServiceUpgrades"
+	ClusterControllerService_ReportPlanRejection_FullMethodName    = "/cluster_controller.ClusterControllerService/ReportPlanRejection"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -99,6 +100,8 @@ type ClusterControllerServiceClient interface {
 	// ── Upgrade planning (canonical authority for plan generation) ──
 	PlanServiceUpgrades(ctx context.Context, in *PlanServiceUpgradesRequest, opts ...grpc.CallOption) (*PlanServiceUpgradesResponse, error)
 	ApplyServiceUpgrades(ctx context.Context, in *ApplyServiceUpgradesRequest, opts ...grpc.CallOption) (*ApplyServiceUpgradesResponse, error)
+	// ── Plan rejection reporting (Phase 1C) ──
+	ReportPlanRejection(ctx context.Context, in *ReportPlanRejectionRequest, opts ...grpc.CallOption) (*ReportPlanRejectionResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -457,6 +460,16 @@ func (c *clusterControllerServiceClient) ApplyServiceUpgrades(ctx context.Contex
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ReportPlanRejection(ctx context.Context, in *ReportPlanRejectionRequest, opts ...grpc.CallOption) (*ReportPlanRejectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportPlanRejectionResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ReportPlanRejection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -499,6 +512,8 @@ type ClusterControllerServiceServer interface {
 	// ── Upgrade planning (canonical authority for plan generation) ──
 	PlanServiceUpgrades(context.Context, *PlanServiceUpgradesRequest) (*PlanServiceUpgradesResponse, error)
 	ApplyServiceUpgrades(context.Context, *ApplyServiceUpgradesRequest) (*ApplyServiceUpgradesResponse, error)
+	// ── Plan rejection reporting (Phase 1C) ──
+	ReportPlanRejection(context.Context, *ReportPlanRejectionRequest) (*ReportPlanRejectionResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -606,6 +621,9 @@ func (UnimplementedClusterControllerServiceServer) PlanServiceUpgrades(context.C
 }
 func (UnimplementedClusterControllerServiceServer) ApplyServiceUpgrades(context.Context, *ApplyServiceUpgradesRequest) (*ApplyServiceUpgradesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyServiceUpgrades not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ReportPlanRejection(context.Context, *ReportPlanRejectionRequest) (*ReportPlanRejectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportPlanRejection not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -1207,6 +1225,24 @@ func _ClusterControllerService_ApplyServiceUpgrades_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ReportPlanRejection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportPlanRejectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ReportPlanRejection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ReportPlanRejection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ReportPlanRejection(ctx, req.(*ReportPlanRejectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1337,6 +1373,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyServiceUpgrades",
 			Handler:    _ClusterControllerService_ApplyServiceUpgrades_Handler,
+		},
+		{
+			MethodName: "ReportPlanRejection",
+			Handler:    _ClusterControllerService_ReportPlanRejection_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

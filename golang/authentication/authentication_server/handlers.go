@@ -126,7 +126,9 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 		return nil, logInternal("RefreshToken:generate", err)
 	}
 
-	// session maintenance
+	// Session maintenance is best-effort — a failure here (e.g., resource
+	// service TLS issue) must not prevent the caller from getting a fresh
+	// token. The token is already generated and valid.
 	session, err := srv.getSession(claims.ID)
 	if err != nil {
 		session = new(resourcepb.Session)
@@ -139,7 +141,7 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 	session.ExpireAt = newClaims.RegisteredClaims.ExpiresAt.Unix()
 
 	if err = srv.updateSession(session); err != nil {
-		return nil, logInternal("RefreshToken:updateSession", err)
+		slog.Warn("RefreshToken:updateSession failed (non-fatal)", "accountId", session.AccountId, "err", err)
 	}
 
 	slog.Info("RefreshToken:ok", "accountId", session.AccountId, "exp", session.ExpireAt)

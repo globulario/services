@@ -1,6 +1,9 @@
 package security
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Role name constants used across Globular services.
 // These are the canonical role identifiers stored in the RBAC service.
@@ -24,6 +27,11 @@ const (
 	// It can report node status and execute plans addressed to the local node,
 	// but CANNOT create or modify ServiceRelease objects.
 	RoleNodeAgentSA = "globular-node-agent-sa"
+
+	// RoleNodeExecutor is the per-node scoped role for node_<uuid> principals.
+	// It can only operate on its own node's plans, status, and packages.
+	// It CANNOT modify desired state, RBAC, publish packages, or access other nodes.
+	RoleNodeExecutor = "globular-node-executor"
 )
 
 // RolePermissions maps each role to the set of gRPC method paths it is
@@ -109,6 +117,52 @@ var RolePermissions = map[string][]string{
 	},
 
 	// -------------------------------------------------------------------------
+	// Node executor: per-node scoped role for node_<uuid> principals
+	// -------------------------------------------------------------------------
+	RoleNodeExecutor: {
+		// Report own status to controller
+		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
+		// Report plan rejections
+		"/clustercontroller.ClusterControllerService/ReportPlanRejection",
+		// Join workflow (needed during bootstrap)
+		"/clustercontroller.ClusterControllerService/RequestJoin",
+		"/clustercontroller.ClusterControllerService/GetJoinRequestStatus",
+		// Execute plans addressed to this node
+		"/nodeagent.NodeAgentService/ApplyPlan",
+		"/nodeagent.NodeAgentService/ApplyPlanV1",
+		"/nodeagent.NodeAgentService/GetPlanStatusV1",
+		"/nodeagent.NodeAgentService/WatchPlanStatusV1",
+		"/nodeagent.NodeAgentService/WatchOperation",
+		"/nodeagent.NodeAgentService/GetInventory",
+		// Installed-state reporting (own node only)
+		"/nodeagent.NodeAgentService/ListInstalledPackages",
+		"/nodeagent.NodeAgentService/GetInstalledPackage",
+		// Download artifacts from repository (v1: unauthenticated; listed for audit)
+		"/repository.PackageRepository/DownloadArtifact",
+		"/repository.PackageRepository/GetArtifactManifest",
+		// Notify controller when plan execution completes
+		"/clustercontroller.ClusterControllerService/CompleteOperation",
+		// Cluster info needed for plan execution
+		"/clustercontroller.ClusterControllerService/GetClusterInfo",
+		"/clustercontroller.ResourcesService/GetClusterNetwork",
+		// DNS operations needed during network reconciliation and ACME cert issuance
+		// (node-agent calls local DNS service during plan execution)
+		"/dns.DnsService/SetDomains",
+		"/dns.DnsService/SetA",
+		"/dns.DnsService/SetAAAA",
+		"/dns.DnsService/SetSoa",
+		"/dns.DnsService/SetNs",
+		"/dns.DnsService/SetTXT",
+		"/dns.DnsService/RemoveTXT",
+		"/dns.DnsService/GetTXT",
+		// Backup/restore operations (own node)
+		"/nodeagent.NodeAgentService/RunBackupProvider",
+		"/nodeagent.NodeAgentService/GetBackupTaskResult",
+		"/nodeagent.NodeAgentService/RunRestoreProvider",
+		"/nodeagent.NodeAgentService/GetRestoreTaskResult",
+	},
+
+	// -------------------------------------------------------------------------
 	// Node-agent SA: least-privilege for per-node agent processes
 	// -------------------------------------------------------------------------
 	RoleNodeAgentSA: {
@@ -186,6 +240,33 @@ func HasRolePermission(roles []string, method string) bool {
 		}
 	}
 	return false
+}
+
+// EnsureBuiltinRolesExist verifies that all built-in roles (including
+// node-executor) exist in the role permission map. This is called at
+// cluster bootstrap to guarantee that role bindings never target missing roles.
+// Returns an error listing any missing roles.
+func EnsureBuiltinRolesExist() error {
+	required := []string{RoleAdmin, RolePublisher, RoleOperator, RoleControllerSA, RoleNodeAgentSA, RoleNodeExecutor}
+	var missing []string
+	for _, role := range required {
+		if _, ok := RolePermissions[role]; !ok {
+			missing = append(missing, role)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing built-in roles in RolePermissions: %v", missing)
+	}
+	return nil
+}
+
+// NodeExecutorPermissions returns a copy of the node-executor permission list.
+// Useful for audit and bootstrap verification.
+func NodeExecutorPermissions() []string {
+	perms := RolePermissions[RoleNodeExecutor]
+	out := make([]string, len(perms))
+	copy(out, perms)
+	return out
 }
 
 // DefaultServiceAccountNames returns the service account identities for

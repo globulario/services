@@ -26,6 +26,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/dns/dnspb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/security"
 )
 
 const (
@@ -104,6 +105,7 @@ func init() {
 		watchCmd,
 		networkCmd,
 		clusterDnsCmd,
+		rotateNodeTokensCmd,
 		// healthCmd is added in health_cmds.go
 	)
 
@@ -1425,4 +1427,73 @@ func printProto(msg proto.Message) {
 		out, _ := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
 		fmt.Println(string(out))
 	}
+}
+
+// ── rotate-node-tokens command ──────────────────────────────────────────────
+
+var rotateNodeTokensCmd = &cobra.Command{
+	Use:   "rotate-node-tokens",
+	Short: "Rotate all node-agent tokens from sa to node-scoped identity",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cc, err := controllerClient()
+		if err != nil {
+			return fmt.Errorf("controller connection: %w", err)
+		}
+		defer cc.Close()
+		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		// List all nodes
+		nodesResp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
+		if err != nil {
+			return fmt.Errorf("list nodes: %w", err)
+		}
+
+		for _, node := range nodesResp.GetNodes() {
+			nodeID := node.GetNodeId()
+			principal := "node_" + nodeID
+
+			// Generate node-scoped token
+			token, err := security.GenerateToken(
+				365*24*60, // 1 year
+				nodeID,
+				principal,
+				"node-agent",
+				"",
+			)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "WARN: generate token for %s: %v\n", nodeID, err)
+				continue
+			}
+
+			// Connect to node-agent and push token
+			endpoint := node.GetAgentEndpoint()
+			if endpoint == "" {
+				fmt.Fprintf(os.Stderr, "WARN: node %s has no endpoint, skipping\n", nodeID)
+				continue
+			}
+			ncc, err := dialGRPC(endpoint)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "WARN: connect to node %s (%s): %v\n", nodeID, endpoint, err)
+				continue
+			}
+			naClient := node_agentpb.NewNodeAgentServiceClient(ncc)
+			_, err = naClient.RotateNodeToken(ctx, &node_agentpb.RotateNodeTokenRequest{
+				NewToken:     token,
+				NewPrincipal: principal,
+			})
+			ncc.Close()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "WARN: rotate token for %s: %v\n", nodeID, err)
+				continue
+			}
+
+			fmt.Printf("rotated: node=%s principal=%s\n", nodeID, principal)
+		}
+
+		fmt.Println("done")
+		return nil
+	},
 }

@@ -79,6 +79,8 @@ const (
 	PlanState_PLAN_ROLLED_BACK               PlanState = 5
 	PlanState_PLAN_EXPIRED                   PlanState = 6
 	PlanState_PLAN_AWAITING_PRIVILEGED_APPLY PlanState = 7
+	PlanState_PLAN_REJECTED                  PlanState = 8
+	PlanState_PLAN_QUARANTINED               PlanState = 9
 )
 
 // Enum value maps for PlanState.
@@ -92,6 +94,8 @@ var (
 		5: "PLAN_ROLLED_BACK",
 		6: "PLAN_EXPIRED",
 		7: "PLAN_AWAITING_PRIVILEGED_APPLY",
+		8: "PLAN_REJECTED",
+		9: "PLAN_QUARANTINED",
 	}
 	PlanState_value = map[string]int32{
 		"PLAN_PENDING":                   0,
@@ -102,6 +106,8 @@ var (
 		"PLAN_ROLLED_BACK":               5,
 		"PLAN_EXPIRED":                   6,
 		"PLAN_AWAITING_PRIVILEGED_APPLY": 7,
+		"PLAN_REJECTED":                  8,
+		"PLAN_QUARANTINED":               9,
 	}
 )
 
@@ -1379,7 +1385,7 @@ const file_plan_proto_rawDesc = "" +
 	"\astep_id\x18\x04 \x01(\tR\x06stepId*@\n" +
 	"\vFailureMode\x12\x16\n" +
 	"\x12FAILURE_MODE_ABORT\x10\x00\x12\x19\n" +
-	"\x15FAILURE_MODE_ROLLBACK\x10\x01*\xb7\x01\n" +
+	"\x15FAILURE_MODE_ROLLBACK\x10\x01*\xe0\x01\n" +
 	"\tPlanState\x12\x10\n" +
 	"\fPLAN_PENDING\x10\x00\x12\x10\n" +
 	"\fPLAN_RUNNING\x10\x01\x12\x12\n" +
@@ -1388,7 +1394,9 @@ const file_plan_proto_rawDesc = "" +
 	"\x11PLAN_ROLLING_BACK\x10\x04\x12\x14\n" +
 	"\x10PLAN_ROLLED_BACK\x10\x05\x12\x10\n" +
 	"\fPLAN_EXPIRED\x10\x06\x12\"\n" +
-	"\x1ePLAN_AWAITING_PRIVILEGED_APPLY\x10\a*_\n" +
+	"\x1ePLAN_AWAITING_PRIVILEGED_APPLY\x10\a\x12\x11\n" +
+	"\rPLAN_REJECTED\x10\b\x12\x14\n" +
+	"\x10PLAN_QUARANTINED\x10\t*_\n" +
 	"\tStepState\x12\x10\n" +
 	"\fSTEP_PENDING\x10\x00\x12\x10\n" +
 	"\fSTEP_RUNNING\x10\x01\x12\v\n" +

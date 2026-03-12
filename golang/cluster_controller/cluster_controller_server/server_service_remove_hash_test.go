@@ -27,6 +27,7 @@ func TestServiceRemovalPlanHasStableHash(t *testing.T) {
 		planStore:            ps,
 		resources:            resourcestore.NewMemStore(),
 		enableServiceRemoval: true,
+		planSignerState:      testPlanSigner(t),
 	}
 	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &cluster_controllerpb.ClusterNetwork{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: "default", Generation: 1},

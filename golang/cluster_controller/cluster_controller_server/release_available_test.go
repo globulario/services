@@ -57,10 +57,11 @@ func TestReleaseDegradedWhenMismatchedButMinSatisfied(t *testing.T) {
 		"n2": {NodeID: "n2", Status: "ready", AppliedServicesHash: "deadbeef", Units: []unitStatusRecord{{Name: unit, State: "active"}}},
 	}
 	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     state,
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
+		cfg:             &clusterControllerConfig{},
+		state:           state,
+		planStore:       ps,
+		resources:       resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
 	}
 	rel := testRelease(desiredHash, 1) // maxUnavailable=1 => minReplicas=1
 	rel.Status.Nodes = []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1"}, {NodeID: "n2"}}
@@ -92,10 +93,11 @@ func TestReleaseFailedWhenMinNotSatisfied(t *testing.T) {
 		"n2": {NodeID: "n2", Status: "ready", AppliedServicesHash: "mismatch", Units: []unitStatusRecord{{Name: unit, State: "active"}}},
 	}
 	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     state,
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
+		cfg:             &clusterControllerConfig{},
+		state:           state,
+		planStore:       ps,
+		resources:       resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
 	}
 	rel := testRelease(desiredHash, 0) // maxUnavailable=0 => minReplicas=2
 	rel.Status.Nodes = []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1"}, {NodeID: "n2"}}

@@ -118,6 +118,8 @@ enum PlanState {
   PLAN_ROLLED_BACK = 5;
   PLAN_EXPIRED = 6;
   PLAN_AWAITING_PRIVILEGED_APPLY = 7;
+  PLAN_REJECTED = 8;
+  PLAN_QUARANTINED = 9;
 }
 
 message StepStatus {
