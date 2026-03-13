@@ -402,6 +402,11 @@ func NormalizeServiceKey(input string) (string, bool) {
 				return key, true
 			}
 		}
+		// For gRPC-style "package.ServiceName", always use the package prefix
+		// as the canonical key (with underscores → hyphens), even if it's not
+		// in the registry. This prevents duplicates like "backup-manager" vs
+		// "backup-manager.backupmanagerservice".
+		return pkgHyphen, false
 	}
 	// Return canonicalized (underscores → hyphens) as best-effort.
 	return hyphenated, false

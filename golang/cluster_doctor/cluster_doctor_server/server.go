@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"os"
 	"sync"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -10,9 +13,10 @@ import (
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -32,11 +36,28 @@ type ClusterDoctorServer struct {
 	lastFindingsMu sync.RWMutex
 }
 
+// buildClientTLSCreds loads the cluster CA and returns gRPC transport credentials
+// for outgoing client connections. Falls back to system roots if CA is unavailable.
+func buildClientTLSCreds() credentials.TransportCredentials {
+	caFile := config.GetTLSFile("", "", "ca.crt")
+	if caFile != "" {
+		if caData, err := os.ReadFile(caFile); err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caData) {
+				return credentials.NewTLS(&tls.Config{RootCAs: pool})
+			}
+		}
+	}
+	// Fallback: system CA pool (still TLS, just not pinned to cluster CA).
+	return credentials.NewTLS(&tls.Config{})
+}
+
 func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, error) {
-	// Dial ClusterController
+	// Dial ClusterController with TLS.
+	creds := buildClientTLSCreds()
 	ccConn, err := grpc.NewClient(
 		cfg.ControllerEndpoint,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial clustercontroller %s: %w", cfg.ControllerEndpoint, err)

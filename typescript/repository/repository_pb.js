@@ -8701,7 +8701,8 @@ proto.repository.ArtifactKind = {
   APPLICATION: 2,
   AGENT: 3,
   SUBSYSTEM: 4,
-  INFRASTRUCTURE: 5
+  INFRASTRUCTURE: 5,
+  COMMAND: 6
 };
 
 /**

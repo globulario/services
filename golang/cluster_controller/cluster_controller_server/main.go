@@ -16,9 +16,10 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/recovery"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
+	globular_service "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/security"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
@@ -26,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/keepalive"
 	"path/filepath"
@@ -123,6 +125,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Seed configured join token into runtime state so Day-0 bootstrap can use it.
+	// cfg.JoinToken comes from config.json "join_token" or CLUSTER_JOIN_TOKEN env var.
+	if tok := strings.TrimSpace(cfg.JoinToken); tok != "" {
+		if state.JoinTokens == nil {
+			state.JoinTokens = make(map[string]*joinTokenRecord)
+		}
+		if state.JoinTokens[tok] == nil {
+			state.JoinTokens[tok] = &joinTokenRecord{
+				Token:     tok,
+				ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7-day bootstrap window
+				MaxUses:   10,                                  // allow multiple bootstrap attempts
+			}
+			if err := state.save(*statePath); err != nil {
+				logger.Warn("failed to persist seeded join token", "err", err)
+			} else {
+				logger.Info("seeded Day-0 join token from config into runtime state")
+			}
+		}
+	}
+
 	// Create a DEDICATED etcd client for the cluster controller.
 	// This is independent of the config package's shared singleton so that
 	// health-probe reconnects in the config layer cannot destroy leader
@@ -150,9 +172,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create gRPC server with recovery interceptors
-	logger.Debug("creating gRPC server with interceptors")
-	grpcServer := grpc.NewServer(
+	// Create gRPC server with TLS and recovery interceptors.
+	// TLS is mandatory — use the same certificate paths as all other Globular services.
+	logger.Debug("creating gRPC server with TLS and interceptors")
+	serverOpts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(
 			recovery.Unary(),
 		),
@@ -167,7 +190,28 @@ func main() {
 			MinTime:             10 * time.Second,
 			PermitWithoutStream: true,
 		}),
-	)
+	}
+	// Use the canonical server certificate (same paths as framework services).
+	// GetTLSFile falls back to envoy-xds-client certs which are CLIENT-only
+	// and cause "unsuitable certificate purpose" errors when used as server certs.
+	certFile := config.GetLocalServerCertificatePath()
+	keyFile := config.GetLocalServerKeyPath()
+	caFile := config.GetLocalCACertificate()
+	if certFile != "" && keyFile != "" && caFile != "" {
+		tlsCfg := globular_service.GetTLSConfig(keyFile, certFile, caFile)
+		if tlsCfg != nil {
+			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+			logger.Info("TLS enabled", "cert", certFile, "key", keyFile, "ca", caFile)
+		} else {
+			logger.Error("TLS config could not be created — refusing to start insecure")
+			os.Exit(1)
+		}
+	} else {
+		logger.Error("TLS certificate files not found — refusing to start insecure",
+			"cert", certFile, "key", keyFile, "ca", caFile)
+		os.Exit(1)
+	}
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Initialize server
 	logger.Info("initializing cluster controller server")
@@ -227,7 +271,7 @@ func main() {
 		"Address":  "localhost",
 		"Port":     cfg.Port,
 		"Protocol": "grpc",
-		"TLS":      false,
+		"TLS":      true,
 		"State":    "running",
 		"Process":  os.Getpid(),
 		"Version":  Version,

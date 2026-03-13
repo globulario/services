@@ -122,7 +122,7 @@ func newControllerState() *controllerState {
 		// Day-0 Security: Initialize with default internal domain
 		ClusterNetworkSpec: &cluster_controllerpb.ClusterNetworkSpec{
 			ClusterDomain: "globular.internal",
-			Protocol:      "http",
+			Protocol:      "https",
 		},
 		NetworkingGeneration: 1,
 	}
@@ -153,7 +153,7 @@ func loadControllerState(path string) (*controllerState, error) {
 	if state.ClusterNetworkSpec == nil {
 		state.ClusterNetworkSpec = &cluster_controllerpb.ClusterNetworkSpec{
 			ClusterDomain: "globular.internal",
-			Protocol:      "http",
+			Protocol:      "https",
 		}
 		state.NetworkingGeneration++
 	} else if state.ClusterNetworkSpec.ClusterDomain == "" {

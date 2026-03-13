@@ -127,14 +127,18 @@ func (srv *server) DownloadBundle(
 		PackageDescriptor: rqst.Descriptor_,  // incoming descriptor
 	}
 
-	// Compute bundle id and storage key.
+	// Build artifact ref and read from the artifacts/ directory.
 	id := bundleID(bundle.PackageDescriptor, rqst.Platform)
-	storageKey := "packages-repository/" + id + ".tar.gz"
-
-	// Read the archived binaries from the configured storage backend (MinIO or local FS).
-	data, err := srv.Storage().ReadFile(stream.Context(), storageKey)
+	aRef := &repopb.ArtifactRef{
+		Name:        bundle.PackageDescriptor.GetName(),
+		Version:     bundle.PackageDescriptor.GetVersion(),
+		Platform:    rqst.Platform,
+		PublisherId: bundle.PackageDescriptor.GetPublisherID(),
+	}
+	aKey := artifactKeyWithBuild(aRef, 0)
+	data, err := srv.Storage().ReadFile(stream.Context(), binaryStorageKey(aKey))
 	if err != nil {
-		return fmt.Errorf("read bundle %q: %w", storageKey, err)
+		return fmt.Errorf("read bundle artifact %q: %w", aKey, err)
 	}
 	bundle.Binairies = data
 
@@ -196,14 +200,22 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		bundle.PackageDescriptor.Version = cv
 	}
 
-	// Compute bundle id and storage key.
+	// Compute artifact key and write to the artifacts/ directory.
 	id := bundleID(bundle.PackageDescriptor, bundle.Plaform)
-	storageKey := "packages-repository/" + id + ".tar.gz"
+	d := bundle.PackageDescriptor
+	aRef := &repopb.ArtifactRef{
+		Name:        d.Name,
+		Version:     d.Version,
+		Platform:    bundle.Plaform,
+		PublisherId: d.PublisherID,
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	aKey := artifactKeyWithBuild(aRef, 0)
 
-	// Persist archive to the configured storage backend (MinIO or local FS).
-	if err := srv.Storage().WriteFile(stream.Context(), storageKey, bundle.Binairies, 0o644); err != nil {
+	_ = srv.Storage().MkdirAll(stream.Context(), artifactsDir, 0o755)
+	if err := srv.Storage().WriteFile(stream.Context(), binaryStorageKey(aKey), bundle.Binairies, 0o644); err != nil {
 		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
-		return fmt.Errorf("write bundle %q: %w", storageKey, err)
+		return fmt.Errorf("write artifact %q: %w", aKey, err)
 	}
 
 	// Fill metadata and persist it via existing server method.
@@ -222,49 +234,31 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		return fmt.Errorf("persist bundle metadata: %w", err)
 	}
 
-	// Dual-write: also persist as an artifact so DownloadArtifact can find it.
-	// This bridges the legacy UploadBundle path with the new artifact-based reconciler.
-	// UploadBundle is a complete publish operation (descriptor already exists), so the
-	// artifact is marked PUBLISHED immediately.
-	if d := bundle.PackageDescriptor; d != nil && d.Name != "" && d.Version != "" {
-		aRef := &repopb.ArtifactRef{
-			Name:        d.Name,
-			Version:     d.Version,
-			Platform:    bundle.Plaform,
-			PublisherId: d.PublisherID,
-			Kind:        repopb.ArtifactKind_SERVICE,
-		}
-		aKey := artifactKeyWithBuild(aRef, 0)
-		_ = srv.Storage().MkdirAll(stream.Context(), artifactsDir, 0o755)
-		if werr := srv.Storage().WriteFile(stream.Context(), binaryStorageKey(aKey), bundle.Binairies, 0o644); werr != nil {
-			slog.Warn("dual-write artifact binary failed", "key", aKey, "err", werr)
-		} else {
-			manifest := &repopb.ArtifactManifest{
-				Ref:          aRef,
-				Checksum:     bundle.Checksum,
-				SizeBytes:    int64(bundle.Size),
-				ModifiedUnix: bundle.Modified,
-				PublishedUnix: time.Now().Unix(),
-			}
-
-			// Enrich manifest from embedded manifest.json in the .tgz archive.
-			enrichManifestFromArchive(manifest, bundle.Binairies)
-
-			// Also populate from PackageDescriptor fields if manifest.json was absent.
-			if manifest.Description == "" {
-				manifest.Description = d.Description
-			}
-			if len(manifest.Keywords) == 0 {
-				manifest.Keywords = d.Keywords
-			}
-
-			// Marshal with PUBLISHED state since UploadBundle is a complete publish.
-			if mjson, merr := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED); merr == nil {
-				_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
-			}
-			slog.Info("dual-write artifact", "key", aKey, "publish_state", "PUBLISHED")
-		}
+	// Write artifact manifest with PUBLISHED state.
+	manifest := &repopb.ArtifactManifest{
+		Ref:           aRef,
+		Checksum:      bundle.Checksum,
+		SizeBytes:     int64(bundle.Size),
+		ModifiedUnix:  bundle.Modified,
+		PublishedUnix: time.Now().Unix(),
 	}
+
+	// Enrich manifest from embedded manifest.json in the .tgz archive.
+	enrichManifestFromArchive(manifest, bundle.Binairies)
+
+	// Also populate from PackageDescriptor fields if manifest.json was absent.
+	if manifest.Description == "" {
+		manifest.Description = d.Description
+	}
+	if len(manifest.Keywords) == 0 {
+		manifest.Keywords = d.Keywords
+	}
+
+	// Marshal with PUBLISHED state since UploadBundle is a complete publish.
+	if mjson, merr := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED); merr == nil {
+		_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
+	}
+	slog.Info("artifact uploaded via UploadBundle", "key", aKey, "publish_state", "PUBLISHED")
 
 	// Close stream, report success.
 	if err := stream.SendAndClose(&repopb.UploadBundleResponse{}); err != nil {
@@ -277,7 +271,7 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		"descriptor_name", bundle.PackageDescriptor.GetName(),
 		"size", bundle.Size,
 		"modified", bundle.Modified,
-		"key", storageKey,
+		"key", aKey,
 	)
 	return nil
 }

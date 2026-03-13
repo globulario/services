@@ -17,8 +17,10 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/internal/recovery"
 	"github.com/globulario/services/golang/config"
+	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"path/filepath"
 )
@@ -92,7 +94,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	grpcServer := grpc.NewServer(
+	// TLS is mandatory — use the same certificate paths as all other Globular services.
+	serverOpts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(recovery.Unary()),
 		grpc.ChainStreamInterceptor(recovery.Stream()),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -103,7 +106,28 @@ func main() {
 			MinTime:             10 * time.Second,
 			PermitWithoutStream: true,
 		}),
-	)
+	}
+	// Use canonical server certs (same paths as framework services).
+	// GetTLSFile falls back to envoy-xds-client certs which are CLIENT-only
+	// and cause "unsuitable certificate purpose" errors when used as server certs.
+	certFile := config.GetLocalServerCertificatePath()
+	keyFile := config.GetLocalServerKeyPath()
+	caFile := config.GetLocalCACertificate()
+	if certFile != "" && keyFile != "" && caFile != "" {
+		tlsCfg := globular_service.GetTLSConfig(keyFile, certFile, caFile)
+		if tlsCfg != nil {
+			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+			logger.Info("TLS enabled", "cert", certFile, "key", keyFile, "ca", caFile)
+		} else {
+			logger.Error("TLS config could not be created — refusing to start insecure")
+			os.Exit(1)
+		}
+	} else {
+		logger.Error("TLS certificate files not found — refusing to start insecure",
+			"cert", certFile, "key", keyFile, "ca", caFile)
+		os.Exit(1)
+	}
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	cluster_doctorpb.RegisterClusterDoctorServiceServer(grpcServer, srv)
 	logger.Debug("gRPC service registered")
@@ -117,7 +141,7 @@ func main() {
 		"Address":  "localhost",
 		"Port":     cfg.Port,
 		"Protocol": "grpc",
-		"TLS":      false,
+		"TLS":      true,
 		"State":    "running",
 		"Process":  os.Getpid(),
 		"Version":  Version,

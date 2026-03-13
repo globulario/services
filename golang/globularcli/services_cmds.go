@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -27,7 +28,7 @@ import (
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -716,8 +717,8 @@ func downloadServiceArtifact(service, version, publisher string) (string, error)
 
 func dialRepository() (*grpc.ClientConn, error) {
 	if svcApplyRepoInsec {
-		// Plaintext — build connection manually.
-		opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+		// TLS with skip-verify — all services require TLS.
+		opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))}
 		if rootCfg.token != "" {
 			opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
 		}
@@ -1075,9 +1076,13 @@ func autoDiscoverController(cmd *cobra.Command) {
 
 	// Priority 1: node-agent state file
 	if ns, err := readNodeState(); err == nil && ns.ControllerEndpoint != "" {
-		discovered = ns.ControllerEndpoint
-		isInsecure = ns.ControllerInsecure
-		source = "node-agent state"
+		ep := ns.ControllerEndpoint
+		// Reject unroutable bind addresses — 0.0.0.0 is not a valid client endpoint.
+		if !strings.HasPrefix(ep, "0.0.0.0:") {
+			discovered = ep
+			isInsecure = ns.ControllerInsecure
+			source = "node-agent state"
+		}
 	}
 
 	// Priority 2: environment variable (same as node-agent uses)

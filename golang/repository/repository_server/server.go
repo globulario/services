@@ -109,7 +109,7 @@ type server struct {
 	CertAuthorityTrust string
 
 	// --- Repository-Specific Fields ---
-	Root        string                    // Base data directory (packages-repository lives under this)
+	Root        string                    // Base data directory (artifacts/ lives under this)
 	MinioConfig *config.MinioProxyConfig  // nil → use local filesystem
 	minioClient *minio.Client
 	storage     storage_backend.Storage

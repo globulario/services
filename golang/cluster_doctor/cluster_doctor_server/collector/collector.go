@@ -2,15 +2,19 @@ package collector
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
 // CollectorConfig carries per-fetch settings.
@@ -186,12 +190,26 @@ func (c *Collector) agentClient(endpoint string) (node_agentpb.NodeAgentServiceC
 		return node_agentpb.NewNodeAgentServiceClient(conn), nil
 	}
 
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(agentClientTLSCreds()))
 	if err != nil {
 		return nil, fmt.Errorf("dial node agent %s: %w", endpoint, err)
 	}
 	c.agentConns[endpoint] = conn
 	return node_agentpb.NewNodeAgentServiceClient(conn), nil
+}
+
+// agentClientTLSCreds returns gRPC transport credentials for dialling node agents.
+func agentClientTLSCreds() credentials.TransportCredentials {
+	caFile := config.GetTLSFile("", "", "ca.crt")
+	if caFile != "" {
+		if caData, err := os.ReadFile(caFile); err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caData) {
+				return credentials.NewTLS(&tls.Config{RootCAs: pool})
+			}
+		}
+	}
+	return credentials.NewTLS(&tls.Config{})
 }
 
 // Close releases all agent connections.

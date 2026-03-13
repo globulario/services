@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
@@ -111,7 +111,7 @@ func init() {
 
 	bootstrapCmd.Flags().StringVar(&bootstrapNodeAddr, "node", "", "Node agent endpoint (required)")
 	bootstrapCmd.Flags().StringVar(&bootstrapDomain, "domain", "", "Cluster domain (required)")
-	bootstrapCmd.Flags().StringVar(&bootstrapBind, "bind", "0.0.0.0:10000", "Controller bind address")
+	bootstrapCmd.Flags().StringVar(&bootstrapBind, "bind", "localhost:12000", "Controller bind address")
 	bootstrapCmd.Flags().StringSliceVar(&bootstrapProfiles, "profile", nil, "Profiles for the first node")
 
 	joinCmd.Flags().StringVar(&joinNodeOverride, "node", "", "Node agent endpoint")
@@ -148,7 +148,7 @@ func init() {
 
 	networkCmd.AddCommand(networkSetCmd, networkGetCmd)
 	networkSetCmd.Flags().StringVar(&networkDomain, "domain", "", "Cluster domain (required)")
-	networkSetCmd.Flags().StringVar(&networkProtocol, "protocol", "http", "Network protocol (http|https)")
+	networkSetCmd.Flags().StringVar(&networkProtocol, "protocol", "https", "Network protocol (http|https)")
 	networkSetCmd.Flags().IntVar(&networkHTTPPort, "http-port", 8080, "HTTP port to configure")
 	networkSetCmd.Flags().IntVar(&networkHTTPSPort, "https-port", 8443, "HTTPS port to configure")
 	networkSetCmd.Flags().BoolVar(&networkAcme, "acme", false, "Enable ACME certificate management")
@@ -938,7 +938,7 @@ var networkSetCmd = &cobra.Command{
 		}
 		protocol := strings.ToLower(strings.TrimSpace(networkProtocol))
 		if protocol == "" {
-			protocol = "http"
+			protocol = "https"
 		}
 		if protocol != "http" && protocol != "https" {
 			return errors.New("--protocol must be http or https")
@@ -1185,14 +1185,18 @@ func (t tokenCredentials) GetRequestMetadata(ctx context.Context, uri ...string)
 }
 
 func (t tokenCredentials) RequireTransportSecurity() bool {
-	// Token must travel over TLS (never plain-text).
-	return !rootCfg.insecure
+	// All connections use TLS (--insecure only skips cert verification).
+	return true
 }
 
 func dialGRPC(addr string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
 	if rootCfg.insecure {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// "insecure" means TLS with skip-verify, NOT plain-text.
+		// All Globular services require TLS — this flag only relaxes certificate validation.
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})))
 	} else if rootCfg.caFile != "" {
 		// NOTE: --ca flag loads only the server CA, which breaks mTLS client cert auth.
 		// Prefer the default path (no --ca flag) for full mTLS support.
