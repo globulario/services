@@ -12,6 +12,7 @@ enum ArtifactKind {
   AGENT = 3;
   SUBSYSTEM = 4;
   INFRASTRUCTURE = 5;
+  COMMAND = 6;             // CLI tools (ffmpeg, rclone, restic, mc, etc.)
 }
 
 // PublishState tracks the lifecycle of an artifact through the publish pipeline.

@@ -216,13 +216,25 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		return
 	}
 
-	// Infrastructure services that are not managed by the controller's
-	// desired-state model. Skip these.
+	// Packages whose kind and version come from the repository artifact
+	// catalog (Phase 2 of syncInstalledStateToEtcd), NOT from systemd
+	// unit scanning. Without this, Phase 1 creates SERVICE/0.0.1 records
+	// that mask the correct INFRASTRUCTURE/COMMAND records with real
+	// versions from the repo.
 	// Control-plane services (node-agent, cluster-controller, cluster-doctor)
 	// ARE managed — they participate in desired state and reconciliation.
-	infra := map[string]bool{
+	skipSystemd := map[string]bool{
+		// Core infrastructure (no desired-state model)
 		"etcd": true, "minio": true, "envoy": true,
 		"xds": true, "gateway": true,
+		// Infrastructure services (from /packages/specs/*_service.yaml)
+		"node-exporter": true, "prometheus": true,
+		"scylla-manager": true, "scylla-manager-agent": true,
+		"scylladb": true, "keepalived": true, "sidekick": true,
+		// CLI tools — not services (from /packages/specs/*_cmd.yaml)
+		"etcdctl-cmd": true, "ffmpeg-cmd": true, "globular-cli-cmd": true,
+		"mc-cmd": true, "rclone-cmd": true, "restic-cmd": true,
+		"sctool-cmd": true, "sha256sum-cmd": true, "yt-dlp-cmd": true,
 	}
 
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -237,7 +249,7 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		}
 		unit := fields[0]
 		svc := canonicalServiceName(unit)
-		if svc == "" || infra[svc] {
+		if svc == "" || skipSystemd[svc] {
 			continue
 		}
 		// Skip if already discovered by markers or config.

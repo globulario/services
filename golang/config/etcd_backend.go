@@ -704,25 +704,9 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 // GetServiceConfigurationById resolves by exact Id, then by Name among all services.
 func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error) {
-	c, err := etcdClient()
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-
-	// Try exact Id
-	if dres, err := c.Get(ctx, etcdKey(idOrName, cfgKey)); err == nil && len(dres.Kvs) == 1 {
-		var d map[string]interface{}
-		if json.Unmarshal(dres.Kvs[0].Value, &d) == nil {
-			var r map[string]interface{}
-			if rres, err := c.Get(ctx, etcdKey(idOrName, rtKey)); err == nil {
-				if len(rres.Kvs) == 1 {
-					_ = json.Unmarshal(rres.Kvs[0].Value, &r)
-				}
-			}
-			return mergeDesiredRuntime(d, r), nil
-		}
+	// Fast path: try exact etcd key lookup (single key, no scan).
+	if cfg, err := GetServiceConfigurationByExactId(idOrName); err == nil {
+		return cfg, nil
 	}
 
 	// Fallback: scan and match by Name
@@ -736,6 +720,38 @@ func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error
 		}
 	}
 	return nil, fmt.Errorf("no service found with id/name %q", idOrName)
+}
+
+// GetServiceConfigurationByExactId does a direct etcd key lookup by exact Id.
+// Returns (nil, error) if the service doesn't exist or etcd is unavailable.
+// This is much faster than GetServiceConfigurationById because it never falls
+// back to scanning all services — use it when you know the exact Id.
+func GetServiceConfigurationByExactId(id string) (map[string]interface{}, error) {
+	c, err := etcdClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	dres, err := c.Get(ctx, etcdKey(id, cfgKey))
+	if err != nil {
+		return nil, fmt.Errorf("etcd get config: %w", err)
+	}
+	if len(dres.Kvs) == 0 {
+		return nil, fmt.Errorf("no service found with id %q", id)
+	}
+
+	var d map[string]interface{}
+	if err := json.Unmarshal(dres.Kvs[0].Value, &d); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	var r map[string]interface{}
+	if rres, err := c.Get(ctx, etcdKey(id, rtKey)); err == nil && len(rres.Kvs) == 1 {
+		_ = json.Unmarshal(rres.Kvs[0].Value, &r)
+	}
+	return mergeDesiredRuntime(d, r), nil
 }
 
 // Plural by-name

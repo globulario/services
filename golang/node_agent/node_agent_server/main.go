@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,6 +19,7 @@ import (
 	"path/filepath"
 
 	"github.com/globulario/services/golang/config"
+	globular_service "github.com/globulario/services/golang/globular_service"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	planstore "github.com/globulario/services/golang/plan/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -85,30 +84,33 @@ func main() {
 		log.Fatalf("unable to listen on %s: %v", address, err)
 	}
 
+	// TLS is mandatory. Check env vars first, then fall back to standard Globular cert paths.
 	serverOpts := []grpc.ServerOption{}
-	if cert := os.Getenv("NODE_AGENT_TLS_CERT"); cert != "" {
-		if key := os.Getenv("NODE_AGENT_TLS_KEY"); key != "" {
-			certPair, err := tls.LoadX509KeyPair(cert, key)
-			if err != nil {
-				log.Fatalf("failed to load TLS key pair: %v", err)
-			}
-			tlsCfg := &tls.Config{
-				Certificates: []tls.Certificate{certPair},
-			}
-			if caPath := os.Getenv("NODE_AGENT_TLS_CA"); caPath != "" {
-				data, err := os.ReadFile(caPath)
-				if err != nil {
-					log.Fatalf("failed to read TLS CA: %v", err)
-				}
-				pool := x509.NewCertPool()
-				if !pool.AppendCertsFromPEM(data) {
-					log.Fatalf("failed to parse TLS CA")
-				}
-				tlsCfg.ClientCAs = pool
-				tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
-			}
+	certFile := os.Getenv("NODE_AGENT_TLS_CERT")
+	keyFile := os.Getenv("NODE_AGENT_TLS_KEY")
+	caFile := os.Getenv("NODE_AGENT_TLS_CA")
+	// Use canonical server certs (same paths as framework services).
+	// GetTLSFile falls back to envoy-xds-client certs which are CLIENT-only
+	// and cause "unsuitable certificate purpose" errors when used as server certs.
+	if certFile == "" {
+		certFile = config.GetLocalServerCertificatePath()
+	}
+	if keyFile == "" {
+		keyFile = config.GetLocalServerKeyPath()
+	}
+	if caFile == "" {
+		caFile = config.GetLocalCACertificate()
+	}
+	if certFile != "" && keyFile != "" && caFile != "" {
+		tlsCfg := globular_service.GetTLSConfig(keyFile, certFile, caFile)
+		if tlsCfg != nil {
 			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+			log.Printf("TLS enabled: cert=%s key=%s ca=%s", certFile, keyFile, caFile)
+		} else {
+			log.Fatalf("TLS config could not be created — refusing to start insecure")
 		}
+	} else {
+		log.Fatalf("TLS certificate files not found (cert=%s key=%s ca=%s) — refusing to start insecure", certFile, keyFile, caFile)
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 	srv.StartHeartbeat(ctx)
@@ -131,7 +133,7 @@ func main() {
 			"Address":  advertiseHost,
 			"Port":     portNum,
 			"Protocol": "grpc",
-			"TLS":      os.Getenv("NODE_AGENT_TLS_CERT") != "",
+			"TLS":      true,
 			"State":    "running",
 			"Process":  os.Getpid(),
 			"Version":  getEnv("NODE_AGENT_VERSION", "0.0.1"),

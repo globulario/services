@@ -19,6 +19,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
@@ -211,6 +212,10 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		statePath = defaultClusterStatePath
 	}
 	agentCAPath := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_CA"))
+	if agentCAPath == "" {
+		// Default to the standard cluster CA path.
+		agentCAPath = config.GetTLSFile("", "", "ca.crt")
+	}
 	serverName := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_SERVER_NAME"))
 	srv := &server{
 		cfg:              cfg,
@@ -1694,6 +1699,26 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "load desired services: %v", err)
 	}
+	// Merge InfrastructureRelease entries so infrastructure daemons
+	// (etcd, minio, prometheus, etc.) appear in the health summary
+	// alongside gRPC services. Without this they show as "unmanaged".
+	if srv.resources != nil {
+		if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+			for _, obj := range items {
+				if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
+					canon := canonicalServiceName(rel.Spec.Component)
+					if canon == "" && rel.Meta != nil {
+						canon = canonicalServiceName(rel.Meta.Name)
+					}
+					if canon != "" {
+						if _, exists := desiredCanon[canon]; !exists {
+							desiredCanon[canon] = rel.Spec.Version
+						}
+					}
+				}
+			}
+		}
+	}
 	srv.lock("health:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, n := range srv.state.Nodes {
@@ -1796,7 +1821,27 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			serviceCounts[svc]++
 			// Per-service convergence: compare installed version against
 			// the desired version for THIS service, not the global hash.
-			if installedVer, ok := node.InstalledVersions[svc]; ok && installedVer == desiredVer {
+			// Use canonicalized fuzzy matching because InstalledVersions
+			// keys may include publisher prefix ("pub/service") or use
+			// different casing/separators than the desired-state key.
+			installedVer := ""
+			if v, ok := node.InstalledVersions[svc]; ok {
+				installedVer = v
+			} else {
+				// Fuzzy match: strip publisher prefix and canonicalize.
+				for k, v := range node.InstalledVersions {
+					parts := strings.SplitN(k, "/", 2)
+					candidate := k
+					if len(parts) == 2 {
+						candidate = parts[1]
+					}
+					if canonicalServiceName(candidate) == canonicalServiceName(svc) {
+						installedVer = v
+						break
+					}
+				}
+			}
+			if installedVer == desiredVer {
 				serviceAtDesired[svc]++
 			}
 			if status != nil && plan != nil && plan.GetDesiredHash() != "" && plan.GetDesiredHash() == desiredSvcHash {

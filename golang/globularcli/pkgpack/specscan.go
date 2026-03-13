@@ -13,7 +13,7 @@ import (
 
 // SpecMetadata contains optional package metadata from the spec's metadata: section.
 type SpecMetadata struct {
-	Kind        string   // "service", "infrastructure", "application"
+	Kind        string   // "service", "infrastructure", "application", "command"
 	Description string
 	Keywords    []string
 	License     string
@@ -97,7 +97,7 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 	// Derive default kind from filename
 	base := filepath.Base(specPath)
 	if strings.HasSuffix(base, "_cmd.yaml") || strings.HasSuffix(base, "_command.yaml") {
-		meta.Kind = "infrastructure"
+		meta.Kind = "command"
 	} else {
 		meta.Kind = "service"
 	}

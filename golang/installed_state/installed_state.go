@@ -81,7 +81,7 @@ func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPacka
 	if err != nil {
 		return fmt.Errorf("installed_state: etcd client: %w", err)
 	}
-	defer cli.Close()
+	// Do NOT close the shared singleton — it is reused across the process.
 
 	key := packageKey(pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -100,7 +100,7 @@ func GetInstalledPackage(ctx context.Context, nodeID, kind, name string) (*node_
 	if err != nil {
 		return nil, fmt.Errorf("installed_state: etcd client: %w", err)
 	}
-	defer cli.Close()
+	// Do NOT close the shared singleton.
 
 	key := packageKey(nodeID, kind, name)
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -122,7 +122,7 @@ func ListInstalledPackages(ctx context.Context, nodeID, kind string) ([]*node_ag
 	if err != nil {
 		return nil, fmt.Errorf("installed_state: etcd client: %w", err)
 	}
-	defer cli.Close()
+	// Do NOT close the shared singleton.
 
 	prefix := nodePackagesPrefix(nodeID)
 	if kind != "" {
@@ -154,7 +154,7 @@ func DeleteInstalledPackage(ctx context.Context, nodeID, kind, name string) erro
 	if err != nil {
 		return fmt.Errorf("installed_state: etcd client: %w", err)
 	}
-	defer cli.Close()
+	// Do NOT close the shared singleton.
 
 	key := packageKey(nodeID, kind, name)
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -167,14 +167,18 @@ func DeleteInstalledPackage(ctx context.Context, nodeID, kind, name string) erro
 	return nil
 }
 
-// ListAllNodes returns installed packages across all nodes, optionally filtered by kind.
-// Useful for gateway admin endpoints.
-func ListAllNodes(ctx context.Context, kind string) ([]*node_agentpb.InstalledPackage, error) {
+// ListAllNodes returns installed packages across all nodes, optionally filtered
+// by kind and/or package name. Useful for gateway admin endpoints.
+func ListAllNodes(ctx context.Context, kind, name string) ([]*node_agentpb.InstalledPackage, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return nil, fmt.Errorf("installed_state: etcd client: %w", err)
 	}
-	defer cli.Close()
+	// Do NOT close the shared singleton.
 
 	prefix := keyPrefix
 	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -186,6 +190,7 @@ func ListAllNodes(ctx context.Context, kind string) ([]*node_agentpb.InstalledPa
 	}
 
 	kindUpper := strings.ToUpper(kind)
+	nameLower := strings.ToLower(strings.TrimSpace(name))
 	pkgs := make([]*node_agentpb.InstalledPackage, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
 		pkg, err := unmarshalPackage(kv.Value)
@@ -193,6 +198,9 @@ func ListAllNodes(ctx context.Context, kind string) ([]*node_agentpb.InstalledPa
 			continue
 		}
 		if kind != "" && strings.ToUpper(pkg.GetKind()) != kindUpper {
+			continue
+		}
+		if nameLower != "" && strings.ToLower(pkg.GetName()) != nameLower {
 			continue
 		}
 		pkgs = append(pkgs, pkg)

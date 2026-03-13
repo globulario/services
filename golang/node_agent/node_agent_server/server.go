@@ -21,6 +21,8 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
@@ -40,7 +42,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -336,8 +337,18 @@ func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 }
 
 func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	// Initial sync: populate installed-state etcd records for packages
+	// installed by the Day-0 installer (which doesn't go through plan execution).
+	srv.syncInstalledStateToEtcd(ctx)
+
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	// Re-sync installed state every 5 minutes so late-arriving packages
+	// (e.g. repository not ready at first boot) eventually land in etcd.
+	syncTicker := time.NewTicker(5 * time.Minute)
+	defer syncTicker.Stop()
+
 	for {
 		if err := srv.reportStatus(ctx); err != nil {
 			log.Printf("node heartbeat failed: %v", err)
@@ -345,8 +356,214 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-syncTicker.C:
+			srv.syncInstalledStateToEtcd(ctx)
+		case <-heartbeat.C:
 		}
+	}
+}
+
+// syncInstalledStateToEtcd writes installed-state records to etcd for every
+// locally-installed package that doesn't already have a record. This bridges
+// the gap between packages installed by the Day-0 installer (which bypasses
+// the plan executor) and the installed_state registry that the admin UI and
+// controller rely on.
+//
+// Two sources are reconciled:
+//  1. ComputeInstalledServices — discovers SERVICE packages from systemd units,
+//     version markers, and config files.
+//  2. Repository catalog — discovers APPLICATION and INFRASTRUCTURE packages
+//     that were published and are assumed installed on this (bootstrap) node.
+func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
+	if srv.nodeID == "" {
+		log.Printf("nodeagent: sync skipped — node ID not yet assigned")
+		return
+	}
+
+	now := time.Now().Unix()
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	synced := 0
+
+	// Phase 1: Sync SERVICE packages from local discovery.
+	installed, _, err := ComputeInstalledServices(ctx)
+	if err != nil {
+		log.Printf("nodeagent: ComputeInstalledServices failed: %v", err)
+	}
+	if len(installed) > 0 {
+		for key, info := range installed {
+			name := canonicalServiceName(key.ServiceName)
+			if name == "" {
+				continue
+			}
+			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
+			if existing != nil {
+				continue
+			}
+			pkg := &node_agentpb.InstalledPackage{
+				NodeId:        srv.nodeID,
+				Name:          name,
+				Version:       info.Version,
+				PublisherId:   info.PublisherID,
+				Platform:      platform,
+				Kind:          "SERVICE",
+				InstalledUnix: now,
+				UpdatedUnix:   now,
+				Status:        "installed",
+			}
+			if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+				log.Printf("nodeagent: sync installed-state SERVICE/%s: %v", name, err)
+				continue
+			}
+			synced++
+		}
+	}
+
+	// Phase 2: Enrich existing records with correct version/kind from repo.
+	srv.syncRepoArtifactsToEtcd(ctx, now, platform, &synced)
+
+	// Phase 3: Clean up stale SERVICE records for packages not actually
+	// installed on this node. Previous versions of Phase 2 blindly wrote
+	// records for every repo artifact; this removes the orphaned entries.
+	if srv.nodeID != "" {
+		localNames := make(map[string]bool, len(installed))
+		for key := range installed {
+			localNames[canonicalServiceName(key.ServiceName)] = true
+		}
+		if svcPkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, "SERVICE"); err == nil {
+			for _, pkg := range svcPkgs {
+				name := pkg.GetName()
+				if localNames[name] {
+					continue // genuinely installed locally
+				}
+				// Not discovered locally — check if systemd unit is running.
+				unitName := "globular-" + name + ".service"
+				if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
+					// Not running — remove stale record.
+					_ = installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
+					log.Printf("nodeagent: removed stale installed-state SERVICE/%s (not running)", name)
+				}
+			}
+		}
+	}
+
+	if synced > 0 {
+		log.Printf("nodeagent: synced %d installed-state records to etcd", synced)
+	}
+}
+
+// syncRepoArtifactsToEtcd queries the repository for all published artifacts
+// and enriches existing installed-state records with correct version and kind
+// from the repo. It does NOT create new records for packages that weren't
+// discovered locally by Phase 1 — only Phase 1 (systemd/markers/config) knows
+// what's actually installed on this machine. Phase 2 only:
+//   - Updates version for existing records that have the fallback "0.0.1"
+//   - Corrects the kind (e.g. SERVICE → INFRASTRUCTURE) for misclassified records
+//   - Creates records ONLY for INFRASTRUCTURE/COMMAND packages that have a
+//     matching systemd unit running (verified via systemctl)
+func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int64, platform string, synced *int) {
+	repoAddr := strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
+	if repoAddr == "" {
+		repoAddr = "localhost:10101"
+	}
+
+	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		log.Printf("nodeagent: sync repo artifacts: connect to repo: %v", err)
+		return
+	}
+	defer rc.Close()
+
+	arts, err := rc.ListArtifacts()
+	if err != nil {
+		log.Printf("nodeagent: sync repo artifacts: list: %v", err)
+		return
+	}
+
+	for _, m := range arts {
+		ref := m.GetRef()
+		if ref == nil || ref.GetName() == "" || ref.GetVersion() == "" {
+			continue
+		}
+
+		kind := "SERVICE"
+		switch ref.GetKind() {
+		case 2: // APPLICATION
+			kind = "APPLICATION"
+		case 3, 4: // AGENT, SUBSYSTEM
+			kind = "APPLICATION"
+		case 5: // INFRASTRUCTURE
+			kind = "INFRASTRUCTURE"
+		case 6: // COMMAND
+			kind = "COMMAND"
+		}
+
+		name := ref.GetName()
+
+		// Check for existing record with the correct kind.
+		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+
+		// Also check for misclassified SERVICE record (Phase 1 may have
+		// written it as SERVICE when the repo says INFRASTRUCTURE/COMMAND).
+		var staleService *node_agentpb.InstalledPackage
+		if kind != "SERVICE" {
+			staleService, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
+		}
+
+		if existing != nil && existing.GetVersion() != "0.0.1" {
+			// Already has a real version with correct kind — skip.
+			continue
+		}
+
+		// If there's no existing record and no stale SERVICE record,
+		// this artifact is in the repo but NOT installed on this node.
+		// Only create new records for INFRASTRUCTURE packages that have
+		// a running systemd unit (they were skipped by Phase 1's skipSystemd
+		// list but are genuinely installed as daemons).
+		if existing == nil && staleService == nil {
+			if kind == "SERVICE" || kind == "APPLICATION" {
+				// SERVICE/APPLICATION: must have been discovered by Phase 1.
+				// If not found, it's not installed on this node — skip.
+				continue
+			}
+			// INFRASTRUCTURE/COMMAND: check if a systemd unit is actually running.
+			unitName := "globular-" + name + ".service"
+			if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
+				// Not running — not installed on this node.
+				continue
+			}
+		}
+
+		// Clean up the stale SERVICE record if the artifact is really a
+		// different kind.
+		if staleService != nil {
+			_ = installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
+			if existing == nil {
+				existing = staleService // preserve timestamps
+			}
+		}
+
+		pkg := &node_agentpb.InstalledPackage{
+			NodeId:        srv.nodeID,
+			Name:          name,
+			Version:       ref.GetVersion(),
+			PublisherId:   ref.GetPublisherId(),
+			Platform:      platform,
+			Kind:          kind,
+			Checksum:      m.GetChecksum(),
+			BuildNumber:   m.GetBuildNumber(),
+			InstalledUnix: now,
+			UpdatedUnix:   now,
+			Status:        "installed",
+		}
+		if existing != nil {
+			// Preserve original install timestamp when updating.
+			pkg.InstalledUnix = existing.GetInstalledUnix()
+		}
+		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+			log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
+			continue
+		}
+		*synced++
 	}
 }
 
@@ -821,16 +1038,44 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	if err != nil {
 		log.Printf("nodeagent: compute installed services: %v", err)
 	}
-	if len(installed) > 0 {
-		status.InstalledVersions = make(map[string]string, len(installed))
-		sample := make([]string, 0, 5)
-		for key, info := range installed {
-			status.InstalledVersions[key.String()] = info.Version
-			if len(sample) < 5 {
-				sample = append(sample, key.String())
+	status.InstalledVersions = make(map[string]string)
+
+	// Phase 1: local discovery (systemd units, version markers, config files).
+	for key, info := range installed {
+		status.InstalledVersions[key.String()] = info.Version
+	}
+
+	// Phase 2: merge from etcd installed_state registry (canonical source of
+	// truth). This covers packages synced by syncRepoArtifactsToEtcd (Phase 2)
+	// which may not have local markers or config files (e.g. infrastructure
+	// packages installed by the spec-based installer on Day-0).
+	if srv.nodeID != "" {
+		for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
+			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
+			if err != nil {
+				continue
+			}
+			for _, pkg := range pkgs {
+				canon := canonicalServiceName(pkg.GetName())
+				if canon == "" || pkg.GetVersion() == "" {
+					continue
+				}
+				// etcd version takes precedence over local 0.0.1 fallback.
+				if existing, ok := status.InstalledVersions[canon]; !ok || existing == "0.0.1" {
+					status.InstalledVersions[canon] = pkg.GetVersion()
+				}
 			}
 		}
-		log.Printf("nodeagent: reporting %d installed services (hash=%s, sample=%v)", len(installed), appliedHash, sample)
+	}
+
+	if len(status.InstalledVersions) > 0 {
+		sample := make([]string, 0, 5)
+		for k := range status.InstalledVersions {
+			if len(sample) < 5 {
+				sample = append(sample, k)
+			}
+		}
+		log.Printf("nodeagent: reporting %d installed services (hash=%s, sample=%v)", len(status.InstalledVersions), appliedHash, sample)
 	} else {
 		log.Printf("nodeagent: no installed services found")
 	}
@@ -940,11 +1185,21 @@ func (srv *NodeAgentServer) controllerDialOptions() ([]grpc.DialOption, error) {
 	}
 	opts := []grpc.DialOption{grpc.WithBlock()}
 	if srv.useInsecure {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// "Insecure" means TLS with skip-verify — NOT plaintext.
+		// All services now require TLS; this mode just skips cert validation
+		// (useful during Day-0 bootstrap before the CA is fully trusted).
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})))
 		return opts, nil
 	}
+	// Fall back to the standard cluster CA path if not explicitly configured.
 	if srv.controllerCAPath == "" && !srv.controllerUseSystemRoots {
-		return nil, errors.New("NODE_AGENT_CONTROLLER_CA is required unless NODE_AGENT_INSECURE=true or NODE_AGENT_CONTROLLER_USE_SYSTEM_ROOTS=true")
+		if caFile := config.GetTLSFile("", "", "ca.crt"); caFile != "" {
+			srv.controllerCAPath = caFile
+		} else {
+			srv.controllerUseSystemRoots = true
+		}
 	}
 	var tlsConfig tls.Config
 	if srv.controllerCAPath != "" {
@@ -2544,27 +2799,115 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 		profiles = []string{"control-plane", "gateway"}
 	}
 
-	// Store controller endpoint if provided
-	controllerEndpoint := strings.TrimSpace(req.GetControllerBind())
-	if controllerEndpoint != "" {
-		srv.controllerEndpoint = controllerEndpoint
-		srv.state.ControllerEndpoint = controllerEndpoint
-		if err := srv.saveState(); err != nil {
-			log.Printf("warn: persist controller endpoint: %v", err)
+	// Derive a routable controller endpoint.
+	// The bind address (e.g. ":12000" or "0.0.0.0:12000") is not a valid client
+	// endpoint. Derive a routable address from the cluster domain + default port.
+	controllerEndpoint := ""
+	bindAddr := strings.TrimSpace(req.GetControllerBind())
+	domain := strings.TrimSpace(req.GetClusterDomain())
+
+	// Extract port from bind address (default 12000).
+	ctrlPort := "12000"
+	if bindAddr != "" {
+		if _, p, err := net.SplitHostPort(bindAddr); err == nil && p != "" {
+			ctrlPort = p
 		}
 	}
 
-	// Create a plan with both unit actions and network configuration
-	plan := srv.buildBootstrapPlanWithNetwork(profiles, req.GetClusterDomain())
+	// Build routable endpoint for Day-0 bootstrap.
+	// During initial bootstrap the cluster domain (e.g. "globular.internal")
+	// is typically not resolvable yet because DNS hasn't been configured.
+	// Always use localhost for the bootstrap connection — the controller is
+	// co-located on the same machine. The domain-based endpoint will be set
+	// later when the cluster grows or DNS is ready.
+	controllerEndpoint = "localhost:" + ctrlPort
+
+	srv.controllerEndpoint = controllerEndpoint
+	srv.state.ControllerEndpoint = controllerEndpoint
+	if err := srv.saveState(); err != nil {
+		log.Printf("warn: persist controller endpoint: %v", err)
+	}
+
+	// Create a plan with both unit actions and network configuration.
+	plan := srv.buildBootstrapPlanWithNetwork(profiles, domain)
 
 	op := srv.registerOperation("bootstrap node", profiles)
 	go srv.runPlan(ctx, op, plan)
 
+	// Self-register the bootstrap node SYNCHRONOUSLY.
+	// The caller must know whether registration actually succeeded before
+	// printing "success" and proceeding to seed.
+	if err := srv.selfRegisterBootstrapNode(ctx, profiles); err != nil {
+		return nil, status.Errorf(codes.Internal, "bootstrap self-registration failed: %v", err)
+	}
+
 	return &node_agentpb.BootstrapFirstNodeResponse{
 		OperationId: op.id,
 		JoinToken:   srv.joinToken,
-		Message:     "bootstrap initiated with network configuration",
+		Message:     fmt.Sprintf("bootstrap complete; node registered as %s", srv.nodeID),
 	}, nil
+}
+
+// selfRegisterBootstrapNode registers the first node with the controller
+// by issuing RequestJoin + ApproveJoin. Returns an error if registration
+// fails so the caller can report the real reason.
+func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profiles []string) error {
+	// Wait for the controller to be ready (it may still be starting up).
+	var connectErr error
+	for attempt := 0; attempt < 15; attempt++ {
+		if connectErr = srv.ensureControllerClient(ctx); connectErr == nil {
+			break
+		}
+		log.Printf("bootstrap: waiting for controller (attempt %d/15): %v", attempt+1, connectErr)
+		time.Sleep(3 * time.Second)
+	}
+	if srv.controllerClient == nil {
+		return fmt.Errorf("could not connect to controller at %s: %v", srv.controllerEndpoint, connectErr)
+	}
+
+	// Already registered (e.g. re-run of bootstrap).
+	if srv.nodeID != "" {
+		log.Printf("bootstrap: node already registered as %s", srv.nodeID)
+		return nil
+	}
+
+	// Validate that we have a join token.
+	if srv.joinToken == "" {
+		return fmt.Errorf("no join token configured (set NODE_AGENT_JOIN_TOKEN env var or ensure controller seeds a Day-0 token)")
+	}
+
+	joinResp, err := srv.controllerClient.RequestJoin(ctx, &cluster_controllerpb.RequestJoinRequest{
+		JoinToken:    srv.joinToken,
+		Identity:     buildNodeIdentity(),
+		Labels:       parseNodeAgentLabels(),
+		Capabilities: buildNodeCapabilities(),
+	})
+	if err != nil {
+		return fmt.Errorf("RequestJoin failed (token=%q): %w", srv.joinToken, err)
+	}
+	requestID := joinResp.GetRequestId()
+
+	// Auto-approve the bootstrap node.
+	approveResp, err := srv.controllerClient.ApproveJoin(ctx, &cluster_controllerpb.ApproveJoinRequest{
+		RequestId: requestID,
+		Profiles:  profiles,
+	})
+	if err != nil {
+		return fmt.Errorf("ApproveJoin failed (requestID=%s): %w", requestID, err)
+	}
+
+	nodeID := approveResp.GetNodeId()
+	srv.applyApprovedNodeID(nodeID)
+	log.Printf("bootstrap: node self-registered as %s", nodeID)
+
+	// Store node-scoped identity token if provided.
+	if token := approveResp.GetNodeToken(); token != "" {
+		if err := srv.storeNodeToken(token, approveResp.GetNodePrincipal()); err != nil {
+			log.Printf("bootstrap: failed to store node token: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (srv *NodeAgentServer) registerOperation(kind string, profiles []string) *operation {
@@ -2814,7 +3157,7 @@ func (srv *NodeAgentServer) buildBootstrapPlanWithNetwork(profiles []string, clu
 	// Create default network spec for bootstrap
 	spec := &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: domain,
-		Protocol:      "http", // Default to http for bootstrap
+		Protocol:      "https", // TLS is mandatory for all services
 		PortHttp:      8080,
 		PortHttps:     8443,
 		AcmeEnabled:   false,
@@ -2964,6 +3307,11 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 		log.Printf("warn: persist approved node id: %v", err)
 	}
 	srv.startPlanRunnerLoop()
+
+	// Now that we have a node ID, immediately sync installed packages to etcd.
+	// On Day-0 the initial sync in heartbeatLoop runs before bootstrap assigns
+	// the node ID, so this is the first opportunity to populate the registry.
+	go srv.syncInstalledStateToEtcd(context.Background())
 }
 
 func parseNodeAgentLabels() map[string]string {

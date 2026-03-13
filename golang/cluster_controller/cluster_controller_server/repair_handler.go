@@ -32,8 +32,8 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 	}
 	installed := make(map[string]pkgInfo) // "KIND/name" -> info
 
-	for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
-		pkgs, err := installed_state.ListAllNodes(ctx, kind)
+	for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE", "COMMAND"} {
+		pkgs, err := installed_state.ListAllNodes(ctx, kind, "")
 		if err != nil {
 			log.Printf("RepairStateAlignment: ListAllNodes(%s) failed: %v", kind, err)
 			continue

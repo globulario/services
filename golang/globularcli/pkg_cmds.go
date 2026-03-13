@@ -541,8 +541,9 @@ func publishOne(file, token string) pkgPublishOne {
 		pkgType = resourcepb.PackageType_APPLICATION_TYPE
 		artifactKind = repopb.ArtifactKind_APPLICATION
 	case "infrastructure":
-		// Legacy descriptor has no INFRASTRUCTURE type; use SERVICE for compat.
 		artifactKind = repopb.ArtifactKind_INFRASTRUCTURE
+	case "command":
+		artifactKind = repopb.ArtifactKind_COMMAND
 	}
 
 	// Step 1: compute digest before upload.

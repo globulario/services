@@ -31,6 +31,7 @@ const (
 	ArtifactKind_AGENT                     ArtifactKind = 3
 	ArtifactKind_SUBSYSTEM                 ArtifactKind = 4
 	ArtifactKind_INFRASTRUCTURE            ArtifactKind = 5
+	ArtifactKind_COMMAND                   ArtifactKind = 6 // CLI tools (ffmpeg, rclone, restic, mc, etc.)
 )
 
 // Enum value maps for ArtifactKind.
@@ -42,6 +43,7 @@ var (
 		3: "AGENT",
 		4: "SUBSYSTEM",
 		5: "INFRASTRUCTURE",
+		6: "COMMAND",
 	}
 	ArtifactKind_value = map[string]int32{
 		"ARTIFACT_KIND_UNSPECIFIED": 0,
@@ -50,6 +52,7 @@ var (
 		"AGENT":                     3,
 		"SUBSYSTEM":                 4,
 		"INFRASTRUCTURE":            5,
+		"COMMAND":                   6,
 	}
 )
 
@@ -2616,14 +2619,15 @@ const file_repository_proto_rawDesc = "" +
 	"\x06result\x18\x01 \x01(\bR\x06result\x12?\n" +
 	"\x0eprevious_state\x18\x02 \x01(\x0e2\x18.repository.PublishStateR\rpreviousState\x12=\n" +
 	"\rcurrent_state\x18\x03 \x01(\x0e2\x18.repository.PublishStateR\fcurrentState\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage*y\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage*\x86\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
 	"\vAPPLICATION\x10\x02\x12\t\n" +
 	"\x05AGENT\x10\x03\x12\r\n" +
 	"\tSUBSYSTEM\x10\x04\x12\x12\n" +
-	"\x0eINFRASTRUCTURE\x10\x05*\xab\x01\n" +
+	"\x0eINFRASTRUCTURE\x10\x05\x12\v\n" +
+	"\aCOMMAND\x10\x06*\xab\x01\n" +
 	"\fPublishState\x12\x1d\n" +
 	"\x19PUBLISH_STATE_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSTAGING\x10\x01\x12\f\n" +

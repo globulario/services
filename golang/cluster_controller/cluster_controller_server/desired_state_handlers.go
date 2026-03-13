@@ -223,7 +223,7 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 
 	// Step 1: Collect installed versions from canonical installed-state registry (etcd).
 	// Union across all nodes, first-seen wins.
-	allPkgs, err := installed_state.ListAllNodes(ctx, "SERVICE")
+	allPkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", "")
 	if err != nil {
 		// Fallback to in-memory node state if registry is unavailable.
 		logger.Warn("importInstalledToDesired: installed-state registry unavailable, falling back to in-memory state", "error", err)
@@ -241,6 +241,11 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			if canon == "" || pkg.GetVersion() == "" {
 				continue
 			}
+			// Skip command-line tools — they are not services and should
+			// never be imported into the desired-state model.
+			if strings.HasSuffix(canon, "-cmd") {
+				continue
+			}
 			if _, exists := installed[canon]; !exists {
 				ver := pkg.GetVersion()
 				if cv, err := versionutil.Canonical(ver); err == nil {
@@ -255,7 +260,7 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		for _, node := range srv.state.Nodes {
 			for svcID, ver := range node.InstalledVersions {
 				canon := canonicalServiceName(svcID)
-				if canon == "" || ver == "" {
+				if canon == "" || ver == "" || strings.HasSuffix(canon, "-cmd") {
 					continue
 				}
 				if _, exists := installed[canon]; !exists {
@@ -301,6 +306,25 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			canon = sdv.Spec.ServiceName
 		}
 		existingMap[canon] = existingInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber}
+	}
+
+	// Step 2.5: Clean up stale desired-state entries:
+	//   - Command-line tools (names ending in -cmd) should never be in desired state
+	//   - Services that are no longer in the installed-state registry were either
+	//     never truly installed or have been removed — remove from desired state
+	for canon := range existingMap {
+		shouldRemove := false
+		if strings.HasSuffix(canon, "-cmd") {
+			shouldRemove = true
+		} else if _, stillInstalled := installed[canon]; !stillInstalled {
+			shouldRemove = true
+		}
+		if shouldRemove {
+			if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
+				logger.Info("importInstalledToDesired: removed stale desired entry", "name", canon)
+			}
+			delete(existingMap, canon)
+		}
 	}
 
 	// Step 3: Upsert only what is missing or different.
@@ -368,7 +392,7 @@ func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats
 		return stats
 	}
 
-	allPkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION")
+	allPkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION", "")
 	if err != nil || len(allPkgs) == 0 {
 		return stats
 	}
@@ -446,7 +470,7 @@ func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStat
 		return stats
 	}
 
-	allPkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE")
+	allPkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE", "")
 	if err != nil || len(allPkgs) == 0 {
 		return stats
 	}

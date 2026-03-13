@@ -28,7 +28,6 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
-	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -116,6 +115,7 @@ func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.A
 }
 
 // readManifestAndStateByKey reads a manifest and its publish state from storage.
+// It also corrects the kind for manifests published before proper kind assignment.
 func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (string, repopb.PublishState, *repopb.ArtifactManifest, error) {
 	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
 	if err != nil {
@@ -124,6 +124,12 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 	m, state, err := unmarshalManifestWithState(data)
 	if err != nil {
 		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, fmt.Errorf("parse manifest %q: %w", key, err)
+	}
+	// Correct kind for legacy manifests (published before COMMAND/INFRASTRUCTURE).
+	if ref := m.GetRef(); ref != nil {
+		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
+			ref.Kind = corrected
+		}
 	}
 	return key, state, m, nil
 }
@@ -641,7 +647,7 @@ func findInstalledReferences(ctx context.Context, ref *repopb.ArtifactRef) []str
 		kind = "SERVICE"
 	}
 
-	pkgs, err := installed_state.ListAllNodes(ctx, kind)
+	pkgs, err := installed_state.ListAllNodes(ctx, kind, "")
 	if err != nil {
 		slog.Warn("DeleteArtifact: installed-state query failed (proceeding)", "err", err)
 		return nil
@@ -654,6 +660,36 @@ func findInstalledReferences(ctx context.Context, ref *repopb.ArtifactRef) []str
 		}
 	}
 	return nodes
+}
+
+// ── kind inference ───────────────────────────────────────────────────────────
+
+// inferCorrectKind returns the correct ArtifactKind for a package name.
+// Manifests published before the COMMAND kind was added have kind=SERVICE
+// for everything. This function corrects the kind based on naming conventions:
+//   - Names ending in "-cmd" → COMMAND (CLI tools)
+//   - Known infrastructure daemons → INFRASTRUCTURE
+//   - Everything else → unchanged
+func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactKind {
+	lower := strings.ToLower(name)
+
+	// CLI tools: names ending in -cmd
+	if strings.HasSuffix(lower, "-cmd") {
+		return repopb.ArtifactKind_COMMAND
+	}
+
+	// Infrastructure daemons (not Go gRPC services)
+	infraNames := map[string]bool{
+		"etcd": true, "minio": true, "envoy": true, "xds": true,
+		"gateway": true, "prometheus": true, "node-exporter": true,
+		"scylladb": true, "scylla-manager": true, "scylla-manager-agent": true,
+		"keepalived": true, "sidekick": true,
+	}
+	if infraNames[lower] {
+		return repopb.ArtifactKind_INFRASTRUCTURE
+	}
+
+	return current
 }
 
 // ── search helpers ───────────────────────────────────────────────────────────
@@ -913,22 +949,6 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 			err = nil
 		}
 		ref.Version = canonVer // restore
-	}
-	if err != nil {
-		// Fallback: try the legacy bundle storage path (packages-repository/{UUID}.tar.gz).
-		desc := &resourcepb.PackageDescriptor{
-			PublisherID: ref.GetPublisherId(),
-			Name:        ref.GetName(),
-			Version:     canonVer,
-		}
-		desc.Id = descriptorID(desc)
-		bID := bundleID(desc, ref.GetPlatform())
-		bundleKey := "packages-repository/" + bID + ".tar.gz"
-		if fdata, ferr := srv.Storage().ReadFile(stream.Context(), bundleKey); ferr == nil {
-			data = fdata
-			err = nil
-			slog.Info("artifact served from legacy bundle path", "bundle_key", bundleKey)
-		}
 	}
 	if err != nil {
 		key := artifactKeyWithBuild(ref, buildNumber)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -143,13 +144,13 @@ func (srv *server) startupAutoImport(ctx context.Context, queue *workQueue) {
 		}
 
 		// Check canonical installed-state registry first (any package kind).
-		if pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE"); err == nil && len(pkgs) > 0 {
+		if pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", ""); err == nil && len(pkgs) > 0 {
 			break
 		}
-		if pkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION"); err == nil && len(pkgs) > 0 {
+		if pkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION", ""); err == nil && len(pkgs) > 0 {
 			break
 		}
-		if pkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE"); err == nil && len(pkgs) > 0 {
+		if pkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE", ""); err == nil && len(pkgs) > 0 {
 			break
 		}
 
@@ -183,20 +184,27 @@ func (srv *server) startupAutoImport(ctx context.Context, queue *workQueue) {
 	if srv.resources == nil {
 		return
 	}
-	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	svcItems, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
 	if err != nil {
 		logger.Warn("startupAutoImport: failed to list desired services", "error", err)
 		return
 	}
-	if len(items) > 0 {
-		logger.Info("startupAutoImport: desired state already has entries, skipping auto-import",
-			"count", len(items))
+	infraItems, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
+
+	// Always reconcile: remove desired entries for services no longer in
+	// the installed-state registry. This cleans up stale entries from
+	// packages that were incorrectly marked as installed previously.
+	srv.reconcileDesiredWithInstalled(ctx)
+
+	if len(svcItems) > 0 && len(infraItems) > 0 {
+		logger.Info("startupAutoImport: desired state already has entries, skipping full import",
+			"services", len(svcItems), "infra", len(infraItems))
 		srv.autoImportDone.Store(true)
 		return
 	}
 
-	// Desired state is empty — attempt import from installed.
-	logger.Info("startupAutoImport: desired state is empty, importing from installed services")
+	// Desired state is empty (or missing infra) — attempt import from installed.
+	logger.Info("startupAutoImport: importing from installed services")
 
 	// Clean up stale keys first.
 	if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
@@ -219,5 +227,55 @@ func (srv *server) startupAutoImport(ctx context.Context, queue *workQueue) {
 	// Enqueue reconciliation for newly imported services.
 	if stats.Imported > 0 || stats.Updated > 0 {
 		queue.Enqueue(networkReconcileKey)
+	}
+}
+
+// reconcileDesiredWithInstalled removes ServiceDesiredVersion entries that
+// no longer have a corresponding installed-state record. This cleans up
+// desired entries for packages that were never truly installed (e.g. created
+// by a previous bug that treated all repo artifacts as installed).
+func (srv *server) reconcileDesiredWithInstalled(ctx context.Context) {
+	if srv.resources == nil {
+		return
+	}
+
+	// Collect installed service names from etcd.
+	installedNames := make(map[string]bool)
+	if pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", ""); err == nil {
+		for _, pkg := range pkgs {
+			canon := canonicalServiceName(pkg.GetName())
+			if canon != "" {
+				installedNames[canon] = true
+			}
+		}
+	}
+
+	// Check each desired entry against installed state.
+	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return
+	}
+	removed := 0
+	for _, obj := range items {
+		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+		if !ok || sdv.Spec == nil {
+			continue
+		}
+		canon := canonicalServiceName(sdv.Spec.ServiceName)
+		if canon == "" && sdv.Meta != nil {
+			canon = canonicalServiceName(sdv.Meta.Name)
+		}
+		if canon == "" {
+			continue
+		}
+		// Remove commands and services not in installed-state.
+		if strings.HasSuffix(canon, "-cmd") || !installedNames[canon] {
+			if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
+				removed++
+			}
+		}
+	}
+	if removed > 0 {
+		logger.Info("reconcileDesiredWithInstalled: removed stale desired entries", "count", removed)
 	}
 }
