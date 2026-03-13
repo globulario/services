@@ -156,9 +156,9 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 		return restoreFail("etcd", fmt.Sprintf("snapshot file not found: %s", snapshotPath), outputs)
 	}
 
-	// Globular manages etcd: data-dir is owned by globular:globular,
-	// so the node-agent (running as globular) can do all file operations
-	// directly. Only systemctl stop/start requires sudo.
+	// Globular manages etcd: data-dir must be owned by globular:globular
+	// because the etcd service runs as User=globular. The node-agent runs
+	// as root, so we must chown restored files before starting etcd.
 	dataDir := opts["data_dir"]
 	if dataDir == "" {
 		dataDir = "/var/lib/globular/etcd"
@@ -192,7 +192,7 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 		outputs["stop_warning"] = stopErr
 	}
 
-	// Stage 3: back up current data-dir and swap (no sudo — globular owns it)
+	// Stage 3: back up current data-dir and swap (running as root)
 	backupDir := dataDir + ".bak"
 	if fileExistsNA(dataDir) {
 		_ = os.RemoveAll(backupDir)
@@ -234,6 +234,15 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 				break
 			}
 		}
+	}
+
+	// Stage 3c: fix ownership — etcdctl snapshot restore (running as root)
+	// creates files owned by root:root, but etcd runs as globular:globular.
+	log.Printf("etcd restore: chown %s to globular:globular", dataDir)
+	_, chownErr, chownRunErr := runRestore(ctx, "chown", "-R", "globular:globular", dataDir)
+	if chownRunErr != nil {
+		log.Printf("etcd restore: chown warning: %s", chownErr)
+		outputs["chown_warning"] = chownErr
 	}
 
 	// Stage 4: start etcd (requires sudo)

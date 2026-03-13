@@ -554,5 +554,188 @@ proto.repository.PackageRepositoryPromiseClient.prototype.deleteArtifact =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.PromoteArtifactRequest,
+ *   !proto.repository.PromoteArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_PromoteArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/PromoteArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.PromoteArtifactRequest,
+  proto.repository.PromoteArtifactResponse,
+  /**
+   * @param {!proto.repository.PromoteArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.PromoteArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.PromoteArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.PromoteArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.PromoteArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.promoteArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/PromoteArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_PromoteArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.PromoteArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.PromoteArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.promoteArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/PromoteArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_PromoteArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.SetArtifactStateRequest,
+ *   !proto.repository.SetArtifactStateResponse>}
+ */
+const methodDescriptor_PackageRepository_SetArtifactState = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/SetArtifactState',
+  grpc.web.MethodType.UNARY,
+  proto.repository.SetArtifactStateRequest,
+  proto.repository.SetArtifactStateResponse,
+  /**
+   * @param {!proto.repository.SetArtifactStateRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.SetArtifactStateResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.SetArtifactStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.SetArtifactStateResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.SetArtifactStateResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.setArtifactState =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/SetArtifactState',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SetArtifactState,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.SetArtifactStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.SetArtifactStateResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.setArtifactState =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/SetArtifactState',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_SetArtifactState);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.GetNamespaceRequest,
+ *   !proto.repository.GetNamespaceResponse>}
+ */
+const methodDescriptor_PackageRepository_GetNamespace = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/GetNamespace',
+  grpc.web.MethodType.UNARY,
+  proto.repository.GetNamespaceRequest,
+  proto.repository.GetNamespaceResponse,
+  /**
+   * @param {!proto.repository.GetNamespaceRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.GetNamespaceResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.GetNamespaceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.GetNamespaceResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.GetNamespaceResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.getNamespace =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/GetNamespace',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetNamespace,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.GetNamespaceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.GetNamespaceResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.getNamespace =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/GetNamespace',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetNamespace);
+};
+
+
 module.exports = proto.repository;
 

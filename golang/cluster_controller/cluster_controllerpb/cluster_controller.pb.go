@@ -5813,6 +5813,92 @@ func (*ReportPlanRejectionResponse) Descriptor() ([]byte, []int) {
 	return file_cluster_controller_proto_rawDescGZIP(), []int{87}
 }
 
+// InstallPolicy controls which artifacts a cluster will accept during resolution.
+// Stored in etcd at /globular/resources/InstallPolicy/{name}.
+type InstallPolicy struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Name                   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	VerifiedPublishersOnly bool                   `protobuf:"varint,2,opt,name=verified_publishers_only,json=verifiedPublishersOnly,proto3" json:"verified_publishers_only,omitempty"` // only allow artifacts from claimed namespaces
+	AllowedNamespaces      []string               `protobuf:"bytes,3,rep,name=allowed_namespaces,json=allowedNamespaces,proto3" json:"allowed_namespaces,omitempty"`                   // whitelist (empty = allow all)
+	BlockedNamespaces      []string               `protobuf:"bytes,4,rep,name=blocked_namespaces,json=blockedNamespaces,proto3" json:"blocked_namespaces,omitempty"`                   // blacklist (checked after allowed)
+	BlockDeprecated        bool                   `protobuf:"varint,5,opt,name=block_deprecated,json=blockDeprecated,proto3" json:"block_deprecated,omitempty"`                        // skip DEPRECATED artifacts in resolution
+	BlockYanked            bool                   `protobuf:"varint,6,opt,name=block_yanked,json=blockYanked,proto3" json:"block_yanked,omitempty"`                                    // true by default in resolution logic
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *InstallPolicy) Reset() {
+	*x = InstallPolicy{}
+	mi := &file_cluster_controller_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstallPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstallPolicy) ProtoMessage() {}
+
+func (x *InstallPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_controller_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstallPolicy.ProtoReflect.Descriptor instead.
+func (*InstallPolicy) Descriptor() ([]byte, []int) {
+	return file_cluster_controller_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *InstallPolicy) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *InstallPolicy) GetVerifiedPublishersOnly() bool {
+	if x != nil {
+		return x.VerifiedPublishersOnly
+	}
+	return false
+}
+
+func (x *InstallPolicy) GetAllowedNamespaces() []string {
+	if x != nil {
+		return x.AllowedNamespaces
+	}
+	return nil
+}
+
+func (x *InstallPolicy) GetBlockedNamespaces() []string {
+	if x != nil {
+		return x.BlockedNamespaces
+	}
+	return nil
+}
+
+func (x *InstallPolicy) GetBlockDeprecated() bool {
+	if x != nil {
+		return x.BlockDeprecated
+	}
+	return false
+}
+
+func (x *InstallPolicy) GetBlockYanked() bool {
+	if x != nil {
+		return x.BlockYanked
+	}
+	return false
+}
+
 var File_cluster_controller_proto protoreflect.FileDescriptor
 
 const file_cluster_controller_proto_rawDesc = "" +
@@ -6286,7 +6372,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\x12\x16\n" +
 	"\x06detail\x18\x05 \x01(\tR\x06detail\x12-\n" +
 	"\x13rejected_at_unix_ms\x18\x06 \x01(\x04R\x10rejectedAtUnixMs\"\x1d\n" +
-	"\x1bReportPlanRejectionResponse*u\n" +
+	"\x1bReportPlanRejectionResponse\"\x89\x02\n" +
+	"\rInstallPolicy\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
+	"\x18verified_publishers_only\x18\x02 \x01(\bR\x16verifiedPublishersOnly\x12-\n" +
+	"\x12allowed_namespaces\x18\x03 \x03(\tR\x11allowedNamespaces\x12-\n" +
+	"\x12blocked_namespaces\x18\x04 \x03(\tR\x11blockedNamespaces\x12)\n" +
+	"\x10block_deprecated\x18\x05 \x01(\bR\x0fblockDeprecated\x12!\n" +
+	"\fblock_yanked\x18\x06 \x01(\bR\vblockYanked*u\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10ARTIFACT_SERVICE\x10\x01\x12\x18\n" +
@@ -6350,7 +6443,7 @@ func file_cluster_controller_proto_rawDescGZIP() []byte {
 }
 
 var file_cluster_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_cluster_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 96)
+var file_cluster_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
 var file_cluster_controller_proto_goTypes = []any{
 	(ArtifactKind)(0),                     // 0: cluster_controller.ArtifactKind
 	(OperationPhase)(0),                   // 1: cluster_controller.OperationPhase
@@ -6445,63 +6538,64 @@ var file_cluster_controller_proto_goTypes = []any{
 	(*NodeUpgradeStatus)(nil),             // 90: cluster_controller.NodeUpgradeStatus
 	(*ReportPlanRejectionRequest)(nil),    // 91: cluster_controller.ReportPlanRejectionRequest
 	(*ReportPlanRejectionResponse)(nil),   // 92: cluster_controller.ReportPlanRejectionResponse
-	nil,                                   // 93: cluster_controller.ExternalDNSConfig.ProviderConfigEntry
-	nil,                                   // 94: cluster_controller.NodeRecord.MetadataEntry
-	nil,                                   // 95: cluster_controller.RequestJoinRequest.LabelsEntry
-	nil,                                   // 96: cluster_controller.JoinRequestRecord.MetadataEntry
-	nil,                                   // 97: cluster_controller.ApproveJoinRequest.MetadataEntry
-	nil,                                   // 98: cluster_controller.NodePlan.RenderedConfigEntry
-	nil,                                   // 99: cluster_controller.NodeStatus.InstalledVersionsEntry
-	nil,                                   // 100: cluster_controller.NodeHealth.InstalledVersionsEntry
-	(*timestamppb.Timestamp)(nil),         // 101: google.protobuf.Timestamp
-	(*planpb.NodePlan)(nil),               // 102: globular.plan.v1.NodePlan
-	(*emptypb.Empty)(nil),                 // 103: google.protobuf.Empty
-	(*planpb.NodePlanStatus)(nil),         // 104: globular.plan.v1.NodePlanStatus
+	(*InstallPolicy)(nil),                 // 93: cluster_controller.InstallPolicy
+	nil,                                   // 94: cluster_controller.ExternalDNSConfig.ProviderConfigEntry
+	nil,                                   // 95: cluster_controller.NodeRecord.MetadataEntry
+	nil,                                   // 96: cluster_controller.RequestJoinRequest.LabelsEntry
+	nil,                                   // 97: cluster_controller.JoinRequestRecord.MetadataEntry
+	nil,                                   // 98: cluster_controller.ApproveJoinRequest.MetadataEntry
+	nil,                                   // 99: cluster_controller.NodePlan.RenderedConfigEntry
+	nil,                                   // 100: cluster_controller.NodeStatus.InstalledVersionsEntry
+	nil,                                   // 101: cluster_controller.NodeHealth.InstalledVersionsEntry
+	(*timestamppb.Timestamp)(nil),         // 102: google.protobuf.Timestamp
+	(*planpb.NodePlan)(nil),               // 103: globular.plan.v1.NodePlan
+	(*emptypb.Empty)(nil),                 // 104: google.protobuf.Empty
+	(*planpb.NodePlanStatus)(nil),         // 105: globular.plan.v1.NodePlanStatus
 }
 var file_cluster_controller_proto_depIdxs = []int32{
-	101, // 0: cluster_controller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
+	102, // 0: cluster_controller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
 	8,   // 1: cluster_controller.ClusterNetworkSpec.external_dns:type_name -> cluster_controller.ExternalDNSConfig
 	7,   // 2: cluster_controller.ClusterNetworkSpec.domain_migration:type_name -> cluster_controller.DomainMigration
 	2,   // 3: cluster_controller.DomainMigration.state:type_name -> cluster_controller.DomainMigration.MigrationState
-	93,  // 4: cluster_controller.ExternalDNSConfig.provider_config:type_name -> cluster_controller.ExternalDNSConfig.ProviderConfigEntry
+	94,  // 4: cluster_controller.ExternalDNSConfig.provider_config:type_name -> cluster_controller.ExternalDNSConfig.ProviderConfigEntry
 	9,   // 5: cluster_controller.NodeRecord.identity:type_name -> cluster_controller.NodeIdentity
-	101, // 6: cluster_controller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
-	94,  // 7: cluster_controller.NodeRecord.metadata:type_name -> cluster_controller.NodeRecord.MetadataEntry
+	102, // 6: cluster_controller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
+	95,  // 7: cluster_controller.NodeRecord.metadata:type_name -> cluster_controller.NodeRecord.MetadataEntry
 	10,  // 8: cluster_controller.NodeRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
-	101, // 9: cluster_controller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
-	101, // 10: cluster_controller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 9: cluster_controller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
+	102, // 10: cluster_controller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
 	9,   // 11: cluster_controller.RequestJoinRequest.identity:type_name -> cluster_controller.NodeIdentity
-	95,  // 12: cluster_controller.RequestJoinRequest.labels:type_name -> cluster_controller.RequestJoinRequest.LabelsEntry
+	96,  // 12: cluster_controller.RequestJoinRequest.labels:type_name -> cluster_controller.RequestJoinRequest.LabelsEntry
 	10,  // 13: cluster_controller.RequestJoinRequest.capabilities:type_name -> cluster_controller.NodeCapabilities
 	9,   // 14: cluster_controller.JoinRequestRecord.identity:type_name -> cluster_controller.NodeIdentity
-	96,  // 15: cluster_controller.JoinRequestRecord.metadata:type_name -> cluster_controller.JoinRequestRecord.MetadataEntry
+	97,  // 15: cluster_controller.JoinRequestRecord.metadata:type_name -> cluster_controller.JoinRequestRecord.MetadataEntry
 	10,  // 16: cluster_controller.JoinRequestRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
 	18,  // 17: cluster_controller.ListJoinRequestsResponse.pending:type_name -> cluster_controller.JoinRequestRecord
-	97,  // 18: cluster_controller.ApproveJoinRequest.metadata:type_name -> cluster_controller.ApproveJoinRequest.MetadataEntry
+	98,  // 18: cluster_controller.ApproveJoinRequest.metadata:type_name -> cluster_controller.ApproveJoinRequest.MetadataEntry
 	11,  // 19: cluster_controller.ListNodesResponse.nodes:type_name -> cluster_controller.NodeRecord
 	33,  // 20: cluster_controller.GetClusterHealthResponse.node_health:type_name -> cluster_controller.NodeHealthStatus
-	101, // 21: cluster_controller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
+	102, // 21: cluster_controller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
 	6,   // 22: cluster_controller.UpdateClusterNetworkRequest.spec:type_name -> cluster_controller.ClusterNetworkSpec
-	102, // 23: cluster_controller.ApplyNodePlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
+	103, // 23: cluster_controller.ApplyNodePlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
 	0,   // 24: cluster_controller.ArtifactRef.kind:type_name -> cluster_controller.ArtifactKind
 	40,  // 25: cluster_controller.NodePlan.ensure_installed:type_name -> cluster_controller.ArtifactRef
 	41,  // 26: cluster_controller.NodePlan.unit_actions:type_name -> cluster_controller.UnitAction
-	98,  // 27: cluster_controller.NodePlan.rendered_config:type_name -> cluster_controller.NodePlan.RenderedConfigEntry
+	99,  // 27: cluster_controller.NodePlan.rendered_config:type_name -> cluster_controller.NodePlan.RenderedConfigEntry
 	42,  // 28: cluster_controller.GetNodePlanResponse.plan:type_name -> cluster_controller.NodePlan
-	102, // 29: cluster_controller.GetNodePlanV1Response.plan:type_name -> globular.plan.v1.NodePlan
+	103, // 29: cluster_controller.GetNodePlanV1Response.plan:type_name -> globular.plan.v1.NodePlan
 	1,   // 30: cluster_controller.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
-	101, // 31: cluster_controller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	102, // 31: cluster_controller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
 	9,   // 32: cluster_controller.NodeStatus.identity:type_name -> cluster_controller.NodeIdentity
 	57,  // 33: cluster_controller.NodeStatus.units:type_name -> cluster_controller.NodeUnitStatus
-	101, // 34: cluster_controller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
-	99,  // 35: cluster_controller.NodeStatus.installed_versions:type_name -> cluster_controller.NodeStatus.InstalledVersionsEntry
+	102, // 34: cluster_controller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
+	100, // 35: cluster_controller.NodeStatus.installed_versions:type_name -> cluster_controller.NodeStatus.InstalledVersionsEntry
 	10,  // 36: cluster_controller.NodeStatus.capabilities:type_name -> cluster_controller.NodeCapabilities
 	58,  // 37: cluster_controller.ReportNodeStatusRequest.status:type_name -> cluster_controller.NodeStatus
-	100, // 38: cluster_controller.NodeHealth.installed_versions:type_name -> cluster_controller.NodeHealth.InstalledVersionsEntry
+	101, // 38: cluster_controller.NodeHealth.installed_versions:type_name -> cluster_controller.NodeHealth.InstalledVersionsEntry
 	64,  // 39: cluster_controller.GetClusterHealthV1Response.nodes:type_name -> cluster_controller.NodeHealth
 	65,  // 40: cluster_controller.GetClusterHealthV1Response.services:type_name -> cluster_controller.ServiceSummary
 	67,  // 41: cluster_controller.GetNodeHealthDetailV1Response.checks:type_name -> cluster_controller.NodeHealthCheck
-	101, // 42: cluster_controller.GetNodeHealthDetailV1Response.last_seen:type_name -> google.protobuf.Timestamp
+	102, // 42: cluster_controller.GetNodeHealthDetailV1Response.last_seen:type_name -> google.protobuf.Timestamp
 	71,  // 43: cluster_controller.AffectedNodeDiff.config_diff:type_name -> cluster_controller.ConfigFileDiff
 	41,  // 44: cluster_controller.PreviewNodeProfilesResponse.unit_diff:type_name -> cluster_controller.UnitAction
 	71,  // 45: cluster_controller.PreviewNodeProfilesResponse.config_diff:type_name -> cluster_controller.ConfigFileDiff
@@ -6516,7 +6610,7 @@ var file_cluster_controller_proto_depIdxs = []int32{
 	80,  // 54: cluster_controller.PlanPreview.blocking_issues:type_name -> cluster_controller.ValidationIssue
 	86,  // 55: cluster_controller.PlanServiceUpgradesResponse.items:type_name -> cluster_controller.UpgradePlanItem
 	90,  // 56: cluster_controller.ApplyServiceUpgradesResponse.node_statuses:type_name -> cluster_controller.NodeUpgradeStatus
-	101, // 57: cluster_controller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
+	102, // 57: cluster_controller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
 	12,  // 58: cluster_controller.ClusterControllerService.CreateJoinToken:input_type -> cluster_controller.CreateJoinTokenRequest
 	14,  // 59: cluster_controller.ClusterControllerService.RequestJoin:input_type -> cluster_controller.RequestJoinRequest
 	19,  // 60: cluster_controller.ClusterControllerService.ListJoinRequests:input_type -> cluster_controller.ListJoinRequestsRequest
@@ -6541,7 +6635,7 @@ var file_cluster_controller_proto_depIdxs = []int32{
 	63,  // 79: cluster_controller.ClusterControllerService.GetClusterHealthV1:input_type -> cluster_controller.GetClusterHealthV1Request
 	68,  // 80: cluster_controller.ClusterControllerService.GetNodeHealthDetailV1:input_type -> cluster_controller.GetNodeHealthDetailV1Request
 	70,  // 81: cluster_controller.ClusterControllerService.PreviewNodeProfiles:input_type -> cluster_controller.PreviewNodeProfilesRequest
-	103, // 82: cluster_controller.ClusterControllerService.GetDesiredState:input_type -> google.protobuf.Empty
+	104, // 82: cluster_controller.ClusterControllerService.GetDesiredState:input_type -> google.protobuf.Empty
 	76,  // 83: cluster_controller.ClusterControllerService.UpsertDesiredService:input_type -> cluster_controller.UpsertDesiredServiceRequest
 	77,  // 84: cluster_controller.ClusterControllerService.RemoveDesiredService:input_type -> cluster_controller.RemoveDesiredServiceRequest
 	78,  // 85: cluster_controller.ClusterControllerService.SeedDesiredState:input_type -> cluster_controller.SeedDesiredStateRequest
@@ -6563,7 +6657,7 @@ var file_cluster_controller_proto_depIdxs = []int32{
 	46,  // 101: cluster_controller.ClusterControllerService.GetNodePlan:output_type -> cluster_controller.GetNodePlanResponse
 	48,  // 102: cluster_controller.ClusterControllerService.GetNodePlanV1:output_type -> cluster_controller.GetNodePlanV1Response
 	50,  // 103: cluster_controller.ClusterControllerService.ReconcileNodeV1:output_type -> cluster_controller.ReconcileNodeV1Response
-	104, // 104: cluster_controller.ClusterControllerService.WatchNodePlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
+	105, // 104: cluster_controller.ClusterControllerService.WatchNodePlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
 	35,  // 105: cluster_controller.ClusterControllerService.UpdateClusterNetwork:output_type -> cluster_controller.UpdateClusterNetworkResponse
 	37,  // 106: cluster_controller.ClusterControllerService.ApplyNodePlan:output_type -> cluster_controller.ApplyNodePlanResponse
 	39,  // 107: cluster_controller.ClusterControllerService.ApplyNodePlanV1:output_type -> cluster_controller.ApplyNodePlanV1Response
@@ -6602,7 +6696,7 @@ func file_cluster_controller_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cluster_controller_proto_rawDesc), len(file_cluster_controller_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   96,
+			NumMessages:   97,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -678,3 +678,14 @@ message ReportPlanRejectionRequest {
 }
 
 message ReportPlanRejectionResponse {}
+
+// InstallPolicy controls which artifacts a cluster will accept during resolution.
+// Stored in etcd at /globular/resources/InstallPolicy/{name}.
+message InstallPolicy {
+  string name = 1;
+  bool verified_publishers_only = 2;   // only allow artifacts from claimed namespaces
+  repeated string allowed_namespaces = 3;   // whitelist (empty = allow all)
+  repeated string blocked_namespaces = 4;   // blacklist (checked after allowed)
+  bool block_deprecated = 5;           // skip DEPRECATED artifacts in resolution
+  bool block_yanked = 6;               // true by default in resolution logic
+}

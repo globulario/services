@@ -29,6 +29,9 @@ const (
 	PackageRepository_SearchArtifacts_FullMethodName     = "/repository.PackageRepository/SearchArtifacts"
 	PackageRepository_GetArtifactVersions_FullMethodName = "/repository.PackageRepository/GetArtifactVersions"
 	PackageRepository_DeleteArtifact_FullMethodName      = "/repository.PackageRepository/DeleteArtifact"
+	PackageRepository_PromoteArtifact_FullMethodName     = "/repository.PackageRepository/PromoteArtifact"
+	PackageRepository_SetArtifactState_FullMethodName    = "/repository.PackageRepository/SetArtifactState"
+	PackageRepository_GetNamespace_FullMethodName        = "/repository.PackageRepository/GetNamespace"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -61,6 +64,12 @@ type PackageRepositoryClient interface {
 	GetArtifactVersions(ctx context.Context, in *GetArtifactVersionsRequest, opts ...grpc.CallOption) (*GetArtifactVersionsResponse, error)
 	// Deletes a specific artifact version from the repository.
 	DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error)
+	// Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
+	PromoteArtifact(ctx context.Context, in *PromoteArtifactRequest, opts ...grpc.CallOption) (*PromoteArtifactResponse, error)
+	// Transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
+	SetArtifactState(ctx context.Context, in *SetArtifactStateRequest, opts ...grpc.CallOption) (*SetArtifactStateResponse, error)
+	// Queries namespace ownership and permission information.
+	GetNamespace(ctx context.Context, in *GetNamespaceRequest, opts ...grpc.CallOption) (*GetNamespaceResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -195,6 +204,36 @@ func (c *packageRepositoryClient) DeleteArtifact(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *packageRepositoryClient) PromoteArtifact(ctx context.Context, in *PromoteArtifactRequest, opts ...grpc.CallOption) (*PromoteArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromoteArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_PromoteArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) SetArtifactState(ctx context.Context, in *SetArtifactStateRequest, opts ...grpc.CallOption) (*SetArtifactStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetArtifactStateResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_SetArtifactState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) GetNamespace(ctx context.Context, in *GetNamespaceRequest, opts ...grpc.CallOption) (*GetNamespaceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNamespaceResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_GetNamespace_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -225,6 +264,12 @@ type PackageRepositoryServer interface {
 	GetArtifactVersions(context.Context, *GetArtifactVersionsRequest) (*GetArtifactVersionsResponse, error)
 	// Deletes a specific artifact version from the repository.
 	DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error)
+	// Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
+	PromoteArtifact(context.Context, *PromoteArtifactRequest) (*PromoteArtifactResponse, error)
+	// Transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
+	SetArtifactState(context.Context, *SetArtifactStateRequest) (*SetArtifactStateResponse, error)
+	// Queries namespace ownership and permission information.
+	GetNamespace(context.Context, *GetNamespaceRequest) (*GetNamespaceResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -263,6 +308,15 @@ func (UnimplementedPackageRepositoryServer) GetArtifactVersions(context.Context,
 }
 func (UnimplementedPackageRepositoryServer) DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) PromoteArtifact(context.Context, *PromoteArtifactRequest) (*PromoteArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PromoteArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) SetArtifactState(context.Context, *SetArtifactStateRequest) (*SetArtifactStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetArtifactState not implemented")
+}
+func (UnimplementedPackageRepositoryServer) GetNamespace(context.Context, *GetNamespaceRequest) (*GetNamespaceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNamespace not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -428,6 +482,60 @@ func _PackageRepository_DeleteArtifact_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_PromoteArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).PromoteArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_PromoteArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).PromoteArtifact(ctx, req.(*PromoteArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_SetArtifactState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetArtifactStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).SetArtifactState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_SetArtifactState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).SetArtifactState(ctx, req.(*SetArtifactStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_GetNamespace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNamespaceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).GetNamespace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_GetNamespace_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).GetNamespace(ctx, req.(*GetNamespaceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -458,6 +566,18 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteArtifact",
 			Handler:    _PackageRepository_DeleteArtifact_Handler,
+		},
+		{
+			MethodName: "PromoteArtifact",
+			Handler:    _PackageRepository_PromoteArtifact_Handler,
+		},
+		{
+			MethodName: "SetArtifactState",
+			Handler:    _PackageRepository_SetArtifactState_Handler,
+		},
+		{
+			MethodName: "GetNamespace",
+			Handler:    _PackageRepository_GetNamespace_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

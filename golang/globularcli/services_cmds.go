@@ -55,14 +55,14 @@ var servicesCmd = &cobra.Command{
 
 var servicesApplyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "[DEPRECATED] Use 'globular services desired set' instead",
-	Long: `DEPRECATED: Imperative install has been replaced by declarative desired-state management.
+	Short: "[REMOVED] Use 'globular services desired set' instead",
+	Long: `REMOVED: Imperative install has been permanently removed.
 
-Use instead:
+All service installation must go through the declarative workflow:
   globular services desired set <service> <version>
   globular services apply-desired
 
-To continue using imperative install (unsupported), pass --dangerous-imperative.`,
+This ensures signed plans, SHA256 verification, and automatic rollback.`,
 	RunE: runServicesApply,
 }
 
@@ -178,7 +178,10 @@ func init() {
 	servicesApplyCmd.Flags().StringVar(&svcApplyPublisher, "publisher", "core@globular.io", "Publisher ID")
 	servicesApplyCmd.Flags().StringVar(&svcApplyRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	servicesApplyCmd.Flags().BoolVar(&svcApplyRepoInsec, "repository-insecure", false, "Use plaintext for repository connection")
-	servicesApplyCmd.Flags().BoolVar(&svcDangerousImperative, "dangerous-imperative", false, "Force legacy imperative install (unsupported)")
+	// --dangerous-imperative flag removed: imperative install is permanently disabled.
+	// The flag variable is kept to avoid breaking CLI flag parsing for scripts
+	// that might still pass it, but it has no effect.
+	servicesApplyCmd.Flags().BoolVar(&svcDangerousImperative, "dangerous-imperative", false, "Removed: imperative install is permanently disabled")
 	_ = servicesApplyCmd.Flags().MarkHidden("dangerous-imperative")
 
 	servicesApplyDesiredCmd.Flags().StringVar(&svcApplyPublisher, "publisher", "core@globular.io", "Publisher ID")
@@ -204,49 +207,17 @@ func init() {
 // ─── apply ───────────────────────────────────────────────────────────────────
 
 func runServicesApply(cmd *cobra.Command, args []string) error {
-	if !svcDangerousImperative {
-		return fmt.Errorf("imperative install has been removed\n\n" +
-			"Use the declarative workflow instead:\n" +
-			"  globular services desired set <service> <version>\n" +
-			"  globular services apply-desired\n\n" +
-			"To import existing installations into the desired state:\n" +
-			"  globular services seed\n\n" +
-			"To diagnose and repair alignment across all 4 state layers:\n" +
-			"  globular services repair\n\n" +
-			"To force legacy imperative install (unsupported), pass --dangerous-imperative")
-	}
-
-	resolveRepositoryAddr(cmd)
-
-	if cv, err := versionutil.Canonical(svcApplyVersion); err == nil {
-		svcApplyVersion = cv
-	}
-
-	fmt.Printf("→ Installing %s@%s …\n", svcApplyService, svcApplyVersion)
-
-	tgzPath, err := downloadServiceArtifact(svcApplyService, svcApplyVersion, svcApplyPublisher)
-	if err != nil {
-		return fmt.Errorf("download: %w", err)
-	}
-	defer os.Remove(tgzPath)
-
-	unitName, err := installServiceTgz(tgzPath, svcApplyService)
-	if err != nil {
-		return fmt.Errorf("install: %w", err)
-	}
-
-	if unitName != "" {
-		if err := systemctlActivate(unitName); err != nil {
-			return fmt.Errorf("systemctl: %w", err)
-		}
-	}
-
-	if err := writeVersionMarker(svcApplyService, svcApplyVersion); err != nil {
-		return fmt.Errorf("version marker: %w", err)
-	}
-
-	fmt.Printf("OK: %s@%s installed and running\n", svcApplyService, svcApplyVersion)
-	return nil
+	// Imperative install has been permanently removed. All service installation
+	// must go through the declarative desired-state workflow, which uses signed
+	// plans, SHA256 verification, and automatic rollback.
+	return fmt.Errorf("imperative install has been removed\n\n" +
+		"Use the declarative workflow instead:\n" +
+		"  globular services desired set <service> <version>\n" +
+		"  globular services apply-desired\n\n" +
+		"To import existing installations into the desired state:\n" +
+		"  globular services seed\n\n" +
+		"To diagnose and repair alignment across all 4 state layers:\n" +
+		"  globular services repair")
 }
 
 // ─── apply-desired ───────────────────────────────────────────────────────────

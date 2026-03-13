@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ import (
 	"github.com/globulario/services/golang/plan/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -49,32 +51,95 @@ func artifactKeyLegacy(ref *repopb.ArtifactRef) string {
 	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform()
 }
 
-func manifestStorageKey(key string) string { return artifactsDir + "/" + key + ".manifest.json" }
-func binaryStorageKey(key string) string   { return artifactsDir + "/" + key + ".bin" }
+func manifestStorageKey(key string) string    { return artifactsDir + "/" + key + ".manifest.json" }
+func binaryStorageKey(key string) string      { return artifactsDir + "/" + key + ".bin" }
+func publishStateKey(key string) string       { return artifactsDir + "/" + key + ".publish_state" }
+
+// ── publish state helpers ─────────────────────────────────────────────────
+
+// marshalManifestWithState marshals the manifest via protojson and injects the
+// publish_state field. This is needed until ./generateCode.sh regenerates the
+// pb.go with the publish_state field natively in the proto descriptor.
+func marshalManifestWithState(m *repopb.ArtifactManifest, state repopb.PublishState) ([]byte, error) {
+	mjson, err := protojson.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	if state == repopb.PublishState_PUBLISH_STATE_UNSPECIFIED {
+		return mjson, nil
+	}
+	// Inject publish_state into the JSON object.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(mjson, &raw); err != nil {
+		return nil, err
+	}
+	stateJSON, _ := json.Marshal(state.String())
+	raw["publishState"] = stateJSON
+	return json.Marshal(raw)
+}
+
+// unmarshalManifestWithState reads a manifest JSON and extracts the publish_state.
+// protojson.Unmarshal ignores the publishState key (not in descriptor), so we
+// extract it separately.
+func unmarshalManifestWithState(data []byte) (*repopb.ArtifactManifest, repopb.PublishState, error) {
+	m := &repopb.ArtifactManifest{}
+	uopts := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err := uopts.Unmarshal(data, m); err != nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, err
+	}
+	// Extract publishState from JSON.
+	var raw map[string]json.RawMessage
+	state := repopb.PublishState_PUBLISH_STATE_UNSPECIFIED
+	if err := json.Unmarshal(data, &raw); err == nil {
+		if stateJSON, ok := raw["publishState"]; ok {
+			var stateStr string
+			if err := json.Unmarshal(stateJSON, &stateStr); err == nil {
+				if v, ok := repopb.PublishState_value[stateStr]; ok {
+					state = repopb.PublishState(v)
+				}
+			}
+		}
+	}
+	return m, state, nil
+}
 
 // ── manifest helpers ──────────────────────────────────────────────────────
 
 // readManifestByKey reads and unmarshals a single manifest JSON from storage.
 func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.ArtifactManifest, error) {
-	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	m := &repopb.ArtifactManifest{}
-	if err := protojson.Unmarshal(data, m); err != nil {
-		return nil, fmt.Errorf("parse manifest %q: %w", key, err)
-	}
+	_ = state // callers that don't need state use this method
 	return m, nil
 }
 
-// readManifestWithFallback tries the new 5-field key, then falls back to
-// the legacy 4-field key (for pre-build-number artifacts with build_number=0).
+// readManifestAndStateByKey reads a manifest and its publish state from storage.
+func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (string, repopb.PublishState, *repopb.ArtifactManifest, error) {
+	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	if err != nil {
+		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, err
+	}
+	m, state, err := unmarshalManifestWithState(data)
+	if err != nil {
+		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, fmt.Errorf("parse manifest %q: %w", key, err)
+	}
+	return key, state, m, nil
+}
+
+// readManifestWithFallback tries the 5-field key. For build_number=0 (legacy),
+// also tries the legacy 4-field key to support pre-build-number artifacts.
+// This legacy fallback exists only for backward compatibility with artifacts
+// created before build_number was introduced; new artifacts always use the 5-field key.
 func (srv *server) readManifestWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (*repopb.ArtifactManifest, error) {
 	key := artifactKeyWithBuild(ref, buildNumber)
 	m, err := srv.readManifestByKey(ctx, key)
 	if err == nil {
 		return m, nil
 	}
+	// Legacy fallback ONLY for build_number=0 (pre-build-number artifacts).
+	// Non-zero build numbers must match exactly — no silent collapse.
 	if buildNumber == 0 {
 		legacyKey := artifactKeyLegacy(ref)
 		if lm, lerr := srv.readManifestByKey(ctx, legacyKey); lerr == nil {
@@ -197,22 +262,31 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 		ref.Version = cv
 	}
 
-	// build_number comes from the manifest-level field, not from ArtifactRef.
-	// For GetArtifactManifest, we use 0 (legacy) unless the caller explicitly
-	// provides a build_number via a wrapper. Since the proto request only has
-	// an ArtifactRef, we default to 0 and try fallback.
-	buildNumber := int64(0)
+	// Build number from the request; 0 means legacy/unspecified.
+	buildNumber := req.GetBuildNumber()
 
 	m, err := srv.readManifestWithFallback(ctx, ref, buildNumber)
 	if err != nil {
 		// Fallback: try v-prefixed key for backward compat with existing storage.
 		ref.Version = "v" + canonVer
 		if fm, ferr := srv.readManifestWithFallback(ctx, ref, buildNumber); ferr == nil {
+			// Attach provenance if available.
+			vKey := artifactKeyWithBuild(ref, buildNumber)
+			if prov := srv.readProvenance(ctx, vKey); prov != nil {
+				fm.Provenance = prov
+			}
 			return &repopb.GetArtifactManifestResponse{Manifest: fm}, nil
 		}
 		key := artifactKeyWithBuild(ref, buildNumber)
 		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
 	}
+
+	// Attach provenance if available.
+	key := artifactKeyWithBuild(ref, buildNumber)
+	if prov := srv.readProvenance(ctx, key); prov != nil {
+		m.Provenance = prov
+	}
+
 	return &repopb.GetArtifactManifestResponse{Manifest: m}, nil
 }
 
@@ -244,6 +318,13 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	}
 
 	ctx := stream.Context()
+
+	// ── Publisher namespace + package-level validation ────────────────────
+	publisherID := ref.GetPublisherId()
+	if err := srv.validatePackageAccess(ctx, publisherID, ref.GetName()); err != nil {
+		return err
+	}
+
 	newChecksum := checksumBytes(data)
 
 	// buildNumber was extracted from the first UploadArtifactRequest message
@@ -276,7 +357,9 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return status.Errorf(codes.Internal, "write artifact binary: %v", err)
 	}
 
-	// Build and persist manifest.
+	// Build and persist manifest with VERIFIED state.
+	// The artifact is uploaded and checksum-verified but not yet discoverable
+	// (the caller must PromoteArtifact to PUBLISHED after descriptor registration).
 	manifest := &repopb.ArtifactManifest{
 		Ref:          ref,
 		BuildNumber:  buildNumber,
@@ -284,7 +367,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		SizeBytes:    int64(len(data)),
 		ModifiedUnix: time.Now().Unix(),
 	}
-	mjson, err := protojson.Marshal(manifest)
+	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)
 	if err != nil {
 		return status.Errorf(codes.Internal, "marshal manifest: %v", err)
 	}
@@ -292,12 +375,41 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
+	// Write provenance record and digest sidecar.
+	prov := buildProvenanceRecord(ctx, manifest)
+	provDigest, provErr := srv.writeProvenance(ctx, key, prov)
+	if provErr != nil {
+		slog.Warn("provenance write failed (non-fatal)", "key", key, "err", provErr)
+	}
+	_ = provDigest // digest stored as sidecar file for integrity verification
+
+	// Ensure package-level RBAC ownership on first publish.
+	srv.ensurePackageOwnership(ctx, publisherID, ref.GetName(), prov.GetSubject(), "")
+
+	// Classify publish mode for audit/trust labels.
+	publishMode := srv.classifyPublishMode(ctx, publisherID, ref.GetName())
+
 	slog.Info("artifact uploaded",
 		"key", key,
 		"kind", ref.GetKind(),
 		"build", buildNumber,
 		"size", len(data),
+		"publish_state", repopb.PublishState_VERIFIED.String(),
+		"subject", prov.GetSubject(),
+		"publish_mode", publishMode,
 	)
+
+	// Audit event.
+	srv.publishAuditEvent(ctx, "artifact.uploaded", map[string]any{
+		"key":          key,
+		"publisher":    ref.GetPublisherId(),
+		"name":         ref.GetName(),
+		"version":      ref.GetVersion(),
+		"build":        buildNumber,
+		"checksum":     newChecksum,
+		"publish_mode": publishMode,
+	})
+
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
 }
 
@@ -320,6 +432,10 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 		pageSize = 50
 	}
 
+	// Determine if caller is admin/owner for visibility of hidden artifacts.
+	authCtx := security.FromContext(ctx)
+	isAdmin := authCtx != nil && authCtx.Subject == "sa"
+
 	var all []*repopb.ArtifactManifest
 	for _, e := range entries {
 		name := e.Name()
@@ -327,9 +443,16 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 			continue
 		}
 		key := strings.TrimSuffix(name, ".manifest.json")
-		m, err := srv.readManifestByKey(ctx, key)
+		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
 		if err != nil {
 			continue
+		}
+
+		// Hide YANKED/QUARANTINED/REVOKED from non-owners/non-admins.
+		if repopb.IsDiscoveryHidden(state) && !isAdmin {
+			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
+				continue
+			}
 		}
 
 		// Filter by kind.
@@ -443,6 +566,11 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 		return nil, status.Error(codes.InvalidArgument, "ref.version is required")
 	}
 
+	// Validate namespace + package-level access.
+	if err := srv.validatePackageAccess(ctx, ref.GetPublisherId(), ref.GetName()); err != nil {
+		return nil, err
+	}
+
 	// Normalize version.
 	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
 		ref.Version = cv
@@ -491,6 +619,16 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	}
 
 	slog.Info("artifact deleted", "key", key, "force", req.GetForce(), "installed_nodes", len(installedNodes))
+
+	// Audit event.
+	srv.publishAuditEvent(ctx, "artifact.deleted", map[string]any{
+		"key":       key,
+		"publisher": ref.GetPublisherId(),
+		"name":      ref.GetName(),
+		"version":   ref.GetVersion(),
+		"force":     req.GetForce(),
+	})
+
 	return &repopb.DeleteArtifactResponse{Result: true, Message: msg}, nil
 }
 
@@ -546,6 +684,197 @@ func parseInt32(s string) (int32, error) {
 	return v, err
 }
 
+// ── promote artifact ──────────────────────────────────────────────────────
+
+// PromoteArtifact implements the gRPC PromoteArtifact RPC.
+func (srv *server) PromoteArtifact(ctx context.Context, req *repopb.PromoteArtifactRequest) (*repopb.PromoteArtifactResponse, error) {
+	return srv.promoteArtifactInternal(ctx, req.GetRef(), req.GetBuildNumber(), req.GetTargetState())
+}
+
+// promoteArtifactInternal transitions an artifact's publish state.
+// Used by the gRPC handler and internal callers (tests, CLI client).
+func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64, targetState repopb.PublishState) (*repopb.PromoteArtifactResponse, error) {
+	if ref == nil {
+		return nil, status.Error(codes.InvalidArgument, "ref is required")
+	}
+	if strings.TrimSpace(ref.GetName()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "ref.name is required")
+	}
+
+	// Validate namespace + package-level access.
+	if err := srv.validatePackageAccess(ctx, ref.GetPublisherId(), ref.GetName()); err != nil {
+		return nil, err
+	}
+
+	// Normalize version.
+	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
+		ref.Version = cv
+	}
+
+	key := artifactKeyWithBuild(ref, buildNumber)
+
+	// Read existing manifest and state.
+	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
+	}
+	m, currentState, err := unmarshalManifestWithState(data)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "parse manifest %q: %v", key, err)
+	}
+
+	// Validate transition.
+	if !repopb.ValidPromoteTransition(currentState, targetState) {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"invalid state transition %s → %s for artifact %q",
+			currentState, targetState, key)
+	}
+
+	// Write updated manifest with new state.
+	mjson, err := marshalManifestWithState(m, targetState)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
+	}
+
+	slog.Info("artifact promoted",
+		"key", key,
+		"from", currentState.String(),
+		"to", targetState.String(),
+	)
+
+	// Audit event.
+	srv.publishAuditEvent(ctx, "artifact.promoted", map[string]any{
+		"key":            key,
+		"publisher":      ref.GetPublisherId(),
+		"name":           ref.GetName(),
+		"previous_state": currentState.String(),
+		"current_state":  targetState.String(),
+	})
+
+	return &repopb.PromoteArtifactResponse{
+		Result:        true,
+		PreviousState: currentState,
+		CurrentState:  targetState,
+		Message:       fmt.Sprintf("artifact %q promoted from %s to %s", key, currentState, targetState),
+	}, nil
+}
+
+// SetArtifactState transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
+func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifactStateRequest) (*repopb.SetArtifactStateResponse, error) {
+	ref := req.GetRef()
+	if ref == nil {
+		return nil, status.Error(codes.InvalidArgument, "ref is required")
+	}
+	if strings.TrimSpace(ref.GetName()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "ref.name is required")
+	}
+
+	// Validate namespace + package-level access.
+	if err := srv.validatePackageAccess(ctx, ref.GetPublisherId(), ref.GetName()); err != nil {
+		return nil, err
+	}
+
+	// Normalize version.
+	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
+		ref.Version = cv
+	}
+
+	targetState := req.GetTargetState()
+	authCtx := security.FromContext(ctx)
+	buildNumber := req.GetBuildNumber()
+	key := artifactKeyWithBuild(ref, buildNumber)
+
+	// Read existing manifest and state FIRST (needed for authority check on un-quarantine).
+	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
+	}
+	m, currentState, err := unmarshalManifestWithState(data)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "parse manifest %q: %v", key, err)
+	}
+
+	// ── Authority boundaries for lifecycle transitions ──
+	var authorityMode string
+	switch targetState {
+	case repopb.PublishState_QUARANTINED:
+		// QUARANTINE is a moderation action — admin/superuser only.
+		if authCtx == nil || authCtx.Subject != "sa" {
+			return nil, status.Error(codes.PermissionDenied,
+				"quarantine is a moderation action restricted to administrators")
+		}
+		authorityMode = "admin"
+
+	case repopb.PublishState_REVOKED:
+		// REVOKE can be performed by admin OR namespace/package owner (self-revoke).
+		if authCtx == nil || authCtx.Subject != "sa" {
+			if authCtx == nil || !srv.isNamespaceOwner(ctx, ref.GetPublisherId(), authCtx.Subject) {
+				return nil, status.Error(codes.PermissionDenied,
+					"revoke requires administrator or namespace owner (self-revoke)")
+			}
+			authorityMode = "owner_self_revoke"
+		} else {
+			authorityMode = "admin"
+		}
+
+	default:
+		authorityMode = "publisher"
+	}
+
+	// Transitions FROM quarantined states also require admin.
+	if currentState == repopb.PublishState_QUARANTINED {
+		if authCtx == nil || authCtx.Subject != "sa" {
+			return nil, status.Error(codes.PermissionDenied,
+				"un-quarantine is a moderation action restricted to administrators")
+		}
+		authorityMode = "admin"
+	}
+
+	// Validate transition using the extended state machine.
+	if !repopb.ValidStateTransition(currentState, targetState) {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"invalid state transition %s → %s for artifact %q",
+			currentState, targetState, key)
+	}
+
+	// Write updated manifest with new state.
+	mjson, err := marshalManifestWithState(m, targetState)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
+	}
+
+	slog.Info("artifact state changed",
+		"key", key,
+		"from", currentState.String(),
+		"to", targetState.String(),
+		"reason", req.GetReason(),
+		"authority", authorityMode,
+	)
+
+	// Audit event.
+	srv.publishAuditEvent(ctx, "artifact.state_changed", map[string]any{
+		"key":            key,
+		"publisher":      ref.GetPublisherId(),
+		"name":           ref.GetName(),
+		"version":        ref.GetVersion(),
+		"previous_state": currentState.String(),
+		"current_state":  targetState.String(),
+		"reason":         req.GetReason(),
+		"authority":      authorityMode,
+	})
+
+	return &repopb.SetArtifactStateResponse{
+		PreviousState: currentState,
+		CurrentState:  targetState,
+	}, nil
+}
+
 // DownloadArtifact streams the binary for a stored artifact.
 func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream repopb.PackageRepository_DownloadArtifactServer) error {
 	ref := req.GetRef()
@@ -558,8 +887,21 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		ref.Version = canonVer
 	}
 
+	// Check publish state — block downloads of YANKED/QUARANTINED/REVOKED
+	// unless the caller is the namespace owner or admin.
 	canonVer := ref.GetVersion()
-	buildNumber := int64(0)
+	buildNumber := req.GetBuildNumber()
+	key := artifactKeyWithBuild(ref, buildNumber)
+	if _, state, _, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
+		if repopb.IsDownloadBlocked(state) {
+			// Check if caller is namespace owner (allowed to download their own blocked artifacts).
+			authCtx := security.FromContext(stream.Context())
+			if authCtx == nil || !srv.isNamespaceOwner(stream.Context(), ref.GetPublisherId(), authCtx.Subject) {
+				return status.Errorf(codes.PermissionDenied,
+					"artifact %q is %s — download blocked", ref.GetName(), state)
+			}
+		}
+	}
 
 	// Try new 5-field key, then legacy 4-field key.
 	data, err := srv.readBinaryWithFallback(stream.Context(), ref, buildNumber)

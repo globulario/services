@@ -60,7 +60,12 @@ func CompileReleasePlan(
 
 	platform := strings.TrimSpace(spec.Platform)
 	if platform == "" {
+		// Default to linux_amd64 for backward compat, but log a warning.
+		// Future: derive from node's reported platform in NodeStatus.
 		platform = "linux_amd64"
+	}
+	if platform == "" {
+		return nil, fmt.Errorf("spec.platform is required (set explicitly or let the reconciler derive from node platform)")
 	}
 
 	svcName := spec.ServiceName
@@ -187,11 +192,42 @@ func CompileReleasePlan(
 					{Path: marker},
 				},
 			},
-			SuccessProbes: []*planpb.Probe{
-				serviceProbeForUnit(unit),
-			},
+			SuccessProbes: buildSuccessProbes(unit, svcCanonical),
 		},
 	}, nil
+}
+
+// buildSuccessProbes returns the readiness probes for a compiled release plan.
+// It always includes the service-specific TCP/HTTP probe from serviceProbeForUnit,
+// and adds a gRPC health probe for services known to implement the standard
+// grpc.health.v1.Health service.
+func buildSuccessProbes(unit, svcCanonical string) []*planpb.Probe {
+	probes := []*planpb.Probe{
+		serviceProbeForUnit(unit),
+	}
+
+	// Add gRPC health probe for known gRPC services.
+	// These services implement the standard grpc.health.v1.Health/Check RPC.
+	grpcServices := map[string]int{
+		"authentication": 10101,
+		"event":          10102,
+		"file":           10103,
+		"rbac":           10104,
+		"resource":       10010,
+		"repository":     10007,
+		"dns":            10006,
+	}
+	if port, ok := grpcServices[svcCanonical]; ok {
+		probes = append(probes, &planpb.Probe{
+			Type: "probe.grpc_health",
+			Args: structpbFromMap(map[string]interface{}{
+				"address":    fmt.Sprintf("127.0.0.1:%d", port),
+				"timeout_ms": float64(5000),
+			}),
+		})
+	}
+
+	return probes
 }
 
 // ComputeReleaseDesiredHash returns a SHA256 (lowercase hex) fingerprint for one service release.

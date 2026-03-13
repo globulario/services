@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"time"
 
@@ -178,7 +179,7 @@ func (srv *server) reconcileReleasePending(ctx context.Context, rel *cluster_con
 	}
 
 	resolver := &ReleaseResolver{RepositoryAddr: repositoryAddrForSpec(rel.Spec)}
-	resolvedVersion, digest, err := resolver.Resolve(ctx, rel.Spec)
+	resolved, err := resolver.Resolve(ctx, rel.Spec)
 	if err != nil {
 		log.Printf("release %s: resolve failed: %v", name, err)
 		return srv.patchReleaseStatus(ctx, name, func(s *cluster_controllerpb.ServiceReleaseStatus) {
@@ -188,12 +189,12 @@ func (srv *server) reconcileReleasePending(ctx context.Context, rel *cluster_con
 		})
 	}
 
-	desiredHash := ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolvedVersion, rel.Spec.Config)
+	desiredHash := ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolved.Version, rel.Spec.Config)
 
 	return srv.patchReleaseStatus(ctx, name, func(s *cluster_controllerpb.ServiceReleaseStatus) {
 		s.Phase = cluster_controllerpb.ReleasePhaseResolved
-		s.ResolvedVersion = resolvedVersion
-		s.ResolvedArtifactDigest = digest
+		s.ResolvedVersion = resolved.Version
+		s.ResolvedArtifactDigest = resolved.Digest
 		s.DesiredHash = desiredHash
 		s.ObservedGeneration = gen
 		s.Message = ""
@@ -262,7 +263,7 @@ func (srv *server) reconcileReleaseResolved(ctx context.Context, rel *cluster_co
 				Platform:     rel.Spec.Platform,
 				RepositoryID: rel.Spec.RepositoryID,
 			}
-			if _, _, err := resolver.Resolve(ctx, prevSpec); err != nil {
+			if _, err := resolver.Resolve(ctx, prevSpec); err != nil {
 				log.Printf("release %s node %s: rollback guard: prev version %q manifest missing (%v), disabling rollback",
 					name, nodeID, safePrevVersion, err)
 				safePrevVersion = ""
@@ -523,6 +524,14 @@ func (srv *server) dispatchReleasePlan(ctx context.Context, rel *cluster_control
 	if srv.state != nil {
 		clusterID = srv.state.ClusterId
 	}
+
+	// Node-aware platform: if spec.Platform is empty, derive from node's reported platform.
+	if rel.Spec != nil && strings.TrimSpace(rel.Spec.Platform) == "" {
+		if nodePlatform := srv.getNodePlatform(nodeID); nodePlatform != "" {
+			rel.Spec.Platform = nodePlatform
+		}
+	}
+
 	plan, err := CompileReleasePlan(nodeID, rel, installedVersion, clusterID)
 	if err != nil {
 		return nil, err
@@ -603,6 +612,21 @@ func (srv *server) getInstalledVersionForRelease(rel *cluster_controllerpb.Servi
 		}
 	}
 	return ""
+}
+
+// getNodePlatform returns the platform string for a node (e.g., "linux_amd64").
+// Best-effort: infers from installed packages, falls back to controller's own platform.
+// Future: read from NodeStatus.Platform directly.
+func (srv *server) getNodePlatform(nodeID string) string {
+	// Best-effort: check installed-state for any package from this node to infer platform.
+	if pkgs, err := installed_state.ListInstalledPackages(context.Background(), nodeID, "SERVICE"); err == nil {
+		for _, p := range pkgs {
+			if plat := strings.TrimSpace(p.GetPlatform()); plat != "" {
+				return plat
+			}
+		}
+	}
+	return runtime.GOOS + "_" + runtime.GOARCH
 }
 
 // repositoryAddrForSpec returns the repository gRPC endpoint for the given spec.

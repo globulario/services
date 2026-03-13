@@ -545,9 +545,66 @@ func publishOne(file, token string) pkgPublishOne {
 		artifactKind = repopb.ArtifactKind_INFRASTRUCTURE
 	}
 
-	// Step A: upsert descriptor under user identity.
+	// Step 1: compute digest before upload.
+	r.digest = pkgSHA256(file)
+
+	// Step 2: connect to repository.
+	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
+	if err != nil {
+		r.err = fmt.Errorf("connect to repository: %w", err)
+		r.duration = time.Since(start)
+		return r
+	}
+	defer client.Close()
+
+	// Step 3: upload artifact (primary path — sets state=VERIFIED on server).
+	// Upload happens BEFORE descriptor registration to prevent ghost metadata.
+	ref := &repopb.ArtifactRef{
+		PublisherId: publisher,
+		Name:        summary.Name,
+		Version:     summary.Version,
+		Platform:    summary.Platform,
+		Kind:        artifactKind,
+	}
+
+	archiveData, err := os.ReadFile(file)
+	if err != nil {
+		r.err = fmt.Errorf("read package file: %w", err)
+		r.duration = time.Since(start)
+		return r
+	}
+	r.sizeBytes = int64(len(archiveData))
+
+	if err := client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber); err != nil {
+		r.err = fmt.Errorf("upload artifact failed: %w", err)
+		if isAuthErr(err) {
+			r.authErr = true
+		}
+		r.duration = time.Since(start)
+		return r
+	}
+
+	// Step 4: verify manifest was stored correctly by reading it back.
+	manifest, err := client.GetArtifactManifest(ref, summary.BuildNumber)
+	if err != nil {
+		r.err = fmt.Errorf("verify uploaded manifest: %w", err)
+		r.duration = time.Since(start)
+		return r
+	}
+	if manifest.GetChecksum() != r.digest {
+		r.err = fmt.Errorf("checksum mismatch after upload: local=%s remote=%s", r.digest, manifest.GetChecksum())
+		// Promote to FAILED since the artifact is corrupt.
+		_, _ = client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_FAILED)
+		r.duration = time.Since(start)
+		return r
+	}
+
+	// Step 5: upsert descriptor under user identity.
 	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, summary.Description, summary.Keywords, pkgType)
 	if err != nil {
+		// Descriptor registration failed — mark artifact as ORPHANED.
+		// The artifact binary is safe but not discoverable via the legacy path.
+		_, _ = client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_ORPHANED)
 		r.err = err
 		if isAuthErr(err) {
 			r.authErr = true
@@ -557,53 +614,15 @@ func publishOne(file, token string) pkgPublishOne {
 	}
 	r.descriptorAction = action
 
-	// Step B: compute digest before upload.
-	r.digest = pkgSHA256(file)
-
-	// Step C: upload bundle.
-	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
-	if err != nil {
-		r.err = fmt.Errorf("connect to repository: %w", err)
-		r.duration = time.Since(start)
-		return r
-	}
-	defer client.Close()
-
-	size, err := client.UploadBundle(
-		token,
-		pkgPublishRepository,
-		summary.Name,
-		publisher,
-		summary.Version,
-		summary.Platform,
-		file,
-	)
-	if err != nil {
-		r.err = fmt.Errorf("upload failed: %w", err)
-		if isAuthErr(err) {
-			r.authErr = true
-		}
-		r.duration = time.Since(start)
+	// Step 6: promote artifact to PUBLISHED.
+	if _, err := client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_PUBLISHED); err != nil {
+		// Artifact is VERIFIED but not PUBLISHED — consumers cannot discover it.
+		// This is a publish failure: the artifact exists but is invisible.
+		r.err = fmt.Errorf("artifact promotion to PUBLISHED failed (state remains VERIFIED): %w", err)
 		return r
 	}
 
-	r.sizeBytes = int64(size)
 	r.bundleID = pkgBundleID(summary.Name, summary.Version, summary.Platform)
-
-	// Step D: best-effort dual-write to artifact path.
-	// This populates the modern ArtifactManifest alongside the legacy PackageBundle.
-	// TODO(migration): Once all consumers use ListArtifacts/DownloadArtifact,
-	// make UploadArtifact the primary path and remove the UploadBundle call above.
-	if archiveData, err := os.ReadFile(file); err == nil {
-		ref := &repopb.ArtifactRef{
-			PublisherId: publisher,
-			Name:        summary.Name,
-			Version:     summary.Version,
-			Platform:    summary.Platform,
-			Kind:        artifactKind,
-		}
-		_ = client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber) // best-effort; legacy bundle already saved
-	}
 
 	r.duration = time.Since(start)
 	return r

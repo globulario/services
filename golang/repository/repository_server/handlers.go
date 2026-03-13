@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -16,7 +17,6 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // handlers.go
@@ -103,7 +103,8 @@ func readUploadStream(stream repopb.PackageRepository_UploadBundleServer) (*byte
 
 // checksumBytes returns the hex string checksum of data.
 func checksumBytes(data []byte) string {
-	return string(Utility.CreateDataChecksum(data))
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("sha256:%x", h[:])
 }
 
 // ----------------------------------------------------------------------------
@@ -223,6 +224,8 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 
 	// Dual-write: also persist as an artifact so DownloadArtifact can find it.
 	// This bridges the legacy UploadBundle path with the new artifact-based reconciler.
+	// UploadBundle is a complete publish operation (descriptor already exists), so the
+	// artifact is marked PUBLISHED immediately.
 	if d := bundle.PackageDescriptor; d != nil && d.Name != "" && d.Version != "" {
 		aRef := &repopb.ArtifactRef{
 			Name:        d.Name,
@@ -255,10 +258,11 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 				manifest.Keywords = d.Keywords
 			}
 
-			if mjson, merr := protojson.Marshal(manifest); merr == nil {
+			// Marshal with PUBLISHED state since UploadBundle is a complete publish.
+			if mjson, merr := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED); merr == nil {
 				_ = srv.Storage().WriteFile(stream.Context(), manifestStorageKey(aKey), mjson, 0o644)
 			}
-			slog.Info("dual-write artifact", "key", aKey)
+			slog.Info("dual-write artifact", "key", aKey, "publish_state", "PUBLISHED")
 		}
 	}
 

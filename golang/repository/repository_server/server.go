@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -379,6 +380,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/repository.PackageRepository/UploadArtifact",
 				"/repository.PackageRepository/SearchArtifacts",
 				"/repository.PackageRepository/GetArtifactVersions",
+				"/repository.PackageRepository/SetArtifactState",
+				"/repository.PackageRepository/GetNamespace",
 			},
 			TypeName: "resource.Role",
 		},
@@ -398,6 +401,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/repository.PackageRepository/SearchArtifacts",
 				"/repository.PackageRepository/GetArtifactVersions",
 				"/repository.PackageRepository/DeleteArtifact",
+				"/repository.PackageRepository/SetArtifactState",
+				"/repository.PackageRepository/GetNamespace",
 			},
 			TypeName: "resource.Role",
 		},
@@ -827,6 +832,9 @@ func main() {
 		logger.Error("storage init failed", "err", err)
 		os.Exit(1)
 	}
+
+	// 7b. Run trust model migration (idempotent — only on first run).
+	s.MigrateToTrustModel(context.Background())
 
 	// 8. Register gRPC service and reflection
 	setupGrpcService(s)

@@ -77,9 +77,9 @@ type NodeAssignment struct {
 type ServiceReleaseSpec struct {
 	PublisherID      string            `json:"publisher_id,omitempty"`
 	ServiceName      string            `json:"service_name,omitempty"`
-	Version          string            `json:"version,omitempty"`      // Exact; empty = resolve via Channel
+	Version          string            `json:"version,omitempty"`      // Exact; empty = resolve latest published
 	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
-	Channel          string            `json:"channel,omitempty"`      // "stable" | "nightly" | "beta"
+	Channel          string            `json:"channel,omitempty"`      // Deprecated: functionally ignored, will be removed
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`         // e.g. "linux_amd64"
 	RolloutStrategy  string            `json:"rollout_strategy,omitempty"` // RolloutRolling | RolloutAllAtOnce
@@ -138,7 +138,7 @@ type ApplicationReleaseSpec struct {
 	AppName         string            `json:"app_name,omitempty"`
 	Version         string            `json:"version,omitempty"`
 	BuildNumber     int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
-	Channel         string            `json:"channel,omitempty"`
+	Channel         string            `json:"channel,omitempty"` // Deprecated: functionally ignored
 	RepositoryID    string            `json:"repository_id,omitempty"`
 	Platform        string            `json:"platform,omitempty"`
 	NodeAssignments []*NodeAssignment `json:"node_assignments,omitempty"`
@@ -174,7 +174,7 @@ type InfrastructureReleaseSpec struct {
 	Component        string            `json:"component,omitempty"` // e.g. "etcd", "minio", "envoy"
 	Version          string            `json:"version,omitempty"`
 	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
-	Channel          string            `json:"channel,omitempty"`
+	Channel          string            `json:"channel,omitempty"` // Deprecated: functionally ignored
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`
 	NodeAssignments  []*NodeAssignment `json:"node_assignments,omitempty"`
@@ -204,6 +204,26 @@ type InfrastructureRelease struct {
 	Meta   *ObjectMeta                  `json:"meta,omitempty"`
 	Spec   *InfrastructureReleaseSpec   `json:"spec,omitempty"`
 	Status *InfrastructureReleaseStatus `json:"status,omitempty"`
+}
+
+// ── Install Policy ──────────────────────────────────────────────────────────
+
+// InstallPolicySpec controls which artifacts a cluster will accept during resolution.
+type InstallPolicySpec struct {
+	VerifiedPublishersOnly bool     `json:"verified_publishers_only,omitempty"` // only allow artifacts from claimed namespaces
+	AllowedNamespaces      []string `json:"allowed_namespaces,omitempty"`       // whitelist (empty = allow all)
+	BlockedNamespaces      []string `json:"blocked_namespaces,omitempty"`       // blacklist (checked after allowed)
+	BlockDeprecated        bool     `json:"block_deprecated,omitempty"`         // skip DEPRECATED artifacts in resolution
+	BlockYanked            bool     `json:"block_yanked,omitempty"`             // true by default in resolution logic
+}
+
+// InstallPolicyResource is the top-level desired-state object for consumer install policy.
+// Stored in etcd at /globular/resources/InstallPolicy/{name}.
+// Named "Resource" to avoid collision with the proto-generated InstallPolicy message.
+type InstallPolicyResource struct {
+	Meta   *ObjectMeta        `json:"meta,omitempty"`
+	Spec   *InstallPolicySpec `json:"spec,omitempty"`
+	Status *ObjectStatus      `json:"status,omitempty"`
 }
 
 // ── State Alignment Report ───────────────────────────────────────────────────

@@ -14,6 +14,22 @@ enum ArtifactKind {
   INFRASTRUCTURE = 5;
 }
 
+// PublishState tracks the lifecycle of an artifact through the publish pipeline.
+// Artifacts progress: STAGING → VERIFIED → PUBLISHED.
+// Failed or abandoned artifacts may be marked FAILED or ORPHANED.
+enum PublishState {
+  PUBLISH_STATE_UNSPECIFIED = 0; // Legacy artifacts without explicit state
+  STAGING = 1;                   // Upload in progress, not yet verified
+  VERIFIED = 2;                  // Upload complete, checksum verified, not yet discoverable
+  PUBLISHED = 3;                 // Fully published and discoverable
+  FAILED = 4;                    // Publish pipeline failed
+  ORPHANED = 5;                  // Artifact exists but descriptor registration failed
+  DEPRECATED = 6;                // Superseded by a newer version; still downloadable with warning
+  YANKED = 7;                    // Removed from discovery; download blocked for non-owners
+  QUARANTINED = 8;               // Admin hold — security review pending; download blocked
+  REVOKED = 9;                   // Terminal — permanently removed from all access
+}
+
 message ArtifactRef {
   string publisher_id = 1;
   string name = 2;
@@ -60,6 +76,12 @@ message ArtifactManifest {
     ApplicationDetail application_detail = 31;
     InfrastructureDetail infrastructure_detail = 32;
   }
+
+  // Publish pipeline state — tracks artifact lifecycle from upload through promotion.
+  PublishState publish_state = 40;
+
+  // Provenance record — immutable record of who published this artifact.
+  ProvenanceRecord provenance = 41;
 }
 
 // ServiceDetail contains fields specific to SERVICE packages.
@@ -93,6 +115,48 @@ message InfrastructureDetail {
   repeated string required_privileges = 6; // e.g. "root", "cap_net_bind"
 }
 
+// ProvenanceRecord captures who published an artifact, when, and how.
+// Written once at upload time and never modified.
+message ProvenanceRecord {
+  string subject = 1;          // JWT subject (who published)
+  string principal_type = 2;   // "user" | "application" | "node"
+  string auth_method = 3;      // "jwt" | "mtls"
+  string source_ip = 4;        // caller remote address
+  string build_commit = 5;     // git SHA (from manifest metadata)
+  string build_source = 6;     // CI job/workflow ID
+  int64  timestamp_unix = 7;   // publish timestamp
+  string cluster_id = 8;       // accepting cluster
+}
+
+// SetArtifactStateRequest transitions an artifact's lifecycle state.
+// Used for deprecation, yanking, quarantine, and revocation.
+message SetArtifactStateRequest {
+  ArtifactRef ref = 1;
+  int64 build_number = 2;
+  PublishState target_state = 3;
+  string reason = 4;           // audit reason for state change
+}
+
+message SetArtifactStateResponse {
+  PublishState previous_state = 1;
+  PublishState current_state = 2;
+}
+
+// GetNamespaceRequest queries namespace ownership information.
+message GetNamespaceRequest {
+  string namespace_id = 1;     // publisher namespace to query
+}
+
+message NamespaceInfo {
+  string namespace_id = 1;
+  repeated string owners = 2;           // subjects with owner role
+  repeated string permitted = 3;        // subjects with write permission
+}
+
+message GetNamespaceResponse {
+  NamespaceInfo namespace = 1;
+}
+
 message ListArtifactsRequest {}
 
 message ListArtifactsResponse {
@@ -113,6 +177,7 @@ message UploadArtifactResponse {
 
 message DownloadArtifactRequest {
   ArtifactRef ref = 1;
+  int64 build_number = 2;  // Build iteration to download (0 = legacy/latest)
 }
 
 message DownloadArtifactResponse {
@@ -121,6 +186,7 @@ message DownloadArtifactResponse {
 
 message GetArtifactManifestRequest {
   ArtifactRef ref = 1;
+  int64 build_number = 2;  // Build iteration within version (0 = legacy/unspecified).
 }
 
 message GetArtifactManifestResponse {
@@ -215,6 +281,21 @@ message DeleteArtifactResponse {
   string message = 2;  // Human-readable status or rejection reason
 }
 
+// PromoteArtifactRequest transitions an artifact's publish state.
+// Typical transitions: VERIFIED→PUBLISHED (success) or VERIFIED→ORPHANED (descriptor failed).
+message PromoteArtifactRequest {
+  ArtifactRef ref = 1;
+  int64 build_number = 2;           // identifies the specific build to promote
+  PublishState target_state = 3;     // desired state (PUBLISHED, ORPHANED, FAILED)
+}
+
+message PromoteArtifactResponse {
+  bool result = 1;
+  PublishState previous_state = 2;   // state before promotion
+  PublishState current_state = 3;    // state after promotion
+  string message = 4;               // human-readable status
+}
+
 // Service for managing package uploads and downloads in a repository.
 service PackageRepository {
   // Downloads a package bundle from the package repository.
@@ -250,4 +331,13 @@ service PackageRepository {
 
   // Deletes a specific artifact version from the repository.
   rpc DeleteArtifact(DeleteArtifactRequest) returns(DeleteArtifactResponse);
+
+  // Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
+  rpc PromoteArtifact(PromoteArtifactRequest) returns(PromoteArtifactResponse);
+
+  // Transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
+  rpc SetArtifactState(SetArtifactStateRequest) returns(SetArtifactStateResponse);
+
+  // Queries namespace ownership and permission information.
+  rpc GetNamespace(GetNamespaceRequest) returns(GetNamespaceResponse);
 }

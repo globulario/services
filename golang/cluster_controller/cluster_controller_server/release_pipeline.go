@@ -84,7 +84,7 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	}
 
 	resolver := &ReleaseResolver{RepositoryAddr: h.RepositoryAddr}
-	resolvedVersion, digest, err := resolver.Resolve(ctx, h.ResolverSpec)
+	resolved, err := resolver.Resolve(ctx, h.ResolverSpec)
 	if err != nil {
 		log.Printf("%s %s: resolve failed: %v", h.ResourceType, h.Name, err)
 		h.PatchStatus(ctx, statusPatch{
@@ -96,11 +96,11 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
-	desiredHash := h.ComputeHash(resolvedVersion)
+	desiredHash := h.ComputeHash(resolved.Version)
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
-		ResolvedVersion:        resolvedVersion,
-		ResolvedArtifactDigest: digest,
+		ResolvedVersion:        resolved.Version,
+		ResolvedArtifactDigest: resolved.Digest,
 		DesiredHash:            desiredHash,
 		ObservedGeneration:     h.Generation,
 		Message:                "",
@@ -291,7 +291,6 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.AppName,
 			Version:      rel.Spec.Version,
-			Channel:      rel.Spec.Channel,
 			Platform:     rel.Spec.Platform,
 			RepositoryID: rel.Spec.RepositoryID,
 		},
@@ -328,7 +327,6 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.Component,
 			Version:      rel.Spec.Version,
-			Channel:      rel.Spec.Channel,
 			Platform:     rel.Spec.Platform,
 			RepositoryID: rel.Spec.RepositoryID,
 		},

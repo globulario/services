@@ -73,7 +73,10 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 		if runErr != nil {
 			return status, runErr
 		}
+		r.addEvent(status, "info", "phase: VALIDATING", "")
+		r.publish(ctx, status)
 		if err := r.EvaluateInvariants(ctx, plan); err == nil {
+			r.addEvent(status, "info", "phase: COMMITTED", "")
 			r.addEvent(status, "info", "invariants satisfied; plan complete", "")
 			status.State = planpb.PlanState_PLAN_SUCCEEDED
 			status.FinishedUnixMs = uint64(r.now().UnixMilli())
@@ -109,6 +112,11 @@ func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status
 		stepStatus.State = planpb.StepState_STEP_RUNNING
 		stepStatus.StartedUnixMs = uint64(r.now().UnixMilli())
 		status.CurrentStepId = step.GetId()
+
+		// Emit rollout phase event based on the step action.
+		if phase := rolloutPhaseForAction(step.GetAction()); phase != "" {
+			r.addEvent(status, "info", fmt.Sprintf("phase: %s", phase), step.GetId())
+		}
 		r.addEvent(status, "info", fmt.Sprintf("step %s running", step.GetId()), step.GetId())
 		r.publish(ctx, status)
 
@@ -470,4 +478,23 @@ func (r *Runner) backoff(plan *planpb.NodePlan, attempt int) time.Duration {
 		return 0
 	}
 	return time.Duration(backoffMs*uint32(attempt)) * time.Millisecond
+}
+
+// rolloutPhaseForAction maps plan step action names to human-readable rollout phases.
+// These provide explicit operator visibility into the rollout lifecycle.
+func rolloutPhaseForAction(action string) string {
+	switch action {
+	case "artifact.fetch":
+		return "DOWNLOADING"
+	case "artifact.verify":
+		return "VERIFYING"
+	case "service.install_payload":
+		return "STAGING"
+	case "service.restart":
+		return "RESTARTING"
+	case "service.write_version_marker", "package.report_state":
+		return "COMMITTING"
+	default:
+		return ""
+	}
 }

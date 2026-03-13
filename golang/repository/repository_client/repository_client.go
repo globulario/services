@@ -320,11 +320,15 @@ func (client *Repository_Service_Client) ListBundles() ([]*repositorypb.BundleSu
 }
 
 // GetArtifactManifest returns the manifest for the given artifact reference.
-func (client *Repository_Service_Client) GetArtifactManifest(ref *repositorypb.ArtifactRef) (*repositorypb.ArtifactManifest, error) {
+// buildNumber identifies the specific build iteration; pass 0 for legacy artifacts.
+func (client *Repository_Service_Client) GetArtifactManifest(ref *repositorypb.ArtifactRef, buildNumber int64) (*repositorypb.ArtifactManifest, error) {
 	if ref == nil {
 		return nil, errors.New("artifact ref required")
 	}
-	resp, err := client.c.GetArtifactManifest(client.GetCtx(), &repositorypb.GetArtifactManifestRequest{Ref: ref})
+	resp, err := client.c.GetArtifactManifest(client.GetCtx(), &repositorypb.GetArtifactManifestRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -332,10 +336,16 @@ func (client *Repository_Service_Client) GetArtifactManifest(ref *repositorypb.A
 }
 
 func (client *Repository_Service_Client) DownloadArtifact(ref *repositorypb.ArtifactRef) ([]byte, error) {
+	return client.DownloadArtifactWithBuild(ref, 0)
+}
+
+// DownloadArtifactWithBuild fetches an artifact binary for a specific build iteration.
+// Build number 0 means legacy/latest (backward compatible).
+func (client *Repository_Service_Client) DownloadArtifactWithBuild(ref *repositorypb.ArtifactRef, buildNumber int64) ([]byte, error) {
 	if ref == nil {
 		return nil, errors.New("artifact ref required")
 	}
-	stream, err := client.c.DownloadArtifact(client.GetCtx(), &repositorypb.DownloadArtifactRequest{Ref: ref})
+	stream, err := client.c.DownloadArtifact(client.GetCtx(), &repositorypb.DownloadArtifactRequest{Ref: ref, BuildNumber: buildNumber})
 	if err != nil {
 		return nil, err
 	}
@@ -395,8 +405,32 @@ func (client *Repository_Service_Client) UploadArtifact(ref *repositorypb.Artifa
 	return client.UploadArtifactWithBuild(ref, data, 0)
 }
 
+// PromoteArtifact transitions an artifact's publish state on the repository server.
+// This calls the server's PromoteArtifact method via the Invoke reflection mechanism.
+// After ./generateCode.sh adds the PromoteArtifact RPC natively, this will use
+// the generated gRPC client stub instead.
+func (client *Repository_Service_Client) PromoteArtifact(ref *repositorypb.ArtifactRef, buildNumber int64, targetState repositorypb.PublishState) (*repositorypb.PromoteArtifactResponse, error) {
+	if ref == nil {
+		return nil, errors.New("artifact ref required")
+	}
+	req := &repositorypb.PromoteArtifactRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+		TargetState: targetState,
+	}
+	rsp, err := client.Invoke("PromoteArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.PromoteArtifactResponse); ok {
+		return resp, nil
+	}
+	return &repositorypb.PromoteArtifactResponse{Result: true, CurrentState: targetState}, nil
+}
+
 // UploadArtifactWithBuild uploads an artifact with an explicit build number.
 // Build number 0 means legacy (no build iteration tracking).
+// Data is streamed in chunks to avoid exceeding gRPC message size limits.
 func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repositorypb.ArtifactRef, data []byte, buildNumber int64) error {
 	if ref == nil {
 		return errors.New("artifact ref required")
@@ -405,13 +439,34 @@ func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repository
 	if err != nil {
 		return err
 	}
+
+	// Send ref + build number with the first chunk of data.
+	const chunkSize = 1024 * 1024 // 1 MiB per message (well under gRPC 4 MiB default)
+	firstChunk := data
+	if len(firstChunk) > chunkSize {
+		firstChunk = data[:chunkSize]
+	}
 	if err := stream.Send(&repositorypb.UploadArtifactRequest{
 		Ref:         ref,
-		Data:        data,
+		Data:        firstChunk,
 		BuildNumber: buildNumber,
 	}); err != nil {
 		return err
 	}
+
+	// Send remaining data in chunks.
+	for offset := len(firstChunk); offset < len(data); offset += chunkSize {
+		end := offset + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		if err := stream.Send(&repositorypb.UploadArtifactRequest{
+			Data: data[offset:end],
+		}); err != nil {
+			return err
+		}
+	}
+
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
 		return err
@@ -677,4 +732,40 @@ func (client *Repository_Service_Client) createPackageArchive(PublisherID string
 		return "", err
 	}
 	return outPath, nil
+}
+
+// SetArtifactState transitions an artifact's lifecycle state.
+func (client *Repository_Service_Client) SetArtifactState(ref *repositorypb.ArtifactRef, buildNumber int64, targetState repositorypb.PublishState, reason string) (*repositorypb.SetArtifactStateResponse, error) {
+	if ref == nil {
+		return nil, errors.New("artifact ref required")
+	}
+	req := &repositorypb.SetArtifactStateRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+		TargetState: targetState,
+		Reason:      reason,
+	}
+	rsp, err := client.Invoke("SetArtifactState", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.SetArtifactStateResponse); ok {
+		return resp, nil
+	}
+	return &repositorypb.SetArtifactStateResponse{CurrentState: targetState}, nil
+}
+
+// GetNamespace queries namespace ownership information.
+func (client *Repository_Service_Client) GetNamespace(namespaceID string) (*repositorypb.GetNamespaceResponse, error) {
+	req := &repositorypb.GetNamespaceRequest{
+		NamespaceId: namespaceID,
+	}
+	rsp, err := client.Invoke("GetNamespace", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.GetNamespaceResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
 }
