@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "globular": {
+      "url": "http://localhost:10050/mcp"
+    }
+  }
+}

@@ -16,8 +16,12 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -236,7 +240,14 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 		}
 	}
 
-	// Stage 3c: fix ownership — etcdctl snapshot restore (running as root)
+	// Stage 3c: ensure etcd config has TLS if certs exist on this node.
+	// A restored config (from backup or restic) may lack client-transport-security,
+	// causing etcd to start in plaintext mode while all clients expect TLS.
+	if tlsPatched := ensureEtcdConfigTLS(configDst, outputs); tlsPatched {
+		log.Printf("etcd restore: patched %s with TLS settings", configDst)
+	}
+
+	// Stage 3d: fix ownership — etcdctl snapshot restore (running as root)
 	// creates files owned by root:root, but etcd runs as globular:globular.
 	log.Printf("etcd restore: chown %s to globular:globular", dataDir)
 	_, chownErr, chownRunErr := runRestore(ctx, "chown", "-R", "globular:globular", dataDir)
@@ -265,6 +276,39 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 		}
 	}
 
+	// Stage 6: regenerate local service account token.
+	// The restored etcd has data signed with old keys, but we excluded keys/tokens
+	// from restic (security), so the current signing keys are fresh. Regenerate
+	// the SA token so backend-to-backend auth works immediately.
+	if mac, macErr := config.GetMacAddress(); macErr == nil && mac != "" {
+		if err := security.SetLocalToken(mac, "sa", "sa", "", 365*24*60); err != nil {
+			log.Printf("etcd restore: warning: failed to regenerate SA token: %v", err)
+		} else {
+			log.Printf("etcd restore: regenerated local SA token")
+			outputs["sa_token_regenerated"] = "true"
+		}
+	}
+
+	// Stage 7: clean up installed-state keys for stale node IDs.
+	// The restored etcd snapshot may contain /globular/nodes/{old_node_id}/packages/...
+	// entries from a previous node ID. Remove any that don't match this node's stable ID.
+	currentID := s.nodeID
+	if stableID, err := identity.StableNodeID(); err == nil {
+		currentID = stableID
+	}
+	if currentID != "" {
+		if nodeIDs, err := installed_state.ListNodeIDs(ctx); err == nil {
+			for _, nid := range nodeIDs {
+				if nid != currentID {
+					if deleted, err := installed_state.DeleteNodePackages(ctx, nid); err == nil && deleted > 0 {
+						log.Printf("etcd restore: cleaned up %d stale installed-state keys for old node %s", deleted, nid)
+						outputs["stale_node_cleaned_"+nid] = fmt.Sprintf("%d", deleted)
+					}
+				}
+			}
+		}
+	}
+
 	outputs["data_dir"] = dataDir
 	var snapshotBytes uint64
 	if info, err := os.Stat(snapshotPath); err == nil {
@@ -278,6 +322,81 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 		BytesWritten: snapshotBytes,
 		Outputs:      outputs,
 	}
+}
+
+// ensureEtcdConfigTLS reads the etcd config YAML file and adds
+// client-transport-security if TLS certs exist on this node but the config
+// lacks TLS settings. This prevents etcd from starting in plaintext mode
+// after a restore overwrites the config with an older (non-TLS) version.
+// Returns true if the config was patched.
+func ensureEtcdConfigTLS(configPath string, outputs map[string]string) bool {
+	certFile := config.GetLocalServerCertificatePath()
+	keyFile := config.GetLocalServerKeyPath()
+	if certFile == "" || keyFile == "" {
+		return false // no TLS certs available; nothing to enforce
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false
+	}
+
+	cfgMap := make(map[string]interface{})
+	if err := yaml.Unmarshal(data, &cfgMap); err != nil {
+		log.Printf("etcd restore: failed to parse %s: %v", configPath, err)
+		return false
+	}
+
+	// Already has TLS configured
+	if _, ok := cfgMap["client-transport-security"]; ok {
+		return false
+	}
+
+	// Add client-transport-security
+	cfgMap["client-transport-security"] = map[string]interface{}{
+		"cert-file":        certFile,
+		"key-file":         keyFile,
+		"client-cert-auth": false,
+	}
+
+	// Also fix peer-transport-security if missing
+	if _, ok := cfgMap["peer-transport-security"]; !ok {
+		caFile := config.GetLocalCACertificate()
+		peer := map[string]interface{}{
+			"cert-file":        certFile,
+			"key-file":         keyFile,
+			"client-cert-auth": false,
+		}
+		if caFile != "" {
+			peer["trusted-ca-file"] = caFile
+		}
+		cfgMap["peer-transport-security"] = peer
+	}
+
+	// Fix listen/advertise URLs to use https:// scheme
+	for _, key := range []string{
+		"listen-client-urls",
+		"advertise-client-urls",
+		"listen-peer-urls",
+		"initial-advertise-peer-urls",
+	} {
+		if v, ok := cfgMap[key].(string); ok {
+			cfgMap[key] = strings.Replace(v, "http://", "https://", -1)
+		}
+	}
+
+	patched, err := yaml.Marshal(cfgMap)
+	if err != nil {
+		log.Printf("etcd restore: failed to marshal patched config: %v", err)
+		return false
+	}
+
+	if err := os.WriteFile(configPath, patched, 0644); err != nil {
+		log.Printf("etcd restore: failed to write patched config: %v", err)
+		return false
+	}
+	outputs["tls_patched"] = "true"
+	return true
 }
 
 // --- restic restore ---
@@ -316,13 +435,12 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	outputs["snapshot_id"] = snapshotID
 	outputs["target"] = target
 
-	// Exclude transient/security state from restores:
-	// - backups: backup metadata is managed separately, restoring it causes
-	//   zombie jobs and circular backup-of-backups issues
-	// - keys/tokens: restoring old crypto keys invalidates all active sessions
-	//   and causes "ed25519: verification error" on every authenticated request
-	// - pki/tls: restoring old CA/certs breaks every TLS connection because
-	//   running services (MinIO, gRPC, Envoy) use certs from the current CA
+	// Exclude transient state from restores:
+	// - restic repo: the restic repository itself must not be overwritten
+	//   (we're restoring FROM it). Job store and settings at the parent
+	//   level (var/backups/globular/jobs, artifacts, settings.json) ARE
+	//   restored so backup history is preserved in the admin UI.
+	// - tokens: regenerated after restore from the restored signing keys
 	// - scylla-manager-agent: auth token and config are regenerated by Day 0;
 	//   restoring old tokens breaks sctool authentication, and these files are
 	//   owned by scylla (not globular), so restic can't chmod them
@@ -331,15 +449,31 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	//   backup causes HTTP 401 on every sctool command
 	// - etcd: restored by its own provider (snapshot); restic overwriting the
 	//   freshly-restored member/ directory causes "walpb: crc mismatch" fatal
+	//
+	// NOTE: PKI (ca, certs) and signing keys ARE restored — they must match
+	// the etcd data. Excluding them causes CA/cert mismatches that break all
+	// TLS connections after restore. Tokens are regenerated post-restore using
+	// the restored signing keys.
 	excludes := []string{
-		"var/backups/globular",
-		"var/lib/globular/keys",
+		"var/backups/globular/restic",
 		"var/lib/globular/tokens",
-		"var/lib/globular/pki",
-		"var/lib/globular/config/tls",
 		"var/lib/globular/scylla-manager-agent",
 		"var/lib/globular/scylla-manager",
 		"var/lib/globular/etcd",
+		// etcd config is managed by the etcd restore provider (Stage 3b) and
+		// by the bootstrap plan. Restic overwriting it can revert TLS settings,
+		// causing "authentication handshake failed" on all etcd clients.
+		"var/lib/globular/config/etcd.yaml",
+		// Service config files are managed by etcd (already restored by the
+		// etcd provider). Restoring them from restic can fail with "chmod:
+		// operation not permitted" when the backup was taken under a different
+		// user (e.g. root) than the current node-agent (globular).
+		"var/lib/globular/*/config.json",
+		// Domain cert directories contain ACME certs and transient renewal
+		// artifacts (.renew-backup files). Restoring old certs breaks TLS
+		// (wrong CA), and restoring temp files to missing parent dirs causes
+		// "lchown: no such file or directory" fatal errors.
+		"var/lib/globular/domains",
 	}
 
 	// Stop services whose data directories will be overwritten by restic.
@@ -607,6 +741,19 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 		return restoreFail("scylla", fmt.Sprintf("sctool restore --restore-tables failed: %s", detail), outputs)
 	}
 
+	// The table restore via sctool can re-introduce the old backup cluster
+	// entry in scylla-manager (it references the cluster ID from the backup).
+	// Dedup again so that progress polling doesn't fail with "multiple clusters
+	// share the same name".
+	if removed := deduplicateScyllaClusters(ctx, cluster, apiURL); len(removed) > 0 {
+		log.Printf("scylla restore: post-table-restore dedup removed %d stale cluster entries: %v", len(removed), removed)
+	}
+
+	// Resolve cluster ID for progress polling. Using the ID instead of the
+	// name avoids "multiple clusters share the same name" errors if dedup
+	// didn't catch a race or a new duplicate appears mid-poll.
+	clusterRef := resolveScyllaClusterID(ctx, cluster, apiURL)
+
 	// Poll sctool task progress to get transferred bytes (same as backup side).
 	// sctool restore returns a task ID like "restore/xxxxxxxx-..."
 	var restoredBytes uint64
@@ -614,10 +761,11 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 	taskID := extractScyllaTaskID(tablesOutStr)
 	if taskID != "" {
 		outputs["task_id"] = taskID
-		progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
+		progressArgs := []string{"task", "progress", taskID, "--cluster", clusterRef}
 		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
 			progressArgs = append(progressArgs, "--api-url", apiURL)
 		}
+		consecutiveErrors := 0
 		for pollCount := 0; pollCount < 180; pollCount++ { // up to 30 min
 			select {
 			case <-ctx.Done():
@@ -626,8 +774,17 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 			}
 			pOut, pErr := exec.CommandContext(ctx, "sctool", progressArgs...).CombinedOutput()
 			if pErr != nil {
+				consecutiveErrors++
+				if consecutiveErrors >= 5 {
+					// Persistent failure (e.g. duplicate clusters, auth error).
+					// Log and break to avoid spinning for 30 minutes.
+					log.Printf("scylla restore: giving up on task progress after %d consecutive errors: %v (%s)",
+						consecutiveErrors, pErr, strings.TrimSpace(string(pOut)))
+					break
+				}
 				continue
 			}
+			consecutiveErrors = 0
 			pStr := string(pOut)
 			outputs["progress"] = strings.TrimSpace(pStr)
 			statusLine := extractScyllaStatusLine(pStr)
@@ -959,7 +1116,16 @@ func restoreSchemaFromBackup(ctx context.Context, snapshotTag, locations string,
 		if e.Type == "role" {
 			continue // skip roles
 		}
-		cqlStatements = append(cqlStatements, e.CQLStmt)
+		// Inject IF NOT EXISTS to make schema restore idempotent.
+		// Backup CQL uses "CREATE KEYSPACE" / "CREATE TABLE" without it,
+		// which fails with AlreadyExists if keyspaces survived the drop
+		// (e.g., services recreated them between drop and restore).
+		stmt := e.CQLStmt
+		stmt = strings.Replace(stmt, "CREATE KEYSPACE ", "CREATE KEYSPACE IF NOT EXISTS ", 1)
+		stmt = strings.Replace(stmt, "CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ", 1)
+		stmt = strings.Replace(stmt, "CREATE TYPE ", "CREATE TYPE IF NOT EXISTS ", 1)
+		stmt = strings.Replace(stmt, "CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ", 1)
+		cqlStatements = append(cqlStatements, stmt)
 	}
 
 	if len(cqlStatements) == 0 {
@@ -986,7 +1152,12 @@ func restoreSchemaFromBackup(ctx context.Context, snapshotTag, locations string,
 		log.Printf("scylla restore: cqlsh output: %s", cqlOutStr)
 	}
 	if err != nil {
-		return fmt.Errorf("cqlsh apply schema failed: %s", cqlOutStr)
+		// cqlsh exits non-zero on warnings and AlreadyExists errors even
+		// when the schema was applied successfully. Only fail on real errors.
+		if hasFatalCQLError(cqlOutStr) {
+			return fmt.Errorf("cqlsh apply schema failed: %s", cqlOutStr)
+		}
+		log.Printf("scylla restore: cqlsh exited with warnings (non-fatal): %v", err)
 	}
 
 	log.Printf("scylla restore: schema applied successfully via cqlsh")
@@ -1000,6 +1171,43 @@ func restoreSchemaFromBackup(ctx context.Context, snapshotTag, locations string,
 	}
 
 	return nil
+}
+
+// hasFatalCQLError returns true if the cqlsh output contains errors that are
+// NOT recoverable. AlreadyExists and Warnings are benign (schema is still applied).
+func hasFatalCQLError(output string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Skip known non-fatal messages.
+		if strings.HasPrefix(line, "Warnings") || strings.HasPrefix(line, "Warning") {
+			continue
+		}
+		if strings.Contains(line, "AlreadyExists") {
+			continue
+		}
+		if strings.Contains(line, "is not recommended") {
+			continue
+		}
+		if strings.Contains(line, "replication_strategy") {
+			continue
+		}
+		if strings.Contains(line, "minimum_replication_factor") {
+			continue
+		}
+		if strings.Contains(line, "suppress this warning") {
+			continue
+		}
+		// Any other line that looks like an error (contains "Error" or
+		// references a .cql file with a non-AlreadyExists issue).
+		if strings.Contains(line, "Error") || strings.Contains(line, "error") ||
+			strings.Contains(line, "Invalid") || strings.Contains(line, "Syntax") {
+			return true
+		}
+	}
+	return false
 }
 
 // dropUserKeyspaces drops non-system keyspaces so that --restore-schema can
@@ -1257,6 +1465,27 @@ func deduplicateScyllaClusters(ctx context.Context, targetName, apiURL string) [
 
 type scyllaClusterEntry struct {
 	id, name string
+}
+
+// resolveScyllaClusterID returns the UUID of the cluster matching targetName.
+// Using the ID instead of the name in sctool commands avoids "multiple clusters
+// share the same name" errors. Falls back to targetName if resolution fails.
+func resolveScyllaClusterID(ctx context.Context, targetName, apiURL string) string {
+	args := []string{"cluster", "list"}
+	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		args = append(args, "--api-url", apiURL)
+	}
+	out, err := exec.CommandContext(ctx, "sctool", args...).CombinedOutput()
+	if err != nil {
+		return targetName
+	}
+	entries := parseScyllaClusterListFull(string(out))
+	for _, e := range entries {
+		if e.name == targetName {
+			return e.id
+		}
+	}
+	return targetName
 }
 
 // syncScyllaManagerAuthToken reads the scylla-manager-agent's current auth_token

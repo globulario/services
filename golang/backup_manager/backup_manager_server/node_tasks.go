@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -321,16 +322,14 @@ func (srv *server) convertAgentResult(
 
 // dialNodeAgent connects to a node-agent gRPC endpoint.
 // Uses TLS if the backup-manager has TLS configured, otherwise plaintext.
-// Loopback connections (127.0.0.1, localhost, ::1) always use insecure transport
-// since the node-agent on localhost typically runs with NODE_AGENT_INSECURE=true.
+// Loopback connections use TLS with InsecureSkipVerify since the server cert
+// SAN typically won't match 127.0.0.1.
 func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var opts []grpc.DialOption
 
-	// For loopback endpoints, always use insecure transport to avoid TLS
-	// mismatch with the local node-agent (which often runs insecure).
 	host, _, _ := net.SplitHostPort(endpoint)
 	isLoopback := host == "127.0.0.1" || host == "localhost" || host == "::1"
 
@@ -341,6 +340,21 @@ func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.Cl
 				"endpoint", endpoint, "error", err)
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		} else {
+			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+		}
+	} else if isLoopback {
+		// Node-agent requires TLS even on loopback. Use TLS with
+		// InsecureSkipVerify since the server cert SAN won't match 127.0.0.1.
+		// This matches the pattern used by other services (file, media, repository).
+		tlsCfg, err := srv.hookTLSConfig(endpoint)
+		if err != nil {
+			// hookTLSConfig may fail if CertAuthorityTrust is not set;
+			// fall back to skip-verify TLS without CA validation.
+			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(
+				&tls.Config{InsecureSkipVerify: true}, //nolint:gosec // loopback only
+			)))
+		} else {
+			tlsCfg.InsecureSkipVerify = true //nolint:gosec // loopback: cert SAN won't match 127.0.0.1
 			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 		}
 	} else {

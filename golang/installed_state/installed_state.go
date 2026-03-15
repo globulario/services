@@ -208,6 +208,54 @@ func ListAllNodes(ctx context.Context, kind, name string) ([]*node_agentpb.Insta
 	return pkgs, nil
 }
 
+// DeleteNodePackages removes all installed-package keys for a given node ID.
+// Used to clean up stale entries after a restore where the node ID changed.
+func DeleteNodePackages(ctx context.Context, nodeID string) (int64, error) {
+	if nodeID == "" {
+		return 0, fmt.Errorf("installed_state: node_id is required")
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return 0, fmt.Errorf("installed_state: etcd client: %w", err)
+	}
+	prefix := nodePackagesPrefix(nodeID)
+	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	resp, err := cli.Delete(tctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return 0, fmt.Errorf("installed_state: delete %q: %w", prefix, err)
+	}
+	return resp.Deleted, nil
+}
+
+// ListNodeIDs returns all distinct node IDs that have installed-package keys.
+func ListNodeIDs(ctx context.Context) ([]string, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("installed_state: etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, keyPrefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+	if err != nil {
+		return nil, fmt.Errorf("installed_state: list keys: %w", err)
+	}
+	seen := make(map[string]bool)
+	for _, kv := range resp.Kvs {
+		// Key format: /globular/nodes/{node_id}/packages/...
+		key := string(kv.Key)
+		rest := strings.TrimPrefix(key, keyPrefix)
+		if idx := strings.Index(rest, "/"); idx > 0 {
+			seen[rest[:idx]] = true
+		}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 func unmarshalPackage(data []byte) (*node_agentpb.InstalledPackage, error) {
 	pkg := &node_agentpb.InstalledPackage{}
 	if err := protojson.Unmarshal(data, pkg); err != nil {

@@ -84,9 +84,9 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 			"unit": "globular-gateway.service",
 		}),
 	)
-	if hasUnit(observed.Units, "envoy.service") {
+	if hasUnit(observed.Units, "globular-envoy.service") {
 		steps = append(steps, planStep("service.restart", map[string]interface{}{
-			"unit": "envoy.service",
+			"unit": "globular-envoy.service",
 		}))
 	}
 	port := spec.GetPortHttp()

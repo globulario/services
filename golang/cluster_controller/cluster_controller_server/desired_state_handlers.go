@@ -383,114 +383,54 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	return stats, nil
 }
 
-// importInstalledAppsToDesired creates ApplicationRelease desired-state objects
-// for APPLICATION packages found in the installed-state registry that don't
-// already have a corresponding ApplicationRelease.
-func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats {
-	var stats importStats
-	if srv.resources == nil {
-		return stats
-	}
-
-	allPkgs, err := installed_state.ListAllNodes(ctx, "APPLICATION", "")
-	if err != nil || len(allPkgs) == 0 {
-		return stats
-	}
-
-	// Collect unique apps (first-seen version wins).
-	type appInfo struct {
-		name        string
-		version     string
-		buildNumber int64
-		publisherID string
-	}
-	apps := make(map[string]appInfo)
-	for _, pkg := range allPkgs {
-		name := strings.TrimSpace(pkg.GetName())
-		if name == "" || pkg.GetVersion() == "" {
-			continue
-		}
-		if _, exists := apps[name]; !exists {
-			apps[name] = appInfo{
-				name:        name,
-				version:     pkg.GetVersion(),
-				buildNumber: pkg.GetBuildNumber(),
-				publisherID: pkg.GetPublisherId(),
-			}
-		}
-	}
-
-	// Check which ApplicationReleases already exist.
-	existingApps := make(map[string]bool)
-	if items, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
-		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
-				existingApps[rel.Meta.Name] = true
-			}
-		}
-	}
-
-	// Create missing ApplicationRelease objects.
-	for _, app := range apps {
-		if existingApps[app.name] {
-			stats.AlreadyPresent++
-			continue
-		}
-		rel := &cluster_controllerpb.ApplicationRelease{
-			Meta: &cluster_controllerpb.ObjectMeta{Name: app.name},
-			Spec: &cluster_controllerpb.ApplicationReleaseSpec{
-				PublisherID:  app.publisherID,
-				AppName:      app.name,
-				Version:      app.version,
-				BuildNumber:  app.buildNumber,
-			},
-			Status: &cluster_controllerpb.ApplicationReleaseStatus{},
-		}
-		if _, err := srv.resources.Apply(ctx, "ApplicationRelease", rel); err != nil {
-			stats.Failed++
-			stats.FailedNames = append(stats.FailedNames, "app:"+app.name)
-			logger.Warn("importInstalledAppsToDesired: failed to create",
-				slog.String("app", app.name), slog.Any("error", err))
-			continue
-		}
-		stats.Imported++
-		logger.Info("importInstalledAppsToDesired: imported",
-			slog.String("app", app.name), slog.String("version", app.version))
-	}
-
-	return stats
+// installedPkgInfo holds the common fields extracted from an InstalledPackage
+// for import into desired state.
+type installedPkgInfo struct {
+	name        string
+	version     string
+	buildNumber int64
+	publisherID string
+	platform    string
 }
 
-// importInstalledInfraToDesired creates InfrastructureRelease desired-state
-// objects for INFRASTRUCTURE packages found in the installed-state registry
-// that don't already have a corresponding InfrastructureRelease.
-func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStats {
+// releaseImportConfig parameterises importInstalledReleasesToDesired for
+// different release types (APPLICATION vs INFRASTRUCTURE).
+type releaseImportConfig struct {
+	// installedKind is the installed-state kind filter (e.g. "APPLICATION").
+	installedKind string
+	// resourceType is the resource-store type name (e.g. "ApplicationRelease").
+	resourceType string
+	// logPrefix is used in log messages (e.g. "app" or "infra").
+	logPrefix string
+	// existingName extracts the name from a resource-store object.
+	// Returns "" if the object is not of the expected type.
+	existingName func(obj interface{}) string
+	// buildRelease constructs the typed release object for Apply.
+	buildRelease func(info installedPkgInfo) interface{}
+}
+
+// importInstalledReleasesToDesired is the generic implementation behind
+// importInstalledAppsToDesired and importInstalledInfraToDesired.
+func (srv *server) importInstalledReleasesToDesired(ctx context.Context, cfg releaseImportConfig) importStats {
 	var stats importStats
 	if srv.resources == nil {
 		return stats
 	}
 
-	allPkgs, err := installed_state.ListAllNodes(ctx, "INFRASTRUCTURE", "")
+	allPkgs, err := installed_state.ListAllNodes(ctx, cfg.installedKind, "")
 	if err != nil || len(allPkgs) == 0 {
 		return stats
 	}
 
-	// Collect unique infra components (first-seen version wins).
-	type infraInfo struct {
-		name        string
-		version     string
-		buildNumber int64
-		publisherID string
-		platform    string
-	}
-	components := make(map[string]infraInfo)
+	// Collect unique entries (first-seen version wins).
+	entries := make(map[string]installedPkgInfo)
 	for _, pkg := range allPkgs {
 		name := strings.TrimSpace(pkg.GetName())
 		if name == "" || pkg.GetVersion() == "" {
 			continue
 		}
-		if _, exists := components[name]; !exists {
-			components[name] = infraInfo{
+		if _, exists := entries[name]; !exists {
+			entries[name] = installedPkgInfo{
 				name:        name,
 				version:     pkg.GetVersion(),
 				buildNumber: pkg.GetBuildNumber(),
@@ -500,46 +440,95 @@ func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStat
 		}
 	}
 
-	// Check which InfrastructureReleases already exist.
-	existingInfra := make(map[string]bool)
-	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+	// Check which releases already exist.
+	existing := make(map[string]bool)
+	if items, _, err := srv.resources.List(ctx, cfg.resourceType, ""); err == nil {
 		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-				existingInfra[rel.Meta.Name] = true
+			if n := cfg.existingName(obj); n != "" {
+				existing[n] = true
 			}
 		}
 	}
 
-	// Create missing InfrastructureRelease objects.
-	for _, comp := range components {
-		if existingInfra[comp.name] {
+	// Create missing release objects.
+	for _, info := range entries {
+		if existing[info.name] {
 			stats.AlreadyPresent++
 			continue
 		}
-		rel := &cluster_controllerpb.InfrastructureRelease{
-			Meta: &cluster_controllerpb.ObjectMeta{Name: comp.name},
-			Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
-				PublisherID:  comp.publisherID,
-				Component:    comp.name,
-				Version:      comp.version,
-				BuildNumber:  comp.buildNumber,
-				Platform:     comp.platform,
-			},
-			Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
-		}
-		if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", rel); err != nil {
+		rel := cfg.buildRelease(info)
+		if _, err := srv.resources.Apply(ctx, cfg.resourceType, rel); err != nil {
 			stats.Failed++
-			stats.FailedNames = append(stats.FailedNames, "infra:"+comp.name)
-			logger.Warn("importInstalledInfraToDesired: failed to create",
-				slog.String("component", comp.name), slog.Any("error", err))
+			stats.FailedNames = append(stats.FailedNames, cfg.logPrefix+":"+info.name)
+			logger.Warn("import"+cfg.logPrefix+"ToDesired: failed to create",
+				slog.String(cfg.logPrefix, info.name), slog.Any("error", err))
 			continue
 		}
 		stats.Imported++
-		logger.Info("importInstalledInfraToDesired: imported",
-			slog.String("component", comp.name), slog.String("version", comp.version))
+		logger.Info("import"+cfg.logPrefix+"ToDesired: imported",
+			slog.String(cfg.logPrefix, info.name), slog.String("version", info.version))
 	}
 
 	return stats
+}
+
+// importInstalledAppsToDesired creates ApplicationRelease desired-state objects
+// for APPLICATION packages found in the installed-state registry that don't
+// already have a corresponding ApplicationRelease.
+func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats {
+	return srv.importInstalledReleasesToDesired(ctx, releaseImportConfig{
+		installedKind: "APPLICATION",
+		resourceType:  "ApplicationRelease",
+		logPrefix:     "app",
+		existingName: func(obj interface{}) string {
+			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
+				return rel.Meta.Name
+			}
+			return ""
+		},
+		buildRelease: func(info installedPkgInfo) interface{} {
+			return &cluster_controllerpb.ApplicationRelease{
+				Meta: &cluster_controllerpb.ObjectMeta{Name: info.name},
+				Spec: &cluster_controllerpb.ApplicationReleaseSpec{
+					PublisherID: info.publisherID,
+					AppName:     info.name,
+					Version:     info.version,
+					BuildNumber: info.buildNumber,
+				},
+				Status: &cluster_controllerpb.ApplicationReleaseStatus{},
+			}
+		},
+	})
+}
+
+// importInstalledInfraToDesired creates InfrastructureRelease desired-state
+// objects for INFRASTRUCTURE packages found in the installed-state registry
+// that don't already have a corresponding InfrastructureRelease.
+func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStats {
+	return srv.importInstalledReleasesToDesired(ctx, releaseImportConfig{
+		installedKind: "INFRASTRUCTURE",
+		resourceType:  "InfrastructureRelease",
+		logPrefix:     "infra",
+		existingName: func(obj interface{}) string {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				return rel.Meta.Name
+			}
+			return ""
+		},
+		buildRelease: func(info installedPkgInfo) interface{} {
+			return &cluster_controllerpb.InfrastructureRelease{
+				Meta: &cluster_controllerpb.ObjectMeta{Name: info.name},
+				Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+					PublisherID: info.publisherID,
+					Component:   info.name,
+					Version:     info.version,
+					BuildNumber: info.buildNumber,
+					Platform:    info.platform,
+				},
+				Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
+			}
+		},
+	})
 }
 
 // SeedDesiredState bulk-populates desired state.

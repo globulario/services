@@ -34,7 +34,7 @@ func TestBuildPlanActionsStopDisableForRemovedUnits(t *testing.T) {
 	}
 
 	// Gateway units must have enable+start
-	for _, unit := range []string{"globular-gateway.service", "envoy.service"} {
+	for _, unit := range []string{"globular-gateway.service", "globular-envoy.service"} {
 		actions := actionMap[unit]
 		if len(actions) != 2 || actions[0] != "enable" || actions[1] != "start" {
 			t.Errorf("unit %s: expected [enable, start], got %v", unit, actions)

@@ -311,16 +311,9 @@ func lookupInstalledVersion(node *nodeState, canonicalName string) (string, int6
 		}
 	}
 	// Fallback: in-memory node state (no build number available).
-	if node == nil || len(node.InstalledVersions) == 0 {
-		return "", 0
-	}
-	if v := strings.TrimSpace(node.InstalledVersions[canonicalName]); v != "" {
-		return v, 0
-	}
-	for k, v := range node.InstalledVersions {
-		parts := strings.SplitN(k, "/", 2)
-		if len(parts) == 2 && canonicalServiceName(parts[1]) == canonicalName {
-			return strings.TrimSpace(v), 0
+	if node != nil {
+		if v := lookupInstalledVersionFromMap(node.InstalledVersions, canonicalName); v != "" {
+			return v, 0
 		}
 	}
 	return "", 0

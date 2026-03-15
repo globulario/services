@@ -29,7 +29,7 @@ var profileUnitMap = map[string][]string{
 	},
 	"gateway": {
 		"globular-gateway.service",
-		"envoy.service",
+		"globular-envoy.service",
 	},
 	"storage": {
 		"globular-minio.service",
@@ -162,7 +162,7 @@ var unitPriority = map[string]int{
 	"globular-gateway.service":   9,
 	"globular-xds.service":       9,
 	"xds.service":                9,
-	"envoy.service":              10,
+	"globular-envoy.service":     10,
 }
 
 // getUnitPriority returns the priority for a unit, defaulting to 1000 for unknown units.

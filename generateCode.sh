@@ -113,3 +113,16 @@ echo "=> Building globular CLI"
   cd "$GO_ROOT"
   GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o globularcli/globularcli ./globularcli
 )
+
+echo "=> Building MCP server"
+(
+  cd "$GO_ROOT"
+  GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o tools/stage/linux-amd64/usr/local/bin/mcp ./mcp
+)
+# Also copy to packages/bin so build-all-packages.sh finds it
+PACKAGES_BIN="$(cd "$REPO_ROOT/../packages/bin" 2>/dev/null && pwd)" || true
+if [[ -d "$PACKAGES_BIN" ]]; then
+  cp "$GO_ROOT/tools/stage/linux-amd64/usr/local/bin/mcp" "$PACKAGES_BIN/mcp"
+  chmod +x "$PACKAGES_BIN/mcp"
+  echo "   copied to $PACKAGES_BIN/mcp"
+fi

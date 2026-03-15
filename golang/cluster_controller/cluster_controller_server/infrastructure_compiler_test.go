@@ -99,7 +99,7 @@ func TestCompileInfrastructurePlan_SameVersionNoRollback(t *testing.T) {
 
 func TestCompileInfrastructurePlan_CustomUnit(t *testing.T) {
 	rel := newTestInfraRelease("core@globular.io", "envoy", "1.28.0", "abc123")
-	rel.Spec.Unit = "envoy.service" // envoy uses a non-standard unit name
+	rel.Spec.Unit = "globular-envoy.service" // envoy uses the globular- prefixed unit name
 
 	plan, err := CompileInfrastructurePlan("node-1", rel, "", "cluster-1")
 	if err != nil {
@@ -108,8 +108,8 @@ func TestCompileInfrastructurePlan_CustomUnit(t *testing.T) {
 
 	stopStep := plan.Spec.Steps[0]
 	unit := stopStep.Args.GetFields()["unit"].GetStringValue()
-	if unit != "envoy.service" {
-		t.Errorf("unit = %q, want envoy.service", unit)
+	if unit != "globular-envoy.service" {
+		t.Errorf("unit = %q, want globular-envoy.service", unit)
 	}
 }
 

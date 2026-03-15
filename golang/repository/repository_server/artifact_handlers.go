@@ -36,6 +36,19 @@ import (
 
 const artifactsDir = "artifacts"
 
+// ── version helpers ───────────────────────────────────────────────────────────
+
+// canonicalizeRefVersion normalizes ref.Version in-place using versionutil.Canonical.
+// If the version is empty or not valid semver, it is left unchanged.
+func canonicalizeRefVersion(ref *repopb.ArtifactRef) {
+	if ref == nil {
+		return
+	}
+	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
+		ref.Version = cv
+	}
+}
+
 // ── storage key helpers ───────────────────────────────────────────────────────
 
 // artifactKeyWithBuild returns a flat, filesystem-safe key including build_number.
@@ -578,9 +591,7 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	}
 
 	// Normalize version.
-	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
-		ref.Version = cv
-	}
+	canonicalizeRefVersion(ref)
 
 	// For delete, use build_number=0 and try legacy fallback.
 	buildNumber := int64(0)
@@ -743,9 +754,7 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 	}
 
 	// Normalize version.
-	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
-		ref.Version = cv
-	}
+	canonicalizeRefVersion(ref)
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 
@@ -814,9 +823,7 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 	}
 
 	// Normalize version.
-	if cv, err := versionutil.Canonical(ref.GetVersion()); err == nil {
-		ref.Version = cv
-	}
+	canonicalizeRefVersion(ref)
 
 	targetState := req.GetTargetState()
 	authCtx := security.FromContext(ctx)
@@ -919,9 +926,7 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	}
 
 	// Normalize version to canonical semver for key lookup.
-	if canonVer, err := versionutil.Canonical(ref.GetVersion()); err == nil {
-		ref.Version = canonVer
-	}
+	canonicalizeRefVersion(ref)
 
 	// Check publish state — block downloads of YANKED/QUARANTINED/REVOKED
 	// unless the caller is the namespace owner or admin.

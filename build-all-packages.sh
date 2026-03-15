@@ -578,9 +578,20 @@ if [[ -f "build.sh" ]]; then
     echo "  → Building rclone ${RCLONE_VERSION}..."
     bash build.sh --version "${RCLONE_VERSION}" rclone
 
+    # MCP server binary should already be at packages/bin/mcp (built by generateCode.sh).
+    # Build it here as fallback if not present.
+    if [[ ! -x "${PACKAGES_ROOT}/bin/mcp" ]]; then
+      echo "  → Building globular-mcp-server (not found in bin/)..."
+      (cd "${SERVICES_ROOT}" && GOOS=linux GOARCH=amd64 go build -o "${PACKAGES_ROOT}/bin/mcp" ./golang/mcp/...)
+      chmod +x "${PACKAGES_ROOT}/bin/mcp"
+      echo "  ✓ globular-mcp-server ($(ls -lh "${PACKAGES_ROOT}/bin/mcp" | awk '{print $5}'))"
+    else
+      echo "  ✓ globular-mcp-server already in bin/ ($(ls -lh "${PACKAGES_ROOT}/bin/mcp" | awk '{print $5}'))"
+    fi
+
     # Build other infrastructure packages with version 0.0.1
     echo "  → Building other infrastructure packages (0.0.1)..."
-    bash build.sh --version "0.0.1" gateway xds minio mc globular_cli keepalived
+    bash build.sh --version "0.0.1" gateway xds minio mc globular_cli keepalived mcp
 
     echo ""
     echo "  ✓ Infrastructure packages built"

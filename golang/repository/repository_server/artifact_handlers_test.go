@@ -378,6 +378,43 @@ func TestLegacyKeyFallback(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeRefVersion_NormalizesVersion(t *testing.T) {
+	ref := &repopb.ArtifactRef{Version: "v1.2.3"}
+	canonicalizeRefVersion(ref)
+	if ref.Version != "1.2.3" {
+		t.Fatalf("expected 1.2.3, got %q", ref.Version)
+	}
+}
+
+func TestCanonicalizeRefVersion_AlreadyCanonical(t *testing.T) {
+	ref := &repopb.ArtifactRef{Version: "1.2.3"}
+	canonicalizeRefVersion(ref)
+	if ref.Version != "1.2.3" {
+		t.Fatalf("expected 1.2.3, got %q", ref.Version)
+	}
+}
+
+func TestCanonicalizeRefVersion_InvalidVersionUnchanged(t *testing.T) {
+	ref := &repopb.ArtifactRef{Version: "not-semver"}
+	canonicalizeRefVersion(ref)
+	if ref.Version != "not-semver" {
+		t.Fatalf("expected not-semver unchanged, got %q", ref.Version)
+	}
+}
+
+func TestCanonicalizeRefVersion_EmptyVersionUnchanged(t *testing.T) {
+	ref := &repopb.ArtifactRef{Version: ""}
+	canonicalizeRefVersion(ref)
+	if ref.Version != "" {
+		t.Fatalf("expected empty unchanged, got %q", ref.Version)
+	}
+}
+
+func TestCanonicalizeRefVersion_NilRef(t *testing.T) {
+	// Should not panic.
+	canonicalizeRefVersion(nil)
+}
+
 func TestMatchesQuery(t *testing.T) {
 	m := &repopb.ArtifactManifest{
 		Ref:         &repopb.ArtifactRef{Name: "gateway"},

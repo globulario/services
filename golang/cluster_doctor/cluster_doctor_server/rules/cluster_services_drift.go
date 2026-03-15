@@ -47,8 +47,8 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 
 		if !canPriv {
 			remediation = []*cluster_doctorpb.RemediationStep{
-				step(1, "Node lacks privilege for systemd operations. Apply the desired state manually on the node:", "globular services apply-desired"),
-				step(2, "Alternatively, restart the node agent with root privileges to enable automatic convergence", ""),
+				step(1, "Node lacks privilege for systemd operations. Ensure the globular user has sudoers rules for systemctl.", ""),
+				step(2, "Restart the node agent to pick up the updated sudo permissions", "sudo systemctl restart globular-node-agent.service"),
 			}
 		}
 

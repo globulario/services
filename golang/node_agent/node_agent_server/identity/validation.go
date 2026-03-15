@@ -3,7 +3,11 @@ package identity
 import (
 	"fmt"
 	"net"
+	"os"
+	"sort"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // ValidateAdvertiseEndpoint ensures endpoint is not localhost/loopback in cluster mode
@@ -214,4 +218,133 @@ func sanitizeNodeName(hostname string) string {
 // SanitizeNodeName is the exported version of sanitizeNodeName
 func SanitizeNodeName(hostname string) string {
 	return sanitizeNodeName(hostname)
+}
+
+// globularNodeIDNamespace is a fixed UUID v5 namespace for Globular node IDs.
+var globularNodeIDNamespace = uuid.MustParse("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+
+// StableNodeID returns a deterministic UUID derived from the best available
+// hardware identifier on this machine. It picks the MAC address of the
+// highest-priority healthy network interface:
+//
+//  1. Up, non-loopback, non-virtual, with a routable IP and valid MAC
+//  2. Prefer physical interfaces (no veth, docker, br-, virbr, vnet, tun, tap)
+//  3. Among candidates prefer those with a private IP
+//  4. Tie-break: sort by interface name for stability
+//
+// If no suitable MAC is found, falls back to hostname + sorted IPs.
+func StableNodeID() (string, error) {
+	mac, err := SelectBestMAC()
+	if err == nil && mac != "" {
+		return uuid.NewSHA1(globularNodeIDNamespace, []byte("mac:"+mac)).String(), nil
+	}
+
+	// Fallback: hostname + IPs
+	hostname := ""
+	if h, herr := hostnameSafe(); herr == nil {
+		hostname = h
+	}
+	ips, _ := gatherNonLoopbackIPs()
+	if hostname == "" && len(ips) == 0 {
+		return "", fmt.Errorf("stable node ID: no MAC, hostname, or IP available")
+	}
+	sort.Strings(ips)
+	key := hostname + "|" + strings.Join(ips, "|")
+	return uuid.NewSHA1(globularNodeIDNamespace, []byte("host:"+key)).String(), nil
+}
+
+// SelectBestMAC picks the MAC address from the best available interface.
+func SelectBestMAC() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	type candidate struct {
+		name      string
+		mac       string
+		hasPrivIP bool
+		physical  bool
+	}
+	var candidates []candidate
+
+	for _, iface := range ifaces {
+		// Must be up and not loopback.
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		// Must have a valid MAC (not all-zero).
+		mac := iface.HardwareAddr.String()
+		if mac == "" || mac == "00:00:00:00:00:00" {
+			continue
+		}
+		// Must have at least one IPv4 address (proves it's a working interface).
+		addrs, err := iface.Addrs()
+		if err != nil || len(addrs) == 0 {
+			continue
+		}
+		hasIPv4 := false
+		hasPriv := false
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip4 := ipnet.IP.To4()
+			if ip4 != nil && !ip4.IsLoopback() {
+				hasIPv4 = true
+				if isPrivate(ip4) {
+					hasPriv = true
+				}
+			}
+		}
+		if !hasIPv4 {
+			continue
+		}
+
+		candidates = append(candidates, candidate{
+			name:      iface.Name,
+			mac:       mac,
+			hasPrivIP: hasPriv,
+			physical:  isPhysicalInterface(iface.Name),
+		})
+	}
+
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no suitable interfaces found")
+	}
+
+	// Sort: physical > virtual, private IP > public, then by name.
+	sort.Slice(candidates, func(i, j int) bool {
+		a, b := candidates[i], candidates[j]
+		if a.physical != b.physical {
+			return a.physical
+		}
+		if a.hasPrivIP != b.hasPrivIP {
+			return a.hasPrivIP
+		}
+		return a.name < b.name
+	})
+
+	return candidates[0].mac, nil
+}
+
+// isPhysicalInterface returns false for known virtual interface name prefixes.
+func isPhysicalInterface(name string) bool {
+	name = strings.ToLower(name)
+	virtual := []string{
+		"veth", "docker", "br-", "virbr", "vnet",
+		"tun", "tap", "flannel", "cni", "calico",
+		"wg", "tailscale", "zt",
+	}
+	for _, prefix := range virtual {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+func hostnameSafe() (string, error) {
+	return os.Hostname()
 }

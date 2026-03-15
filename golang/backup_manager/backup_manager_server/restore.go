@@ -285,6 +285,15 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 	// gRPC services also need to re-register their ports in the restored etcd.
 	srv.restartAllServices(ctx)
 
+	// Schedule a delayed self-restart so the backup-manager reloads the
+	// restored job store from disk. We can't restart immediately because
+	// we need to finish writing the restore job result first.
+	go func() {
+		time.Sleep(5 * time.Second)
+		slog.Info("restore: scheduling backup-manager self-restart to reload job store")
+		_ = exec.CommandContext(context.Background(), "sudo", "systemctl", "restart", "globular-backup-manager.service").Run()
+	}()
+
 	if allOk {
 		job.State = backup_managerpb.BackupJobState_BACKUP_JOB_SUCCEEDED
 		job.Message = "restore completed successfully"

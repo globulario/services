@@ -1,0 +1,654 @@
+package main
+
+import (
+	"context"
+	"log"
+	"strings"
+	"time"
+
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/cluster_controller/resourcestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controllerpb.ReportNodeStatusRequest) (*cluster_controllerpb.ReportNodeStatusResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil || req.GetStatus() == nil || req.GetStatus().GetNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "status.node_id is required")
+	}
+
+	// Node identity + own-node scope enforcement
+	if err := enforceNodeScope(ctx, req.GetStatus().GetNodeId(), "/clustercontroller.ClusterControllerService/ReportNodeStatus"); err != nil {
+		return nil, err
+	}
+	nodeStatus := req.GetStatus()
+	ns := nodeStatus
+	nodeID := strings.TrimSpace(ns.GetNodeId())
+	newIdentity := protoToStoredIdentity(ns.GetIdentity())
+	newEndpoint := strings.TrimSpace(ns.GetAgentEndpoint())
+	reportedAt := time.Now()
+	if ts := ns.GetReportedAt(); ts != nil {
+		reportedAt = ts.AsTime()
+	}
+	rawUnits := protoUnitsToStored(ns.GetUnits())
+	units := normalizedUnits(rawUnits)
+	lastError := ns.GetLastError()
+	appliedSvcHash := strings.ToLower(strings.TrimSpace(ns.GetAppliedServicesHash()))
+	installedVersions := ns.GetInstalledVersions()
+	installedUnitFiles := ns.GetInstalledUnitFiles()
+	inventoryComplete := ns.GetInventoryComplete()
+
+	// Snapshot existing node for evaluation without holding the lock during compute.
+	srv.lock("ReportNodeStatus:snapshot")
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		// Auto-register unknown nodes that report with valid credentials.
+		// This handles post-restore scenarios where controller state was wiped
+		// but node-agents still have their node IDs and keep heartbeating.
+		log.Printf("ReportNodeStatus: auto-registering unknown node %s (hostname=%s endpoint=%s)",
+			nodeID, newIdentity.Hostname, newEndpoint)
+		node = &nodeState{
+			NodeID:        nodeID,
+			Identity:      newIdentity,
+			AgentEndpoint: newEndpoint,
+			LastSeen:      reportedAt,
+			ReportedAt:    reportedAt,
+			Status:        "ready",
+			Profiles:      []string{"control-plane", "gateway"},
+			Metadata:      make(map[string]string),
+		}
+		if srv.state.Nodes == nil {
+			srv.state.Nodes = make(map[string]*nodeState)
+		}
+		srv.state.Nodes[nodeID] = node
+
+		// Clean up stale nodes with the same hostname or IP that are
+		// unreachable/unhealthy. After a restore the same physical machine
+		// gets a new node ID; the old entry lingers as "unreachable."
+		srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
+
+		srv.persistStateLocked(true)
+	}
+	nodeSnapshot := *node
+	srv.unlock()
+
+	healthStatus, reason := srv.evaluateNodeStatus(&nodeSnapshot, units)
+	if lastError == "" && reason != "" && healthStatus != "ready" {
+		lastError = reason
+	}
+
+	if testHookBeforeReportNodeStatusApply != nil {
+		testHookBeforeReportNodeStatusApply()
+	}
+
+	srv.lock("ReportNodeStatus:commit")
+	defer srv.unlock()
+	node = srv.state.Nodes[nodeID]
+	if node == nil {
+		return nil, status.Error(codes.NotFound, "node not found")
+	}
+	changed := false
+
+	if !identitiesEqual(node.Identity, newIdentity) {
+		changed = true
+	}
+	node.Identity = newIdentity
+
+	oldEndpoint := node.AgentEndpoint
+	node.AgentEndpoint = newEndpoint
+	node.ReportedAt = reportedAt
+	node.LastSeen = reportedAt
+
+	if !unitsEqual(node.Units, units) {
+		node.Units = units
+		changed = true
+	}
+	if node.Status != healthStatus {
+		node.Status = healthStatus
+		changed = true
+	}
+	if node.LastError != lastError {
+		node.LastError = lastError
+		changed = true
+	}
+	hashChanged := node.AppliedServicesHash != appliedSvcHash
+	if hashChanged {
+		node.AppliedServicesHash = appliedSvcHash
+		changed = true
+	}
+	// Persist the node-reported inventory hash under the observed key.
+	// This is distinct from applied_hash_services which is only set by the
+	// reconciler when convergence with the desired state is confirmed.
+	if appliedSvcHash != "" && inventoryComplete {
+		if err := srv.putNodeObservedServiceHash(ctx, nodeID, appliedSvcHash); err != nil {
+			log.Printf("ReportNodeStatus: store observed service hash for %s: %v", nodeID, err)
+		}
+	}
+	// Update installed versions when the node reports inventory, even if empty
+	// (inventoryComplete=true means the node has finished scanning).
+	if len(installedVersions) > 0 || inventoryComplete {
+		if !mapsEqual(node.InstalledVersions, installedVersions) {
+			node.InstalledVersions = installedVersions
+			changed = true
+		}
+	}
+	// Store hardware capabilities if reported.
+	if caps := nodeStatus.GetCapabilities(); caps != nil {
+		node.Capabilities = capsToStored(caps)
+	}
+	// Phase 3: store installed unit file inventory and inventory_complete flag.
+	if inventoryComplete || len(installedUnitFiles) > 0 {
+		// Merge the reported unit files into the node's unit list as "inactive" records
+		// so that missingInstalledUnits can find them. Only add entries not already present.
+		unitMap := make(map[string]string, len(node.Units))
+		for _, u := range node.Units {
+			unitMap[strings.ToLower(u.Name)] = u.State
+		}
+		for _, uf := range installedUnitFiles {
+			name := strings.ToLower(strings.TrimSpace(uf))
+			if name == "" {
+				continue
+			}
+			if _, exists := unitMap[name]; !exists {
+				node.Units = append(node.Units, unitStatusRecord{Name: uf, State: "inactive"})
+				unitMap[name] = "inactive"
+				changed = true
+			}
+		}
+		if node.InventoryComplete != inventoryComplete {
+			node.InventoryComplete = inventoryComplete
+			changed = true
+		}
+	}
+	if oldEndpoint != newEndpoint {
+		changed = true
+	}
+
+	// Phase 4b: commit or discard pending rendered config hashes based on apply outcome.
+	// A report received after the plan was dispatched is our confirmation signal.
+	if len(node.PendingRenderedConfigHashes) > 0 && !node.LastPlanSentAt.IsZero() &&
+		reportedAt.After(node.LastPlanSentAt) {
+		if healthStatus == "ready" {
+			// Agent is healthy after plan dispatch — config files are on disk.
+			node.RenderedConfigHashes = node.PendingRenderedConfigHashes
+			node.PendingRenderedConfigHashes = nil
+			changed = true
+		} else if healthStatus == "error" || healthStatus == "failed" {
+			// Agent explicitly failed — clear pending so next cycle retries.
+			node.PendingRenderedConfigHashes = nil
+			changed = true
+		}
+		// For other states (converging, etc.) keep pending and wait.
+	}
+	endpointToClose := ""
+	if oldEndpoint != "" && oldEndpoint != newEndpoint {
+		endpointToClose = oldEndpoint
+	}
+	if changed {
+		if err := srv.persistStateLocked(false); err != nil {
+			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
+		}
+	}
+
+	// When the applied services hash changes, re-enqueue any ServiceReleases that
+	// include this node so drift detection can re-evaluate and potentially recover
+	// DEGRADED releases without waiting for the next spec change.
+	if hashChanged && srv.releaseEnqueue != nil && srv.resources != nil {
+		enqueue := srv.releaseEnqueue
+		resources := srv.resources
+		nID := nodeID
+		go func() {
+			items, _, err := resources.List(context.Background(), "ServiceRelease", "")
+			if err != nil {
+				return
+			}
+			for _, obj := range items {
+				rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+				if !ok || rel.Meta == nil {
+					continue
+				}
+				if rel.Status == nil {
+					continue
+				}
+				for _, nrs := range rel.Status.Nodes {
+					if nrs != nil && nrs.NodeID == nID {
+						enqueue(rel.Meta.Name)
+						break
+					}
+				}
+			}
+		}()
+	}
+
+	// Trigger B: When a node reports installed versions and desired state is
+	// empty, auto-import from installed. This catches the case where a node
+	// joins or reports before the startup auto-import has run.
+	// Debounced by autoImportDone to avoid running on every heartbeat.
+	if len(installedVersions) > 0 && srv.resources != nil && !srv.autoImportDone.Load() {
+		resources := srv.resources
+		safeGo("report-node-auto-import", func() {
+			items, _, err := resources.List(context.Background(), "ServiceDesiredVersion", "")
+			if err != nil || len(items) > 0 {
+				if len(items) > 0 {
+					srv.autoImportDone.Store(true)
+				}
+				return
+			}
+			// Desired state is empty — import from installed.
+			logger.Info("ReportNodeStatus: desired state empty, auto-importing from installed")
+			stats, err := srv.importInstalledToDesired(context.Background())
+			if err != nil {
+				logger.Warn("ReportNodeStatus: auto-import failed", "error", err)
+				return
+			}
+			srv.autoImportDone.Store(true)
+			logger.Info("ReportNodeStatus: auto-import complete",
+				"imported", stats.Imported,
+				"already_present", stats.AlreadyPresent,
+				"failed", stats.Failed)
+			if (stats.Imported > 0 || stats.Updated > 0) && srv.enqueueReconcile != nil {
+				srv.enqueueReconcile()
+			}
+		})
+	}
+
+	if endpointToClose != "" {
+		srv.closeAgentClient(endpointToClose)
+	}
+	return &cluster_controllerpb.ReportNodeStatusResponse{
+		Message: "status recorded",
+	}, nil
+}
+
+func (srv *server) ReportPlanRejection(ctx context.Context, req *cluster_controllerpb.ReportPlanRejectionRequest) (*cluster_controllerpb.ReportPlanRejectionResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is nil")
+	}
+
+	// Node identity + own-node scope enforcement
+	if err := enforceNodeScope(ctx, req.GetNodeId(), "/clustercontroller.ClusterControllerService/ReportPlanRejection"); err != nil {
+		return nil, err
+	}
+
+	log.Printf("WARN plan-rejection: node=%s plan=%s gen=%d reason=%s detail=%s",
+		req.GetNodeId(), req.GetPlanId(), req.GetGeneration(), req.GetReason(), req.GetDetail())
+
+	// Emit cluster event for observability
+	srv.emitClusterEvent("plan_rejected", map[string]interface{}{
+		"severity":       "WARN",
+		"node_id":        req.GetNodeId(),
+		"plan_id":        req.GetPlanId(),
+		"generation":     req.GetGeneration(),
+		"reason":         req.GetReason(),
+		"detail":         req.GetDetail(),
+		"rejected_at_ms": req.GetRejectedAtUnixMs(),
+	})
+
+	return &cluster_controllerpb.ReportPlanRejectionResponse{}, nil
+}
+
+// ResourcesService implementation
+func (srv *server) ApplyClusterNetwork(ctx context.Context, req *cluster_controllerpb.ApplyClusterNetworkRequest) (*cluster_controllerpb.ClusterNetwork, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil || req.Object == nil || req.Object.Spec == nil || strings.TrimSpace(req.Object.Spec.ClusterDomain) == "" {
+		return nil, status.Error(codes.InvalidArgument, "cluster_network.spec.cluster_domain is required")
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.Object
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	obj.Meta.Name = "default"
+	applied, err := srv.resources.Apply(ctx, "ClusterNetwork", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply cluster network: %v", err)
+	}
+	return applied.(*cluster_controllerpb.ClusterNetwork), nil
+}
+
+func (srv *server) GetClusterNetwork(ctx context.Context, _ *cluster_controllerpb.GetClusterNetworkRequest) (*cluster_controllerpb.ClusterNetwork, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ClusterNetwork", "default")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get cluster network: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Error(codes.NotFound, "cluster network not found")
+	}
+	return obj.(*cluster_controllerpb.ClusterNetwork), nil
+}
+
+func (srv *server) ApplyServiceDesiredVersion(ctx context.Context, req *cluster_controllerpb.ApplyServiceDesiredVersionRequest) (*cluster_controllerpb.ServiceDesiredVersion, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	if req == nil || req.Object == nil || req.Object.Spec == nil || strings.TrimSpace(req.Object.Spec.ServiceName) == "" || strings.TrimSpace(req.Object.Spec.Version) == "" {
+		return nil, status.Error(codes.InvalidArgument, "service_name and version are required")
+	}
+	canon := canonicalServiceName(req.Object.Spec.ServiceName)
+	if canon == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid service_name")
+	}
+	obj := req.Object
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	obj.Meta.Name = canon
+	obj.Spec.ServiceName = canon
+	applied, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply service desired version: %v", err)
+	}
+	return applied.(*cluster_controllerpb.ServiceDesiredVersion), nil
+}
+
+func (srv *server) DeleteServiceDesiredVersion(ctx context.Context, req *cluster_controllerpb.DeleteServiceDesiredVersionRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := canonicalServiceName(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete service desired version: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_controllerpb.ListServiceDesiredVersionsRequest) (*cluster_controllerpb.ListServiceDesiredVersionsResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list service desired versions: %v", err)
+	}
+	out := &cluster_controllerpb.ListServiceDesiredVersionsResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.ServiceDesiredVersion))
+	}
+	return out, nil
+}
+
+func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.ServiceName) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.service_name are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	// Canonical name: publisher/service to keep it unique across publishers.
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + canonicalServiceName(obj.Spec.ServiceName)
+	}
+	applied, err := srv.resources.Apply(ctx, "ServiceRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply service release: %v", err)
+	}
+	return applied.(*cluster_controllerpb.ServiceRelease), nil
+}
+
+func (srv *server) GetServiceRelease(ctx context.Context, req *cluster_controllerpb.GetServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get service release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "service release %q not found", name)
+	}
+	return obj.(*cluster_controllerpb.ServiceRelease), nil
+}
+
+func (srv *server) ListServiceReleases(ctx context.Context, _ *cluster_controllerpb.ListServiceReleasesRequest) (*cluster_controllerpb.ListServiceReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list service releases: %v", err)
+	}
+	out := &cluster_controllerpb.ListServiceReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.ServiceRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteServiceRelease(ctx context.Context, req *cluster_controllerpb.DeleteServiceReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ServiceRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete service release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ── ApplicationRelease CRUD ──────────────────────────────────────────────────
+
+func (srv *server) ApplyApplicationRelease(ctx context.Context, req *cluster_controllerpb.ApplyApplicationReleaseRequest) (*cluster_controllerpb.ApplicationRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.AppName) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.app_name are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + obj.Spec.AppName
+	}
+	applied, err := srv.resources.Apply(ctx, "ApplicationRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply application release: %v", err)
+	}
+	return applied.(*cluster_controllerpb.ApplicationRelease), nil
+}
+
+func (srv *server) GetApplicationRelease(ctx context.Context, req *cluster_controllerpb.GetApplicationReleaseRequest) (*cluster_controllerpb.ApplicationRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ApplicationRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get application release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "application release %q not found", name)
+	}
+	return obj.(*cluster_controllerpb.ApplicationRelease), nil
+}
+
+func (srv *server) ListApplicationReleases(ctx context.Context, _ *cluster_controllerpb.ListApplicationReleasesRequest) (*cluster_controllerpb.ListApplicationReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ApplicationRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list application releases: %v", err)
+	}
+	out := &cluster_controllerpb.ListApplicationReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.ApplicationRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteApplicationRelease(ctx context.Context, req *cluster_controllerpb.DeleteApplicationReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ApplicationRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete application release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ── InfrastructureRelease CRUD ───────────────────────────────────────────────
+
+func (srv *server) ApplyInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.ApplyInfrastructureReleaseRequest) (*cluster_controllerpb.InfrastructureRelease, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.GetObject()
+	if obj == nil || obj.Spec == nil {
+		return nil, status.Error(codes.InvalidArgument, "object and spec are required")
+	}
+	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.Component) == "" {
+		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.component are required")
+	}
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
+	}
+	if obj.Meta.Name == "" {
+		obj.Meta.Name = obj.Spec.PublisherID + "/" + obj.Spec.Component
+	}
+	applied, err := srv.resources.Apply(ctx, "InfrastructureRelease", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply infrastructure release: %v", err)
+	}
+	return applied.(*cluster_controllerpb.InfrastructureRelease), nil
+}
+
+func (srv *server) GetInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.GetInfrastructureReleaseRequest) (*cluster_controllerpb.InfrastructureRelease, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get infrastructure release: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Errorf(codes.NotFound, "infrastructure release %q not found", name)
+	}
+	return obj.(*cluster_controllerpb.InfrastructureRelease), nil
+}
+
+func (srv *server) ListInfrastructureReleases(ctx context.Context, _ *cluster_controllerpb.ListInfrastructureReleasesRequest) (*cluster_controllerpb.ListInfrastructureReleasesResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list infrastructure releases: %v", err)
+	}
+	out := &cluster_controllerpb.ListInfrastructureReleasesResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*cluster_controllerpb.InfrastructureRelease))
+	}
+	return out, nil
+}
+
+func (srv *server) DeleteInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.DeleteInfrastructureReleaseRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := strings.TrimSpace(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "InfrastructureRelease", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete infrastructure release: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (srv *server) Watch(req *cluster_controllerpb.WatchRequest, stream cluster_controllerpb.ResourcesService_WatchServer) error {
+	if srv.resources == nil {
+		return status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request required")
+	}
+	ch, err := srv.resources.Watch(stream.Context(), req.GetType(), req.GetPrefix(), req.GetFromResourceVersion())
+	if err != nil {
+		return status.Errorf(codes.Internal, "watch: %v", err)
+	}
+	if req.GetIncludeExisting() {
+		items, rv, err := srv.resources.List(stream.Context(), req.GetType(), req.GetPrefix())
+		if err == nil {
+			for _, obj := range items {
+				evt := resourcestore.Event{Type: resourcestore.EventAdded, ResourceVersion: rv, Object: obj}
+				if err := stream.Send(toWatchEvent(req.GetType(), evt)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for evt := range ch {
+		if err := stream.Send(toWatchEvent(req.GetType(), evt)); err != nil {
+			return err
+		}
+	}
+	return nil
+}

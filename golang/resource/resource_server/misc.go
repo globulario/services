@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/plan/versionutil"
@@ -990,23 +992,27 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Use the generated UUID to count by primary key (id), which is efficient for
-	// all store types. The name/version/publisher query (q) falls back to
-	// estimateTableCount on ScyllaDB — unreliable for newly-created tables — so
-	// we always filter on the canonical primary key instead.
-	countQ := `SELECT * FROM Packages WHERE id = '` + rqst.PackageDescriptor.Id + `'`
+	// Verify the upsert succeeded by reading back the record.
+	// Use FindOne (direct primary-key lookup) instead of Count, which is
+	// unreliable on ScyllaDB for recently-written rows due to async replication.
+	verifyQ := `SELECT * FROM Packages WHERE id = '` + rqst.PackageDescriptor.Id + `'`
 	if p.GetStoreType() == "MONGO" {
-		countQ = `{"_id":"` + rqst.PackageDescriptor.Id + `"}`
+		verifyQ = `{"_id":"` + rqst.PackageDescriptor.Id + `"}`
 	} else if p.GetStoreType() == "SQL" {
-		countQ = `SELECT * FROM Packages WHERE id='` + rqst.PackageDescriptor.Id + `'`
+		verifyQ = `SELECT * FROM Packages WHERE id='` + rqst.PackageDescriptor.Id + `'`
 	}
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", countQ, "")
-	if count == 0 || err != nil {
+	_, verifyErr := p.FindOne(context.Background(), "local_resource", "local_resource", "Packages", verifyQ, "")
+	if verifyErr != nil {
+		// On ScyllaDB the row may not be immediately visible (eventual consistency).
+		// Retry once after a short delay before failing.
+		time.Sleep(500 * time.Millisecond)
+		_, verifyErr = p.FindOne(context.Background(), "local_resource", "local_resource", "Packages", verifyQ, "")
+	}
+	if verifyErr != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unable to create the package descriptor")))
-
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("unable to verify package descriptor after upsert: %w", verifyErr)))
 	}
 
 	return &resourcepb.SetPackageDescriptorResponse{

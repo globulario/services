@@ -147,7 +147,7 @@ func (s *NodeAgentServer) runResticProvider(ctx context.Context, req *node_agent
 	}
 	pathsStr := opts["paths"]
 	if pathsStr == "" {
-		pathsStr = "/var/lib/globular"
+		pathsStr = "/var/lib/globular,/var/backups/globular"
 	}
 
 	outputs["repo"] = repo
@@ -203,6 +203,8 @@ func (s *NodeAgentServer) runResticProvider(ctx context.Context, req *node_agent
 		"--tag", "globular",
 		"--tag", "backup_id:" + req.BackupId,
 		"--tag", "node_id:" + nodeID,
+		// Exclude the restic repo itself to avoid backing up the repo into itself.
+		"--exclude", repo,
 	}
 	args = append(args, validPaths...)
 
