@@ -240,6 +240,12 @@ func (s *server) handleToolsCall(ctx context.Context, req *jsonRPCRequest) *json
 		auditLog(ctx, params.Name, params.Arguments, start, err)
 	}
 	if err != nil {
+		// Invalidate cached connections on TLS or connectivity errors so
+		// the next call re-dials with fresh credentials. This handles
+		// cert rotation and cluster reinstalls without requiring a restart.
+		if isConnError(err) {
+			s.clients.close()
+		}
 		errText := translateError(err)
 		return &jsonRPCResponse{
 			JSONRPC: "2.0",
@@ -248,6 +254,19 @@ func (s *server) handleToolsCall(ctx context.Context, req *jsonRPCRequest) *json
 				Content: []toolResultContent{{Type: "text", Text: errText}},
 				IsError: true,
 			},
+		}
+	}
+
+	// Also check successful results for embedded connectivity errors
+	// (composed tools return partial results with error lists).
+	if m, ok := result.(map[string]interface{}); ok {
+		if errs, ok := m["errors"].([]string); ok {
+			for _, e := range errs {
+				if isConnError(fmt.Errorf("%s", e)) {
+					s.clients.close()
+					break
+				}
+			}
 		}
 	}
 

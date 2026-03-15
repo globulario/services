@@ -44,6 +44,18 @@ func (p *clientPool) get(ctx context.Context, endpoint string) (*grpc.ClientConn
 	return conn, nil
 }
 
+// invalidate removes a cached connection for the given endpoint and closes it.
+// Called when an RPC fails with a TLS or connectivity error so the next call
+// re-dials with fresh credentials.
+func (p *clientPool) invalidate(endpoint string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if conn, ok := p.conns[endpoint]; ok {
+		conn.Close()
+		delete(p.conns, endpoint)
+	}
+}
+
 func (p *clientPool) close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -159,6 +171,20 @@ func doctorEndpoint() string {
 		return ep
 	}
 	return gatewayEndpoint()
+}
+
+// isConnError returns true when an error indicates a TLS or transport-level
+// failure that warrants invalidating cached gRPC connections.
+func isConnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "authentication handshake failed") ||
+		strings.Contains(msg, "certificate signed by unknown authority") ||
+		strings.Contains(msg, "tls:") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "transport is closing")
 }
 
 // ── Error translation ───────────────────────────────────────────────────────
