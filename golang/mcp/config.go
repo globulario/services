@@ -55,7 +55,7 @@ type ToolGroupConfig struct {
 	Backup      bool `json:"backup"`      // default true
 	RBAC        bool `json:"rbac"`        // default true
 	Resource    bool `json:"resource"`    // default true
-	File        bool `json:"file"`        // default false (requires allowlist)
+	File        bool `json:"file"`        // default true (scoped to allowed roots)
 	Persistence bool `json:"persistence"` // default false (requires allowlist)
 	Storage     bool `json:"storage"`     // default false (requires allowlist)
 	Composed    bool `json:"composed"`    // default true
@@ -104,13 +104,13 @@ func defaultConfig() *MCPConfig {
 			RBAC:        true,
 			Resource:    true,
 			Composed:    true,
-			File:        false, // requires explicit allowlist
+			File:        true,
 			Persistence: false, // requires explicit allowlist
 			Storage:     false, // requires explicit allowlist
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 		},
-		FileAllowedRoots:          []string{},
+		FileAllowedRoots:          []string{"/users", "/applications", "/var/lib/globular/webroot", "/var/lib/globular/data/files"},
 		PersistenceAllowedConns:   []string{},
 		PersistenceAllowedDBs:     []string{},
 		PersistenceAllowedColls:   []string{},

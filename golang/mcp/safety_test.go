@@ -178,8 +178,8 @@ func TestDefaultConfigSafe(t *testing.T) {
 	if !cfg.AuditLog {
 		t.Error("default must have audit logging")
 	}
-	if cfg.ToolGroups.File {
-		t.Error("file tools must be disabled by default")
+	if !cfg.ToolGroups.File {
+		t.Error("file tools must be enabled by default")
 	}
 	if cfg.ToolGroups.Persistence {
 		t.Error("persistence tools must be disabled by default")
@@ -193,8 +193,8 @@ func TestDefaultConfigSafe(t *testing.T) {
 	if !cfg.ToolGroups.Backup {
 		t.Error("backup tools must be enabled by default")
 	}
-	if len(cfg.FileAllowedRoots) != 0 {
-		t.Error("file roots must be empty by default")
+	if len(cfg.FileAllowedRoots) == 0 {
+		t.Error("file roots must include default paths")
 	}
 	if len(cfg.PersistenceAllowedConns) != 0 {
 		t.Error("persistence conns must be empty by default")
