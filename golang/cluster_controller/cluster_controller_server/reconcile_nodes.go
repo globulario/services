@@ -222,7 +222,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				continue
 			}
 			plan.PlanId = uuid.NewString()
-			plan.ClusterId = srv.state.ClusterId
+			plan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
 			plan.NodeId = node.NodeID
 			plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
 			plan.DesiredHash = specHash
@@ -318,7 +318,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 			rmPlan := BuildServiceRemovePlan(node.NodeID, remSvc, svcHash)
 			rmPlan.PlanId = uuid.NewString()
-			rmPlan.ClusterId = srv.state.ClusterId
+			rmPlan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
 			rmPlan.NodeId = node.NodeID
 			rmPlan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
 			rmPlan.DesiredHash = svcHash
@@ -499,7 +499,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}
 		plan.PlanId = uuid.NewString()
-		plan.ClusterId = srv.state.ClusterId
+		plan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
 		plan.NodeId = node.NodeID
 		plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
 		plan.DesiredHash = svcHash
