@@ -487,7 +487,25 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 			continue
 		}
-		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, svcHash)
+		// Resolve the artifact digest from the repository so the plan can
+		// verify the download. The desired-state hash (svcHash) is NOT an
+		// artifact SHA256 — we must look up the actual artifact checksum.
+		// When resolution fails (key format mismatch, repo unavailable),
+		// pass "skip" to signal the fetcher to download without
+		// pre-verification while still computing the hash post-download.
+		artifactDigest := ""
+		resolver := &ReleaseResolver{RepositoryAddr: resolveRepositoryInfo().Address}
+		resolved, err := resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
+			ServiceName: canonicalServiceName(svcName),
+			Version:     version,
+			PublisherID: defaultPublisherID(),
+		})
+		if err != nil {
+			log.Printf("reconcile: resolve artifact %s@%s: %v (plan will skip digest pre-check)", svcName, version, err)
+		} else if resolved != nil {
+			artifactDigest = resolved.Digest
+		}
+		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, artifactDigest)
 		if plan != nil {
 			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
 			if err != nil {
