@@ -268,8 +268,12 @@ func (srv *server) reconcileDesiredWithInstalled(ctx context.Context) {
 		if canon == "" {
 			continue
 		}
-		// Remove commands and services not in installed-state.
-		if strings.HasSuffix(canon, "-cmd") || !installedNames[canon] {
+		// Remove command-type entries from desired state — commands are
+		// one-shot and should not persist as desired services.
+		// NOTE: Do NOT remove services that are desired but not yet
+		// installed — that is the "Planned" state, and the reconciler
+		// needs the desired entry to generate an install plan.
+		if strings.HasSuffix(canon, "-cmd") {
 			if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
 				removed++
 			}
