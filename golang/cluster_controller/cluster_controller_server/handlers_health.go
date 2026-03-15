@@ -172,7 +172,7 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		// etcd, minio, etc.) are managed by bootstrap and must not trigger
 		// this state — they don't flow through the convergence loop.
 		svcOnlyFiltered := filterVersionsForNode(serviceOnlyDesired, node)
-		if desiredSvcHash != "" && !canPriv {
+		if desiredSvcHash != "" {
 			hasMissing := false
 			for svc, desiredVer := range svcOnlyFiltered {
 				installedVer := ""
@@ -192,12 +192,23 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 					break
 				}
 			}
-			if hasMissing {
+			if hasMissing && !canPriv {
 				isActive := status != nil &&
 					(status.GetState() == planpb.PlanState_PLAN_RUNNING ||
 						status.GetState() == planpb.PlanState_PLAN_ROLLING_BACK)
 				if !isActive {
 					phase = planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY.String()
+				}
+			}
+			// Stamp the applied service hash when all desired services are
+			// already installed at the correct version but the hash was never
+			// written (e.g. services installed externally via bootstrap/CLI).
+			if !hasMissing && appliedSvcHash != desiredSvcHash && len(svcOnlyFiltered) > 0 && len(node.InstalledVersions) > 0 {
+				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, desiredSvcHash); err != nil {
+					log.Printf("health: stamp applied service hash for %s: %v", node.NodeID, err)
+				} else {
+					log.Printf("health: external install detected for node %s — all %d services converged, stamped applied hash", node.NodeID, len(svcOnlyFiltered))
+					appliedSvcHash = desiredSvcHash
 				}
 			}
 		}
