@@ -985,5 +985,127 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.rotateNodeToken =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetServiceLogsRequest,
+ *   !proto.node_agent.GetServiceLogsResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetServiceLogs = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetServiceLogs',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetServiceLogsRequest,
+  proto.node_agent.GetServiceLogsResponse,
+  /**
+   * @param {!proto.node_agent.GetServiceLogsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetServiceLogsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetServiceLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetServiceLogsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetServiceLogsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getServiceLogs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetServiceLogs',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetServiceLogs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetServiceLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetServiceLogsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getServiceLogs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetServiceLogs',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetServiceLogs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetCertificateStatusRequest,
+ *   !proto.node_agent.GetCertificateStatusResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetCertificateStatus = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetCertificateStatus',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetCertificateStatusRequest,
+  proto.node_agent.GetCertificateStatusResponse,
+  /**
+   * @param {!proto.node_agent.GetCertificateStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetCertificateStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetCertificateStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetCertificateStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetCertificateStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getCertificateStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetCertificateStatus',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetCertificateStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetCertificateStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetCertificateStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getCertificateStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetCertificateStatus',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetCertificateStatus);
+};
+
+
 module.exports = proto.node_agent;
 

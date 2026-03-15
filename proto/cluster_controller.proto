@@ -84,6 +84,7 @@ message NodeCapabilities {
   uint64 disk_bytes      = 3;  // total capacity of primary volume in bytes
   uint64 disk_free_bytes = 4;  // free bytes on primary volume
   bool can_apply_privileged = 5;  // true when node can write systemd units (root or equivalent)
+  string privilege_reason   = 6;  // human-readable reason: "running as root", "direct systemd write access", etc.
 }
 
 message NodeRecord {
@@ -509,6 +510,7 @@ message GetNodeHealthDetailV1Response {
   bool   can_apply_privileged = 6;
   bool   inventory_complete   = 7;
   google.protobuf.Timestamp last_seen = 8;
+  string privilege_reason     = 9;  // human-readable privilege capability reason
 }
 
 // PreviewNodeProfiles dry-run messages (Phase 5).

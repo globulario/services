@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -87,9 +88,27 @@ func EnableNow(ctx context.Context, unit string) error {
 	return err
 }
 
-// Start starts the unit.
+// Start starts the unit. If the first attempt fails, it retries up to 3 times
+// with a short delay. During bootstrap, services may fail to start on the first
+// try because dependencies (etcd, TLS certs, etc.) are still initializing.
 func Start(ctx context.Context, unit string) error {
-	_, err := ApplyUnitAction(ctx, unit, "start")
+	var err error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * 2 * time.Second):
+			}
+			// Reset failed state so systemd allows another start attempt
+			// (avoids "Start request repeated too quickly" rate limit).
+			_ = exec.CommandContext(ctx, "systemctl", "reset-failed", unit).Run()
+		}
+		_, err = ApplyUnitAction(ctx, unit, "start")
+		if err == nil {
+			return nil
+		}
+	}
 	return err
 }
 
@@ -112,6 +131,26 @@ func Status(ctx context.Context, unit string) (string, error) {
 	}
 	out, err := runSystemctl(ctx, "status", unit, "--no-pager", "-n", "0")
 	return out, err
+}
+
+// ReadJournalctl reads recent journal entries for a systemd unit.
+func ReadJournalctl(ctx context.Context, unit string, lines int, priority string) (string, error) {
+	if unit == "" {
+		return "", errors.New("unit name is required")
+	}
+	if lines <= 0 {
+		lines = 50
+	}
+	if lines > 200 {
+		lines = 200
+	}
+	args := []string{"-u", unit, "-n", strconv.Itoa(lines), "--no-pager", "-o", "short-iso"}
+	if priority != "" {
+		args = append(args, "-p", priority)
+	}
+	cmd := exec.CommandContext(ctx, "journalctl", args...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
 }
 
 // WaitActive blocks until unit becomes active or timeout expires.

@@ -95,6 +95,7 @@ type storedCapabilities struct {
 	DiskBytes           uint64 `json:"disk_bytes"`
 	DiskFreeBytes       uint64 `json:"disk_free_bytes"`
 	CanApplyPrivileged  bool   `json:"can_apply_privileged,omitempty"`
+	PrivilegeReason     string `json:"privilege_reason,omitempty"`
 }
 
 type unitStatusRecord struct {

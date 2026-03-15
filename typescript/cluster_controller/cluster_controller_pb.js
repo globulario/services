@@ -3809,7 +3809,8 @@ cpuCount: jspb.Message.getFieldWithDefault(msg, 1, 0),
 ramBytes: jspb.Message.getFieldWithDefault(msg, 2, 0),
 diskBytes: jspb.Message.getFieldWithDefault(msg, 3, 0),
 diskFreeBytes: jspb.Message.getFieldWithDefault(msg, 4, 0),
-canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+privilegeReason: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -3865,6 +3866,10 @@ proto.cluster_controller.NodeCapabilities.deserializeBinaryFromReader = function
     case 5:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setCanApplyPrivileged(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPrivilegeReason(value);
       break;
     default:
       reader.skipField();
@@ -3927,6 +3932,13 @@ proto.cluster_controller.NodeCapabilities.serializeBinaryToWriter = function(mes
   if (f) {
     writer.writeBool(
       5,
+      f
+    );
+  }
+  f = message.getPrivilegeReason();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -4020,6 +4032,24 @@ proto.cluster_controller.NodeCapabilities.prototype.getCanApplyPrivileged = func
  */
 proto.cluster_controller.NodeCapabilities.prototype.setCanApplyPrivileged = function(value) {
   return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional string privilege_reason = 6;
+ * @return {string}
+ */
+proto.cluster_controller.NodeCapabilities.prototype.getPrivilegeReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.NodeCapabilities} returns this
+ */
+proto.cluster_controller.NodeCapabilities.prototype.setPrivilegeReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
@@ -15913,7 +15943,8 @@ checksList: jspb.Message.toObjectList(msg.getChecksList(),
 lastError: jspb.Message.getFieldWithDefault(msg, 5, ""),
 canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
 inventoryComplete: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
-lastSeen: (f = msg.getLastSeen()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+lastSeen: (f = msg.getLastSeen()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
+privilegeReason: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -15983,6 +16014,10 @@ proto.cluster_controller.GetNodeHealthDetailV1Response.deserializeBinaryFromRead
       var value = new google_protobuf_timestamp_pb.Timestamp;
       reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
       msg.setLastSeen(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPrivilegeReason(value);
       break;
     default:
       reader.skipField();
@@ -16069,6 +16104,13 @@ proto.cluster_controller.GetNodeHealthDetailV1Response.serializeBinaryToWriter =
       8,
       f,
       google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+  f = message.getPrivilegeReason();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
     );
   }
 };
@@ -16254,6 +16296,24 @@ proto.cluster_controller.GetNodeHealthDetailV1Response.prototype.clearLastSeen =
  */
 proto.cluster_controller.GetNodeHealthDetailV1Response.prototype.hasLastSeen = function() {
   return jspb.Message.getField(this, 8) != null;
+};
+
+
+/**
+ * optional string privilege_reason = 9;
+ * @return {string}
+ */
+proto.cluster_controller.GetNodeHealthDetailV1Response.prototype.getPrivilegeReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.GetNodeHealthDetailV1Response} returns this
+ */
+proto.cluster_controller.GetNodeHealthDetailV1Response.prototype.setPrivilegeReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 

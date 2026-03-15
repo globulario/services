@@ -224,6 +224,12 @@ service NodeAgentService {
 
   // Node identity token rotation (Phase 2)
   rpc RotateNodeToken(RotateNodeTokenRequest) returns (RotateNodeTokenResponse);
+
+  // Observability: read service journal logs
+  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse);
+
+  // Observability: TLS certificate status
+  rpc GetCertificateStatus(GetCertificateStatusRequest) returns (GetCertificateStatusResponse);
 }
 
 // ── Node identity token rotation (Phase 2) ──
@@ -235,4 +241,38 @@ message RotateNodeTokenRequest {
 
 message RotateNodeTokenResponse {
   bool ok = 1;
+}
+
+// ── Service log retrieval ──
+
+message GetServiceLogsRequest {
+  string unit = 1;        // systemd unit name (must start with "globular-")
+  int32  lines = 2;       // max lines to return (capped at 200)
+  string priority = 3;    // optional journalctl priority filter: "emerg","alert","crit","err","warning","notice","info","debug"
+}
+
+message GetServiceLogsResponse {
+  string unit = 1;
+  int32  line_count = 2;
+  repeated string lines = 3;
+}
+
+// ── Certificate status ──
+
+message CertificateInfo {
+  string subject = 1;
+  string issuer = 2;
+  repeated string sans = 3;   // Subject Alternative Names
+  string not_before = 4;      // RFC3339
+  string not_after = 5;       // RFC3339
+  int32  days_until_expiry = 6;
+  bool   chain_valid = 7;
+  string fingerprint = 8;     // SHA256 fingerprint
+}
+
+message GetCertificateStatusRequest {}
+
+message GetCertificateStatusResponse {
+  CertificateInfo server_cert = 1;
+  CertificateInfo ca_cert = 2;
 }

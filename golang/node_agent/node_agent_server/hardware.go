@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -35,24 +37,33 @@ func buildNodeCapabilities() *cluster_controllerpb.NodeCapabilities {
 		caps.DiskFreeBytes = fs.Bfree * bsize
 	}
 
-	caps.CanApplyPrivileged = canApplyPrivileged()
+	can, reason := canApplyPrivileged()
+	caps.CanApplyPrivileged = can
+	caps.PrivilegeReason = reason
 
 	return caps
 }
 
 // canApplyPrivileged returns true when the node-agent process can write
-// systemd unit files and manage services. This is the case when running
-// as root or when the user has write access to the systemd directory.
-func canApplyPrivileged() bool {
+// systemd unit files and manage services. This is the case when:
+//   - running as root, or
+//   - the user has write access to the systemd directory, or
+//   - the user has sudo access to systemctl (sudoers rules for globular user)
+func canApplyPrivileged() (bool, string) {
 	if os.Geteuid() == 0 {
-		return true
+		return true, "running as root"
 	}
+	// Direct write access to systemd directory.
 	testPath := filepath.Join("/etc/systemd/system", ".globular-probe")
 	f, err := os.Create(testPath)
 	if err == nil {
 		f.Close()
 		os.Remove(testPath)
-		return true
+		return true, "direct systemd write access"
 	}
-	return false
+	// sudo access to systemctl (the globular user has sudoers rules).
+	if err := exec.Command("sudo", "-n", "systemctl", "is-system-running").Run(); err == nil {
+		return true, "sudo access"
+	}
+	return false, fmt.Sprintf("euid=%d, systemd write denied, sudo -n failed", os.Geteuid())
 }

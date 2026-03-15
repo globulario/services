@@ -763,6 +763,7 @@ type NodeCapabilities struct {
 	DiskBytes          uint64                 `protobuf:"varint,3,opt,name=disk_bytes,json=diskBytes,proto3" json:"disk_bytes,omitempty"`                              // total capacity of primary volume in bytes
 	DiskFreeBytes      uint64                 `protobuf:"varint,4,opt,name=disk_free_bytes,json=diskFreeBytes,proto3" json:"disk_free_bytes,omitempty"`                // free bytes on primary volume
 	CanApplyPrivileged bool                   `protobuf:"varint,5,opt,name=can_apply_privileged,json=canApplyPrivileged,proto3" json:"can_apply_privileged,omitempty"` // true when node can write systemd units (root or equivalent)
+	PrivilegeReason    string                 `protobuf:"bytes,6,opt,name=privilege_reason,json=privilegeReason,proto3" json:"privilege_reason,omitempty"`             // human-readable reason: "running as root", "direct systemd write access", etc.
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -830,6 +831,13 @@ func (x *NodeCapabilities) GetCanApplyPrivileged() bool {
 		return x.CanApplyPrivileged
 	}
 	return false
+}
+
+func (x *NodeCapabilities) GetPrivilegeReason() string {
+	if x != nil {
+		return x.PrivilegeReason
+	}
+	return ""
 }
 
 type NodeRecord struct {
@@ -4327,6 +4335,7 @@ type GetNodeHealthDetailV1Response struct {
 	CanApplyPrivileged bool                   `protobuf:"varint,6,opt,name=can_apply_privileged,json=canApplyPrivileged,proto3" json:"can_apply_privileged,omitempty"`
 	InventoryComplete  bool                   `protobuf:"varint,7,opt,name=inventory_complete,json=inventoryComplete,proto3" json:"inventory_complete,omitempty"`
 	LastSeen           *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
+	PrivilegeReason    string                 `protobuf:"bytes,9,opt,name=privilege_reason,json=privilegeReason,proto3" json:"privilege_reason,omitempty"` // human-readable privilege capability reason
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -4415,6 +4424,13 @@ func (x *GetNodeHealthDetailV1Response) GetLastSeen() *timestamppb.Timestamp {
 		return x.LastSeen
 	}
 	return nil
+}
+
+func (x *GetNodeHealthDetailV1Response) GetPrivilegeReason() string {
+	if x != nil {
+		return x.PrivilegeReason
+	}
+	return ""
 }
 
 type PreviewNodeProfilesRequest struct {
@@ -5961,14 +5977,15 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
 	"\tnode_name\x18\a \x01(\tR\bnodeName\x12!\n" +
 	"\fadvertise_ip\x18\b \x01(\tR\vadvertiseIp\x12%\n" +
-	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\xc5\x01\n" +
+	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\xf0\x01\n" +
 	"\x10NodeCapabilities\x12\x1b\n" +
 	"\tcpu_count\x18\x01 \x01(\rR\bcpuCount\x12\x1b\n" +
 	"\tram_bytes\x18\x02 \x01(\x04R\bramBytes\x12\x1d\n" +
 	"\n" +
 	"disk_bytes\x18\x03 \x01(\x04R\tdiskBytes\x12&\n" +
 	"\x0fdisk_free_bytes\x18\x04 \x01(\x04R\rdiskFreeBytes\x120\n" +
-	"\x14can_apply_privileged\x18\x05 \x01(\bR\x12canApplyPrivileged\"\xef\x03\n" +
+	"\x14can_apply_privileged\x18\x05 \x01(\bR\x12canApplyPrivileged\x12)\n" +
+	"\x10privilege_reason\x18\x06 \x01(\tR\x0fprivilegeReason\"\xef\x03\n" +
 	"\n" +
 	"NodeRecord\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12<\n" +
@@ -6251,7 +6268,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\"7\n" +
 	"\x1cGetNodeHealthDetailV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xef\x02\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\x9a\x03\n" +
 	"\x1dGetNodeHealthDetailV1Response\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12%\n" +
 	"\x0eoverall_status\x18\x02 \x01(\tR\roverallStatus\x12\x18\n" +
@@ -6261,7 +6278,8 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"last_error\x18\x05 \x01(\tR\tlastError\x120\n" +
 	"\x14can_apply_privileged\x18\x06 \x01(\bR\x12canApplyPrivileged\x12-\n" +
 	"\x12inventory_complete\x18\a \x01(\bR\x11inventoryComplete\x127\n" +
-	"\tlast_seen\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"Q\n" +
+	"\tlast_seen\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\x12)\n" +
+	"\x10privilege_reason\x18\t \x01(\tR\x0fprivilegeReason\"Q\n" +
 	"\x1aPreviewNodeProfilesRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bprofiles\x18\x02 \x03(\tR\bprofiles\"t\n" +

@@ -59,6 +59,7 @@ func capsToStored(caps *cluster_controllerpb.NodeCapabilities) *storedCapabiliti
 		DiskBytes:          caps.GetDiskBytes(),
 		DiskFreeBytes:      caps.GetDiskFreeBytes(),
 		CanApplyPrivileged: caps.GetCanApplyPrivileged(),
+		PrivilegeReason:    caps.GetPrivilegeReason(),
 	}
 }
 
@@ -73,5 +74,6 @@ func storedToProtoCapabilities(c *storedCapabilities) *cluster_controllerpb.Node
 		DiskBytes:          c.DiskBytes,
 		DiskFreeBytes:      c.DiskFreeBytes,
 		CanApplyPrivileged: c.CanApplyPrivileged,
+		PrivilegeReason:    c.PrivilegeReason,
 	}
 }

@@ -2099,6 +2099,314 @@ func (x *RotateNodeTokenResponse) GetOk() bool {
 	return false
 }
 
+type GetServiceLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`         // systemd unit name (must start with "globular-")
+	Lines         int32                  `protobuf:"varint,2,opt,name=lines,proto3" json:"lines,omitempty"`      // max lines to return (capped at 200)
+	Priority      string                 `protobuf:"bytes,3,opt,name=priority,proto3" json:"priority,omitempty"` // optional journalctl priority filter: "emerg","alert","crit","err","warning","notice","info","debug"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServiceLogsRequest) Reset() {
+	*x = GetServiceLogsRequest{}
+	mi := &file_node_agent_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServiceLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServiceLogsRequest) ProtoMessage() {}
+
+func (x *GetServiceLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServiceLogsRequest.ProtoReflect.Descriptor instead.
+func (*GetServiceLogsRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *GetServiceLogsRequest) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *GetServiceLogsRequest) GetLines() int32 {
+	if x != nil {
+		return x.Lines
+	}
+	return 0
+}
+
+func (x *GetServiceLogsRequest) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+type GetServiceLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
+	LineCount     int32                  `protobuf:"varint,2,opt,name=line_count,json=lineCount,proto3" json:"line_count,omitempty"`
+	Lines         []string               `protobuf:"bytes,3,rep,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServiceLogsResponse) Reset() {
+	*x = GetServiceLogsResponse{}
+	mi := &file_node_agent_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServiceLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServiceLogsResponse) ProtoMessage() {}
+
+func (x *GetServiceLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServiceLogsResponse.ProtoReflect.Descriptor instead.
+func (*GetServiceLogsResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetServiceLogsResponse) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *GetServiceLogsResponse) GetLineCount() int32 {
+	if x != nil {
+		return x.LineCount
+	}
+	return 0
+}
+
+func (x *GetServiceLogsResponse) GetLines() []string {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+type CertificateInfo struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Subject         string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
+	Issuer          string                 `protobuf:"bytes,2,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Sans            []string               `protobuf:"bytes,3,rep,name=sans,proto3" json:"sans,omitempty"`                            // Subject Alternative Names
+	NotBefore       string                 `protobuf:"bytes,4,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"` // RFC3339
+	NotAfter        string                 `protobuf:"bytes,5,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`    // RFC3339
+	DaysUntilExpiry int32                  `protobuf:"varint,6,opt,name=days_until_expiry,json=daysUntilExpiry,proto3" json:"days_until_expiry,omitempty"`
+	ChainValid      bool                   `protobuf:"varint,7,opt,name=chain_valid,json=chainValid,proto3" json:"chain_valid,omitempty"`
+	Fingerprint     string                 `protobuf:"bytes,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"` // SHA256 fingerprint
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CertificateInfo) Reset() {
+	*x = CertificateInfo{}
+	mi := &file_node_agent_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertificateInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertificateInfo) ProtoMessage() {}
+
+func (x *CertificateInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertificateInfo.ProtoReflect.Descriptor instead.
+func (*CertificateInfo) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CertificateInfo) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *CertificateInfo) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *CertificateInfo) GetSans() []string {
+	if x != nil {
+		return x.Sans
+	}
+	return nil
+}
+
+func (x *CertificateInfo) GetNotBefore() string {
+	if x != nil {
+		return x.NotBefore
+	}
+	return ""
+}
+
+func (x *CertificateInfo) GetNotAfter() string {
+	if x != nil {
+		return x.NotAfter
+	}
+	return ""
+}
+
+func (x *CertificateInfo) GetDaysUntilExpiry() int32 {
+	if x != nil {
+		return x.DaysUntilExpiry
+	}
+	return 0
+}
+
+func (x *CertificateInfo) GetChainValid() bool {
+	if x != nil {
+		return x.ChainValid
+	}
+	return false
+}
+
+func (x *CertificateInfo) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+type GetCertificateStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCertificateStatusRequest) Reset() {
+	*x = GetCertificateStatusRequest{}
+	mi := &file_node_agent_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCertificateStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCertificateStatusRequest) ProtoMessage() {}
+
+func (x *GetCertificateStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCertificateStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetCertificateStatusRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{39}
+}
+
+type GetCertificateStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerCert    *CertificateInfo       `protobuf:"bytes,1,opt,name=server_cert,json=serverCert,proto3" json:"server_cert,omitempty"`
+	CaCert        *CertificateInfo       `protobuf:"bytes,2,opt,name=ca_cert,json=caCert,proto3" json:"ca_cert,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCertificateStatusResponse) Reset() {
+	*x = GetCertificateStatusResponse{}
+	mi := &file_node_agent_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCertificateStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCertificateStatusResponse) ProtoMessage() {}
+
+func (x *GetCertificateStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCertificateStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetCertificateStatusResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *GetCertificateStatusResponse) GetServerCert() *CertificateInfo {
+	if x != nil {
+		return x.ServerCert
+	}
+	return nil
+}
+
+func (x *GetCertificateStatusResponse) GetCaCert() *CertificateInfo {
+	if x != nil {
+		return x.CaCert
+	}
+	return nil
+}
+
 var File_node_agent_proto protoreflect.FileDescriptor
 
 const file_node_agent_proto_rawDesc = "" +
@@ -2264,7 +2572,32 @@ const file_node_agent_proto_rawDesc = "" +
 	"\tnew_token\x18\x01 \x01(\tR\bnewToken\x12#\n" +
 	"\rnew_principal\x18\x02 \x01(\tR\fnewPrincipal\")\n" +
 	"\x17RotateNodeTokenResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok2\x8e\v\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"]\n" +
+	"\x15GetServiceLogsRequest\x12\x12\n" +
+	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x14\n" +
+	"\x05lines\x18\x02 \x01(\x05R\x05lines\x12\x1a\n" +
+	"\bpriority\x18\x03 \x01(\tR\bpriority\"a\n" +
+	"\x16GetServiceLogsResponse\x12\x12\n" +
+	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x1d\n" +
+	"\n" +
+	"line_count\x18\x02 \x01(\x05R\tlineCount\x12\x14\n" +
+	"\x05lines\x18\x03 \x03(\tR\x05lines\"\x82\x02\n" +
+	"\x0fCertificateInfo\x12\x18\n" +
+	"\asubject\x18\x01 \x01(\tR\asubject\x12\x16\n" +
+	"\x06issuer\x18\x02 \x01(\tR\x06issuer\x12\x12\n" +
+	"\x04sans\x18\x03 \x03(\tR\x04sans\x12\x1d\n" +
+	"\n" +
+	"not_before\x18\x04 \x01(\tR\tnotBefore\x12\x1b\n" +
+	"\tnot_after\x18\x05 \x01(\tR\bnotAfter\x12*\n" +
+	"\x11days_until_expiry\x18\x06 \x01(\x05R\x0fdaysUntilExpiry\x12\x1f\n" +
+	"\vchain_valid\x18\a \x01(\bR\n" +
+	"chainValid\x12 \n" +
+	"\vfingerprint\x18\b \x01(\tR\vfingerprint\"\x1d\n" +
+	"\x1bGetCertificateStatusRequest\"\x92\x01\n" +
+	"\x1cGetCertificateStatusResponse\x12<\n" +
+	"\vserver_cert\x18\x01 \x01(\v2\x1b.node_agent.CertificateInfoR\n" +
+	"serverCert\x124\n" +
+	"\aca_cert\x18\x02 \x01(\v2\x1b.node_agent.CertificateInfoR\x06caCert2\xd2\f\n" +
 	"\x10NodeAgentService\x12N\n" +
 	"\vJoinCluster\x12\x1e.node_agent.JoinClusterRequest\x1a\x1f.node_agent.JoinClusterResponse\x12Q\n" +
 	"\fGetInventory\x12\x1f.node_agent.GetInventoryRequest\x1a .node_agent.GetInventoryResponse\x12H\n" +
@@ -2280,7 +2613,9 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x14GetRestoreTaskResult\x12'.node_agent.GetRestoreTaskResultRequest\x1a(.node_agent.GetRestoreTaskResultResponse\x12l\n" +
 	"\x15ListInstalledPackages\x12(.node_agent.ListInstalledPackagesRequest\x1a).node_agent.ListInstalledPackagesResponse\x12f\n" +
 	"\x13GetInstalledPackage\x12&.node_agent.GetInstalledPackageRequest\x1a'.node_agent.GetInstalledPackageResponse\x12Z\n" +
-	"\x0fRotateNodeToken\x12\".node_agent.RotateNodeTokenRequest\x1a#.node_agent.RotateNodeTokenResponseBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
+	"\x0fRotateNodeToken\x12\".node_agent.RotateNodeTokenRequest\x1a#.node_agent.RotateNodeTokenResponse\x12W\n" +
+	"\x0eGetServiceLogs\x12!.node_agent.GetServiceLogsRequest\x1a\".node_agent.GetServiceLogsResponse\x12i\n" +
+	"\x14GetCertificateStatus\x12'.node_agent.GetCertificateStatusRequest\x1a(.node_agent.GetCertificateStatusResponseBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
 
 var (
 	file_node_agent_proto_rawDescOnce sync.Once
@@ -2294,7 +2629,7 @@ func file_node_agent_proto_rawDescGZIP() []byte {
 	return file_node_agent_proto_rawDescData
 }
 
-var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_node_agent_proto_goTypes = []any{
 	(*JoinClusterRequest)(nil),                // 0: node_agent.JoinClusterRequest
 	(*JoinClusterResponse)(nil),               // 1: node_agent.JoinClusterResponse
@@ -2332,77 +2667,88 @@ var file_node_agent_proto_goTypes = []any{
 	(*GetRestoreTaskResultResponse)(nil),      // 33: node_agent.GetRestoreTaskResultResponse
 	(*RotateNodeTokenRequest)(nil),            // 34: node_agent.RotateNodeTokenRequest
 	(*RotateNodeTokenResponse)(nil),           // 35: node_agent.RotateNodeTokenResponse
-	nil,                                       // 36: node_agent.InstalledPackage.MetadataEntry
-	nil,                                       // 37: node_agent.BackupProviderSpec.OptionsEntry
-	nil,                                       // 38: node_agent.RunBackupProviderRequest.LabelsEntry
-	nil,                                       // 39: node_agent.BackupProviderResult.OutputsEntry
-	nil,                                       // 40: node_agent.BackupProviderResult.ArtifactsEntry
-	nil,                                       // 41: node_agent.RestoreProviderSpec.OptionsEntry
-	(*cluster_controllerpb.NodeIdentity)(nil), // 42: cluster_controller.NodeIdentity
-	(*timestamppb.Timestamp)(nil),             // 43: google.protobuf.Timestamp
-	(*cluster_controllerpb.NodePlan)(nil),     // 44: cluster_controller.NodePlan
-	(*planpb.NodePlan)(nil),                   // 45: globular.plan.v1.NodePlan
-	(*planpb.NodePlanStatus)(nil),             // 46: globular.plan.v1.NodePlanStatus
-	(cluster_controllerpb.OperationPhase)(0),  // 47: cluster_controller.OperationPhase
+	(*GetServiceLogsRequest)(nil),             // 36: node_agent.GetServiceLogsRequest
+	(*GetServiceLogsResponse)(nil),            // 37: node_agent.GetServiceLogsResponse
+	(*CertificateInfo)(nil),                   // 38: node_agent.CertificateInfo
+	(*GetCertificateStatusRequest)(nil),       // 39: node_agent.GetCertificateStatusRequest
+	(*GetCertificateStatusResponse)(nil),      // 40: node_agent.GetCertificateStatusResponse
+	nil,                                       // 41: node_agent.InstalledPackage.MetadataEntry
+	nil,                                       // 42: node_agent.BackupProviderSpec.OptionsEntry
+	nil,                                       // 43: node_agent.RunBackupProviderRequest.LabelsEntry
+	nil,                                       // 44: node_agent.BackupProviderResult.OutputsEntry
+	nil,                                       // 45: node_agent.BackupProviderResult.ArtifactsEntry
+	nil,                                       // 46: node_agent.RestoreProviderSpec.OptionsEntry
+	(*cluster_controllerpb.NodeIdentity)(nil), // 47: cluster_controller.NodeIdentity
+	(*timestamppb.Timestamp)(nil),             // 48: google.protobuf.Timestamp
+	(*cluster_controllerpb.NodePlan)(nil),     // 49: cluster_controller.NodePlan
+	(*planpb.NodePlan)(nil),                   // 50: globular.plan.v1.NodePlan
+	(*planpb.NodePlanStatus)(nil),             // 51: globular.plan.v1.NodePlanStatus
+	(cluster_controllerpb.OperationPhase)(0),  // 52: cluster_controller.OperationPhase
 }
 var file_node_agent_proto_depIdxs = []int32{
-	36, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
+	41, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
 	3,  // 1: node_agent.ListInstalledPackagesResponse.packages:type_name -> node_agent.InstalledPackage
 	3,  // 2: node_agent.GetInstalledPackageResponse.package:type_name -> node_agent.InstalledPackage
-	42, // 3: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
-	43, // 4: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
+	47, // 3: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
+	48, // 4: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
 	2,  // 5: node_agent.Inventory.components:type_name -> node_agent.InstalledComponent
 	8,  // 6: node_agent.Inventory.units:type_name -> node_agent.UnitStatus
 	9,  // 7: node_agent.GetInventoryResponse.inventory:type_name -> node_agent.Inventory
-	44, // 8: node_agent.ApplyPlanRequest.plan:type_name -> cluster_controller.NodePlan
-	45, // 9: node_agent.ApplyPlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
-	46, // 10: node_agent.GetPlanStatusV1Response.status:type_name -> globular.plan.v1.NodePlanStatus
-	47, // 11: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
-	43, // 12: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
-	37, // 13: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
+	49, // 8: node_agent.ApplyPlanRequest.plan:type_name -> cluster_controller.NodePlan
+	50, // 9: node_agent.ApplyPlanV1Request.plan:type_name -> globular.plan.v1.NodePlan
+	51, // 10: node_agent.GetPlanStatusV1Response.status:type_name -> globular.plan.v1.NodePlanStatus
+	52, // 11: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
+	48, // 12: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	42, // 13: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
 	23, // 14: node_agent.RunBackupProviderRequest.spec:type_name -> node_agent.BackupProviderSpec
-	38, // 15: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
-	39, // 16: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
-	40, // 17: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
+	43, // 15: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
+	44, // 16: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
+	45, // 17: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
 	27, // 18: node_agent.GetBackupTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
-	41, // 19: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
+	46, // 19: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
 	29, // 20: node_agent.RunRestoreProviderRequest.spec:type_name -> node_agent.RestoreProviderSpec
 	27, // 21: node_agent.GetRestoreTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
-	0,  // 22: node_agent.NodeAgentService.JoinCluster:input_type -> node_agent.JoinClusterRequest
-	10, // 23: node_agent.NodeAgentService.GetInventory:input_type -> node_agent.GetInventoryRequest
-	12, // 24: node_agent.NodeAgentService.ApplyPlan:input_type -> node_agent.ApplyPlanRequest
-	14, // 25: node_agent.NodeAgentService.ApplyPlanV1:input_type -> node_agent.ApplyPlanV1Request
-	16, // 26: node_agent.NodeAgentService.GetPlanStatusV1:input_type -> node_agent.GetPlanStatusV1Request
-	18, // 27: node_agent.NodeAgentService.WatchPlanStatusV1:input_type -> node_agent.WatchPlanStatusV1Request
-	19, // 28: node_agent.NodeAgentService.WatchOperation:input_type -> node_agent.WatchOperationRequest
-	21, // 29: node_agent.NodeAgentService.BootstrapFirstNode:input_type -> node_agent.BootstrapFirstNodeRequest
-	24, // 30: node_agent.NodeAgentService.RunBackupProvider:input_type -> node_agent.RunBackupProviderRequest
-	26, // 31: node_agent.NodeAgentService.GetBackupTaskResult:input_type -> node_agent.GetBackupTaskResultRequest
-	30, // 32: node_agent.NodeAgentService.RunRestoreProvider:input_type -> node_agent.RunRestoreProviderRequest
-	32, // 33: node_agent.NodeAgentService.GetRestoreTaskResult:input_type -> node_agent.GetRestoreTaskResultRequest
-	4,  // 34: node_agent.NodeAgentService.ListInstalledPackages:input_type -> node_agent.ListInstalledPackagesRequest
-	6,  // 35: node_agent.NodeAgentService.GetInstalledPackage:input_type -> node_agent.GetInstalledPackageRequest
-	34, // 36: node_agent.NodeAgentService.RotateNodeToken:input_type -> node_agent.RotateNodeTokenRequest
-	1,  // 37: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
-	11, // 38: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
-	13, // 39: node_agent.NodeAgentService.ApplyPlan:output_type -> node_agent.ApplyPlanResponse
-	15, // 40: node_agent.NodeAgentService.ApplyPlanV1:output_type -> node_agent.ApplyPlanV1Response
-	17, // 41: node_agent.NodeAgentService.GetPlanStatusV1:output_type -> node_agent.GetPlanStatusV1Response
-	46, // 42: node_agent.NodeAgentService.WatchPlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
-	20, // 43: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
-	22, // 44: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
-	25, // 45: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
-	28, // 46: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
-	31, // 47: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
-	33, // 48: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
-	5,  // 49: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
-	7,  // 50: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
-	35, // 51: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
-	37, // [37:52] is the sub-list for method output_type
-	22, // [22:37] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	38, // 22: node_agent.GetCertificateStatusResponse.server_cert:type_name -> node_agent.CertificateInfo
+	38, // 23: node_agent.GetCertificateStatusResponse.ca_cert:type_name -> node_agent.CertificateInfo
+	0,  // 24: node_agent.NodeAgentService.JoinCluster:input_type -> node_agent.JoinClusterRequest
+	10, // 25: node_agent.NodeAgentService.GetInventory:input_type -> node_agent.GetInventoryRequest
+	12, // 26: node_agent.NodeAgentService.ApplyPlan:input_type -> node_agent.ApplyPlanRequest
+	14, // 27: node_agent.NodeAgentService.ApplyPlanV1:input_type -> node_agent.ApplyPlanV1Request
+	16, // 28: node_agent.NodeAgentService.GetPlanStatusV1:input_type -> node_agent.GetPlanStatusV1Request
+	18, // 29: node_agent.NodeAgentService.WatchPlanStatusV1:input_type -> node_agent.WatchPlanStatusV1Request
+	19, // 30: node_agent.NodeAgentService.WatchOperation:input_type -> node_agent.WatchOperationRequest
+	21, // 31: node_agent.NodeAgentService.BootstrapFirstNode:input_type -> node_agent.BootstrapFirstNodeRequest
+	24, // 32: node_agent.NodeAgentService.RunBackupProvider:input_type -> node_agent.RunBackupProviderRequest
+	26, // 33: node_agent.NodeAgentService.GetBackupTaskResult:input_type -> node_agent.GetBackupTaskResultRequest
+	30, // 34: node_agent.NodeAgentService.RunRestoreProvider:input_type -> node_agent.RunRestoreProviderRequest
+	32, // 35: node_agent.NodeAgentService.GetRestoreTaskResult:input_type -> node_agent.GetRestoreTaskResultRequest
+	4,  // 36: node_agent.NodeAgentService.ListInstalledPackages:input_type -> node_agent.ListInstalledPackagesRequest
+	6,  // 37: node_agent.NodeAgentService.GetInstalledPackage:input_type -> node_agent.GetInstalledPackageRequest
+	34, // 38: node_agent.NodeAgentService.RotateNodeToken:input_type -> node_agent.RotateNodeTokenRequest
+	36, // 39: node_agent.NodeAgentService.GetServiceLogs:input_type -> node_agent.GetServiceLogsRequest
+	39, // 40: node_agent.NodeAgentService.GetCertificateStatus:input_type -> node_agent.GetCertificateStatusRequest
+	1,  // 41: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
+	11, // 42: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
+	13, // 43: node_agent.NodeAgentService.ApplyPlan:output_type -> node_agent.ApplyPlanResponse
+	15, // 44: node_agent.NodeAgentService.ApplyPlanV1:output_type -> node_agent.ApplyPlanV1Response
+	17, // 45: node_agent.NodeAgentService.GetPlanStatusV1:output_type -> node_agent.GetPlanStatusV1Response
+	51, // 46: node_agent.NodeAgentService.WatchPlanStatusV1:output_type -> globular.plan.v1.NodePlanStatus
+	20, // 47: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
+	22, // 48: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
+	25, // 49: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
+	28, // 50: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
+	31, // 51: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
+	33, // 52: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
+	5,  // 53: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
+	7,  // 54: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
+	35, // 55: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
+	37, // 56: node_agent.NodeAgentService.GetServiceLogs:output_type -> node_agent.GetServiceLogsResponse
+	40, // 57: node_agent.NodeAgentService.GetCertificateStatus:output_type -> node_agent.GetCertificateStatusResponse
+	41, // [41:58] is the sub-list for method output_type
+	24, // [24:41] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_node_agent_proto_init() }
@@ -2416,7 +2762,7 @@ func file_node_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_agent_proto_rawDesc), len(file_node_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   42,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
