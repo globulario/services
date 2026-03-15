@@ -558,6 +558,12 @@ func publishOne(file, token string) pkgPublishOne {
 	}
 	defer client.Close()
 
+	// Override the client context with the caller's token so that all RPCs
+	// (upload, promote, etc.) authenticate as the intended user (e.g. sa).
+	if token != "" {
+		client.SetToken(token)
+	}
+
 	// Step 3: upload artifact (primary path — sets state=VERIFIED on server).
 	// Upload happens BEFORE descriptor registration to prevent ghost metadata.
 	ref := &repopb.ArtifactRef{

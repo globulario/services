@@ -11,7 +11,7 @@ import (
 // PR-D.4: Tests for cluster rollout sequencing.
 
 func TestBuildServiceUpgradePlan_IncludesSHA256InFetchAndVerify(t *testing.T) {
-	plan := BuildServiceUpgradePlan("node-1", "rbac", "1.2.3", "abcdef1234567890")
+	plan := BuildServiceUpgradePlan("node-1", "rbac", "1.2.3", "abcdef1234567890", 0)
 
 	if plan == nil {
 		t.Fatal("plan should not be nil")
@@ -50,7 +50,7 @@ func TestBuildServiceUpgradePlan_IncludesSHA256InFetchAndVerify(t *testing.T) {
 }
 
 func TestBuildServiceUpgradePlan_HasCorrectStepOrder(t *testing.T) {
-	plan := BuildServiceUpgradePlan("node-1", "gateway", "2.0.0", "sha256hash")
+	plan := BuildServiceUpgradePlan("node-1", "gateway", "2.0.0", "sha256hash", 0)
 
 	steps := plan.GetSpec().GetSteps()
 	expectedActions := []string{
@@ -73,7 +73,7 @@ func TestBuildServiceUpgradePlan_HasCorrectStepOrder(t *testing.T) {
 }
 
 func TestBuildServiceUpgradePlan_DesiredState(t *testing.T) {
-	plan := BuildServiceUpgradePlan("node-1", "rbac", "1.0.0", "hash")
+	plan := BuildServiceUpgradePlan("node-1", "rbac", "1.0.0", "hash", 0)
 
 	desired := plan.GetSpec().GetDesired()
 	if desired == nil {
@@ -92,7 +92,7 @@ func TestBuildServiceUpgradePlan_DesiredState(t *testing.T) {
 }
 
 func TestBuildServiceUpgradePlan_RollbackPolicy(t *testing.T) {
-	plan := BuildServiceUpgradePlan("node-1", "resource", "3.0.0", "hash")
+	plan := BuildServiceUpgradePlan("node-1", "resource", "3.0.0", "hash", 0)
 
 	if plan.GetPolicy() == nil {
 		t.Fatal("plan policy should not be nil")

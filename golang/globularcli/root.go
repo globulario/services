@@ -53,6 +53,9 @@ var rootCmd = &cobra.Command{
 		}
 
 		if rootCfg.token == "" {
+			rootCfg.token = strings.TrimSpace(os.Getenv("GLOBULAR_TOKEN"))
+		}
+		if rootCfg.token == "" {
 			home := os.Getenv("HOME")
 			if home == "" {
 				home, _ = os.UserHomeDir()

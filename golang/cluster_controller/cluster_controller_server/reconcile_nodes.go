@@ -493,19 +493,30 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		// When resolution fails (key format mismatch, repo unavailable),
 		// pass "skip" to signal the fetcher to download without
 		// pre-verification while still computing the hash post-download.
+		// Extract build number from desired state if available.
+		var desiredBuildNumber int64
+		if obj, ok := desiredObjs[svcName]; ok && obj != nil && obj.Spec != nil {
+			desiredBuildNumber = obj.Spec.BuildNumber
+		}
+
 		artifactDigest := ""
 		resolver := &ReleaseResolver{RepositoryAddr: resolveRepositoryInfo().Address}
 		resolved, err := resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
 			ServiceName: canonicalServiceName(svcName),
 			Version:     version,
 			PublisherID: defaultPublisherID(),
+			Platform:    srv.getNodePlatform(node.NodeID),
+			BuildNumber: desiredBuildNumber,
 		})
 		if err != nil {
 			log.Printf("reconcile: resolve artifact %s@%s: %v (plan will skip digest pre-check)", svcName, version, err)
 		} else if resolved != nil {
 			artifactDigest = resolved.Digest
+			if resolved.BuildNumber > 0 {
+				desiredBuildNumber = resolved.BuildNumber
+			}
 		}
-		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, artifactDigest)
+		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, artifactDigest, desiredBuildNumber)
 		if plan != nil {
 			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
 			if err != nil {

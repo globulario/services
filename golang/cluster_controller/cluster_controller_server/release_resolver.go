@@ -66,7 +66,7 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	defer client.Close()
 
 	version := strings.TrimSpace(spec.Version)
-	var buildNumber int64
+	buildNumber := spec.BuildNumber
 
 	if version == "" {
 		// Channel field is deprecated and functionally ignored.

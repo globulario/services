@@ -290,7 +290,7 @@ func TestPipeline_SHA256_RequiredForAllKinds(t *testing.T) {
 	sha := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 	// Service plan: verify fetch step has expected_sha256.
-	svcPlan := BuildServiceUpgradePlan("node-1", "rbac", "1.0.0", sha)
+	svcPlan := BuildServiceUpgradePlan("node-1", "rbac", "1.0.0", sha, 0)
 	svcFetch := svcPlan.GetSpec().GetSteps()[0]
 	if svcFetch.GetAction() != "artifact.fetch" {
 		t.Fatalf("service: first step should be artifact.fetch, got %q", svcFetch.GetAction())
@@ -343,7 +343,7 @@ func TestPipeline_SHA256_RequiredForAllKinds(t *testing.T) {
 
 func TestPipeline_RollbackPolicy_AllKinds(t *testing.T) {
 	// Service plan: verify FAILURE_MODE_ROLLBACK.
-	svcPlan := BuildServiceUpgradePlan("node-1", "gateway", "2.0.0", "hash")
+	svcPlan := BuildServiceUpgradePlan("node-1", "gateway", "2.0.0", "hash", 0)
 	if svcPlan.GetPolicy().GetFailureMode() != planpb.FailureMode_FAILURE_MODE_ROLLBACK {
 		t.Errorf("service plan: expected FAILURE_MODE_ROLLBACK, got %v", svcPlan.GetPolicy().GetFailureMode())
 	}

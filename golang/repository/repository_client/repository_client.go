@@ -126,6 +126,19 @@ func (client *Repository_Service_Client) GetCtx() context.Context {
 	return client.ctx
 }
 
+// SetToken overrides the client context with an explicit bearer token.
+// This ensures the provided token is used for all RPCs instead of the
+// local service token from GetLocalToken.
+func (client *Repository_Service_Client) SetToken(token string) {
+	md := metadata.New(map[string]string{
+		"token":   token,
+		"domain":  client.domain,
+		"mac":     client.GetMac(),
+		"address": client.GetAddress(),
+	})
+	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+}
+
 // Return the last know connection state
 func (client *Repository_Service_Client) GetState() string   { return client.state }
 func (client *Repository_Service_Client) GetDomain() string  { return client.domain }

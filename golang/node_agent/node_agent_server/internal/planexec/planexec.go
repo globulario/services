@@ -129,10 +129,6 @@ func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status
 		status.CurrentStepId = ""
 		r.addEvent(status, "info", fmt.Sprintf("step %s succeeded", step.GetId()), step.GetId())
 		r.publish(ctx, status)
-
-		if err := r.EvaluateInvariants(ctx, plan); err == nil {
-			return nil
-		}
 	}
 	return nil
 }

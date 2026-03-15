@@ -159,7 +159,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 }
 
 // BuildServiceUpgradePlan scaffolds a service upgrade plan with version invariants.
-func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion string, desiredHash string) *planpb.NodePlan {
+func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion string, desiredHash string, buildNumber int64) *planpb.NodePlan {
 	if strings.TrimSpace(svcName) == "" {
 		svcName = "globular"
 	}
@@ -188,6 +188,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		"artifact_path":   artifactPath,
 		"repository_addr": repoAddr,
 		"publisher_id":    publisherID,
+		"build_number":    buildNumber,
 	}
 	if desiredHash != "" {
 		fetchArgs["expected_sha256"] = desiredHash
@@ -240,6 +241,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 					"publisher_id": publisherID,
 					"platform":     platform,
 					"checksum":     desiredHash,
+					"build_number": buildNumber,
 				}),
 				planStep("service.restart", map[string]interface{}{
 					"unit": unit,

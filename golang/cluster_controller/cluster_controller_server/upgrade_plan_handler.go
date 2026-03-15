@@ -375,7 +375,7 @@ func buildUpgradePlanForKind(nodeID string, item *cluster_controllerpb.UpgradePl
 	}
 
 	// Default: service upgrade.
-	return BuildServiceUpgradePlan(nodeID, name, item.GetToVersion(), item.GetSha256())
+	return BuildServiceUpgradePlan(nodeID, name, item.GetToVersion(), item.GetSha256(), item.GetToBuildNumber())
 }
 
 func defaultPublisherID() string {
