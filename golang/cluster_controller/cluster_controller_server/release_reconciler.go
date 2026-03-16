@@ -163,8 +163,18 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		} else {
 			log.Printf("release %s: garbage-collected (REMOVED)", releaseName)
 		}
-	default:
-		// FAILED, ROLLED_BACK — do not auto-retry; require explicit re-apply.
+	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+		// Re-enter PENDING if the spec generation advanced (explicit re-apply)
+		// or if the service is still desired but not installed on any node.
+		if h.Generation > h.ObservedGeneration {
+			log.Printf("release %s: %s → PENDING (generation %d > observed %d)",
+				releaseName, h.Phase, h.Generation, h.ObservedGeneration)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "generation_changed",
+				SetFields:        "phase",
+			})
+		}
 	}
 }
 

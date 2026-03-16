@@ -28,13 +28,16 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", releaseName)
 	if err == nil && obj != nil {
 		if existing, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && existing.Spec != nil {
-			beingRemoved := existing.Spec.Removing
+			needsRecreate := existing.Spec.Removing
 			if existing.Status != nil {
 				phase := existing.Status.Phase
-				beingRemoved = beingRemoved || phase == ReleasePhaseRemoving || phase == ReleasePhaseRemoved
+				needsRecreate = needsRecreate ||
+					phase == ReleasePhaseRemoving || phase == ReleasePhaseRemoved ||
+					phase == cluster_controllerpb.ReleasePhaseFailed ||
+					phase == cluster_controllerpb.ReleasePhaseRolledBack
 			}
-			if !beingRemoved && existing.Spec.Version == version && existing.Spec.BuildNumber == buildNumber {
-				return // already up-to-date and not being removed
+			if !needsRecreate && existing.Spec.Version == version && existing.Spec.BuildNumber == buildNumber {
+				return // already up-to-date and in a healthy state
 			}
 		}
 	}
