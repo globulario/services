@@ -275,6 +275,13 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		}
 	}
 
+	// Ensure the service working directory exists (systemd units reference
+	// WorkingDirectory=/var/lib/globular/<service> which must be created).
+	svcWorkDir := filepath.Join(stateRoot, service)
+	if err := os.MkdirAll(svcWorkDir, 0o755); err != nil {
+		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
+	}
+
 	if wroteUnit && !skipSystemd {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
