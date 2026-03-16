@@ -113,6 +113,25 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		})
 	}
 
+	// Periodic bridge: re-create ServiceRelease objects for desired services
+	// that lost their release (e.g. deleted during troubleshooting, or
+	// garbage-collected while in REMOVED phase). Without this, a missing
+	// release causes the service to stay stuck at "Planned" indefinitely.
+	safeGo("periodic-release-bridge", func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if srv.isLeader() {
+					srv.ensureServiceReleasesFromDesired(ctx)
+				}
+			}
+		}
+	})
+
 	// Trigger A: Auto-import desired state from installed services at startup.
 	// Waits for at least one node to report installed versions, then checks if
 	// desired state is empty. If so, runs importInstalledToDesired to backfill.

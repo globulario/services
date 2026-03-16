@@ -29,17 +29,22 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 	if err == nil && obj != nil {
 		if existing, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && existing.Spec != nil {
 			needsRecreate := existing.Spec.Removing
+			existingPhase := ""
 			if existing.Status != nil {
-				phase := existing.Status.Phase
+				existingPhase = existing.Status.Phase
 				needsRecreate = needsRecreate ||
-					phase == ReleasePhaseRemoving || phase == ReleasePhaseRemoved ||
-					phase == cluster_controllerpb.ReleasePhaseFailed ||
-					phase == cluster_controllerpb.ReleasePhaseRolledBack
+					existingPhase == ReleasePhaseRemoving || existingPhase == ReleasePhaseRemoved ||
+					existingPhase == cluster_controllerpb.ReleasePhaseFailed ||
+					existingPhase == cluster_controllerpb.ReleasePhaseRolledBack
 			}
 			if !needsRecreate && existing.Spec.Version == version && existing.Spec.BuildNumber == buildNumber {
 				return // already up-to-date and in a healthy state
 			}
+			log.Printf("ensureServiceRelease: %s: recreating (phase=%s removing=%v needsRecreate=%v)",
+				releaseName, existingPhase, existing.Spec.Removing, needsRecreate)
 		}
+	} else {
+		log.Printf("ensureServiceRelease: %s: no existing release, creating (version=%s)", releaseName, version)
 	}
 
 	rel := &cluster_controllerpb.ServiceRelease{
@@ -57,14 +62,15 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 	}
 
 	if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
-		log.Printf("ensureServiceRelease: %s: %v", releaseName, err)
+		log.Printf("ensureServiceRelease: %s: apply failed: %v", releaseName, err)
+	} else {
+		log.Printf("ensureServiceRelease: %s: created with phase=PENDING", releaseName)
 	}
 }
 
 // ensureServiceReleasesFromDesired scans all ServiceDesiredVersion objects and
 // creates corresponding ServiceRelease objects for any that are missing.
-// Called at startup for backward compatibility with desired-state entries
-// created before the bridge was added.
+// Safe to call periodically — only creates releases, does not clean up infra.
 func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 	if srv.resources == nil {
 		return
@@ -107,17 +113,30 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 	if created > 0 {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
+}
 
-	// Clean up stale ServiceRelease and ServiceDesiredVersion objects for
-	// infrastructure packages that were incorrectly created by earlier
-	// versions of the bridge or auto-import.
+// cleanupStaleInfraServiceReleases removes ServiceRelease and ServiceDesiredVersion
+// objects for infrastructure packages that were incorrectly created by earlier
+// versions of the bridge or auto-import. Called once at startup only.
+func (srv *server) cleanupStaleInfraServiceReleases(ctx context.Context) {
+	if srv.resources == nil {
+		return
+	}
+	infraManaged := make(map[string]bool)
+	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range infraItems {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
+				infraManaged[canonicalServiceName(rel.Spec.Component)] = true
+			}
+		}
+	}
 	for canon := range infraManaged {
 		relKey := defaultPublisherID() + "/" + canon
 		if err := srv.resources.Delete(ctx, "ServiceRelease", relKey); err == nil {
-			log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceRelease for infra package %s", relKey)
+			log.Printf("cleanupStaleInfraServiceReleases: removed stale ServiceRelease for infra package %s", relKey)
 		}
 		if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
-			log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceDesiredVersion for infra package %s", canon)
+			log.Printf("cleanupStaleInfraServiceReleases: removed stale ServiceDesiredVersion for infra package %s", canon)
 		}
 	}
 }

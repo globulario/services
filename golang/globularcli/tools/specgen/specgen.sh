@@ -22,6 +22,15 @@ needs_scylla() {
   esac
 }
 
+# Check if service must run as root (needs to install packages, manage systemd, create users)
+needs_root() {
+  local svc="$1"
+  case "${svc}" in
+    node_agent) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 usage() {
   cat <<EOF
 Usage: $0 <BIN_DIR> <OUT_ROOT>
@@ -70,6 +79,15 @@ for exe_path in "${BIN_DIR}"/*_server; do
     # Default to auto-select node advertise address; avoid localhost to prevent
     # Envoy/xDS picking loopback endpoints in multi-service deployments.
     address_host="auto"
+  fi
+
+  # node_agent must run as root to install packages, manage systemd units, create users
+  if needs_root "${svc}"; then
+    run_user="root"
+    run_group="root"
+  else
+    run_user="globular"
+    run_group="globular"
   fi
 
   # Write spec - services store their own config as <uuid>.json in services directory
@@ -159,8 +177,8 @@ EOF
 
           [Service]
           Type=simple
-          User=globular
-          Group=globular
+          User=${run_user}
+          Group=${run_group}
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           Environment=GLOBULAR_BOOTSTRAP=1
@@ -180,8 +198,8 @@ EOF
 
           [Service]
           Type=simple
-          User=globular
-          Group=globular
+          User=${run_user}
+          Group=${run_group}
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           Environment=GLOBULAR_BOOTSTRAP=1

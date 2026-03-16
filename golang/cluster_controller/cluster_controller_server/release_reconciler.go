@@ -60,13 +60,21 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 	safeGo("watch-service-release", func() {
 		ch, err := srv.resources.Watch(ctx, "ServiceRelease", "", "")
 		if err != nil {
+			log.Printf("watch-service-release: watch failed: %v", err)
 			return
 		}
+		log.Printf("watch-service-release: started")
 		for evt := range ch {
 			if rel, ok := evt.Object.(*cluster_controllerpb.ServiceRelease); ok && rel.Meta != nil {
+				phase := ""
+				if rel.Status != nil {
+					phase = rel.Status.Phase
+				}
+				log.Printf("watch-service-release: event %s name=%s phase=%s", evt.Type, rel.Meta.Name, phase)
 				queue.Enqueue(releaseKeyPrefix + rel.Meta.Name)
 			}
 		}
+		log.Printf("watch-service-release: channel closed, exiting")
 	})
 
 	// Initial enqueue of ApplicationRelease objects.
@@ -123,6 +131,7 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		return
 	}
 	if obj == nil {
+		log.Printf("release %s: not found in store", releaseName)
 		return
 	}
 	rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
@@ -133,6 +142,7 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if rel.Status == nil {
 		rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 	}
+	log.Printf("release %s: reconciling phase=%s gen=%d", releaseName, rel.Status.Phase, rel.Meta.Generation)
 	if rel.Spec.Paused {
 		return
 	}

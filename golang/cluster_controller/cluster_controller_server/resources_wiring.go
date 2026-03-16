@@ -29,4 +29,8 @@ func (srv *server) initResourceStore(etcd *clientv3.Client) {
 	// Backward compat: create ServiceRelease objects for any existing
 	// ServiceDesiredVersion entries that predate the bridge.
 	srv.ensureServiceReleasesFromDesired(context.Background())
+
+	// One-time cleanup: remove stale ServiceRelease/ServiceDesiredVersion
+	// objects for infrastructure packages (managed by InfrastructureRelease).
+	srv.cleanupStaleInfraServiceReleases(context.Background())
 }
