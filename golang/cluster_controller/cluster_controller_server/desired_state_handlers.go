@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
@@ -34,39 +35,44 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
 	}
-	items, rv, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list desired services: %v", err)
+
+	// Fetch all resource types in parallel to minimize etcd round-trips.
+	type listResult struct {
+		items []interface{}
+		rv    string
 	}
-	// Build a phase lookup map from all release types so the status field
-	// reflects the actual workflow phase (PENDING, FAILED, AVAILABLE, etc.)
-	// instead of leaving it blank (which the UI displays as "Planned").
-	releasePhases := make(map[string]string) // canonical name → phase
-	if relItems, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
-		for _, obj := range relItems {
-			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil && rel.Status != nil {
-				releasePhases[canonicalServiceName(rel.Spec.ServiceName)] = rel.Status.Phase
-			}
+	var (
+		sdvRes, svcRelRes, infraRelRes, appRelRes listResult
+		wg                                         sync.WaitGroup
+	)
+	wg.Add(4)
+	go func() { defer wg.Done(); items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", ""); sdvRes = listResult{items, rv} }()
+	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "ServiceRelease", ""); svcRelRes = listResult{items: items} }()
+	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", ""); infraRelRes = listResult{items: items} }()
+	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "ApplicationRelease", ""); appRelRes = listResult{items: items} }()
+	wg.Wait()
+
+	// Build phase lookup from all release types.
+	releasePhases := make(map[string]string)
+	for _, obj := range svcRelRes.items {
+		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil && rel.Status != nil {
+			releasePhases[canonicalServiceName(rel.Spec.ServiceName)] = rel.Status.Phase
 		}
 	}
-	if relItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
-		for _, obj := range relItems {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Status != nil {
-				releasePhases[canonicalServiceName(rel.Spec.Component)] = rel.Status.Phase
-			}
+	for _, obj := range infraRelRes.items {
+		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Status != nil {
+			releasePhases[canonicalServiceName(rel.Spec.Component)] = rel.Status.Phase
 		}
 	}
-	if relItems, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
-		for _, obj := range relItems {
-			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Spec != nil && rel.Status != nil {
-				releasePhases[rel.Spec.AppName] = rel.Status.Phase
-			}
+	for _, obj := range appRelRes.items {
+		if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Spec != nil && rel.Status != nil {
+			releasePhases[rel.Spec.AppName] = rel.Status.Phase
 		}
 	}
 
-	ds := &cluster_controllerpb.DesiredState{Revision: rv}
+	ds := &cluster_controllerpb.DesiredState{Revision: sdvRes.rv}
 	seen := make(map[string]bool)
-	for _, obj := range items {
+	for _, obj := range sdvRes.items {
 		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
 		if !ok || sdv.Spec == nil {
 			continue
@@ -89,8 +95,8 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	// Merge InfrastructureRelease entries so infrastructure daemons
 	// (etcd, minio, envoy, etc.) appear in the desired-state response
 	// alongside gRPC services. Without this, the UI shows them as removable.
-	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
-		for _, obj := range infraItems {
+	{
+		for _, obj := range infraRelRes.items {
 			rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
 			if !ok || rel.Spec == nil {
 				continue
@@ -112,8 +118,8 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 		}
 	}
 	// Merge ApplicationRelease entries similarly.
-	if appItems, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
-		for _, obj := range appItems {
+	{
+		for _, obj := range appRelRes.items {
 			rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
 			if !ok || rel.Spec == nil {
 				continue
