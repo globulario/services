@@ -71,6 +71,17 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: list: %v", err)
 		return
 	}
+	// Build a set of names managed by InfrastructureRelease so we don't
+	// create duplicate ServiceRelease objects for infrastructure packages.
+	infraManaged := make(map[string]bool)
+	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range infraItems {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
+				infraManaged[canonicalServiceName(rel.Spec.Component)] = true
+			}
+		}
+	}
+
 	created := 0
 	for _, obj := range items {
 		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
@@ -81,10 +92,33 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		if canon == "" || sdv.Spec.Version == "" {
 			continue
 		}
+		// Skip infrastructure packages — they are managed by InfrastructureRelease,
+		// not ServiceRelease. Creating a ServiceRelease for them causes resolution
+		// failures (wrong artifact kind) and stale "Planned" entries in the UI.
+		if infraManaged[canon] {
+			continue
+		}
 		srv.ensureServiceRelease(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber)
 		created++
 	}
 	if created > 0 {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
+	}
+
+	// Clean up stale ServiceRelease objects for infrastructure packages that
+	// were incorrectly created by earlier versions of the bridge.
+	if relItems, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
+		for _, obj := range relItems {
+			rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+			if !ok || rel.Meta == nil || rel.Spec == nil {
+				continue
+			}
+			canon := canonicalServiceName(rel.Spec.ServiceName)
+			if infraManaged[canon] {
+				if err := srv.resources.Delete(ctx, "ServiceRelease", rel.Meta.Name); err == nil {
+					log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceRelease for infra package %s", rel.Meta.Name)
+				}
+			}
+		}
 	}
 }
