@@ -2,7 +2,10 @@ package security
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"github.com/globulario/services/golang/policy"
 )
 
 // Role name constants used across Globular services.
@@ -191,7 +194,20 @@ var (
 )
 
 func init() {
+	// Try loading cluster roles from external policy file; merge with compiled defaults.
+	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
+		// External file replaces compiled defaults entirely.
+		RolePermissions = extRoles
+		slog.Info("security: using cluster roles from external policy file")
+	}
+
+	rebuildMethodIndex()
+}
+
+// rebuildMethodIndex recomputes methodSet and methodPrefix from RolePermissions.
+func rebuildMethodIndex() {
 	methodSet = make(map[string]bool)
+	methodPrefix = nil
 	for _, methods := range RolePermissions {
 		for _, m := range methods {
 			if m == "/*" {

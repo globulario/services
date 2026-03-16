@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/file/file_client"
@@ -234,8 +235,11 @@ func (srv *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopRespo
 }
 
 // RolesDefault returns a curated set of roles for FileService.
+// Roles are defined in cluster-roles.json (owned by RBAC); this method
+// provides compiled fallback defaults only.
 func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
+	_ = domain // used in fallback below
 
 	return []resourcepb.Role{
 		{
@@ -328,6 +332,34 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			},
 			TypeName: "resource.Role",
 		},
+	}
+}
+
+// defaultPermissions returns the compiled fallback permissions for FileService.
+// Used when no external permissions.json policy file is available.
+func defaultPermissions() []interface{} {
+	return []interface{}{
+		map[string]interface{}{"action": "/file.FileService/ReadDir", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateDir", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/DeleteDir", "permission": "delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
+		map[string]interface{}{"action": "/file.FileService/Rename", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"}, map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/Copy", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/Move", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateArchive", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/GetFileInfo", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/GetFileMetadata", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/ReadFile", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/SaveFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/DeleteFile", "permission": "delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateLnk", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "Name", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/GetThumbnails", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/HtmlToPdf", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"action": "/file.FileService/UploadFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/AddPublicDir", "permission": "admin", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
+		map[string]interface{}{"action": "/file.FileService/RemovePublicDir", "permission": "admin", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
+		map[string]interface{}{"action": "/file.FileService/GetPublicDirs", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"action": "/file.FileService/Stop", "permission": "admin", "resources": []interface{}{}},
 	}
 }
 
@@ -889,182 +921,11 @@ func main() {
 	s.AllowedOrigins = allowedOriginsStr
 	s.CacheAddress, _ = config.GetAddress()
 
-	s.Permissions = []interface{}{
-		// ---- Directory listing
-		map[string]interface{}{
-			"action":     "/file.FileService/ReadDir",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
-			},
-		},
-
-		// ---- Create / Delete directory
-		map[string]interface{}{
-			"action":     "/file.FileService/CreateDir",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // parent dir
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/DeleteDir",
-			"permission": "delete",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"},
-			},
-		},
-
-		// ---- Rename (inside a directory)
-		map[string]interface{}{
-			"action":     "/file.FileService/Rename",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"},
-			},
-		},
-
-		// ---- Copy (read sources, write destination)
-		map[string]interface{}{
-			"action":     "/file.FileService/Copy",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, // files[]
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // destination dir
-			},
-		},
-
-		// ---- Move (delete sources, write destination)
-		map[string]interface{}{
-			"action":     "/file.FileService/Move",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, // files[]
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},   // destination dir
-			},
-		},
-
-		// ---- Create archive (read sources; server writes into caller's area)
-		map[string]interface{}{
-			"action":     "/file.FileService/CreateArchive",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}, // paths[]
-				// NOTE: destination is implicit (user home) in server impl; no request field to reference.
-			},
-		},
-
-		// ---- File info & metadata
-		map[string]interface{}{
-			"action":     "/file.FileService/GetFileInfo",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/GetFileMetadata",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
-			},
-		},
-
-		// ---- Read / Save / Delete file
-		map[string]interface{}{
-			"action":     "/file.FileService/ReadFile",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/SaveFile",
-			"permission": "write",
-			"resources": []interface{}{
-				// SaveFile is client-streaming; enforce when a message contains Path in the oneof.
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/DeleteFile",
-			"permission": "delete",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"},
-			},
-		},
-
-		// ---- Link (.lnk) creation
-		map[string]interface{}{
-			"action":     "/file.FileService/CreateLnk",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // directory where link is created
-				map[string]interface{}{"index": 0, "field": "Name", "permission": "write"},
-				// "Lnk" is payload metadata; no FS permission required.
-			},
-		},
-
-		// ---- Thumbnails & transforms
-		map[string]interface{}{
-			"action":     "/file.FileService/GetThumbnails",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/WriteExcelFile",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/HtmlToPdf",
-			"permission": "read",
-			"resources":  []interface{}{}, // no FS resource in request
-		},
-
-		// ---- Remote ingest (download to dest)
-		map[string]interface{}{
-			"action":     "/file.FileService/UploadFile",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"},
-				// "Url" is external; validate-only (no FS permission).
-			},
-		},
-
-		// ---- Public directory management
-		map[string]interface{}{
-			"action":     "/file.FileService/AddPublicDir",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/RemovePublicDir",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/file.FileService/GetPublicDirs",
-			"permission": "read",
-			"resources":  []interface{}{}, // config read; no path param
-		},
-
-		// ---- Control plane
-		map[string]interface{}{
-			"action":     "/file.FileService/Stop",
-			"permission": "admin",
-			"resources":  []interface{}{},
-		},
+	// Try loading permissions from external policy file; fall back to compiled defaults.
+	if extPerms, ok, _ := policy.LoadPermissions("file"); ok {
+		s.Permissions = extPerms
+	} else {
+		s.Permissions = defaultPermissions()
 	}
 
 	// Dynamic client registration
