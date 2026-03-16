@@ -558,6 +558,9 @@ message DesiredService {
   string version    = 2;
   string platform   = 3;  // optional; e.g. "linux_amd64"
   int64 build_number = 4; // build iteration within version (0 = legacy)
+  // Release workflow phase: PENDING, RESOLVED, APPLYING, AVAILABLE, DEGRADED,
+  // FAILED, ROLLED_BACK, REMOVING, REMOVED. Empty if no release exists yet.
+  string status = 5;
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.

@@ -107,13 +107,42 @@ func registerClusterTools(s *server) {
 			}
 		}
 
-		return map[string]interface{}{
+		// Fetch per-service release phases (best-effort).
+		resConn, resErr := s.clients.get(ctx, controllerEndpoint())
+		var servicePhases []map[string]interface{}
+		if resErr == nil {
+			resClient := cluster_controllerpb.NewResourcesServiceClient(resConn)
+			relCtx, relCancel := context.WithTimeout(authCtx(ctx), 5*time.Second)
+			defer relCancel()
+			if relResp, err := resClient.ListServiceReleases(relCtx, &cluster_controllerpb.ListServiceReleasesRequest{}); err == nil {
+				for _, rel := range relResp.Items {
+					phase := ""
+					if rel.Status != nil {
+						phase = rel.Status.Phase
+					}
+					name := ""
+					if rel.Meta != nil {
+						name = rel.Meta.Name
+					}
+					servicePhases = append(servicePhases, map[string]interface{}{
+						"release_name": name,
+						"phase":        phase,
+					})
+				}
+			}
+		}
+
+		result := map[string]interface{}{
 			"overall_status":  overallStatus,
 			"node_count":      len(resp.GetNodes()),
 			"healthy_count":   healthyCount,
 			"unhealthy_count": unhealthyCount,
 			"nodes":           nodes,
-		}, nil
+		}
+		if len(servicePhases) > 0 {
+			result["service_phases"] = servicePhases
+		}
+		return result, nil
 	})
 
 	// ── cluster_list_nodes ──────────────────────────────────────────────
@@ -328,6 +357,174 @@ func registerClusterTools(s *server) {
 		return map[string]interface{}{
 			"services": services,
 			"revision": state.GetRevision(),
+		}, nil
+	})
+
+	// ── cluster_get_service_workflow_status ────────────────────────────
+	s.register(toolDef{
+		Name:        "cluster_get_service_workflow_status",
+		Description: "Returns release workflow status for services, applications, and infrastructure: phase (PENDING→RESOLVED→APPLYING→AVAILABLE/DEGRADED/FAILED/ROLLED_BACK/REMOVING→REMOVED), workflow_kind (install/upgrade/remove), started_at, transition_reason, per-node status with failed_step, and errors. Use this to track the progress of any release.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"service_name": {Type: "string", Description: "Optional name filter (e.g. 'authentication'). Omit to list all."},
+				"kind":         {Type: "string", Description: "Optional kind filter: 'service', 'application', 'infrastructure'. Omit for all."},
+			},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		conn, err := s.clients.get(ctx, controllerEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		resClient := cluster_controllerpb.NewResourcesServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+
+		filterName := getStr(args, "service_name")
+		filterKind := getStr(args, "kind")
+
+		releases := make([]map[string]interface{}, 0)
+
+		// Helper to build node status entries with new fields.
+		buildNodeStatuses := func(nodes []*cluster_controllerpb.NodeReleaseStatus) []map[string]interface{} {
+			out := make([]map[string]interface{}, 0, len(nodes))
+			for _, n := range nodes {
+				if n == nil {
+					continue
+				}
+				entry := map[string]interface{}{
+					"node_id":           n.NodeID,
+					"phase":             n.Phase,
+					"plan_id":           n.PlanID,
+					"installed_version": n.InstalledVersion,
+					"error":             n.ErrorMessage,
+					"updated":           fmtTime(n.UpdatedUnixMs),
+				}
+				if n.FailedStepID != "" {
+					entry["failed_step"] = n.FailedStepID
+				}
+				out = append(out, entry)
+			}
+			return out
+		}
+
+		// ServiceReleases
+		if filterKind == "" || filterKind == "service" {
+			resp, err := resClient.ListServiceReleases(callCtx, &cluster_controllerpb.ListServiceReleasesRequest{})
+			if err == nil {
+				for _, rel := range resp.Items {
+					if rel == nil || rel.Meta == nil {
+						continue
+					}
+					if filterName != "" && (rel.Spec == nil || rel.Spec.ServiceName != filterName) {
+						continue
+					}
+					entry := map[string]interface{}{
+						"release_name":  rel.Meta.Name,
+						"resource_kind": "ServiceRelease",
+					}
+					if rel.Spec != nil {
+						entry["service_name"] = rel.Spec.ServiceName
+						entry["desired_version"] = rel.Spec.Version
+						entry["build_number"] = rel.Spec.BuildNumber
+						entry["publisher_id"] = rel.Spec.PublisherID
+						entry["paused"] = rel.Spec.Paused
+						entry["removing"] = rel.Spec.Removing
+					}
+					if rel.Status != nil {
+						entry["phase"] = rel.Status.Phase
+						entry["resolved_version"] = rel.Status.ResolvedVersion
+						entry["desired_hash"] = rel.Status.DesiredHash
+						entry["message"] = rel.Status.Message
+						entry["last_transition"] = fmtTime(rel.Status.LastTransitionUnixMs)
+						entry["workflow_kind"] = rel.Status.WorkflowKind
+						entry["started_at"] = fmtTime(rel.Status.StartedAtUnixMs)
+						entry["transition_reason"] = rel.Status.TransitionReason
+						entry["nodes"] = buildNodeStatuses(rel.Status.Nodes)
+					}
+					releases = append(releases, entry)
+				}
+			}
+		}
+
+		// ApplicationReleases
+		if filterKind == "" || filterKind == "application" {
+			appResp, err := resClient.ListApplicationReleases(callCtx, &cluster_controllerpb.ListApplicationReleasesRequest{})
+			if err == nil {
+				for _, rel := range appResp.Items {
+					if rel == nil || rel.Meta == nil {
+						continue
+					}
+					if filterName != "" && (rel.Spec == nil || rel.Spec.AppName != filterName) {
+						continue
+					}
+					entry := map[string]interface{}{
+						"release_name":  rel.Meta.Name,
+						"resource_kind": "ApplicationRelease",
+					}
+					if rel.Spec != nil {
+						entry["service_name"] = rel.Spec.AppName
+						entry["desired_version"] = rel.Spec.Version
+						entry["publisher_id"] = rel.Spec.PublisherID
+						entry["removing"] = rel.Spec.Removing
+					}
+					if rel.Status != nil {
+						entry["phase"] = rel.Status.Phase
+						entry["resolved_version"] = rel.Status.ResolvedVersion
+						entry["desired_hash"] = rel.Status.DesiredHash
+						entry["message"] = rel.Status.Message
+						entry["last_transition"] = fmtTime(rel.Status.LastTransitionUnixMs)
+						entry["workflow_kind"] = rel.Status.WorkflowKind
+						entry["started_at"] = fmtTime(rel.Status.StartedAtUnixMs)
+						entry["transition_reason"] = rel.Status.TransitionReason
+						entry["nodes"] = buildNodeStatuses(rel.Status.Nodes)
+					}
+					releases = append(releases, entry)
+				}
+			}
+		}
+
+		// InfrastructureReleases
+		if filterKind == "" || filterKind == "infrastructure" {
+			infraResp, err := resClient.ListInfrastructureReleases(callCtx, &cluster_controllerpb.ListInfrastructureReleasesRequest{})
+			if err == nil {
+				for _, rel := range infraResp.Items {
+					if rel == nil || rel.Meta == nil {
+						continue
+					}
+					if filterName != "" && (rel.Spec == nil || rel.Spec.Component != filterName) {
+						continue
+					}
+					entry := map[string]interface{}{
+						"release_name":  rel.Meta.Name,
+						"resource_kind": "InfrastructureRelease",
+					}
+					if rel.Spec != nil {
+						entry["service_name"] = rel.Spec.Component
+						entry["desired_version"] = rel.Spec.Version
+						entry["publisher_id"] = rel.Spec.PublisherID
+						entry["removing"] = rel.Spec.Removing
+					}
+					if rel.Status != nil {
+						entry["phase"] = rel.Status.Phase
+						entry["resolved_version"] = rel.Status.ResolvedVersion
+						entry["desired_hash"] = rel.Status.DesiredHash
+						entry["message"] = rel.Status.Message
+						entry["last_transition"] = fmtTime(rel.Status.LastTransitionUnixMs)
+						entry["workflow_kind"] = rel.Status.WorkflowKind
+						entry["started_at"] = fmtTime(rel.Status.StartedAtUnixMs)
+						entry["transition_reason"] = rel.Status.TransitionReason
+						entry["nodes"] = buildNodeStatuses(rel.Status.Nodes)
+					}
+					releases = append(releases, entry)
+				}
+			}
+		}
+
+		return map[string]interface{}{
+			"releases": releases,
+			"count":    len(releases),
 		}, nil
 	})
 }

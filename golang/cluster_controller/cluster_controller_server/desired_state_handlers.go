@@ -38,6 +38,32 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list desired services: %v", err)
 	}
+	// Build a phase lookup map from all release types so the status field
+	// reflects the actual workflow phase (PENDING, FAILED, AVAILABLE, etc.)
+	// instead of leaving it blank (which the UI displays as "Planned").
+	releasePhases := make(map[string]string) // canonical name → phase
+	if relItems, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
+		for _, obj := range relItems {
+			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil && rel.Status != nil {
+				releasePhases[canonicalServiceName(rel.Spec.ServiceName)] = rel.Status.Phase
+			}
+		}
+	}
+	if relItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range relItems {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Status != nil {
+				releasePhases[canonicalServiceName(rel.Spec.Component)] = rel.Status.Phase
+			}
+		}
+	}
+	if relItems, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
+		for _, obj := range relItems {
+			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Spec != nil && rel.Status != nil {
+				releasePhases[rel.Spec.AppName] = rel.Status.Phase
+			}
+		}
+	}
+
 	ds := &cluster_controllerpb.DesiredState{Revision: rv}
 	seen := make(map[string]bool)
 	for _, obj := range items {
@@ -57,7 +83,56 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 			ServiceId:   canon,
 			Version:     sdv.Spec.Version,
 			BuildNumber: sdv.Spec.BuildNumber,
+			Status:      releasePhases[canon],
 		})
+	}
+	// Merge InfrastructureRelease entries so infrastructure daemons
+	// (etcd, minio, envoy, etc.) appear in the desired-state response
+	// alongside gRPC services. Without this, the UI shows them as removable.
+	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range infraItems {
+			rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+			if !ok || rel.Spec == nil {
+				continue
+			}
+			canon := canonicalServiceName(rel.Spec.Component)
+			if canon == "" && rel.Meta != nil {
+				canon = canonicalServiceName(rel.Meta.Name)
+			}
+			if canon == "" || seen[canon] {
+				continue
+			}
+			seen[canon] = true
+			ds.Services = append(ds.Services, &cluster_controllerpb.DesiredService{
+				ServiceId:   canon,
+				Version:     rel.Spec.Version,
+				BuildNumber: rel.Spec.BuildNumber,
+				Status:      releasePhases[canon],
+			})
+		}
+	}
+	// Merge ApplicationRelease entries similarly.
+	if appItems, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
+		for _, obj := range appItems {
+			rel, ok := obj.(*cluster_controllerpb.ApplicationRelease)
+			if !ok || rel.Spec == nil {
+				continue
+			}
+			name := rel.Spec.AppName
+			if name == "" && rel.Meta != nil {
+				name = rel.Meta.Name
+			}
+			if name == "" || seen[name] {
+				continue
+			}
+			seen[name] = true
+			ds.Services = append(ds.Services, &cluster_controllerpb.DesiredService{
+				ServiceId:   name,
+				Version:     rel.Spec.Version,
+				BuildNumber: rel.Spec.BuildNumber,
+				Status:      releasePhases[name],
+			})
+		}
 	}
 	return ds, nil
 }
@@ -155,7 +230,15 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 		},
 	}
 	_, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Bridge: ensure a corresponding ServiceRelease exists so the release
+	// reconciler can track per-service lifecycle phases.
+	srv.ensureServiceRelease(ctx, canon, version, svc.BuildNumber)
+
+	return nil
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -179,7 +262,9 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 	return srv.listAllDesiredServices(ctx)
 }
 
-// RemoveDesiredService deletes a single desired-service entry.
+// RemoveDesiredService deletes the ServiceDesiredVersion and sets the Removing
+// flag on the corresponding ServiceRelease, triggering a lifecycle-tracked
+// removal workflow (REMOVING → REMOVED).
 func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_controllerpb.RemoveDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
 	if err := srv.requireLeader(ctx); err != nil {
 		return nil, err
@@ -191,9 +276,25 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "service_id is required")
 	}
+
+	// Delete the desired-state entry (stops new reconciliation from desired state).
 	if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", name); err != nil {
 		return nil, status.Errorf(codes.Internal, "remove desired service: %v", err)
 	}
+
+	// Set Removing flag on the ServiceRelease to trigger the removal workflow.
+	releaseName := defaultPublisherID() + "/" + name
+	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", releaseName)
+	if err == nil && obj != nil {
+		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil {
+			rel.Spec.Removing = true
+			if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+				return nil, status.Errorf(codes.Internal, "mark release %s for removal: %v", releaseName, err)
+			}
+		}
+	}
+	// If no ServiceRelease exists, nothing to remove — just delete the SDV.
+
 	return srv.listAllDesiredServices(ctx)
 }
 

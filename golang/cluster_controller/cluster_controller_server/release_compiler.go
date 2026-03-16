@@ -85,8 +85,22 @@ func CompileReleasePlan(
 		"artifact_path":   artPath,
 		"expected_sha256": status.ResolvedArtifactDigest,
 	}
-	if strings.TrimSpace(spec.RepositoryID) != "" {
-		fetchArgs["repository_addr"] = spec.RepositoryID
+	repoAddr := strings.TrimSpace(spec.RepositoryID)
+	if repoAddr == "" {
+		// Fall back to the discovered repository address when the spec
+		// doesn't carry an explicit RepositoryID. Without this, the
+		// node-agent won't know where to fetch the artifact from.
+		repoAddr = resolveRepositoryInfo().Address
+	}
+	if repoAddr != "" {
+		fetchArgs["repository_addr"] = repoAddr
+	}
+	repo := resolveRepositoryInfo()
+	if !repo.TLS {
+		fetchArgs["repository_insecure"] = true
+	}
+	if repo.CAPath != "" {
+		fetchArgs["repository_ca_path"] = repo.CAPath
 	}
 	if strings.TrimSpace(clusterID) != "" {
 		fetchArgs["cluster_id"] = clusterID

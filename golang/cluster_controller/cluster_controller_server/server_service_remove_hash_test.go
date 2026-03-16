@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
-	"github.com/globulario/services/golang/plan/planpb"
 )
 
-// Ensure removal uses stable desired hash and converges when removal flag enabled.
-func TestServiceRemovalPlanHasStableHash(t *testing.T) {
-	kv := newMapKV()
+// TestServiceRemovalViaReleasePipeline verifies that setting Removing=true on
+// a ServiceRelease triggers the release pipeline removal workflow (REMOVING phase).
+func TestServiceRemovalViaReleasePipeline(t *testing.T) {
 	ps := &fakePlanStore{}
 	srv := &server{
 		cfg: &clusterControllerConfig{},
@@ -23,45 +21,49 @@ func TestServiceRemovalPlanHasStableHash(t *testing.T) {
 				Capabilities: &storedCapabilities{CanApplyPrivileged: true},
 			},
 		}},
-		kv:                   kv,
 		planStore:            ps,
 		resources:            resourcestore.NewMemStore(),
 		enableServiceRemoval: true,
 		planSignerState:      testPlanSigner(t),
 	}
-	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &cluster_controllerpb.ClusterNetwork{
-		Meta: &cluster_controllerpb.ObjectMeta{Name: "default", Generation: 1},
-		Spec: &cluster_controllerpb.ClusterNetworkSpec{ClusterDomain: "example.com", Protocol: "http", PortHttp: 80},
+
+	// Create a ServiceRelease with Removing=true.
+	_, _ = srv.resources.Apply(context.Background(), "ServiceRelease", &cluster_controllerpb.ServiceRelease{
+		Meta: &cluster_controllerpb.ObjectMeta{Name: "core@globular.io/gateway", Generation: 1},
+		Spec: &cluster_controllerpb.ServiceReleaseSpec{
+			PublisherID: "core@globular.io",
+			ServiceName: "gateway",
+			Version:     "0.1.0",
+			Removing:    true,
+		},
+		Status: &cluster_controllerpb.ServiceReleaseStatus{
+			Phase:              cluster_controllerpb.ReleasePhaseAvailable,
+			ObservedGeneration: 1,
+			ResolvedVersion:    "0.1.0",
+			Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+				{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
+			},
+		},
 	})
-	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desiredNetworkForTests())); err != nil {
-		t.Fatalf("putNodeAppliedHash: %v", err)
+
+	// Reconcile should transition to REMOVING and dispatch uninstall plans.
+	srv.reconcileRelease(context.Background(), "core@globular.io/gateway")
+
+	// Verify the release moved to REMOVING.
+	obj, _, err := srv.resources.Get(context.Background(), "ServiceRelease", "core@globular.io/gateway")
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	rel := obj.(*cluster_controllerpb.ServiceRelease)
+	if rel.Status.Phase != ReleasePhaseRemoving {
+		t.Fatalf("expected phase REMOVING, got %s", rel.Status.Phase)
 	}
 
-	srv.reconcileNodes(context.Background())
-	plan := ps.lastPlan
-	if plan == nil {
-		t.Fatalf("expected removal plan emitted")
+	// Verify uninstall plan was dispatched.
+	if ps.lastPlan == nil {
+		t.Fatalf("expected uninstall plan emitted")
 	}
-	if plan.GetReason() != "service_remove" {
-		t.Fatalf("expected service_remove reason, got %s", plan.GetReason())
-	}
-	if plan.GetDesiredHash() == "" || !strings.HasPrefix(plan.GetDesiredHash(), "services:") {
-		t.Fatalf("expected stable desired hash with services: prefix, got %s", plan.GetDesiredHash())
-	}
-
-	// Simulate success and ensure applied hash is stored and no re-emit.
-	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
-		PlanId:     plan.GetPlanId(),
-		NodeId:     "n1",
-		Generation: plan.GetGeneration(),
-		State:      planpb.PlanState_PLAN_SUCCEEDED,
-	})
-	srv.reconcileNodes(context.Background())
-	appliedSvc, _ := srv.getNodeAppliedServiceHash(context.Background(), "n1")
-	if appliedSvc != plan.GetDesiredHash() {
-		t.Fatalf("expected applied service hash %s, got %s", plan.GetDesiredHash(), appliedSvc)
-	}
-	if ps.count > 1 {
-		t.Fatalf("expected no re-emit after success, got %d plans", ps.count)
+	if ps.lastPlan.GetReason() != "service_remove" {
+		t.Fatalf("expected service_remove reason, got %s", ps.lastPlan.GetReason())
 	}
 }

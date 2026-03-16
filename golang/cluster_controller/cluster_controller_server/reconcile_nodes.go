@@ -287,67 +287,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			log.Printf("reconcile: load desired services failed: %v", err)
 			desiredCanon = map[string]string{}
 		}
-		filtered, toRemove := computeServiceDelta(desiredCanon, node.Units)
+		filtered, _ := computeServiceDelta(desiredCanon, node.Units)
+		// Removal now flows through the release pipeline (REMOVING → REMOVED).
+		// The ad-hoc removal block has been removed.
 		svcHash := stableServiceDesiredHash(filtered)
-		if srv.enableServiceRemoval && len(toRemove) > 0 {
-			sort.Strings(toRemove)
-			remSvc := toRemove[0]
-			if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) && planHash == svcHash {
-				continue
-			}
-			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash {
-				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
-					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
-				}
-				if srv.resources != nil {
-					if obj, ok := desiredObjs[remSvc]; ok && obj != nil && obj.Meta != nil {
-						_, _ = srv.resources.UpdateStatus(ctx, "ServiceDesiredVersion", obj.Meta.Name, &cluster_controllerpb.ObjectStatus{
-							ObservedGeneration: obj.Meta.Generation,
-						})
-					}
-				}
-				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"service":        remSvc,
-					"message":        fmt.Sprintf("Service removal succeeded for %s on %s", remSvc, node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
-				})
-				continue
-			}
-			rmPlan := BuildServiceRemovePlan(node.NodeID, remSvc, svcHash)
-			rmPlan.PlanId = uuid.NewString()
-			rmPlan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
-			rmPlan.NodeId = node.NodeID
-			rmPlan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
-			rmPlan.DesiredHash = svcHash
-			if rmPlan.GetCreatedUnixMs() == 0 {
-				rmPlan.CreatedUnixMs = uint64(now.UnixMilli())
-			}
-			rmPlan.IssuedBy = "cluster-controller"
-			if err := srv.signOrAbort(rmPlan); err != nil {
-				log.Printf("reconcile: signing aborted for removal plan %s on %s: %v", rmPlan.GetPlanId(), node.NodeID, err)
-				continue
-			}
-			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, rmPlan); err == nil {
-				if appendable, ok := srv.planStore.(interface {
-					AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
-				}); ok {
-					_ = appendable.AppendHistory(ctx, node.NodeID, rmPlan)
-				}
-				log.Printf("reconcile: wrote service removal plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, remSvc, rmPlan.GetPlanId(), rmPlan.GetGeneration())
-				srv.emitClusterEvent("service_apply_started", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"service":        remSvc,
-					"message":        fmt.Sprintf("Service removal plan dispatched for %s on %s", remSvc, node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, rmPlan.GetGeneration()),
-				})
-				continue
-			}
-		}
 		if svcHash == "" {
 			continue
 		}
@@ -461,8 +404,16 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		// Pick the next service that actually needs installation. Skip services
 		// already installed at the desired version so we don't loop forever on
 		// already-converged services while others remain uninstalled.
+		// Also skip services managed by the release reconciler (have a ServiceRelease).
 		svcNames := make([]string, 0, len(filtered))
 		for name, ver := range filtered {
+			// Skip services managed by the release reconciler.
+			if srv.resources != nil {
+				relKey := defaultPublisherID() + "/" + canonicalServiceName(name)
+				if obj, _, _ := srv.resources.Get(ctx, "ServiceRelease", relKey); obj != nil {
+					continue
+				}
+			}
 			installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, name)
 			if installedVer != ver {
 				svcNames = append(svcNames, name)

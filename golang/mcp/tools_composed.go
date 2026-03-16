@@ -258,6 +258,32 @@ func registerComposedTools(s *server) {
 				desiredMap[svc.GetServiceId()] = svc.GetVersion()
 			}
 
+			// Merge InfrastructureRelease and ApplicationRelease entries
+			// so infra daemons don't inflate the "drifted" count.
+			if conn, err := s.clients.get(outerCtx, controllerEndpoint()); err == nil {
+				resClient := cluster_controllerpb.NewResourcesServiceClient(conn)
+				relCtx, relCancel := context.WithTimeout(authCtx(outerCtx), 5*time.Second)
+				defer relCancel()
+				if infraResp, err := resClient.ListInfrastructureReleases(relCtx, &cluster_controllerpb.ListInfrastructureReleasesRequest{}); err == nil {
+					for _, rel := range infraResp.Items {
+						if rel != nil && rel.Spec != nil && rel.Spec.Component != "" {
+							if _, exists := desiredMap[rel.Spec.Component]; !exists {
+								desiredMap[rel.Spec.Component] = rel.Spec.Version
+							}
+						}
+					}
+				}
+				if appResp, err := resClient.ListApplicationReleases(relCtx, &cluster_controllerpb.ListApplicationReleasesRequest{}); err == nil {
+					for _, rel := range appResp.Items {
+						if rel != nil && rel.Spec != nil && rel.Spec.AppName != "" {
+							if _, exists := desiredMap[rel.Spec.AppName]; !exists {
+								desiredMap[rel.Spec.AppName] = rel.Spec.Version
+							}
+						}
+					}
+				}
+			}
+
 			convergedNodes := 0
 			driftedNodes := 0
 			totalServices := len(desiredMap)

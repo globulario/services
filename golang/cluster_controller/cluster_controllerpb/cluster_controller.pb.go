@@ -4689,10 +4689,13 @@ type DesiredService struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical service identifier. Use "<publisher>/<name>" when publisher is known,
 	// otherwise just "<name>". The controller normalises to lowercase.
-	ServiceId     string `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
-	Version       string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Platform      string `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`                           // optional; e.g. "linux_amd64"
-	BuildNumber   int64  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
+	ServiceId   string `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	Version     string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Platform    string `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`                           // optional; e.g. "linux_amd64"
+	BuildNumber int64  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
+	// Release workflow phase: PENDING, RESOLVED, APPLYING, AVAILABLE, DEGRADED,
+	// FAILED, ROLLED_BACK, REMOVING, REMOVED. Empty if no release exists yet.
+	Status        string `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4753,6 +4756,13 @@ func (x *DesiredService) GetBuildNumber() int64 {
 		return x.BuildNumber
 	}
 	return 0
+}
+
+func (x *DesiredService) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.
@@ -6298,13 +6308,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\vconfig_diff\x18\x03 \x03(\v2\".cluster_controller.ConfigFileDiffR\n" +
 	"configDiff\x12#\n" +
 	"\rrestart_units\x18\x04 \x03(\tR\frestartUnits\x12K\n" +
-	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\x88\x01\n" +
+	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\xa0\x01\n" +
 	"\x0eDesiredService\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1a\n" +
 	"\bplatform\x18\x03 \x01(\tR\bplatform\x12!\n" +
-	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\"j\n" +
+	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"j\n" +
 	"\fDesiredState\x12>\n" +
 	"\bservices\x18\x01 \x03(\v2\".cluster_controller.DesiredServiceR\bservices\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"[\n" +

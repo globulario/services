@@ -17312,7 +17312,8 @@ proto.cluster_controller.DesiredService.toObject = function(includeInstance, msg
 serviceId: jspb.Message.getFieldWithDefault(msg, 1, ""),
 version: jspb.Message.getFieldWithDefault(msg, 2, ""),
 platform: jspb.Message.getFieldWithDefault(msg, 3, ""),
-buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0)
+buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0),
+status: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -17364,6 +17365,10 @@ proto.cluster_controller.DesiredService.deserializeBinaryFromReader = function(m
     case 4:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setBuildNumber(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStatus(value);
       break;
     default:
       reader.skipField();
@@ -17419,6 +17424,13 @@ proto.cluster_controller.DesiredService.serializeBinaryToWriter = function(messa
   if (f !== 0) {
     writer.writeInt64(
       4,
+      f
+    );
+  }
+  f = message.getStatus();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
       f
     );
   }
@@ -17494,6 +17506,24 @@ proto.cluster_controller.DesiredService.prototype.getBuildNumber = function() {
  */
 proto.cluster_controller.DesiredService.prototype.setBuildNumber = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional string status = 5;
+ * @return {string}
+ */
+proto.cluster_controller.DesiredService.prototype.getStatus = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

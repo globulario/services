@@ -25,4 +25,8 @@ func (srv *server) initResourceStore(etcd *clientv3.Client) {
 	if n := srv.cleanupStaleDesiredKeys(context.Background()); n > 0 {
 		log.Printf("resources: cleaned up %d stale desired-service key(s)", n)
 	}
+
+	// Backward compat: create ServiceRelease objects for any existing
+	// ServiceDesiredVersion entries that predate the bridge.
+	srv.ensureServiceReleasesFromDesired(context.Background())
 }

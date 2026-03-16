@@ -283,9 +283,16 @@ func serviceProbeForUnit(unit string) *planpb.Probe {
 	}
 }
 
-// BuildServiceRemovePlan creates a removal plan that stops and disables the service unit.
+// BuildServiceRemovePlan creates a removal plan that stops, disables, removes
+// the binary and unit file, clears config, version marker, and installed-state
+// registry entry for the service.
 func BuildServiceRemovePlan(nodeID string, svcCanonical string, desiredHash string) *planpb.NodePlan {
 	unit := serviceUnitForCanonical(svcCanonical)
+	marker := versionutil.MarkerPath(svcCanonical)
+	binaryPath := fmt.Sprintf("/usr/local/bin/%s", svcCanonical)
+	unitPath := fmt.Sprintf("/etc/systemd/system/%s", unit)
+	configDir := fmt.Sprintf("/etc/globular/%s", svcCanonical)
+
 	return &planpb.NodePlan{
 		ApiVersion:  "globular.io/plan/v1",
 		Kind:        "NodePlan",
@@ -302,6 +309,19 @@ func BuildServiceRemovePlan(nodeID string, svcCanonical string, desiredHash stri
 			Steps: []*planpb.PlanStep{
 				planStep("service.stop", map[string]interface{}{"unit": unit}),
 				planStep("service.disable", map[string]interface{}{"unit": unit}),
+				planStep("package.uninstall", map[string]interface{}{
+					"service":      svcCanonical,
+					"unit":         unit,
+					"binary_path":  binaryPath,
+					"unit_path":    unitPath,
+					"config_dir":   configDir,
+					"marker_path":  marker,
+				}),
+				planStep("package.clear_state", map[string]interface{}{
+					"node_id": nodeID,
+					"name":    svcCanonical,
+					"kind":    "SERVICE",
+				}),
 			},
 			Desired: &planpb.DesiredState{Services: []*planpb.DesiredService{}},
 			SuccessProbes: []*planpb.Probe{

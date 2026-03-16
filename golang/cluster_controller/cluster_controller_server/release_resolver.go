@@ -88,12 +88,19 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		version = cv
 	}
 
+	// Default platform to linux_amd64 when unspecified — artifacts are always
+	// published with a platform, so an empty platform produces a key mismatch.
+	platform := strings.TrimSpace(spec.Platform)
+	if platform == "" {
+		platform = "linux_amd64"
+	}
+
 	// Fetch manifest to confirm existence and retrieve digest.
 	ref := &repositorypb.ArtifactRef{
 		PublisherId: spec.PublisherID,
 		Name:        spec.ServiceName,
 		Version:     version,
-		Platform:    spec.Platform,
+		Platform:    platform,
 		Kind:        repositorypb.ArtifactKind_SERVICE,
 	}
 	manifest, err := client.GetArtifactManifest(ref, buildNumber)
@@ -107,14 +114,14 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	}
 
 	// Amendment 4: assert checksum is SHA256 hex (64 hex chars).
-	checksum := manifest.GetChecksum()
+	checksum := normalizeSHA256(manifest.GetChecksum())
 	if err := assertSHA256Hex(checksum, spec.PublisherID, spec.ServiceName, version); err != nil {
 		return nil, err
 	}
 
 	return &ResolvedArtifact{
 		Version:     version,
-		Digest:      strings.ToLower(strings.TrimSpace(checksum)),
+		Digest:      checksum,
 		BuildNumber: manifest.GetBuildNumber(),
 	}, nil
 }
@@ -285,11 +292,20 @@ func isVerifiedPublisher(client *repository_client.Repository_Service_Client, pu
 	return false
 }
 
+// normalizeSHA256 strips common prefixes (e.g. "sha256:") and whitespace from
+// a checksum string, returning the bare lowercase hex digest.
+func normalizeSHA256(raw string) string {
+	s := strings.TrimSpace(raw)
+	s = strings.ToLower(s)
+	// Strip "sha256:" or "SHA256:" prefix (common in OCI/Docker manifests).
+	s = strings.TrimPrefix(s, "sha256:")
+	return strings.TrimSpace(s)
+}
+
 // assertSHA256Hex returns an error if checksum is not a 64-character lowercase hex string.
 // Amendment 4: fail fast at resolve time rather than propagating an ambiguous checksum.
 func assertSHA256Hex(checksum, publisherID, serviceName, version string) error {
-	checksum = strings.TrimSpace(checksum)
-	checksum = strings.ToLower(checksum)
+	checksum = normalizeSHA256(checksum)
 	if len(checksum) != 64 {
 		return fmt.Errorf(
 			"ArtifactManifest.checksum for %s/%s@%s has unexpected length %d (want 64); "+

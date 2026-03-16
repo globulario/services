@@ -110,7 +110,8 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 	})
 }
 
-// reconcileRelease drives the phase state machine for one ServiceRelease.
+// reconcileRelease drives the phase state machine for one ServiceRelease
+// using the shared release pipeline.
 // Called from the worker goroutine when the queue key has the "release/" prefix.
 func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if srv.resources == nil {
@@ -122,7 +123,6 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		return
 	}
 	if obj == nil {
-		// Release deleted — nothing to do.
 		return
 	}
 	rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
@@ -133,27 +133,35 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if rel.Status == nil {
 		rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 	}
-	// Paused releases are not reconciled.
 	if rel.Spec.Paused {
 		return
 	}
 
-	switch rel.Status.Phase {
+	h := srv.svcReleaseHandle(rel)
+
+	// Removing flag takes priority: transition to REMOVING if not already in a removal phase.
+	if h.Removing && h.Phase != ReleasePhaseRemoving && h.Phase != ReleasePhaseRemoved {
+		srv.reconcileRemoving(ctx, h)
+		return
+	}
+
+	switch h.Phase {
 	case "", cluster_controllerpb.ReleasePhasePending:
-		if err := srv.reconcileReleasePending(ctx, rel); err != nil {
-			log.Printf("release %s: pending: %v", releaseName, err)
-		}
+		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
-		if err := srv.reconcileReleaseResolved(ctx, rel); err != nil {
-			log.Printf("release %s: resolved: %v", releaseName, err)
-		}
+		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		if err := srv.reconcileReleaseApplying(ctx, rel); err != nil {
-			log.Printf("release %s: applying: %v", releaseName, err)
-		}
+		srv.reconcileApplying(ctx, h)
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
-		if err := srv.reconcileReleaseAvailable(ctx, rel); err != nil {
-			log.Printf("release %s: available/degraded: %v", releaseName, err)
+		srv.reconcileAvailable(ctx, h)
+	case ReleasePhaseRemoving:
+		srv.reconcileRemoving(ctx, h)
+	case ReleasePhaseRemoved:
+		// Garbage-collect the release resource.
+		if err := srv.resources.Delete(ctx, "ServiceRelease", releaseName); err != nil {
+			log.Printf("release %s: garbage-collect failed: %v", releaseName, err)
+		} else {
+			log.Printf("release %s: garbage-collected (REMOVED)", releaseName)
 		}
 	default:
 		// FAILED, ROLLED_BACK — do not auto-retry; require explicit re-apply.
@@ -344,56 +352,16 @@ func (srv *server) reconcileReleaseApplying(ctx context.Context, rel *cluster_co
 		})
 	}
 
-	updatedNodes := make([]*cluster_controllerpb.NodeReleaseStatus, 0, len(rel.Status.Nodes))
-	succeeded := 0
-	failed := 0
-	running := 0
-
-	for _, nrs := range rel.Status.Nodes {
-		if nrs == nil {
-			continue
-		}
-		updated := *nrs // copy
-
-		planStatus, err := srv.planStore.GetStatus(ctx, nrs.NodeID)
-		if err != nil || planStatus == nil {
-			// Status not yet available; node is still working.
-			running++
-			updatedNodes = append(updatedNodes, &updated)
-			continue
-		}
-		// Ignore status that belongs to a different plan.
-		if nrs.PlanID != "" && planStatus.GetPlanId() != nrs.PlanID {
-			running++
-			updatedNodes = append(updatedNodes, &updated)
-			continue
-		}
-
-		switch planStatus.GetState() {
-		case planpb.PlanState_PLAN_SUCCEEDED:
-			succeeded++
-			updated.Phase = cluster_controllerpb.ReleasePhaseAvailable
-			updated.InstalledVersion = rel.Status.ResolvedVersion
-			updated.ErrorMessage = ""
-			updated.UpdatedUnixMs = time.Now().UnixMilli()
-		case planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED:
-			failed++
-			updated.Phase = cluster_controllerpb.ReleasePhaseFailed
-			updated.ErrorMessage = planStatus.GetErrorMessage()
-			updated.UpdatedUnixMs = time.Now().UnixMilli()
-		default:
-			// PENDING, RUNNING, ROLLING_BACK — still in progress.
-			running++
-		}
-		updatedNodes = append(updatedNodes, &updated)
-	}
+	updatedNodes, succeeded, failed, rolledBack, running := srv.checkNodePlanStatuses(ctx, rel.Status.Nodes, rel.Status.ResolvedVersion)
 
 	total := len(updatedNodes)
 	newPhase := cluster_controllerpb.ReleasePhaseApplying
 	switch {
 	case total > 0 && succeeded == total:
 		newPhase = cluster_controllerpb.ReleasePhaseAvailable
-	case failed > 0 && running == 0:
+	case total > 0 && rolledBack == total:
+		newPhase = cluster_controllerpb.ReleasePhaseRolledBack
+	case (failed > 0 || rolledBack > 0) && running == 0:
 		if succeeded > 0 {
 			newPhase = cluster_controllerpb.ReleasePhaseDegraded
 		} else {
@@ -584,7 +552,16 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 	if rel.Status == nil {
 		rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 	}
+	previousPhase := rel.Status.Phase
 	f(rel.Status)
+
+	// Hard enforcement: invalid transition blocks the patch.
+	if rel.Status.Phase != previousPhase {
+		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
+			return fmt.Errorf("release %s: %w", releaseName, err)
+		}
+	}
+
 	_, err = srv.resources.Apply(ctx, "ServiceRelease", rel)
 	return err
 }
@@ -689,6 +666,12 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 	}
 
 	h := srv.appReleaseHandle(rel)
+
+	if h.Removing && h.Phase != ReleasePhaseRemoving && h.Phase != ReleasePhaseRemoved {
+		srv.reconcileRemoving(ctx, h)
+		return
+	}
+
 	switch h.Phase {
 	case "", cluster_controllerpb.ReleasePhasePending:
 		srv.reconcilePending(ctx, h)
@@ -698,6 +681,14 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 		srv.reconcileApplying(ctx, h)
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
+	case ReleasePhaseRemoving:
+		srv.reconcileRemoving(ctx, h)
+	case ReleasePhaseRemoved:
+		if err := srv.resources.Delete(ctx, "ApplicationRelease", releaseName); err != nil {
+			log.Printf("app-release %s: garbage-collect failed: %v", releaseName, err)
+		} else {
+			log.Printf("app-release %s: garbage-collected (REMOVED)", releaseName)
+		}
 	}
 }
 
@@ -713,7 +704,15 @@ func (srv *server) patchAppReleaseStatus(ctx context.Context, releaseName string
 	if rel.Status == nil {
 		rel.Status = &cluster_controllerpb.ApplicationReleaseStatus{}
 	}
+	previousPhase := rel.Status.Phase
 	f(rel.Status)
+
+	if rel.Status.Phase != previousPhase {
+		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
+			return fmt.Errorf("app-release %s: %w", releaseName, err)
+		}
+	}
+
 	_, err = srv.resources.Apply(ctx, "ApplicationRelease", rel)
 	return err
 }
@@ -751,6 +750,12 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	}
 
 	h := srv.infraReleaseHandle(rel)
+
+	if h.Removing && h.Phase != ReleasePhaseRemoving && h.Phase != ReleasePhaseRemoved {
+		srv.reconcileRemoving(ctx, h)
+		return
+	}
+
 	switch h.Phase {
 	case "", cluster_controllerpb.ReleasePhasePending:
 		srv.reconcilePending(ctx, h)
@@ -760,6 +765,14 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 		srv.reconcileApplying(ctx, h)
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
+	case ReleasePhaseRemoving:
+		srv.reconcileRemoving(ctx, h)
+	case ReleasePhaseRemoved:
+		if err := srv.resources.Delete(ctx, "InfrastructureRelease", releaseName); err != nil {
+			log.Printf("infra-release %s: garbage-collect failed: %v", releaseName, err)
+		} else {
+			log.Printf("infra-release %s: garbage-collected (REMOVED)", releaseName)
+		}
 	}
 }
 
@@ -775,7 +788,15 @@ func (srv *server) patchInfraReleaseStatus(ctx context.Context, releaseName stri
 	if rel.Status == nil {
 		rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
 	}
+	previousPhase := rel.Status.Phase
 	f(rel.Status)
+
+	if rel.Status.Phase != previousPhase {
+		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
+			return fmt.Errorf("infra-release %s: %w", releaseName, err)
+		}
+	}
+
 	_, err = srv.resources.Apply(ctx, "InfrastructureRelease", rel)
 	return err
 }
@@ -788,10 +809,11 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 }
 
 // checkNodePlanStatuses inspects the plan store for each node in the list and
-// returns updated statuses plus counts of succeeded, failed, and running nodes.
+// returns updated statuses plus counts of succeeded, failed, rolledBack, and running nodes.
 // When resolvedVersion is non-empty and a plan succeeds, InstalledVersion is set.
-// Shared by ApplicationRelease and InfrastructureRelease reconcilers.
-func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, running int) {
+// PLAN_ROLLED_BACK is counted separately from failures so the caller can
+// distinguish full rollback (ROLLED_BACK) from mixed outcomes (DEGRADED).
+func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, rolledBack, running int) {
 	for _, nrs := range nodes {
 		if nrs == nil {
 			continue
@@ -814,11 +836,19 @@ func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_c
 			u.Phase = cluster_controllerpb.ReleasePhaseAvailable
 			u.InstalledVersion = resolvedVersion
 			u.ErrorMessage = ""
+			u.FailedStepID = ""
 			u.UpdatedUnixMs = time.Now().UnixMilli()
-		case planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED:
+		case planpb.PlanState_PLAN_ROLLED_BACK:
+			rolledBack++
+			u.Phase = cluster_controllerpb.ReleasePhaseRolledBack
+			u.ErrorMessage = ps.GetErrorMessage()
+			u.FailedStepID = ps.GetErrorStepId()
+			u.UpdatedUnixMs = time.Now().UnixMilli()
+		case planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_EXPIRED:
 			failed++
 			u.Phase = cluster_controllerpb.ReleasePhaseFailed
 			u.ErrorMessage = ps.GetErrorMessage()
+			u.FailedStepID = ps.GetErrorStepId()
 			u.UpdatedUnixMs = time.Now().UnixMilli()
 		default:
 			running++

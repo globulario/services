@@ -89,6 +89,7 @@ type ServiceReleaseSpec struct {
 	NodeAssignments  []*NodeAssignment `json:"node_assignments,omitempty"`
 	Config           map[string]string `json:"config,omitempty"`
 	Paused           bool              `json:"paused,omitempty"`
+	Removing         bool              `json:"removing,omitempty"`
 	Replicas         *ReplicaSpec      `json:"replicas,omitempty"`
 }
 
@@ -107,6 +108,7 @@ type NodeReleaseStatus struct {
 	InstalledBuildNumber  int64  `json:"installed_build_number,omitempty"` // build iteration on this node
 	ErrorMessage          string `json:"error_message,omitempty"`
 	UpdatedUnixMs         int64  `json:"updated_unix_ms,omitempty"`
+	FailedStepID          string `json:"failed_step_id,omitempty"` // step that failed (from plan status)
 }
 
 // ServiceReleaseStatus is the controller-managed status of a ServiceRelease.
@@ -120,6 +122,9 @@ type ServiceReleaseStatus struct {
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
 	ObservedGeneration     int64                `json:"observed_generation,omitempty"`
+	WorkflowKind           string               `json:"workflow_kind,omitempty"`       // "install", "upgrade", "remove"
+	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`  // workflow begin timestamp
+	TransitionReason       string               `json:"transition_reason,omitempty"`   // structured reason for last phase change
 }
 
 // ServiceRelease is the top-level desired-state object for service lifecycle.
@@ -144,6 +149,7 @@ type ApplicationReleaseSpec struct {
 	NodeAssignments []*NodeAssignment `json:"node_assignments,omitempty"`
 	Route           string            `json:"route,omitempty"`      // URL path, e.g. "/apps/myapp"
 	IndexFile       string            `json:"index_file,omitempty"` // Entry HTML file, default "index.html"
+	Removing        bool              `json:"removing,omitempty"`
 }
 
 // ApplicationReleaseStatus is the controller-managed status of an ApplicationRelease.
@@ -157,6 +163,9 @@ type ApplicationReleaseStatus struct {
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
 	ObservedGeneration     int64                `json:"observed_generation,omitempty"`
+	WorkflowKind           string               `json:"workflow_kind,omitempty"`
+	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`
+	TransitionReason       string               `json:"transition_reason,omitempty"`
 }
 
 // ApplicationRelease is the top-level desired-state object for web application lifecycle.
@@ -184,6 +193,7 @@ type InfrastructureReleaseSpec struct {
 	HealthEndpoint   string            `json:"health_endpoint,omitempty"`    // Health check URL or command
 	RolloutStrategy  string            `json:"rollout_strategy,omitempty"`   // RolloutRolling | RolloutAllAtOnce
 	MaxParallelNodes uint32            `json:"max_parallel_nodes,omitempty"`
+	Removing         bool              `json:"removing,omitempty"`
 }
 
 // InfrastructureReleaseStatus is the controller-managed status of an InfrastructureRelease.
@@ -197,6 +207,9 @@ type InfrastructureReleaseStatus struct {
 	Message                string               `json:"message,omitempty"`
 	LastTransitionUnixMs   int64                `json:"last_transition_unix_ms,omitempty"`
 	ObservedGeneration     int64                `json:"observed_generation,omitempty"`
+	WorkflowKind           string               `json:"workflow_kind,omitempty"`
+	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`
+	TransitionReason       string               `json:"transition_reason,omitempty"`
 }
 
 // InfrastructureRelease is the top-level desired-state object for infrastructure component lifecycle.
