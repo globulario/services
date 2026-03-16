@@ -458,11 +458,22 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}
 
-		// pick deterministic service to update this round, rotating on failure
-		// so that one unavailable artifact doesn't block all other services.
+		// Pick the next service that actually needs installation. Skip services
+		// already installed at the desired version so we don't loop forever on
+		// already-converged services while others remain uninstalled.
 		svcNames := make([]string, 0, len(filtered))
-		for name := range filtered {
-			svcNames = append(svcNames, name)
+		for name, ver := range filtered {
+			installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, name)
+			if installedVer != ver {
+				svcNames = append(svcNames, name)
+			}
+		}
+		if len(svcNames) == 0 {
+			// All desired services are installed — store applied hash and move on.
+			if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
+				log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+			}
+			continue
 		}
 		sort.Strings(svcNames)
 		svcName := svcNames[int(failsSvc)%len(svcNames)]
