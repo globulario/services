@@ -429,9 +429,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 		if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
 			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
-				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
-					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
-				}
 				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
 				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
 					"severity":       "INFO",
@@ -440,7 +437,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					"message":        fmt.Sprintf("Service plan succeeded for %s", node.Identity.Hostname),
 					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
 				})
-				continue
+				// Don't store appliedSvcHash here — this plan installed only ONE
+				// service, but svcHash covers ALL desired services. Storing it
+				// would cause the reconciler to skip remaining uninstalled services.
+				// Fall through to check if more services need installation.
 			}
 		}
 		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
