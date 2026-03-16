@@ -108,20 +108,16 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
 
-	// Clean up stale ServiceRelease objects for infrastructure packages that
-	// were incorrectly created by earlier versions of the bridge.
-	if relItems, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
-		for _, obj := range relItems {
-			rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
-			if !ok || rel.Meta == nil || rel.Spec == nil {
-				continue
-			}
-			canon := canonicalServiceName(rel.Spec.ServiceName)
-			if infraManaged[canon] {
-				if err := srv.resources.Delete(ctx, "ServiceRelease", rel.Meta.Name); err == nil {
-					log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceRelease for infra package %s", rel.Meta.Name)
-				}
-			}
+	// Clean up stale ServiceRelease and ServiceDesiredVersion objects for
+	// infrastructure packages that were incorrectly created by earlier
+	// versions of the bridge or auto-import.
+	for canon := range infraManaged {
+		relKey := defaultPublisherID() + "/" + canon
+		if err := srv.resources.Delete(ctx, "ServiceRelease", relKey); err == nil {
+			log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceRelease for infra package %s", relKey)
+		}
+		if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
+			log.Printf("ensureServiceReleasesFromDesired: removed stale ServiceDesiredVersion for infra package %s", canon)
 		}
 	}
 }
