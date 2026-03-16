@@ -766,7 +766,18 @@ func (srv *server) restartAllServices(ctx context.Context) {
 		}
 	}
 
-	// 2b. Restart node agent — controller is now ready to accept heartbeats.
+	// 2b. Reset node-agent plan generation file. After an etcd restore, plan
+	// generation numbers in etcd are from an older snapshot while the node-agent's
+	// on-disk high water mark is from the current timeline. New plans arrive with
+	// generation <= lastApplied, causing the node-agent to reject them as "replay"
+	// and quarantine the plan. Deleting the file resets the counter so all new
+	// plans are accepted.
+	genFile := "/var/lib/globular/node-agent/last-generation"
+	if err := os.Remove(genFile); err == nil {
+		slog.Info("restartAllServices: reset node-agent generation file", "path", genFile)
+	}
+
+	// 2c. Restart node agent — controller is now ready to accept heartbeats.
 	if isSystemdActive("globular-node-agent.service") {
 		slog.Info("restartAllServices: restarting node-agent")
 		if err := exec.CommandContext(ctx, "sudo", "systemctl", "restart", "globular-node-agent.service").Run(); err != nil {
