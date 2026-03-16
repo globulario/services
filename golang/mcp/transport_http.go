@@ -9,11 +9,8 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"time"
-
-	"github.com/globulario/services/golang/config"
 )
 
 // serveHTTP starts an HTTP server that accepts JSON-RPC MCP requests via POST.
@@ -135,9 +132,9 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		writeDefaultConfig(s.cfg)
 	}
 
-	// Register in Globular service discovery so xDS/Envoy creates a route.
-	// This lets Claude connect via https://<domain>/mcp through Envoy.
-	registerMCPService(actualPort)
+	// MCP is a local-only HTTP service (like gateway/xds). It is NOT a gRPC
+	// service and should not appear in the Service Instances table. Claude Code
+	// connects directly to 127.0.0.1:<port>; no Envoy routing is needed.
 
 	go func() {
 		<-ctx.Done()
@@ -152,43 +149,6 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 	return nil
 }
 
-// registerMCPService registers the MCP server in Globular's service discovery
-// (etcd) so the xDS watcher creates an Envoy cluster and subdomain route.
-// This makes the MCP server accessible at https://mcp.<cluster-domain>/mcp.
-// Runs in the background with retries so startup doesn't block or fail if
-// etcd isn't ready yet (common during Day-0 bootstrap).
-func registerMCPService(port int) {
-	go func() {
-		// MCP binds to localhost only — Envoy on the same host
-		// terminates TLS and proxies to us.
-		addr := "127.0.0.1"
-
-		svcConfig := map[string]interface{}{
-			"Id":       "mcp.MCPService",
-			"Name":     "mcp.MCPService",
-			"Address":  addr,
-			"Port":     port,
-			"Protocol": "http",
-			"TLS":      false, // Envoy terminates TLS; MCP listens on plain HTTP
-			"State":    "running",
-			"Process":  os.Getpid(),
-			"Version":  "0.0.1",
-		}
-
-		for attempt := 0; attempt < 10; attempt++ {
-			if attempt > 0 {
-				time.Sleep(time.Duration(attempt*3) * time.Second)
-			}
-			if err := config.SaveServiceConfiguration(svcConfig); err != nil {
-				log.Printf("mcp: service registration attempt %d/10 failed: %v", attempt+1, err)
-				continue
-			}
-			log.Printf("mcp: registered as mcp.MCPService on %s:%d", addr, port)
-			return
-		}
-		log.Printf("mcp: warning: service registration failed after 10 attempts; Envoy routing may not work")
-	}()
-}
 
 // extractCallerFromToken decodes the JWT payload (without verifying) to
 // extract the caller principal for audit logging. Returns "" on failure.
