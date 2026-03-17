@@ -106,10 +106,23 @@ public static class AuthorizationExtensions
         services.TryAddSingleton<IRbacClient>(sp => sp.GetRequiredService<GlobularRbacClient>());
         services.TryAddSingleton<IRoleStore>(sp => sp.GetRequiredService<GlobularRbacClient>());
 
+        // Role permission checker — loads role→permission mappings for
+        // local role-binding checks (mirrors Go security.RolePermissions).
+        services.AddSingleton<RolePermissionChecker>(sp =>
+        {
+            var checker = new RolePermissionChecker();
+            var loader = sp.GetRequiredService<PolicyLoader>();
+            var rolesManifest = loader.LoadServiceRoles(serviceName);
+            if (rolesManifest is not null)
+                checker.RegisterFromManifest(rolesManifest);
+            return checker;
+        });
+
         // Interceptor with configured mode.
         services.AddSingleton(sp => new GlobularAuthorizationInterceptor(
             sp.GetRequiredService<ActionResolver>(),
             sp.GetRequiredService<IRbacClient>(),
+            sp.GetRequiredService<RolePermissionChecker>(),
             sp.GetRequiredService<ILogger<GlobularAuthorizationInterceptor>>(),
             mode));
 

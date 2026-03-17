@@ -122,11 +122,11 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
     }
 
     /// <summary>
-    /// Checks if the subject has a role binding that grants the requested action.
-    /// Mirrors Go: security.HasRolePermission(binding.GetRoles(), action)
-    /// Returns false (deny) on any error — fail-closed.
+    /// Fetches the role binding for a subject, returning the list of role names.
+    /// Mirrors Go: rbacClient.GetRoleBindingWithCtx(ctx, subject)
+    /// Returns empty list on any error — fail-closed.
     /// </summary>
-    public async Task<bool> CheckRoleBindingAsync(string subject, string action,
+    public async Task<IReadOnlyList<string>> GetRoleBindingAsync(string subject,
         CancellationToken ct = default)
     {
         try
@@ -141,23 +141,15 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
             var response = await client.GetRoleBindingAsync(request, headers,
                 cancellationToken: cts.Token);
 
-            // Check if any bound role grants the requested action.
-            // Mirrors Go: iterate roles, check action match or wildcard.
-            if (response?.Binding?.Roles is not null)
-            {
-                foreach (var role in response.Binding.Roles)
-                {
-                    if (role == action || role == "*" || role == "/*")
-                        return true;
-                }
-            }
+            if (response?.Binding?.Roles is not null && response.Binding.Roles.Count > 0)
+                return response.Binding.Roles.ToList().AsReadOnly();
 
-            return false;
+            return Array.Empty<string>();
         }
         catch (RpcException ex) when (ex.StatusCode is StatusCode.NotFound or StatusCode.Unavailable)
         {
-            // No binding or RBAC unavailable -> deny (fail closed)
-            return false;
+            // No binding or RBAC unavailable -> empty (fail closed)
+            return Array.Empty<string>();
         }
     }
 
