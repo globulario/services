@@ -2,7 +2,7 @@
 // for transparent Globular management. This is the real publisher that
 // replaces the logging fallback in managed/cluster deployments.
 //
-// Uses the etcd key pattern: /globular/services/<serviceId>/runtime-state
+// Uses the etcd key pattern: /globular/services/<serviceId>/runtime
 // This aligns with how Go services register their state in etcd.
 
 using System.Text.Json;
@@ -26,7 +26,7 @@ public interface IEtcdClient
 /// configuration transparently inspectable by Globular Admin, CLI, and
 /// cluster management tooling.
 ///
-/// Key format: /globular/services/{serviceId}/runtime-state
+/// Key format: /globular/services/{serviceId}/runtime
 /// </summary>
 public sealed class EtcdServiceStatePublisher : IServiceStatePublisher
 {
@@ -47,7 +47,7 @@ public sealed class EtcdServiceStatePublisher : IServiceStatePublisher
 
     public async Task PublishAsync(EffectiveRuntimeState state, CancellationToken ct = default)
     {
-        var key = $"/globular/services/{state.ServiceId}/runtime-state";
+        var key = $"/globular/services/{state.ServiceId}/runtime";
         var value = JsonSerializer.Serialize(state, JsonOpts);
 
         await _etcd.PutAsync(key, value, ct);
@@ -56,7 +56,7 @@ public sealed class EtcdServiceStatePublisher : IServiceStatePublisher
 
     public async Task UnpublishAsync(string serviceId, CancellationToken ct = default)
     {
-        var key = $"/globular/services/{serviceId}/runtime-state";
+        var key = $"/globular/services/{serviceId}/runtime";
         await _etcd.DeleteAsync(key, ct);
         _logger.LogInformation("Removed runtime state from etcd: {Key}", key);
     }

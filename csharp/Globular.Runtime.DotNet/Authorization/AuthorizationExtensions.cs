@@ -1,18 +1,30 @@
 // DI registration extensions for Globular authorization components.
 // Integrates with the managed-service startup pipeline.
 //
+// Managed mode (default):
+//   Real RBAC client, real etcd publisher, real startup coordinator.
+//   Fail-closed if RBAC is unavailable.
+//
+// Development mode:
+//   Logging publisher, no-op registrar, RBAC optional.
+//   Explicit opt-in only.
+//
 // Usage:
+//   // Managed mode (production):
 //   builder.Services.AddGlobularAuthorization("catalog", builder.Configuration);
+//
+//   // Development mode (local only):
+//   builder.Services.AddGlobularAuthorization("catalog", builder.Configuration,
+//       AuthorizationMode.Development);
+//
 //   builder.Services.AddGrpc(o => o.Interceptors.Add<GlobularAuthorizationInterceptor>());
-//   // At startup:
-//   await app.Services.SeedRolesAsync("catalog");
-//   // Management endpoint:
 //   app.MapGlobularManagement();
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -22,8 +34,18 @@ namespace Globular.Runtime.Authorization;
 public static class AuthorizationExtensions
 {
     /// <summary>
-    /// Registers all Globular authorization services: PolicyLoader, ActionResolver,
-    /// RuntimeResolver, EffectiveRuntimeState, interceptor, and registrar.
+    /// Registers all Globular authorization services for managed mode.
+    ///
+    /// Managed mode (RbacStrict, Bootstrap) registers:
+    /// - Real GlobularRbacClient (IRbacClient + IRoleStore)
+    /// - Real GlobularEtcdClient + EtcdServiceStatePublisher
+    /// - ManagedStartupCoordinator for orchestrated startup
+    /// - GlobularServiceRegistrar for cluster registration
+    ///
+    /// Development mode registers:
+    /// - Real RBAC client (best-effort, non-fatal if unavailable)
+    /// - LoggingServiceStatePublisher (no etcd dependency)
+    /// - No ManagedStartupCoordinator
     /// </summary>
     public static IServiceCollection AddGlobularAuthorization(
         this IServiceCollection services,
@@ -31,9 +53,18 @@ public static class AuthorizationExtensions
         IConfiguration? configuration = null,
         AuthorizationMode mode = AuthorizationMode.RbacStrict)
     {
+        // ── Core infrastructure (all modes) ──────────────────────────
+
         services.AddSingleton<PolicyLoader>();
         services.AddSingleton<IPortAllocator, DefaultPortAllocator>();
         services.AddSingleton<RuntimeResolver>();
+
+        // Bind RBAC client options from config.
+        if (configuration is not null)
+        {
+            services.Configure<RbacClientOptions>(configuration.GetSection("Globular:Rbac"));
+            services.Configure<GlobularEtcdOptions>(configuration.GetSection("Globular:Etcd"));
+        }
 
         // Resolve effective runtime state at registration time.
         services.AddSingleton<EffectiveRuntimeState>(sp =>
@@ -68,6 +99,12 @@ public static class AuthorizationExtensions
             return actionResolver;
         });
 
+        // ── RBAC client (all modes — real gRPC client) ───────────────
+
+        services.TryAddSingleton<GlobularRbacClient>();
+        services.TryAddSingleton<IRbacClient>(sp => sp.GetRequiredService<GlobularRbacClient>());
+        services.TryAddSingleton<IRoleStore>(sp => sp.GetRequiredService<GlobularRbacClient>());
+
         // Interceptor with configured mode.
         services.AddSingleton(sp => new GlobularAuthorizationInterceptor(
             sp.GetRequiredService<ActionResolver>(),
@@ -75,11 +112,38 @@ public static class AuthorizationExtensions
             sp.GetRequiredService<ILogger<GlobularAuthorizationInterceptor>>(),
             mode));
 
-        // Service registrar: real if publisher available, logging fallback otherwise.
-        if (!services.Any(s => s.ServiceType == typeof(IServiceStatePublisher)))
-            services.AddSingleton<IServiceStatePublisher, LoggingServiceStatePublisher>();
+        // ── Mode-specific wiring ─────────────────────────────────────
 
-        services.AddSingleton<IGlobularDiscoveryRegistrar>(sp =>
+        if (mode == AuthorizationMode.Development)
+        {
+            // Development: logging publisher, no etcd required.
+            services.TryAddSingleton<IServiceStatePublisher, LoggingServiceStatePublisher>();
+        }
+        else
+        {
+            // Managed (RbacStrict, Bootstrap): real etcd publisher.
+            services.TryAddSingleton<GlobularEtcdClient>();
+            services.TryAddSingleton<IEtcdClient>(sp => sp.GetRequiredService<GlobularEtcdClient>());
+            services.TryAddSingleton<IServiceStatePublisher, EtcdServiceStatePublisher>();
+
+            // Register ManagedStartupCoordinator for orchestrated startup.
+            services.AddSingleton<IGlobularStartupTask>(sp =>
+                new ManagedStartupCoordinator(
+                    serviceName,
+                    sp.GetRequiredService<PolicyLoader>(),
+                    sp.GetRequiredService<ActionResolver>(),
+                    sp.GetRequiredService<RuntimeResolver>(),
+                    sp.GetRequiredService<EffectiveRuntimeState>(),
+                    sp.GetRequiredService<IGlobularDiscoveryRegistrar>(),
+                    sp.GetRequiredService<IOptions<GlobularHostOptions>>(),
+                    sp.GetRequiredService<ILogger<ManagedStartupCoordinator>>(),
+                    mode,
+                    sp.GetService<IRoleStore>(),
+                    sp.GetRequiredService<ILoggerFactory>()));
+        }
+
+        // Service registrar: publishes state to management plane.
+        services.TryAddSingleton<IGlobularDiscoveryRegistrar>(sp =>
             new GlobularServiceRegistrar(
                 sp.GetRequiredService<IServiceStatePublisher>(),
                 sp.GetRequiredService<EffectiveRuntimeState>(),

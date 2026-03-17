@@ -38,6 +38,7 @@ public sealed class ManagedStartupCoordinator : IGlobularStartupTask
     private readonly AuthorizationMode _mode;
     private readonly IOptions<GlobularHostOptions> _hostOptions;
     private readonly ILogger<ManagedStartupCoordinator> _logger;
+    private readonly ILoggerFactory _loggerFactory;
 
     public int Order => 5; // Early in startup, after config validation
 
@@ -51,7 +52,8 @@ public sealed class ManagedStartupCoordinator : IGlobularStartupTask
         IOptions<GlobularHostOptions> hostOptions,
         ILogger<ManagedStartupCoordinator> logger,
         AuthorizationMode mode = AuthorizationMode.RbacStrict,
-        IRoleStore? roleStore = null)
+        IRoleStore? roleStore = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _serviceName = serviceName;
         _loader = loader;
@@ -63,6 +65,7 @@ public sealed class ManagedStartupCoordinator : IGlobularStartupTask
         _mode = mode;
         _hostOptions = hostOptions;
         _logger = logger;
+        _loggerFactory = loggerFactory ?? new LoggerFactory();
     }
 
     public async Task ExecuteAsync(CancellationToken ct)
@@ -103,7 +106,7 @@ public sealed class ManagedStartupCoordinator : IGlobularStartupTask
         if (_roleStore is not null)
         {
             var seeder = new RoleSeeder(_loader, _roleStore,
-                new LoggerFactory().CreateLogger<RoleSeeder>());
+                _loggerFactory.CreateLogger<RoleSeeder>());
             var result = await seeder.SeedAsync(_serviceName, ct);
             _state.RoleSeedStatus =
                 $"seeded={result.Seeded},skipped={result.Skipped},failed={result.Failed}";

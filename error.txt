@@ -1,0 +1,268 @@
+Prompt for Claude
+
+I want an implementation plan, not code yet.
+
+Please analyze the current file service in Globular, especially server.go, and propose a design to remove hardcoded roles and default permissions from compiled Go code and replace them with a more flexible external policy model.
+
+Context
+
+Right now the file service appears to define security-related behavior directly in code, including things like:
+
+built-in roles
+
+default permissions
+
+RPC/action-to-permission mappings
+
+This is inconvenient because:
+
+changing roles or permissions requires recompiling the service
+
+roles are not easily modifiable by operators
+
+policy becomes scattered across code instead of being explicit and inspectable
+
+it makes future admin UI editing and package-driven configuration harder
+
+The goal is to move toward a model where security policy is treated as data, not hardcoded behavior, while still preserving safe bootstrap and backward compatibility.
+
+Desired Architectural Direction
+
+Please build the plan around this target model:
+
+1. Code should keep only fallback defaults
+
+The Go service should no longer treat hardcoded roles and permissions as the main source of truth.
+
+Instead, code should provide only:
+
+schema / struct definitions
+
+loading logic
+
+validation logic
+
+minimal fallback defaults if no external files exist
+
+In other words:
+
+DefaultRoles() should be a fallback only
+
+DefaultPermissions() should be a fallback only
+
+effective runtime values should come from external configuration whenever available
+
+2. Roles and permissions should be externalized into files
+
+The service package should ship policy files alongside the service, for example:
+
+roles.json
+
+permissions.json
+
+These files should live in a predictable config or package location and be loaded by the service at startup.
+
+3. Roles and permissions should remain separate concepts
+
+The design should clearly separate:
+
+roles: named role definitions / grants / default service roles
+
+permissions: method/action/resource mapping and access rules
+
+These should not be merged into one vague blob unless there is a very strong reason.
+
+4. Validation must be part of the design
+
+Externalizing policy is good only if it is validated.
+
+The plan should include how to validate:
+
+required fields
+
+duplicate entries
+
+malformed permission mappings
+
+invalid role definitions
+
+references to unknown actions or methods
+
+invalid verbs or access types
+
+startup behavior if files are invalid
+
+5. Backward compatibility is required
+
+The migration should not break existing installations.
+
+Please include how to handle:
+
+services that still rely on current hardcoded defaults
+
+first startup after the change
+
+missing config files
+
+upgrade/migration behavior for already installed services
+
+6. Admin/UI future should be considered
+
+The plan should keep the door open for future Globular Admin editing.
+
+So please think about whether the effective policy model should later support:
+
+reading current effective permissions
+
+editing policy without recompiling
+
+reinstall/upgrade without losing local overrides
+
+package defaults vs local instance overrides
+
+What I want from you
+
+Please produce a technical implementation plan based on your knowledge of the current Globular codebase and file service architecture.
+
+Do not write code yet.
+
+Instead, provide:
+
+A. Current-state assessment
+
+where roles are currently defined
+
+where permissions are currently defined
+
+how the current startup flow uses them
+
+how current service config already behaves, if relevant
+
+B. Proposed target design
+
+Define the ideal architecture for:
+
+policy file locations
+
+JSON structure or schema shape
+
+startup loading order
+
+fallback order
+
+validation flow
+
+effective runtime model
+
+C. Migration strategy
+
+Explain how to move from current hardcoded definitions to external files safely.
+
+Include:
+
+rollout steps
+
+compatibility strategy
+
+whether migration should be automatic or manual
+
+how existing services behave if no policy files exist yet
+
+D. Required code changes
+
+List the files / functions / components likely needing changes, such as:
+
+server.go
+
+role-loading functions
+
+permission-loading functions
+
+config structs
+
+service startup/init path
+
+package/install flow if relevant
+
+admin/API exposure if relevant
+
+E. Package/runtime integration
+
+Explain whether these files should be:
+
+embedded in the service package
+
+copied into config dir at install time
+
+read directly from package payload
+
+merged with existing service config
+
+overridden locally per service instance
+
+F. Validation and failure policy
+
+Define what should happen if:
+
+files are missing
+
+files are malformed
+
+files partially load
+
+roles are valid but permissions are not
+
+defaults conflict with overrides
+
+G. Recommended final model
+
+End with a concrete recommendation.
+
+For example, whether the final model should be:
+
+code fallback + packaged policy files + local instance override
+or
+
+some better alternative if the codebase suggests one
+
+Constraints
+
+Please keep the solution aligned with Globular’s architecture and avoid introducing something overly heavy or disconnected from the current codebase.
+
+The design should be:
+
+practical
+
+incremental
+
+easy to operate
+
+friendly to packaging and deployment
+
+compatible with future admin UI management
+
+Also, please call out any hidden risks or architectural traps you see.
+
+Final Deliverable Format
+
+Please return the plan in this structure:
+
+Current State
+
+Problems With Current Approach
+
+Target Architecture
+
+File Format Proposal
+
+Startup / Load Order
+
+Validation Rules
+
+Migration Plan
+
+Code Changes Required
+
+Risks / Edge Cases
+
+Recommended Final Approach

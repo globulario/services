@@ -49,9 +49,13 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Adds Globular discovery registration support.
-    /// In managed mode (Discovery:Enabled=true), wires the real GlobularServiceRegistrar
-    /// that publishes effective runtime state to the cluster management plane.
-    /// In local/test mode, falls back to NoOp registrar.
+    ///
+    /// Managed mode (Discovery:Enabled=true, default):
+    ///   Real GlobularServiceRegistrar backed by EtcdServiceStatePublisher.
+    ///   Service state published to /globular/services/{id}/runtime-state.
+    ///
+    /// Local/test mode (Discovery:Enabled=false):
+    ///   NoOp registrar — no cluster registration.
     /// </summary>
     public static IServiceCollection AddGlobularDiscovery(
         this IServiceCollection services,
@@ -62,10 +66,10 @@ public static class ServiceCollectionExtensions
         var discoveryEnabled = configuration.GetValue<bool>("Globular:Discovery:Enabled");
         if (discoveryEnabled)
         {
-            // Managed mode: real registrar publishes state to Globular management plane.
-            // If an IServiceStatePublisher is already registered (e.g., etcd-backed),
-            // GlobularServiceRegistrar uses it. Otherwise, LoggingServiceStatePublisher
-            // is used as a visible fallback (not silent no-op).
+            // Managed mode: real registrar backed by etcd.
+            // If AddGlobularAuthorization was called first, IServiceStatePublisher
+            // is already registered (EtcdServiceStatePublisher). Otherwise, fall
+            // back to LoggingServiceStatePublisher as a visible indicator.
             services.TryAddSingleton<Authorization.IServiceStatePublisher,
                 Authorization.LoggingServiceStatePublisher>();
             services.TryAddSingleton<IGlobularDiscoveryRegistrar>(sp =>
