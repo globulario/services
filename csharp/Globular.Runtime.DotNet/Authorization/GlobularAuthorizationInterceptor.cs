@@ -210,7 +210,8 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
 
     /// <summary>
     /// Expands the resource template for the given method using request field values.
-    /// Returns null if no template exists or expansion is not possible.
+    /// Returns null if no template exists (action-only method).
+    /// Throws RpcException if a template exists but expansion fails (strict enforcement).
     /// </summary>
     private List<ResourcePathCheck>? ExpandResourceTemplate<TRequest>(string method, TRequest request)
         where TRequest : class
@@ -234,9 +235,12 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
         }
         catch (ResourceTemplateException ex)
         {
+            // Resource-scoped methods MUST have valid resource paths.
+            // Expansion failure = deny explicitly with clear error.
             _logger.LogWarning("Auth: resource template expansion failed for {Method}: {Error}",
                 method, ex.Message);
-            return null; // deny will happen at RBAC level
+            throw new RpcException(new Status(StatusCode.InvalidArgument,
+                $"authorization failed: {ex.Message}"));
         }
     }
 
