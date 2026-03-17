@@ -359,6 +359,8 @@ func (s *server) Save() error         { return globular.SaveService(s) }
 func (s *server) StartService() error { return globular.StartService(s, s.grpcServer) }
 func (s *server) StopService() error  { return globular.StopService(s, s.grpcServer) }
 
+// RolesDefault returns a curated set of roles for ResourceService.
+// Uses stable action keys as the RBAC permission identifiers.
 func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
 
@@ -369,34 +371,18 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read-only access to accounts, roles, groups, orgs, apps, node identities, packages, sessions, calls, and notifications.",
 			Actions: []string{
-				// Orgs / Groups / Roles / Apps (read)
-				"/resource.ResourceService/GetOrganizations",
-				"/resource.ResourceService/GetGroups",
-				"/resource.ResourceService/GetRoles",
-				"/resource.ResourceService/GetApplications",
-				// Accounts (read)
-				"/resource.ResourceService/GetAccount",
-				"/resource.ResourceService/GetAccounts",
-				// Node identities (read)
-				"/resource.ResourceService/GetNodeIdentity",
-				"/resource.ResourceService/ListNodeIdentities",
-				// Packages (read)
-				"/resource.ResourceService/FindPackages",
-				"/resource.ResourceService/GetPackageDescriptor",
-				"/resource.ResourceService/GetPackagesDescriptor",
-				"/resource.ResourceService/GetPackageBundleChecksum",
-				"/resource.ResourceService/GetApplicationVersion",
-				"/resource.ResourceService/GetApplicationAlias",
-				"/resource.ResourceService/GetApplicationIcon",
-				// Sessions (read)
-				"/resource.ResourceService/GetSessions",
-				"/resource.ResourceService/GetSession",
-				// Calls (read)
-				"/resource.ResourceService/GetCallHistory",
-				// Notifications (read)
-				"/resource.ResourceService/GetNotifications",
-				// Membership check
-				"/resource.ResourceService/IsOrgnanizationMember",
+				"resource.organization.list",
+				"resource.organization.read",
+				"resource.group.list",
+				"resource.account.read",
+				"resource.application.read",
+				"resource.node.list",
+				"resource.node.read",
+				"resource.package.list",
+				"resource.package.read",
+				"resource.session.read",
+				"resource.call.read",
+				"resource.notification.read",
 			},
 			TypeName: "resource.Role",
 		},
@@ -407,54 +393,38 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Description: "Create/update resources and manage memberships/relations. No destructive admin ops.",
 			Actions: []string{
 				// References
-				"/resource.ResourceService/CreateReference",
-				"/resource.ResourceService/DeleteReference",
-				// Orgs
-				"/resource.ResourceService/CreateOrganization",
-				"/resource.ResourceService/UpdateOrganization",
-				"/resource.ResourceService/AddOrganizationAccount",
-				"/resource.ResourceService/AddOrganizationGroup",
-				"/resource.ResourceService/AddOrganizationRole",
-				"/resource.ResourceService/AddOrganizationApplication",
-				"/resource.ResourceService/RemoveOrganizationAccount",
-				"/resource.ResourceService/RemoveOrganizationGroup",
-				"/resource.ResourceService/RemoveOrganizationRole",
-				"/resource.ResourceService/RemoveOrganizationApplication",
+				"resource.reference.create",
+				"resource.reference.delete",
+				// Organizations
+				"resource.organization.create",
+				"resource.organization.update",
+				"resource.organization.manage",
 				// Groups
-				"/resource.ResourceService/CreateGroup",
-				"/resource.ResourceService/UpdateGroup",
-				"/resource.ResourceService/AddGroupMemberAccount",
-				"/resource.ResourceService/RemoveGroupMemberAccount",
+				"resource.group.create",
+				"resource.group.update",
+				"resource.group.manage",
 				// Accounts (non-destructive)
-				"/resource.ResourceService/RegisterAccount",
-				"/resource.ResourceService/SetAccount",
-				"/resource.ResourceService/SetEmail",
-				"/resource.ResourceService/SetAccountContact",
-				"/resource.ResourceService/AddAccountRole",
-				"/resource.ResourceService/RemoveAccountRole",
+				"resource.account.create",
+				"resource.account.write",
+				"resource.account.manage",
 				// Roles (non-destructive)
-				"/resource.ResourceService/CreateRole",
-				"/resource.ResourceService/UpdateRole",
-				"/resource.ResourceService/AddRoleActions",
-				"/resource.ResourceService/RemoveRoleAction",
+				"resource.role.create",
+				"resource.role.update",
+				"resource.role.manage",
 				// Applications (non-destructive)
-				"/resource.ResourceService/CreateApplication",
-				"/resource.ResourceService/UpdateApplication",
-				"/resource.ResourceService/AddApplicationActions",
-				"/resource.ResourceService/RemoveApplicationAction",
+				"resource.application.create",
+				"resource.application.update",
+				"resource.application.manage",
 				// Packages (non-destructive write)
-				"/resource.ResourceService/SetPackageDescriptor",
-				"/resource.ResourceService/SetPackageBundle",
+				"resource.package.write",
 				// Sessions (write)
-				"/resource.ResourceService/UpdateSession",
+				"resource.session.write",
 				// Calls (write)
-				"/resource.ResourceService/SetCall",
-				"/resource.ResourceService/DeleteCall",
+				"resource.call.write",
+				"resource.call.delete",
 				// Notifications (write)
-				"/resource.ResourceService/CreateNotification",
-				"/resource.ResourceService/DeleteNotification",
-				"/resource.ResourceService/ClearAllNotifications",
-				"/resource.ResourceService/ClearNotificationsByType",
+				"resource.notification.write",
+				"resource.notification.delete",
 			},
 			TypeName: "resource.Role",
 		},
@@ -464,82 +434,53 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full administrative control over ResourceService.",
 			Actions: []string{
-				// Everything viewer can do
-				"/resource.ResourceService/GetOrganizations",
-				"/resource.ResourceService/GetGroups",
-				"/resource.ResourceService/GetRoles",
-				"/resource.ResourceService/GetApplications",
-				"/resource.ResourceService/GetAccount",
-				"/resource.ResourceService/GetAccounts",
-				"/resource.ResourceService/GetNodeIdentity",
-				"/resource.ResourceService/ListNodeIdentities",
-				"/resource.ResourceService/FindPackages",
-				"/resource.ResourceService/GetPackageDescriptor",
-				"/resource.ResourceService/GetPackagesDescriptor",
-				"/resource.ResourceService/GetPackageBundleChecksum",
-				"/resource.ResourceService/GetApplicationVersion",
-				"/resource.ResourceService/GetApplicationAlias",
-				"/resource.ResourceService/GetApplicationIcon",
-				"/resource.ResourceService/GetSessions",
-				"/resource.ResourceService/GetSession",
-				"/resource.ResourceService/GetCallHistory",
-				"/resource.ResourceService/GetNotifications",
-				"/resource.ResourceService/IsOrgnanizationMember",
+				// All viewer actions
+				"resource.organization.list",
+				"resource.organization.read",
+				"resource.group.list",
+				"resource.account.read",
+				"resource.application.read",
+				"resource.node.list",
+				"resource.node.read",
+				"resource.package.list",
+				"resource.package.read",
+				"resource.session.read",
+				"resource.call.read",
+				"resource.notification.read",
 
-				// Everything editor can do
-				"/resource.ResourceService/CreateReference",
-				"/resource.ResourceService/DeleteReference",
-				"/resource.ResourceService/CreateOrganization",
-				"/resource.ResourceService/UpdateOrganization",
-				"/resource.ResourceService/AddOrganizationAccount",
-				"/resource.ResourceService/AddOrganizationGroup",
-				"/resource.ResourceService/AddOrganizationRole",
-				"/resource.ResourceService/AddOrganizationApplication",
-				"/resource.ResourceService/RemoveOrganizationAccount",
-				"/resource.ResourceService/RemoveOrganizationGroup",
-				"/resource.ResourceService/RemoveOrganizationRole",
-				"/resource.ResourceService/RemoveOrganizationApplication",
-				"/resource.ResourceService/CreateGroup",
-				"/resource.ResourceService/UpdateGroup",
-				"/resource.ResourceService/AddGroupMemberAccount",
-				"/resource.ResourceService/RemoveGroupMemberAccount",
-				"/resource.ResourceService/RegisterAccount",
-				"/resource.ResourceService/SetAccount",
-				"/resource.ResourceService/SetEmail",
-				"/resource.ResourceService/SetAccountContact",
-				"/resource.ResourceService/AddAccountRole",
-				"/resource.ResourceService/RemoveAccountRole",
-				"/resource.ResourceService/CreateRole",
-				"/resource.ResourceService/UpdateRole",
-				"/resource.ResourceService/AddRoleActions",
-				"/resource.ResourceService/RemoveRoleAction",
-				"/resource.ResourceService/CreateApplication",
-				"/resource.ResourceService/UpdateApplication",
-				"/resource.ResourceService/AddApplicationActions",
-				"/resource.ResourceService/RemoveApplicationAction",
-				"/resource.ResourceService/SetPackageDescriptor",
-				"/resource.ResourceService/SetPackageBundle",
-				"/resource.ResourceService/UpdateSession",
-				"/resource.ResourceService/SetCall",
-				"/resource.ResourceService/DeleteCall",
-				"/resource.ResourceService/CreateNotification",
-				"/resource.ResourceService/DeleteNotification",
-				"/resource.ResourceService/ClearAllNotifications",
-				"/resource.ResourceService/ClearNotificationsByType",
+				// All editor actions
+				"resource.reference.create",
+				"resource.reference.delete",
+				"resource.organization.create",
+				"resource.organization.update",
+				"resource.organization.manage",
+				"resource.group.create",
+				"resource.group.update",
+				"resource.group.manage",
+				"resource.account.create",
+				"resource.account.write",
+				"resource.account.manage",
+				"resource.role.create",
+				"resource.role.update",
+				"resource.role.manage",
+				"resource.application.create",
+				"resource.application.update",
+				"resource.application.manage",
+				"resource.package.write",
+				"resource.session.write",
+				"resource.call.write",
+				"resource.call.delete",
+				"resource.notification.write",
+				"resource.notification.delete",
 
 				// Admin-only destructive / global ops
-				"/resource.ResourceService/DeleteOrganization",
-				"/resource.ResourceService/DeleteGroup",
-				"/resource.ResourceService/DeleteRole",
-				"/resource.ResourceService/DeleteApplication",
-				"/resource.ResourceService/DeleteAccount",
-				"/resource.ResourceService/SetAccountPassword",
-				"/resource.ResourceService/RemoveSession",
-				"/resource.ResourceService/ClearCalls",
-				"/resource.ResourceService/RemoveRolesAction",
-				"/resource.ResourceService/RemoveApplicationsAction",
-				"/resource.ResourceService/UpsertNodeIdentity",
-				"/resource.ResourceService/SetNodeIdentityEnabled",
+				"resource.organization.delete",
+				"resource.group.delete",
+				"resource.role.delete",
+				"resource.application.delete",
+				"resource.account.delete",
+				"resource.session.delete",
+				"resource.node.write",
 			},
 			TypeName: "resource.Role",
 		},
@@ -548,422 +489,119 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 
 // defaultResourcePermissions returns the compiled-in permission list for the
 // resource service, used when no external policy file is found.
+// Uses v2 format: method (gRPC transport path) + action (stable RBAC key).
 func defaultResourcePermissions() []interface{} {
-	return []interface{}{
+	type p struct {
+		method, action, perm string
+		res                  []interface{}
+	}
+
+	r := func(idx int, field, perm string) map[string]interface{} {
+		return map[string]interface{}{"index": idx, "field": field, "permission": perm}
+	}
+
+	entries := []p{
 		// --- References ----------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateReference",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "SourceId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "TargetId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteReference",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "RefId", "permission": "write"},
-				// Target side is impacted as well
-				map[string]interface{}{"index": 0, "field": "TargetId", "permission": "write"},
-			},
-		},
+		{"/resource.ResourceService/CreateReference", "resource.reference.create", "write", []interface{}{r(0, "SourceId", "write"), r(0, "TargetId", "write")}},
+		{"/resource.ResourceService/DeleteReference", "resource.reference.delete", "write", []interface{}{r(0, "RefId", "write"), r(0, "TargetId", "write")}},
 
 		// --- Organizations -------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateOrganization",
-			"permission": "admin",
-			"resources":  []interface{}{}, // action-level gate only
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdateOrganization",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetOrganizations",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteOrganization",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Organization", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddOrganizationAccount",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddOrganizationGroup",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "GroupId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddOrganizationRole",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddOrganizationApplication",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveOrganizationAccount",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveOrganizationGroup",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "GroupId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveOrganizationRole",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveOrganizationApplication",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/IsOrgnanizationMember",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "OrganizationId", "permission": "read"}},
-		},
+		{"/resource.ResourceService/CreateOrganization", "resource.organization.create", "admin", []interface{}{}},
+		{"/resource.ResourceService/UpdateOrganization", "resource.organization.update", "write", []interface{}{r(0, "OrganizationId", "write")}},
+		{"/resource.ResourceService/GetOrganizations", "resource.organization.list", "read", []interface{}{}},
+		{"/resource.ResourceService/DeleteOrganization", "resource.organization.delete", "admin", []interface{}{r(0, "Organization", "admin")}},
+		{"/resource.ResourceService/AddOrganizationAccount", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "AccountId", "write")}},
+		{"/resource.ResourceService/AddOrganizationGroup", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "GroupId", "write")}},
+		{"/resource.ResourceService/AddOrganizationRole", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/AddOrganizationApplication", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "ApplicationId", "write")}},
+		{"/resource.ResourceService/RemoveOrganizationAccount", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "AccountId", "write")}},
+		{"/resource.ResourceService/RemoveOrganizationGroup", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "GroupId", "write")}},
+		{"/resource.ResourceService/RemoveOrganizationRole", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/RemoveOrganizationApplication", "resource.organization.manage", "write", []interface{}{r(0, "OrganizationId", "write"), r(0, "ApplicationId", "write")}},
+		{"/resource.ResourceService/IsOrgnanizationMember", "resource.organization.read", "read", []interface{}{r(0, "OrganizationId", "read")}},
 
 		// --- Groups --------------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateGroup",
-			"permission": "write",
-			"resources":  []interface{}{}, // create gate only
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdateGroup",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "GroupId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetGroups",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteGroup",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Group", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddGroupMemberAccount",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "GroupId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveGroupMemberAccount",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "GroupId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-			},
-		},
+		{"/resource.ResourceService/CreateGroup", "resource.group.create", "write", []interface{}{}},
+		{"/resource.ResourceService/UpdateGroup", "resource.group.update", "write", []interface{}{r(0, "GroupId", "write")}},
+		{"/resource.ResourceService/GetGroups", "resource.group.list", "read", []interface{}{}},
+		{"/resource.ResourceService/DeleteGroup", "resource.group.delete", "admin", []interface{}{r(0, "Group", "admin")}},
+		{"/resource.ResourceService/AddGroupMemberAccount", "resource.group.manage", "write", []interface{}{r(0, "GroupId", "write"), r(0, "AccountId", "write")}},
+		{"/resource.ResourceService/RemoveGroupMemberAccount", "resource.group.manage", "write", []interface{}{r(0, "GroupId", "write"), r(0, "AccountId", "write")}},
 
 		// --- Accounts ------------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RegisterAccount",
-			"permission": "write",
-			"resources":  []interface{}{}, // creation; policy decides who can self-register
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteAccount",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetAccount",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetAccount",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Account.Id", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetAccountPassword",
-			"permission": "admin", // privileged operation
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddAccountRole",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveAccountRole",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetAccountContact",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetEmail",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"}},
-		},
+		{"/resource.ResourceService/RegisterAccount", "resource.account.create", "write", []interface{}{}},
+		{"/resource.ResourceService/DeleteAccount", "resource.account.delete", "admin", []interface{}{r(0, "Id", "admin")}},
+		{"/resource.ResourceService/GetAccount", "resource.account.read", "read", []interface{}{r(0, "AccountId", "read")}},
+		{"/resource.ResourceService/SetAccount", "resource.account.write", "write", []interface{}{r(0, "Account.Id", "write")}},
+		{"/resource.ResourceService/SetAccountPassword", "resource.account.write", "admin", []interface{}{r(0, "AccountId", "admin")}},
+		{"/resource.ResourceService/AddAccountRole", "resource.account.manage", "write", []interface{}{r(0, "AccountId", "write"), r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/RemoveAccountRole", "resource.account.manage", "write", []interface{}{r(0, "AccountId", "write"), r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/SetAccountContact", "resource.account.write", "write", []interface{}{r(0, "AccountId", "write")}},
+		{"/resource.ResourceService/SetEmail", "resource.account.write", "write", []interface{}{r(0, "AccountId", "write")}},
 
 		// --- Roles ---------------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateRole",
-			"permission": "write",
-			"resources":  []interface{}{}, // create gate only
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdateRole",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteRole",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "RoleId", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddRoleActions",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveRoleAction",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "RoleId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveRolesAction",
-			"permission": "admin",
-			"resources":  []interface{}{}, // global action cleanup
-		},
+		{"/resource.ResourceService/CreateRole", "resource.role.create", "write", []interface{}{}},
+		{"/resource.ResourceService/UpdateRole", "resource.role.update", "write", []interface{}{r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/DeleteRole", "resource.role.delete", "admin", []interface{}{r(0, "RoleId", "admin")}},
+		{"/resource.ResourceService/AddRoleActions", "resource.role.manage", "write", []interface{}{r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/RemoveRoleAction", "resource.role.manage", "write", []interface{}{r(0, "RoleId", "write")}},
+		{"/resource.ResourceService/RemoveRolesAction", "resource.role.manage", "admin", []interface{}{}},
 
 		// --- Applications --------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateApplication",
-			"permission": "write",
-			"resources":  []interface{}{}, // create gate only
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdateApplication",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteApplication",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddApplicationActions",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveApplicationAction",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "ApplicationId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveApplicationsAction",
-			"permission": "admin",
-			"resources":  []interface{}{}, // global action cleanup
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetApplicationVersion",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetApplicationIcon",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetApplicationAlias",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}},
-		},
+		{"/resource.ResourceService/CreateApplication", "resource.application.create", "write", []interface{}{}},
+		{"/resource.ResourceService/UpdateApplication", "resource.application.update", "write", []interface{}{r(0, "ApplicationId", "write")}},
+		{"/resource.ResourceService/DeleteApplication", "resource.application.delete", "admin", []interface{}{r(0, "ApplicationId", "admin")}},
+		{"/resource.ResourceService/AddApplicationActions", "resource.application.manage", "write", []interface{}{r(0, "ApplicationId", "write")}},
+		{"/resource.ResourceService/RemoveApplicationAction", "resource.application.manage", "write", []interface{}{r(0, "ApplicationId", "write")}},
+		{"/resource.ResourceService/RemoveApplicationsAction", "resource.application.manage", "admin", []interface{}{}},
+		{"/resource.ResourceService/GetApplicationVersion", "resource.application.read", "read", []interface{}{r(0, "Id", "read")}},
+		{"/resource.ResourceService/GetApplicationIcon", "resource.application.read", "read", []interface{}{r(0, "Id", "read")}},
+		{"/resource.ResourceService/GetApplicationAlias", "resource.application.read", "read", []interface{}{r(0, "Id", "read")}},
 
 		// --- Node Identities ---------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/ListNodeIdentities",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetNodeIdentity",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "NodeId", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpsertNodeIdentity",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Node.NodeId", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetNodeIdentityEnabled",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "NodeId", "permission": "admin"}},
-		},
+		{"/resource.ResourceService/ListNodeIdentities", "resource.node.list", "read", []interface{}{}},
+		{"/resource.ResourceService/GetNodeIdentity", "resource.node.read", "read", []interface{}{r(0, "NodeId", "read")}},
+		{"/resource.ResourceService/UpsertNodeIdentity", "resource.node.write", "admin", []interface{}{r(0, "Node.NodeId", "admin")}},
+		{"/resource.ResourceService/SetNodeIdentityEnabled", "resource.node.write", "admin", []interface{}{r(0, "NodeId", "admin")}},
 
 		// --- Packages (descriptors & bundles) -----------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/FindPackages",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetPackageDescriptor",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "ServiceId", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "PublisherID", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetPackagesDescriptor",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetPackageDescriptor",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "PackageDescriptor.Id", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetPackageBundle",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Bundle.PackageDescriptor.Id", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetPackageBundleChecksum",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}},
-		},
+		{"/resource.ResourceService/FindPackages", "resource.package.list", "read", []interface{}{}},
+		{"/resource.ResourceService/GetPackageDescriptor", "resource.package.read", "read", []interface{}{r(0, "ServiceId", "read"), r(0, "PublisherID", "read")}},
+		{"/resource.ResourceService/GetPackagesDescriptor", "resource.package.read", "read", []interface{}{}},
+		{"/resource.ResourceService/SetPackageDescriptor", "resource.package.write", "admin", []interface{}{r(0, "PackageDescriptor.Id", "admin")}},
+		{"/resource.ResourceService/SetPackageBundle", "resource.package.write", "admin", []interface{}{r(0, "Bundle.PackageDescriptor.Id", "admin")}},
+		{"/resource.ResourceService/GetPackageBundleChecksum", "resource.package.read", "read", []interface{}{r(0, "Id", "read")}},
 
 		// --- Sessions ------------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdateSession",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Session.AccountId", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetSessions",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemoveSession",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetSession",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "read"}},
-		},
+		{"/resource.ResourceService/UpdateSession", "resource.session.write", "write", []interface{}{r(0, "Session.AccountId", "write")}},
+		{"/resource.ResourceService/GetSessions", "resource.session.read", "read", []interface{}{}},
+		{"/resource.ResourceService/RemoveSession", "resource.session.delete", "admin", []interface{}{r(0, "AccountId", "admin")}},
+		{"/resource.ResourceService/GetSession", "resource.session.read", "read", []interface{}{r(0, "AccountId", "read")}},
 
 		// --- Calls ---------------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetCallHistory",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/SetCall",
-			"permission": "write",
-			"resources":  []interface{}{}, // call spans two parties; gate action
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteCall",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "AccountId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Uuid", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/ClearCalls",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "AccountId", "permission": "admin"}},
-		},
+		{"/resource.ResourceService/GetCallHistory", "resource.call.read", "read", []interface{}{r(0, "AccountId", "read")}},
+		{"/resource.ResourceService/SetCall", "resource.call.write", "write", []interface{}{}},
+		{"/resource.ResourceService/DeleteCall", "resource.call.delete", "write", []interface{}{r(0, "AccountId", "write"), r(0, "Uuid", "write")}},
+		{"/resource.ResourceService/ClearCalls", "resource.call.delete", "admin", []interface{}{r(0, "AccountId", "admin")}},
 
 		// --- Notifications -------------------------------------------------------
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/CreateNotification",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Notification.Recipient", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetNotifications",
-			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Recipient", "permission": "read"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeleteNotification",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Recipient", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/ClearAllNotifications",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Recipient", "permission": "write"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/ClearNotificationsByType",
-			"permission": "write",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Recipient", "permission": "write"}},
-		},
+		{"/resource.ResourceService/CreateNotification", "resource.notification.write", "write", []interface{}{r(0, "Notification.Recipient", "write")}},
+		{"/resource.ResourceService/GetNotifications", "resource.notification.read", "read", []interface{}{r(0, "Recipient", "read")}},
+		{"/resource.ResourceService/DeleteNotification", "resource.notification.delete", "write", []interface{}{r(0, "Recipient", "write"), r(0, "Id", "write")}},
+		{"/resource.ResourceService/ClearAllNotifications", "resource.notification.delete", "write", []interface{}{r(0, "Recipient", "write")}},
+		{"/resource.ResourceService/ClearNotificationsByType", "resource.notification.delete", "write", []interface{}{r(0, "Recipient", "write")}},
 	}
+
+	result := make([]interface{}, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, map[string]interface{}{
+			"method":     e.method,
+			"action":     e.action,
+			"permission": e.perm,
+			"resources":  e.res,
+		})
+	}
+	return result
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
@@ -1462,6 +1100,7 @@ func main() {
 	} else {
 		s.Permissions = defaultResourcePermissions()
 	}
+	policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 
 	// Handle --describe flag (print service metadata and exit)
 	if *showDescribe {

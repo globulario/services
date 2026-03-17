@@ -210,15 +210,12 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Read conversations, connect, and browse.",
 		Actions: []string{
-			"/conversation.ConversationService/Connect",
-			"/conversation.ConversationService/Disconnect",
-			"/conversation.ConversationService/FindConversations",
-			"/conversation.ConversationService/JoinConversation",
-			"/conversation.ConversationService/GetConversation",
-			"/conversation.ConversationService/GetConversations",
-			"/conversation.ConversationService/GetReceivedInvitations",
-			"/conversation.ConversationService/GetSentInvitations",
-			"/conversation.ConversationService/FindMessages",
+			"conversation.connect",
+			"conversation.list",
+			"conversation.join",
+			"conversation.read",
+			"conversation.invite.read",
+			"conversation.message.read",
 		},
 		TypeName: "resource.Role",
 	}
@@ -234,13 +231,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		TypeName: "resource.Role",
 	}
 	member.Actions = append(member.Actions,
-		"/conversation.ConversationService/SendMessage",
-		"/conversation.ConversationService/LikeMessage",
-		"/conversation.ConversationService/DislikeMessage",
-		"/conversation.ConversationService/SetMessageRead",
-		"/conversation.ConversationService/LeaveConversation",
-		"/conversation.ConversationService/AcceptInvitation",
-		"/conversation.ConversationService/DeclineInvitation",
+		"conversation.message.write",
+		"conversation.message.react",
+		"conversation.leave",
+		"conversation.invite",
 	)
 
 	moderator := resourcepb.Role{
@@ -249,7 +243,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Moderate content in conversations.",
 		Actions: []string{
-			"/conversation.ConversationService/DeleteMessage",
+			"conversation.message.delete",
 		},
 		TypeName: "resource.Role",
 	}
@@ -265,10 +259,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		TypeName: "resource.Role",
 	}
 	owner.Actions = append(owner.Actions,
-		"/conversation.ConversationService/SendInvitation",
-		"/conversation.ConversationService/RevokeInvitation",
-		"/conversation.ConversationService/KickoutFromConversation",
-		"/conversation.ConversationService/DeleteConversation",
+		"conversation.manage",
+		"conversation.delete",
 	)
 
 	admin := resourcepb.Role{
@@ -277,11 +269,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Full control over conversations and service lifecycle.",
 		Actions: append(append(append(reader.Actions, member.Actions...), moderator.Actions...),
-			"/conversation.ConversationService/SendInvitation",
-			"/conversation.ConversationService/RevokeInvitation",
-			"/conversation.ConversationService/KickoutFromConversation",
-			"/conversation.ConversationService/DeleteConversation",
-			"/conversation.ConversationService/Stop",
+			"conversation.manage",
+			"conversation.delete",
+			"conversation.admin",
 		),
 		TypeName: "resource.Role",
 	}
@@ -292,29 +282,29 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 // defaultConversationPermissions returns the compiled fallback permissions for ConversationService.
 func defaultConversationPermissions() []interface{} {
 	return []interface{}{
-		map[string]interface{}{"action": "/conversation.ConversationService/Stop", "permission": "write", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/Connect", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/Disconnect", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/CreateConversation", "permission": "write", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/DeleteConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "delete"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/FindConversations", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/JoinConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "read"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/LeaveConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/GetConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/GetConversations", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/KickoutFromConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/SendInvitation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/AcceptInvitation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/DeclineInvitation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/RevokeInvitation", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/GetReceivedInvitations", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Account", "permission": "read"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/GetSentInvitations", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Account", "permission": "read"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/SendMessage", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Msg.Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/DeleteMessage", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "delete"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/FindMessages", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/conversation.ConversationService/LikeMessage", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/DislikeMessage", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
-		map[string]interface{}{"action": "/conversation.ConversationService/SetMessageRead", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/Stop", "action": "conversation.admin", "permission": "write", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/Connect", "action": "conversation.connect", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/Disconnect", "action": "conversation.connect", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/CreateConversation", "action": "conversation.create", "permission": "write", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/DeleteConversation", "action": "conversation.delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "delete"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/FindConversations", "action": "conversation.list", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/JoinConversation", "action": "conversation.join", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "read"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/LeaveConversation", "action": "conversation.leave", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/GetConversation", "action": "conversation.read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/GetConversations", "action": "conversation.read", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/KickoutFromConversation", "action": "conversation.manage", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/SendInvitation", "action": "conversation.invite", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/AcceptInvitation", "action": "conversation.invite", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/DeclineInvitation", "action": "conversation.invite", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/RevokeInvitation", "action": "conversation.invite", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/GetReceivedInvitations", "action": "conversation.invite.read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Account", "permission": "read"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/GetSentInvitations", "action": "conversation.invite.read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Account", "permission": "read"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/SendMessage", "action": "conversation.message.write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Msg.Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/DeleteMessage", "action": "conversation.message.delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "delete"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/FindMessages", "action": "conversation.message.read", "permission": "read", "resources": []interface{}{}},
+		map[string]interface{}{"method": "/conversation.ConversationService/LikeMessage", "action": "conversation.message.react", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/DislikeMessage", "action": "conversation.message.react", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
+		map[string]interface{}{"method": "/conversation.ConversationService/SetMessageRead", "action": "conversation.message.write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"}}},
 	}
 }
 
@@ -640,6 +630,7 @@ func main() {
 	} else {
 		s.Permissions = defaultConversationPermissions()
 	}
+	policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 
 	s.Process = -1
 	s.ProxyProcess = -1
