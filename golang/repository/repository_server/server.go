@@ -19,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -355,13 +356,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read/download access to published bundles and artifacts.",
 			Actions: []string{
-				"/repository.PackageRepository/DownloadBundle",
-				"/repository.PackageRepository/ListBundles",
-				"/repository.PackageRepository/ListArtifacts",
-				"/repository.PackageRepository/GetArtifactManifest",
-				"/repository.PackageRepository/DownloadArtifact",
-				"/repository.PackageRepository/SearchArtifacts",
-				"/repository.PackageRepository/GetArtifactVersions",
+				"repository.read",
 			},
 			TypeName: "resource.Role",
 		},
@@ -371,17 +366,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Can upload (publish) bundles to an organization namespace and download.",
 			Actions: []string{
-				"/repository.PackageRepository/UploadBundle",
-				"/repository.PackageRepository/DownloadBundle",
-				"/repository.PackageRepository/ListBundles",
-				"/repository.PackageRepository/ListArtifacts",
-				"/repository.PackageRepository/GetArtifactManifest",
-				"/repository.PackageRepository/DownloadArtifact",
-				"/repository.PackageRepository/UploadArtifact",
-				"/repository.PackageRepository/SearchArtifacts",
-				"/repository.PackageRepository/GetArtifactVersions",
-				"/repository.PackageRepository/SetArtifactState",
-				"/repository.PackageRepository/GetNamespace",
+				"repository.read",
+				"repository.write",
 			},
 			TypeName: "resource.Role",
 		},
@@ -391,18 +377,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full control over repository operations.",
 			Actions: []string{
-				"/repository.PackageRepository/UploadBundle",
-				"/repository.PackageRepository/DownloadBundle",
-				"/repository.PackageRepository/ListBundles",
-				"/repository.PackageRepository/ListArtifacts",
-				"/repository.PackageRepository/GetArtifactManifest",
-				"/repository.PackageRepository/DownloadArtifact",
-				"/repository.PackageRepository/UploadArtifact",
-				"/repository.PackageRepository/SearchArtifacts",
-				"/repository.PackageRepository/GetArtifactVersions",
-				"/repository.PackageRepository/DeleteArtifact",
-				"/repository.PackageRepository/SetArtifactState",
-				"/repository.PackageRepository/GetNamespace",
+				"repository.read",
+				"repository.write",
+				"repository.delete",
 			},
 			TypeName: "resource.Role",
 		},
@@ -794,6 +771,22 @@ func main() {
 			break
 		}
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/repository.PackageRepository/DownloadBundle", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/ListBundles", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/ListArtifacts", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/GetArtifactManifest", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/DownloadArtifact", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/SearchArtifacts", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/GetArtifactVersions", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/GetNamespace", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/UploadBundle", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/UploadArtifact", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/SetArtifactState", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/DeleteArtifact", Action: "repository.delete"},
+	})
 
 	// 3. Handle informational flags (--describe, --health, --help, --version)
 	if globular.HandleInformationalFlags(s, args, logger, printUsage) {

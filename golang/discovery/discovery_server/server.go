@@ -13,6 +13,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discovery_client"
 	"github.com/globulario/services/golang/discovery/discoverypb"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -210,7 +211,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Can publish service packages to allowed repositories/discoveries.",
 		Actions: []string{
-			"/discovery.PackageDiscovery/PublishService",
+			"discovery.publish.service",
 		},
 		TypeName: "resource.Role",
 	}
@@ -221,7 +222,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Can publish application packages to allowed repositories/discoveries.",
 		Actions: []string{
-			"/discovery.PackageDiscovery/PublishApplication",
+			"discovery.publish.app",
 		},
 		TypeName: "resource.Role",
 	}
@@ -232,8 +233,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Can publish services and applications.",
 		Actions: []string{
-			"/discovery.PackageDiscovery/PublishService",
-			"/discovery.PackageDiscovery/PublishApplication",
+			"discovery.publish.service",
+			"discovery.publish.app",
 		},
 		TypeName: "resource.Role",
 	}
@@ -244,8 +245,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Full publish rights across repositories/discoveries.",
 		Actions: []string{
-			"/discovery.PackageDiscovery/PublishService",
-			"/discovery.PackageDiscovery/PublishApplication",
+			"discovery.publish.service",
+			"discovery.publish.app",
 		},
 		TypeName: "resource.Role",
 	}
@@ -538,6 +539,12 @@ func main() {
 		printVersion()
 		return
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/discovery.PackageDiscovery/PublishService", Action: "discovery.publish.service"},
+		{Method: "/discovery.PackageDiscovery/PublishApplication", Action: "discovery.publish.app"},
+	})
 
 	if *showDescribe {
 		data, _ := json.MarshalIndent(srv, "", "  ")

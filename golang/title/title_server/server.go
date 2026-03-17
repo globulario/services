@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -348,39 +349,39 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
 
 	view := []string{
-		"/title.TitleService/GetPublisherById",
-		"/title.TitleService/GetPersonById",
-		"/title.TitleService/GetTitleById",
-		"/title.TitleService/GetAudioById",
-		"/title.TitleService/GetAlbum",
-		"/title.TitleService/GetVideoById",
-		"/title.TitleService/GetFileTitles",
-		"/title.TitleService/GetFileVideos",
-		"/title.TitleService/GetFileAudios",
-		"/title.TitleService/GetTitleFiles",
-		"/title.TitleService/SearchTitles",
-		"/title.TitleService/SearchPersons",
+		"title.getpublisher",
+		"title.getperson",
+		"title.gettitle",
+		"title.getaudio",
+		"title.getalbum",
+		"title.getvideo",
+		"title.getfiletitles",
+		"title.getfilevideos",
+		"title.getfileaudios",
+		"title.gettitlefiles",
+		"title.searchtitles",
+		"title.searchpersons",
 	}
 
 	write := append([]string{
-		"/title.TitleService/CreatePublisher",
-		"/title.TitleService/CreatePerson",
-		"/title.TitleService/CreateTitle",
-		"/title.TitleService/UpdateTitleMetadata",
-		"/title.TitleService/CreateAudio",
-		"/title.TitleService/CreateVideo",
-		"/title.TitleService/UpdateVideoMetadata",
-		"/title.TitleService/AssociateFileWithTitle",
-		"/title.TitleService/DissociateFileWithTitle",
+		"title.createpublisher",
+		"title.createperson",
+		"title.createtitle",
+		"title.updatetitle",
+		"title.createaudio",
+		"title.createvideo",
+		"title.updatevideo",
+		"title.associate",
+		"title.dissociate",
 	}, view...) // writers can also read/search
 
 	admin := append([]string{
-		"/title.TitleService/DeletePublisher",
-		"/title.TitleService/DeletePerson",
-		"/title.TitleService/DeleteTitle",
-		"/title.TitleService/DeleteAudio",
-		"/title.TitleService/DeleteAlbum",
-		"/title.TitleService/DeleteVideo",
+		"title.deletepublisher",
+		"title.deleteperson",
+		"title.deletetitle",
+		"title.deleteaudio",
+		"title.deletealbum",
+		"title.deletevideo",
 	}, write...) // admins can also write + read
 
 	return []resourcepb.Role{
@@ -874,6 +875,37 @@ func main() {
 
 	// Register Title client factory (used elsewhere in service).
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/title.TitleService/GetPublisherById", Action: "title.getpublisher"},
+		{Method: "/title.TitleService/GetPersonById", Action: "title.getperson"},
+		{Method: "/title.TitleService/GetTitleById", Action: "title.gettitle"},
+		{Method: "/title.TitleService/GetAudioById", Action: "title.getaudio"},
+		{Method: "/title.TitleService/GetAlbum", Action: "title.getalbum"},
+		{Method: "/title.TitleService/GetVideoById", Action: "title.getvideo"},
+		{Method: "/title.TitleService/GetFileTitles", Action: "title.getfiletitles"},
+		{Method: "/title.TitleService/GetFileVideos", Action: "title.getfilevideos"},
+		{Method: "/title.TitleService/GetFileAudios", Action: "title.getfileaudios"},
+		{Method: "/title.TitleService/GetTitleFiles", Action: "title.gettitlefiles"},
+		{Method: "/title.TitleService/SearchTitles", Action: "title.searchtitles"},
+		{Method: "/title.TitleService/SearchPersons", Action: "title.searchpersons"},
+		{Method: "/title.TitleService/CreatePublisher", Action: "title.createpublisher"},
+		{Method: "/title.TitleService/CreatePerson", Action: "title.createperson"},
+		{Method: "/title.TitleService/CreateTitle", Action: "title.createtitle"},
+		{Method: "/title.TitleService/UpdateTitleMetadata", Action: "title.updatetitle"},
+		{Method: "/title.TitleService/CreateAudio", Action: "title.createaudio"},
+		{Method: "/title.TitleService/CreateVideo", Action: "title.createvideo"},
+		{Method: "/title.TitleService/UpdateVideoMetadata", Action: "title.updatevideo"},
+		{Method: "/title.TitleService/AssociateFileWithTitle", Action: "title.associate"},
+		{Method: "/title.TitleService/DissociateFileWithTitle", Action: "title.dissociate"},
+		{Method: "/title.TitleService/DeletePublisher", Action: "title.deletepublisher"},
+		{Method: "/title.TitleService/DeletePerson", Action: "title.deleteperson"},
+		{Method: "/title.TitleService/DeleteTitle", Action: "title.deletetitle"},
+		{Method: "/title.TitleService/DeleteAudio", Action: "title.deleteaudio"},
+		{Method: "/title.TitleService/DeleteAlbum", Action: "title.deletealbum"},
+		{Method: "/title.TitleService/DeleteVideo", Action: "title.deletevideo"},
+	})
 
 	// Handle --describe flag (print service metadata and exit)
 	if *showDescribe {

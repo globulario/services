@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -218,16 +219,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Read-only access to DNS records.",
 		Actions: []string{
-			"/dns.DnsService/GetA",
-			"/dns.DnsService/GetAAAA",
-			"/dns.DnsService/GetText",
-			"/dns.DnsService/GetNs",
-			"/dns.DnsService/GetCName",
-			"/dns.DnsService/GetMx",
-			"/dns.DnsService/GetSoa",
-			"/dns.DnsService/GetUri",
-			"/dns.DnsService/GetCaa",
-			"/dns.DnsService/GetAfsdb",
+			"dns.record.read",
 		},
 		TypeName: "resource.Role",
 	}
@@ -239,23 +231,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Description: "Create/update/delete DNS records.",
 		Actions: []string{
 			// writes
-			"/dns.DnsService/SetDomains", "/dns.DnsService/RemoveDomains",
-			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
-			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
-			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
-			"/dns.DnsService/SetNs", "/dns.DnsService/RemoveNs",
-			"/dns.DnsService/SetCName", "/dns.DnsService/RemoveCName",
-			"/dns.DnsService/SetMx", "/dns.DnsService/RemoveMx",
-			"/dns.DnsService/SetSoa", "/dns.DnsService/RemoveSoa",
-			"/dns.DnsService/SetUri", "/dns.DnsService/RemoveUri",
-			"/dns.DnsService/SetCaa", "/dns.DnsService/RemoveCaa",
-			"/dns.DnsService/SetAfsdb", "/dns.DnsService/RemoveAfsdb",
-			// reads (often convenient to include)
-			"/dns.DnsService/GetA", "/dns.DnsService/GetAAAA",
-			"/dns.DnsService/GetText", "/dns.DnsService/GetNs",
-			"/dns.DnsService/GetCName", "/dns.DnsService/GetMx",
-			"/dns.DnsService/GetSoa", "/dns.DnsService/GetUri",
-			"/dns.DnsService/GetCaa", "/dns.DnsService/GetAfsdb",
+			"dns.zone.write", "dns.zone.delete",
+			"dns.record.write", "dns.record.delete",
+			// reads
+			"dns.record.read",
 		},
 		TypeName: "resource.Role",
 	}
@@ -265,24 +244,12 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Name:        "DNS Admin",
 		Domain:      domain,
 		Description: "Full DNS control, including server stop.",
-		Actions: append(append([]string{
-			"/dns.DnsService/Stop",
+		Actions: []string{
+			"dns.stop",
+			"dns.record.read",
+			"dns.zone.write", "dns.zone.delete",
+			"dns.record.write", "dns.record.delete",
 		},
-			// all read actions
-			reader.Actions...),
-			// all write actions
-			"/dns.DnsService/SetDomains",
-			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
-			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
-			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
-			"/dns.DnsService/SetNs", "/dns.DnsService/RemoveNs",
-			"/dns.DnsService/SetCName", "/dns.DnsService/RemoveCName",
-			"/dns.DnsService/SetMx", "/dns.DnsService/RemoveMx",
-			"/dns.DnsService/SetSoa", "/dns.DnsService/RemoveSoa",
-			"/dns.DnsService/SetUri", "/dns.DnsService/RemoveUri",
-			"/dns.DnsService/SetCaa", "/dns.DnsService/RemoveCaa",
-			"/dns.DnsService/SetAfsdb", "/dns.DnsService/RemoveAfsdb",
-		),
 		TypeName: "resource.Role",
 	}
 
@@ -702,6 +669,43 @@ func main() {
 		printUsage()
 		return
 	}
+
+	// Register method→action mappings for interceptor resolution.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/dns.DnsService/GetA", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetAAAA", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetText", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetNs", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetCName", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetMx", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetSoa", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetUri", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetCaa", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/GetAfsdb", Action: "dns.record.read"},
+		{Method: "/dns.DnsService/SetDomains", Action: "dns.zone.write"},
+		{Method: "/dns.DnsService/RemoveDomains", Action: "dns.zone.delete"},
+		{Method: "/dns.DnsService/SetA", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveA", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetAAAA", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveAAAA", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetText", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveText", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetNs", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveNs", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetCName", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveCName", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetMx", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveMx", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetSoa", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveSoa", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetUri", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveUri", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetCaa", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveCaa", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/SetAfsdb", Action: "dns.record.write"},
+		{Method: "/dns.DnsService/RemoveAfsdb", Action: "dns.record.delete"},
+		{Method: "/dns.DnsService/Stop", Action: "dns.stop"},
+	})
 
 	if *showDescribe {
 		data, _ := json.MarshalIndent(srv, "", "  ")

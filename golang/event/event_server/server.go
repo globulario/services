@@ -14,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -182,11 +183,11 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Subscribe to channels and receive events.",
 		Actions: []string{
-			"/event.EventService/OnEvent",
-			"/event.EventService/Quit",
-			"/event.EventService/Subscribe",
-			"/event.EventService/UnSubscribe",
-			"/event.EventService/QueryEvents",
+			"event.listen",
+			"event.quit",
+			"event.subscribe",
+			"event.unsubscribe",
+			"event.query",
 		},
 		TypeName: "resource.Role",
 	}
@@ -197,11 +198,11 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Domain:      domain,
 		Description: "Publish to channels (and read if allowed).",
 		Actions: []string{
-			"/event.EventService/Publish",
-			"/event.EventService/OnEvent",
-			"/event.EventService/Quit",
-			"/event.EventService/Subscribe",
-			"/event.EventService/UnSubscribe",
+			"event.publish",
+			"event.listen",
+			"event.quit",
+			"event.subscribe",
+			"event.unsubscribe",
 		},
 		TypeName: "resource.Role",
 	}
@@ -211,8 +212,15 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Name:        "Event Admin",
 		Domain:      domain,
 		Description: "Full control over event channels and publishing.",
-		Actions:     append([]string{"/event.EventService/Stop"}, publisher.Actions...),
-		TypeName:    "resource.Role",
+		Actions: []string{
+			"event.stop",
+			"event.publish",
+			"event.listen",
+			"event.quit",
+			"event.subscribe",
+			"event.unsubscribe",
+		},
+		TypeName: "resource.Role",
 	}
 
 	return []resourcepb.Role{reader, publisher, admin}
@@ -392,6 +400,17 @@ func main() {
 		printVersion()
 		return
 	}
+
+	// Register method→action mappings for interceptor resolution.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/event.EventService/OnEvent", Action: "event.listen"},
+		{Method: "/event.EventService/Quit", Action: "event.quit"},
+		{Method: "/event.EventService/Subscribe", Action: "event.subscribe"},
+		{Method: "/event.EventService/UnSubscribe", Action: "event.unsubscribe"},
+		{Method: "/event.EventService/QueryEvents", Action: "event.query"},
+		{Method: "/event.EventService/Publish", Action: "event.publish"},
+		{Method: "/event.EventService/Stop", Action: "event.stop"},
+	})
 
 	// Handle --describe flag
 	if *showDescribe {

@@ -16,6 +16,7 @@ import (
     "github.com/globulario/services/golang/blog/blogpb"
     "github.com/globulario/services/golang/config"
     "github.com/globulario/services/golang/event/eventpb"
+    "github.com/globulario/services/golang/policy"
     globular "github.com/globulario/services/golang/globular_service"
     "github.com/globulario/services/golang/resource/resourcepb"
     "github.com/globulario/services/golang/storage/storage_store"
@@ -201,9 +202,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
             Domain:      domain,
             Description: "Read and search blog posts.",
             Actions: []string{
-                "/blog.BlogService/GetBlogPosts",
-                "/blog.BlogService/SearchBlogPosts",
-                "/blog.BlogService/GetBlogPostsByAuthors", // left permissive; included for completeness
+                "blog.read",
+                "blog.search",
+                "blog.byauthors",
             },
             TypeName: "resource.Role",
         },
@@ -213,10 +214,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
             Domain:      domain,
             Description: "Create and update posts; add comments and reactions.",
             Actions: []string{
-                "/blog.BlogService/CreateBlogPost",
-                "/blog.BlogService/SaveBlogPost",
-                "/blog.BlogService/AddComment",
-                "/blog.BlogService/AddEmoji",
+                "blog.create",
+                "blog.save",
+                "blog.comment",
+                "blog.react",
             },
             TypeName: "resource.Role",
         },
@@ -226,9 +227,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
             Domain:      domain,
             Description: "Moderate content: delete posts, comments, and reactions.",
             Actions: []string{
-                "/blog.BlogService/DeleteBlogPost",
-                "/blog.BlogService/RemoveComment",
-                "/blog.BlogService/RemoveEmoji",
+                "blog.delete",
+                "blog.removecomment",
+                "blog.removereact",
             },
             TypeName: "resource.Role",
         },
@@ -238,16 +239,16 @@ func (srv *server) RolesDefault() []resourcepb.Role {
             Domain:      domain,
             Description: "Full control over blogging features.",
             Actions: []string{
-                "/blog.BlogService/CreateBlogPost",
-                "/blog.BlogService/SaveBlogPost",
-                "/blog.BlogService/GetBlogPosts",
-                "/blog.BlogService/SearchBlogPosts",
-                "/blog.BlogService/GetBlogPostsByAuthors",
-                "/blog.BlogService/DeleteBlogPost",
-                "/blog.BlogService/AddComment",
-                "/blog.BlogService/RemoveComment",
-                "/blog.BlogService/AddEmoji",
-                "/blog.BlogService/RemoveEmoji",
+                "blog.create",
+                "blog.save",
+                "blog.read",
+                "blog.search",
+                "blog.byauthors",
+                "blog.delete",
+                "blog.comment",
+                "blog.removecomment",
+                "blog.react",
+                "blog.removereact",
             },
             TypeName: "resource.Role",
         },
@@ -585,6 +586,20 @@ func main() {
         printVersion()
         return
     }
+
+    // Register method→action mappings with the global resolver for interceptor use.
+    policy.GlobalResolver().Register([]policy.Permission{
+        {Method: "/blog.BlogService/GetBlogPosts", Action: "blog.read"},
+        {Method: "/blog.BlogService/SearchBlogPosts", Action: "blog.search"},
+        {Method: "/blog.BlogService/GetBlogPostsByAuthors", Action: "blog.byauthors"},
+        {Method: "/blog.BlogService/CreateBlogPost", Action: "blog.create"},
+        {Method: "/blog.BlogService/SaveBlogPost", Action: "blog.save"},
+        {Method: "/blog.BlogService/DeleteBlogPost", Action: "blog.delete"},
+        {Method: "/blog.BlogService/AddComment", Action: "blog.comment"},
+        {Method: "/blog.BlogService/RemoveComment", Action: "blog.removecomment"},
+        {Method: "/blog.BlogService/AddEmoji", Action: "blog.react"},
+        {Method: "/blog.BlogService/RemoveEmoji", Action: "blog.removereact"},
+    })
 
     if *showDescribe {
         data, _ := json.MarshalIndent(srv, "", "  ")

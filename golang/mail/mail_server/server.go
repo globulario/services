@@ -12,6 +12,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/mail/mail_client"
 	"github.com/globulario/services/golang/mail/mailpb"
+	"github.com/globulario/services/golang/policy"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/reflection"
 )
@@ -151,6 +152,15 @@ func main() {
 
 	flag.Usage = printUsage
 	flag.Parse()
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/mail.MailService/Stop", Action: "mail.stop"},
+		{Method: "/mail.MailService/CreateConnection", Action: "mail.createconnection"},
+		{Method: "/mail.MailService/DeleteConnection", Action: "mail.deleteconnection"},
+		{Method: "/mail.MailService/SendEmail", Action: "mail.sendemail"},
+		{Method: "/mail.MailService/SendEmailWithAttachements", Action: "mail.sendemailwithattachements"},
+	})
 
 	// Enable debug logging if requested
 	if *enableDebug {

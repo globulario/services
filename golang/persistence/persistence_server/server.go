@@ -17,6 +17,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
@@ -169,11 +170,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read-only access to query data and check connection health.",
 			Actions: []string{
-				"/persistence.PersistenceService/Ping",
-				"/persistence.PersistenceService/Count",
-				"/persistence.PersistenceService/Find",
-				"/persistence.PersistenceService/FindOne",
-				"/persistence.PersistenceService/Aggregate",
+				"persistence.read",
 			},
 			TypeName: "resource.Role",
 		},
@@ -183,17 +180,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Create, update, and delete data records (no schema or connection admin).",
 			Actions: []string{
-				"/persistence.PersistenceService/Count",
-				"/persistence.PersistenceService/Find",
-				"/persistence.PersistenceService/FindOne",
-				"/persistence.PersistenceService/Aggregate",
-				"/persistence.PersistenceService/InsertOne",
-				"/persistence.PersistenceService/InsertMany",
-				"/persistence.PersistenceService/Update",
-				"/persistence.PersistenceService/UpdateOne",
-				"/persistence.PersistenceService/ReplaceOne",
-				"/persistence.PersistenceService/Delete",
-				"/persistence.PersistenceService/DeleteOne",
+				"persistence.read",
+				"persistence.write",
+				"persistence.delete",
 			},
 			TypeName: "resource.Role",
 		},
@@ -203,32 +192,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full control over PersistenceService: connections, schema (DB/collections), data, and admin commands.",
 			Actions: []string{
-				"/persistence.PersistenceService/Stop",
-
-				"/persistence.PersistenceService/CreateConnection",
-				"/persistence.PersistenceService/DeleteConnection",
-				"/persistence.PersistenceService/Connect",
-				"/persistence.PersistenceService/Disconnect",
-				"/persistence.PersistenceService/Ping",
-
-				"/persistence.PersistenceService/CreateDatabase",
-				"/persistence.PersistenceService/DeleteDatabase",
-				"/persistence.PersistenceService/CreateCollection",
-				"/persistence.PersistenceService/DeleteCollection",
-
-				"/persistence.PersistenceService/Count",
-				"/persistence.PersistenceService/Find",
-				"/persistence.PersistenceService/FindOne",
-				"/persistence.PersistenceService/Aggregate",
-				"/persistence.PersistenceService/InsertOne",
-				"/persistence.PersistenceService/InsertMany",
-				"/persistence.PersistenceService/Update",
-				"/persistence.PersistenceService/UpdateOne",
-				"/persistence.PersistenceService/ReplaceOne",
-				"/persistence.PersistenceService/Delete",
-				"/persistence.PersistenceService/DeleteOne",
-
-				"/persistence.PersistenceService/RunAdminCmd",
+				"persistence.read",
+				"persistence.write",
+				"persistence.delete",
+				"persistence.admin",
 			},
 			TypeName: "resource.Role",
 		},
@@ -591,6 +558,32 @@ func main() {
 			},
 		},
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/persistence.PersistenceService/Ping", Action: "persistence.read"},
+		{Method: "/persistence.PersistenceService/Count", Action: "persistence.read"},
+		{Method: "/persistence.PersistenceService/Find", Action: "persistence.read"},
+		{Method: "/persistence.PersistenceService/FindOne", Action: "persistence.read"},
+		{Method: "/persistence.PersistenceService/Aggregate", Action: "persistence.read"},
+		{Method: "/persistence.PersistenceService/InsertOne", Action: "persistence.write"},
+		{Method: "/persistence.PersistenceService/InsertMany", Action: "persistence.write"},
+		{Method: "/persistence.PersistenceService/Update", Action: "persistence.write"},
+		{Method: "/persistence.PersistenceService/UpdateOne", Action: "persistence.write"},
+		{Method: "/persistence.PersistenceService/ReplaceOne", Action: "persistence.write"},
+		{Method: "/persistence.PersistenceService/Delete", Action: "persistence.delete"},
+		{Method: "/persistence.PersistenceService/DeleteOne", Action: "persistence.delete"},
+		{Method: "/persistence.PersistenceService/Stop", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/CreateConnection", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/DeleteConnection", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/Connect", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/Disconnect", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/CreateDatabase", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/DeleteDatabase", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/CreateCollection", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/DeleteCollection", Action: "persistence.admin"},
+		{Method: "/persistence.PersistenceService/RunAdminCmd", Action: "persistence.admin"},
+	})
 
 	// Register client ctor
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)

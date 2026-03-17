@@ -11,6 +11,7 @@ import (
 
 	"github.com/globulario/services/golang/backup_hook"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/search/searchpb"
 	"google.golang.org/grpc/reflection"
 )
@@ -165,6 +166,16 @@ func main() {
 		printVersion()
 		return
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/search.SearchService/Stop", Action: "search.stop"},
+		{Method: "/search.SearchService/GetEngineVersion", Action: "search.version"},
+		{Method: "/search.SearchService/IndexJsonObject", Action: "search.index"},
+		{Method: "/search.SearchService/Count", Action: "search.count"},
+		{Method: "/search.SearchService/DeleteDocument", Action: "search.delete"},
+		{Method: "/search.SearchService/SearchDocuments", Action: "search.query"},
+	})
 
 	if *showDescribe {
 		data, _ := json.MarshalIndent(srv, "", "  ")

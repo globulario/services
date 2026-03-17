@@ -10,6 +10,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 	Utility "github.com/globulario/utility"
@@ -127,6 +128,14 @@ func main() {
 			break
 		}
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/torrent.TorrentService/GetTorrentInfos", Action: "torrent.gettorrentinfos"},
+		{Method: "/torrent.TorrentService/GetTorrentLnks", Action: "torrent.gettorrentlnks"},
+		{Method: "/torrent.TorrentService/DownloadTorrent", Action: "torrent.downloadtorrent"},
+		{Method: "/torrent.TorrentService/DropTorrent", Action: "torrent.droptorrent"},
+	})
 
 	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
 		return

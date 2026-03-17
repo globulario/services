@@ -16,6 +16,7 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -205,7 +206,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Change account passwords (subject to server-side ownership checks).",
 			Actions: []string{
-				"/authentication.AuthenticationService/SetPassword",
+				"auth.password.set",
 			},
 			TypeName: "resource.Role",
 		},
@@ -215,7 +216,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Generate tokens for peers identified by MAC.",
 			Actions: []string{
-				"/authentication.AuthenticationService/GeneratePeerToken",
+				"auth.peer.token",
 			},
 			TypeName: "resource.Role",
 		},
@@ -225,8 +226,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Manage root credentials and administrator email.",
 			Actions: []string{
-				"/authentication.AuthenticationService/SetRootPassword",
-				"/authentication.AuthenticationService/SetRootEmail",
+				"auth.root.password",
+				"auth.root.email",
 			},
 			TypeName: "resource.Role",
 		},
@@ -236,10 +237,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full control over authentication management operations.",
 			Actions: []string{
-				"/authentication.AuthenticationService/SetPassword",
-				"/authentication.AuthenticationService/GeneratePeerToken",
-				"/authentication.AuthenticationService/SetRootPassword",
-				"/authentication.AuthenticationService/SetRootEmail",
+				"auth.password.set",
+				"auth.peer.token",
+				"auth.root.password",
+				"auth.root.email",
 			},
 			TypeName: "resource.Role",
 		},
@@ -484,6 +485,14 @@ func main() {
 		printVersion()
 		return
 	}
+
+	// Register method→action mappings for interceptor resolution.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/authentication.AuthenticationService/SetPassword", Action: "auth.password.set"},
+		{Method: "/authentication.AuthenticationService/GeneratePeerToken", Action: "auth.peer.token"},
+		{Method: "/authentication.AuthenticationService/SetRootPassword", Action: "auth.root.password"},
+		{Method: "/authentication.AuthenticationService/SetRootEmail", Action: "auth.root.email"},
+	})
 
 	// Handle --describe and --health flags
 	if *showDescribe {

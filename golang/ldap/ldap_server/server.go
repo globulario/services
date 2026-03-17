@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/ldap/ldappb"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
@@ -201,8 +202,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read-only access to LDAP search and sync configuration.",
 			Actions: []string{
-				"/ldap.LdapService/Search",
-				"/ldap.LdapService/getLdapSyncInfo",
+				"ldap.search",
+				"ldap.getldapsyncinfo",
 			},
 			TypeName: "resource.Role",
 		},
@@ -212,7 +213,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Can perform LDAP Authenticate (e.g., login flows).",
 			Actions: []string{
-				"/ldap.LdapService/Authenticate",
+				"ldap.authenticate",
 			},
 			TypeName: "resource.Role",
 		},
@@ -222,9 +223,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Manage LDAP connections (create/delete/close).",
 			Actions: []string{
-				"/ldap.LdapService/CreateConnection",
-				"/ldap.LdapService/DeleteConnection",
-				"/ldap.LdapService/Close",
+				"ldap.createconnection",
+				"ldap.deleteconnection",
+				"ldap.close",
 			},
 			TypeName: "resource.Role",
 		},
@@ -234,10 +235,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Manage sync configuration and run synchronization.",
 			Actions: []string{
-				"/ldap.LdapService/setLdapSyncInfo",
-				"/ldap.LdapService/deleteLdapSyncInfo",
-				"/ldap.LdapService/getLdapSyncInfo",
-				"/ldap.LdapService/Synchronize",
+				"ldap.setldapsyncinfo",
+				"ldap.deleteldapsyncinfo",
+				"ldap.getldapsyncinfo",
+				"ldap.synchronize",
 			},
 			TypeName: "resource.Role",
 		},
@@ -247,19 +248,19 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full control over LDAP service, including stop.",
 			Actions: []string{
-				"/ldap.LdapService/Stop",
+				"ldap.stop",
 				// connection admin
-				"/ldap.LdapService/CreateConnection",
-				"/ldap.LdapService/DeleteConnection",
-				"/ldap.LdapService/Close",
+				"ldap.createconnection",
+				"ldap.deleteconnection",
+				"ldap.close",
 				// sync admin
-				"/ldap.LdapService/setLdapSyncInfo",
-				"/ldap.LdapService/deleteLdapSyncInfo",
-				"/ldap.LdapService/getLdapSyncInfo",
-				"/ldap.LdapService/Synchronize",
+				"ldap.setldapsyncinfo",
+				"ldap.deleteldapsyncinfo",
+				"ldap.getldapsyncinfo",
+				"ldap.synchronize",
 				// read & exec
-				"/ldap.LdapService/Search",
-				"/ldap.LdapService/Authenticate",
+				"ldap.search",
+				"ldap.authenticate",
 			},
 			TypeName: "resource.Role",
 		},
@@ -550,6 +551,20 @@ func main() {
 
 	flag.Usage = printUsage
 	flag.Parse()
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/ldap.LdapService/Stop", Action: "ldap.stop"},
+		{Method: "/ldap.LdapService/CreateConnection", Action: "ldap.createconnection"},
+		{Method: "/ldap.LdapService/DeleteConnection", Action: "ldap.deleteconnection"},
+		{Method: "/ldap.LdapService/Close", Action: "ldap.close"},
+		{Method: "/ldap.LdapService/Search", Action: "ldap.search"},
+		{Method: "/ldap.LdapService/Authenticate", Action: "ldap.authenticate"},
+		{Method: "/ldap.LdapService/setLdapSyncInfo", Action: "ldap.setldapsyncinfo"},
+		{Method: "/ldap.LdapService/deleteLdapSyncInfo", Action: "ldap.deleteldapsyncinfo"},
+		{Method: "/ldap.LdapService/getLdapSyncInfo", Action: "ldap.getldapsyncinfo"},
+		{Method: "/ldap.LdapService/Synchronize", Action: "ldap.synchronize"},
+	})
 
 	if *enableDebug {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))

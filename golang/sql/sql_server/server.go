@@ -9,6 +9,7 @@ import (
 	"time"
 
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/sql/sql_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
 	Utility "github.com/globulario/utility"
@@ -123,6 +124,16 @@ func main() {
 			break
 		}
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/sql.SqlService/Stop", Action: "sql.stop"},
+		{Method: "/sql.SqlService/CreateConnection", Action: "sql.createconnection"},
+		{Method: "/sql.SqlService/DeleteConnection", Action: "sql.deleteconnection"},
+		{Method: "/sql.SqlService/Ping", Action: "sql.ping"},
+		{Method: "/sql.SqlService/QueryContext", Action: "sql.querycontext"},
+		{Method: "/sql.SqlService/ExecContext", Action: "sql.execcontext"},
+	})
 
 	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
 		return

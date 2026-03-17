@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -265,7 +266,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read-only access to query logs.",
 			Actions: []string{
-				"/log.LogService/GetLog",
+				"log.read",
 			},
 			TypeName: "resource.Role",
 		},
@@ -275,7 +276,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Can append new log entries.",
 			Actions: []string{
-				"/log.LogService/Log",
+				"log.write",
 			},
 			TypeName: "resource.Role",
 		},
@@ -285,8 +286,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Operate on individual log entries (delete specific items).",
 			Actions: []string{
-				"/log.LogService/GetLog",
-				"/log.LogService/DeleteLog",
+				"log.read",
+				"log.delete",
 			},
 			TypeName: "resource.Role",
 		},
@@ -296,10 +297,10 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Full control over LogService, including bulk clears.",
 			Actions: []string{
-				"/log.LogService/Log",
-				"/log.LogService/GetLog",
-				"/log.LogService/DeleteLog",
-				"/log.LogService/ClearAllLog",
+				"log.write",
+				"log.read",
+				"log.delete",
+				"log.clear",
 			},
 			TypeName: "resource.Role",
 		},
@@ -597,6 +598,14 @@ func main() {
 		printVersion()
 		return
 	}
+
+	// Register method→action mappings for interceptor resolution.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/log.LogService/Log", Action: "log.write"},
+		{Method: "/log.LogService/GetLog", Action: "log.read"},
+		{Method: "/log.LogService/DeleteLog", Action: "log.delete"},
+		{Method: "/log.LogService/ClearAllLog", Action: "log.clear"},
+	})
 
 	if *showDescribe {
 		data, _ := json.MarshalIndent(srv, "", "  ")

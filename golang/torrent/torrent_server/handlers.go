@@ -167,13 +167,13 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
 
 	view := []string{
-		"/torrent.TorrentService/GetTorrentInfos",
-		"/torrent.TorrentService/GetTorrentLnks",
+		"torrent.gettorrentinfos",
+		"torrent.gettorrentlnks",
 	}
 
 	write := append([]string{
-		"/torrent.TorrentService/DownloadTorrent",
-		"/torrent.TorrentService/DropTorrent",
+		"torrent.downloadtorrent",
+		"torrent.droptorrent",
 	}, view...) // writers can also view
 
 	admin := append([]string{}, write...)

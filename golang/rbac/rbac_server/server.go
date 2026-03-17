@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -370,17 +371,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Read-only access to permissions metadata and validation endpoints.",
 			Actions: []string{
-				"/rbac.RbacService/GetResourcePermission",
-				"/rbac.RbacService/GetResourcePermissions",
-				"/rbac.RbacService/GetResourcePermissionsByResourceType",
-				"/rbac.RbacService/GetResourcePermissionsBySubject",
-				"/rbac.RbacService/GetActionResourceInfos",
-				"/rbac.RbacService/GetSharedResource",
-				"/rbac.RbacService/ValidateAccess",
-				"/rbac.RbacService/ValidateAction",
-				"/rbac.RbacService/GetSubjectAllocatedSpace",
-				"/rbac.RbacService/GetSubjectAvailableSpace",
-				"/rbac.RbacService/ValidateSubjectSpace",
+				"rbac.read",
+				"rbac.validate",
 			},
 			TypeName: "resource.Role",
 		},
@@ -390,13 +382,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Domain:      domain,
 			Description: "Manage resource permissions, owners, and shares.",
 			Actions: []string{
-				"/rbac.RbacService/SetResourcePermission",
-				"/rbac.RbacService/DeleteResourcePermission",
-				"/rbac.RbacService/SetResourcePermissions",
-				"/rbac.RbacService/DeleteResourcePermissions",
-				"/rbac.RbacService/AddResourceOwner",
-				"/rbac.RbacService/RemoveResourceOwner",
-				"/rbac.RbacService/RemoveSubjectFromShare",
+				"rbac.write",
+				"rbac.delete",
 			},
 			TypeName: "resource.Role",
 		},
@@ -407,32 +394,15 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Description: "Full control over RBAC configuration and subject quotas.",
 			Actions: []string{
 				// everything from viewer
-				"/rbac.RbacService/GetResourcePermission",
-				"/rbac.RbacService/GetResourcePermissions",
-				"/rbac.RbacService/GetResourcePermissionsByResourceType",
-				"/rbac.RbacService/GetResourcePermissionsBySubject",
-				"/rbac.RbacService/GetActionResourceInfos",
-				"/rbac.RbacService/GetSharedResource",
-				"/rbac.RbacService/ValidateAccess",
-				"/rbac.RbacService/ValidateAction",
-				"/rbac.RbacService/GetSubjectAllocatedSpace",
-				"/rbac.RbacService/GetSubjectAvailableSpace",
-				"/rbac.RbacService/ValidateSubjectSpace",
+				"rbac.read",
+				"rbac.validate",
 
 				// everything from editor
-				"/rbac.RbacService/SetResourcePermission",
-				"/rbac.RbacService/DeleteResourcePermission",
-				"/rbac.RbacService/SetResourcePermissions",
-				"/rbac.RbacService/DeleteResourcePermissions",
-				"/rbac.RbacService/AddResourceOwner",
-				"/rbac.RbacService/RemoveResourceOwner",
-				"/rbac.RbacService/RemoveSubjectFromShare",
+				"rbac.write",
+				"rbac.delete",
 
 				// admin-only knobs
-				"/rbac.RbacService/SetActionResourcesPermissions",
-				"/rbac.RbacService/DeleteAllAccess",
-				"/rbac.RbacService/DeleteSubjectShare",
-				"/rbac.RbacService/SetSubjectAllocatedSpace",
+				"rbac.admin",
 			},
 			TypeName: "resource.Role",
 		},
@@ -1012,6 +982,32 @@ func main() {
 	srv.AllowAllOrigins, srv.AllowedOrigins = allowAllOrigins, allowedOriginsStr
 	srv.KeepAlive, srv.KeepUpToDate = true, true
 	srv.CacheAddress = srv.Address
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/rbac.RbacService/GetResourcePermission", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetResourcePermissions", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetResourcePermissionsByResourceType", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetResourcePermissionsBySubject", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetActionResourceInfos", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetSharedResource", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetSubjectAllocatedSpace", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/GetSubjectAvailableSpace", Action: "rbac.read"},
+		{Method: "/rbac.RbacService/ValidateAccess", Action: "rbac.validate"},
+		{Method: "/rbac.RbacService/ValidateAction", Action: "rbac.validate"},
+		{Method: "/rbac.RbacService/ValidateSubjectSpace", Action: "rbac.validate"},
+		{Method: "/rbac.RbacService/SetResourcePermission", Action: "rbac.write"},
+		{Method: "/rbac.RbacService/SetResourcePermissions", Action: "rbac.write"},
+		{Method: "/rbac.RbacService/AddResourceOwner", Action: "rbac.write"},
+		{Method: "/rbac.RbacService/RemoveResourceOwner", Action: "rbac.write"},
+		{Method: "/rbac.RbacService/RemoveSubjectFromShare", Action: "rbac.write"},
+		{Method: "/rbac.RbacService/DeleteResourcePermission", Action: "rbac.delete"},
+		{Method: "/rbac.RbacService/DeleteResourcePermissions", Action: "rbac.delete"},
+		{Method: "/rbac.RbacService/SetActionResourcesPermissions", Action: "rbac.admin"},
+		{Method: "/rbac.RbacService/DeleteAllAccess", Action: "rbac.admin"},
+		{Method: "/rbac.RbacService/DeleteSubjectShare", Action: "rbac.admin"},
+		{Method: "/rbac.RbacService/SetSubjectAllocatedSpace", Action: "rbac.admin"},
+	})
 
 	// Register RBAC client ctor for other components if needed.
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)

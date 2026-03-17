@@ -11,6 +11,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storagepb"
 	Utility "github.com/globulario/utility"
@@ -214,6 +215,21 @@ func main() {
 
 	flag.Usage = printUsage
 	flag.Parse()
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().Register([]policy.Permission{
+		{Method: "/storage.StorageService/Stop", Action: "storage.stop"},
+		{Method: "/storage.StorageService/CreateConnection", Action: "storage.createconnection"},
+		{Method: "/storage.StorageService/DeleteConnection", Action: "storage.deleteconnection"},
+		{Method: "/storage.StorageService/Open", Action: "storage.open"},
+		{Method: "/storage.StorageService/Close", Action: "storage.close"},
+		{Method: "/storage.StorageService/GetItem", Action: "storage.getitem"},
+		{Method: "/storage.StorageService/SetItem", Action: "storage.setitem"},
+		{Method: "/storage.StorageService/SetLargeItem", Action: "storage.setlargeitem"},
+		{Method: "/storage.StorageService/RemoveItem", Action: "storage.removeitem"},
+		{Method: "/storage.StorageService/Clear", Action: "storage.clear"},
+		{Method: "/storage.StorageService/Drop", Action: "storage.drop"},
+	})
 
 	// Enable debug logging if requested
 	if *enableDebug {
