@@ -30,6 +30,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
@@ -570,6 +571,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	method := info.FullMethod
+	// Resolve method path to stable action key for RBAC validation.
+	// If no mapping exists, actionKey falls back to the raw method path.
+	actionKey := policy.GlobalResolver().Resolve(method)
 	var routing string
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -663,24 +667,24 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Role-binding check: applies to all explicitly role-mapped gRPC methods.
 	// Skip the RBAC service itself (would cause a circular RPC call).
 	// Only fires for authenticated subjects post-cluster-initialization.
-	if clusterInitialized && security.IsRoleBasedMethod(method) &&
+	if clusterInitialized && security.IsRoleBasedMethod(actionKey) &&
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, method, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
 		if !allowed {
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return nil, status.Errorf(codes.PermissionDenied,
-				"permission denied: %s — assign a role with 'globular rbac bind'", method)
+				"permission denied: %s — assign a role with 'globular rbac bind'", actionKey)
 		}
 		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
 
-	// 3) Only consult RBAC if there are resource mappings for this method.
+	// 3) Only consult RBAC if there are resource mappings for this action.
 	needAuthz := false
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
-		if infos, e := getActionResourceInfos(address, method); e == nil && len(infos) > 0 {
+		if infos, e := getActionResourceInfos(address, actionKey); e == nil && len(infos) > 0 {
 			needAuthz = true
 		}
 	}
@@ -718,7 +722,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Validate by ACCOUNT
 	hasAccess, accessDenied, _ := false, false, error(nil)
 	if clientId != "" {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
+		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, clientId, rbacpb.SubjectType_ACCOUNT, address)
 		// Quota example
 		if method == "/torrent.TorrentService/DownloadTorrent" {
 			_, _ = ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
@@ -727,14 +731,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Validate by APPLICATION
 	if !hasAccess && application != "" && !accessDenied {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, address)
+		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, application, rbacpb.SubjectType_APPLICATION, address)
 	}
 
 	// Validate by PEER
 	if !hasAccess && issuer != "" && !accessDenied {
 		mac, _ := config.GetMacAddress()
 		if issuer != mac {
-			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_NODE_IDENTITY, address)
+			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, issuer, rbacpb.SubjectType_NODE_IDENTITY, address)
 		}
 	}
 
@@ -981,6 +985,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	method := info.FullMethod
+	actionKey := policy.GlobalResolver().Resolve(method)
 	routing := ""
 
 	ctx := stream.Context()
@@ -1051,15 +1056,15 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Role-binding check for streaming RPCs: mirrors the unary interceptor check.
 	// Skip the RBAC service itself (would cause a circular RPC call).
-	if streamInitialized && security.IsRoleBasedMethod(method) &&
+	if streamInitialized && security.IsRoleBasedMethod(actionKey) &&
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, method, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
 		if !allowed {
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return status.Errorf(codes.PermissionDenied,
-				"permission denied: %s — assign a role with 'globular rbac bind'", method)
+				"permission denied: %s — assign a role with 'globular rbac bind'", actionKey)
 		}
 		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 		return callStreamHandlerWithLogging(srv, stream, handler, address, application, method)

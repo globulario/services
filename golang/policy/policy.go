@@ -254,9 +254,11 @@ func readFirst(paths []string) ([]byte, string, error) {
 
 // permissionsToInterface converts typed Permission structs to the
 // []interface{} format expected by the Service.SetPermissions() interface.
-// For RBAC storage compatibility, the "action" field in the output map uses
-// the method path (since RBAC currently keys by method path), while the
-// stable action key is stored in a separate "action_key" field.
+//
+// In v2 format (method + action), the output map uses "action" for the stable
+// action key and "method" for the gRPC method path. RBAC storage is keyed by
+// the action key. For backward compatibility, v1 entries (no method field)
+// use "action" as the method path directly.
 func permissionsToInterface(perms []Permission) []interface{} {
 	result := make([]interface{}, 0, len(perms))
 	for _, p := range perms {
@@ -271,15 +273,13 @@ func permissionsToInterface(perms []Permission) []interface{} {
 		entry := map[string]interface{}{
 			"resources": resources,
 		}
-		// For backward compatibility with RBAC storage (keyed by method path),
-		// the "action" field uses the method path. The stable action key is
-		// stored alongside for the resolver to use.
 		if p.Method != "" {
+			// v2 format: action = stable key, method = transport path
 			entry["method"] = p.Method
-			entry["action"] = p.Method // RBAC storage key (backward compat)
-			entry["action_key"] = p.Action // stable action key
+			entry["action"] = p.Action
 		} else {
-			entry["action"] = p.Action // v1 format: action is the method path
+			// v1 format: action is the method path
+			entry["action"] = p.Action
 		}
 		if p.Permission != "" {
 			entry["permission"] = p.Permission

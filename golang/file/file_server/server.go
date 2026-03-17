@@ -286,9 +286,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 }
 
 // defaultPermissions returns the compiled fallback permissions for FileService.
-// Uses v2 format: method (transport) + action (stable RBAC key) + resources.
-// The "action" field in the map uses the method path for backward compat with
-// RBAC storage; "method" and "action_key" carry the v2 data.
+// Uses v2 format: method (gRPC transport path) + action (stable RBAC key).
 func defaultPermissions() []interface{} {
 	type p struct {
 		method, action, perm string
@@ -321,8 +319,7 @@ func defaultPermissions() []interface{} {
 	for _, e := range entries {
 		result = append(result, map[string]interface{}{
 			"method":     e.method,
-			"action":     e.method,     // RBAC storage key (backward compat)
-			"action_key": e.action,     // stable RBAC action key
+			"action":     e.action,
 			"permission": e.perm,
 			"resources":  e.res,
 		})

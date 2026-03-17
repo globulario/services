@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
@@ -37,35 +38,37 @@ func canonicalizeAction(action string) (string, error) {
 	// Reject control characters and null bytes
 	for i := 0; i < len(action); i++ {
 		c := action[i]
-		if c < 0x20 || c == 0x7F { // Control characters including null, tab, newline
+		if c < 0x20 || c == 0x7F {
 			return "", errors.New("action contains control characters")
 		}
 	}
 
-	// Must start with "/"
-	if !strings.HasPrefix(action, "/") {
-		return "", errors.New("action must start with /")
+	// Stable action keys (e.g., "file.read", "file.*", "*") pass through directly.
+	// They don't need path normalization.
+	if policy.IsActionKey(action) || action == "*" || (strings.Contains(action, ".") && strings.HasSuffix(action, ".*")) {
+		return action, nil
 	}
 
-	// Reject relative path components (shouldn't exist in gRPC method names)
+	// Legacy gRPC method path: must start with "/"
+	if !strings.HasPrefix(action, "/") {
+		return "", errors.New("action must start with / (method path) or be a dotted action key")
+	}
+
+	// Reject relative path components
 	if strings.Contains(action, "/.") {
 		return "", errors.New("action contains relative path components")
 	}
 
-	// Normalize: remove duplicate slashes
-	// "/rbac.RbacService//CreateAccount" → "/rbac.RbacService/CreateAccount"
+	// Normalize duplicate slashes
 	normalized := action
 	for strings.Contains(normalized, "//") {
 		normalized = strings.ReplaceAll(normalized, "//", "/")
 	}
 
-	// Ensure exactly one slash divider (format: /package.Service/Method)
-	// Global wildcard "/*" is special case
+	// Validate format: /package.Service/Method or /package.Service/* or /*
 	if normalized != "/*" {
-		parts := strings.Split(normalized[1:], "/") // Remove leading "/" and split
+		parts := strings.Split(normalized[1:], "/")
 		if len(parts) != 2 {
-			// Valid formats: "/package.Service/Method" or "/package.Service/*"
-			// Invalid: "/", "/service", "/a/b/c"
 			if !(len(parts) == 2 && parts[1] == "*") {
 				return "", errors.New("invalid action format (expected /package.Service/Method)")
 			}
@@ -94,17 +97,14 @@ func canonicalizeAction(action string) (string, error) {
 //   - pattern="/rbac.RbacService/CreateAccount", action="/rbac.RbacService//CreateAccount" → true (normalized)
 //   - pattern="/rbac.RbacService/CreateAccount", action="/rbac.RbacService/./CreateAccount" → ERROR (rejected)
 func matchesAction(pattern, action string) bool {
-	// Security Fix #6: Canonicalize both sides to prevent bypass
+	// Canonicalize both sides to prevent bypass
 	canonPattern, err := canonicalizeAction(pattern)
 	if err != nil {
-		// Invalid pattern - should not happen with valid RBAC configuration
-		// Log and reject to fail closed
 		return false
 	}
 
 	canonAction, err := canonicalizeAction(action)
 	if err != nil {
-		// Invalid action - suspicious, reject
 		return false
 	}
 
@@ -113,18 +113,23 @@ func matchesAction(pattern, action string) bool {
 		return true
 	}
 
-	// Global wildcard: "/*" matches everything
-	if canonPattern == "/*" {
+	// Global wildcards: "*" or "/*" match everything
+	if canonPattern == "*" || canonPattern == "/*" {
 		return true
 	}
 
-	// Service-level wildcard: "/service.ServiceName/*"
-	if strings.HasSuffix(canonPattern, "/*") {
-		prefix := canonPattern[:len(canonPattern)-1] // Remove trailing '*', keep '/'
+	// Action-key wildcard: "file.*" matches "file.read", "file.write", etc.
+	if strings.HasSuffix(canonPattern, ".*") {
+		prefix := canonPattern[:len(canonPattern)-1] // "file." from "file.*"
 		return strings.HasPrefix(canonAction, prefix)
 	}
 
-	// No match
+	// Legacy method-path wildcard: "/service.ServiceName/*"
+	if strings.HasSuffix(canonPattern, "/*") {
+		prefix := canonPattern[:len(canonPattern)-1]
+		return strings.HasPrefix(canonAction, prefix)
+	}
+
 	return false
 }
 

@@ -46,16 +46,13 @@ func TestLoadPermissions_V2Format(t *testing.T) {
 	if !ok {
 		t.Fatal("expected map[string]interface{}")
 	}
-	// In v2 output, "action" is the method path (for RBAC compat)
-	if m["action"] != "/file.FileService/ReadDir" {
-		t.Errorf("expected action=/file.FileService/ReadDir, got %v", m["action"])
+	// In v2 output, "action" is the stable action key
+	if m["action"] != "file.list" {
+		t.Errorf("expected action=file.list, got %v", m["action"])
 	}
-	// "action_key" holds the stable action key
-	if m["action_key"] != "file.list" {
-		t.Errorf("expected action_key=file.list, got %v", m["action_key"])
-	}
+	// "method" is the gRPC transport path
 	if m["method"] != "/file.FileService/ReadDir" {
-		t.Errorf("expected method field, got %v", m["method"])
+		t.Errorf("expected method=/file.FileService/ReadDir, got %v", m["method"])
 	}
 }
 
@@ -116,8 +113,8 @@ func TestLoadPermissions_AdminOverridesPackage(t *testing.T) {
 		t.Fatal("expected fromFile=true")
 	}
 	m := perms[0].(map[string]interface{})
-	if m["action_key"] != "file.read" {
-		t.Errorf("expected admin override action_key=file.read, got %v", m["action_key"])
+	if m["action"] != "file.read" {
+		t.Errorf("expected admin override action=file.read, got %v", m["action"])
 	}
 }
 

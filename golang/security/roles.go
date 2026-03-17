@@ -205,16 +205,17 @@ func init() {
 }
 
 // rebuildMethodIndex recomputes methodSet and methodPrefix from RolePermissions.
+// Handles both gRPC method paths (/pkg.Service/Method) and stable action keys (file.read).
 func rebuildMethodIndex() {
 	methodSet = make(map[string]bool)
 	methodPrefix = nil
-	for _, methods := range RolePermissions {
-		for _, m := range methods {
-			if m == "/*" {
-				continue // global wildcard: don't add every method in existence
-			} else if strings.HasSuffix(m, "/*") {
-				// service wildcard — record the prefix
-				prefix := strings.TrimSuffix(m, "*")
+	for _, entries := range RolePermissions {
+		for _, m := range entries {
+			if m == "/*" || m == "*" {
+				continue // global wildcard
+			} else if strings.HasSuffix(m, "/*") || strings.HasSuffix(m, ".*") {
+				// wildcard — record the prefix (both /pkg.Service/* and file.*)
+				prefix := m[:len(m)-1] // strip the trailing *
 				methodPrefix = append(methodPrefix, prefix)
 			} else {
 				methodSet[m] = true
@@ -223,15 +224,16 @@ func rebuildMethodIndex() {
 	}
 }
 
-// IsRoleBasedMethod returns true if the gRPC full method is explicitly managed
-// by the role-binding system (i.e. appears in at least one non-global entry in
-// RolePermissions, either by exact match or service-wildcard prefix).
-func IsRoleBasedMethod(method string) bool {
-	if methodSet[method] {
+// IsRoleBasedMethod returns true if the given action (stable action key or
+// gRPC method path) is explicitly managed by the role-binding system (i.e.
+// appears in at least one non-global entry in RolePermissions, either by
+// exact match or wildcard prefix).
+func IsRoleBasedMethod(action string) bool {
+	if methodSet[action] {
 		return true
 	}
 	for _, p := range methodPrefix {
-		if strings.HasPrefix(method, p) {
+		if strings.HasPrefix(action, p) {
 			return true
 		}
 	}
@@ -239,20 +241,47 @@ func IsRoleBasedMethod(method string) bool {
 }
 
 // HasRolePermission returns true if any of the given roles grants access to
-// the specified gRPC method.  Supports exact, global "/*", and service
-// wildcard "/pkg.Service/*" patterns.
-func HasRolePermission(roles []string, method string) bool {
+// the specified action. Supports:
+//   - Exact match: "file.read" == "file.read", or "/pkg.Service/Method" == "/pkg.Service/Method"
+//   - Global wildcard: "*" or "/*" grants all
+//   - Action-key wildcard: "file.*" matches "file.read", "file.write", etc.
+//   - Method-path wildcard: "/pkg.Service/*" matches "/pkg.Service/Method"
+//
+// The action parameter should be a stable action key (e.g., "file.read") when
+// available, or a raw gRPC method path for backward compatibility.
+func HasRolePermission(roles []string, action string) bool {
 	for _, role := range roles {
 		for _, perm := range RolePermissions[role] {
-			if perm == "/*" || perm == method {
+			if matchesPermission(perm, action) {
 				return true
 			}
-			if strings.HasSuffix(perm, "/*") {
-				prefix := strings.TrimSuffix(perm, "*")
-				if strings.HasPrefix(method, prefix) {
-					return true
-				}
-			}
+		}
+	}
+	return false
+}
+
+// matchesPermission checks if a single permission grant matches an action.
+func matchesPermission(perm, action string) bool {
+	// Global wildcards
+	if perm == "*" || perm == "/*" {
+		return true
+	}
+	// Exact match
+	if perm == action {
+		return true
+	}
+	// Action-key wildcard: "file.*" matches "file.read"
+	if strings.HasSuffix(perm, ".*") {
+		prefix := strings.TrimSuffix(perm, "*")
+		if strings.HasPrefix(action, prefix) {
+			return true
+		}
+	}
+	// Legacy method-path wildcard: "/pkg.Service/*" matches "/pkg.Service/Method"
+	if strings.HasSuffix(perm, "/*") {
+		prefix := strings.TrimSuffix(perm, "*")
+		if strings.HasPrefix(action, prefix) {
+			return true
 		}
 	}
 	return false
