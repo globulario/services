@@ -6,6 +6,8 @@ package catalog;
 
 option go_package="github.com/globulario/services/golang/catalog/catalogpb";
 
+import "globular_auth.proto";
+
 enum StoreType{
 	MONGO = 0;
 }
@@ -43,7 +45,7 @@ message CreateConnectionRsp {
 
 // Delete connection
 message DeleteConnectionRqst {
-	string id = 1;
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 }
 
 message DeleteConnectionRsp {
@@ -109,7 +111,7 @@ message ItemDefinition {
 
 // Append a category to an item definition
 message AppendItemDefinitionCategoryRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Reference category = 2;
 	Reference itemDefinition = 3;
 }
@@ -311,7 +313,7 @@ message SavePropertyDefinitionResponse{
 }
 
 message SaveItemDefinitionRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	ItemDefinition itemDefinition = 2;
 }
 
@@ -590,8 +592,8 @@ message ItemDefinitions {
 }
 
 message GetItemDefinitionRequest{
-	string connectionId = 1;
-	string itemDefinitionId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string itemDefinitionId = 2 [(globular.auth.resource) = { kind: "item_definition" }]; // must be the _id
 }
 
 message GetItemDefinitionResponse{
@@ -599,7 +601,7 @@ message GetItemDefinitionResponse{
 }
 
 message GetItemDefinitionsRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -739,7 +741,14 @@ service CatalogService {
 	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
 	
 	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
+	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "catalog.connection.delete"
+			permission: "delete"
+			resource_template: "/catalog/connections/{id}"
+			default_role_hint: "admin"
+		};
+	};
 	
 	//////////////////////// Save (Create) functions ///////////////////////////
 	
@@ -750,7 +759,14 @@ service CatalogService {
 	rpc SavePropertyDefinition(SavePropertyDefinitionRequest) returns (SavePropertyDefinitionResponse){};
 	
 	// Save item definition.
-	rpc SaveItemDefinition(SaveItemDefinitionRequest) returns (SaveItemDefinitionResponse){};
+	rpc SaveItemDefinition(SaveItemDefinitionRequest) returns (SaveItemDefinitionResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_definition.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/item-definitions"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save item
 	rpc SaveItemInstance(SaveItemInstanceRequest) returns (SaveItemInstanceResponse){};
@@ -782,7 +798,14 @@ service CatalogService {
 	rpc SaveCategory(SaveCategoryRequest) returns (SaveCategoryResponse){};
 	
 	// Append a Category to item definition.
-	rpc AppendItemDefinitionCategory(AppendItemDefinitionCategoryRequest) returns (AppendItemDefinitionCategoryResponse);
+	rpc AppendItemDefinitionCategory(AppendItemDefinitionCategoryRequest) returns (AppendItemDefinitionCategoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_definition.category.link"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/item-definitions"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Remove a Category from item definition.
 	rpc RemoveItemDefinitionCategory(RemoveItemDefinitionCategoryRequest) returns (RemoveItemDefinitionCategoryResponse);
@@ -810,8 +833,22 @@ service CatalogService {
 	rpc getUnitOfMeasures(GetUnitOfMeasuresRequest) returns (GetUnitOfMeasuresResponse);
 	
 	// Getter for Item definition
-	rpc getItemDefinition(GetItemDefinitionRequest) returns (GetItemDefinitionResponse);
-	rpc getItemDefinitions(GetItemDefinitionsRequest) returns (GetItemDefinitionsResponse);
+	rpc getItemDefinition(GetItemDefinitionRequest) returns (GetItemDefinitionResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_definition.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/item-definitions/{itemDefinitionId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getItemDefinitions(GetItemDefinitionsRequest) returns (GetItemDefinitionsResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_definition.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/item-definitions"
+			default_role_hint: "viewer"
+		};
+	};
 
 	// Getter for Item instance
 	rpc getItemInstance(GetItemInstanceRequest) returns (GetItemInstanceResponse);

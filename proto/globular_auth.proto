@@ -1,0 +1,73 @@
+// globular_auth.proto — Authorization metadata annotations for Globular services.
+//
+// Proto is the source of truth for permission INTENT only.
+// Generated policy files carry default service policy.
+// External config overrides defaults.
+// RBAC stores live roles and bindings.
+// Service code only enforces and registers ownership.
+//
+// Method-level: describes action, permission kind, and resource templates.
+// Field-level: marks request fields as resource keys with kind and scope.
+
+syntax = "proto3";
+package globular.auth;
+
+option go_package = "github.com/globulario/services/golang/authpb";
+
+import "google/protobuf/descriptor.proto";
+
+// ── Method-level authorization rule ─────────────────────────────────────────
+
+extend google.protobuf.MethodOptions {
+  AuthzRule authz = 50000;
+}
+
+// AuthzRule describes the authorization intent for a single RPC method.
+// The generator reads this to produce permissions.generated.json and
+// roles.generated.json. The runtime interceptor uses the generated
+// manifests, not these annotations directly.
+message AuthzRule {
+  // Stable action key (e.g., "catalog.item_definition.read").
+  // Must be lowercase dotted identifier. This becomes the canonical
+  // RBAC permission identifier.
+  string action = 1;
+
+  // Permission kind: "read", "write", "delete", "admin".
+  string permission = 2;
+
+  // Resource template with {field} placeholders for individual resources.
+  // Example: "/catalog/connections/{connection_id}/item-definitions/{item_definition_id}"
+  // The interceptor expands placeholders from request field values.
+  string resource_template = 3;
+
+  // Collection template for list/create operations (no leaf identifier).
+  // Example: "/catalog/connections/{connection_id}/item-definitions"
+  string collection_template = 4;
+
+  // Advisory role hint for the generator. NOT authoritative policy.
+  // Values: "viewer", "editor", "manager", "admin"
+  // The generator uses this to group actions into default roles.
+  // External roles.json overrides generated grouping.
+  string default_role_hint = 5;
+}
+
+// ── Field-level resource metadata ───────────────────────────────────────────
+
+extend google.protobuf.FieldOptions {
+  ResourceField resource = 50001;
+}
+
+// ResourceField marks a request message field as a resource identifier.
+// The generator and interceptor use this to extract resource paths from
+// requests without duplicating field metadata in every method annotation.
+message ResourceField {
+  // Resource kind (e.g., "connection", "item_definition", "category").
+  // Used for resource-type classification in RBAC.
+  string kind = 1;
+
+  // If true, this field is a parent scope anchor. Resource paths for
+  // child resources nest under this scope.
+  // Example: connection_id with scope_anchor=true means all child
+  // resources live under /catalog/connections/{connection_id}/...
+  bool scope_anchor = 2;
+}
