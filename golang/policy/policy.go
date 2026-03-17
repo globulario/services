@@ -76,6 +76,33 @@ type Resource struct {
 	Permission string `json:"permission"`
 }
 
+// LoadAndRegisterPermissions loads permissions for a service and automatically
+// registers method→action mappings with the GlobalResolver. This is the
+// preferred single entry point for services at startup — no separate
+// Register() or RegisterFromInterface() call needed.
+//
+// Returns the effective permissions (from manifest or nil for compiled fallback)
+// and a *ServiceAuthzRegistration snapshot for publishing to etcd.
+func LoadAndRegisterPermissions(serviceName string) (perms []interface{}, reg *ServiceAuthzRegistration) {
+	reg = NewServiceAuthzRegistration(serviceName)
+
+	extPerms, fromFile, _ := LoadPermissions(serviceName)
+	if fromFile {
+		perms = extPerms
+		reg.ManifestsLoaded = true
+		reg.PermissionCount = len(extPerms)
+	}
+
+	// Register mappings from whatever permissions are effective.
+	if perms != nil {
+		GlobalResolver().RegisterFromInterface(perms)
+	}
+
+	// Count resolver mappings.
+	reg.ActionMappingCount = GlobalResolver().MappingCount()
+	return
+}
+
 // LoadPermissions loads permissions.json for a service.
 // Returns (permissions, fromFile, error). If no external file is found
 // or the file is invalid, returns (nil, false, nil) — the caller should
@@ -194,6 +221,13 @@ func (r *ActionResolver) Resolve(method string) string {
 		return action
 	}
 	return method // fallback: use method path as-is
+}
+
+// MappingCount returns the number of registered method→action mappings.
+func (r *ActionResolver) MappingCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.methodToAct)
 }
 
 // ResolvePermission returns the full Permission entry for a gRPC method path.

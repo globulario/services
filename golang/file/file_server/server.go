@@ -885,15 +885,14 @@ func main() {
 	s.AllowedOrigins = allowedOriginsStr
 	s.CacheAddress, _ = config.GetAddress()
 
-	// Try loading permissions from external policy file; fall back to compiled defaults.
-	if extPerms, ok, _ := policy.LoadPermissions("file"); ok {
+	// Load permissions from manifest or compiled fallback, and auto-register
+	// method→action mappings with the global resolver for interceptor use.
+	if extPerms, _ := policy.LoadAndRegisterPermissions("file"); extPerms != nil {
 		s.Permissions = extPerms
 	} else {
 		s.Permissions = defaultPermissions()
+		policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 	}
-
-	// Register method→action mappings with the global resolver for interceptor use.
-	policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 
 	// Dynamic client registration
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
