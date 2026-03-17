@@ -6,12 +6,11 @@ import (
 	"testing"
 )
 
-func TestLoadPermissions_FromFile(t *testing.T) {
+func TestLoadPermissions_V2Format(t *testing.T) {
 	dir := t.TempDir()
 	AdminRoot = filepath.Join(dir, "etc")
 	PackageRoot = filepath.Join(dir, "var")
 
-	// Write a valid permissions.json to the package root.
 	svcDir := filepath.Join(PackageRoot, "services", "file")
 	if err := os.MkdirAll(svcDir, 0755); err != nil {
 		t.Fatal(err)
@@ -21,8 +20,8 @@ func TestLoadPermissions_FromFile(t *testing.T) {
 		"service": "file.FileService",
 		"permissions": [
 			{
-				"action": "/file.FileService/ReadDir",
-				"permission": "read",
+				"method": "/file.FileService/ReadDir",
+				"action": "file.list",
 				"resources": [
 					{"index": 0, "field": "Path", "permission": "read"}
 				]
@@ -47,11 +46,49 @@ func TestLoadPermissions_FromFile(t *testing.T) {
 	if !ok {
 		t.Fatal("expected map[string]interface{}")
 	}
+	// In v2 output, "action" is the method path (for RBAC compat)
 	if m["action"] != "/file.FileService/ReadDir" {
-		t.Errorf("unexpected action: %v", m["action"])
+		t.Errorf("expected action=/file.FileService/ReadDir, got %v", m["action"])
 	}
-	if m["permission"] != "read" {
-		t.Errorf("unexpected permission: %v", m["permission"])
+	// "action_key" holds the stable action key
+	if m["action_key"] != "file.list" {
+		t.Errorf("expected action_key=file.list, got %v", m["action_key"])
+	}
+	if m["method"] != "/file.FileService/ReadDir" {
+		t.Errorf("expected method field, got %v", m["method"])
+	}
+}
+
+func TestLoadPermissions_V1Format(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	svcDir := filepath.Join(PackageRoot, "services", "file")
+	os.MkdirAll(svcDir, 0755)
+	// v1 format: action is the method path, no method field
+	content := `{
+		"version": "1.0",
+		"service": "file.FileService",
+		"permissions": [
+			{
+				"action": "/file.FileService/ReadDir",
+				"permission": "read",
+				"resources": [
+					{"index": 0, "field": "Path", "permission": "read"}
+				]
+			}
+		]
+	}`
+	os.WriteFile(filepath.Join(svcDir, "permissions.json"), []byte(content), 0644)
+
+	perms, fromFile, _ := LoadPermissions("file")
+	if !fromFile {
+		t.Fatal("expected fromFile=true")
+	}
+	m := perms[0].(map[string]interface{})
+	if m["action"] != "/file.FileService/ReadDir" {
+		t.Errorf("expected v1 action, got %v", m["action"])
 	}
 }
 
@@ -60,20 +97,18 @@ func TestLoadPermissions_AdminOverridesPackage(t *testing.T) {
 	AdminRoot = filepath.Join(dir, "etc")
 	PackageRoot = filepath.Join(dir, "var")
 
-	// Write package default
 	pkgDir := filepath.Join(PackageRoot, "services", "file")
 	os.MkdirAll(pkgDir, 0755)
 	os.WriteFile(filepath.Join(pkgDir, "permissions.json"), []byte(`{
 		"version": "1.0", "service": "file.FileService",
-		"permissions": [{"action": "/file.FileService/ReadDir", "permission": "read", "resources": []}]
+		"permissions": [{"method": "/file.FileService/ReadDir", "action": "file.list", "resources": []}]
 	}`), 0644)
 
-	// Write admin override with different permission
 	admDir := filepath.Join(AdminRoot, "services", "file")
 	os.MkdirAll(admDir, 0755)
 	os.WriteFile(filepath.Join(admDir, "permissions.json"), []byte(`{
 		"version": "1.0", "service": "file.FileService",
-		"permissions": [{"action": "/file.FileService/ReadDir", "permission": "admin", "resources": []}]
+		"permissions": [{"method": "/file.FileService/ReadDir", "action": "file.read", "resources": []}]
 	}`), 0644)
 
 	perms, fromFile, _ := LoadPermissions("file")
@@ -81,8 +116,8 @@ func TestLoadPermissions_AdminOverridesPackage(t *testing.T) {
 		t.Fatal("expected fromFile=true")
 	}
 	m := perms[0].(map[string]interface{})
-	if m["permission"] != "admin" {
-		t.Errorf("expected admin override, got %v", m["permission"])
+	if m["action_key"] != "file.read" {
+		t.Errorf("expected admin override action_key=file.read, got %v", m["action_key"])
 	}
 }
 
@@ -121,29 +156,70 @@ func TestLoadPermissions_MalformedJSON(t *testing.T) {
 	}
 }
 
-func TestLoadPermissions_ValidationFailure(t *testing.T) {
-	dir := t.TempDir()
-	AdminRoot = filepath.Join(dir, "etc")
-	PackageRoot = filepath.Join(dir, "var")
+func TestActionResolver(t *testing.T) {
+	r := NewResolver()
+	r.Register([]Permission{
+		{Method: "/file.FileService/ReadDir", Action: "file.list"},
+		{Method: "/file.FileService/ReadFile", Action: "file.read"},
+		{Method: "/file.FileService/GetFileInfo", Action: "file.list"}, // multiple methods → same action
+	})
 
-	svcDir := filepath.Join(PackageRoot, "services", "file")
-	os.MkdirAll(svcDir, 0755)
-	// Missing version, invalid action (no leading /), invalid verb
-	os.WriteFile(filepath.Join(svcDir, "permissions.json"), []byte(`{
-		"service": "file.FileService",
-		"permissions": [{"action": "BadAction", "permission": "nope", "resources": []}]
-	}`), 0644)
-
-	perms, fromFile, _ := LoadPermissions("file")
-	if fromFile {
-		t.Fatal("expected fromFile=false for validation failure")
+	if got := r.Resolve("/file.FileService/ReadDir"); got != "file.list" {
+		t.Errorf("expected file.list, got %s", got)
 	}
-	if perms != nil {
-		t.Fatal("expected nil perms for validation failure")
+	if got := r.Resolve("/file.FileService/ReadFile"); got != "file.read" {
+		t.Errorf("expected file.read, got %s", got)
+	}
+	if got := r.Resolve("/file.FileService/GetFileInfo"); got != "file.list" {
+		t.Errorf("expected file.list, got %s", got)
+	}
+	// Unknown method falls back to method path
+	if got := r.Resolve("/file.FileService/Unknown"); got != "/file.FileService/Unknown" {
+		t.Errorf("expected fallback to method path, got %s", got)
+	}
+	if !r.HasMapping("/file.FileService/ReadDir") {
+		t.Error("expected HasMapping=true")
+	}
+	if r.HasMapping("/file.FileService/Unknown") {
+		t.Error("expected HasMapping=false for unknown")
 	}
 }
 
-func TestLoadClusterRoles_FromFile(t *testing.T) {
+func TestActionResolver_V1SkipsNonActionKeys(t *testing.T) {
+	r := NewResolver()
+	// v1 format: Method empty, Action is a method path → should not create mapping
+	r.Register([]Permission{
+		{Action: "/file.FileService/ReadDir"},
+	})
+	if r.HasMapping("/file.FileService/ReadDir") {
+		t.Error("v1 format should not create method→action mapping")
+	}
+}
+
+func TestIsActionKey(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"file.read", true},
+		{"file.list", true},
+		{"resource.account.create", true},
+		{"dns.zone.write", true},
+		{"/file.FileService/ReadDir", false},
+		{"", false},
+		{"file", false},              // needs at least one dot
+		{"File.Read", false},         // uppercase
+		{"*", false},                 // wildcard
+		{"file.read.v2.beta", true},  // multiple dots ok
+	}
+	for _, tt := range tests {
+		if got := IsActionKey(tt.input); got != tt.want {
+			t.Errorf("IsActionKey(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestLoadClusterRoles_WithActionKeys(t *testing.T) {
 	dir := t.TempDir()
 	AdminRoot = filepath.Join(dir, "etc")
 	PackageRoot = filepath.Join(dir, "var")
@@ -153,8 +229,9 @@ func TestLoadClusterRoles_FromFile(t *testing.T) {
 	os.WriteFile(filepath.Join(rbacDir, "cluster-roles.json"), []byte(`{
 		"version": "1.0",
 		"roles": {
-			"globular-admin": ["/*"],
-			"file.viewer": ["/file.FileService/ReadDir"]
+			"globular-admin": ["*"],
+			"file.viewer": ["file.list", "file.read"],
+			"file.editor": ["file.list", "file.read", "file.write"]
 		}
 	}`), 0644)
 
@@ -165,37 +242,49 @@ func TestLoadClusterRoles_FromFile(t *testing.T) {
 	if !fromFile {
 		t.Fatal("expected fromFile=true")
 	}
-	if len(roles) != 2 {
-		t.Fatalf("expected 2 roles, got %d", len(roles))
+	if len(roles) != 3 {
+		t.Fatalf("expected 3 roles, got %d", len(roles))
 	}
-	if roles["globular-admin"][0] != "/*" {
-		t.Errorf("unexpected admin perm: %v", roles["globular-admin"])
+	if roles["file.viewer"][0] != "file.list" {
+		t.Errorf("unexpected viewer grant: %v", roles["file.viewer"])
 	}
 }
 
-func TestLoadClusterRoles_NoFile(t *testing.T) {
+func TestLoadClusterRoles_MixedGrants(t *testing.T) {
 	dir := t.TempDir()
 	AdminRoot = filepath.Join(dir, "etc")
 	PackageRoot = filepath.Join(dir, "var")
 
+	rbacDir := filepath.Join(PackageRoot, "rbac")
+	os.MkdirAll(rbacDir, 0755)
+	// Mixed: action keys + legacy method paths (migration period)
+	os.WriteFile(filepath.Join(rbacDir, "cluster-roles.json"), []byte(`{
+		"version": "1.0",
+		"roles": {
+			"globular-operator": [
+				"file.list",
+				"/dns.DnsService/*"
+			]
+		}
+	}`), 0644)
+
 	roles, fromFile, _ := LoadClusterRoles()
-	if fromFile {
-		t.Fatal("expected fromFile=false")
+	if !fromFile {
+		t.Fatal("expected fromFile=true")
 	}
-	if roles != nil {
-		t.Fatal("expected nil roles")
+	if len(roles["globular-operator"]) != 2 {
+		t.Fatalf("expected 2 grants, got %d", len(roles["globular-operator"]))
 	}
 }
 
-func TestValidatePermissions(t *testing.T) {
-	// Valid file should produce no errors
+func TestValidatePermissions_V2(t *testing.T) {
 	pf := &PermissionsFile{
 		Version: "1.0",
 		Service: "file.FileService",
 		Permissions: []Permission{
 			{
-				Action:     "/file.FileService/ReadDir",
-				Permission: "read",
+				Method: "/file.FileService/ReadDir",
+				Action: "file.list",
 				Resources: []Resource{
 					{Index: 0, Field: "Path", Permission: "read"},
 				},
@@ -207,27 +296,31 @@ func TestValidatePermissions(t *testing.T) {
 	}
 }
 
-func TestValidateClusterRoles(t *testing.T) {
-	// Valid file
-	crf := &ClusterRolesFile{
+func TestValidatePermissions_InvalidActionKey(t *testing.T) {
+	pf := &PermissionsFile{
 		Version: "1.0",
-		Roles: map[string][]string{
-			"globular-admin": {"/*"},
-			"file.viewer":    {"/file.FileService/ReadDir"},
+		Service: "file.FileService",
+		Permissions: []Permission{
+			{Method: "/file.FileService/ReadDir", Action: "BAD-KEY"},
 		},
 	}
-	if errs := validateClusterRoles(crf); len(errs) > 0 {
-		t.Errorf("expected no errors, got: %v", errs)
+	errs := validatePermissions(pf)
+	if len(errs) == 0 {
+		t.Error("expected validation error for bad action key")
 	}
+}
 
-	// Invalid method path
-	crf2 := &ClusterRolesFile{
+func TestValidatePermissions_DuplicateMethod(t *testing.T) {
+	pf := &PermissionsFile{
 		Version: "1.0",
-		Roles: map[string][]string{
-			"bad-role": {"no-slash-method"},
+		Service: "file.FileService",
+		Permissions: []Permission{
+			{Method: "/file.FileService/ReadDir", Action: "file.list"},
+			{Method: "/file.FileService/ReadDir", Action: "file.read"}, // duplicate method
 		},
 	}
-	if errs := validateClusterRoles(crf2); len(errs) == 0 {
-		t.Error("expected validation errors for bad method path")
+	errs := validatePermissions(pf)
+	if len(errs) == 0 {
+		t.Error("expected validation error for duplicate method")
 	}
 }

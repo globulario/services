@@ -235,11 +235,11 @@ func (srv *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopRespo
 }
 
 // RolesDefault returns a curated set of roles for FileService.
+// Uses stable action keys as the RBAC permission identifiers.
 // Roles are defined in cluster-roles.json (owned by RBAC); this method
 // provides compiled fallback defaults only.
 func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
-	_ = domain // used in fallback below
 
 	return []resourcepb.Role{
 		{
@@ -247,120 +247,87 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Name:        "File Viewer",
 			Domain:      domain,
 			Description: "Read-only access to files and directories.",
-			Actions: []string{
-				"/file.FileService/ReadDir",
-				"/file.FileService/GetFileInfo",
-				"/file.FileService/GetFileMetadata",
-				"/file.FileService/ReadFile",
-				"/file.FileService/GetThumbnails",
-				"/file.FileService/GetPublicDirs",
-			},
-			TypeName: "resource.Role",
+			Actions:     []string{"file.list", "file.read", "file.publish"},
+			TypeName:    "resource.Role",
 		},
 		{
 			Id:          "role:file.uploader",
 			Name:        "File Uploader",
 			Domain:      domain,
 			Description: "Upload/create content; no destructive ops.",
-			Actions: []string{
-				"/file.FileService/UploadFile",
-				"/file.FileService/SaveFile",
-				"/file.FileService/CreateDir",
-				"/file.FileService/CreateLnk",
-				"/file.FileService/WriteExcelFile",
-			},
-			TypeName: "resource.Role",
+			Actions:     []string{"file.write"},
+			TypeName:    "resource.Role",
 		},
 		{
 			Id:          "role:file.editor",
 			Name:        "File Editor",
 			Domain:      domain,
 			Description: "Create, modify, move/copy, and delete files/dirs.",
-			Actions: []string{
-				"/file.FileService/CreateDir",
-				"/file.FileService/DeleteDir",
-				"/file.FileService/Rename",
-				"/file.FileService/Move",
-				"/file.FileService/Copy",
-				"/file.FileService/CreateArchive",
-				"/file.FileService/SaveFile",
-				"/file.FileService/DeleteFile",
-				"/file.FileService/UploadFile",
-				"/file.FileService/CreateLnk",
-				"/file.FileService/WriteExcelFile",
-			},
-			TypeName: "resource.Role",
+			Actions:     []string{"file.list", "file.read", "file.write", "file.delete"},
+			TypeName:    "resource.Role",
 		},
 		{
 			Id:          "role:file.publisher",
 			Name:        "File Publisher",
 			Domain:      domain,
 			Description: "Manage public directories (publish/unpublish).",
-			Actions: []string{
-				"/file.FileService/GetPublicDirs",
-				"/file.FileService/AddPublicDir",
-				"/file.FileService/RemovePublicDir",
-			},
-			TypeName: "resource.Role",
+			Actions:     []string{"file.publish"},
+			TypeName:    "resource.Role",
 		},
 		{
 			Id:          "role:file.admin",
 			Name:        "File Admin",
 			Domain:      domain,
 			Description: "Full control over FileService.",
-			Actions: []string{
-				"/file.FileService/Stop",
-				"/file.FileService/GetPublicDirs",
-				"/file.FileService/AddPublicDir",
-				"/file.FileService/RemovePublicDir",
-				"/file.FileService/ReadDir",
-				"/file.FileService/CreateDir",
-				"/file.FileService/DeleteDir",
-				"/file.FileService/Rename",
-				"/file.FileService/Move",
-				"/file.FileService/Copy",
-				"/file.FileService/CreateArchive",
-				"/file.FileService/GetFileInfo",
-				"/file.FileService/GetFileMetadata",
-				"/file.FileService/ReadFile",
-				"/file.FileService/SaveFile",
-				"/file.FileService/DeleteFile",
-				"/file.FileService/GetThumbnails",
-				"/file.FileService/UploadFile",
-				"/file.FileService/WriteExcelFile",
-				"/file.FileService/HtmlToPdf",
-			},
-			TypeName: "resource.Role",
+			Actions:     []string{"file.list", "file.read", "file.write", "file.delete", "file.publish", "file.admin"},
+			TypeName:    "resource.Role",
 		},
 	}
 }
 
 // defaultPermissions returns the compiled fallback permissions for FileService.
-// Used when no external permissions.json policy file is available.
+// Uses v2 format: method (transport) + action (stable RBAC key) + resources.
+// The "action" field in the map uses the method path for backward compat with
+// RBAC storage; "method" and "action_key" carry the v2 data.
 func defaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/file.FileService/ReadDir", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateDir", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteDir", "permission": "delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/Rename", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"}, map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/Copy", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/Move", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateArchive", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/GetFileInfo", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/GetFileMetadata", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/ReadFile", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/SaveFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteFile", "permission": "delete", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateLnk", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "Name", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/GetThumbnails", "permission": "read", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/HtmlToPdf", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/file.FileService/UploadFile", "permission": "write", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/AddPublicDir", "permission": "admin", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
-		map[string]interface{}{"action": "/file.FileService/RemovePublicDir", "permission": "admin", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
-		map[string]interface{}{"action": "/file.FileService/GetPublicDirs", "permission": "read", "resources": []interface{}{}},
-		map[string]interface{}{"action": "/file.FileService/Stop", "permission": "admin", "resources": []interface{}{}},
+	type p struct {
+		method, action, perm string
+		res                  []interface{}
 	}
+	entries := []p{
+		{"/file.FileService/ReadDir", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		{"/file.FileService/CreateDir", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		{"/file.FileService/DeleteDir", "file.delete", "delete", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
+		{"/file.FileService/Rename", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"}, map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"}}},
+		{"/file.FileService/Copy", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		{"/file.FileService/Move", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		{"/file.FileService/CreateArchive", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}}},
+		{"/file.FileService/GetFileInfo", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		{"/file.FileService/GetFileMetadata", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		{"/file.FileService/ReadFile", "file.read", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		{"/file.FileService/SaveFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		{"/file.FileService/DeleteFile", "file.delete", "delete", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
+		{"/file.FileService/CreateLnk", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "Name", "permission": "write"}}},
+		{"/file.FileService/GetThumbnails", "file.read", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
+		{"/file.FileService/WriteExcelFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
+		{"/file.FileService/HtmlToPdf", "file.read", "read", []interface{}{}},
+		{"/file.FileService/UploadFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"}}},
+		{"/file.FileService/AddPublicDir", "file.publish", "admin", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
+		{"/file.FileService/RemovePublicDir", "file.publish", "admin", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
+		{"/file.FileService/GetPublicDirs", "file.publish", "read", []interface{}{}},
+		{"/file.FileService/Stop", "file.admin", "admin", []interface{}{}},
+	}
+	result := make([]interface{}, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, map[string]interface{}{
+			"method":     e.method,
+			"action":     e.method,     // RBAC storage key (backward compat)
+			"action_key": e.action,     // stable RBAC action key
+			"permission": e.perm,
+			"resources":  e.res,
+		})
+	}
+	return result
 }
 
 // -------------------- Clients & helpers --------------------
@@ -927,6 +894,9 @@ func main() {
 	} else {
 		s.Permissions = defaultPermissions()
 	}
+
+	// Register method→action mappings with the global resolver for interceptor use.
+	policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 
 	// Dynamic client registration
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
