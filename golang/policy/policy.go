@@ -56,6 +56,14 @@ type Permission struct {
 	// Permission is the resource-level verb (read/write/delete/admin).
 	Permission string `json:"permission,omitempty"`
 
+	// ResourceTemplate is a path with {field} placeholders for individual resources.
+	// Example: "/catalog/connections/{connectionId}/item-definitions/{itemDefinitionId}"
+	ResourceTemplate string `json:"resource_template,omitempty"`
+
+	// CollectionTemplate is a path for list/create operations (no leaf identifier).
+	// Example: "/catalog/connections/{connectionId}/item-definitions"
+	CollectionTemplate string `json:"collection_template,omitempty"`
+
 	// Resources defines which request fields to check for access control.
 	Resources []Resource `json:"resources"`
 }
@@ -103,16 +111,18 @@ func LoadPermissions(serviceName string) ([]interface{}, bool, error) {
 // Built from permissions data at service startup; used by interceptors
 // to translate transport-level identifiers to RBAC-level identifiers.
 type ActionResolver struct {
-	mu          sync.RWMutex
-	methodToAct map[string]string    // "/file.FileService/ReadDir" → "file.list"
-	actToMethods map[string][]string // "file.list" → ["/file.FileService/ReadDir", "/file.FileService/GetFileInfo"]
-	actionToRes map[string][]Resource // "file.list" → resources
+	mu           sync.RWMutex
+	methodToAct  map[string]string      // "/file.FileService/ReadDir" → "file.list"
+	methodToPerm map[string]*Permission // "/file.FileService/ReadDir" → full permission entry
+	actToMethods map[string][]string    // "file.list" → ["/file.FileService/ReadDir", ...]
+	actionToRes  map[string][]Resource  // "file.list" → resources
 }
 
 // NewResolver creates an empty ActionResolver.
 func NewResolver() *ActionResolver {
 	return &ActionResolver{
 		methodToAct:  make(map[string]string),
+		methodToPerm: make(map[string]*Permission),
 		actToMethods: make(map[string][]string),
 		actionToRes:  make(map[string][]Resource),
 	}
@@ -146,6 +156,8 @@ func (r *ActionResolver) Register(perms []Permission) {
 			continue // no valid action key
 		}
 		r.methodToAct[method] = action
+		pCopy := p
+		r.methodToPerm[method] = &pCopy
 		r.actToMethods[action] = append(r.actToMethods[action], method)
 		if _, exists := r.actionToRes[action]; !exists {
 			r.actionToRes[action] = p.Resources
@@ -182,6 +194,14 @@ func (r *ActionResolver) Resolve(method string) string {
 		return action
 	}
 	return method // fallback: use method path as-is
+}
+
+// ResolvePermission returns the full Permission entry for a gRPC method path.
+// Returns nil if no mapping exists.
+func (r *ActionResolver) ResolvePermission(method string) *Permission {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.methodToPerm[method]
 }
 
 // LegacyMethods returns the gRPC method paths that map to the given action key.

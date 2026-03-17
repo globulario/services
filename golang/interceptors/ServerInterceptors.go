@@ -288,10 +288,12 @@ func validateAction(
 func validateActionRequest(
 	token, application, organization string,
 	rqst interface{},
-	method, subject string,
+	action, subject string,
 	subjectType rbacpb.SubjectType,
 	domain string,
+	origMethod ...string, // optional: original gRPC method path for template expansion
 ) (bool, bool, error) {
+	method := action // for backward compat with existing code below
 
 	infos, err := getActionResourceInfos(domain, method)
 	if err != nil {
@@ -330,7 +332,69 @@ func validateActionRequest(
 		}
 	}
 
+	// Resource-template expansion: if the permission entry has a resource_template
+	// or collection_template, extract field values from the request and expand
+	// the template into a concrete resource path for RBAC resource-path checks.
+	grpcMethod := ""
+	if len(origMethod) > 0 && origMethod[0] != "" {
+		grpcMethod = origMethod[0]
+	} else if !policy.IsActionKey(method) {
+		grpcMethod = method // method is already a gRPC path
+	}
+	if grpcMethod != "" {
+		if perm := policy.GlobalResolver().ResolvePermission(grpcMethod); perm != nil {
+			template := perm.ResourceTemplate
+			if template == "" {
+				template = perm.CollectionTemplate
+			}
+			if template != "" {
+				// Extract field values from the request using protoreflect.
+				fieldValues := extractFieldValues(rqst)
+				if resourcePath, err := policy.ExpandTemplate(template, fieldValues); err == nil && resourcePath != "" {
+					// Add or replace the resource path in infos for RBAC validation.
+					pathInfo := &rbacpb.ResourceInfos{
+						Path:       resourcePath,
+						Permission: perm.Permission,
+					}
+					infos = append(infos, pathInfo)
+				} else if err != nil {
+					slog.Warn("resource template expansion failed",
+						"method", origMethod, "template", template, "error", err)
+					// Deny on template expansion failure (strict mode).
+					return false, true, nil
+				}
+			}
+		}
+	}
+
 	return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+}
+
+// extractFieldValues uses protoreflect to extract all scalar string fields
+// from a gRPC request message into a name→value map for template expansion.
+func extractFieldValues(rqst interface{}) map[string]string {
+	fields := make(map[string]string)
+	val, _ := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
+	if val == nil {
+		return fields
+	}
+	msg, ok := val.(protoreflect.Message)
+	if !ok {
+		return fields
+	}
+	desc := msg.Descriptor()
+	for i := 0; i < desc.Fields().Len(); i++ {
+		fd := desc.Fields().Get(i)
+		if fd.Kind() == protoreflect.StringKind && !fd.IsList() {
+			v := msg.Get(fd).String()
+			if v != "" {
+				// Use the proto JSON name (camelCase) as the field key,
+				// matching the {fieldName} placeholders in resource templates.
+				fields[fd.JSONName()] = v
+			}
+		}
+	}
+	return fields
 }
 
 // ---- log forwarding to LogService -------------------------------------------
@@ -722,7 +786,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Validate by ACCOUNT
 	hasAccess, accessDenied, _ := false, false, error(nil)
 	if clientId != "" {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, clientId, rbacpb.SubjectType_ACCOUNT, address)
+		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, clientId, rbacpb.SubjectType_ACCOUNT, address, method)
 		// Quota example
 		if method == "/torrent.TorrentService/DownloadTorrent" {
 			_, _ = ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
@@ -731,14 +795,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Validate by APPLICATION
 	if !hasAccess && application != "" && !accessDenied {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, application, rbacpb.SubjectType_APPLICATION, address)
+		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, application, rbacpb.SubjectType_APPLICATION, address, method)
 	}
 
 	// Validate by PEER
 	if !hasAccess && issuer != "" && !accessDenied {
 		mac, _ := config.GetMacAddress()
 		if issuer != mac {
-			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, issuer, rbacpb.SubjectType_NODE_IDENTITY, address)
+			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, issuer, rbacpb.SubjectType_NODE_IDENTITY, address, method)
 		}
 	}
 
