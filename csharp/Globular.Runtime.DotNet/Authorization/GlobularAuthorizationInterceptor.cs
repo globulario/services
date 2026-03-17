@@ -94,8 +94,11 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
         var subject = ExtractSubject(context);
         if (string.IsNullOrEmpty(subject))
         {
-            _logger.LogDebug("Auth: no subject for {Method}, allowing (pre-auth)", method);
-            return await continuation(request, context);
+            // Protected methods MUST have an authenticated subject.
+            // Only explicitly public/unauthenticated methods bypass this.
+            _logger.LogWarning("Auth: denied unauthenticated request for protected method {Method}", method);
+            throw new RpcException(new Status(StatusCode.Unauthenticated,
+                "authentication required: provide token or client certificate"));
         }
 
         // Check authorization via RBAC gRPC (primary path).
@@ -150,7 +153,14 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
         var actionKey = _resolver.Resolve(method);
         var subject = ExtractSubject(context);
 
-        if (!string.IsNullOrEmpty(subject))
+        // Protected methods require authentication.
+        if (string.IsNullOrEmpty(subject))
+        {
+            throw new RpcException(new Status(StatusCode.Unauthenticated,
+                "authentication required: provide token or client certificate"));
+        }
+
+        try
         {
             var roleAllowed = await _rbac.CheckRoleBindingAsync(subject, actionKey);
             if (!roleAllowed)
@@ -164,6 +174,20 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
                         $"permission denied: {actionKey}"));
                 }
             }
+        }
+        catch (RpcException) { throw; }
+        catch (Exception ex)
+        {
+            // Fail closed in strict mode.
+            if (_mode == AuthorizationMode.RbacStrict)
+            {
+                _logger.LogError(ex, "Auth: RBAC unavailable in strict mode for streaming {Action}", actionKey);
+                throw new RpcException(new Status(StatusCode.Unavailable,
+                    "authorization service unavailable — request denied"));
+            }
+            _logger.LogWarning("AUTH DEGRADED: RBAC unavailable, allowing streaming {Action} in {Mode} mode",
+                actionKey, _mode);
+            State.FallbackActive = true;
         }
 
         await continuation(request, responseStream, context);
