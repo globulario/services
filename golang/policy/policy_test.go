@@ -177,6 +177,18 @@ func TestActionResolver(t *testing.T) {
 	if !r.HasMapping("/file.FileService/ReadDir") {
 		t.Error("expected HasMapping=true")
 	}
+	// LegacyMethods: reverse lookup for compatibility shim
+	methods := r.LegacyMethods("file.list")
+	if len(methods) != 2 {
+		t.Fatalf("expected 2 legacy methods for file.list, got %d", len(methods))
+	}
+	methods = r.LegacyMethods("file.read")
+	if len(methods) != 1 || methods[0] != "/file.FileService/ReadFile" {
+		t.Errorf("unexpected legacy methods for file.read: %v", methods)
+	}
+	if methods := r.LegacyMethods("file.unknown"); methods != nil {
+		t.Errorf("expected nil for unknown action, got %v", methods)
+	}
 	if r.HasMapping("/file.FileService/Unknown") {
 		t.Error("expected HasMapping=false for unknown")
 	}

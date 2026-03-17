@@ -103,15 +103,17 @@ func LoadPermissions(serviceName string) ([]interface{}, bool, error) {
 // to translate transport-level identifiers to RBAC-level identifiers.
 type ActionResolver struct {
 	mu          sync.RWMutex
-	methodToAct map[string]string // "/file.FileService/ReadDir" → "file.list"
+	methodToAct map[string]string    // "/file.FileService/ReadDir" → "file.list"
+	actToMethods map[string][]string // "file.list" → ["/file.FileService/ReadDir", "/file.FileService/GetFileInfo"]
 	actionToRes map[string][]Resource // "file.list" → resources
 }
 
 // NewResolver creates an empty ActionResolver.
 func NewResolver() *ActionResolver {
 	return &ActionResolver{
-		methodToAct: make(map[string]string),
-		actionToRes: make(map[string][]Resource),
+		methodToAct:  make(map[string]string),
+		actToMethods: make(map[string][]string),
+		actionToRes:  make(map[string][]Resource),
 	}
 }
 
@@ -143,6 +145,7 @@ func (r *ActionResolver) Register(perms []Permission) {
 			continue // no valid action key
 		}
 		r.methodToAct[method] = action
+		r.actToMethods[action] = append(r.actToMethods[action], method)
 		if _, exists := r.actionToRes[action]; !exists {
 			r.actionToRes[action] = p.Resources
 		}
@@ -165,6 +168,7 @@ func (r *ActionResolver) RegisterFromInterface(perms []interface{}) {
 			continue
 		}
 		r.methodToAct[method] = action
+		r.actToMethods[action] = append(r.actToMethods[action], method)
 	}
 }
 
@@ -177,6 +181,17 @@ func (r *ActionResolver) Resolve(method string) string {
 		return action
 	}
 	return method // fallback: use method path as-is
+}
+
+// LegacyMethods returns the gRPC method paths that map to the given action key.
+// Used by the compatibility shim: when RBAC validates "file.read" but roles
+// contain legacy grants like "/file.FileService/ReadFile", this allows matching
+// the legacy grant against the original method path.
+// Returns nil if no mappings exist (action key unknown or no legacy aliases).
+func (r *ActionResolver) LegacyMethods(actionKey string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.actToMethods[actionKey]
 }
 
 // HasMapping returns true if a method→action mapping exists.

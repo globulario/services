@@ -237,6 +237,23 @@ func IsRoleBasedMethod(action string) bool {
 			return true
 		}
 	}
+	// Migration compatibility: if the action is a stable key, also check
+	// whether any of its legacy method-path aliases are role-based.
+	// TODO: Remove once all RolePermissions entries use stable action keys.
+	if policy.IsActionKey(action) {
+		if legacyMethods := policy.GlobalResolver().LegacyMethods(action); len(legacyMethods) > 0 {
+			for _, method := range legacyMethods {
+				if methodSet[method] {
+					return true
+				}
+				for _, p := range methodPrefix {
+					if strings.HasPrefix(method, p) {
+						return true
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 
@@ -247,8 +264,11 @@ func IsRoleBasedMethod(action string) bool {
 //   - Action-key wildcard: "file.*" matches "file.read", "file.write", etc.
 //   - Method-path wildcard: "/pkg.Service/*" matches "/pkg.Service/Method"
 //
-// The action parameter should be a stable action key (e.g., "file.read") when
-// available, or a raw gRPC method path for backward compatibility.
+// Migration compatibility: if the action is a stable action key (e.g., "file.read")
+// and no role grants match it directly, the function also checks legacy method-path
+// aliases via the ActionResolver. This allows old grants like "/file.FileService/ReadFile"
+// to still authorize "file.read" during the migration period.
+// TODO: Remove legacy alias matching once all roles use stable action keys.
 func HasRolePermission(roles []string, action string) bool {
 	for _, role := range roles {
 		for _, perm := range RolePermissions[role] {
@@ -257,6 +277,26 @@ func HasRolePermission(roles []string, action string) bool {
 			}
 		}
 	}
+
+	// Migration compatibility shim: if the action is a stable action key,
+	// check whether any legacy method-path aliases match the role grants.
+	// This covers the case where roles still contain grants like
+	// "/file.FileService/ReadFile" but the interceptor sends "file.read".
+	// TODO: Remove this shim once all role grants use stable action keys.
+	if policy.IsActionKey(action) {
+		if legacyMethods := policy.GlobalResolver().LegacyMethods(action); len(legacyMethods) > 0 {
+			for _, method := range legacyMethods {
+				for _, role := range roles {
+					for _, perm := range RolePermissions[role] {
+						if matchesPermission(perm, method) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return false
 }
 
