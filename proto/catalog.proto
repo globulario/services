@@ -122,7 +122,7 @@ message AppendItemDefinitionCategoryResponse{
 
 // Remove a category from an item definition.
 message RemoveItemDefinitionCategoryRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Reference category = 2;
 	Reference itemDefinition = 3;
 }
@@ -286,7 +286,7 @@ message ItemInstance {
 }
 
 message SaveUnitOfMeasureRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	UnitOfMeasure unitOfMeasure = 2;
 }
 
@@ -295,7 +295,7 @@ message SaveUnitOfMeasureResponse{
 }
 
 message SaveInventoryRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Inventory inventory = 2;
 }
 
@@ -304,7 +304,7 @@ message SaveInventoryResponse{
 }
 
 message SavePropertyDefinitionRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	PropertyDefinition propertyDefinition = 2;
 }
 
@@ -322,7 +322,7 @@ message SaveItemDefinitionResponse{
 }
 
 message SaveItemInstanceRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	ItemInstance itemInstance = 2;
 }
 
@@ -331,7 +331,7 @@ message SaveItemInstanceResponse{
 }
 
 message SaveManufacturerRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Manufacturer manufacturer = 2;
 }
 
@@ -340,7 +340,7 @@ message SaveManufacturerResponse {
 }
 
 message SaveSupplierRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Supplier supplier = 2;
 }
 
@@ -349,7 +349,7 @@ message SaveSupplierResponse {
 }
 
 message SaveLocalisationRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Localisation localisation = 2;
 }
 
@@ -358,7 +358,7 @@ message SaveLocalisationResponse {
 }
 
 message SaveCategoryRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Category category = 2;
 }
 
@@ -367,7 +367,7 @@ message SaveCategoryResponse {
 }
 
 message SavePackageRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Package package = 2;
 }
 
@@ -376,7 +376,7 @@ message SavePackageResponse {
 }
 
 message SavePackageSupplierRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	PackageSupplier packageSupplier = 2;
 }
 
@@ -385,7 +385,7 @@ message SavePackageSupplierResponse {
 }
 
 message SaveItemManufacturerRequest {
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	ItemManufacturer itemManafacturer = 2;
 }
 
@@ -395,8 +395,8 @@ message SaveItemManufacturerResponse {
 
 /////////////////////////// Getter functions ///////////////////////////////////
 message GetSupplierRequest{
-	string connectionId = 1;
-	string supplierId = 2;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string supplierId = 2 [(globular.auth.resource) = { kind: "supplier" }];
 }
 
 message GetSupplierResponse{
@@ -408,8 +408,8 @@ message Suppliers {
 }
 
 message GetSupplierPackagesRequest{
-	string connectionId = 1;
-	string supplierId = 2;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string supplierId = 2 [(globular.auth.resource) = { kind: "supplier" }];
 }
 
 message GetSupplierPackagesResponse{
@@ -417,7 +417,7 @@ message GetSupplierPackagesResponse{
 }
 
 message GetSuppliersRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2;
 	string options = 3;
 }
@@ -433,8 +433,8 @@ message Manufacturers {
 }
 
 message GetManufacturerRequest{
-	string connectionId = 1;
-	string manufacturerId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string manufacturerId = 2 [(globular.auth.resource) = { kind: "manufacturer" }]; // must be the _id
 }
 
 message GetManufacturerResponse{
@@ -442,7 +442,7 @@ message GetManufacturerResponse{
 }
 
 message GetManufacturersRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -457,8 +457,8 @@ message Packages {
 }
 
 message GetPackageRequest{
-	string connectionId = 1;
-	string packageId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string packageId = 2 [(globular.auth.resource) = { kind: "package" }]; // must be the _id
 }
 
 message GetPackageResponse{
@@ -466,7 +466,7 @@ message GetPackageResponse{
 }
 
 message GetPackagesRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -481,8 +481,8 @@ message Localisations {
 }
 
 message GetLocalisationRequest{
-	string connectionId = 1;
-	string localisationId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string localisationId = 2 [(globular.auth.resource) = { kind: "localisation" }]; // must be the _id
 }
 
 message GetLocalisationResponse{
@@ -490,7 +490,7 @@ message GetLocalisationResponse{
 }
 
 message GetLocalisationsRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -505,8 +505,8 @@ message UnitOfMeasures{
 }
 
 message GetUnitOfMeasureRequest{
-	string connectionId = 1;
-	string unitOfMeasureId = 2; // must be the _id or id + languageCode
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string unitOfMeasureId = 2 [(globular.auth.resource) = { kind: "unit_of_measure" }]; // must be the _id or id + languageCode
 }
 
 message GetUnitOfMeasureResponse{
@@ -514,7 +514,7 @@ message GetUnitOfMeasureResponse{
 }
 
 message GetUnitOfMeasuresRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -529,7 +529,7 @@ message Inventories {
 }
 
 message GetInventoriesRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -544,8 +544,8 @@ message Categories {
 }
 
 message GetCategoryRequest{
-	string connectionId = 1;
-	string categoryId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string categoryId = 2 [(globular.auth.resource) = { kind: "category" }]; // must be the _id
 }
 
 message GetCategoryResponse{
@@ -553,7 +553,7 @@ message GetCategoryResponse{
 }
 
 message GetCategoriesRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -568,8 +568,8 @@ message ItemInstances {
 }
 
 message GetItemInstanceRequest{
-	string connectionId = 1;
-	string itemInstanceId = 2; // must be the _id
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
+	string itemInstanceId = 2 [(globular.auth.resource) = { kind: "item_instance" }]; // must be the _id
 }
 
 message GetItemInstanceResponse{
@@ -577,7 +577,7 @@ message GetItemInstanceResponse{
 }
 
 message GetItemInstancesRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	string query = 2; // all is return if nothing is given.
 	string options = 3;
 }
@@ -614,7 +614,7 @@ message GetItemDefinitionsResponse{
 	
 // Delete a package supplier
 message DeletePackageSupplierRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	PackageSupplier packageSupplier = 2;
 }
 
@@ -624,7 +624,7 @@ message DeletePackageSupplierResponse{
 	
 // Delete a package
 message DeletePackageRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Package package = 2;
 }
 
@@ -634,7 +634,7 @@ message DeletePackageResponse{
 
 // Delete a supplier
 message DeleteSupplierRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Supplier supplier = 2;
 }
 
@@ -644,7 +644,7 @@ message DeleteSupplierResponse{
 	
 // Delete propertie definition
 message DeletePropertyDefinitionRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	PropertyDefinition propertyDefinition = 2;
 }
 
@@ -654,7 +654,7 @@ message DeletePropertyDefinitionResponse{
 	
 // Delete unit of measure
 message DeleteUnitOfMeasureRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	UnitOfMeasure unitOfMeasure = 2;
 }
 
@@ -664,7 +664,7 @@ message DeleteUnitOfMeasureResponse{
 	
 // Delete Item Instance
 message DeleteItemInstanceRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	ItemInstance instance = 2;
 }
 
@@ -674,7 +674,7 @@ message DeleteItemInstanceResponse{
 	
 // Delete Manufacturer
 message DeleteManufacturerRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Manufacturer manufacturer = 2;
 }
 
@@ -684,7 +684,7 @@ message DeleteManufacturerResponse{
 	
 // Delete Item Manufacturer
 message DeleteItemManufacturerRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	ItemManufacturer itemManufacturer= 2;
 }
 
@@ -694,7 +694,7 @@ message DeleteItemManufacturerResponse{
 	
 // Delete Category
 message DeleteCategoryRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Category category = 2;
 }
 
@@ -704,7 +704,7 @@ message DeleteCategoryResponse{
 	
 // Delete Localisation
 message DeleteLocalisationRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Localisation localisation = 2;
 }
 
@@ -714,7 +714,7 @@ message DeleteLocalisationResponse{
 
 // Delete Inventory
 message DeleteInventoryRequest{
-	string connectionId = 1;
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
 	Inventory inventory = 2;
 }
 
@@ -733,12 +733,26 @@ message StopResponse {
 service CatalogService {
 	
 	// Stop the server.
-  	rpc Stop(StopRequest) returns (StopResponse);
+  	rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.stop"
+			permission: "admin"
+			resource_template: "/catalog"
+			default_role_hint: "admin"
+		};
+	};
 	
   	// Save function.
 	
 	// Save a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
+	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "catalog.connection.create"
+			permission: "write"
+			collection_template: "/catalog/connections"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Delete a connection.
 	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
@@ -752,11 +766,25 @@ service CatalogService {
 	
 	//////////////////////// Save (Create) functions ///////////////////////////
 	
-	// Save unit of measure exemple inch 
-	rpc SaveUnitOfMeasure(SaveUnitOfMeasureRequest) returns (SaveUnitOfMeasureResponse){};
+	// Save unit of measure exemple inch
+	rpc SaveUnitOfMeasure(SaveUnitOfMeasureRequest) returns (SaveUnitOfMeasureResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.unit_of_measure.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/unit-of-measures"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save property definition return the Id of the Saved property
-	rpc SavePropertyDefinition(SavePropertyDefinitionRequest) returns (SavePropertyDefinitionResponse){};
+	rpc SavePropertyDefinition(SavePropertyDefinitionRequest) returns (SavePropertyDefinitionResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.property_definition.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/property-definitions"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save item definition.
 	rpc SaveItemDefinition(SaveItemDefinitionRequest) returns (SaveItemDefinitionResponse) {
@@ -769,33 +797,96 @@ service CatalogService {
 	};
 	
 	// Save item
-	rpc SaveItemInstance(SaveItemInstanceRequest) returns (SaveItemInstanceResponse){};
+	rpc SaveItemInstance(SaveItemInstanceRequest) returns (SaveItemInstanceResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_instance.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/item-instances"
+			default_role_hint: "editor"
+		};
+	};
 	
 		
-	// Save inventory 
-	rpc SaveInventory(SaveInventoryRequest) returns (SaveInventoryResponse){};
+	// Save inventory
+	rpc SaveInventory(SaveInventoryRequest) returns (SaveInventoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.inventory.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/inventories"
+			default_role_hint: "editor"
+		};
+	};
 	
 	
 	// Save Manufacturer
-	rpc SaveManufacturer(SaveManufacturerRequest) returns (SaveManufacturerResponse){};
+	rpc SaveManufacturer(SaveManufacturerRequest) returns (SaveManufacturerResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.manufacturer.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/manufacturers"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save Supplier
-	rpc SaveSupplier(SaveSupplierRequest) returns (SaveSupplierResponse){};
+	rpc SaveSupplier(SaveSupplierRequest) returns (SaveSupplierResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.supplier.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/suppliers"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save localisation
-	rpc SaveLocalisation(SaveLocalisationRequest) returns (SaveLocalisationResponse){};
+	rpc SaveLocalisation(SaveLocalisationRequest) returns (SaveLocalisationResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.localisation.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/localisations"
+			default_role_hint: "editor"
+		};
+	};
 
 	// Save Package
-	rpc SavePackage(SavePackageRequest) returns (SavePackageResponse){};
+	rpc SavePackage(SavePackageRequest) returns (SavePackageResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/packages"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save Package Supplier
-	rpc SavePackageSupplier(SavePackageSupplierRequest) returns (SavePackageSupplierResponse){};
+	rpc SavePackageSupplier(SavePackageSupplierRequest) returns (SavePackageSupplierResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package_supplier.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/package-suppliers"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save Item Manufacturer
-	rpc SaveItemManufacturer(SaveItemManufacturerRequest) returns (SaveItemManufacturerResponse){};
+	rpc SaveItemManufacturer(SaveItemManufacturerRequest) returns (SaveItemManufacturerResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_manufacturer.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/item-manufacturers"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Save Item Category
-	rpc SaveCategory(SaveCategoryRequest) returns (SaveCategoryResponse){};
+	rpc SaveCategory(SaveCategoryRequest) returns (SaveCategoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.category.write"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/categories"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Append a Category to item definition.
 	rpc AppendItemDefinitionCategory(AppendItemDefinitionCategoryRequest) returns (AppendItemDefinitionCategoryResponse) {
@@ -808,29 +899,99 @@ service CatalogService {
 	};
 	
 	// Remove a Category from item definition.
-	rpc RemoveItemDefinitionCategory(RemoveItemDefinitionCategoryRequest) returns (RemoveItemDefinitionCategoryResponse);
+	rpc RemoveItemDefinitionCategory(RemoveItemDefinitionCategoryRequest) returns (RemoveItemDefinitionCategoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_definition.category.unlink"
+			permission: "write"
+			collection_template: "/catalog/connections/{connectionId}/item-definitions"
+			default_role_hint: "editor"
+		};
+	};
 	
 	// Getter function.
 	
 	// Get supplier
-	rpc getSupplier(GetSupplierRequest) returns (GetSupplierResponse);
-	rpc getSuppliers(GetSuppliersRequest) returns (GetSuppliersResponse);
+	rpc getSupplier(GetSupplierRequest) returns (GetSupplierResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.supplier.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/suppliers/{supplierId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getSuppliers(GetSuppliersRequest) returns (GetSuppliersResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.supplier.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/suppliers"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Get manufacturers
-	rpc getManufacturer(GetManufacturerRequest) returns (GetManufacturerResponse);
-	rpc getManufacturers(GetManufacturersRequest) returns (GetManufacturersResponse);
+	rpc getManufacturer(GetManufacturerRequest) returns (GetManufacturerResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.manufacturer.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/manufacturers/{manufacturerId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getManufacturers(GetManufacturersRequest) returns (GetManufacturersResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.manufacturer.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/manufacturers"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	
 	// Get Supplier Packages
-	rpc getSupplierPackages(GetSupplierPackagesRequest) returns (GetSupplierPackagesResponse);
+	rpc getSupplierPackages(GetSupplierPackagesRequest) returns (GetSupplierPackagesResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package_supplier.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/suppliers/{supplierId}/packages"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Getter function for pacakge.
-	rpc getPackage(GetPackageRequest) returns (GetPackageResponse);
-	rpc getPackages(GetPackagesRequest) returns (GetPackagesResponse);
+	rpc getPackage(GetPackageRequest) returns (GetPackageResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/packages/{packageId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getPackages(GetPackagesRequest) returns (GetPackagesResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/packages"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Getter for unit of measure
-	rpc getUnitOfMeasure(GetUnitOfMeasureRequest) returns (GetUnitOfMeasureResponse);
-	rpc getUnitOfMeasures(GetUnitOfMeasuresRequest) returns (GetUnitOfMeasuresResponse);
+	rpc getUnitOfMeasure(GetUnitOfMeasureRequest) returns (GetUnitOfMeasureResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.unit_of_measure.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/unit-of-measures/{unitOfMeasureId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getUnitOfMeasures(GetUnitOfMeasuresRequest) returns (GetUnitOfMeasuresResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.unit_of_measure.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/unit-of-measures"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Getter for Item definition
 	rpc getItemDefinition(GetItemDefinitionRequest) returns (GetItemDefinitionResponse) {
@@ -851,52 +1012,178 @@ service CatalogService {
 	};
 
 	// Getter for Item instance
-	rpc getItemInstance(GetItemInstanceRequest) returns (GetItemInstanceResponse);
-	rpc getItemInstances(GetItemInstancesRequest) returns (GetItemInstancesResponse);
+	rpc getItemInstance(GetItemInstanceRequest) returns (GetItemInstanceResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_instance.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/item-instances/{itemInstanceId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getItemInstances(GetItemInstancesRequest) returns (GetItemInstancesResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_instance.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/item-instances"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Getter for localisation
-	rpc getLocalisation(GetLocalisationRequest) returns (GetLocalisationResponse);
-	rpc getLocalisations(GetLocalisationsRequest) returns (GetLocalisationsResponse);
+	rpc getLocalisation(GetLocalisationRequest) returns (GetLocalisationResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.localisation.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/localisations/{localisationId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getLocalisations(GetLocalisationsRequest) returns (GetLocalisationsResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.localisation.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/localisations"
+			default_role_hint: "viewer"
+		};
+	};
 	
-	// Getter for localisation
-	rpc getCategory(GetCategoryRequest) returns (GetCategoryResponse);
-	rpc getCategories(GetCategoriesRequest) returns (GetCategoriesResponse);
+	// Getter for category
+	rpc getCategory(GetCategoryRequest) returns (GetCategoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.category.read"
+			permission: "read"
+			resource_template: "/catalog/connections/{connectionId}/categories/{categoryId}"
+			default_role_hint: "viewer"
+		};
+	};
+	rpc getCategories(GetCategoriesRequest) returns (GetCategoriesResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.category.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/categories"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Get the inventories
-	rpc getInventories(GetInventoriesRequest) returns (GetInventoriesResponse);
+	rpc getInventories(GetInventoriesRequest) returns (GetInventoriesResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.inventory.list"
+			permission: "read"
+			collection_template: "/catalog/connections/{connectionId}/inventories"
+			default_role_hint: "viewer"
+		};
+	};
 	
 	// Delete functions.
 	
 	// Delete inventory.
-	rpc deleteInventory(DeleteInventoryRequest) returns (DeleteInventoryResponse);
+	rpc deleteInventory(DeleteInventoryRequest) returns (DeleteInventoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.inventory.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/inventories"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete a package.
-	rpc deletePackage(DeletePackageRequest) returns (DeletePackageResponse);
+	rpc deletePackage(DeletePackageRequest) returns (DeletePackageResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/packages"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete a package supplier
-	rpc deletePackageSupplier(DeletePackageSupplierRequest) returns (DeletePackageSupplierResponse);
+	rpc deletePackageSupplier(DeletePackageSupplierRequest) returns (DeletePackageSupplierResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.package_supplier.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/package-suppliers"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete a supplier
-	rpc deleteSupplier(DeleteSupplierRequest) returns (DeleteSupplierResponse);
+	rpc deleteSupplier(DeleteSupplierRequest) returns (DeleteSupplierResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.supplier.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/suppliers"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete propertie definition
-	rpc deletePropertyDefinition(DeletePropertyDefinitionRequest) returns (DeletePropertyDefinitionResponse);
+	rpc deletePropertyDefinition(DeletePropertyDefinitionRequest) returns (DeletePropertyDefinitionResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.property_definition.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/property-definitions"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete unit of measure
-	rpc deleteUnitOfMeasure(DeleteUnitOfMeasureRequest) returns (DeleteUnitOfMeasureResponse);
+	rpc deleteUnitOfMeasure(DeleteUnitOfMeasureRequest) returns (DeleteUnitOfMeasureResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.unit_of_measure.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/unit-of-measures"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete Item Instance
-	rpc deleteItemInstance(DeleteItemInstanceRequest) returns (DeleteItemInstanceResponse);
+	rpc deleteItemInstance(DeleteItemInstanceRequest) returns (DeleteItemInstanceResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_instance.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/item-instances"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete Manufacturer
-	rpc deleteManufacturer(DeleteManufacturerRequest) returns (DeleteManufacturerResponse);
+	rpc deleteManufacturer(DeleteManufacturerRequest) returns (DeleteManufacturerResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.manufacturer.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/manufacturers"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete Item Manufacturer
-	rpc deleteItemManufacturer(DeleteItemManufacturerRequest) returns (DeleteItemManufacturerResponse);
+	rpc deleteItemManufacturer(DeleteItemManufacturerRequest) returns (DeleteItemManufacturerResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.item_manufacturer.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/item-manufacturers"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete Category
-	rpc deleteCategory(DeleteCategoryRequest) returns (DeleteCategoryResponse);
+	rpc deleteCategory(DeleteCategoryRequest) returns (DeleteCategoryResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.category.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/categories"
+			default_role_hint: "admin"
+		};
+	};
 	
 	// Delete Localisation
-	rpc deleteLocalisation(DeleteLocalisationRequest) returns (DeleteLocalisationResponse);
+	rpc deleteLocalisation(DeleteLocalisationRequest) returns (DeleteLocalisationResponse) {
+		option (globular.auth.authz) = {
+			action: "catalog.localisation.delete"
+			permission: "delete"
+			collection_template: "/catalog/connections/{connectionId}/localisations"
+			default_role_hint: "admin"
+		};
+	};
 }
