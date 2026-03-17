@@ -48,6 +48,10 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
     private readonly ActionResolver _resolver;
     private readonly IRbacClient _rbac;
     private readonly ILogger<GlobularAuthorizationInterceptor> _logger;
+    private readonly AuthorizationMode _mode;
+
+    /// <summary>Runtime authorization state, published to etcd for cluster visibility.</summary>
+    public AuthorizationState State { get; } = new();
 
     /// <summary>
     /// Methods that do not require authentication (health checks, reflection, etc.).
@@ -62,11 +66,14 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
     public GlobularAuthorizationInterceptor(
         ActionResolver resolver,
         IRbacClient rbac,
-        ILogger<GlobularAuthorizationInterceptor> logger)
+        ILogger<GlobularAuthorizationInterceptor> logger,
+        AuthorizationMode mode = AuthorizationMode.RbacStrict)
     {
         _resolver = resolver;
         _rbac = rbac;
         _logger = logger;
+        _mode = mode;
+        State.Mode = mode;
     }
 
     public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(
@@ -91,26 +98,40 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
             return await continuation(request, context);
         }
 
-        // Check role binding.
-        var roleAllowed = await _rbac.CheckRoleBindingAsync(subject, actionKey);
-        if (roleAllowed)
+        // Check authorization via RBAC gRPC (primary path).
+        try
         {
-            _logger.LogDebug("Auth: role binding granted for {Subject} on {Action}", subject, actionKey);
-            return await continuation(request, context);
+            var roleAllowed = await _rbac.CheckRoleBindingAsync(subject, actionKey);
+            if (roleAllowed)
+            {
+                State.RbacActive = true;
+                State.FallbackActive = false;
+                _logger.LogDebug("Auth: role binding granted for {Subject} on {Action}", subject, actionKey);
+                return await continuation(request, context);
+            }
+
+            var resourceChecks = ExpandResourceTemplate(method, request);
+            var (allowed, denied) = await _rbac.ValidateActionAsync(
+                actionKey, subject, "ACCOUNT", resourceChecks);
+
+            State.RbacActive = true;
+            State.FallbackActive = false;
+
+            if (allowed && !denied)
+                return await continuation(request, context);
+
+            _logger.LogWarning("Auth: denied {Subject} for {Action} ({Method})",
+                subject, actionKey, method);
+            throw new RpcException(new Status(StatusCode.PermissionDenied,
+                $"permission denied: {actionKey}"));
         }
-
-        // Check action permission via RBAC.
-        var resourceChecks = ExpandResourceTemplate(method, request);
-        var (allowed, denied) = await _rbac.ValidateActionAsync(
-            actionKey, subject, "ACCOUNT", resourceChecks);
-
-        if (allowed && !denied)
-            return await continuation(request, context);
-
-        _logger.LogWarning("Auth: denied {Subject} for {Action} ({Method})",
-            subject, actionKey, method);
-        throw new RpcException(new Status(StatusCode.PermissionDenied,
-            $"permission denied: {actionKey}"));
+        catch (RpcException) { throw; } // re-throw our own denials
+        catch (Exception ex)
+        {
+            // RBAC unavailable — behavior depends on authorization mode.
+            return HandleRbacUnavailable<TRequest, TResponse>(
+                ex, method, actionKey, subject, request, context, continuation);
+        }
     }
 
     public override async Task ServerStreamingServerHandler<TRequest, TResponse>(
@@ -218,5 +239,55 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
         }
 
         return fields;
+    }
+
+    /// <summary>
+    /// Handles RBAC unavailability based on the configured authorization mode.
+    /// RbacStrict (default): fail closed — deny the request.
+    /// Bootstrap/Development: log loudly and allow (degraded fallback).
+    /// </summary>
+    private async Task<TResponse> HandleRbacUnavailable<TRequest, TResponse>(
+        Exception ex,
+        string method, string actionKey, string subject,
+        TRequest request, ServerCallContext context,
+        UnaryServerMethod<TRequest, TResponse> continuation)
+        where TRequest : class
+        where TResponse : class
+    {
+        switch (_mode)
+        {
+            case AuthorizationMode.RbacStrict:
+                // Fail closed: RBAC is required but unavailable.
+                State.RbacActive = false;
+                State.FallbackActive = false;
+                _logger.LogError(ex,
+                    "Auth: RBAC unavailable in strict mode, denying {Action} for {Subject}",
+                    actionKey, subject);
+                throw new RpcException(new Status(StatusCode.Unavailable,
+                    "authorization service unavailable — request denied (fail-closed)"));
+
+            case AuthorizationMode.Bootstrap:
+                // Bootstrap mode: allow with loud warning.
+                State.RbacActive = false;
+                State.FallbackActive = true;
+                _logger.LogWarning(
+                    "AUTH DEGRADED: RBAC unavailable in bootstrap mode, allowing {Action} for {Subject} on {Method}. " +
+                    "This is a temporary fallback — configure RBAC for production.",
+                    actionKey, subject, method);
+                return await continuation(request, context);
+
+            case AuthorizationMode.Development:
+                // Dev mode: allow with warning.
+                State.RbacActive = false;
+                State.FallbackActive = true;
+                _logger.LogWarning(
+                    "AUTH DEV MODE: RBAC unavailable, allowing {Action} for {Subject}",
+                    actionKey, subject);
+                return await continuation(request, context);
+
+            default:
+                throw new RpcException(new Status(StatusCode.Internal,
+                    "unknown authorization mode"));
+        }
     }
 }
