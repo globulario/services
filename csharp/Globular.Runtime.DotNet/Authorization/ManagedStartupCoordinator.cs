@@ -15,7 +15,6 @@
 //   9. Publish effective runtime state
 //  10. Transition to ready
 
-using Globular.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +27,7 @@ namespace Globular.Runtime.Authorization;
 /// </summary>
 public sealed class ManagedStartupCoordinator : IGlobularStartupTask
 {
+    public string Name => "ManagedStartupCoordinator";
     private readonly string _serviceName;
     private readonly PolicyLoader _loader;
     private readonly ActionResolver _resolver;

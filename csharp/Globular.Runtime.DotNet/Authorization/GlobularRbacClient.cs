@@ -3,15 +3,16 @@
 // role seeding, and resource ownership management.
 //
 // Go reference: golang/rbac/rbac_client/rbac_client.go
+// Proto reference: proto/rbac.proto (RbacService)
 //
-// All methods use real gRPC calls to the RBAC service.
+// All methods use real gRPC calls via generated protobuf stubs.
 // Fail-closed: if the RBAC service is unavailable, callers get an exception.
 
-using Globular.Runtime.Authorization.Rbac;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Rbac;
 
 namespace Globular.Runtime.Authorization;
 
@@ -55,6 +56,8 @@ public sealed class RbacClientOptions
 /// Concrete RBAC gRPC client. Implements both IRbacClient (for interceptor
 /// authorization checks) and IRoleStore (for role seeding).
 ///
+/// Uses real generated protobuf/gRPC stubs from proto/rbac.proto.
+///
 /// Mirrors the Go rbac_client behavior:
 /// - ValidateAction with subject + action + resource infos
 /// - GetRoleBinding for role-binding checks
@@ -68,7 +71,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
     private readonly RbacClientOptions _options;
     private readonly ILogger<GlobularRbacClient> _logger;
     private GrpcChannel? _channel;
-    private RbacServiceClient? _client;
+    private RbacService.RbacServiceClient? _client;
 
     public GlobularRbacClient(IOptions<RbacClientOptions> options, ILogger<GlobularRbacClient> logger)
     {
@@ -97,14 +100,14 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
         {
             Action = action,
             Subject = subject,
-            Type = SubjectTypeExtensions.Parse(subjectType),
+            Type = ParseSubjectType(subjectType),
         };
 
         if (resourceChecks is not null)
         {
             foreach (var rc in resourceChecks)
             {
-                request.Infos.Add(new Rbac.ResourceInfos
+                request.Infos.Add(new ResourceInfos
                 {
                     Path = rc.Path,
                     Permission = rc.Permission,
@@ -217,11 +220,8 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
 
         var client = await GetClientAsync(cts.Token);
 
-        var binding = new Rbac.RoleBinding
-        {
-            Subject = roleName,
-            Roles = new List<string>(actions),
-        };
+        var binding = new RoleBinding { Subject = roleName };
+        binding.Roles.Add(actions);
 
         var request = new SetRoleBindingRqst { Binding = binding };
         var headers = BuildMetadata();
@@ -253,7 +253,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
             Path = resourcePath,
             Subject = owner,
             ResourceType = resourceType,
-            Type = SubjectTypeExtensions.Parse(subjectType),
+            Type = ParseSubjectType(subjectType),
         };
 
         // Use explicit token override for write operations (mirrors Go pattern).
@@ -283,7 +283,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
         {
             Path = resourcePath,
             Subject = owner,
-            Type = SubjectTypeExtensions.Parse(subjectType),
+            Type = ParseSubjectType(subjectType),
         };
 
         var headers = new Metadata { { "token", token } };
@@ -341,7 +341,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
         var request = new ValidateAccessRqst
         {
             Subject = subject,
-            Type = SubjectTypeExtensions.Parse(subjectType),
+            Type = ParseSubjectType(subjectType),
             Permission = permission,
             Path = path,
         };
@@ -368,7 +368,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
         var request = new DeleteAllAccessRqst
         {
             Subject = subject,
-            Type = SubjectTypeExtensions.Parse(subjectType),
+            Type = ParseSubjectType(subjectType),
         };
 
         var headers = new Metadata { { "token", token } };
@@ -381,7 +381,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
 
     // ── Connection management ───────────────────────────────────────────
 
-    private async Task<RbacServiceClient> GetClientAsync(CancellationToken ct)
+    private async Task<RbacService.RbacServiceClient> GetClientAsync(CancellationToken ct)
     {
         if (_client is not null)
             return _client;
@@ -392,7 +392,7 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
             try
             {
                 _channel = GrpcChannel.ForAddress(_options.Address);
-                _client = new RbacServiceClient(_channel);
+                _client = new RbacService.RbacServiceClient(_channel);
                 return _client;
             }
             catch
@@ -421,6 +421,22 @@ public sealed class GlobularRbacClient : IRbacClient, IRoleStore, IDisposable
             md.Add("mac", _options.Mac);
         return md;
     }
+
+    /// <summary>
+    /// Parses a string subject type (e.g., "ACCOUNT", "NODE_IDENTITY") to the
+    /// generated protobuf SubjectType enum. Defaults to Account for unknown values.
+    /// </summary>
+    private static SubjectType ParseSubjectType(string subjectType) =>
+        subjectType.ToUpperInvariant() switch
+        {
+            "ACCOUNT" => SubjectType.Account,
+            "NODE_IDENTITY" => SubjectType.NodeIdentity,
+            "GROUP" => SubjectType.Group,
+            "ORGANIZATION" => SubjectType.Organization,
+            "APPLICATION" => SubjectType.Application,
+            "ROLE" => SubjectType.Role,
+            _ => SubjectType.Account,
+        };
 
     public void Dispose()
     {

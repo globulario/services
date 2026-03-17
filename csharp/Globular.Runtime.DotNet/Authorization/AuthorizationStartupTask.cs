@@ -7,7 +7,6 @@
 //   3. Seeds missing roles into RBAC (non-destructive)
 //   4. Publishes effective authz state for service registration
 
-using Globular.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace Globular.Runtime.Authorization;
@@ -27,6 +26,8 @@ public sealed class AuthorizationStartupTask : IGlobularStartupTask
 
     /// <summary>Effective authorization state, available for service registration.</summary>
     public ServiceAuthzRegistration Registration { get; } = new();
+
+    public string Name => "AuthorizationStartup";
 
     /// <summary>Run early in startup, after config but before gRPC handlers.</summary>
     public int Order => 10;

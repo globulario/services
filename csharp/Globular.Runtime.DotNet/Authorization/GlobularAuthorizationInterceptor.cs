@@ -132,7 +132,7 @@ public sealed class GlobularAuthorizationInterceptor : Interceptor
         catch (Exception ex)
         {
             // RBAC unavailable — behavior depends on authorization mode.
-            return HandleRbacUnavailable<TRequest, TResponse>(
+            return await HandleRbacUnavailable<TRequest, TResponse>(
                 ex, method, actionKey, subject, request, context, continuation);
         }
     }
