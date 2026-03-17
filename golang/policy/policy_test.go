@@ -333,3 +333,142 @@ func TestValidatePermissions_DuplicateMethod(t *testing.T) {
 		t.Error("expected validation error for duplicate method")
 	}
 }
+
+// ── Phase 3b: .generated.json precedence tests ──────────────────────────────
+
+func TestLoadPermissions_GeneratedFileUsedWhenNoOverride(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	// Only write a .generated.json (no override)
+	svcDir := filepath.Join(PackageRoot, "services", "catalog")
+	os.MkdirAll(svcDir, 0755)
+	os.WriteFile(filepath.Join(svcDir, "permissions.generated.json"), []byte(`{
+		"schema_version": "2",
+		"generator_version": "authzgen/0.1.0",
+		"service": "catalog.CatalogService",
+		"permissions": [
+			{"method": "/catalog.CatalogService/GetItem", "action": "catalog.item.read", "permission": "read", "resources": []}
+		]
+	}`), 0644)
+
+	perms, fromFile, _ := LoadPermissions("catalog")
+	if !fromFile {
+		t.Fatal("expected fromFile=true from .generated.json")
+	}
+	if len(perms) != 1 {
+		t.Fatalf("expected 1 permission, got %d", len(perms))
+	}
+	m := perms[0].(map[string]interface{})
+	if m["action"] != "catalog.item.read" {
+		t.Errorf("expected action=catalog.item.read, got %v", m["action"])
+	}
+}
+
+func TestLoadPermissions_OverrideBeatsGenerated(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	// Write generated file
+	svcDir := filepath.Join(PackageRoot, "services", "catalog")
+	os.MkdirAll(svcDir, 0755)
+	os.WriteFile(filepath.Join(svcDir, "permissions.generated.json"), []byte(`{
+		"version": "1.0", "service": "catalog.CatalogService",
+		"permissions": [{"method": "/catalog.CatalogService/GetItem", "action": "catalog.item.read", "resources": []}]
+	}`), 0644)
+
+	// Write admin override (takes precedence)
+	admDir := filepath.Join(AdminRoot, "services", "catalog")
+	os.MkdirAll(admDir, 0755)
+	os.WriteFile(filepath.Join(admDir, "permissions.json"), []byte(`{
+		"version": "1.0", "service": "catalog.CatalogService",
+		"permissions": [{"method": "/catalog.CatalogService/GetItem", "action": "catalog.item.view", "resources": []}]
+	}`), 0644)
+
+	perms, fromFile, _ := LoadPermissions("catalog")
+	if !fromFile {
+		t.Fatal("expected fromFile=true")
+	}
+	m := perms[0].(map[string]interface{})
+	if m["action"] != "catalog.item.view" {
+		t.Errorf("expected override action=catalog.item.view, got %v", m["action"])
+	}
+}
+
+func TestLoadPermissions_OldServiceFallsBackToCompiled(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	// No files at all — simulates old unannotated service
+	perms, fromFile, _ := LoadPermissions("old_service")
+	if fromFile {
+		t.Fatal("expected fromFile=false for unannotated service")
+	}
+	if perms != nil {
+		t.Fatal("expected nil perms — caller should use compiled fallback")
+	}
+}
+
+func TestLoadServiceRoles_FromGeneratedFile(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	svcDir := filepath.Join(PackageRoot, "services", "catalog")
+	os.MkdirAll(svcDir, 0755)
+	os.WriteFile(filepath.Join(svcDir, "roles.generated.json"), []byte(`{
+		"schema_version": "2",
+		"service": "catalog.CatalogService",
+		"roles": [
+			{"name": "role:catalog.viewer", "actions": ["catalog.item.read", "catalog.item.list"]},
+			{"name": "role:catalog.editor", "inherits": ["role:catalog.viewer"], "actions": ["catalog.item.write"]}
+		]
+	}`), 0644)
+
+	roles, fromFile, _ := LoadServiceRoles("catalog")
+	if !fromFile {
+		t.Fatal("expected fromFile=true")
+	}
+	if len(roles) != 2 {
+		t.Fatalf("expected 2 roles, got %d", len(roles))
+	}
+	if roles[0].Name != "role:catalog.viewer" {
+		t.Errorf("unexpected first role: %s", roles[0].Name)
+	}
+	if len(roles[1].Inherits) != 1 || roles[1].Inherits[0] != "role:catalog.viewer" {
+		t.Errorf("expected editor to inherit viewer, got %v", roles[1].Inherits)
+	}
+}
+
+func TestLoadServiceRoles_OverrideBeatsGenerated(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	// Generated
+	svcDir := filepath.Join(PackageRoot, "services", "catalog")
+	os.MkdirAll(svcDir, 0755)
+	os.WriteFile(filepath.Join(svcDir, "roles.generated.json"), []byte(`{
+		"version": "1.0", "service": "catalog",
+		"roles": [{"name": "role:catalog.viewer", "actions": ["catalog.item.read"]}]
+	}`), 0644)
+
+	// Override
+	admDir := filepath.Join(AdminRoot, "services", "catalog")
+	os.MkdirAll(admDir, 0755)
+	os.WriteFile(filepath.Join(admDir, "roles.json"), []byte(`{
+		"version": "1.0", "service": "catalog",
+		"roles": [{"name": "role:catalog.custom", "actions": ["catalog.everything"]}]
+	}`), 0644)
+
+	roles, fromFile, _ := LoadServiceRoles("catalog")
+	if !fromFile {
+		t.Fatal("expected fromFile=true")
+	}
+	if roles[0].Name != "role:catalog.custom" {
+		t.Errorf("expected override role, got %s", roles[0].Name)
+	}
+}

@@ -32,11 +32,12 @@ var (
 
 // ── Permissions (per-service method→action→resource mappings) ────────────────
 
-// PermissionsFile is the JSON schema for permissions.json.
+// PermissionsFile is the JSON schema for permissions.json / permissions.generated.json.
 type PermissionsFile struct {
-	Version     string       `json:"version"`
-	Service     string       `json:"service"`
-	Permissions []Permission `json:"permissions"`
+	Version       string       `json:"version,omitempty"`
+	SchemaVersion string       `json:"schema_version,omitempty"`
+	Service       string       `json:"service"`
+	Permissions   []Permission `json:"permissions"`
 }
 
 // Permission maps a gRPC method to a stable action key and its resource
@@ -202,6 +203,49 @@ func (r *ActionResolver) HasMapping(method string) bool {
 	return ok
 }
 
+// ── Service Roles (per-service default roles for seeding) ───────────────────
+
+// ServiceRolesFile is the JSON schema for roles.json / roles.generated.json.
+type ServiceRolesFile struct {
+	SchemaVersion    string        `json:"schema_version,omitempty"`
+	GeneratorVersion string        `json:"generator_version,omitempty"`
+	Version          string        `json:"version,omitempty"`
+	Service          string        `json:"service"`
+	Roles            []ServiceRole `json:"roles"`
+}
+
+// ServiceRole is a default role definition for seeding into RBAC.
+type ServiceRole struct {
+	Name     string   `json:"name"`
+	Inherits []string `json:"inherits,omitempty"`
+	Actions  []string `json:"actions"`
+}
+
+// LoadServiceRoles loads roles.json or roles.generated.json for a service.
+// These roles are bootstrap/seeding artifacts — RBAC persistence is the live truth.
+// Returns (roles, fromFile, error). If no file found, returns (nil, false, nil).
+func LoadServiceRoles(serviceName string) ([]ServiceRole, bool, error) {
+	paths := rolesPaths(serviceName)
+	data, path, err := readFirst(paths)
+	if err != nil {
+		return nil, false, nil
+	}
+
+	var rf ServiceRolesFile
+	if err := json.Unmarshal(data, &rf); err != nil {
+		slog.Warn("policy: invalid JSON in roles file", "path", path, "error", err)
+		return nil, false, nil
+	}
+
+	if len(rf.Roles) == 0 {
+		slog.Warn("policy: roles file has no roles", "path", path)
+		return nil, false, nil
+	}
+
+	slog.Info("policy: loaded service roles from file", "service", serviceName, "path", path, "count", len(rf.Roles))
+	return rf.Roles, true, nil
+}
+
 // ── Cluster Roles (RBAC role→action-key grants) ─────────────────────────────
 
 // ClusterRolesFile is the JSON schema for cluster-roles.json.
@@ -240,16 +284,34 @@ func LoadClusterRoles() (map[string][]string, bool, error) {
 
 // ── Path helpers ─────────────────────────────────────────────────────────────
 
+// permissionsPaths returns the search order for permissions files:
+//  1. /etc/.../permissions.json          (admin override)
+//  2. /var/lib/.../permissions.generated.json  (package-shipped generated)
+//  3. /var/lib/.../permissions.json       (legacy package default)
 func permissionsPaths(serviceName string) []string {
 	return []string{
 		filepath.Join(AdminRoot, "services", serviceName, "permissions.json"),
+		filepath.Join(PackageRoot, "services", serviceName, "permissions.generated.json"),
 		filepath.Join(PackageRoot, "services", serviceName, "permissions.json"),
+	}
+}
+
+// rolesPaths returns the search order for service role files:
+//  1. /etc/.../roles.json                (admin override)
+//  2. /var/lib/.../roles.generated.json  (package-shipped generated)
+//  3. /var/lib/.../roles.json            (legacy package default)
+func rolesPaths(serviceName string) []string {
+	return []string{
+		filepath.Join(AdminRoot, "services", serviceName, "roles.json"),
+		filepath.Join(PackageRoot, "services", serviceName, "roles.generated.json"),
+		filepath.Join(PackageRoot, "services", serviceName, "roles.json"),
 	}
 }
 
 func clusterRolesPaths() []string {
 	return []string{
 		filepath.Join(AdminRoot, "rbac", "cluster-roles.json"),
+		filepath.Join(PackageRoot, "rbac", "cluster-roles.generated.json"),
 		filepath.Join(PackageRoot, "rbac", "cluster-roles.json"),
 	}
 }
@@ -325,8 +387,8 @@ func IsMethodPath(s string) bool {
 
 func validatePermissions(pf *PermissionsFile) []string {
 	var errs []string
-	if pf.Version == "" {
-		errs = append(errs, "missing version field")
+	if pf.Version == "" && pf.SchemaVersion == "" {
+		errs = append(errs, "missing version or schema_version field")
 	}
 	if pf.Service == "" {
 		errs = append(errs, "missing service field")
