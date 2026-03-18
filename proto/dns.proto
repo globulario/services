@@ -3,10 +3,12 @@ package dns;
 
 option go_package="github.com/globulario/services/golang/dns/dnspb";
 
+import "globular_auth.proto";
+
 // SetARequest is used to set an 'A' (Address) record in DNS.
 // Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 message SetARequest {
-  string domain = 1; // The domain name for the A record (normalized: lowercase, no trailing dot).
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name for the A record (normalized: lowercase, no trailing dot).
   string a = 2;      // The IPv4 address associated with the domain.
   uint32 ttl = 3;    // Time To Live: duration that the record may be cached.
 }
@@ -19,7 +21,7 @@ message SetAResponse {
 // RemoveARequest is used to remove an 'A' record.
 // Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 message RemoveARequest {
-  string domain = 1; // The domain name for the A record to be removed.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name for the A record to be removed.
   string a = 2;      // The IPv4 address associated with the domain to be removed.
 }
 
@@ -31,7 +33,7 @@ message RemoveAResponse {
 // GetARequest is used to retrieve 'A' records.
 // Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 message GetARequest {
-  string domain = 1; // The domain name to get the A records for.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name to get the A records for.
 }
 
 // GetAResponse returns the 'A' records for a given domain.
@@ -42,7 +44,7 @@ message GetAResponse {
 // SetAAAARequest is used to set an 'AAAA' (IPv6 Address) record in DNS.
 // Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 message SetAAAARequest {
-  string domain = 1;     // The domain name for the AAAA record (normalized: lowercase, no trailing dot).
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];     // The domain name for the AAAA record (normalized: lowercase, no trailing dot).
   string aaaa = 2;       // The IPv6 address associated with the domain.
   uint32 ttl = 3;        // Time To Live: duration that the record may be cached.
 }
@@ -55,7 +57,7 @@ message SetAAAAResponse {
 // RemoveAAAARequest is used to remove an 'AAAA' (IPv6 Address) record.
 // Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 message RemoveAAAARequest {
-  string domain = 1; // The domain name for the AAAA record to be removed.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name for the AAAA record to be removed.
   string aaaa = 2;   // The IPv6 address associated with the domain to be removed.
 }
 
@@ -67,7 +69,7 @@ message RemoveAAAAResponse {
 // GetAAAARequest is used to retrieve 'AAAA' records.
 // Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 message GetAAAARequest {
-  string domain = 1; // The domain name to get the AAAA records for.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name to get the AAAA records for.
 }
 
 // GetAAAAResponse returns the 'AAAA' records for a given domain.
@@ -77,7 +79,7 @@ message GetAAAAResponse {
 
 // SetTextRequest is used to set a text record in DNS.
 message SetTextRequest {
-  string id = 1;             // Identifier for the text record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];             // Identifier for the text record.
   repeated string values = 2; // List of values for the text record.
   uint32 ttl = 3;            // Time To Live: duration that the record may be cached.
 }
@@ -89,7 +91,7 @@ message SetTextResponse {
 
 // GetTextRequest is used to retrieve text records.
 message GetTextRequest {
-  string id = 1;            // Identifier for the text record to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];            // Identifier for the text record to retrieve.
 }
 
 // GetTextResponse returns the text records for a given ID.
@@ -99,7 +101,7 @@ message GetTextResponse {
 
 // RemoveTextRequest is used to remove a text record.
 message RemoveTextRequest {
-  string id = 1;            // Identifier for the text record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];            // Identifier for the text record to be removed.
 }
 
 // RemoveTextResponse is the response for a RemoveTextRequest.
@@ -110,7 +112,7 @@ message RemoveTextResponse {
 // SetTXTRequest is used to set a TXT record in DNS.
 // Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 message SetTXTRequest {
-  string domain = 1; // The domain name for the TXT record (normalized: lowercase, no trailing dot).
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name for the TXT record (normalized: lowercase, no trailing dot).
   string txt = 2;    // The TXT value to set.
   uint32 ttl = 3;    // Time To Live: duration that the record may be cached (default: 300).
 }
@@ -123,7 +125,7 @@ message SetTXTResponse {
 // GetTXTRequest is used to retrieve TXT records.
 // Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 message GetTXTRequest {
-  string domain = 1; // The domain name to get the TXT records for.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name to get the TXT records for.
 }
 
 // GetTXTResponse returns the TXT records for a given domain.
@@ -134,7 +136,7 @@ message GetTXTResponse {
 // RemoveTXTRequest is used to remove TXT record(s).
 // Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 message RemoveTXTRequest {
-  string domain = 1; // The domain name for the TXT record(s) to be removed.
+  string domain = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }]; // The domain name for the TXT record(s) to be removed.
   string txt = 2;    // Optional: specific TXT value to remove. If empty, removes all TXT records for the domain.
 }
 
@@ -145,7 +147,7 @@ message RemoveTXTResponse {
 
 // SetNsRequest is used to set a Name Server (NS) record.
 message SetNsRequest {
-  string id = 1;   // Identifier for the NS record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];   // Identifier for the NS record.
   string ns = 2;   // The Name Server to be set.
   uint32 ttl = 3;  // Time To Live: duration that the record may be cached.
 }
@@ -157,7 +159,7 @@ message SetNsResponse {
 
 // GetNsRequest is used to retrieve Name Server (NS) records.
 message GetNsRequest {
-  string id = 1;   // Identifier for the NS records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];   // Identifier for the NS records to retrieve.
 }
 
 // GetNsResponse returns the NS records for a given identifier.
@@ -167,7 +169,7 @@ message GetNsResponse {
 
 // RemoveNsRequest is used to remove a Name Server (NS) record.
 message RemoveNsRequest {
-  string id = 1;   // Identifier for the NS record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];   // Identifier for the NS record to be removed.
   string ns = 2;   // The Name Server to be removed.
 }
 
@@ -178,7 +180,7 @@ message RemoveNsResponse {
 
 // SetCNameRequest is used to set a Canonical Name (CNAME) record.
 message SetCNameRequest {
-  string id = 1;     // Identifier for the CNAME record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];     // Identifier for the CNAME record.
   string cname = 2;  // The Canonical Name to be set.
   uint32 ttl = 3;    // Time To Live: duration that the record may be cached.
 }
@@ -190,7 +192,7 @@ message SetCNameResponse {
 
 // GetCNameRequest is used to retrieve Canonical Name (CNAME) records.
 message GetCNameRequest {
-  string id = 1;     // Identifier for the CNAME record to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];     // Identifier for the CNAME record to retrieve.
 }
 
 // GetCNameResponse returns the CNAME record for a given identifier.
@@ -200,7 +202,7 @@ message GetCNameResponse {
 
 // RemoveCNameRequest is used to remove a Canonical Name (CNAME) record.
 message RemoveCNameRequest {
-  string id = 1;     // Identifier for the CNAME record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];     // Identifier for the CNAME record to be removed.
 }
 
 // RemoveCNameResponse is the response for a RemoveCNameRequest.
@@ -216,7 +218,7 @@ message AFSDB {
 
 // SetAfsdbRequest is used to set an AFSDB record.
 message SetAfsdbRequest {
-  string id = 1;       // Identifier for the AFSDB record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the AFSDB record.
   AFSDB afsdb = 2;     // The AFSDB record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -228,7 +230,7 @@ message SetAfsdbResponse {
 
 // GetAfsdbRequest is used to retrieve AFSDB records.
 message GetAfsdbRequest {
-  string id = 1;       // Identifier for the AFSDB record to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the AFSDB record to retrieve.
 }
 
 // GetAfsdbResponse returns the AFSDB record for a given identifier.
@@ -238,7 +240,7 @@ message GetAfsdbResponse {
 
 // RemoveAfsdbRequest is used to remove an AFSDB record.
 message RemoveAfsdbRequest {
-  string id = 1;       // Identifier for the AFSDB record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the AFSDB record to be removed.
 }
 
 // RemoveAfsdbResponse is the response for a RemoveAfsdbRequest.
@@ -254,7 +256,7 @@ message MX {
 
 // SetMxRequest is used to set an MX record.
 message SetMxRequest {
-  string id = 1;       // Identifier for the MX record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the MX record.
   MX mx = 2;           // The MX record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -266,7 +268,7 @@ message SetMxResponse {
 
 // GetMxRequest is used to retrieve MX records.
 message GetMxRequest {
-  string id = 1;       // Identifier for the MX records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the MX records to retrieve.
   string mx = 2;       // Optional: specific MX record to retrieve.
 }
 
@@ -277,7 +279,7 @@ message GetMxResponse {
 
 // RemoveMxRequest is used to remove an MX record.
 message RemoveMxRequest {
-  string id = 1;       // Identifier for the MX record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the MX record to be removed.
   string mx = 2;       // Specific MX record to remove.
 }
 
@@ -296,7 +298,7 @@ message SRV {
 
 // SetSrvRequest is used to set an SRV record (PR4.1).
 message SetSrvRequest {
-  string id = 1;       // Identifier for the SRV record (FQDN like _service._tcp.domain).
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SRV record (FQDN like _service._tcp.domain).
   SRV srv = 2;         // The SRV record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -308,7 +310,7 @@ message SetSrvResponse {
 
 // GetSrvRequest is used to retrieve SRV records (PR4.1).
 message GetSrvRequest {
-  string id = 1;       // Identifier for the SRV records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SRV records to retrieve.
 }
 
 // GetSrvResponse returns SRV records for a given identifier (PR4.1).
@@ -318,7 +320,7 @@ message GetSrvResponse {
 
 // RemoveSrvRequest is used to remove an SRV record (PR4.1).
 message RemoveSrvRequest {
-  string id = 1;       // Identifier for the SRV record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SRV record to be removed.
   string target = 2;   // Specific target to remove (optional, removes all if empty).
 }
 
@@ -340,7 +342,7 @@ message SOA {
 
 // SetSoaRequest is used to set an SOA record.
 message SetSoaRequest {
-  string id = 1;       // Identifier for the SOA record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SOA record.
   SOA soa = 2;         // The SOA record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -352,7 +354,7 @@ message SetSoaResponse {
 
 // GetSoaRequest is used to retrieve SOA records.
 message GetSoaRequest {
-  string id = 1;       // Identifier for the SOA records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SOA records to retrieve.
   string ns = 2;       // Optional: specific name server for which to retrieve the SOA.
 }
 
@@ -363,7 +365,7 @@ message GetSoaResponse {
 
 // RemoveSoaRequest is used to remove an SOA record.
 message RemoveSoaRequest {
-  string id = 1;       // Identifier for the SOA record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the SOA record to be removed.
   string ns = 2;       // Specific name server for which to remove the SOA.
 }
 
@@ -381,7 +383,7 @@ message URI {
 
 // SetUriRequest is used to set a URI record.
 message SetUriRequest {
-  string id = 1;       // Identifier for the URI record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the URI record.
   URI uri = 2;         // The URI record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -393,7 +395,7 @@ message SetUriResponse {
 
 // GetUriRequest is used to retrieve URI records.
 message GetUriRequest {
-  string id = 1;       // Identifier for the URI records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the URI records to retrieve.
   string target = 2;   // Optional: specific target URI to retrieve.
 }
 
@@ -404,7 +406,7 @@ message GetUriResponse {
 
 // RemoveUriRequest is used to remove a URI record.
 message RemoveUriRequest {
-  string id = 1;       // Identifier for the URI record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the URI record to be removed.
   string target = 2;   // Specific target URI to remove.
 }
 
@@ -422,7 +424,7 @@ message CAA {
 
 // SetCaaRequest is used to set a CAA record.
 message SetCaaRequest {
-  string id = 1;       // Identifier for the CAA record.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the CAA record.
   CAA caa = 2;         // The CAA record to be set.
   uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
@@ -434,7 +436,7 @@ message SetCaaResponse {
 
 // GetCaaRequest is used to retrieve CAA records.
 message GetCaaRequest {
-  string id = 1;       // Identifier for the CAA records to retrieve.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the CAA records to retrieve.
   string domain = 2;   // Specific domain for which to retrieve the CAA record.
 }
 
@@ -445,7 +447,7 @@ message GetCaaResponse {
 
 // RemoveCaaRequest is used to remove a CAA record.
 message RemoveCaaRequest {
-  string id = 1;       // Identifier for the CAA record to be removed.
+  string id = 1 [(globular.auth.resource) = { kind: "record", scope_anchor: true }];       // Identifier for the CAA record to be removed.
   string domain = 2;   // Specific domain for which to remove the CAA record.
 }
 
@@ -488,119 +490,392 @@ message GetDomainsResponse {
 service DnsService {
 
   // Set multiple domain names.
-  rpc SetDomains(SetDomainsRequest) returns (SetDomainsResponse);
+  rpc SetDomains(SetDomainsRequest) returns (SetDomainsResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.zone.write"
+      permission: "write"
+      collection_template: "/dns/zones"
+      default_role_hint: "editor"
+    };
+  };
 
   // Get multiple domain names.
-  rpc GetDomains(GetDomainsRequest) returns (GetDomainsResponse);
+  rpc GetDomains(GetDomainsRequest) returns (GetDomainsResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.zone.read"
+      permission: "read"
+      collection_template: "/dns/zones"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Stop the server.
-  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Stop(StopRequest) returns (StopResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.stop"
+      permission: "admin"
+      resource_template: "/dns"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an A record (IPv4 address).
-  rpc SetA(SetARequest) returns (SetAResponse);
+  rpc SetA(SetARequest) returns (SetAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Remove an A record.
-  rpc RemoveA(RemoveARequest) returns (RemoveAResponse);
+  rpc RemoveA(RemoveARequest) returns (RemoveAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Get the A record (IPv4 address) for a given domain name.
-  rpc GetA(GetARequest) returns (GetAResponse);
+  rpc GetA(GetARequest) returns (GetAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Set an AAAA record (IPv6 address).
-  rpc SetAAAA(SetAAAARequest) returns (SetAAAAResponse);
+  rpc SetAAAA(SetAAAARequest) returns (SetAAAAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Remove an AAAA record.
-  rpc RemoveAAAA(RemoveAAAARequest) returns (RemoveAAAAResponse);
+  rpc RemoveAAAA(RemoveAAAARequest) returns (RemoveAAAAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Get the AAAA record (IPv6 address) for a given domain name.
-  rpc GetAAAA(GetAAAARequest) returns (GetAAAAResponse);
+  rpc GetAAAA(GetAAAARequest) returns (GetAAAAResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Set a TXT record.
-  rpc SetText(SetTextRequest) returns (SetTextResponse);
+  rpc SetText(SetTextRequest) returns (SetTextResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve a TXT record.
-  rpc GetText(GetTextRequest) returns (GetTextResponse);
+  rpc GetText(GetTextRequest) returns (GetTextResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove a TXT record.
-  rpc RemoveText(RemoveTextRequest) returns (RemoveTextResponse);
+  rpc RemoveText(RemoveTextRequest) returns (RemoveTextResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set a TXT record (normalized naming).
-  rpc SetTXT(SetTXTRequest) returns (SetTXTResponse);
+  rpc SetTXT(SetTXTRequest) returns (SetTXTResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve TXT records (normalized naming).
-  rpc GetTXT(GetTXTRequest) returns (GetTXTResponse);
+  rpc GetTXT(GetTXTRequest) returns (GetTXTResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove TXT record(s) (normalized naming).
-  rpc RemoveTXT(RemoveTXTRequest) returns (RemoveTXTResponse);
+  rpc RemoveTXT(RemoveTXTRequest) returns (RemoveTXTResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{domain}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an NS record.
-  rpc SetNs(SetNsRequest) returns (SetNsResponse);
+  rpc SetNs(SetNsRequest) returns (SetNsResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve an NS record.
-  rpc GetNs(GetNsRequest) returns (GetNsResponse);
+  rpc GetNs(GetNsRequest) returns (GetNsResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove an NS record.
-  rpc RemoveNs(RemoveNsRequest) returns (RemoveNsResponse);
+  rpc RemoveNs(RemoveNsRequest) returns (RemoveNsResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set a CNAME record.
-  rpc SetCName(SetCNameRequest) returns (SetCNameResponse);
+  rpc SetCName(SetCNameRequest) returns (SetCNameResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve a CNAME record.
-  rpc GetCName(GetCNameRequest) returns (GetCNameResponse);
+  rpc GetCName(GetCNameRequest) returns (GetCNameResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove a CNAME record.
-  rpc RemoveCName(RemoveCNameRequest) returns (RemoveCNameResponse);
+  rpc RemoveCName(RemoveCNameRequest) returns (RemoveCNameResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an MX record.
-  rpc SetMx(SetMxRequest) returns (SetMxResponse);
+  rpc SetMx(SetMxRequest) returns (SetMxResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve an MX record.
-  rpc GetMx(GetMxRequest) returns (GetMxResponse);
+  rpc GetMx(GetMxRequest) returns (GetMxResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove an MX record.
-  rpc RemoveMx(RemoveMxRequest) returns (RemoveMxResponse);
+  rpc RemoveMx(RemoveMxRequest) returns (RemoveMxResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an SRV record (PR4.1).
-  rpc SetSrv(SetSrvRequest) returns (SetSrvResponse);
+  rpc SetSrv(SetSrvRequest) returns (SetSrvResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve SRV records (PR4.1).
-  rpc GetSrv(GetSrvRequest) returns (GetSrvResponse);
+  rpc GetSrv(GetSrvRequest) returns (GetSrvResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove an SRV record (PR4.1).
-  rpc RemoveSrv(RemoveSrvRequest) returns (RemoveSrvResponse);
+  rpc RemoveSrv(RemoveSrvRequest) returns (RemoveSrvResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an SOA record.
-  rpc SetSoa(SetSoaRequest) returns (SetSoaResponse);
+  rpc SetSoa(SetSoaRequest) returns (SetSoaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve an SOA record.
-  rpc GetSoa(GetSoaRequest) returns (GetSoaResponse);
+  rpc GetSoa(GetSoaRequest) returns (GetSoaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove an SOA record.
-  rpc RemoveSoa(RemoveSoaRequest) returns (RemoveSoaResponse);
+  rpc RemoveSoa(RemoveSoaRequest) returns (RemoveSoaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set a URI record.
-  rpc SetUri(SetUriRequest) returns (SetUriResponse);
+  rpc SetUri(SetUriRequest) returns (SetUriResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve a URI record.
-  rpc GetUri(GetUriRequest) returns (GetUriResponse);
+  rpc GetUri(GetUriRequest) returns (GetUriResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove a URI record.
-  rpc RemoveUri(RemoveUriRequest) returns (RemoveUriResponse);
+  rpc RemoveUri(RemoveUriRequest) returns (RemoveUriResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set a CAA record.
-  rpc SetCaa(SetCaaRequest) returns (SetCaaResponse);
+  rpc SetCaa(SetCaaRequest) returns (SetCaaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve a CAA record.
-  rpc GetCaa(GetCaaRequest) returns (GetCaaResponse);
+  rpc GetCaa(GetCaaRequest) returns (GetCaaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove a CAA record.
-  rpc RemoveCaa(RemoveCaaRequest) returns (RemoveCaaResponse);
+  rpc RemoveCaa(RemoveCaaRequest) returns (RemoveCaaResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Set an AFSDB record.
-  rpc SetAfsdb(SetAfsdbRequest) returns (SetAfsdbResponse);
+  rpc SetAfsdb(SetAfsdbRequest) returns (SetAfsdbResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.write"
+      permission: "write"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieve an AFSDB record.
-  rpc GetAfsdb(GetAfsdbRequest) returns (GetAfsdbResponse);
+  rpc GetAfsdb(GetAfsdbRequest) returns (GetAfsdbResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.read"
+      permission: "read"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Remove an AFSDB record.
-  rpc RemoveAfsdb(RemoveAfsdbRequest) returns (RemoveAfsdbResponse);
+  rpc RemoveAfsdb(RemoveAfsdbRequest) returns (RemoveAfsdbResponse) {
+    option (globular.auth.authz) = {
+      action: "dns.record.delete"
+      permission: "delete"
+      resource_template: "/dns/records/{id}"
+      default_role_hint: "admin"
+    };
+  };
 }

@@ -4,6 +4,7 @@ package persistence;
 
 option go_package="github.com/globulario/services/golang/persistence/persistencepb";
 import "google/protobuf/struct.proto";
+import "globular_auth.proto";
 
 // Enum defining the types of stores supported.
 enum StoreType{
@@ -38,7 +39,7 @@ message CreateConnectionRsp {
 
 // Request to delete an existing database connection.
 message DeleteConnectionRqst {
-    string id = 1;             // The connection id to be deleted
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id to be deleted
 }
 
 // Response for a delete connection request.
@@ -48,7 +49,7 @@ message DeleteConnectionRsp {
 
 // Request to ping a database connection to check its availability.
 message PingConnectionRqst {
-    string id = 1;             // The connection id to be pinged
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id to be pinged
 }
 
 // Response for a ping connection request.
@@ -58,7 +59,7 @@ message PingConnectionRsp {
 
 // Request to insert multiple documents/records.
 message InsertManyRqst {
-    string id = 1;             // The connection id
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id
     string database = 2;       // Database name
     string collection = 3;     // Collection or table name
     bytes data = 4;            // Data to be inserted
@@ -72,7 +73,7 @@ message InsertManyRsp {
 
 // Request to insert a single document/record.
 message InsertOneRqst {
-    string id = 1;             // The connection id
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id
     string database = 2;       // Database name
     string collection = 3;     // Collection or table name
     string data = 4;           // Data to be inserted
@@ -86,7 +87,7 @@ message InsertOneRsp {
 
 // Request to find multiple documents/records based on a query.
 message FindRqst {
-    string id = 1;         // The connection id
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id
     string database = 2;   // Database name
     string collection = 3; // Collection or table name
     string query = 4;      // Query string in JSON format
@@ -100,7 +101,7 @@ message FindResp {
 
 // Request to find a single document/record based on a query.
 message FindOneRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;
@@ -114,7 +115,7 @@ message FindOneResp {
 
 // Request to perform an aggregation operation.
 message AggregateRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string pipeline = 4; // JSON string representing the aggregation pipeline
@@ -128,7 +129,7 @@ message AggregateResp {
 
 // Request to update multiple documents/records.
 message UpdateRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;  // Query to select documents
@@ -143,7 +144,7 @@ message UpdateRsp {
 
 // Request to update a single document/record.
 message UpdateOneRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;
@@ -158,7 +159,7 @@ message UpdateOneRsp {
 
 // Request to replace a single document/record.
 message ReplaceOneRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;  // Query to select the document
@@ -173,7 +174,7 @@ message ReplaceOneRsp {
 
 // Request to delete multiple documents/records.
 message DeleteRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;  // Query to select documents for deletion
@@ -187,7 +188,7 @@ message DeleteRsp {
 
 // Request to delete a single document/record.
 message DeleteOneRqst {
-    string id = 1;
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];
     string database = 2;
     string collection = 3;
     string query = 4;
@@ -201,7 +202,7 @@ message DeleteOneRsp {
 
 // Request to create a new database.
 message CreateDatabaseRqst {
-    string id = 1;         // The connection id
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id
     string database = 2;   // Name of the database to be created
 }
 
@@ -212,7 +213,7 @@ message CreateDatabaseRsp {
 
 // Request to delete a database.
 message DeleteDatabaseRqst {
-    string id = 1;       // Connection ID
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string database = 2; // Name of the database to delete
 }
 
@@ -223,7 +224,7 @@ message DeleteDatabaseRsp {
 
 // Request to create a new collection.
 message CreateCollectionRqst {
-    string id = 1;           // Connection ID
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string database = 2;     // Database name
     string collection = 3;   // Name of the collection to create
     string optionsStr = 4;   // Additional options for collection creation
@@ -236,7 +237,7 @@ message CreateCollectionRsp {
 
 // Request to delete a collection.
 message DeleteCollectionRqst {
-    string id = 1;           // Connection ID
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string database = 2;     // Database name
     string collection = 3;   // Name of the collection to delete
 }
@@ -248,7 +249,7 @@ message DeleteCollectionRsp {
 
 // Request to count documents in a collection.
 message CountRqst {
-    string id = 1;           // Connection ID
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string database = 2;     // Database name
     string collection = 3;   // Collection name
     string query = 4;        // Filter query for counting
@@ -262,7 +263,7 @@ message CountRsp {
 
 // Request to run an administrative command.
 message RunAdminCmdRqst {
-    string connectionId = 1; // Connection ID
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string user = 2;         // Username for authentication
     string password = 3;     // Password for authentication
     string script = 4;       // Administrative script or command to run
@@ -275,7 +276,7 @@ message RunAdminCmdRsp {
 
 // Request to open a database connection.
 message ConnectRqst {
-    string connectionId = 1; // Connection ID
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
     string password = 3;     // Password for authentication
 }
 
@@ -286,7 +287,7 @@ message ConnectRsp {
 
 // Request to close a database connection.
 message DisconnectRqst {
-    string connectionId = 1; // Connection ID
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Connection ID
 }
 
 // Response for a disconnect request.
@@ -307,82 +308,236 @@ message StopResponse {
 
 // PersistenceService handles database management and CRUD operations.
 service PersistenceService {
-  
+
     // Stop the server - Ends the server process.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence"
+            default_role_hint: "admin"
+        };
+    };
 
     //////////////////////////////////////////////////////////////////////////////
     // Admin Operations
     //////////////////////////////////////////////////////////////////////////////
-    
+
     // CreateDatabase - Creates a new database.
-    rpc CreateDatabase(CreateDatabaseRqst) returns (CreateDatabaseRsp);
-    
+    rpc CreateDatabase(CreateDatabaseRqst) returns (CreateDatabaseRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            collection_template: "/persistence/connections/{id}/databases"
+            default_role_hint: "admin"
+        };
+    };
+
     // Connect - Establishes a connection to the database.
-    rpc Connect(ConnectRqst) returns (ConnectRsp);
-    
+    rpc Connect(ConnectRqst) returns (ConnectRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{connectionId}"
+            default_role_hint: "admin"
+        };
+    };
+
     // Disconnect - Closes an established database connection.
-    rpc Disconnect(DisconnectRqst) returns (DisconnectRsp);
-    
+    rpc Disconnect(DisconnectRqst) returns (DisconnectRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{connectionId}"
+            default_role_hint: "admin"
+        };
+    };
+
     // DeleteDatabase - Deletes an existing database.
-    rpc DeleteDatabase(DeleteDatabaseRqst) returns (DeleteDatabaseRsp);
-    
+    rpc DeleteDatabase(DeleteDatabaseRqst) returns (DeleteDatabaseRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{id}/databases/{database}"
+            default_role_hint: "admin"
+        };
+    };
+
     // CreateCollection - Creates a new collection in the database.
-    rpc CreateCollection(CreateCollectionRqst) returns (CreateCollectionRsp);
-    
+    rpc CreateCollection(CreateCollectionRqst) returns (CreateCollectionRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            collection_template: "/persistence/connections/{id}/databases/{database}/collections"
+            default_role_hint: "admin"
+        };
+    };
+
     // DeleteCollection - Removes a collection from the database.
-    rpc DeleteCollection(DeleteCollectionRqst) returns (DeleteCollectionRsp);
-    
+    rpc DeleteCollection(DeleteCollectionRqst) returns (DeleteCollectionRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "admin"
+        };
+    };
+
     // CreateConnection - Configures a new connection to a data store.
-    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
-    
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            collection_template: "/persistence/connections"
+            default_role_hint: "admin"
+        };
+    };
+
     // DeleteConnection - Removes an existing connection configuration.
-    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
-    
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{id}"
+            default_role_hint: "admin"
+        };
+    };
+
     // Ping - Checks the status of an existing connection.
-    rpc Ping(PingConnectionRqst) returns (PingConnectionRsp);
-    
+    rpc Ping(PingConnectionRqst) returns (PingConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.read"
+            permission: "read"
+            resource_template: "/persistence/connections/{id}"
+            default_role_hint: "viewer"
+        };
+    };
+
     // Count - Retrieves the count of documents in a collection based on a query.
-    rpc Count(CountRqst) returns (CountRsp);
+    rpc Count(CountRqst) returns (CountRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.read"
+            permission: "read"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "viewer"
+        };
+    };
 
     //////////////////////////////////////////////////////////////////////////////
     // CRUD Operations
     //////////////////////////////////////////////////////////////////////////////
-    
+
     // InsertOne - Inserts a single document into a collection.
-    rpc InsertOne(InsertOneRqst) returns (InsertOneRsp);
+    rpc InsertOne(InsertOneRqst) returns (InsertOneRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.write"
+            permission: "write"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
 
     // InsertMany - Inserts multiple documents into a collection.
-    rpc InsertMany(stream InsertManyRqst) returns (InsertManyRsp);
-    
+    rpc InsertMany(stream InsertManyRqst) returns (InsertManyRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.write"
+            permission: "write"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     // Find - Retrieves multiple documents based on a query.
-    rpc Find(FindRqst) returns (stream FindResp);
-    
+    rpc Find(FindRqst) returns (stream FindResp) {
+        option (globular.auth.authz) = {
+            action: "persistence.read"
+            permission: "read"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "viewer"
+        };
+    };
+
     // FindOne - Retrieves a single document based on a query.
-    rpc FindOne(FindOneRqst) returns (FindOneResp);
+    rpc FindOne(FindOneRqst) returns (FindOneResp) {
+        option (globular.auth.authz) = {
+            action: "persistence.read"
+            permission: "read"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Aggregate - Performs aggregation operations on a collection.
-    rpc Aggregate(AggregateRqst) returns (stream AggregateResp);
-    
+    rpc Aggregate(AggregateRqst) returns (stream AggregateResp) {
+        option (globular.auth.authz) = {
+            action: "persistence.read"
+            permission: "read"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "viewer"
+        };
+    };
+
     // Update - Updates multiple documents in a collection.
-    rpc Update(UpdateRqst) returns (UpdateRsp);
-    
+    rpc Update(UpdateRqst) returns (UpdateRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.write"
+            permission: "write"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     // UpdateOne - Updates a single document in a collection.
-    rpc UpdateOne(UpdateOneRqst) returns (UpdateOneRsp);
-    
+    rpc UpdateOne(UpdateOneRqst) returns (UpdateOneRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.write"
+            permission: "write"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     // ReplaceOne - Replaces a single document in a collection.
-    rpc ReplaceOne(ReplaceOneRqst) returns (ReplaceOneRsp);
-    
+    rpc ReplaceOne(ReplaceOneRqst) returns (ReplaceOneRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.write"
+            permission: "write"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     // Delete - Deletes multiple documents from a collection.
-    rpc Delete(DeleteRqst) returns (DeleteRsp);
-    
+    rpc Delete(DeleteRqst) returns (DeleteRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.delete"
+            permission: "delete"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     // DeleteOne - Deletes a single document from a collection.
-    rpc DeleteOne(DeleteOneRqst) returns (DeleteOneRsp);
-    
+    rpc DeleteOne(DeleteOneRqst) returns (DeleteOneRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.delete"
+            permission: "delete"
+            resource_template: "/persistence/connections/{id}/databases/{database}/collections/{collection}"
+            default_role_hint: "editor"
+        };
+    };
+
     //////////////////////////////////////////////////////////////////////////////
     // Resource Management Operations
     //////////////////////////////////////////////////////////////////////////////
-    
+
     // RunAdminCmd - Executes an administrative command or script.
-    rpc RunAdminCmd(RunAdminCmdRqst) returns (RunAdminCmdRsp);
+    rpc RunAdminCmd(RunAdminCmdRqst) returns (RunAdminCmdRsp) {
+        option (globular.auth.authz) = {
+            action: "persistence.admin"
+            permission: "admin"
+            resource_template: "/persistence/connections/{connectionId}"
+            default_role_hint: "admin"
+        };
+    };
 }

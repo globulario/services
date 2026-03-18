@@ -3,6 +3,8 @@ package monitoring;
 
 option go_package="github.com/globulario/services/golang/monitoring/monitoringpb";
 
+import "globular_auth.proto";
+
 // StoreType defines the type of time series database.
 enum StoreType {
     PROMETHEUS = 0; // Represents a Prometheus time series database.
@@ -28,7 +30,7 @@ message CreateConnectionRsp {
 
 // DeleteConnectionRqst is the request format for deleting an existing connection.
 message DeleteConnectionRqst {
-    string id = 1; // Identifier of the connection to be deleted.
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to be deleted.
 }
 
 // DeleteConnectionRsp is the response format for a delete connection request.
@@ -38,7 +40,7 @@ message DeleteConnectionRsp {
 
 // AlertsRequest is the request format for retrieving alerts.
 message AlertsRequest {
-    string connectionId = 1; // Identifier of the connection to query alerts.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to query alerts.
 }
 
 // AlertsResponse is the response format containing the alerts data.
@@ -48,7 +50,7 @@ message AlertsResponse {
 
 // AlertManagersRequest is the request format for retrieving alert managers.
 message AlertManagersRequest {
-    string connectionId = 1; // Identifier of the connection to query alert managers.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to query alert managers.
 }
 
 // AlertManagersResponse is the response format containing alert managers data.
@@ -58,7 +60,7 @@ message AlertManagersResponse {
 
 // CleanTombstonesRequest is the request format for cleaning tombstones in the database.
 message CleanTombstonesRequest {
-    string connectionId = 1; // Identifier of the connection for the operation.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection for the operation.
 }
 
 // CleanTombstonesResponse is the response format for a clean tombstones request.
@@ -68,7 +70,7 @@ message CleanTombstonesResponse {
 
 // ConfigRequest is the request format for retrieving configuration details.
 message ConfigRequest {
-    string connectionId = 1; // Identifier of the connection to retrieve configuration.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to retrieve configuration.
 }
 
 // ConfigResponse is the response format containing configuration details.
@@ -78,7 +80,7 @@ message ConfigResponse {
 
 // DeleteSeriesRequest is the request for deleting a series of data points.
 message DeleteSeriesRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     repeated string matches = 2; // Series matchers to specify which series should be deleted.
     double startTime = 3; // Start time for the range of data to delete.
     double endTime = 4; // End time for the range of data to delete.
@@ -91,7 +93,7 @@ message DeleteSeriesResponse {
 
 // FlagsRequest is the request for retrieving server flags.
 message FlagsRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
 }
 
 // FlagsResponse is the response containing the server flags.
@@ -101,7 +103,7 @@ message FlagsResponse {
 
 // LabelNamesRequest is the request for retrieving label names.
 message LabelNamesRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
 }
 
 // LabelNamesResponse is the response containing the label names.
@@ -112,7 +114,7 @@ message LabelNamesResponse {
 
 // LabelValuesRequest is the request for retrieving label values.
 message LabelValuesRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     string label = 2; // Specific label for which values are requested.
     repeated string values = 3; // Specific values to filter.
     int64 startTime = 4; // Start time for filtering the values.
@@ -127,7 +129,7 @@ message LabelValuesResponse {
 
 // QueryRequest is the request for executing an instant query.
 message QueryRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     string query = 2; // Query expression.
     double ts = 3; // Unix timestamp for the instant query.
 }
@@ -140,7 +142,7 @@ message QueryResponse {
 
 // QueryRangeRequest is the request for executing a range query.
 message QueryRangeRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     string query = 2; // Query expression.
     double startTime = 3; // Start time for the range query.
     double endTime = 4; // End time for the range query.
@@ -156,7 +158,7 @@ message QueryRangeResponse {
 
 // SeriesRequest is used to request a series of data points.
 message SeriesRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     repeated string matches = 2; // Series matchers to specify which series to retrieve.
     double startTime = 3; // Start time for the series range.
     double endTime = 4; // End time for the series range.
@@ -170,7 +172,7 @@ message SeriesResponse {
 
 // SnapshotRequest is the request to create a snapshot of the current data.
 message SnapshotRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     bool skipHead = 2; // Whether to skip the head block in the snapshot.
 }
 
@@ -181,7 +183,7 @@ message SnapshotResponse {
 
 // RulesRequest is the request for retrieving alerting and recording rules.
 message RulesRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
 }
 
 // RulesResponse returns the set of rules.
@@ -191,7 +193,7 @@ message RulesResponse {
 
 // TargetsRequest is used to request information about scrape targets.
 message TargetsRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
 }
 
 // TargetsResponse returns information about the scrape targets.
@@ -201,7 +203,7 @@ message TargetsResponse {
 
 // TargetsMetadataRequest is the request for metadata about specific targets.
 message TargetsMetadataRequest {
-    string connectionId = 1; // Identifier of the connection.
+    string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection.
     string matchTarget = 2; // Specific target to match for metadata.
     string metric = 3; // Specific metric to retrieve metadata for.
     string limit = 4; // Limit for the number of metadata entries returned.
@@ -226,56 +228,182 @@ message StopResponse {
 // typically for operations related to time-series data management, querying, and configuration.
 service MonitoringService {
     // Stops the server or service gracefully.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.stop"
+            permission: "admin"
+            resource_template: "/monitoring"
+            default_role_hint: "admin"
+        };
+    };
 
     // Creates a new connection to the monitoring system or database.
-    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "monitoring.connection.create"
+            permission: "write"
+            collection_template: "/monitoring/connections"
+            default_role_hint: "admin"
+        };
+    };
 
     // Deletes an existing connection to the monitoring system or database.
-    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "monitoring.connection.delete"
+            permission: "delete"
+            resource_template: "/monitoring/connections/{id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieves all active alerts from the monitoring system.
-    rpc Alerts(AlertsRequest) returns (AlertsResponse);
+    rpc Alerts(AlertsRequest) returns (AlertsResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.alerts"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/alerts"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Provides an overview of the current state of the alert manager discovery in Prometheus.
-    rpc AlertManagers(AlertManagersRequest) returns (AlertManagersResponse);
+    rpc AlertManagers(AlertManagersRequest) returns (AlertManagersResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.alertmanagers"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/alertmanagers"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Removes deleted data from the disk and cleans up tombstones (data marked for deletion).
-    rpc CleanTombstones(CleanTombstonesRequest) returns (CleanTombstonesResponse);
+    rpc CleanTombstones(CleanTombstonesRequest) returns (CleanTombstonesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.cleantombstones"
+            permission: "write"
+            resource_template: "/monitoring/connections/{connectionId}/tombstones"
+            default_role_hint: "admin"
+        };
+    };
 
     // Fetches the current configuration of the Prometheus server.
-    rpc Config(ConfigRequest) returns (ConfigResponse);
+    rpc Config(ConfigRequest) returns (ConfigResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.config"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/config"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Deletes a selection of series within a specified time range.
-    rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
+    rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.deleteseries"
+            permission: "delete"
+            resource_template: "/monitoring/connections/{connectionId}/series"
+            default_role_hint: "admin"
+        };
+    };
 
     // Returns the flags used to launch the Prometheus server.
-    rpc Flags(FlagsRequest) returns (FlagsResponse);
+    rpc Flags(FlagsRequest) returns (FlagsResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.flags"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/flags"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves all unique label names in the data block, in sorted order.
-    rpc LabelNames(LabelNamesRequest) returns (LabelNamesResponse);
+    rpc LabelNames(LabelNamesRequest) returns (LabelNamesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.labelnames"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/labels"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Executes a query for the values associated with a specific label.
-    rpc LabelValues(LabelValuesRequest) returns (LabelValuesResponse);
+    rpc LabelValues(LabelValuesRequest) returns (LabelValuesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.labelvalues"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/labels/{label}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Performs a query at a specific point in time.
-    rpc Query(QueryRequest) returns (QueryResponse);
+    rpc Query(QueryRequest) returns (QueryResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.query"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/query"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Executes a query over a range of time.
-    rpc QueryRange(QueryRangeRequest) returns (stream QueryRangeResponse);
+    rpc QueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.queryrange"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/query-range"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Finds and returns series that match specified label criteria.
-    rpc Series(SeriesRequest) returns (SeriesResponse);
+    rpc Series(SeriesRequest) returns (SeriesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.series"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/series"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Creates a snapshot of all current data and returns the directory of the snapshot.
-    rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+    rpc Snapshot(SnapshotRequest) returns (SnapshotResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.snapshot"
+            permission: "write"
+            resource_template: "/monitoring/connections/{connectionId}/snapshot"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieves the list of currently loaded alerting and recording rules.
-    rpc Rules(RulesRequest) returns (RulesResponse);
+    rpc Rules(RulesRequest) returns (RulesResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.rules"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/rules"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Provides an overview of the current state of target discovery in Prometheus.
-    rpc Targets(TargetsRequest) returns (TargetsResponse);
+    rpc Targets(TargetsRequest) returns (TargetsResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.targets"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/targets"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Returns metadata about metrics currently being scraped by a specified target.
-    rpc TargetsMetadata(TargetsMetadataRequest) returns (TargetsMetadataResponse);
+    rpc TargetsMetadata(TargetsMetadataRequest) returns (TargetsMetadataResponse) {
+        option (globular.auth.authz) = {
+            action: "monitoring.targetsmetadata"
+            permission: "read"
+            resource_template: "/monitoring/connections/{connectionId}/targets/metadata"
+            default_role_hint: "viewer"
+        };
+    };
 }

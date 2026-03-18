@@ -5,12 +5,13 @@
  package authentication;
 
  import "google/protobuf/empty.proto";
+ import "globular_auth.proto";
 
  option go_package = "github.com/globulario/services/golang/authentication/authenticationpb";
  
  // AuthenticateRqst is a request for user authentication.
  message AuthenticateRqst {
-	 string name = 1;
+	 string name = 1 [(globular.auth.resource) = { kind: "account" }];
 	 string password = 2;
 	 string issuer = 3; // The MAC address where the token will be validated. If empty, the MAC address of the current server will be used.
  }
@@ -43,7 +44,7 @@
  
  // SetPasswordRequest is a request to set or change a user's password.
  message SetPasswordRequest {
-	 string accountId = 1;
+	 string accountId = 1 [(globular.auth.resource) = { kind: "account" }];
 	 string oldPassword = 2;
 	 string newPassword = 3;
  }
@@ -77,7 +78,7 @@
  
  // GeneratePeerTokenRequest is a request to generate a token for a peer with a specified MAC address.
  message GeneratePeerTokenRequest {
-	 string mac = 2;
+	 string mac = 2 [(globular.auth.resource) = { kind: "peer" }];
  }
  
  // GeneratePeerTokenResponse is the response containing a token for a peer.
@@ -98,28 +99,84 @@ message IssueClientCertificateResponse {
 service AuthenticationService {
 
     // Authenticate allows users to log in by validating their credentials and returning an authentication token.
-    rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
+    rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp) {
+        option (globular.auth.authz) = {
+            action: "auth.authenticate"
+            permission: "read"
+            resource_template: "/authentication/accounts/{name}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ValidateToken checks the validity of a provided authentication token, returning details like the associated client ID and expiration time.
-    rpc ValidateToken(ValidateTokenRqst) returns(ValidateTokenRsp);
+    rpc ValidateToken(ValidateTokenRqst) returns(ValidateTokenRsp) {
+        option (globular.auth.authz) = {
+            action: "auth.token.validate"
+            permission: "read"
+            resource_template: "/authentication/tokens"
+            default_role_hint: "viewer"
+        };
+    };
 
     // RefreshToken renews an existing authentication token, issuing a new token for continued access.
-    rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
+    rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp) {
+        option (globular.auth.authz) = {
+            action: "auth.token.refresh"
+            permission: "read"
+            resource_template: "/authentication/tokens"
+            default_role_hint: "viewer"
+        };
+    };
 
     // GeneratePeerToken creates an authentication token for a peer device, identified by its MAC address.
-    rpc GeneratePeerToken(GeneratePeerTokenRequest) returns(GeneratePeerTokenResponse);
+    rpc GeneratePeerToken(GeneratePeerTokenRequest) returns(GeneratePeerTokenResponse) {
+        option (globular.auth.authz) = {
+            action: "auth.peer.token"
+            permission: "write"
+            resource_template: "/authentication/peers/{mac}"
+            default_role_hint: "editor"
+        };
+    };
 
     // SetPassword allows users to set or update their account password.
-    rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse);
+    rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse) {
+        option (globular.auth.authz) = {
+            action: "auth.password.set"
+            permission: "write"
+            resource_template: "/authentication/accounts/{accountId}"
+            default_role_hint: "editor"
+        };
+    };
 
     // SetRootPassword allows changing the root password, typically used by administrators for high-level access control.
-    rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse);
+    rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse) {
+        option (globular.auth.authz) = {
+            action: "auth.root.password"
+            permission: "admin"
+            resource_template: "/authentication/root"
+            default_role_hint: "admin"
+        };
+    };
 
     // SetRootEmail allows changing the root email address, which is essential for receiving critical system notifications and for account recovery purposes.
-    rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse);
+    rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse) {
+        option (globular.auth.authz) = {
+            action: "auth.root.email"
+            permission: "admin"
+            resource_template: "/authentication/root"
+            default_role_hint: "admin"
+        };
+    };
 
     // IssueClientCertificate generates a fresh client certificate signed by the cluster CA
     // for the authenticated caller. Caller must be authenticated via JWT token.
     // The private key is generated server-side and returned in PEM form; it is NOT persisted.
-    rpc IssueClientCertificate(google.protobuf.Empty) returns(IssueClientCertificateResponse);
+    rpc IssueClientCertificate(google.protobuf.Empty) returns(IssueClientCertificateResponse) {
+        option (globular.auth.authz) = {
+            action: "auth.certificate.issue"
+            permission: "write"
+            resource_template: "/authentication/certificates"
+            default_role_hint: "editor"
+        };
+    };
 }

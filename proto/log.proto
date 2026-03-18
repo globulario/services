@@ -4,6 +4,8 @@ package log;
 
 option go_package="github.com/globulario/services/golang/log/logpb";
 
+import "globular_auth.proto";
+
 // LogLevel defines the severity of a log message.
 enum LogLevel {
     FATAL_MESSAGE = 0;  // Critical errors causing premature termination.
@@ -41,7 +43,7 @@ message LogRsp {
 
 // DeleteLogRqst is the request format for deleting a log entry.
 message DeleteLogRqst {
-    LogInfo log = 1;  // Specifies the log entry to be deleted.
+    LogInfo log = 1 [(globular.auth.resource) = { kind: "log_entry" }];  // Specifies the log entry to be deleted.
 }
 
 // DeleteLogRsp is the response format for a delete log request.
@@ -72,15 +74,43 @@ message ClearAllLogRsp {
 // LogService provides RPC methods for logging operations.
 service LogService {
     // Logs a new message.
-    rpc Log(LogRqst) returns(LogRsp);
+    rpc Log(LogRqst) returns(LogRsp) {
+        option (globular.auth.authz) = {
+            action: "log.write"
+            permission: "write"
+            collection_template: "/log/entries"
+            default_role_hint: "editor"
+        };
+    };
 
     // Retrieves log entries based on a query.
     // This is a server streaming RPC where the response is a stream of messages.
-    rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+    rpc GetLog(GetLogRqst) returns(stream GetLogRsp) {
+        option (globular.auth.authz) = {
+            action: "log.read"
+            permission: "read"
+            collection_template: "/log/entries"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Deletes a specific log entry.
-    rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
+    rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp) {
+        option (globular.auth.authz) = {
+            action: "log.delete"
+            permission: "delete"
+            collection_template: "/log/entries"
+            default_role_hint: "admin"
+        };
+    };
 
     // Clears all logs or logs matching a specific query pattern.
-    rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
+    rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp) {
+        option (globular.auth.authz) = {
+            action: "log.clear"
+            permission: "delete"
+            collection_template: "/log/entries"
+            default_role_hint: "admin"
+        };
+    };
 }

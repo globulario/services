@@ -5,6 +5,7 @@
  option go_package="github.com/globulario/services/golang/event/eventpb";
 
  import "google/protobuf/timestamp.proto";
+ import "globular_auth.proto";
  
  // KeepAlive message, likely used for maintaining the connection alive.
  message KeepAlive {}
@@ -101,25 +102,74 @@
   */
  service EventService {
    // Stop the server.
-   rpc Stop(StopRequest) returns (StopResponse);
- 
+   rpc Stop(StopRequest) returns (StopResponse) {
+     option (globular.auth.authz) = {
+       action: "event.stop"
+       permission: "admin"
+       resource_template: "/event"
+       default_role_hint: "admin"
+     };
+   };
+
    // Stream of events for a client.
-   rpc OnEvent(OnEventRequest) returns (stream OnEventResponse) {};
- 
+   rpc OnEvent(OnEventRequest) returns (stream OnEventResponse) {
+     option (globular.auth.authz) = {
+       action: "event.stream.listen"
+       permission: "read"
+       resource_template: "/event"
+       default_role_hint: "viewer"
+     };
+   };
+
    // Quit the ongoing event stream.
-   rpc Quit(QuitRequest) returns (QuitResponse){};
- 
+   rpc Quit(QuitRequest) returns (QuitResponse) {
+     option (globular.auth.authz) = {
+       action: "event.stream.quit"
+       permission: "write"
+       resource_template: "/event"
+       default_role_hint: "editor"
+     };
+   };
+
    // Subscribe to an event channel; creates it if it doesn't exist.
    // The client remains in this function until UnSubscribe is called.
-   rpc Subscribe(SubscribeRequest) returns (SubscribeResponse) {};
- 
+   rpc Subscribe(SubscribeRequest) returns (SubscribeResponse) {
+     option (globular.auth.authz) = {
+       action: "event.subscribe"
+       permission: "write"
+       resource_template: "/event"
+       default_role_hint: "editor"
+     };
+   };
+
    // Unsubscribe from an event channel.
-   rpc UnSubscribe(UnSubscribeRequest) returns (UnSubscribeResponse) {};
- 
+   rpc UnSubscribe(UnSubscribeRequest) returns (UnSubscribeResponse) {
+     option (globular.auth.authz) = {
+       action: "event.unsubscribe"
+       permission: "write"
+       resource_template: "/event"
+       default_role_hint: "editor"
+     };
+   };
+
    // Publish an event to a channel.
-   rpc Publish(PublishRequest) returns (PublishResponse) {};
+   rpc Publish(PublishRequest) returns (PublishResponse) {
+     option (globular.auth.authz) = {
+       action: "event.publish"
+       permission: "write"
+       resource_template: "/event"
+       default_role_hint: "editor"
+     };
+   };
 
    // Query recent events from the in-memory ring buffer.
-   rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse) {};
+   rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse) {
+     option (globular.auth.authz) = {
+       action: "event.query"
+       permission: "read"
+       resource_template: "/event"
+       default_role_hint: "viewer"
+     };
+   };
  }
  

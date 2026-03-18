@@ -4,6 +4,7 @@ package rbac;
 
 option go_package="github.com/globulario/services/golang/rbac/rbacpb";
 import "google/protobuf/struct.proto";
+import "globular_auth.proto";
 
 // Permission defines the access level and scope for a resource.
 message Permission {
@@ -26,7 +27,7 @@ message Permissions {
 
 // GetResourcePermissionsRqst is a request for permissions of a specific resource.
 message GetResourcePermissionsRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
 }
 
 // GetResourcePermissionsRsp is a response containing resource permissions.
@@ -36,7 +37,7 @@ message GetResourcePermissionsRsp {
 
 // GetResourcePermissionsByResourceTypeRqst requests permissions by resource type.
 message GetResourcePermissionsByResourceTypeRqst {
-    string resourceType = 1; // Type of the resource.
+    string resourceType = 1 [(globular.auth.resource) = { kind: "resource_type", scope_anchor: true }]; // Type of the resource.
 }
 
 // GetResourcePermissionsByResourceTypeRsp provides permissions filtered by resource type.
@@ -46,7 +47,7 @@ message GetResourcePermissionsByResourceTypeRsp {
 
 // GetResourcePermissionsBySubjectRqst requests permissions based on subject.
 message GetResourcePermissionsBySubjectRqst {
-    string subject = 1; // Subject identifier (e.g., user, group).
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Subject identifier (e.g., user, group).
     SubjectType subject_type = 2; // Type of the subject (e.g., user, group).
     string resource_type = 3; // Type of the resource.
 }
@@ -58,7 +59,7 @@ message GetResourcePermissionsBySubjectRsp {
 
 // DeleteResourcePermissionsRqst is a request to delete permissions of a resource.
 message DeleteResourcePermissionsRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
 }
 
 // DeleteResourcePermissionsRsp is a response after deleting resource permissions.
@@ -68,7 +69,7 @@ message DeleteResourcePermissionsRsp {
 
 // DeleteResourcePermissionRqst is a request to delete a specific permission.
 message DeleteResourcePermissionRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
     string name = 2; // Name of the permission to delete.
     PermissionType type = 3; // Type of the permission (e.g., allowed, denied).
 }
@@ -82,7 +83,7 @@ message DeleteResourcePermissionRsp {
  * SetResourcePermissionsRqst is a request to set all permissions for a specific resource.
  */
  message SetResourcePermissionsRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
     string resourceType = 2; // Type of the resource.
     Permissions permissions = 3; // Permissions to be set for the resource.
 }
@@ -107,7 +108,7 @@ enum PermissionType {
  * GetResourcePermissionRqst is a request to retrieve a specific permission for a resource.
  */
 message GetResourcePermissionRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
     string name = 2; // Name of the permission.
     PermissionType type = 3; // Type of the permission (ALLOWED or DENIED).
 }
@@ -123,7 +124,7 @@ message GetResourcePermissionRsp {
  * SetResourcePermissionRqst is a request to set a specific permission for a resource.
  */
 message SetResourcePermissionRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
     string resourceType = 2; // Type of the resource.
     Permission permission = 3; // The permission to be set.
     PermissionType type = 4; // Type of the permission (ALLOWED or DENIED).
@@ -141,9 +142,9 @@ message SetResourcePermissionRsp {
  * AddResourceOwnerRqst is a request to add an owner to a resource.
  */
 message AddResourceOwnerRqst {
-    string path = 1; // Resource identifier or path.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
     string resourceType = 2; // Type of the resource.
-    string subject = 3; // Identifier of the subject to be added as an owner.
+    string subject = 3 [(globular.auth.resource) = { kind: "subject", scope_anchor: false }]; // Identifier of the subject to be added as an owner.
     SubjectType type = 4; // Type of the subject (e.g., user, group).
 }
 
@@ -159,8 +160,8 @@ message AddResourceOwnerRsp {
  * RemoveResourceOwnerRqst is a request to remove an owner from a resource.
  */
 message RemoveResourceOwnerRqst {
-    string path = 1; // Resource identifier or path.
-    string subject = 2; // Identifier of the subject to be removed as an owner.
+    string path = 1 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // Resource identifier or path.
+    string subject = 2 [(globular.auth.resource) = { kind: "subject", scope_anchor: false }]; // Identifier of the subject to be removed as an owner.
     SubjectType type = 3; // Type of the subject (e.g., user, group).
 }
 
@@ -188,7 +189,7 @@ message RemoveResourceOwnerRsp {
  * DeleteAllAccessRqst is a request to delete all access permissions for a given subject.
  */
 message DeleteAllAccessRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
 }
 
@@ -204,9 +205,9 @@ message DeleteAllAccessRsp {
  * ValidateAccessRqst is a request to validate if a subject has a specific permission for a resource.
  */
  message ValidateAccessRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: false }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
-    string path = 3; // The resource path for which access is being validated.
+    string path = 3 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // The resource path for which access is being validated.
     string permission = 4; // The name of the permission to validate (e.g., read, write, execute).
 }
 
@@ -222,7 +223,7 @@ message ValidateAccessRsp {
  * GetActionResourceInfosRqst is a request to retrieve resource information related to an action.
  */
 message GetActionResourceInfosRqst {
-    string action = 1; // The action for which resource information is requested.
+    string action = 1 [(globular.auth.resource) = { kind: "action", scope_anchor: true }]; // The action for which resource information is requested.
 }
 
 /**
@@ -246,9 +247,9 @@ message GetActionResourceInfosRsp {
  * ValidateActionRqst is a request to validate access for an action involving multiple resources.
  */
 message ValidateActionRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: false }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
-    string action = 3; // The action path (e.g., gRPC path).
+    string action = 3 [(globular.auth.resource) = { kind: "action", scope_anchor: true }]; // The action path (e.g., gRPC path).
     repeated ResourceInfos infos = 4; // Resource information associated with the action.
 }
 
@@ -292,7 +293,7 @@ message Share {
  * GetSharedResourceRqst is a request to retrieve a list of accessible shared resources for a subject.
  */
 message GetSharedResourceRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
     string owner = 3; // Optional filter to retrieve resources shared by a specific owner.
 }
@@ -308,10 +309,10 @@ message GetSharedResourceRsp {
  * RemoveSubjectFromShareRqst is a request to remove a subject from a shared resource.
  */
 message RemoveSubjectFromShareRqst {
-    string subject = 1; // Identifier of the subject to be removed.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: false }]; // Identifier of the subject to be removed.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
     string domain = 3; // The domain of the shared resource.
-    string path = 4; // The path of the shared resource.
+    string path = 4 [(globular.auth.resource) = { kind: "resource", scope_anchor: true }]; // The path of the shared resource.
 }
 
 /**
@@ -327,7 +328,7 @@ message RemoveSubjectFromShareRsp {
  * This is commonly used when a subject is deleted from the system.
  */
  message DeleteSubjectShareRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
 }
 
@@ -343,7 +344,7 @@ message DeleteSubjectShareRsp {
  * SetSubjectAllocatedSpaceRqst is a request to set the allocated space for a subject.
  */
 message SetSubjectAllocatedSpaceRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
     uint64 allocated_space = 3; // The amount of space to be allocated, in bytes.
 }
@@ -360,7 +361,7 @@ message SetSubjectAllocatedSpaceRsp {
  * GetSubjectAllocatedSpaceRqst is a request to retrieve the allocated space for a subject.
  */
 message GetSubjectAllocatedSpaceRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
 }
 
@@ -375,7 +376,7 @@ message GetSubjectAllocatedSpaceRsp {
  * GetSubjectAvailableSpaceRqst is a request to retrieve the available space for a subject.
  */
 message GetSubjectAvailableSpaceRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
 }
 
@@ -390,7 +391,7 @@ message GetSubjectAvailableSpaceRsp {
  * ValidateSubjectSpaceRqst is a request to validate if a subject has enough space for a given requirement.
  */
 message ValidateSubjectSpaceRqst {
-    string subject = 1; // Identifier of the subject.
+    string subject = 1 [(globular.auth.resource) = { kind: "subject", scope_anchor: true }]; // Identifier of the subject.
     SubjectType type = 2; // Type of the subject (e.g., user, group).
     uint64 required_space = 3; // The required space to validate, in bytes.
 }
@@ -438,130 +439,305 @@ message ListRoleBindingsRsp { RoleBinding binding = 1; }
 	/**
 	 * SetResourcePermissions replaces existing permissions for a resource.
 	 */
-	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRsp);
-	
+	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permissions.write"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/permissions"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * DeleteResourcePermissions removes all permissions associated with a resource.
 	 * Typically called when a resource is deleted.
 	 */
-	rpc DeleteResourcePermissions(DeleteResourcePermissionsRqst) returns(DeleteResourcePermissionsRsp);
-	
+	rpc DeleteResourcePermissions(DeleteResourcePermissionsRqst) returns(DeleteResourcePermissionsRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permissions.delete"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/permissions"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * DeleteResourcePermission removes a specific permission from a resource.
 	 */
-	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRsp);
-	
+	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permission.delete"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/permissions/{name}"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * GetResourcePermission retrieves a specific permission for a resource (e.g., read permission).
 	 */
-	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp);
-	
+	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permission.read"
+			permission: "read"
+			resource_template: "/rbac/resources/{path}/permissions/{name}"
+			default_role_hint: "viewer"
+		};
+	};
+
 	/**
 	 * SetResourcePermission sets a specific permission for a resource (e.g., read permission).
 	 */
-	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp);
-	
+	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permission.write"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/permissions"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * GetResourcePermissions retrieves all permissions associated with a resource.
 	 */
-	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp);
+	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permissions.read"
+			permission: "read"
+			resource_template: "/rbac/resources/{path}/permissions"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * GetResourcePermissionsByResourceType streams permissions for a specific resource type (e.g., blog, file).
 	 */
-	rpc GetResourcePermissionsByResourceType(GetResourcePermissionsByResourceTypeRqst) returns(stream GetResourcePermissionsByResourceTypeRsp);
+	rpc GetResourcePermissionsByResourceType(GetResourcePermissionsByResourceTypeRqst) returns(stream GetResourcePermissionsByResourceTypeRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permissions.read"
+			permission: "read"
+			resource_template: "/rbac/resource-types/{resourceType}/permissions"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * GetResourcePermissionsBySubject streams permissions associated with a specific subject.
 	 */
-	rpc GetResourcePermissionsBySubject(GetResourcePermissionsBySubjectRqst) returns(stream GetResourcePermissionsBySubjectRsp);
-	
+	rpc GetResourcePermissionsBySubject(GetResourcePermissionsBySubjectRqst) returns(stream GetResourcePermissionsBySubjectRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.permissions.read"
+			permission: "read"
+			resource_template: "/rbac/subjects/{subject}/permissions"
+			default_role_hint: "viewer"
+		};
+	};
+
 	/**
 	 * AddResourceOwner adds an owner to a resource. Does nothing if the owner already exists.
 	 */
-	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
-	
+	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.owner.add"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/owners/{subject}"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * RemoveResourceOwner removes an owner from a resource.
 	 */
-	rpc RemoveResourceOwner(RemoveResourceOwnerRqst) returns(RemoveResourceOwnerRsp);
-	
+	rpc RemoveResourceOwner(RemoveResourceOwnerRqst) returns(RemoveResourceOwnerRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.owner.remove"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/owners/{subject}"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * DeleteAllAccess removes all access permissions associated with a subject.
 	 * Typically called when a subject is removed from the system.
 	 */
-	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
-	
+	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.access.delete"
+			permission: "admin"
+			resource_template: "/rbac/subjects/{subject}/access"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * ValidateAccess checks if a subject has access to a resource for a specific operation (e.g., read, write).
 	 */
-	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
+	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.access.validate"
+			permission: "read"
+			resource_template: "/rbac/resources/{path}/access"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * SetActionResourcesPermissions sets permissions for resources related to specific actions.
 	 */
-	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp);
-		
+	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.action_permissions.write"
+			permission: "admin"
+			collection_template: "/rbac/action-permissions"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * GetActionResourceInfos retrieves resource information related to a specific action.
 	 */
-	rpc GetActionResourceInfos(GetActionResourceInfosRqst) returns(GetActionResourceInfosRsp);
-	
+	rpc GetActionResourceInfos(GetActionResourceInfosRqst) returns(GetActionResourceInfosRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.action_permissions.read"
+			permission: "read"
+			resource_template: "/rbac/actions/{action}/resource-infos"
+			default_role_hint: "viewer"
+		};
+	};
+
 	/**
 	 * ValidateAction checks if a subject has permission to perform a specific action.
 	 */
-	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp);
+	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.action.validate"
+			permission: "read"
+			resource_template: "/rbac/actions/{action}/validate"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * ValidateSubjectSpace checks if a subject has enough space for storing files.
 	 */
-	rpc ValidateSubjectSpace(ValidateSubjectSpaceRqst) returns(ValidateSubjectSpaceRsp);
+	rpc ValidateSubjectSpace(ValidateSubjectSpaceRqst) returns(ValidateSubjectSpaceRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.space.validate"
+			permission: "read"
+			resource_template: "/rbac/subjects/{subject}/space"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * GetSubjectAvailableSpace retrieves the available disk space for a subject.
 	 */
-	rpc GetSubjectAvailableSpace(GetSubjectAvailableSpaceRqst) returns(GetSubjectAvailableSpaceRsp);
+	rpc GetSubjectAvailableSpace(GetSubjectAvailableSpaceRqst) returns(GetSubjectAvailableSpaceRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.space.read"
+			permission: "read"
+			resource_template: "/rbac/subjects/{subject}/space"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * GetSubjectAllocatedSpace retrieves the allocated disk space for a subject.
 	 */
-	rpc GetSubjectAllocatedSpace(GetSubjectAllocatedSpaceRqst) returns(GetSubjectAllocatedSpaceRsp);
+	rpc GetSubjectAllocatedSpace(GetSubjectAllocatedSpaceRqst) returns(GetSubjectAllocatedSpaceRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.space.read"
+			permission: "read"
+			resource_template: "/rbac/subjects/{subject}/space"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * SetSubjectAllocatedSpace sets the allocated disk space for a subject.
 	 */
-	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp);
+	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.space.write"
+			permission: "admin"
+			resource_template: "/rbac/subjects/{subject}/space"
+			default_role_hint: "admin"
+		};
+	};
 
 	/**
 	 * GetSharedResource retrieves the list of resources shared with a subject.
 	 */
-	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);
+	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.share.read"
+			permission: "read"
+			resource_template: "/rbac/subjects/{subject}/shares"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * RemoveSubjectFromShare removes a subject from a shared resource.
 	 */
-	rpc RemoveSubjectFromShare(RemoveSubjectFromShareRqst) returns(RemoveSubjectFromShareRsp);
-	
+	rpc RemoveSubjectFromShare(RemoveSubjectFromShareRqst) returns(RemoveSubjectFromShareRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.share.delete"
+			permission: "admin"
+			resource_template: "/rbac/resources/{path}/shares/{subject}"
+			default_role_hint: "admin"
+		};
+	};
+
 	/**
 	 * DeleteSubjectShare removes all shares associated with a subject.
 	 * Typically used when a subject is deleted from the system.
 	 */
-	rpc DeleteSubjectShare(DeleteSubjectShareRqst) returns(DeleteSubjectShareRsp);
+	rpc DeleteSubjectShare(DeleteSubjectShareRqst) returns(DeleteSubjectShareRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.share.delete"
+			permission: "admin"
+			resource_template: "/rbac/subjects/{subject}/shares"
+			default_role_hint: "admin"
+		};
+	};
 
 	/**
 	 * SetRoleBinding creates or replaces the role binding for a subject.
 	 * Protected by the bootstrap gate during Day-0; management access is a v1.1 item.
 	 */
-	rpc SetRoleBinding(SetRoleBindingRqst) returns(SetRoleBindingRsp);
+	rpc SetRoleBinding(SetRoleBindingRqst) returns(SetRoleBindingRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.role_binding.write"
+			permission: "admin"
+			collection_template: "/rbac/role-bindings"
+			default_role_hint: "admin"
+		};
+	};
 
 	/**
 	 * GetRoleBinding fetches the role binding for a subject.
 	 * Returns an empty binding (not an error) if no binding exists.
 	 */
-	rpc GetRoleBinding(GetRoleBindingRqst) returns(GetRoleBindingRsp);
+	rpc GetRoleBinding(GetRoleBindingRqst) returns(GetRoleBindingRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.role_binding.read"
+			permission: "read"
+			collection_template: "/rbac/role-bindings"
+			default_role_hint: "viewer"
+		};
+	};
 
 	/**
 	 * ListRoleBindings streams all stored role bindings.
 	 */
-	rpc ListRoleBindings(ListRoleBindingsRqst) returns(stream ListRoleBindingsRsp);
+	rpc ListRoleBindings(ListRoleBindingsRqst) returns(stream ListRoleBindingsRsp) {
+		option (globular.auth.authz) = {
+			action: "rbac.role_binding.list"
+			permission: "read"
+			collection_template: "/rbac/role-bindings"
+			default_role_hint: "viewer"
+		};
+	};
 }

@@ -3,11 +3,12 @@ package media;
 
 // Specify the Go package where the generated code will reside.
 option go_package="github.com/globulario/services/golang/media/mediapb";
+import "globular_auth.proto";
 
 
 // Request to create a video preview.
 message CreateVideoPreviewRequest {
-    string path = 1;   // The path of the video file.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }];   // The path of the video file.
     int32 nb = 2;      // Number of preview images to generate.
     int32 height = 3;  // Height of the preview images.
 }
@@ -18,7 +19,7 @@ message CreateVideoPreviewResponse {
 }
 
 message CreateVideoTimeLineRequest {
-    string path = 1;  // The path of the video file.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }];  // The path of the video file.
     int32 width = 2;  // Width of the timeline images.
     float fps = 3;    // Frames per second for the timeline.
 }
@@ -28,7 +29,7 @@ message CreateVideoTimeLineResponse {
 }
 
 message ConvertVideoToMpeg4H264Request {
-    string path = 1;  // The path of the video file to convert.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }];  // The path of the video file to convert.
 }
 
 message ConvertVideoToMpeg4H264Response {
@@ -36,7 +37,7 @@ message ConvertVideoToMpeg4H264Response {
 }
 
 message ConvertVideoToHlsRequest {
-    string path = 1;  // The path of the video file to convert.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }];  // The path of the video file to convert.
 }
 
 message ConvertVideoToHlsResponse {
@@ -45,7 +46,7 @@ message ConvertVideoToHlsResponse {
 
 // Request to start processing a video.
 message StartProcessVideoRequest {
-    string path = 1;  // Path of the video to process. If empty, processes all videos.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }];  // Path of the video to process. If empty, processes all videos.
 }
 
 message StartProcessVideoResponse {
@@ -54,7 +55,7 @@ message StartProcessVideoResponse {
 
 // Request to start processing audio.
 message StartProcessAudioRequest {
-    string path = 1;  // Path of the audio to process. If empty, processes all audio.
+    string path = 1 [(globular.auth.resource) = { kind: "audio", scope_anchor: true }];  // Path of the audio to process. If empty, processes all audio.
 }
 
 message StartProcessAudioResponse {
@@ -75,7 +76,7 @@ message IsProcessVideoResponse {
 // Request to upload a video.
 message UploadVideoRequest {
     string url = 1;    // URL of the video to upload.
-    string dest = 2;   // Destination path for the uploaded video.
+    string dest = 2 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];   // Destination path for the uploaded video.
     string format = 3; // Desired format of the video (e.g., mp3, mp4).
 }
 
@@ -148,7 +149,7 @@ message ClearVideoConversionErrorsResponse {
 }
 
 message ClearVideoConversionErrorRequest {
-    string path = 1; // Path of the video file for which to clear the error.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }]; // Path of the video file for which to clear the error.
 }
 
 message ClearVideoConversionErrorResponse {
@@ -180,7 +181,7 @@ message GetVideoConversionLogsResponse {
 
 // Request to generate a playlist for a given directory.
 message GeneratePlaylistRequest {
-    string dir = 1; // Directory for which to generate the playlist.
+    string dir = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }]; // Directory for which to generate the playlist.
 }
 
 message GeneratePlaylistResponse {
@@ -188,7 +189,7 @@ message GeneratePlaylistResponse {
 }
 
 message CreateVttFileRequest {
-    string path = 1; // Path of the video file.
+    string path = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: true }]; // Path of the video file.
     float fps = 2;   // Frames per second for the timeline.
 }
 
@@ -270,8 +271,8 @@ message SyncChannelFromPlaylistResponse {
 // Read one channel.
 // If 'path' is set, we look only in that root; otherwise we search all roots.
 message GetChannelRequest {
-    string id   = 1; // playlist_id
-    string path = 2; // optional root path
+    string id   = 1 [(globular.auth.resource) = { kind: "channel", scope_anchor: true }]; // playlist_id
+    string path = 2 [(globular.auth.resource) = { kind: "path" }]; // optional root path
 }
 
 message GetChannelResponse {
@@ -280,7 +281,7 @@ message GetChannelResponse {
 
 // List channels under a given root path (e.g. "/users/sa@globular.io/video").
 message ListChannelsRequest {
-    string path      = 1; // root path where channels are stored
+    string path      = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }]; // root path where channels are stored
     string extractor = 2; // optional filter (e.g. "Youtube", "PornHub")
 }
 
@@ -290,84 +291,259 @@ message ListChannelsResponse {
 
 // Media service definition.
 service MediaService {
-	
+
   	// Stop the server.
   	// This RPC allows the client to request the server to stop.
-  	rpc Stop(StopRequest) returns (StopResponse);
+  	rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "media.stop"
+            permission: "admin"
+            resource_template: "/media"
+            default_role_hint: "admin"
+        };
+    };
 
     // Upload a video from a URL (e.g., YouTube, Hulu, Pornhub).
-    rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse);
+    rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "media.upload"
+            permission: "write"
+            resource_template: "/media/files/{dest}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Create a video preview.
-    rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse);
+    rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse) {
+        option (globular.auth.authz) = {
+            action: "media.preview"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Create a video timeline.
-    rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse);
+    rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse) {
+        option (globular.auth.authz) = {
+            action: "media.timeline"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Convert a video file to MPEG-4 AVC (H.264) format.
-    rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response);
+    rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response) {
+        option (globular.auth.authz) = {
+            action: "media.converth264"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Convert a video file to HLS (HTTP Live Streaming) format.
-    rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse);
+    rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.converthls"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Start processing video on the server.
-    rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse);
+    rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "media.processvideo"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Start processing audio on the server.
-    rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse);
+    rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse) {
+        option (globular.auth.authz) = {
+            action: "media.processaudio"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Stop processing video on the server.
-    rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse);
+    rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "media.stopprocess"
+            permission: "admin"
+            resource_template: "/media"
+            default_role_hint: "admin"
+        };
+    };
 
     // Check if video processing is currently running.
-    rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse);
+    rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "media.isprocessing"
+            permission: "read"
+            resource_template: "/media"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Set video processing configuration.
-    rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse);
+    rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse) {
+        option (globular.auth.authz) = {
+            action: "media.setconversion"
+            permission: "admin"
+            resource_template: "/media/config"
+            default_role_hint: "admin"
+        };
+    };
 
     // Set video stream conversion configuration.
-    rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse);
+    rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse) {
+        option (globular.auth.authz) = {
+            action: "media.setstreamconversion"
+            permission: "admin"
+            resource_template: "/media/config"
+            default_role_hint: "admin"
+        };
+    };
 
     // Set the start hour for video conversion.
-    rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse);
+    rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse) {
+        option (globular.auth.authz) = {
+            action: "media.setstarthour"
+            permission: "admin"
+            resource_template: "/media/config"
+            default_role_hint: "admin"
+        };
+    };
 
     // Set the maximum delay for video conversion.
-    rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse);
+    rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse) {
+        option (globular.auth.authz) = {
+            action: "media.setmaxdelay"
+            permission: "admin"
+            resource_template: "/media/config"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieve the list of failed video conversions.
-    rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse);
+    rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.geterrors"
+            permission: "read"
+            resource_template: "/media/conversion/errors"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Clear all video conversion errors.
-    rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse);
+    rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.clearerrors"
+            permission: "delete"
+            resource_template: "/media/conversion/errors"
+            default_role_hint: "admin"
+        };
+    };
 
     // Clear a specific video conversion error.
-    rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse);
+    rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse) {
+        option (globular.auth.authz) = {
+            action: "media.clearerror"
+            permission: "delete"
+            resource_template: "/media/conversion/errors/{path}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Clear video conversion logs.
-    rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse);
+    rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.clearlogs"
+            permission: "delete"
+            resource_template: "/media/conversion/logs"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieve video conversion logs.
-    rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse);
+    rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.getlogs"
+            permission: "read"
+            resource_template: "/media/conversion/logs"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Generate playlists for a directory.
-    rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse);
+    rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse) {
+        option (globular.auth.authz) = {
+            action: "media.playlist"
+            permission: "write"
+            resource_template: "/media/files/{dir}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Create a VTT file for a video.
-    rpc CreateVttFile(CreateVttFileRequest) returns (CreateVttFileResponse);
+    rpc CreateVttFile(CreateVttFileRequest) returns (CreateVttFileResponse) {
+        option (globular.auth.authz) = {
+            action: "media.vtt"
+            permission: "write"
+            resource_template: "/media/files/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Stream back all media files (audio + video) visible under the
     // public, users and applications trees.
-    rpc ListMediaFiles(ListMediaFilesRequest) returns (stream MediaFile);
+    rpc ListMediaFiles(ListMediaFilesRequest) returns (stream MediaFile) {
+        option (globular.auth.authz) = {
+            action: "media.list"
+            permission: "read"
+            collection_template: "/media/files"
+            default_role_hint: "viewer"
+        };
+    };
 
     // --- Channel / playlist sync ---------------------------------------
 
     // Normalize and persist a channel definition from yt-dlp playlist.json.
     rpc SyncChannelFromPlaylist(SyncChannelFromPlaylistRequest)
-        returns (SyncChannelFromPlaylistResponse);
+        returns (SyncChannelFromPlaylistResponse) {
+        option (globular.auth.authz) = {
+            action: "media.upload"
+            permission: "write"
+            collection_template: "/media/channels"
+            default_role_hint: "editor"
+        };
+    };
 
     // Fetch a single channel.
-    rpc GetChannel(GetChannelRequest) returns (GetChannelResponse);
+    rpc GetChannel(GetChannelRequest) returns (GetChannelResponse) {
+        option (globular.auth.authz) = {
+            action: "media.list"
+            permission: "read"
+            resource_template: "/media/channels/{id}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // List channels stored under a given root path.
-    rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+    rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse) {
+        option (globular.auth.authz) = {
+            action: "media.list"
+            permission: "read"
+            collection_template: "/media/channels"
+            default_role_hint: "viewer"
+        };
+    };
 }

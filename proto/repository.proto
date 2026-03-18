@@ -2,6 +2,7 @@ syntax = "proto3";
 package repository;
 
 import "resource.proto";
+import "globular_auth.proto";
 
 option go_package="github.com/globulario/services/golang/repository/repositorypb";
 
@@ -132,7 +133,7 @@ message ProvenanceRecord {
 // SetArtifactStateRequest transitions an artifact's lifecycle state.
 // Used for deprecation, yanking, quarantine, and revocation.
 message SetArtifactStateRequest {
-  ArtifactRef ref = 1;
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
   int64 build_number = 2;
   PublishState target_state = 3;
   string reason = 4;           // audit reason for state change
@@ -145,7 +146,7 @@ message SetArtifactStateResponse {
 
 // GetNamespaceRequest queries namespace ownership information.
 message GetNamespaceRequest {
-  string namespace_id = 1;     // publisher namespace to query
+  string namespace_id = 1 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];     // publisher namespace to query
 }
 
 message NamespaceInfo {
@@ -166,7 +167,7 @@ message ListArtifactsResponse {
 
 message UploadArtifactRequest {
   string user = 1;
-  string organization = 2;
+  string organization = 2 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];
   ArtifactRef ref = 3;
   bytes data = 4;
   int64 build_number = 5;       // build iteration within version (0 = legacy)
@@ -177,7 +178,7 @@ message UploadArtifactResponse {
 }
 
 message DownloadArtifactRequest {
-  ArtifactRef ref = 1;
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
   int64 build_number = 2;  // Build iteration to download (0 = legacy/latest)
 }
 
@@ -186,7 +187,7 @@ message DownloadArtifactResponse {
 }
 
 message GetArtifactManifestRequest {
-  ArtifactRef ref = 1;
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
   int64 build_number = 2;  // Build iteration within version (0 = legacy/unspecified).
 }
 
@@ -197,7 +198,7 @@ message GetArtifactManifestResponse {
 // Request for uploading a bundle.
 message UploadBundleRequest {
   string user = 1;              // Username of the person uploading the bundle.
-  string organization = 2;      // Name of the organization uploading the bundle.
+  string organization = 2 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];      // Name of the organization uploading the bundle.
   bytes data = 3;               // Binary data of the bundle being uploaded.
 }
 
@@ -208,7 +209,7 @@ message UploadBundleResponse {
 
 // Request for downloading a bundle.
 message DownloadBundleRequest {
-  resource.PackageDescriptor descriptor = 1;  // Descriptor of the package to be downloaded.
+  resource.PackageDescriptor descriptor = 1 [(globular.auth.resource) = { kind: "bundle", scope_anchor: true }];  // Descriptor of the package to be downloaded.
   string platform = 2;                         // Platform for which the bundle is intended.
 }
 
@@ -231,7 +232,7 @@ message BundleSummary {
 }
 
 message ListBundlesRequest {
-  string prefix = 1; // optional: filter bundles whose name starts with this
+  string prefix = 1 [(globular.auth.resource) = { kind: "bundle" }]; // optional: filter bundles whose name starts with this
 }
 
 message ListBundlesResponse {
@@ -244,7 +245,7 @@ message ListBundlesResponse {
 message SearchArtifactsRequest {
   string query = 1;              // free-text search across name/description/keywords
   ArtifactKind kind = 2;         // filter by package type (0 = all)
-  string publisher_id = 3;       // filter by publisher
+  string publisher_id = 3 [(globular.auth.resource) = { kind: "namespace" }];       // filter by publisher
   string platform = 4;           // filter by platform
   int32 page_size = 5;           // max results per page (0 = server default)
   string page_token = 6;         // opaque token for next page
@@ -258,8 +259,8 @@ message SearchArtifactsResponse {
 
 // GetArtifactVersionsRequest returns all versions of a given package.
 message GetArtifactVersionsRequest {
-  string publisher_id = 1;
-  string name = 2;
+  string publisher_id = 1 [(globular.auth.resource) = { kind: "namespace", scope_anchor: true }];
+  string name = 2 [(globular.auth.resource) = { kind: "artifact" }];
   string platform = 3;           // optional: filter by platform
 }
 
@@ -273,7 +274,7 @@ message GetArtifactVersionsResponse {
 // artifact installed. Set force=true to delete from the repository even if
 // installed instances exist on nodes.
 message DeleteArtifactRequest {
-  ArtifactRef ref = 1;
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
   bool force = 2;
 }
 
@@ -285,7 +286,7 @@ message DeleteArtifactResponse {
 // PromoteArtifactRequest transitions an artifact's publish state.
 // Typical transitions: VERIFIED→PUBLISHED (success) or VERIFIED→ORPHANED (descriptor failed).
 message PromoteArtifactRequest {
-  ArtifactRef ref = 1;
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
   int64 build_number = 2;           // identifies the specific build to promote
   PublishState target_state = 3;     // desired state (PUBLISHED, ORPHANED, FAILED)
 }
@@ -302,43 +303,134 @@ service PackageRepository {
   // Downloads a package bundle from the package repository.
   // Input: DownloadBundleRequest containing the package descriptor and platform.
   // Output: Stream of DownloadBundleResponse containing the binary data of the bundle.
-  rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse);
-  
+  rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.bundle.read"
+      permission: "read"
+      resource_template: "/repository/bundles/{descriptor}"
+      default_role_hint: "viewer"
+    };
+  };
+
   // Uploads a package bundle to the repository.
   // Input: Stream of UploadBundleRequest containing the user, organization, and bundle data.
   // Output: UploadBundleResponse indicating the result of the upload operation.
-  rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse);
+  rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.bundle.write"
+      permission: "write"
+      collection_template: "/repository/namespaces/{organization}/bundles"
+      default_role_hint: "editor"
+    };
+  };
 
   // Lists stored artifacts (services, applications, agents, subsystems).
-  rpc ListArtifacts(ListArtifactsRequest) returns(ListArtifactsResponse);
+  rpc ListArtifacts(ListArtifactsRequest) returns(ListArtifactsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.list"
+      permission: "read"
+      collection_template: "/repository/artifacts"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Uploads an artifact stream into the repository.
-  rpc UploadArtifact(stream UploadArtifactRequest) returns(UploadArtifactResponse);
+  rpc UploadArtifact(stream UploadArtifactRequest) returns(UploadArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.write"
+      permission: "write"
+      collection_template: "/repository/namespaces/{organization}/artifacts"
+      default_role_hint: "editor"
+    };
+  };
 
   // Downloads a complete artifact from the repository.
-  rpc DownloadArtifact(DownloadArtifactRequest) returns(stream DownloadArtifactResponse);
+  rpc DownloadArtifact(DownloadArtifactRequest) returns(stream DownloadArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Retrieves metadata for a specific artifact reference.
-  rpc GetArtifactManifest(GetArtifactManifestRequest) returns(GetArtifactManifestResponse);
+  rpc GetArtifactManifest(GetArtifactManifestRequest) returns(GetArtifactManifestResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Lists all bundles published to the repository (from the Resource service index).
-  rpc ListBundles(ListBundlesRequest) returns(ListBundlesResponse);
+  rpc ListBundles(ListBundlesRequest) returns(ListBundlesResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.bundle.list"
+      permission: "read"
+      collection_template: "/repository/bundles"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Searches artifacts with optional text query and filters.
-  rpc SearchArtifacts(SearchArtifactsRequest) returns(SearchArtifactsResponse);
+  rpc SearchArtifacts(SearchArtifactsRequest) returns(SearchArtifactsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.search"
+      permission: "read"
+      collection_template: "/repository/artifacts"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Returns all published versions of a given package.
-  rpc GetArtifactVersions(GetArtifactVersionsRequest) returns(GetArtifactVersionsResponse);
+  rpc GetArtifactVersions(GetArtifactVersionsRequest) returns(GetArtifactVersionsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      resource_template: "/repository/namespaces/{publisher_id}/artifacts/{name}/versions"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Deletes a specific artifact version from the repository.
-  rpc DeleteArtifact(DeleteArtifactRequest) returns(DeleteArtifactResponse);
+  rpc DeleteArtifact(DeleteArtifactRequest) returns(DeleteArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.delete"
+      permission: "delete"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
-  rpc PromoteArtifact(PromoteArtifactRequest) returns(PromoteArtifactResponse);
+  rpc PromoteArtifact(PromoteArtifactRequest) returns(PromoteArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.promote"
+      permission: "write"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
-  rpc SetArtifactState(SetArtifactStateRequest) returns(SetArtifactStateResponse);
+  rpc SetArtifactState(SetArtifactStateRequest) returns(SetArtifactStateResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.set_state"
+      permission: "write"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Queries namespace ownership and permission information.
-  rpc GetNamespace(GetNamespaceRequest) returns(GetNamespaceResponse);
+  rpc GetNamespace(GetNamespaceRequest) returns(GetNamespaceResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.namespace.read"
+      permission: "read"
+      resource_template: "/repository/namespaces/{namespace_id}"
+      default_role_hint: "viewer"
+    };
+  };
 }

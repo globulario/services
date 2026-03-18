@@ -3,6 +3,7 @@ syntax = "proto3";
 package backup_hook;
 
 option go_package = "github.com/globulario/services/golang/backup_hook/backup_hookpb;backup_hookpb";
+import "globular_auth.proto";
 
 // BackupHookService is a lightweight contract implemented by any Globular service
 // that holds state needing consistency during cluster backups.
@@ -10,12 +11,26 @@ option go_package = "github.com/globulario/services/golang/backup_hook/backup_ho
 // Backup-manager calls PrepareBackup before taking snapshots and FinalizeBackup
 // after (regardless of success/failure).
 service BackupHookService {
-  rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupResponse);
-  rpc FinalizeBackup(FinalizeBackupRequest) returns (FinalizeBackupResponse);
+  rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_hook.prepare"
+      permission: "admin"
+      resource_template: "/backup/hooks/{backup_id}/prepare"
+      default_role_hint: "admin"
+    };
+  };
+  rpc FinalizeBackup(FinalizeBackupRequest) returns (FinalizeBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_hook.finalize"
+      permission: "admin"
+      resource_template: "/backup/hooks/{backup_id}/finalize"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 message PrepareBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup", scope_anchor: true }];
   string mode = 2;                     // "SERVICE" or "CLUSTER"
   repeated string providers = 3;       // providers being run (etcd, restic, etc.)
   repeated string services = 4;        // scoped services (empty = all)
@@ -46,7 +61,7 @@ message ServiceDataEntry {
 }
 
 message FinalizeBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup", scope_anchor: true }];
   string mode = 2;
   repeated string providers = 3;
   repeated string services = 4;

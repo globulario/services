@@ -6,6 +6,8 @@ package conversation;
 
 option go_package="github.com/globulario/services/golang/conversation/conversationpb";
 
+import "globular_auth.proto";
+
 /** The conversation state. **/
 enum ConversationState{
 	ACTIVE = 0;
@@ -137,7 +139,7 @@ message CreateConversationResponse{
 
 
 message DeleteConversationRequest{
-	string conversation_uuid = 1;
+	string conversation_uuid = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
 }
 
 message DeleteConversationResponse{
@@ -177,7 +179,7 @@ message RevokeInvitationResponse{
 }
 
 message GetReceivedInvitationsRequest{
-	string account = 1;
+	string account = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }];
 }
 
 message GetReceivedInvitationsResponse{
@@ -185,7 +187,7 @@ message GetReceivedInvitationsResponse{
 }
 
 message GetSentInvitationsRequest{
-	string account = 1;
+	string account = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }];
 }
 
 message GetSentInvitationsResponse{
@@ -206,8 +208,8 @@ message FindConversationsResponse{
 
 message JoinConversationRequest{
 	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
+	string conversation_uuid = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+
 	/** The paticipant token */
 	string connection_uuid = 2;
 }
@@ -219,10 +221,10 @@ message JoinConversationResponse{
 
 message KickoutFromConversationRequest{
 	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
+	string conversation_uuid = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+
 	/** The account id **/
-	string account = 2;
+	string account = 2 [(globular.auth.resource) = { kind: "account" }];
 }
 
 message KickoutFromConversationResponse{
@@ -230,7 +232,7 @@ message KickoutFromConversationResponse{
 }
 
 message GetConversationRequest{
-	string id = 1;
+	string id = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
 }
 
 message GetConversationResponse{
@@ -238,7 +240,7 @@ message GetConversationResponse{
 }
 
 message GetConversationsRequest{
-	string creator = 1;
+	string creator = 1 [(globular.auth.resource) = { kind: "account" }];
 }
 
 message GetConversationsResponse{
@@ -247,8 +249,8 @@ message GetConversationsResponse{
 
 message LeaveConversationRequest{
 	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
+	string conversation_uuid = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+
 	/** The paticipant token */
 	string connection_uuid = 2;
 }
@@ -267,9 +269,9 @@ message SendMessageResponse {
 }
 
 message DeleteMessageRequest {
-	/** The message uuid */
-	string conversation = 1;
-	string uuid = 2;
+	/** The conversation uuid */
+	string conversation = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+	string uuid = 2 [(globular.auth.resource) = { kind: "message" }];
 }
 
 message DeleteMessageResponse {
@@ -286,8 +288,8 @@ message FindMessagesResponse{
 }
 
 message LikeMessageRqst{
-	string conversation = 1;
-	string message =2;
+	string conversation = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+	string message =2 [(globular.auth.resource) = { kind: "message" }];
 	string account = 3;
 }
 
@@ -296,8 +298,8 @@ message LikeMessageResponse{
 }
 
 message DislikeMessageRqst{
-	string conversation = 1;
-	string message =2;
+	string conversation = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+	string message =2 [(globular.auth.resource) = { kind: "message" }];
 	string account = 3;
 }
 
@@ -306,8 +308,8 @@ message DislikeMessageResponse{
 }
 
 message SetMessageReadRqst{
-	string conversation = 1;
-	string message =2;
+	string conversation = 1 [(globular.auth.resource) = { kind: "conversation", scope_anchor: true }];
+	string message =2 [(globular.auth.resource) = { kind: "message" }];
 	string account = 3;
 }
 
@@ -324,83 +326,244 @@ message StopResponse {
 }
 
 service ConversationService {
-	
+
   // Stop the server.
-  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Stop(StopRequest) returns (StopResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.admin"
+      permission: "admin"
+      resource_template: "/conversation"
+      default_role_hint: "admin"
+    };
+  };
 
   //////////////////////////////// Conversation ////////////////////////////////
 
   // Connect will open a channel between the conversation sever and it client
   // and that channel will be use to send all conversation message.
-  rpc Connect(ConnectRequest) returns (stream ConnectResponse);
+  rpc Connect(ConnectRequest) returns (stream ConnectResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.connect"
+      permission: "read"
+      collection_template: "/conversation/connections"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Close connection with the conversation server.
-  rpc Disconnect(DisconnectRequest) returns(DisconnectResponse);
+  rpc Disconnect(DisconnectRequest) returns(DisconnectResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.connect"
+      permission: "read"
+      collection_template: "/conversation/connections"
+      default_role_hint: "viewer"
+    };
+  };
 
-  // Create a new conversation with a given name. The creator will became the 
+  // Create a new conversation with a given name. The creator will became the
   // owner of that conversation and he will be able to set permissions to
   // determine who can participate to the conversation.
-  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
+  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.create"
+      permission: "write"
+      collection_template: "/conversation/conversations"
+      default_role_hint: "editor"
+    };
+  };
 
   // Delete the conversation
-  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.delete"
+      permission: "delete"
+      resource_template: "/conversation/conversations/{conversation_uuid}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Retreive a conversation by keywords or name...
-  rpc FindConversations(FindConversationsRequest) returns (FindConversationsResponse);
+  rpc FindConversations(FindConversationsRequest) returns (FindConversationsResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.list"
+      permission: "read"
+      collection_template: "/conversation/conversations"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Join a conversation.
-  rpc JoinConversation(JoinConversationRequest) returns (stream JoinConversationResponse);
+  rpc JoinConversation(JoinConversationRequest) returns (stream JoinConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.join"
+      permission: "read"
+      resource_template: "/conversation/conversations/{conversation_uuid}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Leave a given conversation.
-  rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
+  rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.leave"
+      permission: "write"
+      resource_template: "/conversation/conversations/{conversation_uuid}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Return a conversation with a given id.
-  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.read"
+      permission: "read"
+      resource_template: "/conversation/conversations/{id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Return the list of conversations created by a given user.
-  rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);
+  rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.read"
+      permission: "read"
+      collection_template: "/conversation/conversations"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Kickout a user for any good reason...
-  rpc KickoutFromConversation(KickoutFromConversationRequest) returns (KickoutFromConversationResponse);
+  rpc KickoutFromConversation(KickoutFromConversationRequest) returns (KickoutFromConversationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.manage"
+      permission: "write"
+      resource_template: "/conversation/conversations/{conversation_uuid}"
+      default_role_hint: "admin"
+    };
+  };
 
   ////////////////////////////////// Invitation ///////////////////////////////////
 
   // Conversation owner can invite a contact into Conversation.
-  rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse);
+  rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite"
+      permission: "write"
+      collection_template: "/conversation/invitations"
+      default_role_hint: "editor"
+    };
+  };
 
   // Accept invitation response.
-  rpc AcceptInvitation(AcceptInvitationRequest) returns(AcceptInvitationResponse);
+  rpc AcceptInvitation(AcceptInvitationRequest) returns(AcceptInvitationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite"
+      permission: "write"
+      collection_template: "/conversation/invitations"
+      default_role_hint: "editor"
+    };
+  };
 
   // Decline invitation response.
-  rpc DeclineInvitation(DeclineInvitationRequest) returns(DeclineInvitationResponse);
+  rpc DeclineInvitation(DeclineInvitationRequest) returns(DeclineInvitationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite"
+      permission: "write"
+      collection_template: "/conversation/invitations"
+      default_role_hint: "editor"
+    };
+  };
 
   // Revoke invitation.
-  rpc RevokeInvitation(RevokeInvitationRequest) returns(RevokeInvitationResponse);
+  rpc RevokeInvitation(RevokeInvitationRequest) returns(RevokeInvitationResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite"
+      permission: "write"
+      collection_template: "/conversation/invitations"
+      default_role_hint: "editor"
+    };
+  };
 
   // Get the list of received invitations request.
-  rpc GetReceivedInvitations(GetReceivedInvitationsRequest) returns(GetReceivedInvitationsResponse);
+  rpc GetReceivedInvitations(GetReceivedInvitationsRequest) returns(GetReceivedInvitationsResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite.read"
+      permission: "read"
+      resource_template: "/conversation/accounts/{account}/invitations/received"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Get the list of sent invitations request.
-  rpc GetSentInvitations(GetSentInvitationsRequest) returns(GetSentInvitationsResponse);
+  rpc GetSentInvitations(GetSentInvitationsRequest) returns(GetSentInvitationsResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.invite.read"
+      permission: "read"
+      resource_template: "/conversation/accounts/{account}/invitations/sent"
+      default_role_hint: "viewer"
+    };
+  };
 
   ////////////////////////////////// Message ///////////////////////////////////
 
   // Send a message
-  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.write"
+      permission: "write"
+      collection_template: "/conversation/conversations/{conversation}/messages"
+      default_role_hint: "editor"
+    };
+  };
 
   // Delete message.
-  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.delete"
+      permission: "delete"
+      resource_template: "/conversation/conversations/{conversation}/messages/{uuid}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Retreive a conversation by keywords or name...
-  rpc FindMessages(FindMessagesRequest) returns (stream FindMessagesResponse);
+  rpc FindMessages(FindMessagesRequest) returns (stream FindMessagesResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.read"
+      permission: "read"
+      collection_template: "/conversation/messages"
+      default_role_hint: "viewer"
+    };
+  };
 
   // append a like message
-  rpc LikeMessage(LikeMessageRqst) returns (LikeMessageResponse);
+  rpc LikeMessage(LikeMessageRqst) returns (LikeMessageResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.react"
+      permission: "write"
+      resource_template: "/conversation/conversations/{conversation}/messages/{message}"
+      default_role_hint: "editor"
+    };
+  };
 
   // dislike message
-  rpc DislikeMessage(DislikeMessageRqst) returns (DislikeMessageResponse);
+  rpc DislikeMessage(DislikeMessageRqst) returns (DislikeMessageResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.react"
+      permission: "write"
+      resource_template: "/conversation/conversations/{conversation}/messages/{message}"
+      default_role_hint: "editor"
+    };
+  };
 
   // set message as read
-  rpc SetMessageRead(SetMessageReadRqst) returns(SetMessageReadResponse);
+  rpc SetMessageRead(SetMessageReadRqst) returns(SetMessageReadResponse) {
+    option (globular.auth.authz) = {
+      action: "conversation.message.write"
+      permission: "write"
+      resource_template: "/conversation/conversations/{conversation}/messages/{message}"
+      default_role_hint: "editor"
+    };
+  };
 
 }

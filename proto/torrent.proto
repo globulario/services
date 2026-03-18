@@ -5,9 +5,10 @@
 
  syntax = "proto3";
  package torrent;
- 
+
  option go_package="github.com/globulario/services/golang/torrent/torrentpb";
- 
+ import "globular_auth.proto";
+
  // Represents a link to a torrent file.
  message TorrentLnk {
 	 string Lnk = 1;    // The link to the torrent file
@@ -16,15 +17,15 @@
 	 bool Seed = 4;     // Indicates if the torrent will be seeded
 	 string Owner = 5;  // Owner of the torrent
  }
- 
+
  // Request to retrieve torrent links.
  message GetTorrentLnksRequest {}
- 
+
  // Response containing a list of torrent links.
  message GetTorrentLnksResponse {
 	 repeated TorrentLnk lnks = 1; // List of torrent links
  }
- 
+
  // Information about a specific file within a torrent.
  message TorrentFileInfo {
 	 string Path = 1;       // Path of the file within the torrent
@@ -33,7 +34,7 @@
 	 int64 Completed = 4;   // Number of completed chunks
 	 double Percent = 5;    // Percentage of the file that has been downloaded
  }
- 
+
  // Information about a torrent.
  message TorrentInfo {
 	 string Name = 1;            // Name of the torrent
@@ -48,45 +49,72 @@
 	 repeated TorrentFileInfo Files = 10; // List of files in the torrent
 	 string Destination = 11;   // Destination for the downloaded files
  }
- 
+
  // Request to retrieve information about torrents.
  message GetTorrentInfosRequest {}
- 
+
  // Response containing information about multiple torrents.
  message GetTorrentInfosResponse {
 	 repeated TorrentInfo infos = 1; // List of torrent information
  }
- 
+
  // Request to download a new torrent.
  message DownloadTorrentRequest {
 	 string link = 1;   // The torrent link or magnet URL
-	 string dest = 2;   // Destination for the downloaded files
+	 string dest = 2 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];   // Destination for the downloaded files
 	 bool seed = 3;     // Whether to seed the torrent after downloading
  }
- 
+
  // Response for the download torrent request, possibly containing a UUID.
  message DownloadTorrentResponse {}
- 
+
  // Request to drop or remove a torrent.
  message DropTorrentRequest {
-	 string name = 1; // Name of the torrent to be dropped
+	 string name = 1 [(globular.auth.resource) = { kind: "torrent", scope_anchor: false }]; // Name of the torrent to be dropped
  }
- 
+
  // Response for dropping a torrent.
  message DropTorrentResponse {}
- 
+
  // Service definition for managing torrents.
  service TorrentService {
 	 // Initiates the download of a torrent.
-	 rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse);
- 
+	 rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse) {
+		option (globular.auth.authz) = {
+			action: "torrent.download"
+			permission: "write"
+			resource_template: "/torrent/downloads/{dest}"
+			default_role_hint: "editor"
+		};
+	 };
+
 	 // Retrieves information about current torrents.
-	 rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse);
- 
+	 rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse) {
+		option (globular.auth.authz) = {
+			action: "torrent.list"
+			permission: "read"
+			collection_template: "/torrent/downloads"
+			default_role_hint: "viewer"
+		};
+	 };
+
 	 // Drops a specific torrent from the service.
-	 rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);
- 
+	 rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse) {
+		option (globular.auth.authz) = {
+			action: "torrent.delete"
+			permission: "delete"
+			resource_template: "/torrent/downloads/{name}"
+			default_role_hint: "admin"
+		};
+	 };
+
 	 // Retrieves links to torrents.
-	 rpc GetTorrentLnks(GetTorrentLnksRequest) returns(GetTorrentLnksResponse);
+	 rpc GetTorrentLnks(GetTorrentLnksRequest) returns(GetTorrentLnksResponse) {
+		option (globular.auth.authz) = {
+			action: "torrent.links.read"
+			permission: "read"
+			collection_template: "/torrent/links"
+			default_role_hint: "viewer"
+		};
+	 };
  }
- 

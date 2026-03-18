@@ -4,6 +4,8 @@ package resource;
 // import "google/protobuf/struct.proto";
 option go_package = "github.com/globulario/services/golang/resource/resourcepb";
 
+import "globular_auth.proto";
+
 /** 
  * PackageBundle contains the information for updating a service or application on a node.
  */
@@ -26,13 +28,13 @@ message SetPackageBundleRequest { PackageBundle bundle = 1; }
 message SetPackageBundleResponse { bool result = 1; }
 
 message GetPackageBundleChecksumRequest {
-  string id = 1; // The unique identifier of the package bundle.
+  string id = 1 [(globular.auth.resource) = { kind: "package" }]; // The unique identifier of the package bundle.
 }
 
 message GetPackageBundleChecksumResponse { string checksum = 1; }
 
 message GetPackageBundlesRequest {
-  string publisher_id = 1; // optional: filter by publisher
+  string publisher_id = 1 [(globular.auth.resource) = { kind: "account" }]; // optional: filter by publisher
 }
 
 message GetPackageBundlesResponse {
@@ -71,8 +73,8 @@ message PackageDescriptor {
 }
 
 message GetPackageDescriptorRequest {
-  string serviceId = 1;
-  string PublisherID = 2;
+  string serviceId = 1 [(globular.auth.resource) = { kind: "package", scope_anchor: true }];
+  string PublisherID = 2 [(globular.auth.resource) = { kind: "account" }];
 }
 
 message GetPackageDescriptorResponse {
@@ -118,7 +120,7 @@ message Role {
 
 
 message AddRoleActionsRqst {
-  string roleId = 1; // The unique identifier of the role.
+  string roleId = 1 [(globular.auth.resource) = { kind: "role", scope_anchor: true }]; // The unique identifier of the role.
   repeated string actions = 2; // A list of action identifiers to be added to the role.
 }
 
@@ -127,7 +129,7 @@ message AddRoleActionsRsp {
 }
 
 message RemoveRoleActionRqst {
-  string roleId = 1; // The unique identifier of the role.
+  string roleId = 1 [(globular.auth.resource) = { kind: "role", scope_anchor: true }]; // The unique identifier of the role.
   string action = 2; // The identifier of the action to be removed from the role.
 }
 
@@ -178,8 +180,8 @@ message RegisterAccountRsp {
   string result = 1; // The result of the account registration request.
 }
 
-message AccountExistRqst { 
-  string id = 1; // The unique identifier of the account to check for existence.
+message AccountExistRqst {
+  string id = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to check for existence.
 }
 
 message AccountExistRsp { 
@@ -199,7 +201,7 @@ message GetAccountsRsp {
 }
 
 message GetAccountRqst {
-  string accountId = 1; // The unique identifier of the account to retrieve.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to retrieve.
 }
 
 message GetAccountRsp {
@@ -215,7 +217,7 @@ message SetAccountRsp {
 }
 
 message SetAccountPasswordRqst {
-  string accountId = 1; // The unique identifier of the account for password change.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account for password change.
   string old_password = 2; // The current password of the account.
   string new_password = 3; // The new password to set for the account.
 }
@@ -225,7 +227,7 @@ message SetAccountPasswordRsp {
 }
 
 message SetEmailRequest {
-  string accountId = 1; // The unique identifier of the account for email update.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account for email update.
   string oldEmail = 2; // The current email address of the account.
   string newEmail = 3; // The new email address to set for the account.
 }
@@ -235,7 +237,7 @@ message SetEmailResponse {
 }
 
 message DeleteAccountRqst {
-  string id = 1; // The unique identifier of the account to be deleted.
+  string id = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to be deleted.
 }
 
 message DeleteAccountRsp {
@@ -243,8 +245,8 @@ message DeleteAccountRsp {
 }
 
 message AddAccountRoleRqst {
-  string accountId = 1; // The unique identifier of the account to add a role to.
-  string roleId = 2; // The unique identifier of the role to be added to the account.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to add a role to.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // The unique identifier of the role to be added to the account.
 }
 
 message AddAccountRoleRsp {
@@ -252,8 +254,8 @@ message AddAccountRoleRsp {
 }
 
 message RemoveAccountRoleRqst {
-  string accountId = 1; // The unique identifier of the account to remove a role from.
-  string roleId = 2; // The unique identifier of the role to be removed from the account.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to remove a role from.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // The unique identifier of the role to be removed from the account.
 }
 
 message RemoveAccountRoleRsp {
@@ -271,7 +273,7 @@ message Contact {
 }
 
 message SetAccountContactRqst {
-  string accountId = 1; // The unique identifier of the account to set a contact for.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // The unique identifier of the account to set a contact for.
   Contact contact = 2; // The contact information to be associated with the account.
 }
 
@@ -291,7 +293,7 @@ message CreateRoleRsp {
  * Request message for updating the values of a specific role.
  */
  message UpdateRoleRqst {
-  string roleId = 1; // The unique identifier of the role to be updated.
+  string roleId = 1 [(globular.auth.resource) = { kind: "role", scope_anchor: true }]; // The unique identifier of the role to be updated.
   string values = 2; // The new values to update the role with, likely in a serialized format.
 }
 
@@ -316,7 +318,7 @@ message GetRolesRsp {
  * Request message for deleting a specific role.
  */
 message DeleteRoleRqst {
-  string roleId = 1; // The unique identifier of the role to be deleted.
+  string roleId = 1 [(globular.auth.resource) = { kind: "role", scope_anchor: true }]; // The unique identifier of the role to be deleted.
 }
 
 message DeleteRoleRsp {
@@ -352,7 +354,7 @@ message CreateApplicationRsp {} // Response for application creation/update requ
 
 /** Request to update an existing application. */
 message UpdateApplicationRqst {
-  string applicationId = 1; // Identifier of the application to update.
+  string applicationId = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }]; // Identifier of the application to update.
   string values = 2;        // Updated values for the application.
 }
 
@@ -362,7 +364,7 @@ message UpdateApplicationRsp {
 
 /** Request to delete an application. */
 message DeleteApplicationRqst {
-  string applicationId = 1; // Identifier of the application to delete.
+  string applicationId = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }]; // Identifier of the application to delete.
 }
 
 message DeleteApplicationRsp {
@@ -371,7 +373,7 @@ message DeleteApplicationRsp {
 
 /** Request to add actions to an application. */
 message AddApplicationActionsRqst {
-  string applicationId = 1;         // Identifier of the application.
+  string applicationId = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }]; // Identifier of the application.
   repeated string actions = 2;      // Actions to add to the application.
 }
 
@@ -381,7 +383,7 @@ message AddApplicationActionsRsp {
 
 /** Request to remove a specific action from an application. */
 message RemoveApplicationActionRqst {
-  string applicationId = 1;         // Identifier of the application.
+  string applicationId = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }]; // Identifier of the application.
   string action = 2;                // Action to remove.
 }
 
@@ -410,7 +412,7 @@ message GetApplicationsRsp {
 
 /** Request to retrieve the version of a specific application. */
 message GetApplicationVersionRqst {
-  string id = 1;                    // Identifier of the application.
+  string id = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }];                    // Identifier of the application.
 }
 
 message GetApplicationVersionRsp {
@@ -419,7 +421,7 @@ message GetApplicationVersionRsp {
 
 /** Request to retrieve the icon of a specific application. */
 message GetApplicationIconRqst {
-  string id = 1;                    // Identifier of the application.
+  string id = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }];                    // Identifier of the application.
 }
 
 message GetApplicationIconRsp {
@@ -428,7 +430,7 @@ message GetApplicationIconRsp {
 
 /** Request to retrieve the alias of a specific application. */
 message GetApplicationAliasRqst {
-  string id = 1;                    // Identifier of the application.
+  string id = 1 [(globular.auth.resource) = { kind: "application", scope_anchor: true }];                    // Identifier of the application.
 }
 
 message GetApplicationAliasRsp {
@@ -459,7 +461,7 @@ message CreateGroupRsp {
 
 /** Request to update an existing group. */
 message UpdateGroupRqst {
-  string groupId = 1; // Identifier of the group to be updated.
+  string groupId = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // Identifier of the group to be updated.
   string values = 2;  // New values for the group's attributes.
 }
 
@@ -479,7 +481,7 @@ message GetGroupsRsp {
 
 /** Request to delete a specific group. */
 message DeleteGroupRqst {
-  string group = 1;   // Identifier of the group to be deleted.
+  string group = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // Identifier of the group to be deleted.
 }
 
 message DeleteGroupRsp {
@@ -488,8 +490,8 @@ message DeleteGroupRsp {
 
 /** Request to add a member account to a group. */
 message AddGroupMemberAccountRqst {
-  string groupId = 1;   // Identifier of the group.
-  string accountId = 2; // Account ID of the member to be added.
+  string groupId = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // Identifier of the group.
+  string accountId = 2 [(globular.auth.resource) = { kind: "account" }]; // Account ID of the member to be added.
 }
 
 message AddGroupMemberAccountRsp {
@@ -498,8 +500,8 @@ message AddGroupMemberAccountRsp {
 
 /** Request to remove a member account from a group. */
 message RemoveGroupMemberAccountRqst {
-  string groupId = 1;   // Identifier of the group.
-  string accountId = 2; // Account ID of the member to be removed.
+  string groupId = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // Identifier of the group.
+  string accountId = 2 [(globular.auth.resource) = { kind: "account" }]; // Account ID of the member to be removed.
 }
 
 message RemoveGroupMemberAccountRsp {
@@ -507,8 +509,8 @@ message RemoveGroupMemberAccountRsp {
 }
 
 message AddGroupRoleRqst {
-  string groupId = 1; // The unique identifier of the group to add a role to.
-  string roleId = 2; // The unique identifier of the role to be added to the group.
+  string groupId = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // The unique identifier of the group to add a role to.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // The unique identifier of the role to be added to the group.
 }
 
 message AddGroupRoleRsp {
@@ -516,8 +518,8 @@ message AddGroupRoleRsp {
 }
 
 message RemoveGroupRoleRqst {
-  string groupId = 1; // The unique identifier of the group to remove a role from.
-  string roleId = 2; // The unique identifier of the role to be removed from the group.
+  string groupId = 1 [(globular.auth.resource) = { kind: "group", scope_anchor: true }]; // The unique identifier of the group to remove a role from.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // The unique identifier of the role to be removed from the group.
 }
 
 message RemoveGroupRoleRsp {
@@ -554,7 +556,7 @@ message CreateOrganizationRsp {
 
 /** Request to update an existing organization. */
 message UpdateOrganizationRqst {
-  string organizationId = 1; // Identifier of the organization to be updated.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization to be updated.
   string values = 2;         // New values for the organization's attributes.
 }
 
@@ -574,8 +576,8 @@ message GetOrganizationsRsp {
 
 /** Request to add an account to an organization. */
 message AddOrganizationAccountRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string accountId = 2;      // Account ID to be added to the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string accountId = 2 [(globular.auth.resource) = { kind: "account" }]; // Account ID to be added to the organization.
 }
 
 message AddOrganizationAccountRsp {
@@ -584,8 +586,8 @@ message AddOrganizationAccountRsp {
 
 /** Request to add a group to an organization. */
 message AddOrganizationGroupRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string groupId = 2;        // Group ID to be added to the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string groupId = 2 [(globular.auth.resource) = { kind: "group" }]; // Group ID to be added to the organization.
 }
 
 message AddOrganizationGroupRsp {
@@ -594,8 +596,8 @@ message AddOrganizationGroupRsp {
 
 /** Request to add a role to an organization. */
 message AddOrganizationRoleRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string roleId = 2;         // Role ID to be added to the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // Role ID to be added to the organization.
 }
 
 message AddOrganizationRoleRsp {
@@ -604,8 +606,8 @@ message AddOrganizationRoleRsp {
 
 /** Request to add an application to an organization. */
 message AddOrganizationApplicationRqst {
-  string organizationId = 1;    // Identifier of the organization.
-  string applicationId = 2;     // Application ID to be added to the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string applicationId = 2 [(globular.auth.resource) = { kind: "application" }]; // Application ID to be added to the organization.
 }
 
 message AddOrganizationApplicationRsp {
@@ -614,8 +616,8 @@ message AddOrganizationApplicationRsp {
 
 /** Request to remove a group from an organization. */
 message RemoveOrganizationGroupRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string groupId = 2;        // Group ID to be removed from the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string groupId = 2 [(globular.auth.resource) = { kind: "group" }]; // Group ID to be removed from the organization.
 }
 
 message RemoveOrganizationGroupRsp {
@@ -624,8 +626,8 @@ message RemoveOrganizationGroupRsp {
 
 /** Request to remove a role from an organization. */
 message RemoveOrganizationRoleRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string roleId = 2;         // Role ID to be removed from the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string roleId = 2 [(globular.auth.resource) = { kind: "role" }]; // Role ID to be removed from the organization.
 }
 
 message RemoveOrganizationRoleRsp {
@@ -634,8 +636,8 @@ message RemoveOrganizationRoleRsp {
 
 /** Request to remove an application from an organization. */
 message RemoveOrganizationApplicationRqst {
-  string organizationId = 1;    // Identifier of the organization.
-  string applicationId = 2;     // Application ID to be removed from the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string applicationId = 2 [(globular.auth.resource) = { kind: "application" }]; // Application ID to be removed from the organization.
 }
 
 message RemoveOrganizationApplicationRsp {
@@ -644,8 +646,8 @@ message RemoveOrganizationApplicationRsp {
 
 /** Request to remove an account from an organization. */
 message RemoveOrganizationAccountRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string accountId = 2;      // Account ID to be removed from the organization.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string accountId = 2 [(globular.auth.resource) = { kind: "account" }]; // Account ID to be removed from the organization.
 }
 
 message RemoveOrganizationAccountRsp {
@@ -654,8 +656,8 @@ message RemoveOrganizationAccountRsp {
 
 /** Request to check if an account is a member of an organization. */
 message IsOrgnanizationMemberRqst {
-  string organizationId = 1; // Identifier of the organization.
-  string accountId = 2;      // Account ID to check for membership.
+  string organizationId = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization.
+  string accountId = 2 [(globular.auth.resource) = { kind: "account" }]; // Account ID to check for membership.
 }
 
 message IsOrgnanizationMemberRsp {
@@ -666,8 +668,8 @@ message IsOrgnanizationMemberRsp {
 /**
  * Request to remove an organization from the network.
  */
- message DeleteOrganizationRqst { 
-  string organization = 1; // Identifier of the organization to be deleted.
+ message DeleteOrganizationRqst {
+  string organization = 1 [(globular.auth.resource) = { kind: "organization", scope_anchor: true }]; // Identifier of the organization to be deleted.
 }
 
 message DeleteOrganizationRsp { 
@@ -705,7 +707,7 @@ message UpsertNodeIdentityRsp {
 
 /** Request to fetch a node identity by its stable ID. */
 message GetNodeIdentityRqst {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 
 message GetNodeIdentityRsp {
@@ -724,7 +726,7 @@ message ListNodeIdentitiesRsp {
 
 /** Request to toggle the enabled flag for a node identity. */
 message SetNodeIdentityEnabledRqst {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   bool enabled = 2;
 }
 
@@ -749,7 +751,7 @@ message Call {
 
 // Request to retrieve call history for an account
 message GetCallHistoryRqst {
-  string account_id = 1; // Identifier of the account.
+  string account_id = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the account.
 }
 
 // Response to the get call history request
@@ -769,7 +771,7 @@ message SetCallRsp {
 
 // Request to delete a specific call from an account's call history.
 message DeleteCallRqst {
-  string account_id = 1; // Identifier of the account related to the call.
+  string account_id = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the account related to the call.
   string uuid = 2;       // Unique identifier of the call to be deleted.
 }
 
@@ -781,7 +783,7 @@ message DeleteCallRsp {
 
 // Request to clear call history based on a filter.
 message ClearCallsRqst {
-  string account_id = 1; // Identifier of the account whose call history is to be cleared.
+  string account_id = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the account whose call history is to be cleared.
   string filter = 2;     // Filter criteria to select calls to be cleared.
 }
 
@@ -822,7 +824,7 @@ message CreateNotificationRsp {
 
 // Request to retrieve notifications for a recipient.
 message GetNotificationsRqst {
-  string recipient = 1; // Identifier of the recipient whose notifications are to be retrieved.
+  string recipient = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the recipient whose notifications are to be retrieved.
 }
 
 // Response containing a list of notifications.
@@ -832,8 +834,8 @@ message GetNotificationsRsp {
 
 // Request to delete a specific notification.
 message DeleteNotificationRqst {
-  string id = 1;         // Unique identifier of the notification to be deleted.
-  string recipient = 2;  // Identifier of the recipient related to the notification.
+  string id = 1 [(globular.auth.resource) = { kind: "notification" }]; // Unique identifier of the notification to be deleted.
+  string recipient = 2 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the recipient related to the notification.
 }
 
 // Response for the DeleteNotificationRqst.
@@ -843,7 +845,7 @@ message DeleteNotificationRsp {
 
 // Request to clear all notifications for a recipient.
 message ClearAllNotificationsRqst {
-  string recipient = 1; // Identifier of the recipient whose notifications are to be cleared.
+  string recipient = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the recipient whose notifications are to be cleared.
 }
 
 // Response for the ClearAllNotificationsRqst.
@@ -853,7 +855,7 @@ message ClearAllNotificationsRsp {
 
 // Request to clear notifications of a specific type for a recipient.
 message ClearNotificationsByTypeRqst {
-  string recipient = 1;                  // Identifier of the recipient.
+  string recipient = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the recipient.
   NotificationType notification_type = 2; // Type of notifications to be cleared.
 }
 
@@ -891,7 +893,7 @@ message UpdateSessionResponse {
 
 // Request to remove a session.
 message RemoveSessionRequest {
-  string accountId = 1; // Identifier of the account whose session is to be removed.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the account whose session is to be removed.
 }
 
 // Response for the RemoveSessionRequest.
@@ -913,7 +915,7 @@ message GetSessionsResponse {
 
 // Request to get information about a specific session.
 message GetSessionRequest {
-  string accountId = 1; // Identifier of the account whose session information is requested.
+  string accountId = 1 [(globular.auth.resource) = { kind: "account", scope_anchor: true }]; // Identifier of the account whose session information is requested.
 }
 
 // Response containing the requested session information.
@@ -923,10 +925,10 @@ message GetSessionResponse {
 
 // Request to create a reference between two entities.
 message CreateReferenceRqst {
-  string sourceId = 1;          // Identifier of the source entity.
+  string sourceId = 1 [(globular.auth.resource) = { kind: "reference", scope_anchor: true }];          // Identifier of the source entity.
   string sourceCollection = 2;  // Collection of the source entity.
   string fieldName = 3;         // Field name in the source entity to hold the reference.
-  string targetId = 4;          // Identifier of the target entity.
+  string targetId = 4 [(globular.auth.resource) = { kind: "reference" }];          // Identifier of the target entity.
   string targetCollection = 5;  // Collection of the target entity.
 }
 
@@ -938,8 +940,8 @@ message CreateReferenceRsp {
 
 // Request to delete a reference between entities.
 message DeleteReferenceRqst {
-  string refId = 1;             // Identifier of the reference to be deleted.
-  string targetId = 2;          // Identifier of the target entity.
+  string refId = 1 [(globular.auth.resource) = { kind: "reference", scope_anchor: true }];             // Identifier of the reference to be deleted.
+  string targetId = 2 [(globular.auth.resource) = { kind: "reference" }];          // Identifier of the target entity.
   string targetField = 3;       // Field name in the target entity of the reference.
   string targetCollection = 4;  // Collection of the target entity.
 }
@@ -956,229 +958,769 @@ message DeleteReferenceRsp {
  */
 service ResourceService {
 
-  // Creates an object reference inside another object. For example, add a reference to an account in a group's 'members' field.
-  rpc CreateReference(CreateReferenceRqst) returns(CreateReferenceRsp);
+  // ── References ─────────────────────────────────────────────────────────────
+
+  // Creates an object reference inside another object.
+  rpc CreateReference(CreateReferenceRqst) returns(CreateReferenceRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.reference.create"
+      permission: "write"
+      collection_template: "/resource/references"
+      default_role_hint: "editor"
+    };
+  };
 
   // Deletes a reference from an object.
-  rpc DeleteReference(DeleteReferenceRqst) returns(DeleteReferenceRsp);
+  rpc DeleteReference(DeleteReferenceRqst) returns(DeleteReferenceRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.reference.delete"
+      permission: "write"
+      collection_template: "/resource/references"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ── Organizations ──────────────────────────────────────────────────────────
 
   // Registers a new organization.
-  rpc CreateOrganization(CreateOrganizationRqst) returns (CreateOrganizationRsp);
+  rpc CreateOrganization(CreateOrganizationRqst) returns (CreateOrganizationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.create"
+      permission: "admin"
+      collection_template: "/resource/organizations"
+      default_role_hint: "admin"
+    };
+  };
 
   // Updates an existing organization.
-  rpc UpdateOrganization(UpdateOrganizationRqst) returns (UpdateOrganizationRsp);
+  rpc UpdateOrganization(UpdateOrganizationRqst) returns (UpdateOrganizationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.update"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieves a list of organizations.
-  rpc GetOrganizations(GetOrganizationsRqst) returns (stream GetOrganizationsRsp);
+  rpc GetOrganizations(GetOrganizationsRqst) returns (stream GetOrganizationsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.list"
+      permission: "read"
+      collection_template: "/resource/organizations"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Deletes an organization.
-  rpc DeleteOrganization(DeleteOrganizationRqst) returns (DeleteOrganizationRsp);
+  rpc DeleteOrganization(DeleteOrganizationRqst) returns (DeleteOrganizationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.delete"
+      permission: "admin"
+      resource_template: "/resource/organizations/{organization}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Adds an account to an organization.
-  rpc AddOrganizationAccount(AddOrganizationAccountRqst) returns (AddOrganizationAccountRsp);
+  rpc AddOrganizationAccount(AddOrganizationAccountRqst) returns (AddOrganizationAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Adds a group to an organization.
-  rpc AddOrganizationGroup(AddOrganizationGroupRqst) returns (AddOrganizationGroupRsp);
+  rpc AddOrganizationGroup(AddOrganizationGroupRqst) returns (AddOrganizationGroupRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Adds a role to an organization.
-  rpc AddOrganizationRole(AddOrganizationRoleRqst) returns (AddOrganizationRoleRsp);
+  rpc AddOrganizationRole(AddOrganizationRoleRqst) returns (AddOrganizationRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Adds an application to an organization.
-  rpc AddOrganizationApplication(AddOrganizationApplicationRqst) returns (AddOrganizationApplicationRsp);
+  rpc AddOrganizationApplication(AddOrganizationApplicationRqst) returns (AddOrganizationApplicationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Adds role to a group.
-  rpc AddGroupRole(AddGroupRoleRqst) returns (AddGroupRoleRsp);
+  rpc AddGroupRole(AddGroupRoleRqst) returns (AddGroupRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.manage"
+      permission: "write"
+      resource_template: "/resource/groups/{groupId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes role from a group.
-  rpc RemoveGroupRole(RemoveGroupRoleRqst) returns (RemoveGroupRoleRsp);
+  rpc RemoveGroupRole(RemoveGroupRoleRqst) returns (RemoveGroupRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.manage"
+      permission: "write"
+      resource_template: "/resource/groups/{groupId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes an account from an organization.
-  rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst) returns (RemoveOrganizationAccountRsp);
+  rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst) returns (RemoveOrganizationAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes a group from an organization.
-  rpc RemoveOrganizationGroup(RemoveOrganizationGroupRqst) returns (RemoveOrganizationGroupRsp);
+  rpc RemoveOrganizationGroup(RemoveOrganizationGroupRqst) returns (RemoveOrganizationGroupRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes a role from an organization.
-  rpc RemoveOrganizationRole(RemoveOrganizationRoleRqst) returns (RemoveOrganizationRoleRsp);
+  rpc RemoveOrganizationRole(RemoveOrganizationRoleRqst) returns (RemoveOrganizationRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes an application from an organization.
-  rpc RemoveOrganizationApplication(RemoveOrganizationApplicationRqst) returns (RemoveOrganizationApplicationRsp);
+  rpc RemoveOrganizationApplication(RemoveOrganizationApplicationRqst) returns (RemoveOrganizationApplicationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.manage"
+      permission: "write"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ── Groups ─────────────────────────────────────────────────────────────────
 
   // Registers a new group.
-  rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp);
+  rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.create"
+      permission: "write"
+      collection_template: "/resource/groups"
+      default_role_hint: "editor"
+    };
+  };
 
   // Updates an existing group.
-  rpc UpdateGroup(UpdateGroupRqst) returns (UpdateGroupRsp);
+  rpc UpdateGroup(UpdateGroupRqst) returns (UpdateGroupRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.update"
+      permission: "write"
+      resource_template: "/resource/groups/{groupId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieves a list of groups.
-  rpc GetGroups(GetGroupsRqst) returns (stream GetGroupsRsp);
+  rpc GetGroups(GetGroupsRqst) returns (stream GetGroupsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.list"
+      permission: "read"
+      collection_template: "/resource/groups"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Deletes a group.
-  rpc DeleteGroup(DeleteGroupRqst) returns (DeleteGroupRsp);
+  rpc DeleteGroup(DeleteGroupRqst) returns (DeleteGroupRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.delete"
+      permission: "admin"
+      resource_template: "/resource/groups/{group}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Adds a member account to a group.
-  rpc AddGroupMemberAccount(AddGroupMemberAccountRqst) returns (AddGroupMemberAccountRsp);
+  rpc AddGroupMemberAccount(AddGroupMemberAccountRqst) returns (AddGroupMemberAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.manage"
+      permission: "write"
+      resource_template: "/resource/groups/{groupId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes a member account from a group.
-  rpc RemoveGroupMemberAccount(RemoveGroupMemberAccountRqst) returns (RemoveGroupMemberAccountRsp);
+  rpc RemoveGroupMemberAccount(RemoveGroupMemberAccountRqst) returns (RemoveGroupMemberAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.group.manage"
+      permission: "write"
+      resource_template: "/resource/groups/{groupId}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ── Accounts ───────────────────────────────────────────────────────────────
 
   // Registers a new account.
-  rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
+  rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.create"
+      permission: "write"
+      collection_template: "/resource/accounts"
+      default_role_hint: "editor"
+    };
+  };
 
   // Deletes an account.
-  rpc DeleteAccount(DeleteAccountRqst) returns (DeleteAccountRsp);
+  rpc DeleteAccount(DeleteAccountRqst) returns (DeleteAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.delete"
+      permission: "admin"
+      resource_template: "/resource/accounts/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Retrieves a single account.
-  rpc GetAccount(GetAccountRqst) returns (GetAccountRsp);
+  rpc GetAccount(GetAccountRqst) returns (GetAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.read"
+      permission: "read"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Saves an account.
-  rpc SetAccount(SetAccountRqst) returns (SetAccountRsp);
+  rpc SetAccount(SetAccountRqst) returns (SetAccountRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.write"
+      permission: "write"
+      collection_template: "/resource/accounts"
+      default_role_hint: "editor"
+    };
+  };
 
   // Sets or changes an account's password.
-  rpc SetAccountPassword(SetAccountPasswordRqst) returns (SetAccountPasswordRsp);
+  rpc SetAccountPassword(SetAccountPasswordRqst) returns (SetAccountPasswordRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.write"
+      permission: "admin"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Retrieves a list of accounts.
-  rpc GetAccounts(GetAccountsRqst) returns (stream GetAccountsRsp);
+  rpc GetAccounts(GetAccountsRqst) returns (stream GetAccountsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.read"
+      permission: "read"
+      collection_template: "/resource/accounts"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Adds a role to an account.
-  rpc AddAccountRole(AddAccountRoleRqst) returns (AddAccountRoleRsp);
+  rpc AddAccountRole(AddAccountRoleRqst) returns (AddAccountRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.manage"
+      permission: "write"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes a role from an account.
-  rpc RemoveAccountRole(RemoveAccountRoleRqst) returns (RemoveAccountRoleRsp);
+  rpc RemoveAccountRole(RemoveAccountRoleRqst) returns (RemoveAccountRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.manage"
+      permission: "write"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Appends or updates a contact for an account.
-  rpc SetAccountContact(SetAccountContactRqst) returns (SetAccountContactRsp);
+  rpc SetAccountContact(SetAccountContactRqst) returns (SetAccountContactRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.account.write"
+      permission: "write"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Sets or changes the email address for an account.
-  rpc SetEmail(SetEmailRequest) returns (SetEmailResponse);
+  rpc SetEmail(SetEmailRequest) returns (SetEmailResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.account.write"
+      permission: "write"
+      resource_template: "/resource/accounts/{accountId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Checks if an account is a member of a given organization.
-  rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst) returns (IsOrgnanizationMemberRsp);
+  rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst) returns (IsOrgnanizationMemberRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.organization.read"
+      permission: "read"
+      resource_template: "/resource/organizations/{organizationId}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Roles ──────────────────────────────────────────────────────────────────
 
   // Creates or updates a role with a specified list of actions.
-  rpc CreateRole(CreateRoleRqst) returns (CreateRoleRsp);
+  rpc CreateRole(CreateRoleRqst) returns (CreateRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.create"
+      permission: "write"
+      collection_template: "/resource/roles"
+      default_role_hint: "editor"
+    };
+  };
 
   // Updates an existing role.
-  rpc UpdateRole(UpdateRoleRqst) returns (UpdateRoleRsp);
+  rpc UpdateRole(UpdateRoleRqst) returns (UpdateRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.update"
+      permission: "write"
+      resource_template: "/resource/roles/{roleId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieves a list of roles.
-  rpc GetRoles(GetRolesRqst) returns (stream GetRolesRsp);
+  rpc GetRoles(GetRolesRqst) returns (stream GetRolesRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.list"
+      permission: "read"
+      collection_template: "/resource/roles"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Deletes a role by its ID.
-  rpc DeleteRole(DeleteRoleRqst) returns (DeleteRoleRsp);
+  rpc DeleteRole(DeleteRoleRqst) returns (DeleteRoleRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.delete"
+      permission: "admin"
+      resource_template: "/resource/roles/{roleId}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Appends actions to an existing role.
-  rpc AddRoleActions(AddRoleActionsRqst) returns (AddRoleActionsRsp);
+  rpc AddRoleActions(AddRoleActionsRqst) returns (AddRoleActionsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.manage"
+      permission: "write"
+      resource_template: "/resource/roles/{roleId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes an action from an existing role.
-  rpc RemoveRoleAction(RemoveRoleActionRqst) returns (RemoveRoleActionRsp);
+  rpc RemoveRoleAction(RemoveRoleActionRqst) returns (RemoveRoleActionRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.manage"
+      permission: "write"
+      resource_template: "/resource/roles/{roleId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes an action from all roles.
-  rpc RemoveRolesAction(RemoveRolesActionRqst) returns (RemoveRolesActionRsp);
+  rpc RemoveRolesAction(RemoveRolesActionRqst) returns (RemoveRolesActionRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.role.manage"
+      permission: "admin"
+      collection_template: "/resource/roles"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ── Applications ───────────────────────────────────────────────────────────
 
   // Creates a new application.
-  rpc CreateApplication(CreateApplicationRqst) returns (CreateApplicationRsp);
+  rpc CreateApplication(CreateApplicationRqst) returns (CreateApplicationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.create"
+      permission: "write"
+      collection_template: "/resource/applications"
+      default_role_hint: "editor"
+    };
+  };
 
   // Updates an existing application.
-  rpc UpdateApplication(UpdateApplicationRqst) returns (UpdateApplicationRsp);
+  rpc UpdateApplication(UpdateApplicationRqst) returns (UpdateApplicationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.update"
+      permission: "write"
+      resource_template: "/resource/applications/{applicationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Retrieves information about all applications in a JSON format.
-  rpc GetApplications(GetApplicationsRqst) returns (stream GetApplicationsRsp);
+  rpc GetApplications(GetApplicationsRqst) returns (stream GetApplicationsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.read"
+      permission: "read"
+      collection_template: "/resource/applications"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Deletes an application from the server.
-  rpc DeleteApplication(DeleteApplicationRqst) returns (DeleteApplicationRsp);
+  rpc DeleteApplication(DeleteApplicationRqst) returns (DeleteApplicationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.delete"
+      permission: "admin"
+      resource_template: "/resource/applications/{applicationId}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Appends actions to existing applications.
-  rpc AddApplicationActions(AddApplicationActionsRqst) returns (AddApplicationActionsRsp);
+  rpc AddApplicationActions(AddApplicationActionsRqst) returns (AddApplicationActionsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.manage"
+      permission: "write"
+      resource_template: "/resource/applications/{applicationId}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Removes an action from an existing application.
-  rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns (RemoveApplicationActionRsp);
+  rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns (RemoveApplicationActionRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.manage"
+      permission: "write"
+      resource_template: "/resource/applications/{applicationId}"
+      default_role_hint: "editor"
+    };
+  };
 
-    // Removes an action from all applications.
-    rpc RemoveApplicationsAction(RemoveApplicationsActionRqst) returns (RemoveApplicationsActionRsp);
+  // Removes an action from all applications.
+  rpc RemoveApplicationsAction(RemoveApplicationsActionRqst) returns (RemoveApplicationsActionRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.manage"
+      permission: "admin"
+      collection_template: "/resource/applications"
+      default_role_hint: "admin"
+    };
+  };
 
-    // Retrieves the version of a specified application.
-    rpc GetApplicationVersion(GetApplicationVersionRqst) returns (GetApplicationVersionRsp);
-  
+  // Retrieves the version of a specified application.
+  rpc GetApplicationVersion(GetApplicationVersionRqst) returns (GetApplicationVersionRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.application.read"
+      permission: "read"
+      resource_template: "/resource/applications/{id}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Node Identities ────────────────────────────────────────────────────────
+
   // Upserts node identity metadata created by the node agent.
-  rpc UpsertNodeIdentity(UpsertNodeIdentityRqst) returns (UpsertNodeIdentityRsp);
+  rpc UpsertNodeIdentity(UpsertNodeIdentityRqst) returns (UpsertNodeIdentityRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.node.write"
+      permission: "admin"
+      collection_template: "/resource/nodes"
+      default_role_hint: "admin"
+    };
+  };
 
   // Reads node identity by its stable node_id.
-  rpc GetNodeIdentity(GetNodeIdentityRqst) returns (GetNodeIdentityRsp);
+  rpc GetNodeIdentity(GetNodeIdentityRqst) returns (GetNodeIdentityRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.node.read"
+      permission: "read"
+      resource_template: "/resource/nodes/{node_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Streams every known node identity (used by Cluster Controller and UI).
-  rpc ListNodeIdentities(ListNodeIdentitiesRqst) returns (stream ListNodeIdentitiesRsp);
+  rpc ListNodeIdentities(ListNodeIdentitiesRqst) returns (stream ListNodeIdentitiesRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.node.list"
+      permission: "read"
+      collection_template: "/resource/nodes"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Toggles whether a node identity remains allowed to participate.
-  rpc SetNodeIdentityEnabled(SetNodeIdentityEnabledRqst) returns (SetNodeIdentityEnabledRsp);
-  
-    // Creates a new notification.
-    rpc CreateNotification(CreateNotificationRqst) returns (CreateNotificationRsp);
-  
-    // Retrieves a stream of notifications.
-    rpc GetNotifications(GetNotificationsRqst) returns (stream GetNotificationsRsp);
-  
-    // Deletes a specific notification.
-    rpc DeleteNotification(DeleteNotificationRqst) returns (DeleteNotificationRsp);
-  
-    // Clears all notifications.
-    rpc ClearAllNotifications(ClearAllNotificationsRqst) returns (ClearAllNotificationsRsp);
-  
-    // Clears all notifications of a specified type.
-    rpc ClearNotificationsByType(ClearNotificationsByTypeRqst) returns (ClearNotificationsByTypeRsp);
-  
-    // Searches for service packages by keywords.
-    rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse);
-  
-    // Retrieves the descriptor of a specific package.
-    rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns (GetPackageDescriptorResponse);
-  
-    // Retrieves descriptors for all packages.
-    rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns (stream GetPackagesDescriptorResponse);
-  
-    // Saves or updates a service package descriptor.
-    rpc SetPackageDescriptor(SetPackageDescriptorRequest) returns (SetPackageDescriptorResponse);
-  
-    // Retrieves a package bundle.
-    rpc SetPackageBundle(SetPackageBundleRequest) returns (SetPackageBundleResponse);
-  
-    // Gets the checksum for a specified package bundle.
-    rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns (GetPackageBundleChecksumResponse);
+  rpc SetNodeIdentityEnabled(SetNodeIdentityEnabledRqst) returns (SetNodeIdentityEnabledRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.node.write"
+      permission: "admin"
+      resource_template: "/resource/nodes/{node_id}"
+      default_role_hint: "admin"
+    };
+  };
 
-    // Lists all package bundles stored in the repository.
-    rpc GetPackageBundles(GetPackageBundlesRequest) returns (GetPackageBundlesResponse);
-  
-    // Updates user session information.
-    rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse);
-  
-    // Retrieves a list of all user sessions.
-    rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
-  
-    // Removes a specific user session.
-    rpc RemoveSession(RemoveSessionRequest) returns (RemoveSessionResponse);
-  
-    // Retrieves a session for a specific user.
-    rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
-  
-    // Retrieves the call history for a given account.
-    rpc GetCallHistory(GetCallHistoryRqst) returns (GetCallHistoryRsp);
-  
-    // Sets calling information.
-    rpc SetCall(SetCallRqst) returns (SetCallRsp);
-  
-    // Deletes calling information.
-    rpc DeleteCall(DeleteCallRqst) returns(DeleteCallRsp);
-  
-    // Clears all call records.
-    rpc ClearCalls(ClearCallsRqst) returns(ClearCallsRsp);
+  // ── Notifications ──────────────────────────────────────────────────────────
 
-    // ── CORS Policy Management ───────────────────────────────────────────────
+  // Creates a new notification.
+  rpc CreateNotification(CreateNotificationRqst) returns (CreateNotificationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.notification.write"
+      permission: "write"
+      collection_template: "/resource/notifications"
+      default_role_hint: "editor"
+    };
+  };
 
-    // Retrieves CORS policies for all services.
-    rpc GetServicesCorsPolicies(GetServicesCorsPoliciesRqst) returns (GetServicesCorsPoliciesRsp);
+  // Retrieves a stream of notifications.
+  rpc GetNotifications(GetNotificationsRqst) returns (stream GetNotificationsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.notification.read"
+      permission: "read"
+      resource_template: "/resource/accounts/{recipient}/notifications"
+      default_role_hint: "viewer"
+    };
+  };
 
-    // Sets the CORS policy for a specific service.
-    rpc SetServiceCorsPolicy(SetServiceCorsPolicyRqst) returns (SetServiceCorsPolicyRsp);
+  // Deletes a specific notification.
+  rpc DeleteNotification(DeleteNotificationRqst) returns (DeleteNotificationRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.notification.delete"
+      permission: "write"
+      resource_template: "/resource/accounts/{recipient}/notifications/{id}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // Clears all notifications.
+  rpc ClearAllNotifications(ClearAllNotificationsRqst) returns (ClearAllNotificationsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.notification.delete"
+      permission: "write"
+      resource_template: "/resource/accounts/{recipient}/notifications"
+      default_role_hint: "editor"
+    };
+  };
+
+  // Clears all notifications of a specified type.
+  rpc ClearNotificationsByType(ClearNotificationsByTypeRqst) returns (ClearNotificationsByTypeRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.notification.delete"
+      permission: "write"
+      resource_template: "/resource/accounts/{recipient}/notifications"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ── Packages ───────────────────────────────────────────────────────────────
+
+  // Searches for service packages by keywords.
+  rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.list"
+      permission: "read"
+      collection_template: "/resource/packages"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Retrieves the descriptor of a specific package.
+  rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns (GetPackageDescriptorResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.read"
+      permission: "read"
+      resource_template: "/resource/packages/{serviceId}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Retrieves descriptors for all packages.
+  rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns (stream GetPackagesDescriptorResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.read"
+      permission: "read"
+      collection_template: "/resource/packages"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Saves or updates a service package descriptor.
+  rpc SetPackageDescriptor(SetPackageDescriptorRequest) returns (SetPackageDescriptorResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.write"
+      permission: "admin"
+      collection_template: "/resource/packages"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Saves a package bundle.
+  rpc SetPackageBundle(SetPackageBundleRequest) returns (SetPackageBundleResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.write"
+      permission: "admin"
+      collection_template: "/resource/packages"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Gets the checksum for a specified package bundle.
+  rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns (GetPackageBundleChecksumResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.read"
+      permission: "read"
+      resource_template: "/resource/packages/{id}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Lists all package bundles stored in the repository.
+  rpc GetPackageBundles(GetPackageBundlesRequest) returns (GetPackageBundlesResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.package.list"
+      permission: "read"
+      collection_template: "/resource/packages"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Sessions ───────────────────────────────────────────────────────────────
+
+  // Updates user session information.
+  rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.session.write"
+      permission: "write"
+      collection_template: "/resource/sessions"
+      default_role_hint: "editor"
+    };
+  };
+
+  // Retrieves a list of all user sessions.
+  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.session.read"
+      permission: "read"
+      collection_template: "/resource/sessions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Removes a specific user session.
+  rpc RemoveSession(RemoveSessionRequest) returns (RemoveSessionResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.session.delete"
+      permission: "admin"
+      resource_template: "/resource/sessions/{accountId}"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Retrieves a session for a specific user.
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (globular.auth.authz) = {
+      action: "resource.session.read"
+      permission: "read"
+      resource_template: "/resource/sessions/{accountId}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Calls ──────────────────────────────────────────────────────────────────
+
+  // Retrieves the call history for a given account.
+  rpc GetCallHistory(GetCallHistoryRqst) returns (GetCallHistoryRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.call.read"
+      permission: "read"
+      resource_template: "/resource/accounts/{account_id}/calls"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Sets calling information.
+  rpc SetCall(SetCallRqst) returns (SetCallRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.call.write"
+      permission: "write"
+      collection_template: "/resource/calls"
+      default_role_hint: "editor"
+    };
+  };
+
+  // Deletes calling information.
+  rpc DeleteCall(DeleteCallRqst) returns(DeleteCallRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.call.delete"
+      permission: "write"
+      resource_template: "/resource/accounts/{account_id}/calls/{uuid}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // Clears all call records.
+  rpc ClearCalls(ClearCallsRqst) returns(ClearCallsRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.call.delete"
+      permission: "admin"
+      resource_template: "/resource/accounts/{account_id}/calls"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ── CORS Policy Management ───────────────────────────────────────────────
+
+  // Retrieves CORS policies for all services.
+  rpc GetServicesCorsPolicies(GetServicesCorsPoliciesRqst) returns (GetServicesCorsPoliciesRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.cors.read"
+      permission: "read"
+      collection_template: "/resource/cors-policies"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Sets the CORS policy for a specific service.
+  rpc SetServiceCorsPolicy(SetServiceCorsPolicyRqst) returns (SetServiceCorsPolicyRsp) {
+    option (globular.auth.authz) = {
+      action: "resource.cors.write"
+      permission: "admin"
+      resource_template: "/resource/cors-policies/{id}"
+      default_role_hint: "admin"
+    };
+  };
 
 }
 
@@ -1198,7 +1740,7 @@ message GetServicesCorsPoliciesRsp {
 }
 
 message SetServiceCorsPolicyRqst {
-  string id                = 1;
+  string id                = 1 [(globular.auth.resource) = { kind: "service", scope_anchor: true }];
   bool   allow_all_origins = 2;
   string allowed_origins   = 3;
 }

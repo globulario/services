@@ -3,6 +3,8 @@ package blog;
 
 option go_package="github.com/globulario/services/golang/blog/blogpb";
 
+import "globular_auth.proto";
+
 /**
  * Represents an emoji reaction to a blog post or a comment.
  */
@@ -117,7 +119,7 @@ message CreateBlogPostResponse {
  */
 message SaveBlogPostRequest {
   /** Unique identifier for the blog post to be updated */
-  string uuid = 1;
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }];
   /** The blog post with updated information */
   BlogPost blog_post = 2;
   /** Path to the search index */
@@ -170,7 +172,7 @@ message GetBlogPostsResponse {
  */
 message DeleteBlogPostRequest {
   /** UUID of the blog post to be deleted */
-  string uuid = 1;
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }];
   /** Path to the search index */
   string indexPath = 2;
 }
@@ -184,7 +186,7 @@ message DeleteBlogPostResponse{
 
 // Request to add an emoji to a blog post or comment.
 message AddEmojiRequest {
-  string uuid = 1; // The target UUID of the blog post or comment.
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }]; // The target UUID of the blog post or comment.
   Emoji emoji = 2; // Information about the emoji being added.
 }
 
@@ -195,7 +197,7 @@ message AddEmojiResponse{
 
 // Request to remove an emoji from a blog post or comment.
 message RemoveEmojiRequest {
-  string uuid = 1; // The target UUID of the blog post or comment.
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }]; // The target UUID of the blog post or comment.
   Emoji emoji = 2; // Information about the emoji being removed.
 }
 
@@ -206,7 +208,7 @@ message RemoveEmojiResponse{
 
 // Request to add a comment to a blog post or another comment.
 message AddCommentRequest {
-  string uuid = 1; // The target UUID of the blog post or parent comment.
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }]; // The target UUID of the blog post or parent comment.
   Comment comment = 2; // Information about the comment being added.
 }
 
@@ -217,7 +219,7 @@ message AddCommentResponse{
 
 // Request to remove a comment from a blog post or another comment.
 message RemoveCommentRequest {
-  string uuid = 1; // The target UUID of the blog post or parent comment.
+  string uuid = 1 [(globular.auth.resource) = { kind: "blog_post", scope_anchor: true }]; // The target UUID of the blog post or parent comment.
   Comment comment = 2; // Information about the comment being removed.
 }
 
@@ -298,33 +300,103 @@ message SearchBlogPostsResponse {
 service BlogService {
 
     // Creates a new blog post. This is a simple request-response call.
-    rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse);
-  
+    rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.create"
+            permission: "write"
+            collection_template: "/blog/posts"
+            default_role_hint: "editor"
+        };
+    };
+
     // Updates an existing blog post. This is also a simple request-response call.
-    rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse);
-  
+    rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.save"
+            permission: "write"
+            resource_template: "/blog/posts/{uuid}"
+            default_role_hint: "editor"
+        };
+    };
+
     // Retrieves blog posts by a given set of authors. This method streams the responses back to the client.
-    rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse);
-  
+    rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.byauthors"
+            permission: "read"
+            collection_template: "/blog/posts"
+            default_role_hint: "viewer"
+        };
+    };
+
     // Retrieves blog posts based on keywords or text content within the post. Responses are streamed to the client.
-    rpc GetBlogPosts(GetBlogPostsRequest) returns (stream GetBlogPostsResponse);
-  
+    rpc GetBlogPosts(GetBlogPostsRequest) returns (stream GetBlogPostsResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.read"
+            permission: "read"
+            collection_template: "/blog/posts"
+            default_role_hint: "viewer"
+        };
+    };
+
     // Searches for blog posts based on various search criteria. This is a streaming response to handle potentially large result sets.
-    rpc SearchBlogPosts(SearchBlogPostsRequest) returns (stream SearchBlogPostsResponse);
-  
+    rpc SearchBlogPosts(SearchBlogPostsRequest) returns (stream SearchBlogPostsResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.search"
+            permission: "read"
+            collection_template: "/blog/posts"
+            default_role_hint: "viewer"
+        };
+    };
+
     // Deletes a specified blog post. This is a simple request-response call.
-    rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);
-  
+    rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.delete"
+            permission: "delete"
+            resource_template: "/blog/posts/{uuid}"
+            default_role_hint: "admin"
+        };
+    };
+
     // Adds an emoji as a reaction to a post or a comment. This is a simple request-response call.
-    rpc AddEmoji(AddEmojiRequest) returns (AddEmojiResponse);
-  
+    rpc AddEmoji(AddEmojiRequest) returns (AddEmojiResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.react"
+            permission: "write"
+            resource_template: "/blog/posts/{uuid}/emojis"
+            default_role_hint: "editor"
+        };
+    };
+
     // Removes an emoji reaction from a post or a comment. This is a simple request-response call.
-    rpc RemoveEmoji(RemoveEmojiRequest) returns (RemoveEmojiResponse);
-  
+    rpc RemoveEmoji(RemoveEmojiRequest) returns (RemoveEmojiResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.removereact"
+            permission: "delete"
+            resource_template: "/blog/posts/{uuid}/emojis"
+            default_role_hint: "admin"
+        };
+    };
+
     // Adds a comment to a post or another comment. This is a simple request-response call.
-    rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
-  
+    rpc AddComment(AddCommentRequest) returns (AddCommentResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.comment"
+            permission: "write"
+            resource_template: "/blog/posts/{uuid}/comments"
+            default_role_hint: "editor"
+        };
+    };
+
     // Removes a comment from a post or another comment. This is a simple request-response call.
-    rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse);
-  
+    rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse) {
+        option (globular.auth.authz) = {
+            action: "blog.removecomment"
+            permission: "delete"
+            resource_template: "/blog/posts/{uuid}/comments"
+            default_role_hint: "admin"
+        };
+    };
+
 }

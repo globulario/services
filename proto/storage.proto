@@ -4,6 +4,8 @@ package storage;
 
 option go_package="github.com/globulario/services/golang/storage/storagepb";
 
+import "globular_auth.proto";
+
 // Enum representing types of storage.
 enum StoreType {
 	LEVEL_DB = 0; // Persistent key-value storage.
@@ -22,7 +24,7 @@ message Connection {
 
 // Request to open a data store with specific options.
 message OpenRqst {
-	string id = 1; // Identifier of the store to open.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Identifier of the store to open.
 	string options = 2; // JSON string of options for opening the store.
 }
 
@@ -32,7 +34,7 @@ message OpenRsp {
 
 // Request to close a data store.
 message CloseRqst {
-	string id = 1; // Identifier of the store to close.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Identifier of the store to close.
 }
 
 message CloseRsp {
@@ -50,7 +52,7 @@ message CreateConnectionRsp {
 
 // Request to delete an existing storage connection.
 message DeleteConnectionRqst {
-	string id = 1; // Identifier of the connection to delete.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to delete.
 }
 
 message DeleteConnectionRsp {
@@ -59,7 +61,7 @@ message DeleteConnectionRsp {
 
 // Request to save an item in the key-value store.
 message SetItemRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 	string key = 2; // Key for the item.
 	bytes value = 3; // Data to store.
 }
@@ -70,7 +72,7 @@ message SetItemResponse {
 
 // Request to save a large item in the key-value store.
 message SetLargeItemRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 	string key = 2; // Key for the item.
 	bytes value = 3; // Large data to store.
 }
@@ -81,7 +83,7 @@ message SetLargeItemResponse {
 
 // Request to retrieve a value with a given key.
 message GetItemRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 	string key = 2; // Key of the item to retrieve.
 }
 
@@ -91,7 +93,7 @@ message GetItemResponse {
 
 // Request to remove an item from the store.
 message RemoveItemRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 	string key = 2; // Key of the item to remove.
 }
 
@@ -101,7 +103,7 @@ message RemoveItemResponse {
 
 // Request to clear all items from a store.
 message ClearRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 }
 
 message ClearResponse {
@@ -110,7 +112,7 @@ message ClearResponse {
 
 // Request to delete a data store.
 message DropRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 }
 
 message DropResponse {
@@ -118,7 +120,7 @@ message DropResponse {
 }
 
 message GetAllKeysRequest {
-	string id = 1; // Connection identifier.
+	string id = 1 [(globular.auth.resource) = { kind: "store", scope_anchor: true }]; // Connection identifier.
 }
 
 message GetAllKeysResponse {
@@ -135,38 +137,122 @@ message StopResponse {
 // Service definition for storage operations.
 service StorageService {
   	// Stops the storage server.
- 	rpc Stop(StopRequest) returns (StopResponse);
-	
+ 	rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.stop"
+			permission: "admin"
+			resource_template: "/storage"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Opens a storage and sets options.
-	rpc Open(OpenRqst) returns (OpenRsp);
-	
+	rpc Open(OpenRqst) returns (OpenRsp) {
+		option (globular.auth.authz) = {
+			action: "storage.open"
+			permission: "read"
+			resource_template: "/storage/stores/{id}"
+			default_role_hint: "viewer"
+		};
+	};
+
 	// Closes the data store.
-	rpc Close(CloseRqst) returns (CloseRsp);
-	
+	rpc Close(CloseRqst) returns (CloseRsp) {
+		option (globular.auth.authz) = {
+			action: "storage.close"
+			permission: "write"
+			resource_template: "/storage/stores/{id}"
+			default_role_hint: "editor"
+		};
+	};
+
 	// Creates a new storage connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
-	
+	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "storage.createconnection"
+			permission: "admin"
+			collection_template: "/storage/connections"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Deletes an existing storage connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
+	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "storage.deleteconnection"
+			permission: "admin"
+			resource_template: "/storage/connections/{id}"
+			default_role_hint: "admin"
+		};
+	};
 
 	// Saves an item in the key-value store.
-	rpc SetItem(SetItemRequest) returns (SetItemResponse);
-	
+	rpc SetItem(SetItemRequest) returns (SetItemResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.setitem"
+			permission: "write"
+			resource_template: "/storage/stores/{id}/items/{key}"
+			default_role_hint: "editor"
+		};
+	};
+
 	// Saves a large item in the key-value store.
-	rpc SetLargeItem(stream SetLargeItemRequest) returns (SetLargeItemResponse);
-	
+	rpc SetLargeItem(stream SetLargeItemRequest) returns (SetLargeItemResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.setlargeitem"
+			permission: "write"
+			resource_template: "/storage/stores/{id}/items/{key}"
+			default_role_hint: "editor"
+		};
+	};
+
 	// Retrieves a value with a given key.
-	rpc GetItem(GetItemRequest) returns (stream GetItemResponse);
-	
+	rpc GetItem(GetItemRequest) returns (stream GetItemResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.getitem"
+			permission: "read"
+			resource_template: "/storage/stores/{id}/items/{key}"
+			default_role_hint: "viewer"
+		};
+	};
+
 	// Removes an item with a given key.
-	rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse);
-	
+	rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.removeitem"
+			permission: "write"
+			resource_template: "/storage/stores/{id}/items/{key}"
+			default_role_hint: "editor"
+		};
+	};
+
 	// Removes all items from the store.
-	rpc Clear(ClearRequest) returns (ClearResponse);
-	
+	rpc Clear(ClearRequest) returns (ClearResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.clear"
+			permission: "write"
+			resource_template: "/storage/stores/{id}"
+			default_role_hint: "editor"
+		};
+	};
+
 	// Deletes a store.
-	rpc Drop(DropRequest) returns (DropResponse);
+	rpc Drop(DropRequest) returns (DropResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.drop"
+			permission: "admin"
+			resource_template: "/storage/stores/{id}"
+			default_role_hint: "admin"
+		};
+	};
 
 	// Get all keys in the store.
-	rpc GetAllKeys(GetAllKeysRequest) returns (stream GetAllKeysResponse);
+	rpc GetAllKeys(GetAllKeysRequest) returns (stream GetAllKeysResponse) {
+		option (globular.auth.authz) = {
+			action: "storage.getitem"
+			permission: "read"
+			resource_template: "/storage/stores/{id}/keys"
+			default_role_hint: "viewer"
+		};
+	};
 }

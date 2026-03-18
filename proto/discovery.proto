@@ -3,17 +3,18 @@ package discovery;
 
 import "repository.proto";
 import "resource.proto";
+import "globular_auth.proto";
 
 option go_package="github.com/globulario/services/golang/discovery/discoverypb";
 
 // Request for publishing a service.
 message PublishServiceRequest {
-  string serviceId = 1;           // Unique identifier for the service.
+  string serviceId = 1 [(globular.auth.resource) = { kind: "service" }];           // Unique identifier for the service.
   string serviceName = 2;         // Name of the service.
   string user = 3;                // Username of the person publishing the service.
   string organization = 4;        // Name of the organization publishing the service.
-  string discoveryId = 5;         // ID for the discovery service.
-  string repositoryId = 6;        // Repository identifier where the service is stored.
+  string discoveryId = 5 [(globular.auth.resource) = { kind: "discovery", scope_anchor: true }];         // ID for the discovery service.
+  string repositoryId = 6 [(globular.auth.resource) = { kind: "repository" }];        // Repository identifier where the service is stored.
   string description = 7;         // Description of the service.
   repeated string keywords = 8;   // Keywords associated with the service for searchability.
   string version = 9;             // Version of the service.
@@ -28,7 +29,7 @@ message PublishServiceResponse {
 
 // Request for publishing an application.
 message PublishApplicationRequest {
-  string name = 1;                // Name of the application.
+  string name = 1 [(globular.auth.resource) = { kind: "application" }];                // Name of the application.
   string domain = 2;              // Domain associated with the application.
   bytes data = 3;                 // Binary data of the application.
   string user = 4;                // Username of the person publishing the application.
@@ -37,8 +38,8 @@ message PublishApplicationRequest {
   repeated string keywords = 7;   // Keywords for searchability of the application.
   string description = 8;         // Description of the application.
   repeated string actions = 9;    // Actions that the application is capable of performing.
-  string repository = 10;         // Repository where the application is stored.
-  string discovery = 11;          // Discovery service ID for the application.
+  string repository = 10 [(globular.auth.resource) = { kind: "repository" }];         // Repository where the application is stored.
+  string discovery = 11 [(globular.auth.resource) = { kind: "discovery", scope_anchor: true }];          // Discovery service ID for the application.
   string icon = 12;               // Icon for the application.
   string alias = 13;              // Alias for the application.
   repeated resource.Role roles = 14;    // Roles associated with the application.
@@ -88,16 +89,44 @@ service PackageDiscovery {
   // Publishes a service to the globular repository.
   // Input: PublishServiceRequest with service details.
   // Output: PublishServiceResponse indicating the result of the publication.
-  rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
-  
+  rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse) {
+    option (globular.auth.authz) = {
+      action: "discovery.publish.service"
+      permission: "write"
+      collection_template: "/discovery/services"
+      default_role_hint: "editor"
+    };
+  };
+
   // Publishes a web application to globular discovery services.
   // Input: PublishApplicationRequest with application details.
   // Output: PublishApplicationResponse indicating the result of the publication.
-  rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse);
+  rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse) {
+    option (globular.auth.authz) = {
+      action: "discovery.publish.app"
+      permission: "write"
+      collection_template: "/discovery/applications"
+      default_role_hint: "editor"
+    };
+  };
 
   // Resolves the install plan for a set of roles and platform constraints.
-  rpc ResolveInstallPlan(ResolveInstallPlanRequest) returns (InstallPlan);
+  rpc ResolveInstallPlan(ResolveInstallPlanRequest) returns (InstallPlan) {
+    option (globular.auth.authz) = {
+      action: "discovery.install_plan.read"
+      permission: "read"
+      collection_template: "/discovery/install-plans"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Returns the package descriptor without contacting the resource service directly.
-  rpc GetPackageDescriptor(resource.GetPackageDescriptorRequest) returns (resource.GetPackageDescriptorResponse);
+  rpc GetPackageDescriptor(resource.GetPackageDescriptorRequest) returns (resource.GetPackageDescriptorResponse) {
+    option (globular.auth.authz) = {
+      action: "discovery.package_descriptor.read"
+      permission: "read"
+      collection_template: "/discovery/package-descriptors"
+      default_role_hint: "viewer"
+    };
+  };
 }

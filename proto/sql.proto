@@ -4,6 +4,8 @@ package sql;
 
 option go_package="github.com/globulario/services/golang/sql/sqlpb";
 
+import "globular_auth.proto";
+
 // Represents a database connection configuration.
 message Connection {
 	string id = 1; // Unique identifier for the connection.
@@ -29,7 +31,7 @@ message CreateConnectionRsp {
 
 // Request to delete an existing database connection.
 message DeleteConnectionRqst {
-	string id = 1; // Identifier of the connection to delete.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to delete.
 }
 
 // Response for DeleteConnectionRqst.
@@ -39,7 +41,7 @@ message DeleteConnectionRsp {
 
 // Request to ping a database connection to check its validity.
 message PingConnectionRqst {
-	string id = 1; // Identifier of the connection to ping.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to ping.
 }
 
 // Response for PingConnectionRqst.
@@ -49,7 +51,7 @@ message PingConnectionRsp {
 
 // Represents an SQL query and its associated parameters.
 message Query {
-	string connectionId = 1; // The connection ID to use for this query.
+	string connectionId = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection ID to use for this query.
 	string query = 2; // The SQL query string.
 	string parameters = 3; // JSON string of query parameters (for various types).
 	string charset = 4; // Charset for the result, defaults to connection charset if not set.
@@ -91,21 +93,63 @@ message StopResponse {
 // Service definition for SQL operations.
 service SqlService {
   	// Stops the SQL server.
- 	rpc Stop(StopRequest) returns (StopResponse);
-	
+ 	rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "sql.stop"
+			permission: "admin"
+			resource_template: "/sql"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Creates a new database connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
-	
+	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "sql.createconnection"
+			permission: "write"
+			collection_template: "/sql/connections"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Deletes an existing database connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
-	
+	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "sql.deleteconnection"
+			permission: "delete"
+			resource_template: "/sql/connections/{id}"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Pings an existing database connection.
-	rpc Ping(PingConnectionRqst) returns (PingConnectionRsp);
-	
+	rpc Ping(PingConnectionRqst) returns (PingConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "sql.ping"
+			permission: "read"
+			resource_template: "/sql/connections/{id}"
+			default_role_hint: "viewer"
+		};
+	};
+
 	// Executes a query and returns zero or more rows, typically used for SQL SELECT.
-	rpc QueryContext(QueryContextRqst) returns (stream QueryContextRsp);
-	
+	rpc QueryContext(QueryContextRqst) returns (stream QueryContextRsp) {
+		option (globular.auth.authz) = {
+			action: "sql.querycontext"
+			permission: "read"
+			resource_template: "/sql/connections/{connectionId}/query"
+			default_role_hint: "viewer"
+		};
+	};
+
 	// Executes an SQL statement like CREATE, INSERT, UPDATE, and DELETE.
 	// Returns the number of affected rows and the last inserted ID, if applicable.
-	rpc ExecContext(ExecContextRqst) returns (ExecContextRsp);
+	rpc ExecContext(ExecContextRqst) returns (ExecContextRsp) {
+		option (globular.auth.authz) = {
+			action: "sql.execcontext"
+			permission: "write"
+			resource_template: "/sql/connections/{connectionId}/exec"
+			default_role_hint: "editor"
+		};
+	};
 }

@@ -4,81 +4,258 @@ package backup_manager;
 
 option go_package = "github.com/globulario/services/golang/backup_manager/backup_managerpb;backup_managerpb";
 
+import "globular_auth.proto";
+
 service BackupManagerService {
   // Run a backup now. Returns a job id immediately.
-  rpc RunBackup(RunBackupRequest) returns (RunBackupResponse);
+  rpc RunBackup(RunBackupRequest) returns (RunBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.run"
+      permission: "admin"
+      collection_template: "/backup_manager/backups"
+      default_role_hint: "admin"
+    };
+  };
 
   // Get status/progress for a specific job id.
-  rpc GetBackupJob(GetBackupJobRequest) returns (GetBackupJobResponse);
+  rpc GetBackupJob(GetBackupJobRequest) returns (GetBackupJobResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.job.read"
+      permission: "read"
+      resource_template: "/backup_manager/jobs/{job_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // List recent jobs (history).
-  rpc ListBackupJobs(ListBackupJobsRequest) returns (ListBackupJobsResponse);
+  rpc ListBackupJobs(ListBackupJobsRequest) returns (ListBackupJobsResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.job.list"
+      permission: "read"
+      collection_template: "/backup_manager/jobs"
+      default_role_hint: "viewer"
+    };
+  };
 
   // List completed backup artifacts.
-  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.list"
+      permission: "read"
+      collection_template: "/backup_manager/backups"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Get a single backup artifact.
-  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse);
+  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.read"
+      permission: "read"
+      resource_template: "/backup_manager/backups/{backup_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Delete a backup artifact.
-  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.delete"
+      permission: "delete"
+      resource_template: "/backup_manager/backups/{backup_id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Validate a backup artifact integrity.
-  rpc ValidateBackup(ValidateBackupRequest) returns (ValidateBackupResponse);
+  rpc ValidateBackup(ValidateBackupRequest) returns (ValidateBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.validate"
+      permission: "read"
+      resource_template: "/backup_manager/backups/{backup_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Preview what would be restored (read-only, no changes).
-  rpc RestorePlan(RestorePlanRequest) returns (RestorePlanResponse);
+  rpc RestorePlan(RestorePlanRequest) returns (RestorePlanResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.restore.plan"
+      permission: "read"
+      resource_template: "/backup_manager/backups/{backup_id}/restore-plan"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Execute a restore from a backup artifact.
-  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse);
+  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.restore.execute"
+      permission: "admin"
+      resource_template: "/backup_manager/backups/{backup_id}/restore"
+      default_role_hint: "admin"
+    };
+  };
 
   // Cancel a running backup job.
-  rpc CancelBackupJob(CancelBackupJobRequest) returns (CancelBackupJobResponse);
+  rpc CancelBackupJob(CancelBackupJobRequest) returns (CancelBackupJobResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.job.cancel"
+      permission: "admin"
+      resource_template: "/backup_manager/jobs/{job_id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Delete a backup job record (for cleaning up failed/old jobs).
-  rpc DeleteBackupJob(DeleteBackupJobRequest) returns (DeleteBackupJobResponse);
+  rpc DeleteBackupJob(DeleteBackupJobRequest) returns (DeleteBackupJobResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.job.delete"
+      permission: "delete"
+      resource_template: "/backup_manager/jobs/{job_id}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Run retention policy now (delete old backups per config).
-  rpc RunRetention(RunRetentionRequest) returns (RunRetentionResponse);
+  rpc RunRetention(RunRetentionRequest) returns (RunRetentionResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.retention.run"
+      permission: "admin"
+      resource_template: "/backup_manager/retention"
+      default_role_hint: "admin"
+    };
+  };
 
   // Get current retention policy status.
-  rpc GetRetentionStatus(GetRetentionStatusRequest) returns (GetRetentionStatusResponse);
+  rpc GetRetentionStatus(GetRetentionStatusRequest) returns (GetRetentionStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.retention.status"
+      permission: "read"
+      resource_template: "/backup_manager/retention"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Check provider tool availability and versions.
-  rpc PreflightCheck(PreflightCheckRequest) returns (PreflightCheckResponse);
+  rpc PreflightCheck(PreflightCheckRequest) returns (PreflightCheckResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.preflight.check"
+      permission: "read"
+      resource_template: "/backup_manager/preflight"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Run a restore test (sandbox restore to prove backup restores).
-  rpc RunRestoreTest(RunRestoreTestRequest) returns (RunRestoreTestResponse);
+  rpc RunRestoreTest(RunRestoreTestRequest) returns (RunRestoreTestResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.restore_test.run"
+      permission: "admin"
+      resource_template: "/backup_manager/backups/{backup_id}/restore-test"
+      default_role_hint: "admin"
+    };
+  };
 
   // Promote a backup (protect from retention deletion).
-  rpc PromoteBackup(PromoteBackupRequest) returns (PromoteBackupResponse);
+  rpc PromoteBackup(PromoteBackupRequest) returns (PromoteBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.promote"
+      permission: "write"
+      resource_template: "/backup_manager/backups/{backup_id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // Demote a previously promoted backup (allow retention to delete it).
-  rpc DemoteBackup(DemoteBackupRequest) returns (DemoteBackupResponse);
+  rpc DemoteBackup(DemoteBackupRequest) returns (DemoteBackupResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.backup.demote"
+      permission: "write"
+      resource_template: "/backup_manager/backups/{backup_id}"
+      default_role_hint: "editor"
+    };
+  };
 
   // List MinIO buckets on the configured endpoint.
-  rpc ListMinioBuckets(ListMinioBucketsRequest) returns (ListMinioBucketsResponse);
+  rpc ListMinioBuckets(ListMinioBucketsRequest) returns (ListMinioBucketsResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.minio_bucket.list"
+      permission: "read"
+      collection_template: "/backup_manager/minio-buckets"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Create a MinIO bucket.
-  rpc CreateMinioBucket(CreateMinioBucketRequest) returns (CreateMinioBucketResponse);
+  rpc CreateMinioBucket(CreateMinioBucketRequest) returns (CreateMinioBucketResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.minio_bucket.create"
+      permission: "write"
+      collection_template: "/backup_manager/minio-buckets"
+      default_role_hint: "editor"
+    };
+  };
 
   // Delete a MinIO bucket.
-  rpc DeleteMinioBucket(DeleteMinioBucketRequest) returns (DeleteMinioBucketResponse);
+  rpc DeleteMinioBucket(DeleteMinioBucketRequest) returns (DeleteMinioBucketResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.minio_bucket.delete"
+      permission: "delete"
+      resource_template: "/backup_manager/minio-buckets/{name}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Get the current automatic backup schedule status.
-  rpc GetScheduleStatus(GetScheduleStatusRequest) returns (GetScheduleStatusResponse);
+  rpc GetScheduleStatus(GetScheduleStatusRequest) returns (GetScheduleStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.schedule.status"
+      permission: "read"
+      resource_template: "/backup_manager/schedule"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Get recovery seed status (read-only, does not apply).
-  rpc GetRecoveryStatus(GetRecoveryStatusRequest) returns (GetRecoveryStatusResponse);
+  rpc GetRecoveryStatus(GetRecoveryStatusRequest) returns (GetRecoveryStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.recovery.status"
+      permission: "read"
+      resource_template: "/backup_manager/recovery"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Explicitly apply recovery seed to restore config from a fresh install.
-  rpc ApplyRecoverySeed(ApplyRecoverySeedRequest) returns (ApplyRecoverySeedResponse);
+  rpc ApplyRecoverySeed(ApplyRecoverySeedRequest) returns (ApplyRecoverySeedResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.recovery.apply_seed"
+      permission: "admin"
+      resource_template: "/backup_manager/recovery"
+      default_role_hint: "admin"
+    };
+  };
 
   // Test ScyllaDB connectivity (agent, manager, storage location).
-  rpc TestScyllaConnection(TestScyllaConnectionRequest) returns (TestScyllaConnectionResponse);
+  rpc TestScyllaConnection(TestScyllaConnectionRequest) returns (TestScyllaConnectionResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.scylla.test_connection"
+      permission: "read"
+      resource_template: "/backup_manager/scylla"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Stop the service.
-  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Stop(StopRequest) returns (StopResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.stop"
+      permission: "admin"
+      resource_template: "/backup_manager"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ---- Enums ----
@@ -303,7 +480,7 @@ message RunBackupResponse {
 }
 
 message GetBackupJobRequest {
-  string job_id = 1;
+  string job_id = 1 [(globular.auth.resource) = { kind: "backup_job" }];
 }
 
 message GetBackupJobResponse {
@@ -336,7 +513,7 @@ message ListBackupsResponse {
 }
 
 message GetBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
 }
 
 message GetBackupResponse {
@@ -344,7 +521,7 @@ message GetBackupResponse {
 }
 
 message DeleteBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   bool delete_provider_artifacts = 2;
 }
 
@@ -362,7 +539,7 @@ message DeleteResult {
 }
 
 message ValidateBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   bool deep = 2;
 }
 
@@ -379,7 +556,7 @@ message ValidationIssue {
 }
 
 message RestorePlanRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   bool include_etcd = 2;
   bool include_config = 3;
   bool include_minio = 4;
@@ -402,7 +579,7 @@ message RestoreStep {
 }
 
 message RestoreBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   bool include_etcd = 2;
   bool include_config = 3;
   bool include_minio = 4;
@@ -423,7 +600,7 @@ message RestoreBackupResponse {
 }
 
 message CancelBackupJobRequest {
-  string job_id = 1;
+  string job_id = 1 [(globular.auth.resource) = { kind: "backup_job" }];
 }
 
 message CancelBackupJobResponse {
@@ -432,7 +609,7 @@ message CancelBackupJobResponse {
 }
 
 message DeleteBackupJobRequest {
-  string job_id = 1;
+  string job_id = 1 [(globular.auth.resource) = { kind: "backup_job" }];
   bool delete_artifacts = 2;  // also delete the backup artifact if one was created
 }
 
@@ -512,7 +689,7 @@ message NodeCoverageReportEntry {
 // --- Restore Test ---
 
 message RunRestoreTestRequest {
-  string backup_id = 1;                  // backup to test (empty = pick latest UNVERIFIED/VALIDATED)
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];                  // backup to test (empty = pick latest UNVERIFIED/VALIDATED)
   RestoreTestLevel level = 2;            // LIGHT or HEAVY
   string target_root = 3;               // sandbox directory (default: <DataDir>/restore-tests/<backup_id>/)
 }
@@ -542,7 +719,7 @@ message RestoreTestCheck {
 // --- Promote / Demote ---
 
 message PromoteBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
 }
 
 message PromoteBackupResponse {
@@ -552,7 +729,7 @@ message PromoteBackupResponse {
 }
 
 message DemoteBackupRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
 }
 
 message DemoteBackupResponse {
@@ -564,12 +741,26 @@ message DemoteBackupResponse {
 // --- Quiesce Hook Service (implemented by services that want pre/post-backup coordination) ---
 
 service BackupHookService {
-  rpc PrepareBackup(PrepareBackupHookRequest) returns (PrepareBackupHookResponse);
-  rpc FinalizeBackup(FinalizeBackupHookRequest) returns (FinalizeBackupHookResponse);
+  rpc PrepareBackup(PrepareBackupHookRequest) returns (PrepareBackupHookResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.hook.prepare"
+      permission: "admin"
+      resource_template: "/backup_manager/backups/{backup_id}/hooks/prepare"
+      default_role_hint: "admin"
+    };
+  };
+  rpc FinalizeBackup(FinalizeBackupHookRequest) returns (FinalizeBackupHookResponse) {
+    option (globular.auth.authz) = {
+      action: "backup_manager.hook.finalize"
+      permission: "admin"
+      resource_template: "/backup_manager/backups/{backup_id}/hooks/finalize"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 message PrepareBackupHookRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   BackupMode mode = 2;
   BackupScope scope = 3;
   map<string, string> labels = 4;
@@ -599,7 +790,7 @@ message ServiceDataEntry {
 }
 
 message FinalizeBackupHookRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   BackupMode mode = 2;
   BackupScope scope = 3;
   map<string, string> labels = 4;
@@ -629,7 +820,7 @@ message ListMinioBucketsResponse {
 }
 
 message CreateMinioBucketRequest {
-  string name = 1;                  // bucket name
+  string name = 1 [(globular.auth.resource) = { kind: "minio_bucket" }];                  // bucket name
   bool set_as_backup_destination = 2;  // if true, auto-add as a backup destination
   bool set_as_scylla_location = 3;     // if true, also set ScyllaLocation = s3:<name>
 }
@@ -641,7 +832,7 @@ message CreateMinioBucketResponse {
 }
 
 message DeleteMinioBucketRequest {
-  string name = 1;                  // bucket name to delete
+  string name = 1 [(globular.auth.resource) = { kind: "minio_bucket" }];                  // bucket name to delete
   bool force = 2;                   // if true, delete even if bucket has objects
 }
 

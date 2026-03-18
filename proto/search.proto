@@ -4,53 +4,54 @@
  */
  syntax = "proto3";
  package search;
- 
+
  option go_package="github.com/globulario/services/golang/search/searchpb";
- 
+ import "globular_auth.proto";
+
  // Request for getting the version of the search engine.
  message GetEngineVersionRequest {
  }
- 
+
  // Response for GetEngineVersionRequest containing the version message.
  message GetEngineVersionResponse {
    string message = 1; // The version message of the search engine.
  }
- 
+
  // Request to index a JSON object.
  message IndexJsonObjectRequest {
-	 string path = 1; // The path of the database. If empty, a database is created in memory.
+	 string path = 1 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // The path of the database. If empty, a database is created in memory.
 	 string jsonStr = 2; // The JSON string to be indexed.
 	 string language = 3; // Language for indexing.
 	 string id = 4; // ID field of the object.
 	 repeated string indexs = 5; // Fields to be used for indexing.
 	 string data = 6; // Additional data, possibly an access path.
  }
- 
+
  // Response for IndexJsonObjectRequest.
  message IndexJsonObjectResponse {
 	 // Empty response for IndexJsonObjectRequest.
  }
- 
+
  // Request to delete a document.
  message DeleteDocumentRequest {
-	 string path = 1; // Path to the database.
-	 string id = 2; // ID of the document to delete.
+	 string path = 1 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path to the database.
+	 string id = 2 [(globular.auth.resource) = { kind: "document", scope_anchor: false }]; // ID of the document to delete.
  }
- 
+
  // Response for DeleteDocumentRequest.
  message DeleteDocumentResponse {
  }
- 
+
  // Request to count the number of documents.
  message CountRequest {
-	 string path = 1; // Database path.
+	 string path = 1 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Database path.
  }
- 
+
  // Response for CountRequest with the count result.
  message CountResponse {
 	 int32 result = 1; // The count of documents.
  }
- 
+
  // Represents a single search result.
  message SearchResult {
 	 int32 rank = 1; // Rank of the result.
@@ -58,12 +59,12 @@
 	 string data = 3; // Data of the result.
 	 string snippet = 4; // Snippet from the document.
  }
- 
+
  // Collection of search results.
  message SearchResults {
 	 repeated SearchResult results = 1; // List of search results.
  }
- 
+
  // Request to search documents.
  message SearchDocumentsRequest {
 	 repeated string paths = 1; // Paths to search in.
@@ -74,48 +75,89 @@
 	 int32 pageSize = 6; // Number of results to return.
 	 int32 snippetLength = 7; // Length of snippet in the results.
  }
- 
+
  // Response for SearchDocumentsRequest.
  message SearchDocumentsResponse {
 	 SearchResults results = 1; // Search results.
  }
- 
+
  // Request to stop the server.
  message StopRequest {
  }
- 
+
  // Response for StopRequest.
  message StopResponse {
  }
- 
+
  // Service definition for Search.
  service SearchService {
 	 // Stop the server.
-	  rpc Stop(StopRequest) returns (StopResponse);
- 
+	  rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "search.stop"
+			permission: "admin"
+			resource_template: "/search"
+			default_role_hint: "admin"
+		};
+	  };
+
 	 /**
 	  * Return the version number of the search engine.
 	  */
-	  rpc GetEngineVersion(GetEngineVersionRequest) returns (GetEngineVersionResponse);
- 
+	  rpc GetEngineVersion(GetEngineVersionRequest) returns (GetEngineVersionResponse) {
+		option (globular.auth.authz) = {
+			action: "search.version"
+			permission: "read"
+			resource_template: "/search"
+			default_role_hint: "viewer"
+		};
+	  };
+
 	 /**
 	  * Index a JSON object or an array of objects.
 	  */
-	 rpc IndexJsonObject(IndexJsonObjectRequest) returns (IndexJsonObjectResponse);
- 
+	 rpc IndexJsonObject(IndexJsonObjectRequest) returns (IndexJsonObjectResponse) {
+		option (globular.auth.authz) = {
+			action: "search.index.write"
+			permission: "write"
+			resource_template: "/search/indexes/{path}"
+			default_role_hint: "editor"
+		};
+	 };
+
 	 /**
 	  * Get the count of documents in a database.
 	  */
-	 rpc Count(CountRequest) returns (CountResponse);
- 
+	 rpc Count(CountRequest) returns (CountResponse) {
+		option (globular.auth.authz) = {
+			action: "search.index.read"
+			permission: "read"
+			resource_template: "/search/indexes/{path}"
+			default_role_hint: "viewer"
+		};
+	 };
+
 	 /**
 	  * Remove a document from the database.
 	  */
-	 rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
- 
+	 rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse) {
+		option (globular.auth.authz) = {
+			action: "search.document.delete"
+			permission: "delete"
+			resource_template: "/search/indexes/{path}/documents/{id}"
+			default_role_hint: "admin"
+		};
+	 };
+
 	 /**
 	  * Search for documents based on the query.
 	  */
-	 rpc SearchDocuments(SearchDocumentsRequest) returns (stream SearchDocumentsResponse);
+	 rpc SearchDocuments(SearchDocumentsRequest) returns (stream SearchDocumentsResponse) {
+		option (globular.auth.authz) = {
+			action: "search.query"
+			permission: "read"
+			collection_template: "/search/indexes"
+			default_role_hint: "viewer"
+		};
+	 };
  }
- 

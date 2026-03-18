@@ -4,6 +4,8 @@ package echo;
 // Specify the Go package where the generated code will reside.
 option go_package="github.com/globulario/services/golang/echo/echopb";
 
+import "globular_auth.proto";
+
 // EchoRequest is the request message for the Echo call.
 // It contains a single string message.
 message EchoRequest {
@@ -30,13 +32,27 @@ message StopResponse {
 
 // EchoService provides the Echo and Stop RPCs.
 service EchoService {
-	
+
   	// Stop the server.
   	// This RPC allows the client to request the server to stop.
-  	rpc Stop(StopRequest) returns (StopResponse);
+  	rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "echo.stop"
+			permission: "admin"
+			resource_template: "/echo"
+			default_role_hint: "admin"
+		};
+	};
 
   	// Echo the received message.
   	// This RPC takes a message and returns it back along with a count of
   	// how many times the server has echoed messages.
-	rpc Echo(EchoRequest) returns (EchoResponse);
+	rpc Echo(EchoRequest) returns (EchoResponse) {
+		option (globular.auth.authz) = {
+			action: "echo.echo"
+			permission: "read"
+			resource_template: "/echo"
+			default_role_hint: "viewer"
+		};
+	};
 }

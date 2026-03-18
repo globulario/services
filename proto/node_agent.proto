@@ -7,6 +7,7 @@ option go_package = "github.com/globulario/services/golang/node_agent/node_agent
 import "google/protobuf/timestamp.proto";
 import "cluster_controller.proto";
 import "plan.proto";
+import "globular_auth.proto";
 
 message JoinClusterRequest {
   string controller_endpoint = 1;
@@ -45,7 +46,7 @@ message InstalledPackage {
 }
 
 message ListInstalledPackagesRequest {
-  string node_id = 1;            // required
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];            // required
   string kind = 2;               // optional filter: "SERVICE", "APPLICATION", etc.
 }
 
@@ -54,9 +55,9 @@ message ListInstalledPackagesResponse {
 }
 
 message GetInstalledPackageRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   string kind = 2;
-  string name = 3;
+  string name = 3 [(globular.auth.resource) = { kind: "package" }];
 }
 
 message GetInstalledPackageResponse {
@@ -98,18 +99,18 @@ message ApplyPlanV1Response {
 }
 
 message GetPlanStatusV1Request {
-  string node_id = 1;      // optional: defaults to the node-agent's node id
-  string operation_id = 2;  // optional: if set, return status for this specific operation
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];      // optional: defaults to the node-agent's node id
+  string operation_id = 2 [(globular.auth.resource) = { kind: "operation" }];  // optional: if set, return status for this specific operation
 }
 message GetPlanStatusV1Response {
   globular.plan.v1.NodePlanStatus status = 1;
 }
 
 message WatchPlanStatusV1Request {
-  string node_id = 1; // optional: defaults to the node-agent's node id
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }]; // optional: defaults to the node-agent's node id
 }
 
-message WatchOperationRequest { string operation_id = 1; }
+message WatchOperationRequest { string operation_id = 1 [(globular.auth.resource) = { kind: "operation" }]; }
 
 message OperationEvent {
   string operation_id = 1;
@@ -141,9 +142,9 @@ message BackupProviderSpec {
 }
 
 message RunBackupProviderRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   BackupProviderSpec spec = 2;
-  string node_id = 3;            // the node's own ID (for tagging)
+  string node_id = 3 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];            // the node's own ID (for tagging)
   map<string, string> labels = 4;
 }
 
@@ -152,7 +153,7 @@ message RunBackupProviderResponse {
 }
 
 message GetBackupTaskResultRequest {
-  string task_id = 1;
+  string task_id = 1 [(globular.auth.resource) = { kind: "backup_task" }];
 }
 
 message BackupProviderResult {
@@ -183,9 +184,9 @@ message RestoreProviderSpec {
 }
 
 message RunRestoreProviderRequest {
-  string backup_id = 1;
+  string backup_id = 1 [(globular.auth.resource) = { kind: "backup" }];
   RestoreProviderSpec spec = 2;
-  string node_id = 3;
+  string node_id = 3 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 
 message RunRestoreProviderResponse {
@@ -193,7 +194,7 @@ message RunRestoreProviderResponse {
 }
 
 message GetRestoreTaskResultRequest {
-  string task_id = 1;
+  string task_id = 1 [(globular.auth.resource) = { kind: "restore_task" }];
 }
 
 message GetRestoreTaskResultResponse {
@@ -201,35 +202,154 @@ message GetRestoreTaskResultResponse {
 }
 
 service NodeAgentService {
-  rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
-  rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
-  rpc ApplyPlan(ApplyPlanRequest) returns (ApplyPlanResponse);
-  rpc ApplyPlanV1(ApplyPlanV1Request) returns (ApplyPlanV1Response);
-  rpc GetPlanStatusV1(GetPlanStatusV1Request) returns (GetPlanStatusV1Response);
-  rpc WatchPlanStatusV1(WatchPlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
-  rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent);
-  rpc BootstrapFirstNode(BootstrapFirstNodeRequest) returns (BootstrapFirstNodeResponse);
+  rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.cluster.join"
+      permission: "admin"
+      resource_template: "/node_agent/cluster"
+      default_role_hint: "admin"
+    };
+  };
+  rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.inventory.read"
+      permission: "read"
+      resource_template: "/node_agent/inventory"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ApplyPlan(ApplyPlanRequest) returns (ApplyPlanResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.plan.apply"
+      permission: "admin"
+      resource_template: "/node_agent/plan"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ApplyPlanV1(ApplyPlanV1Request) returns (ApplyPlanV1Response) {
+    option (globular.auth.authz) = {
+      action: "node_agent.plan_v1.apply"
+      permission: "admin"
+      resource_template: "/node_agent/plan-v1"
+      default_role_hint: "admin"
+    };
+  };
+  rpc GetPlanStatusV1(GetPlanStatusV1Request) returns (GetPlanStatusV1Response) {
+    option (globular.auth.authz) = {
+      action: "node_agent.plan_status.read"
+      permission: "read"
+      resource_template: "/node_agent/nodes/{node_id}/plan-status"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc WatchPlanStatusV1(WatchPlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus) {
+    option (globular.auth.authz) = {
+      action: "node_agent.plan_status.watch"
+      permission: "read"
+      resource_template: "/node_agent/nodes/{node_id}/plan-status"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent) {
+    option (globular.auth.authz) = {
+      action: "node_agent.operation.watch"
+      permission: "read"
+      resource_template: "/node_agent/operations/{operation_id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc BootstrapFirstNode(BootstrapFirstNodeRequest) returns (BootstrapFirstNodeResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.cluster.bootstrap"
+      permission: "admin"
+      resource_template: "/node_agent/cluster"
+      default_role_hint: "admin"
+    };
+  };
 
   // Backup provider execution (called by backup-manager for cluster-wide fan-out)
-  rpc RunBackupProvider(RunBackupProviderRequest) returns (RunBackupProviderResponse);
-  rpc GetBackupTaskResult(GetBackupTaskResultRequest) returns (GetBackupTaskResultResponse);
+  rpc RunBackupProvider(RunBackupProviderRequest) returns (RunBackupProviderResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.backup_provider.run"
+      permission: "admin"
+      resource_template: "/node_agent/nodes/{node_id}/backup-providers"
+      default_role_hint: "admin"
+    };
+  };
+  rpc GetBackupTaskResult(GetBackupTaskResultRequest) returns (GetBackupTaskResultResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.backup_task.read"
+      permission: "read"
+      resource_template: "/node_agent/backup-tasks/{task_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Restore provider execution (called by backup-manager to restore on a node)
-  rpc RunRestoreProvider(RunRestoreProviderRequest) returns (RunRestoreProviderResponse);
-  rpc GetRestoreTaskResult(GetRestoreTaskResultRequest) returns (GetRestoreTaskResultResponse);
+  rpc RunRestoreProvider(RunRestoreProviderRequest) returns (RunRestoreProviderResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.restore_provider.run"
+      permission: "admin"
+      resource_template: "/node_agent/nodes/{node_id}/restore-providers"
+      default_role_hint: "admin"
+    };
+  };
+  rpc GetRestoreTaskResult(GetRestoreTaskResultRequest) returns (GetRestoreTaskResultResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.restore_task.read"
+      permission: "read"
+      resource_template: "/node_agent/restore-tasks/{task_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Installed-state registry — canonical package inventory on this node.
-  rpc ListInstalledPackages(ListInstalledPackagesRequest) returns (ListInstalledPackagesResponse);
-  rpc GetInstalledPackage(GetInstalledPackageRequest) returns (GetInstalledPackageResponse);
+  rpc ListInstalledPackages(ListInstalledPackagesRequest) returns (ListInstalledPackagesResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.installed_package.list"
+      permission: "read"
+      collection_template: "/node_agent/nodes/{node_id}/packages"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetInstalledPackage(GetInstalledPackageRequest) returns (GetInstalledPackageResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.installed_package.read"
+      permission: "read"
+      resource_template: "/node_agent/nodes/{node_id}/packages/{name}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Node identity token rotation (Phase 2)
-  rpc RotateNodeToken(RotateNodeTokenRequest) returns (RotateNodeTokenResponse);
+  rpc RotateNodeToken(RotateNodeTokenRequest) returns (RotateNodeTokenResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.node_token.rotate"
+      permission: "admin"
+      resource_template: "/node_agent/node-token"
+      default_role_hint: "admin"
+    };
+  };
 
   // Observability: read service journal logs
-  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse);
+  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.service_logs.read"
+      permission: "read"
+      resource_template: "/node_agent/services/{unit}/logs"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Observability: TLS certificate status
-  rpc GetCertificateStatus(GetCertificateStatusRequest) returns (GetCertificateStatusResponse);
+  rpc GetCertificateStatus(GetCertificateStatusRequest) returns (GetCertificateStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.certificate_status.read"
+      permission: "read"
+      resource_template: "/node_agent/certificates"
+      default_role_hint: "viewer"
+    };
+  };
 }
 
 // ── Node identity token rotation (Phase 2) ──
@@ -246,7 +366,7 @@ message RotateNodeTokenResponse {
 // ── Service log retrieval ──
 
 message GetServiceLogsRequest {
-  string unit = 1;        // systemd unit name (must start with "globular-")
+  string unit = 1 [(globular.auth.resource) = { kind: "service_unit" }];        // systemd unit name (must start with "globular-")
   int32  lines = 2;       // max lines to return (capped at 200)
   string priority = 3;    // optional journalctl priority filter: "emerg","alert","crit","err","warning","notice","info","debug"
 }

@@ -5,6 +5,7 @@ package cluster_doctor;
 option go_package = "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpb";
 
 import "google/protobuf/timestamp.proto";
+import "globular_auth.proto";
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ message ClusterReport {
 // ─── Node Report ──────────────────────────────────────────────────────────────
 
 message NodeReportRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 
 message NodeReport {
@@ -114,7 +115,7 @@ message NodeReport {
 // ─── Drift Report ─────────────────────────────────────────────────────────────
 
 message DriftReportRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 
 message DriftItem {
@@ -135,7 +136,7 @@ message DriftReport {
 // ─── Explain Finding ──────────────────────────────────────────────────────────
 
 message ExplainFindingRequest {
-  string finding_id = 1;
+  string finding_id = 1 [(globular.auth.resource) = { kind: "finding" }];
 }
 
 message FindingExplanation {
@@ -151,8 +152,36 @@ message FindingExplanation {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 service ClusterDoctorService {
-  rpc GetClusterReport(ClusterReportRequest) returns (ClusterReport);
-  rpc GetNodeReport(NodeReportRequest)       returns (NodeReport);
-  rpc GetDriftReport(DriftReportRequest)     returns (DriftReport);
-  rpc ExplainFinding(ExplainFindingRequest)  returns (FindingExplanation);
+  rpc GetClusterReport(ClusterReportRequest) returns (ClusterReport) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.cluster_report.read"
+      permission: "read"
+      resource_template: "/cluster_doctor/cluster/report"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetNodeReport(NodeReportRequest) returns (NodeReport) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.node_report.read"
+      permission: "read"
+      resource_template: "/cluster_doctor/nodes/{node_id}/report"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetDriftReport(DriftReportRequest) returns (DriftReport) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.drift_report.read"
+      permission: "read"
+      resource_template: "/cluster_doctor/nodes/{node_id}/drift"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ExplainFinding(ExplainFindingRequest) returns (FindingExplanation) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.finding.explain"
+      permission: "read"
+      resource_template: "/cluster_doctor/findings/{finding_id}"
+      default_role_hint: "viewer"
+    };
+  };
 }

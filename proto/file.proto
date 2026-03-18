@@ -7,6 +7,7 @@
  
  option go_package="github.com/globulario/services/golang/file/filepb";
  import "google/protobuf/struct.proto";
+ import "globular_auth.proto";
  
  message Empty {
 	 // An empty message, often used for simple requests or responses that don't require any data.
@@ -34,7 +35,7 @@
  }
  
  message ReadDirRequest {
-	 string path = 1;            // The path of the directory to read.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];            // The path of the directory to read.
 	 bool recursive = 2;         // Whether to list files recursively.
 	 int32 thumbnailWidth = 3;   // Width for generated thumbnails.
 	 int32 thumbnailHeight = 4;  // Height for generated thumbnails.
@@ -45,7 +46,7 @@
  }
  
  message CreateDirRequest {
-	 string path = 1;  // The path where the new directory will be created.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path where the new directory will be created.
 	 string name = 2;  // The name of the new directory.
  }
  
@@ -54,7 +55,7 @@
  }
  
  message DeleteDirRequest {
-	 string path = 1;  // The path of the directory to be deleted.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path of the directory to be deleted.
  }
  
  message DeleteDirResponse {
@@ -62,7 +63,7 @@
  }
  
  message RenameRequest {
-	 string path = 1;     // The path of the file or directory.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];     // The path of the file or directory.
 	 string new_name = 2; // The new name for the file or directory.
 	 string old_name = 3; // The current name of the file or directory.
  }
@@ -72,7 +73,7 @@
  }
  
  message CopyRequest {
-	 string path = 1;        // The destination path for the copied files/directories.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];        // The destination path for the copied files/directories.
 	 repeated string files = 2;  // List of files/directories to be copied.
  }
  
@@ -81,7 +82,7 @@
  }
  
  message MoveRequest {
-	 string path = 1;        // The destination path for the moved files/directories.
+	 string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];        // The destination path for the moved files/directories.
 	 repeated string files = 2;  // List of files/directories to be moved.
  }
  
@@ -91,7 +92,7 @@
  
 
  message GetFileInfoRequest {
-    string path = 1;            // The path of the file for which information is requested.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];            // The path of the file for which information is requested.
     int32 thumbnailWidth = 2;   // Desired width of the thumbnail.
     int32 thumbnailHeight = 3;  // Desired height of the thumbnail.
 }
@@ -101,7 +102,7 @@ message GetFileInfoResponse {
 }
 
 message GetFileMetadataRequest {
-    string path = 1;  // The path of the file for which metadata is requested.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path of the file for which metadata is requested.
 }
 
 message GetFileMetadataResponse {
@@ -110,7 +111,7 @@ message GetFileMetadataResponse {
 
 // Request to read a file as binary data.
 message ReadFileRequest {
-    string path = 1;  // The path of the file to read.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path of the file to read.
 }
 
 // Response containing the file's binary data.
@@ -132,7 +133,7 @@ message SaveFileResponse {
 
 // Request to delete a file.
 message DeleteFileRequest {
-    string path = 1;  // The path of the file to be deleted.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path of the file to be deleted.
 }
 
 message DeleteFileResponse {
@@ -141,7 +142,7 @@ message DeleteFileResponse {
 
 // Request to get thumbnails for all images in a directory.
 message GetThumbnailsRequest {
-    string path = 1;            // The path of the directory.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];            // The path of the directory.
     bool recursive = 2;         // Whether to search for images recursively.
     int32 thumbnailWidth = 3;   // Desired width of the thumbnails.
     int32 thumbnailHeight = 4;  // Desired height of the thumbnails.
@@ -154,7 +155,7 @@ message GetThumbnailsResponse {
 
 // Request to create an archive (e.g., zip) of specified directories.
 message CreateArchiveRequest {
-    repeated string paths = 1;  // List of directories to include in the archive.
+    repeated string paths = 1 [(globular.auth.resource) = { kind: "path" }];  // List of directories to include in the archive.
     string name = 2;            // The desired name of the archive file.
 }
 
@@ -164,7 +165,7 @@ message CreateArchiveResponse {
 
 // Request to create a shortcut link to a file.
 message CreateLnkRequest {
-    string path = 1;  // The directory where the link will be created.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The directory where the link will be created.
     string name = 2;  // The name of the link file (must end with '.lnk').
     string lnk = 3;   // JSON containing the information of the linked file.
 }
@@ -176,7 +177,7 @@ message CreateLnkResponse {
 
 // Add a public directory.
 message AddPublicDirRequest {
-    string path = 1; // Path of the directory to make public.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }]; // Path of the directory to make public.
 }
 
 message AddPublicDirResponse {
@@ -185,7 +186,7 @@ message AddPublicDirResponse {
 
 // Remove a public directory.
 message RemovePublicDirRequest {
-    string path = 1; // Path of the public directory to remove.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }]; // Path of the public directory to remove.
 }
 
 message RemovePublicDirResponse {
@@ -203,7 +204,7 @@ message GetPublicDirsResponse {
 
 // Request to write an Excel file on the server.
 message WriteExcelFileRequest {
-    string path = 1;  // The path where the Excel file will be written.
+    string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];  // The path where the Excel file will be written.
     string data = 2;  // JSON object containing Excel data (e.g., sheets, cells).
 }
 
@@ -223,7 +224,7 @@ message HtmlToPdfResponse {
 // Request to upload a file.
 message UploadFileRequest {
     string url = 1;    // URL of the file to upload.
-    string dest = 2;   // Destination path for the uploaded file.
+    string dest = 2 [(globular.auth.resource) = { kind: "path", scope_anchor: true }];   // Destination path for the uploaded file.
     string name = 3;   // Name of the file.
     string domain = 4; // Domain from which the file is being uploaded.
     bool isDir = 5;    // True if the upload is a directory (e.g., for a directory of streams).
@@ -251,65 +252,212 @@ message StopResponse {
 // It also includes services for video processing, thumbnail generation, and public directory management.
 service FileService {
     // Stop the server.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "file.admin"
+            permission: "admin"
+            resource_template: "/file"
+            default_role_hint: "admin"
+        };
+    };
 
     // Add a directory to the list of public directories.
-    rpc AddPublicDir(AddPublicDirRequest) returns (AddPublicDirResponse);
+    rpc AddPublicDir(AddPublicDirRequest) returns (AddPublicDirResponse) {
+        option (globular.auth.authz) = {
+            action: "file.publish"
+            permission: "admin"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Remove a directory from the list of public directories.
-    rpc RemovePublicDir(RemovePublicDirRequest) returns (RemovePublicDirResponse);
+    rpc RemovePublicDir(RemovePublicDirRequest) returns (RemovePublicDirResponse) {
+        option (globular.auth.authz) = {
+            action: "file.publish"
+            permission: "admin"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Return the list of public directories.
-    rpc GetPublicDirs(GetPublicDirsRequest) returns (GetPublicDirsResponse);
+    rpc GetPublicDirs(GetPublicDirsRequest) returns (GetPublicDirsResponse) {
+        option (globular.auth.authz) = {
+            action: "file.publish"
+            permission: "read"
+            collection_template: "/file/public-dirs"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Return a JSON string containing the directory information, including thumbnails for images.
-    rpc ReadDir(ReadDirRequest) returns (stream ReadDirResponse);
+    rpc ReadDir(ReadDirRequest) returns (stream ReadDirResponse) {
+        option (globular.auth.authz) = {
+            action: "file.list"
+            permission: "read"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Create a new directory.
-    rpc CreateDir(CreateDirRequest) returns (CreateDirResponse);
+    rpc CreateDir(CreateDirRequest) returns (CreateDirResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Create a link file.
-    rpc CreateLnk(CreateLnkRequest) returns (CreateLnkResponse);
+    rpc CreateLnk(CreateLnkRequest) returns (CreateLnkResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Delete a directory.
-    rpc DeleteDir(DeleteDirRequest) returns (DeleteDirResponse);
+    rpc DeleteDir(DeleteDirRequest) returns (DeleteDirResponse) {
+        option (globular.auth.authz) = {
+            action: "file.delete"
+            permission: "delete"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Rename a file or directory.
-    rpc Rename(RenameRequest) returns (RenameResponse);
+    rpc Rename(RenameRequest) returns (RenameResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Move a file or directory.
-    rpc Move(MoveRequest) returns (MoveResponse);
+    rpc Move(MoveRequest) returns (MoveResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Copy a file or directory.
-    rpc Copy(CopyRequest) returns (CopyResponse);
+    rpc Copy(CopyRequest) returns (CopyResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Create an archive from a given directory and set its name.
-    rpc CreateArchive(CreateArchiveRequest) returns (CreateArchiveResponse);
+    rpc CreateArchive(CreateArchiveRequest) returns (CreateArchiveResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            collection_template: "/file/path"
+            default_role_hint: "editor"
+        };
+    };
 
     // Get file information, including size, name, and thumbnail.
-    rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
+    rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse) {
+        option (globular.auth.authz) = {
+            action: "file.list"
+            permission: "read"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Return file metadata.
-    rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse);
+    rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {
+        option (globular.auth.authz) = {
+            action: "file.list"
+            permission: "read"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Read a file, suitable for small to medium-sized files.
-    rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+    rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.read"
+            permission: "read"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Save a file on the server.
-    rpc SaveFile(stream SaveFileRequest) returns (SaveFileResponse);
+    rpc SaveFile(stream SaveFileRequest) returns (SaveFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Delete a file.
-    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.delete"
+            permission: "delete"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieve thumbnails for specific files.
-    rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse);
+    rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse) {
+        option (globular.auth.authz) = {
+            action: "file.read"
+            permission: "read"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Upload a file from a URL.
-    rpc UploadFile(UploadFileRequest) returns (stream UploadFileResponse);
+    rpc UploadFile(UploadFileRequest) returns (stream UploadFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{dest}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Write an Excel file.
-    rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse);
+    rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Convert HTML to PDF.
-    rpc HtmlToPdf(HtmlToPdfRqst) returns (HtmlToPdfResponse);
+    rpc HtmlToPdf(HtmlToPdfRqst) returns (HtmlToPdfResponse) {
+        option (globular.auth.authz) = {
+            action: "file.read"
+            permission: "read"
+            collection_template: "/file"
+            default_role_hint: "viewer"
+        };
+    };
 }

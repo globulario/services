@@ -6,6 +6,7 @@ syntax = "proto3";
 package spc;
 
 option go_package="github.com/globulario/services/golang/spc/spcpb";
+import "globular_auth.proto";
 
 message CreateAnalyseRqst {
 	string data = 1; // JSON array string
@@ -22,17 +23,31 @@ message CreateAnalyseRsp {
 }
 
 message StopRequest {
-	
+
 }
 
 message StopResponse {
-	
+
 }
 
 service SpcService {
 	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
-	
+ 	rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "spc.stop"
+			permission: "admin"
+			resource_template: "/spc"
+			default_role_hint: "admin"
+		};
+	};
+
 	// Send analyse results message.
-	rpc CreateAnalyse(CreateAnalyseRqst) returns (CreateAnalyseRsp){};
+	rpc CreateAnalyse(CreateAnalyseRqst) returns (CreateAnalyseRsp) {
+		option (globular.auth.authz) = {
+			action: "spc.analyse.create"
+			permission: "write"
+			collection_template: "/spc/analyses"
+			default_role_hint: "editor"
+		};
+	};
 }

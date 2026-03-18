@@ -4,6 +4,8 @@ package ldap;
 
 option go_package="github.com/globulario/services/golang/ldap/ldappb";
 
+import "globular_auth.proto";
+
 // Represents the necessary information to establish a connection to an LDAP server.
 message Connection {
 	string id = 1;       // Unique identifier for the connection.
@@ -25,7 +27,7 @@ message CreateConnectionRsp {
 
 // Request message for deleting an existing LDAP connection.
 message DeleteConnectionRqst {
-	string id = 1; // Identifier of the connection to be deleted.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to be deleted.
 }
 
 // Response message for the delete connection request.
@@ -35,7 +37,7 @@ message DeleteConnectionRsp {
 
 // Request message for closing an LDAP connection.
 message CloseRqst {
-	string id = 1; // Identifier of the connection to be closed.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to be closed.
 }
 
 // Response message for the close connection request.
@@ -45,7 +47,7 @@ message CloseRsp {
 
 // Defines the parameters for an LDAP search operation.
 message Search {
-	string id = 1;                   // Identifier of the connection to use for the search.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to use for the search.
 	string baseDN = 2;               // Base domain name for the search.
 	string filter = 3;               // LDAP filter expression for the search.
 	repeated string attributes = 4;  // List of attributes to retrieve in the search.
@@ -63,7 +65,7 @@ message SearchResp {
 
 // Request message for authenticating a user against an LDAP server.
 message AuthenticateRqst {
-	string id = 1;   // Identifier of the connection to use for authentication.
+	string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to use for authentication.
 	string login = 2; // Login credentials of the user.
 	string pwd = 3;  // Password of the user.
 }
@@ -124,8 +126,8 @@ message UserSyncInfo {
 }
 
 message LdapSyncInfo {
-	string id = 1;
-	string connectionId = 2;
+	string id = 1 [(globular.auth.resource) = { kind: "sync_info", scope_anchor: true }];
+	string connectionId = 2 [(globular.auth.resource) = { kind: "connection" }];
 	int32 refresh = 3; // in minutes
 	GroupSyncInfo group_sync_info = 4;
 	UserSyncInfo user_sync_info = 5;
@@ -138,9 +140,9 @@ message setLdapSyncInfoRequest {
 message setLdapSyncInfoResponse {
 }
 
-// Retreive 
+// Retreive
 message getLdapSyncInfoRequest {
-	string id = 1; // empty string return all values.
+	string id = 1 [(globular.auth.resource) = { kind: "sync_info", scope_anchor: true }]; // empty string return all values.
 }
 message getLdapSyncInfoResponse {
 	repeated LdapSyncInfo infos = 1;
@@ -148,7 +150,7 @@ message getLdapSyncInfoResponse {
 
 // Delete info
 message deleteLdapSyncInfoRequest {
-	string id = 1; // empty string return all values.
+	string id = 1 [(globular.auth.resource) = { kind: "sync_info", scope_anchor: true }]; // empty string return all values.
 }
 message deleteLdapSyncInfoResponse {
 }
@@ -157,43 +159,113 @@ message deleteLdapSyncInfoResponse {
 // LdapService defines the RPC methods available for interacting with an LDAP server.
 service LdapService {
     // Stops the LDAP service. This method should be called to properly shut down the service.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+		option (globular.auth.authz) = {
+			action: "ldap.stop"
+			permission: "admin"
+			resource_template: "/ldap"
+			default_role_hint: "admin"
+		};
+	};
 
     // Creates a new LDAP connection using the provided connection details.
     // This is typically the first step in interacting with an LDAP server.
-    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "ldap.createconnection"
+			permission: "admin"
+			collection_template: "/ldap/connections"
+			default_role_hint: "admin"
+		};
+	};
 
     // Deletes an existing LDAP connection identified by its ID.
     // Use this method to remove connections that are no longer needed.
-    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+		option (globular.auth.authz) = {
+			action: "ldap.deleteconnection"
+			permission: "delete"
+			resource_template: "/ldap/connections/{id}"
+			default_role_hint: "admin"
+		};
+	};
 
     // Closes an open LDAP connection. It's important to close connections that are no longer in use.
     // Unlike creating a connection, which is done automatically during a search, closing must be done explicitly.
-    rpc Close(CloseRqst) returns (CloseRsp);
+    rpc Close(CloseRqst) returns (CloseRsp) {
+		option (globular.auth.authz) = {
+			action: "ldap.close"
+			permission: "admin"
+			resource_template: "/ldap/connections/{id}"
+			default_role_hint: "admin"
+		};
+	};
 
     // Performs a search on the LDAP server using the specified parameters.
     // This method uses an existing connection to query the LDAP directory.
-    rpc Search(SearchRqst) returns (SearchResp);
+    rpc Search(SearchRqst) returns (SearchResp) {
+		option (globular.auth.authz) = {
+			action: "ldap.search"
+			permission: "read"
+			resource_template: "/ldap/connections/{id}"
+			default_role_hint: "viewer"
+		};
+	};
 
     // Authenticates a user against the specified LDAP server (identified by the connection ID).
     // This is used for verifying user credentials.
-    rpc Authenticate(AuthenticateRqst) returns (AuthenticateRsp);
+    rpc Authenticate(AuthenticateRqst) returns (AuthenticateRsp) {
+		option (globular.auth.authz) = {
+			action: "ldap.authenticate"
+			permission: "read"
+			resource_template: "/ldap/connections/{id}"
+			default_role_hint: "viewer"
+		};
+	};
 
     // Synchronizes resources with the LDAP server.
     // This method can be used to ensure that local data is in sync with the LDAP directory.
-    rpc Synchronize(SynchronizeRequest) returns (SynchronizeResponse);
+    rpc Synchronize(SynchronizeRequest) returns (SynchronizeResponse) {
+		option (globular.auth.authz) = {
+			action: "ldap.synchronize"
+			permission: "admin"
+			resource_template: "/ldap"
+			default_role_hint: "admin"
+		};
+	};
 
     // Adds or updates synchronization information in the LDAP service.
     // Use this method to configure or modify how data is synchronized.
-    rpc setLdapSyncInfo(setLdapSyncInfoRequest) returns (setLdapSyncInfoResponse);
+    rpc setLdapSyncInfo(setLdapSyncInfoRequest) returns (setLdapSyncInfoResponse) {
+		option (globular.auth.authz) = {
+			action: "ldap.setldapsyncinfo"
+			permission: "write"
+			collection_template: "/ldap/sync-infos"
+			default_role_hint: "admin"
+		};
+	};
 
     // Deletes existing synchronization information from the LDAP service.
     // Use this when certain sync configurations are no longer required.
-    rpc deleteLdapSyncInfo(deleteLdapSyncInfoRequest) returns (deleteLdapSyncInfoResponse);
+    rpc deleteLdapSyncInfo(deleteLdapSyncInfoRequest) returns (deleteLdapSyncInfoResponse) {
+		option (globular.auth.authz) = {
+			action: "ldap.deleteldapsyncinfo"
+			permission: "delete"
+			resource_template: "/ldap/sync-infos/{id}"
+			default_role_hint: "admin"
+		};
+	};
 
     // Retrieves synchronization information from the LDAP service.
     // This can be used to audit or review current synchronization settings.
-    rpc getLdapSyncInfo(getLdapSyncInfoRequest) returns (getLdapSyncInfoResponse);
+    rpc getLdapSyncInfo(getLdapSyncInfoRequest) returns (getLdapSyncInfoResponse) {
+		option (globular.auth.authz) = {
+			action: "ldap.getldapsyncinfo"
+			permission: "read"
+			resource_template: "/ldap/sync-infos/{id}"
+			default_role_hint: "viewer"
+		};
+	};
 }
 
 

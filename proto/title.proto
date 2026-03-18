@@ -3,6 +3,7 @@ package title;
 
 option go_package="github.com/globulario/services/golang/title/titlepb";
 import "google/protobuf/empty.proto";
+import "globular_auth.proto";
 
 // Represents a person with a role in the entertainment industry.
 message Person {
@@ -79,7 +80,7 @@ message Videos {
 // Request to create a new video entry.
 message CreateVideoRequest {
 	Video video = 1; // Video data to be created.
-	string indexPath = 2; // Path where the video data will be stored.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the video data will be stored.
 }
 
 message CreateVideoResponse {
@@ -88,8 +89,8 @@ message CreateVideoResponse {
 
 // Request to retrieve a video by its ID.
 message GetVideoByIdRequest {
-	string videoId = 1; // ID of the video to retrieve.
-	string indexPath = 2; // Path where the video data is stored.
+	string videoId = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: false }]; // ID of the video to retrieve.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the video data is stored.
 }
 
 message GetVideoByIdResponse {
@@ -99,8 +100,8 @@ message GetVideoByIdResponse {
 
 // Request to delete a video from the database.
 message DeleteVideoRequest {
-	string videoId = 1; // ID of the video to be deleted.
-	string indexPath = 2; // Path where the video data is stored.
+	string videoId = 1 [(globular.auth.resource) = { kind: "video", scope_anchor: false }]; // ID of the video to be deleted.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the video data is stored.
 }
 
 message DeleteVideoResponse {
@@ -110,7 +111,7 @@ message DeleteVideoResponse {
 // Request to update metadata of an existing video.
 message UpdateVideoMetadataRequest{
 	Video video = 1; // Updated video information.
-	string indexPath = 2; // Path where the video data is stored.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the video data is stored.
 }
 
 message UpdateVideoMetadataResponse{
@@ -150,7 +151,7 @@ message Titles {
 // Request to create a new title entry in the database.
 message CreateTitleRequest {
 	Title title = 1; // Title data to be created.
-	string indexPath = 2; // Path where the title data will be stored.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the title data will be stored.
 }
 
 message CreateTitleResponse {
@@ -159,8 +160,8 @@ message CreateTitleResponse {
 
 // Request to retrieve a title by its ID.
 message GetTitleByIdRequest {
-	string titleId = 1; // ID of the title to retrieve.
-	string indexPath = 2; // Path where the title data is stored.
+	string titleId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }]; // ID of the title to retrieve.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the title data is stored.
 }
 
 message GetTitleByIdResponse {
@@ -170,8 +171,8 @@ message GetTitleByIdResponse {
 
 // Request to delete a title from the database.
 message DeleteTitleRequest {
-	string titleId = 1; // ID of the title to be deleted.
-	string indexPath = 2; // Path where the title data is stored.
+	string titleId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }]; // ID of the title to be deleted.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the title data is stored.
 }
 
 message DeleteTitleResponse {
@@ -181,7 +182,7 @@ message DeleteTitleResponse {
 // Request to update metadata of an existing title.
 message UpdateTitleMetadataRequest{
 	Title title = 1; // Updated title information.
-	string indexPath = 2; // Path where the title data is stored.
+	string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the title data is stored.
 }
 
 message UpdateTitleMetadataResponse{
@@ -190,9 +191,9 @@ message UpdateTitleMetadataResponse{
 
 // Request to associate a file with a title.
 message AssociateFileWithTitleRequest {
-	string titleId = 1; // ID of the title.
-	string filePath = 2; // Path of the file to associate.
-	string indexPath = 3; // Path where the title data is stored.
+	string titleId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }]; // ID of the title.
+	string filePath = 2 [(globular.auth.resource) = { kind: "file", scope_anchor: false }]; // Path of the file to associate.
+	string indexPath = 3 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Path where the title data is stored.
 }
 
 // Response for associating a file with a title - intentionally left blank
@@ -201,9 +202,9 @@ message AssociateFileWithTitleResponse {
 
 // Request to dissociate a file from a title
 message DissociateFileWithTitleRequest {
-    string titleId = 1;  // ID of the title to dissociate
-    string filePath = 2; // Path of the file to dissociate
-    string indexPath = 3; // Index path for the dissociation
+    string titleId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }];  // ID of the title to dissociate
+    string filePath = 2 [(globular.auth.resource) = { kind: "file", scope_anchor: false }]; // Path of the file to dissociate
+    string indexPath = 3 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for the dissociation
 }
 
 // Response for dissociating a file from a title - intentionally left blank
@@ -212,8 +213,8 @@ message DissociateFileWithTitleResponse {
 
 // Request to get the list of titles associated with a file
 message GetFileTitlesRequest {
-    string filePath = 1; // Path of the file
-    string indexPath = 2; // Index path for querying
+    string filePath = 1 [(globular.auth.resource) = { kind: "file", scope_anchor: false }]; // Path of the file
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the list of titles associated with a file
@@ -223,8 +224,8 @@ message GetFileTitlesResponse {
 
 // Request to get the list of videos associated with a file
 message GetFileVideosRequest {
-    string filePath = 1; // Path of the file
-    string indexPath = 2; // Index path for querying
+    string filePath = 1 [(globular.auth.resource) = { kind: "file", scope_anchor: false }]; // Path of the file
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the list of videos associated with a file
@@ -234,8 +235,8 @@ message GetFileVideosResponse {
 
 // Request to get the list of files associated with a title
 message GetTitleFilesRequest {
-    string titleId = 1; // ID of the title
-    string indexPath = 2; // Index path for querying
+    string titleId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }]; // ID of the title
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the list of files associated with a title
@@ -294,7 +295,7 @@ message SearchFacets {
 message SearchTitlesRequest {
     string query = 1; // Search query
     repeated string fields = 2; // Fields to search in
-    string indexPath = 3; // Index path for searching
+    string indexPath = 3 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for searching
     int32 size = 4; // Size of the search result set
     int32 offset = 5; // Offset for the search results
 }
@@ -312,7 +313,7 @@ message SearchTitlesResponse {
 message SearchPersonsRequest {
     string query = 1; // Search query
     repeated string fields = 2; // Fields to search in
-    string indexPath = 3; // Index path for searching
+    string indexPath = 3 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for searching
     int32 size = 4; // Size of the search result set
     int32 offset = 5; // Offset for the search results
 }
@@ -331,7 +332,7 @@ message SearchPersonsResponse {
 // Request to create a publisher
 message CreatePublisherRequest {
     Publisher publisher = 1; // Publisher details
-    string indexPath = 2; // Index path for the creation
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for the creation
 }
 
 // Response for creating a publisher - intentionally left blank
@@ -340,8 +341,8 @@ message CreatePublisherResponse {
 
 // Request to delete a publisher
 message DeletePublisherRequest {
-    string PublisherID = 1; // ID of the publisher to delete
-    string indexPath = 2; // Index path for the deletion
+    string PublisherID = 1 [(globular.auth.resource) = { kind: "publisher", scope_anchor: false }]; // ID of the publisher to delete
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for the deletion
 }
 
 // Response for deleting a publisher - intentionally left blank
@@ -350,8 +351,8 @@ message DeletePublisherResponse {
 
 // Request to get a publisher by ID
 message GetPublisherByIdRequest {
-    string PublisherID = 1; // ID of the publisher
-    string indexPath = 2; // Index path for querying
+    string PublisherID = 1 [(globular.auth.resource) = { kind: "publisher", scope_anchor: false }]; // ID of the publisher
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the requested publisher
@@ -362,7 +363,7 @@ message GetPublisherByIdResponse {
 // Request to create a person
 message CreatePersonRequest {
     Person person = 1; // Person details
-    string indexPath = 2; // Index path for the creation
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for the creation
 }
 
 // Response for creating a person - intentionally left blank
@@ -371,8 +372,8 @@ message CreatePersonResponse {
 
 // Request to delete a person
 message DeletePersonRequest {
-    string personId = 1; // ID of the person to delete
-    string indexPath = 2; // Index path for the deletion
+    string personId = 1 [(globular.auth.resource) = { kind: "person", scope_anchor: false }]; // ID of the person to delete
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for the deletion
 }
 
 // Response for deleting a person - intentionally left blank
@@ -381,8 +382,8 @@ message DeletePersonResponse {
 
 // Request to get a person by ID
 message GetPersonByIdRequest {
-    string personId = 1; // ID of the person
-    string indexPath = 2; // Index path for querying
+    string personId = 1 [(globular.auth.resource) = { kind: "person", scope_anchor: false }]; // ID of the person
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the requested person
@@ -430,7 +431,7 @@ message Audios {
 // Request to create an audio track
 message CreateAudioRequest {
     Audio audio = 1; // Audio track details
-    string indexPath = 2; // Index path for creation
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for creation
 }
 
 // Response for creating an audio track - intentionally left blank
@@ -439,8 +440,8 @@ message CreateAudioResponse {
 
 // Request to get an audio track by ID
 message GetAudioByIdRequest {
-    string audioId = 1; // ID of the audio track
-    string indexPath = 2; // Index path for querying
+    string audioId = 1 [(globular.auth.resource) = { kind: "audio", scope_anchor: false }]; // ID of the audio track
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the requested audio track
@@ -451,8 +452,8 @@ message GetAudioByIdResponse {
 
 // Request to delete an audio track
 message DeleteAudioRequest {
-    string audioId = 1; // ID of the audio track to delete
-    string indexPath = 2; // Index path for deletion
+    string audioId = 1 [(globular.auth.resource) = { kind: "audio", scope_anchor: false }]; // ID of the audio track to delete
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for deletion
 }
 
 // Response for deleting an audio track - intentionally left blank
@@ -461,8 +462,8 @@ message DeleteAudioResponse {
 
 // Request to get audio tracks associated with a file
 message GetFileAudiosRequest {
-    string filePath = 1; // Path of the file
-    string indexPath = 2; // Index path for querying
+    string filePath = 1 [(globular.auth.resource) = { kind: "file", scope_anchor: false }]; // Path of the file
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing audio tracks associated with a file
@@ -472,8 +473,8 @@ message GetFileAudiosResponse {
 
 // Request to get an album by ID
 message GetAlbumRequest {
-    string albumId = 1; // ID of the album
-    string indexPath = 2; // Index path for querying
+    string albumId = 1 [(globular.auth.resource) = { kind: "album", scope_anchor: false }]; // ID of the album
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for querying
 }
 
 // Response containing the requested album
@@ -483,8 +484,8 @@ message GetAlbumResponse {
 
 // Request to delete an album
 message DeleteAlbumRequest {
-    string albumId = 1; // ID of the album to delete
-    string indexPath = 2; // Index path for deletion
+    string albumId = 1 [(globular.auth.resource) = { kind: "album", scope_anchor: false }]; // ID of the album to delete
+    string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }]; // Index path for deletion
 }
 
 // Response for deleting an album - intentionally left blank
@@ -513,7 +514,7 @@ message ListWatchingResponse {
 }
 
 message GetWatchingRequest {
-  string title_id = 1;
+  string title_id = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }];
 }
 
 message SaveWatchingRequest {
@@ -521,7 +522,7 @@ message SaveWatchingRequest {
 }
 
 message RemoveWatchingRequest {
-  string title_id = 1;
+  string title_id = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }];
 }
 
 message RebuildIndexRequest {
@@ -531,8 +532,8 @@ message RebuildIndexRequest {
 
 // Returns all episodes belonging to a series, sorted by season then episode.
 message GetSeriesEpisodesRequest {
-  string seriesId = 1;   // Parent series title ID (e.g. "tt0903747")
-  string indexPath = 2;  // Bleve index path
+  string seriesId = 1 [(globular.auth.resource) = { kind: "title", scope_anchor: false }];   // Parent series title ID (e.g. "tt0903747")
+  string indexPath = 2 [(globular.auth.resource) = { kind: "index", scope_anchor: true }];  // Bleve index path
   int32  season = 3;     // Optional: filter to a specific season (0 = all)
 }
 
@@ -549,101 +550,332 @@ message GetSeriesEpisodesResponse {
  service TitleService {
 
     // Creates a new publisher in the database.
-    rpc CreatePublisher(CreatePublisherRequest) returns (CreatePublisherResponse);
+    rpc CreatePublisher(CreatePublisherRequest) returns (CreatePublisherResponse) {
+        option (globular.auth.authz) = {
+            action: "title.publisher.create"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/publishers"
+            default_role_hint: "editor"
+        };
+    };
 
     // Deletes a publisher from the database.
-    rpc DeletePublisher(DeletePublisherRequest) returns (DeletePublisherResponse);
+    rpc DeletePublisher(DeletePublisherRequest) returns (DeletePublisherResponse) {
+        option (globular.auth.authz) = {
+            action: "title.publisher.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/publishers/{PublisherID}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieves a publisher's information by ID.
-    rpc GetPublisherById(GetPublisherByIdRequest) returns (GetPublisherByIdResponse);
+    rpc GetPublisherById(GetPublisherByIdRequest) returns (GetPublisherByIdResponse) {
+        option (globular.auth.authz) = {
+            action: "title.publisher.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/publishers/{PublisherID}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Creates a new person (e.g., actor, director) in the database.
-    rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
+    rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse) {
+        option (globular.auth.authz) = {
+            action: "title.person.create"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/persons"
+            default_role_hint: "editor"
+        };
+    };
 
     // Deletes a person from the database.
-    rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
+    rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse) {
+        option (globular.auth.authz) = {
+            action: "title.person.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/persons/{personId}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieves a person's information by ID.
-    rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse);
+    rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse) {
+        option (globular.auth.authz) = {
+            action: "title.person.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/persons/{personId}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Inserts or updates a title in the database.
-    rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
+    rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse) {
+        option (globular.auth.authz) = {
+            action: "title.title.create"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/titles"
+            default_role_hint: "editor"
+        };
+    };
 
     // Retrieves a title by its ID.
-    rpc GetTitleById(GetTitleByIdRequest) returns (GetTitleByIdResponse);
+    rpc GetTitleById(GetTitleByIdRequest) returns (GetTitleByIdResponse) {
+        option (globular.auth.authz) = {
+            action: "title.title.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/titles/{titleId}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Deletes a title from the database.
-    rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
+    rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse) {
+        option (globular.auth.authz) = {
+            action: "title.title.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/titles/{titleId}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Updates metadata of a title in its associated files.
-    rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse);
+    rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse) {
+        option (globular.auth.authz) = {
+            action: "title.title.update"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/titles"
+            default_role_hint: "editor"
+        };
+    };
 
     // Inserts or updates audio information in the database.
-    rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse);
+    rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse) {
+        option (globular.auth.authz) = {
+            action: "title.audio.create"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/audios"
+            default_role_hint: "editor"
+        };
+    };
 
     // Retrieves audio information by its ID.
-    rpc GetAudioById(GetAudioByIdRequest) returns (GetAudioByIdResponse);
+    rpc GetAudioById(GetAudioByIdRequest) returns (GetAudioByIdResponse) {
+        option (globular.auth.authz) = {
+            action: "title.audio.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/audios/{audioId}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves album information by its ID.
-    rpc GetAlbum(GetAlbumRequest) returns (GetAlbumResponse);
+    rpc GetAlbum(GetAlbumRequest) returns (GetAlbumResponse) {
+        option (globular.auth.authz) = {
+            action: "title.album.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/albums/{albumId}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Deletes an audio record from the database.
-    rpc DeleteAudio(DeleteAudioRequest) returns (DeleteAudioResponse);
+    rpc DeleteAudio(DeleteAudioRequest) returns (DeleteAudioResponse) {
+        option (globular.auth.authz) = {
+            action: "title.audio.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/audios/{audioId}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Deletes an album from the database.
-    rpc DeleteAlbum(DeleteAlbumRequest) returns (DeleteAlbumResponse);
+    rpc DeleteAlbum(DeleteAlbumRequest) returns (DeleteAlbumResponse) {
+        option (globular.auth.authz) = {
+            action: "title.album.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/albums/{albumId}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Inserts or updates a video in the database.
-    rpc CreateVideo(CreateVideoRequest) returns (CreateVideoResponse);
+    rpc CreateVideo(CreateVideoRequest) returns (CreateVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "title.video.create"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/videos"
+            default_role_hint: "editor"
+        };
+    };
 
     // Retrieves a video by its ID.
-    rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse);
+    rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse) {
+        option (globular.auth.authz) = {
+            action: "title.video.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/videos/{videoId}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Deletes a video from the database.
-    rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse);
+    rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse) {
+        option (globular.auth.authz) = {
+            action: "title.video.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/videos/{videoId}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Updates metadata of a video in its associated files.
-    rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse);
+    rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse) {
+        option (globular.auth.authz) = {
+            action: "title.video.update"
+            permission: "write"
+            collection_template: "/title/indexes/{indexPath}/videos"
+            default_role_hint: "editor"
+        };
+    };
 
     // Associates a file with a title for easier retrieval.
-    rpc AssociateFileWithTitle(AssociateFileWithTitleRequest) returns (AssociateFileWithTitleResponse);
+    rpc AssociateFileWithTitle(AssociateFileWithTitleRequest) returns (AssociateFileWithTitleResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.create"
+            permission: "write"
+            resource_template: "/title/indexes/{indexPath}/titles/{titleId}/files/{filePath}"
+            default_role_hint: "editor"
+        };
+    };
 
     // Dissociates a file from a title.
-    rpc DissociateFileWithTitle(DissociateFileWithTitleRequest) returns (DissociateFileWithTitleResponse);
+    rpc DissociateFileWithTitle(DissociateFileWithTitleRequest) returns (DissociateFileWithTitleResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.delete"
+            permission: "delete"
+            resource_template: "/title/indexes/{indexPath}/titles/{titleId}/files/{filePath}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Retrieves a list of titles associated with a file.
-    rpc GetFileTitles(GetFileTitlesRequest) returns (GetFileTitlesResponse);
+    rpc GetFileTitles(GetFileTitlesRequest) returns (GetFileTitlesResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/files/{filePath}/titles"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves a list of videos associated with a file.
-    rpc GetFileVideos(GetFileVideosRequest) returns (GetFileVideosResponse);
+    rpc GetFileVideos(GetFileVideosRequest) returns (GetFileVideosResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/files/{filePath}/videos"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves a list of audios associated with a file.
-    rpc GetFileAudios(GetFileAudiosRequest) returns (GetFileAudiosResponse);
+    rpc GetFileAudios(GetFileAudiosRequest) returns (GetFileAudiosResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/files/{filePath}/audios"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves a list of files associated with a title.
-    rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse);
+    rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse) {
+        option (globular.auth.authz) = {
+            action: "title.file_association.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/titles/{titleId}/files"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Searches for titles or videos based on given criteria.
-    rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
+    rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse) {
+        option (globular.auth.authz) = {
+            action: "title.search"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Searches for persons (e.g., YouTubers, actors, directors) based on given criteria.
-    rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
+    rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse) {
+        option (globular.auth.authz) = {
+            action: "title.search"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Lists all watching entries with optional filters.
-    rpc ListWatching(ListWatchingRequest) returns (ListWatchingResponse);
+    rpc ListWatching(ListWatchingRequest) returns (ListWatchingResponse) {
+        option (globular.auth.authz) = {
+            action: "title.watching.list"
+            permission: "read"
+            collection_template: "/title/watching"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Retrieves a specific watching entry by title ID.
-    rpc GetWatching(GetWatchingRequest) returns (WatchingEntry);
+    rpc GetWatching(GetWatchingRequest) returns (WatchingEntry) {
+        option (globular.auth.authz) = {
+            action: "title.watching.read"
+            permission: "read"
+            resource_template: "/title/watching/{title_id}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Saves or updates a watching entry.
-    rpc SaveWatching(SaveWatchingRequest) returns (.google.protobuf.Empty);
+    rpc SaveWatching(SaveWatchingRequest) returns (.google.protobuf.Empty) {
+        option (globular.auth.authz) = {
+            action: "title.watching.write"
+            permission: "write"
+            collection_template: "/title/watching"
+            default_role_hint: "editor"
+        };
+    };
 
     // Removes a watching entry by title ID.
-    rpc RemoveWatching(RemoveWatchingRequest) returns (.google.protobuf.Empty);
+    rpc RemoveWatching(RemoveWatchingRequest) returns (.google.protobuf.Empty) {
+        option (globular.auth.authz) = {
+            action: "title.watching.delete"
+            permission: "delete"
+            resource_template: "/title/watching/{title_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Rebuilds Bleve indices from the persisted KV store.
-    rpc RebuildIndexFromStore(RebuildIndexRequest) returns (.google.protobuf.Empty);
+    rpc RebuildIndexFromStore(RebuildIndexRequest) returns (.google.protobuf.Empty) {
+        option (globular.auth.authz) = {
+            action: "title.admin.rebuild_index"
+            permission: "admin"
+            resource_template: "/title"
+            default_role_hint: "admin"
+        };
+    };
 
     // Returns all episodes for a given series, sorted by season/episode.
-    rpc GetSeriesEpisodes(GetSeriesEpisodesRequest) returns (GetSeriesEpisodesResponse);
+    rpc GetSeriesEpisodes(GetSeriesEpisodesRequest) returns (GetSeriesEpisodesResponse) {
+        option (globular.auth.authz) = {
+            action: "title.title.read"
+            permission: "read"
+            resource_template: "/title/indexes/{indexPath}/titles/{seriesId}/episodes"
+            default_role_hint: "viewer"
+        };
+    };
 }

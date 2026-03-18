@@ -4,6 +4,8 @@ package mail;
 
 option go_package="github.com/globulario/services/golang/mail/mailpb";
 
+import "globular_auth.proto";
+
 // Connection holds the details necessary to establish a connection with a mail server.
 message Connection {
     string id = 1;       // Unique identifier for the connection.
@@ -25,7 +27,7 @@ message CreateConnectionRsp {
 
 // DeleteConnectionRqst is the request format for deleting an existing mail connection.
 message DeleteConnectionRqst {
-    string id = 1; // Identifier of the connection to be deleted.
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // Identifier of the connection to be deleted.
 }
 
 // DeleteConnectionRsp is the response format for a delete connection request.
@@ -63,7 +65,7 @@ message Email {
 
 // SendEmailRqst is the request format for sending a simple email.
 message SendEmailRqst {
-    string id = 1;  // The connection id.
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }];  // The connection id.
     Email email = 2; // Email details to be sent.
 }
 
@@ -74,7 +76,7 @@ message SendEmailRsp {
 
 // SendEmailWithAttachementsRqst is the request format for sending an email with attachments.
 message SendEmailWithAttachementsRqst {
-    string id = 1; // The connection id.
+    string id = 1 [(globular.auth.resource) = { kind: "connection", scope_anchor: true }]; // The connection id.
     oneof data {
         Email email = 2;         // Contain the email message data.
         Attachement attachements = 3; // Contain attachment data (can be chunked).
@@ -99,17 +101,52 @@ message StopResponse {
 // MailService provides RPC methods for email operations.
 service MailService {
     // Stop the server.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "mail.stop"
+            permission: "admin"
+            resource_template: "/mail"
+            default_role_hint: "admin"
+        };
+    };
 
     // Create a connection to a mail server.
-    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "mail.createconnection"
+            permission: "write"
+            collection_template: "/mail/connections"
+            default_role_hint: "admin"
+        };
+    };
 
     // Delete an existing mail connection.
-    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp) {
+        option (globular.auth.authz) = {
+            action: "mail.deleteconnection"
+            permission: "delete"
+            resource_template: "/mail/connections/{id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // Send a simple email without file attachments.
-    rpc SendEmail(SendEmailRqst) returns (SendEmailRsp){};
+    rpc SendEmail(SendEmailRqst) returns (SendEmailRsp) {
+        option (globular.auth.authz) = {
+            action: "mail.sendemail"
+            permission: "write"
+            resource_template: "/mail/connections/{id}/send"
+            default_role_hint: "editor"
+        };
+    };
 
     // Send an email with file attachments.
-    rpc SendEmailWithAttachements(stream SendEmailWithAttachementsRqst) returns (SendEmailWithAttachementsRsp){};
+    rpc SendEmailWithAttachements(stream SendEmailWithAttachementsRqst) returns (SendEmailWithAttachementsRsp) {
+        option (globular.auth.authz) = {
+            action: "mail.sendemailwithattachements"
+            permission: "write"
+            resource_template: "/mail/connections/{id}/send"
+            default_role_hint: "editor"
+        };
+    };
 }

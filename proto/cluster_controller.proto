@@ -7,6 +7,7 @@ option go_package = "github.com/globulario/services/golang/cluster_controller/cl
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "plan.proto";
+import "globular_auth.proto";
 
 message ClusterInfo {
   string cluster_id = 1;
@@ -120,7 +121,7 @@ message RequestJoinResponse {
 }
 
 message GetJoinRequestStatusRequest {
-  string request_id = 1;
+  string request_id = 1 [(globular.auth.resource) = { kind: "join_request" }];
 }
 message GetJoinRequestStatusResponse {
   string status = 1;
@@ -148,7 +149,7 @@ message ListJoinRequestsResponse {
 }
 
 message ApproveJoinRequest {
-  string request_id = 1;
+  string request_id = 1 [(globular.auth.resource) = { kind: "join_request" }];
   string node_id = 2 [deprecated = true];
   repeated string profiles = 3;
   map<string,string> metadata = 4;
@@ -161,7 +162,7 @@ message ApproveJoinResponse {
 }
 
 message RejectJoinRequest {
-  string request_id = 1;
+  string request_id = 1 [(globular.auth.resource) = { kind: "join_request" }];
   string node_id = 2 [deprecated = true];
   string reason = 3;
 }
@@ -176,7 +177,7 @@ message ListNodesResponse {
 }
 
 message SetNodeProfilesRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   repeated string profiles = 2;
 }
 message SetNodeProfilesResponse {
@@ -186,7 +187,7 @@ message SetNodeProfilesResponse {
 // RemoveNode removes a node from the cluster.
 // The node's services will be stopped and it will be deregistered.
 message RemoveNodeRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   bool force = 2;        // Force removal even if node is unreachable
   bool drain = 3;        // Stop services gracefully before removal
 }
@@ -223,14 +224,14 @@ message UpdateClusterNetworkResponse {
 }
 
 message ApplyNodePlanRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 message ApplyNodePlanResponse {
   string operation_id = 1;
 }
 
 message ApplyNodePlanV1Request {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   globular.plan.v1.NodePlan plan = 2;
 }
 message ApplyNodePlanV1Response {
@@ -267,7 +268,7 @@ message NodePlan {
 }
 
 message UpgradeGlobularRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   string platform = 2;
   bytes artifact = 3;
   string sha256 = 4;
@@ -284,30 +285,30 @@ message UpgradeGlobularResponse {
 }
 
 message GetNodePlanRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 message GetNodePlanResponse {
   NodePlan plan = 1;
 }
 
 message GetNodePlanV1Request {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 message GetNodePlanV1Response {
   globular.plan.v1.NodePlan plan = 1;
 }
 
 message ReconcileNodeV1Request {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 message ReconcileNodeV1Response {}
 
 message WatchNodePlanStatusV1Request {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 
 message StartApplyRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
 }
 message StartApplyResponse {
   string operation_id = 1;
@@ -333,8 +334,8 @@ message OperationEvent {
 }
 
 message CompleteOperationRequest {
-  string operation_id = 1;
-  string node_id = 2;
+  string operation_id = 1 [(globular.auth.resource) = { kind: "operation" }];
+  string node_id = 2 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   bool success = 3;
   string message = 4;
   string error = 5;
@@ -394,60 +395,298 @@ message ReportNodeStatusResponse {
 }
 
 message WatchOperationsRequest {
-  string node_id = 1;
-  string operation_id = 2;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  string operation_id = 2 [(globular.auth.resource) = { kind: "operation" }];
 }
 
 service ClusterControllerService {
-  rpc GetClusterInfo(google.protobuf.Timestamp) returns (ClusterInfo);
+  rpc GetClusterInfo(google.protobuf.Timestamp) returns (ClusterInfo) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.cluster.info"
+      permission: "read"
+      resource_template: "/cluster_controller/cluster"
+      default_role_hint: "viewer"
+    };
+  };
 
-  rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);
-  rpc RequestJoin(RequestJoinRequest) returns (RequestJoinResponse);
-  rpc ListJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
-  rpc ApproveJoin(ApproveJoinRequest) returns (ApproveJoinResponse);
-  rpc RejectJoin(RejectJoinRequest) returns (RejectJoinResponse);
+  rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_token.create"
+      permission: "admin"
+      collection_template: "/cluster_controller/join-tokens"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RequestJoin(RequestJoinRequest) returns (RequestJoinResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_request.create"
+      permission: "write"
+      collection_template: "/cluster_controller/join-requests"
+      default_role_hint: "editor"
+    };
+  };
+  rpc ListJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_request.list"
+      permission: "read"
+      collection_template: "/cluster_controller/join-requests"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ApproveJoin(ApproveJoinRequest) returns (ApproveJoinResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_request.approve"
+      permission: "admin"
+      resource_template: "/cluster_controller/join-requests/{request_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RejectJoin(RejectJoinRequest) returns (RejectJoinResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_request.reject"
+      permission: "admin"
+      resource_template: "/cluster_controller/join-requests/{request_id}"
+      default_role_hint: "admin"
+    };
+  };
 
-  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
-  rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
-  rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse);
-  rpc GetClusterHealth(GetClusterHealthRequest) returns (GetClusterHealthResponse);
-  rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
-  rpc GetNodePlanV1(GetNodePlanV1Request) returns (GetNodePlanV1Response);
-  rpc ReconcileNodeV1(ReconcileNodeV1Request) returns (ReconcileNodeV1Response);
-  rpc WatchNodePlanStatusV1(WatchNodePlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
-  rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse);
-  rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse);
-  rpc ApplyNodePlanV1(ApplyNodePlanV1Request) returns (ApplyNodePlanV1Response);
-  rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
-  rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
-  rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse);
-  rpc CompleteOperation(CompleteOperationRequest) returns (CompleteOperationResponse);
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.list"
+      permission: "read"
+      collection_template: "/cluster_controller/nodes"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.set_profiles"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.remove"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc GetClusterHealth(GetClusterHealthRequest) returns (GetClusterHealthResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.cluster.health"
+      permission: "read"
+      resource_template: "/cluster_controller/cluster/health"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.plan.read"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/plan"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetNodePlanV1(GetNodePlanV1Request) returns (GetNodePlanV1Response) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.plan_v1.read"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/plan-v1"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ReconcileNodeV1(ReconcileNodeV1Request) returns (ReconcileNodeV1Response) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.reconcile"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc WatchNodePlanStatusV1(WatchNodePlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.plan_status.watch"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/plan-status"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.network.update"
+      permission: "admin"
+      resource_template: "/cluster_controller/cluster/network"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.plan.apply"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}/plan"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ApplyNodePlanV1(ApplyNodePlanV1Request) returns (ApplyNodePlanV1Response) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.plan_v1.apply"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}/plan-v1"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.status.report"
+      permission: "write"
+      collection_template: "/cluster_controller/nodes"
+      default_role_hint: "editor"
+    };
+  };
+  rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.join_request.status"
+      permission: "read"
+      resource_template: "/cluster_controller/join-requests/{request_id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.upgrade"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes/{node_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc CompleteOperation(CompleteOperationRequest) returns (CompleteOperationResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.operation.complete"
+      permission: "write"
+      resource_template: "/cluster_controller/nodes/{node_id}/operations/{operation_id}"
+      default_role_hint: "editor"
+    };
+  };
 
-  rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
+  rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.operation.watch"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/operations/{operation_id}"
+      default_role_hint: "viewer"
+    };
+  };
 
-  rpc GetClusterHealthV1(GetClusterHealthV1Request) returns (GetClusterHealthV1Response);
-  rpc GetNodeHealthDetailV1(GetNodeHealthDetailV1Request) returns (GetNodeHealthDetailV1Response);
+  rpc GetClusterHealthV1(GetClusterHealthV1Request) returns (GetClusterHealthV1Response) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.cluster.health_v1"
+      permission: "read"
+      resource_template: "/cluster_controller/cluster/health"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetNodeHealthDetailV1(GetNodeHealthDetailV1Request) returns (GetNodeHealthDetailV1Response) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.health_detail"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/health"
+      default_role_hint: "viewer"
+    };
+  };
 
   // PreviewNodeProfiles computes the unit actions and config changes that WOULD result
   // from assigning the given profiles to a node, without mutating any state.
-  rpc PreviewNodeProfiles(PreviewNodeProfilesRequest) returns (PreviewNodeProfilesResponse);
+  rpc PreviewNodeProfiles(PreviewNodeProfilesRequest) returns (PreviewNodeProfilesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.profiles.preview"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes/{node_id}/profiles"
+      default_role_hint: "viewer"
+    };
+  };
 
   // ── Desired-state management (typed, replaces ResourcesService JSON hack) ──
-  rpc GetDesiredState(google.protobuf.Empty) returns (DesiredState);
-  rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState);
-  rpc RemoveDesiredService(RemoveDesiredServiceRequest) returns (DesiredState);
-  rpc SeedDesiredState(SeedDesiredStateRequest) returns (DesiredState);
+  rpc GetDesiredState(google.protobuf.Empty) returns (DesiredState) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_state.read"
+      permission: "read"
+      resource_template: "/cluster_controller/desired-state"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_service.upsert"
+      permission: "admin"
+      collection_template: "/cluster_controller/desired-state/services"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RemoveDesiredService(RemoveDesiredServiceRequest) returns (DesiredState) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_service.remove"
+      permission: "admin"
+      resource_template: "/cluster_controller/desired-state/services/{service_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc SeedDesiredState(SeedDesiredStateRequest) returns (DesiredState) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_state.seed"
+      permission: "admin"
+      resource_template: "/cluster_controller/desired-state"
+      default_role_hint: "admin"
+    };
+  };
 
   // ── Artifact validation + dry-run ──
-  rpc ValidateArtifact(ValidateArtifactRequest) returns (ValidationReport);
-  rpc PreviewDesiredServices(DesiredServicesDelta) returns (PlanPreview);
+  rpc ValidateArtifact(ValidateArtifactRequest) returns (ValidationReport) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.artifact.validate"
+      permission: "read"
+      resource_template: "/cluster_controller/artifacts/{service_id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc PreviewDesiredServices(DesiredServicesDelta) returns (PlanPreview) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.desired_service.preview"
+      permission: "read"
+      collection_template: "/cluster_controller/desired-state/services"
+      default_role_hint: "viewer"
+    };
+  };
 
   // ── Upgrade planning (canonical authority for plan generation) ──
-  rpc PlanServiceUpgrades(PlanServiceUpgradesRequest) returns (PlanServiceUpgradesResponse);
-  rpc ApplyServiceUpgrades(ApplyServiceUpgradesRequest) returns (ApplyServiceUpgradesResponse);
+  rpc PlanServiceUpgrades(PlanServiceUpgradesRequest) returns (PlanServiceUpgradesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.upgrade.plan"
+      permission: "read"
+      collection_template: "/cluster_controller/upgrades"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ApplyServiceUpgrades(ApplyServiceUpgradesRequest) returns (ApplyServiceUpgradesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.upgrade.apply"
+      permission: "admin"
+      collection_template: "/cluster_controller/upgrades"
+      default_role_hint: "admin"
+    };
+  };
 
   // ── Plan rejection reporting (Phase 1C) ──
-  rpc ReportPlanRejection(ReportPlanRejectionRequest) returns (ReportPlanRejectionResponse);
+  rpc ReportPlanRejection(ReportPlanRejectionRequest) returns (ReportPlanRejectionResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.plan.reject"
+      permission: "write"
+      resource_template: "/cluster_controller/nodes/{node_id}/plans/{plan_id}"
+      default_role_hint: "editor"
+    };
+  };
 }
 
 message DesiredNetwork {
@@ -461,7 +700,7 @@ message DesiredNetwork {
 }
 
 message GetClusterHealthV1Request {
-  string cluster_id = 1;
+  string cluster_id = 1 [(globular.auth.resource) = { kind: "cluster", scope_anchor: true }];
 }
 
 message NodeHealth {
@@ -499,7 +738,7 @@ message NodeHealthCheck {
   string reason    = 3;   // human-readable when !ok
 }
 
-message GetNodeHealthDetailV1Request { string node_id = 1; }
+message GetNodeHealthDetailV1Request { string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }]; }
 
 message GetNodeHealthDetailV1Response {
   string node_id              = 1;
@@ -517,7 +756,7 @@ message GetNodeHealthDetailV1Response {
 // These are read-only — no state is mutated.
 
 message PreviewNodeProfilesRequest {
-  string node_id = 1;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   repeated string profiles = 2;  // proposed profiles to preview
 }
 
@@ -575,7 +814,7 @@ message UpsertDesiredServiceRequest {
 }
 
 message RemoveDesiredServiceRequest {
-  string service_id = 1;
+  string service_id = 1 [(globular.auth.resource) = { kind: "desired_service" }];
 }
 
 message SeedDesiredStateRequest {
@@ -589,7 +828,7 @@ message SeedDesiredStateRequest {
 // ── Artifact validation ───────────────────────────────────────────────────────
 
 message ValidateArtifactRequest {
-  string service_id              = 1;
+  string service_id              = 1 [(globular.auth.resource) = { kind: "artifact" }];
   string version                 = 2;
   repeated string target_node_ids = 3;
 }
@@ -674,8 +913,8 @@ message NodeUpgradeStatus {
 // ── Plan rejection reporting (Phase 1C) ──
 
 message ReportPlanRejectionRequest {
-  string node_id = 1;
-  string plan_id = 2;
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  string plan_id = 2 [(globular.auth.resource) = { kind: "plan" }];
   uint64 generation = 3;
   string reason = 4;
   string detail = 5;
