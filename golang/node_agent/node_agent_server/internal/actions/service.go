@@ -53,6 +53,10 @@ func (a *serviceAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 		if err := serviceports.EnsureServicePortReady(ctx, svc, unit); err != nil {
 			return "", err
 		}
+	case "service.enable":
+		// Enable is always safe — no idempotency check needed
+	case "service.disable":
+		// Disable is always safe — no idempotency check needed
 	}
 	if err := a.op(ctx, unit); err != nil {
 		return "", err
@@ -84,4 +88,6 @@ func init() {
 	Register(&serviceAction{name: "service.start", op: supervisor.Start})
 	Register(&serviceAction{name: "service.stop", op: supervisor.Stop})
 	Register(&serviceAction{name: "service.restart", op: supervisor.Restart})
+	Register(&serviceAction{name: "service.enable", op: supervisor.Enable})
+	Register(&serviceAction{name: "service.disable", op: supervisor.Disable})
 }

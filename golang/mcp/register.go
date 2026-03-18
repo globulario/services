@@ -37,5 +37,14 @@ func registerAllTools(s *server) {
 	if g.Storage {
 		registerStorageTools(s)
 	}
+	if g.CLI {
+		registerCLITools(s)
+	}
+	if g.Governor {
+		registerGovernorTools(s)
+	}
+	if g.Governor {
+		registerPlanTools(s)
+	}
 	// Auth and DNS deferred to phase 2.
 }
