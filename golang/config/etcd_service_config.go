@@ -189,6 +189,56 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	return nil
 }
 
+// DeleteServiceConfiguration removes a service's config, runtime, and live keys
+// from etcd and deletes the on-disk JSON file. Call this when a service is fully
+// uninstalled so it no longer appears in the admin catalog.
+func DeleteServiceConfiguration(id string) error {
+	if id == "" {
+		return errors.New("DeleteServiceConfiguration: missing id")
+	}
+	c, err := etcdClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	// Delete all keys under /globular/services/<id>/
+	prefix := etcdPrefix + id + "/"
+	if _, err := c.Delete(ctx, prefix, clientv3.WithPrefix()); err != nil {
+		return fmt.Errorf("delete service config from etcd: %w", err)
+	}
+
+	// Remove on-disk JSON file (best effort)
+	configDir := GetServicesConfigDir()
+	filePath := filepath.Join(configDir, id+".json")
+	os.Remove(filePath)
+
+	return nil
+}
+
+// DeleteServiceConfigurationByName finds and deletes all service config entries
+// whose Name field matches the given name (case-insensitive). This is used
+// during service removal when only the package name is known, not the service ID.
+func DeleteServiceConfigurationByName(name string) error {
+	all, err := GetServicesConfigurations()
+	if err != nil {
+		return err
+	}
+	for _, s := range all {
+		svcName := Utility.ToString(s["Name"])
+		if strings.EqualFold(svcName, name) {
+			id := Utility.ToString(s["Id"])
+			if id != "" {
+				if err := DeleteServiceConfiguration(id); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // GetServicesConfigurations lists and merges all services under /globular/services/.
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	c, err := etcdClient()

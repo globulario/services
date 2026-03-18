@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -161,6 +162,13 @@ func (packageClearStateAction) Apply(ctx context.Context, args *structpb.Struct)
 	if err := installed_state.DeleteInstalledPackage(ctx, nodeID, kind, name); err != nil {
 		return "", fmt.Errorf("package.clear_state: %w", err)
 	}
+
+	// Also clean up the service config from etcd so it no longer appears
+	// in the admin catalog. Best-effort — don't fail the whole action.
+	if err := config.DeleteServiceConfigurationByName(name); err != nil {
+		fmt.Printf("package.clear_state: warning: failed to clean service config for %s: %v\n", name, err)
+	}
+
 	return fmt.Sprintf("installed-state cleared: %s/%s on %s", kind, name, nodeID), nil
 }
 
