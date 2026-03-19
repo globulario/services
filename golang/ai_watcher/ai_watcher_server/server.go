@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/ai_watcher/ai_watcherpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -277,15 +278,24 @@ func (srv *server) eventLoop() {
 		logger.Info("connected to event service", "address", eventAddr)
 
 		// Subscribe to configured topics.
+		// The event client's Subscribe method starts run() async and retries
+		// up to 30 times, giving the OnEvent stream time to establish.
+		allSubscribed := true
 		for _, topic := range cfg.GetSubscribeTopics() {
 			subscriberID := fmt.Sprintf("watcher_%s_%s", srv.Id, topic)
 			if err := client.Subscribe(topic, subscriberID, func(evt *eventpb.Event) {
 				srv.handleEvent(evt)
 			}); err != nil {
 				logger.Error("subscribe failed", "topic", topic, "err", err)
+				allSubscribed = false
 				continue
 			}
 			logger.Info("subscribed to topic", "topic", topic)
+		}
+		if !allSubscribed {
+			logger.Warn("some subscriptions failed, will retry in 30s")
+			time.Sleep(30 * time.Second)
+			continue
 		}
 
 		// Block until connection lost.
@@ -309,7 +319,8 @@ func (srv *server) resolveEventEndpoint() string {
 	if ep := os.Getenv("GLOBULAR_EVENT_ENDPOINT"); ep != "" {
 		return ep
 	}
-	return "localhost:10102"
+	// Discover from etcd/gateway, fallback to default port.
+	return config.ResolveServiceAddr("event.EventService", "localhost:10010")
 }
 
 // handleEvent processes a single event from the event service.
