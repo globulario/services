@@ -51,14 +51,41 @@ func (srv *server) scoringLoop() {
 		// Apply exponential smoothing to prevent flapping.
 		for i := range results {
 			key := results[i].Service + "/" + results[i].Instance
+
+			// Phase 5: deployment context modifier.
+			// During deployment, reduce the score (make endpoint look healthier)
+			// because disruption is expected.
+			if srv.context_ != nil {
+				mod := srv.context_.getDeploymentModifier(results[i].Service)
+				if mod != 0 {
+					results[i].Score = clamp(results[i].Score+mod, 0, 1)
+					if mod < 0 {
+						results[i].Reasons = append(results[i].Reasons, "deployment in progress (tolerant)")
+					}
+				}
+			}
+
 			if prev, ok := previousScores[key]; ok {
 				results[i].Score = smoothScore(results[i].Score, prev, smoothAlpha)
-				w := uint32(100 * (1 - results[i].Score))
-				if w < 1 {
-					w = 1
-				}
-				results[i].Weight = w
 			}
+
+			// Compute weight from smoothed score.
+			w := uint32(100 * (1 - results[i].Score))
+			if w < 1 {
+				w = 1
+			}
+
+			// Phase 5: warm-up cap for recently recovered nodes.
+			// Gradually ramp up from 25% to 100% over warmupDuration.
+			if srv.context_ != nil {
+				// Use instance as a proxy for node (in single-node: same thing).
+				if cap := srv.context_.getWarmupWeight(results[i].Instance); cap > 0 && w > cap {
+					w = cap
+					results[i].Reasons = append(results[i].Reasons, "warming up after recovery")
+				}
+			}
+
+			results[i].Weight = w
 			previousScores[key] = results[i].Score
 		}
 

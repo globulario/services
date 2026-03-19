@@ -25,6 +25,9 @@ type anomalyTracker struct {
 	threatIPs map[string]*threatEntry
 
 	eventClient *event_client.Event_Client
+
+	// Cluster context handler (set by server after init).
+	clusterCtx *clusterContext
 }
 
 type anomalySignal struct {
@@ -74,11 +77,19 @@ func (at *anomalyTracker) start() {
 	}
 	at.eventClient = client
 
-	// Subscribe to security alerts.
-	topics := []string{"alert.*"}
+	// Subscribe to security alerts and cluster events.
+	topics := []string{"alert.*", "service.*", "cluster.*", "operation.*"}
 	for _, topic := range topics {
-		id := "ai_router_anomaly_" + topic
-		if err := client.Subscribe(topic, id, at.handleEvent); err != nil {
+		id := "ai_router_" + topic
+		handler := at.handleEvent
+		// Route cluster/service/operation events to context tracker.
+		if topic != "alert.*" && at.clusterCtx != nil {
+			ctx := at.clusterCtx
+			handler = func(evt *eventpb.Event) {
+				ctx.handleClusterEvent(evt)
+			}
+		}
+		if err := client.Subscribe(topic, id, handler); err != nil {
 			logger.Warn("anomaly_tracker: subscribe failed", "topic", topic, "err", err)
 		} else {
 			logger.Info("anomaly_tracker: subscribed", "topic", topic)

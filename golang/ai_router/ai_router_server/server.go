@@ -93,6 +93,9 @@ type server struct {
 	// Drain manager (stream-aware graceful endpoint removal)
 	drains *drainManager
 
+	// Cluster context (deployment/recovery awareness)
+	context_ *clusterContext
+
 	// Runtime stats
 	stats     routerStats
 	statsMu   sync.Mutex
@@ -218,6 +221,7 @@ func (srv *server) Init() error {
 	srv.classifications = defaultClassifications()
 	srv.anomalies = newAnomalyTracker()
 	srv.drains = newDrainManager()
+	srv.context_ = newClusterContext()
 	srv.startedAt = time.Now()
 
 	return nil
@@ -226,7 +230,8 @@ func (srv *server) Init() error {
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
 func (srv *server) StartService() error {
-	// Start anomaly tracker (subscribes to security events).
+	// Wire cluster context into anomaly tracker, then start.
+	srv.anomalies.clusterCtx = srv.context_
 	go srv.anomalies.start()
 
 	// Start the scoring loop in the background.
