@@ -338,47 +338,10 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 func (srv *server) GetGrpcServer() *grpc.Server              { return srv.grpcServer }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:mail.sender",
-			Name:        "Mail Sender",
-			Domain:      domain,
-			Description: "Can send emails (simple and with attachments) using existing connections.",
-			Actions: []string{
-				"mail.sendemail",
-				"mail.sendemailwithattachements",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:mail.connector.admin",
-			Name:        "Mail Connector Admin",
-			Domain:      domain,
-			Description: "Manage SMTP connection profiles (create/delete).",
-			Actions: []string{
-				"mail.createconnection",
-				"mail.deleteconnection",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:mail.admin",
-			Name:        "Mail Service Admin",
-			Domain:      domain,
-			Description: "Full control over MailService, including stop and connection/profile management.",
-			Actions: []string{
-				"mail.stop",
-				"mail.createconnection",
-				"mail.deleteconnection",
-				"mail.sendemail",
-				"mail.sendemailwithattachements",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Init loads/creates configuration and initializes the gRPC server.

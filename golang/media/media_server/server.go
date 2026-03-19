@@ -405,84 +405,10 @@ func (srv *server) Stop(ctx context.Context, _ *mediapb.StopRequest) (*mediapb.S
 	return &mediapb.StopResponse{}, srv.StopService()
 }
 
-// RolesDefault returns the default roles for this service.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:media.viewer",
-			Name:        "Media Viewer",
-			Domain:      domain,
-			Description: "Can inspect conversion logs and errors.",
-			Actions: []string{
-				"media.geterrors",
-				"media.getlogs",
-				"media.isprocessing",
-				"media.list",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:media.uploader",
-			Name:        "Media Uploader",
-			Domain:      domain,
-			Description: "Can upload videos and trigger playlist/VTT generation.",
-			Actions: []string{
-				"media.upload",
-				"media.playlist",
-				"media.vtt",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:media.converter",
-			Name:        "Media Converter",
-			Domain:      domain,
-			Description: "Can initiate conversions and previews.",
-			Actions: []string{
-				"media.preview",
-				"media.timeline",
-				"media.converth264",
-				"media.converthls",
-				"media.processvideo",
-				"media.processaudio",
-				"media.stopprocess",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:media.admin",
-			Name:        "Media Admin",
-			Domain:      domain,
-			Description: "Full control over MediaService, including settings and stop.",
-			Actions: []string{
-				"media.stop",
-				"media.upload",
-				"media.preview",
-				"media.timeline",
-				"media.converth264",
-				"media.converthls",
-				"media.processvideo",
-				"media.processaudio",
-				"media.stopprocess",
-				"media.isprocessing",
-				"media.setconversion",
-				"media.setstreamconversion",
-				"media.setstarthour",
-				"media.setmaxdelay",
-				"media.geterrors",
-				"media.clearerrors",
-				"media.clearerror",
-				"media.clearlogs",
-				"media.getlogs",
-				"media.playlist",
-				"media.vtt",
-				"media.list",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // -----------------------------------------------------------------------------

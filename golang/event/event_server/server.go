@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -174,62 +173,10 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	reader := resourcepb.Role{
-		Id:          "role:event.reader",
-		Name:        "Event Reader",
-		Domain:      domain,
-		Description: "Subscribe to channels and receive events.",
-		Actions: []string{
-			"event.listen",
-			"event.quit",
-			"event.subscribe",
-			"event.unsubscribe",
-			"event.query",
-		},
-		TypeName: "resource.Role",
-	}
-
-	publisher := resourcepb.Role{
-		Id:          "role:event.publisher",
-		Name:        "Event Publisher",
-		Domain:      domain,
-		Description: "Publish to channels (and read if allowed).",
-		Actions: []string{
-			"event.publish",
-			"event.listen",
-			"event.quit",
-			"event.subscribe",
-			"event.unsubscribe",
-		},
-		TypeName: "resource.Role",
-	}
-
-	admin := resourcepb.Role{
-		Id:          "role:event.admin",
-		Name:        "Event Admin",
-		Domain:      domain,
-		Description: "Full control over event channels and publishing.",
-		Actions: []string{
-			"event.stop",
-			"event.publish",
-			"event.listen",
-			"event.quit",
-			"event.subscribe",
-			"event.unsubscribe",
-		},
-		TypeName: "resource.Role",
-	}
-
-	return []resourcepb.Role{reader, publisher, admin}
-}
-
-func loadDefaultPermissions() []interface{} {
-	var out []interface{}
-	_ = json.Unmarshal([]byte(permissionsJSON), &out)
-	return out
+	return []resourcepb.Role{}
 }
 
 func (srv *server) ensureRuntimeChannels() {
@@ -293,7 +240,7 @@ func initializeServerDefaults() *server {
 	srv.Repositories = []string{}
 	srv.Discoveries = []string{}
 	srv.Dependencies = []string{}
-	srv.Permissions = loadDefaultPermissions()
+	srv.Permissions = make([]any, 0)
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.KeepAlive = true

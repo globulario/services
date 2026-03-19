@@ -26,37 +26,6 @@ var (
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{
-			"action":     "/torrent.TorrentService/DownloadTorrent",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Link", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Seed", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/torrent.TorrentService/GetTorrentInfos",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-		map[string]interface{}{
-			"action":     "/torrent.TorrentService/DropTorrent",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Name", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/torrent.TorrentService/GetTorrentLnks",
-			"permission": "read",
-			"resources":  []interface{}{},
-		},
-	}
-}
-
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
@@ -79,7 +48,7 @@ func initializeServerDefaults() *server {
 		Process:         -1,
 		ProxyProcess:    -1,
 		Dependencies:    globular.CloneStringSlice(cfg.Dependencies),
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 		DownloadDir:     cfg.DownloadDir,
 		Seed:            cfg.Seed,
 		UseMinio:        cfg.UseMinio,

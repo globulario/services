@@ -62,7 +62,7 @@ func DefaultConfig() *Config {
 		Process:         -1,
 		ProxyProcess:    -1,
 		Connections:     map[string]connection{},
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 	}
 	cfg.Domain, cfg.Address = globular.GetDefaultDomainAddress(cfg.Port)
 	return cfg

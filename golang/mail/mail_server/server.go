@@ -33,14 +33,6 @@ var (
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/mail.MailService/Send", "permission": "write"},
-		map[string]interface{}{"action": "/mail.MailService/SendWithAttachments", "permission": "write"},
-		map[string]interface{}{"action": "/mail.MailService/Stop", "permission": "write"},
-	}
-}
-
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
@@ -63,7 +55,7 @@ func initializeServerDefaults() *server {
 		Process:             -1,
 		ProxyProcess:        -1,
 		Dependencies:        globular.CloneStringSlice(cfg.Dependencies),
-		Permissions:         loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 		Connections:         map[string]connection{},
 		Persistence_address: cfg.PersistenceAddress,
 		SMTP_Port:           cfg.SMTP_Port,

@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/sql/sqlpb"
@@ -203,49 +202,10 @@ func (srv *server) SetKeepAlive(v bool)             { srv.KeepAlive = v }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:sql.viewer",
-			Name:        "SQL Viewer",
-			Domain:      domain,
-			Description: "Read-only access: ping connections and run SELECT queries.",
-			Actions: []string{
-				"sql.ping",
-				"sql.querycontext",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:sql.writer",
-			Name:        "SQL Writer",
-			Domain:      domain,
-			Description: "Read + write queries on allowed connections.",
-			Actions: []string{
-				"sql.ping",
-				"sql.querycontext",
-				"sql.execcontext",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:sql.admin",
-			Name:        "SQL Admin",
-			Domain:      domain,
-			Description: "Full control over SQL connections and operations.",
-			Actions: []string{
-				"sql.stop",
-				"sql.createconnection",
-				"sql.deleteconnection",
-				"sql.ping",
-				"sql.querycontext",
-				"sql.execcontext",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 func (srv *server) Init() error {

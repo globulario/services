@@ -13,7 +13,6 @@ import (
 	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -221,108 +220,10 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
-func (srv *server) RolesDefault() []resourcepb.Role { /* unchanged content */
-	domain, _ := config.GetDomain()
-
-	reader := resourcepb.Role{
-		Id:          "role:catalog.reader",
-		Name:        "Catalog Reader",
-		Domain:      domain,
-		Description: "Read catalog data across connections.",
-		Actions: []string{
-			"catalog.getsupplier",
-			"catalog.getsuppliers",
-			"catalog.getmanufacturer",
-			"catalog.getmanufacturers",
-			"catalog.getsupplierpackages",
-			"catalog.getpackage",
-			"catalog.getpackages",
-			"catalog.getunitofmeasure",
-			"catalog.getunitofmeasures",
-			"catalog.getitemdefinition",
-			"catalog.getitemdefinitions",
-			"catalog.getiteminstance",
-			"catalog.getiteminstances",
-			"catalog.getlocalisation",
-			"catalog.getlocalisations",
-			"catalog.getcategory",
-			"catalog.getcategories",
-			"catalog.getinventories",
-		},
-		TypeName: "resource.Role",
-	}
-
-	editor := resourcepb.Role{
-		Id:          "role:catalog.editor",
-		Name:        "Catalog Editor",
-		Domain:      domain,
-		Description: "Create/update catalog entities and manage item-category links.",
-		Actions: []string{
-			"catalog.saveunitofmeasure",
-			"catalog.savepropertydefinition",
-			"catalog.saveitemdefinition",
-			"catalog.saveiteminstance",
-			"catalog.saveinventory",
-			"catalog.savemanufacturer",
-			"catalog.savesupplier",
-			"catalog.savelocalisation",
-			"catalog.savepackage",
-			"catalog.savepackagesupplier",
-			"catalog.saveitemmanufacturer",
-			"catalog.savecategory",
-			"catalog.appenditemdefinitioncategory",
-			"catalog.removeitemdefinitioncategory",
-		},
-		TypeName: "resource.Role",
-	}
-
-	moderator := resourcepb.Role{
-		Id:          "role:catalog.moderator",
-		Name:        "Catalog Moderator",
-		Domain:      domain,
-		Description: "Delete catalog entities.",
-		Actions: []string{
-			"catalog.deleteinventory",
-			"catalog.deletepackage",
-			"catalog.deletepackagesupplier",
-			"catalog.deletesupplier",
-			"catalog.deletepropertydefinition",
-			"catalog.deleteunitofmeasure",
-			"catalog.deleteiteminstance",
-			"catalog.deletemanufacturer",
-			"catalog.deleteitemmanufacturer",
-			"catalog.deletecategory",
-			"catalog.deletelocalisation",
-		},
-		TypeName: "resource.Role",
-	}
-
-	connAdmin := resourcepb.Role{
-		Id:          "role:catalog.connadmin",
-		Name:        "Catalog Connection Admin",
-		Domain:      domain,
-		Description: "Create and remove persistence connections used by the catalog.",
-		Actions: []string{
-			"catalog.createconnection",
-			"catalog.deleteconnection",
-		},
-		TypeName: "resource.Role",
-	}
-
-	admin := resourcepb.Role{
-		Id:          "role:catalog.admin",
-		Name:        "Catalog Admin",
-		Domain:      domain,
-		Description: "Full control over catalog data and service lifecycle.",
-		Actions: append(append(append(reader.Actions, editor.Actions...), moderator.Actions...),
-			"catalog.createconnection",
-			"catalog.deleteconnection",
-			"catalog.stop",
-		),
-		TypeName: "resource.Role",
-	}
-
-	return []resourcepb.Role{reader, editor, moderator, connAdmin, admin}
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	return []resourcepb.Role{}
 }
 
 func defaultPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
@@ -424,7 +325,7 @@ func initializeServerDefaults() *server {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{}
-	s.Permissions = loadDefaultPermissions()
+	s.Permissions = make([]any, 0)
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true
@@ -442,12 +343,6 @@ func initializeServerDefaults() *server {
 	}
 
 	return s
-}
-
-func loadDefaultPermissions() []interface{} {
-	var out []interface{}
-	_ = json.Unmarshal([]byte(permissionsJSON), &out)
-	return out
 }
 
 func setupGrpcService(srv *server) {

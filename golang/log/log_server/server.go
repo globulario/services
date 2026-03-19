@@ -63,22 +63,7 @@ func (srv *server) ensureRuntime() {
 		srv.Dependencies = []string{}
 	}
 	if srv.Permissions == nil {
-		srv.Permissions = loadDefaultPermissions()
-	}
-}
-
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/log.LogService/Stop", "permission": "write"},
-		map[string]interface{}{"action": "/log.LogService/Print", "permission": "write"},
-		map[string]interface{}{"action": "/log.LogService/Save", "permission": "write"},
-		map[string]interface{}{"action": "/log.LogService/GetLevels", "permission": "read"},
-		map[string]interface{}{"action": "/log.LogService/GetApplications", "permission": "read"},
-		map[string]interface{}{"action": "/log.LogService/GetLogsByLevelAndApplication", "permission": "read"},
-		map[string]interface{}{"action": "/log.LogService/GetLogs", "permission": "read"},
-		map[string]interface{}{"action": "/log.LogService/GetLogsByInterval", "permission": "read"},
-		map[string]interface{}{"action": "/log.LogService/DeleteLogs", "permission": "delete"},
-		map[string]interface{}{"action": "/log.LogService/GetLogStat", "permission": "read"},
+		srv.Permissions = make([]any, 0)
 	}
 }
 
@@ -256,55 +241,10 @@ func (srv *server) GetPermissions() []interface{}  { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{}) { srv.Permissions = p }
 func (srv *server) GetGrpcServer() *grpc.Server    { return srv.grpcServer }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:log.viewer",
-			Name:        "Log Viewer",
-			Domain:      domain,
-			Description: "Read-only access to query logs.",
-			Actions: []string{
-				"log.read",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:log.writer",
-			Name:        "Log Writer",
-			Domain:      domain,
-			Description: "Can append new log entries.",
-			Actions: []string{
-				"log.write",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:log.operator",
-			Name:        "Log Operator",
-			Domain:      domain,
-			Description: "Operate on individual log entries (delete specific items).",
-			Actions: []string{
-				"log.read",
-				"log.delete",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:log.admin",
-			Name:        "Log Admin",
-			Domain:      domain,
-			Description: "Full control over LogService, including bulk clears.",
-			Actions: []string{
-				"log.write",
-				"log.read",
-				"log.delete",
-				"log.clear",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // --- Lifecycle ---
@@ -545,7 +485,7 @@ func initializeServerDefaults() *server {
 		Process:                -1,
 		ProxyProcess:           -1,
 		Dependencies:           []string{"event.EventService"},
-		Permissions:            loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 		Monitoring_Port:        cfg.MonitoringPort,
 		Root:                   cfg.Root,
 		RetentionHours:         cfg.RetentionHours,

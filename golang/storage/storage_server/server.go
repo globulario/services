@@ -34,86 +34,6 @@ var (
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/storage.StorageService/Stop", "permission": "admin", "resources": []interface{}{}},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/CreateConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/DeleteConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/Open",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/Close",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/SetItem",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/SetLargeItem",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/GetItem",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Key", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/RemoveItem",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/Clear",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/storage.StorageService/Drop",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
-			},
-		},
-	}
-}
-
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
@@ -136,7 +56,7 @@ func initializeServerDefaults() *server {
 		Process:         -1,
 		ProxyProcess:    -1,
 		Dependencies:    globular.CloneStringSlice(cfg.Dependencies),
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 		Connections:     map[string]connection{},
 	}
 

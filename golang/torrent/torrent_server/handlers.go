@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/anacrolix/torrent"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -162,48 +161,10 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
-// Default roles for the Torrent service.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	view := []string{
-		"torrent.gettorrentinfos",
-		"torrent.gettorrentlnks",
-	}
-
-	write := append([]string{
-		"torrent.downloadtorrent",
-		"torrent.droptorrent",
-	}, view...) // writers can also view
-
-	admin := append([]string{}, write...)
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:torrent.viewer",
-			Name:        "Torrent Viewer",
-			Domain:      domain,
-			Description: "Read-only: list saved links and stream torrent progress.",
-			Actions:     view,
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:torrent.user",
-			Name:        "Torrent User",
-			Domain:      domain,
-			Description: "Start downloads/seeding, drop torrents, and view progress.",
-			Actions:     write,
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:torrent.admin",
-			Name:        "Torrent Admin",
-			Domain:      domain,
-			Description: "Full control over torrent operations.",
-			Actions:     admin,
-			TypeName:    "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 func (srv *server) Init() error {

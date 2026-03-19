@@ -221,70 +221,10 @@ func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:monitoring.viewer",
-			Name:        "Monitoring Viewer",
-			Domain:      domain,
-			Description: "Read-only access to alerts and rules.",
-			Actions: []string{
-				"monitoring.alerts",
-				"monitoring.rules",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:monitoring.operator",
-			Name:        "Monitoring Operator",
-			Domain:      domain,
-			Description: "Can query metrics, view alerts, targets, configs, and labels.",
-			Actions: []string{
-				"monitoring.alerts",
-				"monitoring.alertmanagers",
-				"monitoring.config",
-				"monitoring.flags",
-				"monitoring.labelnames",
-				"monitoring.labelvalues",
-				"monitoring.query",
-				"monitoring.queryrange",
-				"monitoring.series",
-				"monitoring.rules",
-				"monitoring.targets",
-				"monitoring.targetsmetadata",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:monitoring.admin",
-			Name:        "Monitoring Admin",
-			Domain:      domain,
-			Description: "Full control over MonitoringService, including connections, tombstones, snapshots, and deletes.",
-			Actions: []string{
-				"monitoring.stop",
-				"monitoring.createconnection",
-				"monitoring.deleteconnection",
-				"monitoring.alerts",
-				"monitoring.alertmanagers",
-				"monitoring.cleantombstones",
-				"monitoring.config",
-				"monitoring.deleteseries",
-				"monitoring.flags",
-				"monitoring.labelnames",
-				"monitoring.labelvalues",
-				"monitoring.query",
-				"monitoring.queryrange",
-				"monitoring.series",
-				"monitoring.snapshot",
-				"monitoring.rules",
-				"monitoring.targets",
-				"monitoring.targetsmetadata",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Init creates/loads configuration and initializes gRPC.

@@ -195,56 +195,10 @@ func (srv *server) GetPermissions() []any           { return srv.Permissions }
 func (srv *server) SetPermissions(v []any)          { srv.Permissions = v }
 func (srv *server) GetGrpcServer() *grpc.Server     { return srv.grpcServer }
 
-// RolesDefault returns curated roles for AuthenticationService.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:auth.password",
-			Name:        "Password Self-Service",
-			Domain:      domain,
-			Description: "Change account passwords (subject to server-side ownership checks).",
-			Actions: []string{
-				"auth.password.set",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:auth.peer-token",
-			Name:        "Peer Token Issuer",
-			Domain:      domain,
-			Description: "Generate tokens for peers identified by MAC.",
-			Actions: []string{
-				"auth.peer.token",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:auth.root",
-			Name:        "Root Credential Manager",
-			Domain:      domain,
-			Description: "Manage root credentials and administrator email.",
-			Actions: []string{
-				"auth.root.password",
-				"auth.root.email",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:auth.admin",
-			Name:        "Authentication Admin",
-			Domain:      domain,
-			Description: "Full control over authentication management operations.",
-			Actions: []string{
-				"auth.password.set",
-				"auth.peer.token",
-				"auth.root.password",
-				"auth.root.email",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Lifecycle
@@ -347,28 +301,7 @@ func initializeServerDefaults() *server {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"event.EventService"}
-	s.Permissions = []any{
-		map[string]any{
-			"action": "/authentication.AuthenticationService/SetPassword",
-			"resources": []any{
-				map[string]any{"index": 0, "permission": "write"},
-			},
-		},
-		map[string]any{
-			"action":     "/authentication.AuthenticationService/SetRootPassword",
-			"permission": "owner",
-		},
-		map[string]any{
-			"action":     "/authentication.AuthenticationService/SetRootEmail",
-			"permission": "owner",
-		},
-		map[string]any{
-			"action": "/authentication.AuthenticationService/GeneratePeerToken",
-			"resources": []any{
-				map[string]any{"index": 0, "permission": "write"},
-			},
-		},
-	}
+	s.Permissions = make([]any, 0)
 
 	s.WatchSessionsDelay = 60
 	s.SessionTimeout = 15

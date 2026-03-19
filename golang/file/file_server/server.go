@@ -237,94 +237,10 @@ func (srv *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopRespo
 // RolesDefault returns a curated set of roles for FileService.
 // Uses stable action keys as the RBAC permission identifiers.
 // Roles are defined in cluster-roles.json (owned by RBAC); this method
-// provides compiled fallback defaults only.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:file.viewer",
-			Name:        "File Viewer",
-			Domain:      domain,
-			Description: "Read-only access to files and directories.",
-			Actions:     []string{"file.list", "file.read", "file.publish"},
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:file.uploader",
-			Name:        "File Uploader",
-			Domain:      domain,
-			Description: "Upload/create content; no destructive ops.",
-			Actions:     []string{"file.write"},
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:file.editor",
-			Name:        "File Editor",
-			Domain:      domain,
-			Description: "Create, modify, move/copy, and delete files/dirs.",
-			Actions:     []string{"file.list", "file.read", "file.write", "file.delete"},
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:file.publisher",
-			Name:        "File Publisher",
-			Domain:      domain,
-			Description: "Manage public directories (publish/unpublish).",
-			Actions:     []string{"file.publish"},
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:file.admin",
-			Name:        "File Admin",
-			Domain:      domain,
-			Description: "Full control over FileService.",
-			Actions:     []string{"file.list", "file.read", "file.write", "file.delete", "file.publish", "file.admin"},
-			TypeName:    "resource.Role",
-		},
-	}
-}
-
-// defaultPermissions returns the compiled fallback permissions for FileService.
-// Uses v2 format: method (gRPC transport path) + action (stable RBAC key).
-func defaultPermissions() []interface{} {
-	type p struct {
-		method, action, perm string
-		res                  []interface{}
-	}
-	entries := []p{
-		{"/file.FileService/ReadDir", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		{"/file.FileService/CreateDir", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		{"/file.FileService/DeleteDir", "file.delete", "delete", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
-		{"/file.FileService/Rename", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"}, map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"}}},
-		{"/file.FileService/Copy", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		{"/file.FileService/Move", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		{"/file.FileService/CreateArchive", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}}},
-		{"/file.FileService/GetFileInfo", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		{"/file.FileService/GetFileMetadata", "file.list", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		{"/file.FileService/ReadFile", "file.read", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		{"/file.FileService/SaveFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		{"/file.FileService/DeleteFile", "file.delete", "delete", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"}}},
-		{"/file.FileService/CreateLnk", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, map[string]interface{}{"index": 0, "field": "Name", "permission": "write"}}},
-		{"/file.FileService/GetThumbnails", "file.read", "read", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "read"}}},
-		{"/file.FileService/WriteExcelFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}}},
-		{"/file.FileService/HtmlToPdf", "file.read", "read", []interface{}{}},
-		{"/file.FileService/UploadFile", "file.write", "write", []interface{}{map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"}}},
-		{"/file.FileService/AddPublicDir", "file.publish", "admin", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
-		{"/file.FileService/RemovePublicDir", "file.publish", "admin", []interface{}{map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"}}},
-		{"/file.FileService/GetPublicDirs", "file.publish", "read", []interface{}{}},
-		{"/file.FileService/Stop", "file.admin", "admin", []interface{}{}},
-	}
-	result := make([]interface{}, 0, len(entries))
-	for _, e := range entries {
-		result = append(result, map[string]interface{}{
-			"method":     e.method,
-			"action":     e.action,
-			"permission": e.perm,
-			"resources":  e.res,
-		})
-	}
-	return result
+	return []resourcepb.Role{}
 }
 
 // -------------------- Clients & helpers --------------------
@@ -890,7 +806,7 @@ func main() {
 	if extPerms, _ := policy.LoadAndRegisterPermissions("file"); extPerms != nil {
 		s.Permissions = extPerms
 	} else {
-		s.Permissions = defaultPermissions()
+		s.Permissions = make([]any, 0)
 		policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 	}
 

@@ -7,7 +7,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -160,58 +159,10 @@ func (srv *server) SetDependency(dep string) {
 
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:storage.viewer",
-			Name:        "Storage Viewer",
-			Domain:      domain,
-			Description: "Read-only: open stores and read items.",
-			Actions: []string{
-				"storage.open",
-				"storage.getitem",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:storage.writer",
-			Name:        "Storage Writer",
-			Domain:      domain,
-			Description: "Read and write items; can close/clear stores.",
-			Actions: []string{
-				"storage.open",
-				"storage.close",
-				"storage.getitem",
-				"storage.setitem",
-				"storage.setlargeitem",
-				"storage.removeitem",
-				"storage.clear",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:storage.admin",
-			Name:        "Storage Admin",
-			Domain:      domain,
-			Description: "Full control over storage connections and stores.",
-			Actions: []string{
-				"storage.stop",
-				"storage.createconnection",
-				"storage.deleteconnection",
-				"storage.open",
-				"storage.close",
-				"storage.getitem",
-				"storage.setitem",
-				"storage.setlargeitem",
-				"storage.removeitem",
-				"storage.clear",
-				"storage.drop",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Init prepares config/runtime and initializes the gRPC server.

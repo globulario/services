@@ -346,44 +346,10 @@ func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
 // SetKeepAlive toggles keep-alive behavior.
 func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:repo.viewer",
-			Name:        "Repository Viewer",
-			Domain:      domain,
-			Description: "Read/download access to published bundles and artifacts.",
-			Actions: []string{
-				"repository.read",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:repo.publisher",
-			Name:        "Repository Publisher",
-			Domain:      domain,
-			Description: "Can upload (publish) bundles to an organization namespace and download.",
-			Actions: []string{
-				"repository.read",
-				"repository.write",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:repo.admin",
-			Name:        "Repository Admin",
-			Domain:      domain,
-			Description: "Full control over repository operations.",
-			Actions: []string{
-				"repository.read",
-				"repository.write",
-				"repository.delete",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // -----------------------------------------------------------------------------
@@ -705,25 +671,7 @@ func initializeServerDefaults() *server {
 	}
 
 	// RBAC permissions for package upload/download
-	s.Permissions = []any{
-		// Upload a package bundle (publishing to an organization namespace)
-		map[string]any{
-			"action":     "/repository.PackageRepository/UploadBundle",
-			"permission": "write",
-			"resources": []any{
-				map[string]any{"index": 0, "field": "Organization", "permission": "write"},
-			},
-		},
-		// Download a package bundle (read access to publisher namespace / platform)
-		map[string]any{
-			"action":     "/repository.PackageRepository/DownloadBundle",
-			"permission": "read",
-			"resources": []any{
-				map[string]any{"index": 0, "field": "Descriptor.PublisherID", "permission": "read"},
-				map[string]any{"index": 0, "field": "Platform", "permission": "read"},
-			},
-		},
-	}
+	s.Permissions = make([]any, 0)
 
 	// Runtime defaults
 	s.Process = -1

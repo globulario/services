@@ -210,128 +210,10 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	reader := resourcepb.Role{
-		Id:          "role:dns.reader",
-		Name:        "DNS Reader",
-		Domain:      domain,
-		Description: "Read-only access to DNS records.",
-		Actions: []string{
-			"dns.record.read",
-		},
-		TypeName: "resource.Role",
-	}
-
-	editor := resourcepb.Role{
-		Id:          "role:dns.editor",
-		Name:        "DNS Editor",
-		Domain:      domain,
-		Description: "Create/update/delete DNS records.",
-		Actions: []string{
-			// writes
-			"dns.zone.write", "dns.zone.delete",
-			"dns.record.write", "dns.record.delete",
-			// reads
-			"dns.record.read",
-		},
-		TypeName: "resource.Role",
-	}
-
-	admin := resourcepb.Role{
-		Id:          "role:dns.admin",
-		Name:        "DNS Admin",
-		Domain:      domain,
-		Description: "Full DNS control, including server stop.",
-		Actions: []string{
-			"dns.stop",
-			"dns.record.read",
-			"dns.zone.write", "dns.zone.delete",
-			"dns.record.write", "dns.record.delete",
-		},
-		TypeName: "resource.Role",
-	}
-
-	return []resourcepb.Role{reader, editor, admin}
-}
-
-func loadDefaultPermissions() []interface{} {
-	res := func(field, perm string) map[string]interface{} {
-		return map[string]interface{}{"index": 0, "field": field, "permission": perm}
-	}
-	rule := func(action, perm string, r ...map[string]interface{}) map[string]interface{} {
-		m := map[string]interface{}{"action": action, "permission": perm}
-		if len(r) > 0 {
-			rr := make([]interface{}, 0, len(r))
-			for _, x := range r {
-				rr = append(rr, x)
-			}
-			m["resources"] = rr
-		}
-		return m
-	}
-
-	return []interface{}{
-		// Domains
-		rule("/dns.DnsService/SetDomains", "write", res("Domain", "write")),
-
-		// A / AAAA
-		rule("/dns.DnsService/SetA", "write", res("Domain", "write")),
-		rule("/dns.DnsService/RemoveA", "write", res("Domain", "write")),
-		rule("/dns.DnsService/GetA", "read", res("Domain", "read")),
-		rule("/dns.DnsService/SetAAAA", "write", res("Domain", "write")),
-		rule("/dns.DnsService/RemoveAAAA", "write", res("Domain", "write")),
-		rule("/dns.DnsService/GetAAAA", "read", res("Domain", "read")),
-
-		// TXT legacy id-based
-		rule("/dns.DnsService/SetText", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveText", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetText", "read", res("Id", "read")),
-
-		// TXT domain-based
-		rule("/dns.DnsService/SetTXT", "write", res("Domain", "write")),
-		rule("/dns.DnsService/RemoveTXT", "write", res("Domain", "write")),
-		rule("/dns.DnsService/GetTXT", "read", res("Domain", "read")),
-
-		// NS
-		rule("/dns.DnsService/SetNs", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveNs", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetNs", "read", res("Id", "read")),
-
-		// CNAME
-		rule("/dns.DnsService/SetCName", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveCName", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetCName", "read", res("Id", "read")),
-
-		// MX
-		rule("/dns.DnsService/SetMx", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveMx", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetMx", "read", res("Id", "read")),
-
-		// SOA
-		rule("/dns.DnsService/SetSoa", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveSoa", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetSoa", "read", res("Id", "read")),
-
-		// URI
-		rule("/dns.DnsService/SetUri", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveUri", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetUri", "read", res("Id", "read")),
-
-		// CAA
-		rule("/dns.DnsService/SetCaa", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveCaa", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetCaa", "read", res("Id", "read")),
-
-		// AFSDB
-		rule("/dns.DnsService/SetAfsdb", "write", res("Id", "write")),
-		rule("/dns.DnsService/RemoveAfsdb", "write", res("Id", "write")),
-		rule("/dns.DnsService/GetAfsdb", "read", res("Id", "read")),
-
-		// Admin op
-		rule("/dns.DnsService/Stop", "write"),
-	}
+	return []resourcepb.Role{}
 }
 
 // RBAC helper bound to this service address
@@ -612,7 +494,7 @@ func initializeServerDefaults() *server {
 		ReplicationFactor: cfg.ReplicationFactor,
 		Root:              cfg.Root,
 		Dependencies:      globular.CloneStringSlice(cfg.Dependencies),
-		Permissions:       loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 	}
 
 	if s.Root == "" {

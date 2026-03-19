@@ -8,7 +8,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_engine"
@@ -165,54 +164,10 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:search.viewer",
-			Name:        "Search Viewer",
-			Domain:      domain,
-			Description: "Read-only access to search indexes and engine info.",
-			Actions: []string{
-				"search.version",
-				"search.count",
-				"search.query",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:search.indexer",
-			Name:        "Search Indexer",
-			Domain:      domain,
-			Description: "Can index and delete documents, plus all viewer capabilities.",
-			Actions: []string{
-				// Viewer
-				"search.version",
-				"search.count",
-				"search.query",
-				// Write
-				"search.index",
-				"search.delete",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:search.admin",
-			Name:        "Search Admin",
-			Domain:      domain,
-			Description: "Full control over SearchService, including stopping the service.",
-			Actions: []string{
-				"search.stop",
-				"search.version",
-				"search.index",
-				"search.count",
-				"search.delete",
-				"search.query",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Init initializes configuration, gRPC server, and the search engine.
@@ -296,6 +251,6 @@ func (srv *server) ensureRuntime() {
 		srv.Dependencies = []string{}
 	}
 	if srv.Permissions == nil {
-		srv.Permissions = loadDefaultPermissions()
+		srv.Permissions = make([]any, 0)
 	}
 }

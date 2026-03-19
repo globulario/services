@@ -81,7 +81,7 @@ func DefaultConfig() *Config {
 		UseMinio:        false,
 		MinioPrefix:     "/users",
 		MinioUseSSL:     false,
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 	}
 	cfg.Domain, cfg.Address = globular.GetDefaultDomainAddress(cfg.Port)
 	return cfg

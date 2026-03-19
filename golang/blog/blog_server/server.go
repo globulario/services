@@ -14,7 +14,6 @@ import (
     "github.com/blevesearch/bleve/v2"
     "github.com/globulario/services/golang/blog/blog_client"
     "github.com/globulario/services/golang/blog/blogpb"
-    "github.com/globulario/services/golang/config"
     "github.com/globulario/services/golang/event/eventpb"
     "github.com/globulario/services/golang/policy"
     globular "github.com/globulario/services/golang/globular_service"
@@ -191,68 +190,10 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []any           { return srv.Permissions }
 func (srv *server) SetPermissions(v []any)          { srv.Permissions = v }
 
-// RolesDefault returns curated roles for BlogService.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-    domain, _ := config.GetDomain()
-
-    return []resourcepb.Role{
-        {
-            Id:          "role:blog.reader",
-            Name:        "Blog Reader",
-            Domain:      domain,
-            Description: "Read and search blog posts.",
-            Actions: []string{
-                "blog.read",
-                "blog.search",
-                "blog.byauthors",
-            },
-            TypeName: "resource.Role",
-        },
-        {
-            Id:          "role:blog.contributor",
-            Name:        "Blog Contributor",
-            Domain:      domain,
-            Description: "Create and update posts; add comments and reactions.",
-            Actions: []string{
-                "blog.create",
-                "blog.save",
-                "blog.comment",
-                "blog.react",
-            },
-            TypeName: "resource.Role",
-        },
-        {
-            Id:          "role:blog.moderator",
-            Name:        "Blog Moderator",
-            Domain:      domain,
-            Description: "Moderate content: delete posts, comments, and reactions.",
-            Actions: []string{
-                "blog.delete",
-                "blog.removecomment",
-                "blog.removereact",
-            },
-            TypeName: "resource.Role",
-        },
-        {
-            Id:          "role:blog.admin",
-            Name:        "Blog Admin",
-            Domain:      domain,
-            Description: "Full control over blogging features.",
-            Actions: []string{
-                "blog.create",
-                "blog.save",
-                "blog.read",
-                "blog.search",
-                "blog.byauthors",
-                "blog.delete",
-                "blog.comment",
-                "blog.removecomment",
-                "blog.react",
-                "blog.removereact",
-            },
-            TypeName: "resource.Role",
-        },
-    }
+	return []resourcepb.Role{}
 }
 
 // Init initializes the service configuration and gRPC server.

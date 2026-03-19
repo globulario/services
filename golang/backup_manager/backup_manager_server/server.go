@@ -234,6 +234,8 @@ func (srv *server) SetDependency(dependency string) {
 	}
 }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
 	return []resourcepb.Role{}
 }

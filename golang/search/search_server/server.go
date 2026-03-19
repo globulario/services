@@ -32,17 +32,6 @@ var (
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/search.SearchService/Stop", "permission": "admin"},
-		map[string]interface{}{"action": "/search.SearchService/GetEngineVersion", "permission": "read"},
-		map[string]interface{}{"action": "/search.SearchService/IndexJsonObject", "permission": "write"},
-		map[string]interface{}{"action": "/search.SearchService/Count", "permission": "read"},
-		map[string]interface{}{"action": "/search.SearchService/DeleteDocument", "permission": "write"},
-		map[string]interface{}{"action": "/search.SearchService/SearchDocuments", "permission": "read"},
-	}
-}
-
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
@@ -65,7 +54,7 @@ func initializeServerDefaults() *server {
 		Process:         -1,
 		ProxyProcess:    -1,
 		Dependencies:    []string{},
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 	}
 
 	s.Domain, s.Address = globular.GetDefaultDomainAddress(s.Port)

@@ -160,46 +160,10 @@ func (srv *server) SetRepositories(repositories []string) { srv.Repositories = r
 func (srv *server) GetDiscoveries() []string              { return srv.Discoveries }
 func (srv *server) SetDiscoveries(discoveries []string)   { srv.Discoveries = discoveries }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:persistence.viewer",
-			Name:        "Persistence Viewer",
-			Domain:      domain,
-			Description: "Read-only access to query data and check connection health.",
-			Actions: []string{
-				"persistence.read",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:persistence.editor",
-			Name:        "Persistence Editor",
-			Domain:      domain,
-			Description: "Create, update, and delete data records (no schema or connection admin).",
-			Actions: []string{
-				"persistence.read",
-				"persistence.write",
-				"persistence.delete",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:persistence.admin",
-			Name:        "Persistence Admin",
-			Domain:      domain,
-			Description: "Full control over PersistenceService: connections, schema (DB/collections), data, and admin commands.",
-			Actions: []string{
-				"persistence.read",
-				"persistence.write",
-				"persistence.delete",
-				"persistence.admin",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }

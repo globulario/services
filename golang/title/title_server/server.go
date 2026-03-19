@@ -344,72 +344,10 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 // SetPermissions sets the action permissions for this service.
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
-// RolesDefault returns default roles for the Title service.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	view := []string{
-		"title.getpublisher",
-		"title.getperson",
-		"title.gettitle",
-		"title.getaudio",
-		"title.getalbum",
-		"title.getvideo",
-		"title.getfiletitles",
-		"title.getfilevideos",
-		"title.getfileaudios",
-		"title.gettitlefiles",
-		"title.searchtitles",
-		"title.searchpersons",
-	}
-
-	write := append([]string{
-		"title.createpublisher",
-		"title.createperson",
-		"title.createtitle",
-		"title.updatetitle",
-		"title.createaudio",
-		"title.createvideo",
-		"title.updatevideo",
-		"title.associate",
-		"title.dissociate",
-	}, view...) // writers can also read/search
-
-	admin := append([]string{
-		"title.deletepublisher",
-		"title.deleteperson",
-		"title.deletetitle",
-		"title.deleteaudio",
-		"title.deletealbum",
-		"title.deletevideo",
-	}, write...) // admins can also write + read
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:title.viewer",
-			Name:        "Title Viewer",
-			Domain:      domain,
-			Description: "Read/search titles, persons, audios and videos; list associations.",
-			Actions:     view,
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:title.writer",
-			Name:        "Title Writer",
-			Domain:      domain,
-			Description: "Create/update titles, videos, audios, publishers/persons and file associations.",
-			Actions:     write,
-			TypeName:    "resource.Role",
-		},
-		{
-			Id:          "role:title.admin",
-			Name:        "Title Admin",
-			Domain:      domain,
-			Description: "Full control over the title catalog including destructive operations.",
-			Actions:     admin,
-			TypeName:    "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // Init initializes the service configuration and gRPC server.

@@ -32,47 +32,6 @@ var (
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-func loadDefaultPermissions() []interface{} {
-	return []interface{}{
-		map[string]interface{}{"action": "/sql.SqlService/Stop", "permission": "admin", "resources": []interface{}{}},
-		map[string]interface{}{
-			"action":     "/sql.SqlService/CreateConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/sql.SqlService/DeleteConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/sql.SqlService/Ping",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/sql.SqlService/QueryContext",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Query.ConnectionId", "permission": "read"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/sql.SqlService/ExecContext",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Query.ConnectionId", "permission": "write"},
-			},
-		},
-	}
-}
-
 func initializeServerDefaults() *server {
 	cfg := DefaultConfig()
 	s := &server{
@@ -95,7 +54,7 @@ func initializeServerDefaults() *server {
 		Process:         -1,
 		ProxyProcess:    -1,
 		Dependencies:    globular.CloneStringSlice(cfg.Dependencies),
-		Permissions:     loadDefaultPermissions(),
+		Permissions: make([]any, 0),
 		Connections:     map[string]connection{},
 	}
 	s.Domain, s.Address = globular.GetDefaultDomainAddress(s.Port)

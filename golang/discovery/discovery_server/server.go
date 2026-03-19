@@ -201,57 +201,10 @@ func (srv *server) SetKeepAlive(val bool)              { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []any              { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []any)   { srv.Permissions = permissions }
 
-// RolesDefault returns curated roles for PackageDiscovery.
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	servicePublisher := resourcepb.Role{
-		Id:          "role:discovery.service_publisher",
-		Name:        "Service Publisher",
-		Domain:      domain,
-		Description: "Can publish service packages to allowed repositories/discoveries.",
-		Actions: []string{
-			"discovery.publish.service",
-		},
-		TypeName: "resource.Role",
-	}
-
-	appPublisher := resourcepb.Role{
-		Id:          "role:discovery.app_publisher",
-		Name:        "Application Publisher",
-		Domain:      domain,
-		Description: "Can publish application packages to allowed repositories/discoveries.",
-		Actions: []string{
-			"discovery.publish.app",
-		},
-		TypeName: "resource.Role",
-	}
-
-	publisher := resourcepb.Role{
-		Id:          "role:discovery.publisher",
-		Name:        "Publisher",
-		Domain:      domain,
-		Description: "Can publish services and applications.",
-		Actions: []string{
-			"discovery.publish.service",
-			"discovery.publish.app",
-		},
-		TypeName: "resource.Role",
-	}
-
-	admin := resourcepb.Role{
-		Id:          "role:discovery.admin",
-		Name:        "Discovery Admin",
-		Domain:      domain,
-		Description: "Full publish rights across repositories/discoveries.",
-		Actions: []string{
-			"discovery.publish.service",
-			"discovery.publish.app",
-		},
-		TypeName: "resource.Role",
-	}
-
-	return []resourcepb.Role{servicePublisher, appPublisher, publisher, admin}
+	return []resourcepb.Role{}
 }
 
 // Lifecycle

@@ -361,64 +361,10 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+// RolesDefault returns an empty set — roles are defined externally in
+// cluster-roles.json and per-service policy files.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
-
-	return []resourcepb.Role{
-		{
-			Id:          "role:rbac.viewer",
-			Name:        "RBAC Viewer",
-			Domain:      domain,
-			Description: "Read-only access to permissions metadata and validation endpoints.",
-			Actions: []string{
-				"rbac.read",
-				"rbac.validate",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:rbac.editor",
-			Name:        "RBAC Editor",
-			Domain:      domain,
-			Description: "Manage resource permissions, owners, and shares.",
-			Actions: []string{
-				"rbac.write",
-				"rbac.delete",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:rbac.admin",
-			Name:        "RBAC Admin",
-			Domain:      domain,
-			Description: "Full control over RBAC configuration and subject quotas.",
-			Actions: []string{
-				// everything from viewer
-				"rbac.read",
-				"rbac.validate",
-
-				// everything from editor
-				"rbac.write",
-				"rbac.delete",
-
-				// admin-only knobs
-				"rbac.admin",
-			},
-			TypeName: "resource.Role",
-		},
-		// Phase 3: Global admin role with wildcard permissions
-		// Replaces hardcoded "sa" bypass - grants full system access via RBAC
-		{
-			Id:          "role:globular.admin",
-			Name:        "Globular Administrator",
-			Domain:      domain,
-			Description: "Full system administrator with unrestricted access to all services and methods. Required for system maintenance and Day-0 setup.",
-			Actions: []string{
-				"/*", // Wildcard: grants access to ALL methods across ALL services
-			},
-			TypeName: "resource.Role",
-		},
-	}
+	return []resourcepb.Role{}
 }
 
 // -----------------------------------------------------------------------------
