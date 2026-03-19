@@ -118,6 +118,28 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				SeverityMin:         "error",
 				RepeatThreshold:     1, // one alert = already confirmed flood
 			},
+			{
+				Id:                  "slowloris-detected",
+				EventPattern:        "alert.slowloris.detected",
+				Description:         "Abnormally slow requests from single source — possible Slowloris attack",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     120,
+				BatchWindowSeconds:  15,
+				SeverityMin:         "error",
+				RepeatThreshold:     1,
+			},
+			{
+				Id:                  "error-rate-spike",
+				EventPattern:        "alert.error.spike",
+				Description:         "High error rate across service — resource exhaustion or cascade failure",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     120,
+				BatchWindowSeconds:  15,
+				SeverityMin:         "error",
+				RepeatThreshold:     1,
+			},
 		},
 
 		// Auto-remediation rules — Tier 2 (disabled by default, user opts in).

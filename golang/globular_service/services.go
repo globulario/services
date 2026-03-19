@@ -1034,8 +1034,15 @@ func initServiceEvents(s Service) {
 		// Pick event name based on the type of security event.
 		eventName := "alert.auth.denied"
 		severity := "WARNING"
-		if decision.Reason == "dos_rate_exceeded" {
+		switch decision.Reason {
+		case "dos_rate_exceeded":
 			eventName = "alert.dos.detected"
+			severity = "ERROR"
+		case "slowloris_detected":
+			eventName = "alert.slowloris.detected"
+			severity = "ERROR"
+		case "error_rate_spike":
+			eventName = "alert.error.spike"
 			severity = "ERROR"
 		}
 

@@ -613,8 +613,16 @@ func handleUnaryMethod(routing, token string, ctx context.Context, method string
 // - Only if there IS a mapping, we parse token and enforce RBAC.
 // callHandlerWithLogging invokes a unary handler and forwards errors to the log
 // function (which in turn sends them to slog + the centralized LogService).
+// Also tracks request duration and error rates for anomaly detection.
 func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.UnaryHandler, address, application, method string) (interface{}, error) {
+	start := time.Now()
 	res, hErr := handler(ctx, rqst)
+	duration := time.Since(start)
+
+	// Track anomalies: slow requests and error spikes.
+	remoteAddr := extractRemoteAddr(ctx)
+	getAnomalyTracker().record(remoteAddr, method, duration, hErr != nil)
+
 	if hErr != nil {
 		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, hErr
