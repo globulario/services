@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/ldap/ldap_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -386,10 +387,22 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 		if isBcryptHash(password) {
 			if err = srv.validatePassword(pwd, password); err != nil {
+				globular.PublishEvent("alert.auth.failed", map[string]interface{}{
+					"severity": "ERROR",
+					"account":  "sa",
+					"reason":   "wrong_password",
+					"service":  "authentication",
+				})
 				return "", logInternal("authenticate:root:validate", err)
 			}
 		} else {
 			if pwd != effective {
+				globular.PublishEvent("alert.auth.failed", map[string]interface{}{
+					"severity": "ERROR",
+					"account":  "sa",
+					"reason":   "wrong_password",
+					"service":  "authentication",
+				})
 				return "", logInternal("authenticate:root:defaultMismatch", errors.New("the given password doesn't match the existing one"))
 			}
 			// Upgrade legacy plaintext to bcrypt once authentication succeeds.
@@ -458,6 +471,12 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		// Password path (+ optional LDAP fallback)
 		if err = srv.validatePassword(pwd, account.Password); err != nil {
 			slog.Info("authenticate:passwordMismatch", "accountId", account.Id)
+			globular.PublishEvent("alert.auth.failed", map[string]interface{}{
+				"severity": "WARNING",
+				"account":  account.Id,
+				"reason":   "wrong_password",
+				"service":  "authentication",
+			})
 			if len(srv.LdapConnectionId) != 0 {
 				if err := srv.authenticateLdap(account.Name, pwd); err != nil {
 					slog.Warn("authenticate:ldapFailed", "accountId", account.Id, "err", err)

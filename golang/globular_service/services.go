@@ -1046,6 +1046,17 @@ func initServiceEvents(s Service) {
 	slog.Debug("initServiceEvents: event publishing active", "service", s.GetName())
 }
 
+// PublishEvent publishes a named event with arbitrary JSON payload.
+// Safe to call before initServiceEvents completes (silently drops).
+// Available to any service that imports globular_service.
+func PublishEvent(name string, payload map[string]interface{}) {
+	if serviceEventClient == nil {
+		return
+	}
+	data, _ := json.Marshal(payload)
+	_ = serviceEventClient.Publish(name, data)
+}
+
 // publishServiceEvent publishes a lifecycle event. Safe to call with nil client.
 func publishServiceEvent(name string, s Service, extra map[string]interface{}) {
 	if serviceEventClient == nil {

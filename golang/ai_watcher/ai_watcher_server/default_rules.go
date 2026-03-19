@@ -96,6 +96,17 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				SeverityMin:         "warning",
 				RepeatThreshold:     3, // only fire after 3+ denials in window (filters noise)
 			},
+			{
+				Id:                  "brute-force-detect",
+				EventPattern:        "alert.auth.failed",
+				Description:         "Repeated login failures — possible brute force attack on account",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     300,
+				BatchWindowSeconds:  30,
+				SeverityMin:         "warning",
+				RepeatThreshold:     5, // 5+ failed logins in 30s = suspicious
+			},
 		},
 
 		// Auto-remediation rules — Tier 2 (disabled by default, user opts in).
