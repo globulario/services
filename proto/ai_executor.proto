@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package ai_executor;
+
+option go_package = "github.com/globulario/services/golang/ai_executor/ai_executorpb";
+
+// AiExecutorService receives incidents from the ai_watcher, diagnoses them
+// by gathering context from cluster services, and executes remediation
+// actions according to the permission tier.
+//
+// It is the "hands" of the AI system — the watcher sees, the executor acts.
+service AiExecutorService {
+
+    // ProcessIncident receives an incident and handles it according to tier.
+    // Tier 1 (OBSERVE):          diagnose → record findings in ai_memory
+    // Tier 2 (AUTO_REMEDIATE):   diagnose → execute pre-approved action
+    // Tier 3 (REQUIRE_APPROVAL): diagnose → propose action → wait for approval
+    rpc ProcessIncident(ProcessIncidentRequest) returns (ProcessIncidentResponse);
+
+    // GetDiagnosis returns the diagnosis for an incident.
+    rpc GetDiagnosis(GetDiagnosisRequest) returns (GetDiagnosisResponse);
+
+    // GetStatus returns operational status.
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+
+    // ListActions returns recent remediation actions taken.
+    rpc ListActions(ListActionsRequest) returns (ListActionsResponse);
+
+    // Stop gracefully shuts down the executor.
+    rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// ── Diagnosis ─────────────────────────────────────────────────────────────────
+
+message Diagnosis {
+    string incident_id = 1;
+    string summary = 2;              // one-line diagnosis
+    string detail = 3;               // full diagnosis text
+    repeated string evidence = 4;     // what data was gathered
+    string root_cause = 5;           // best guess at root cause
+    float confidence = 6;            // 0.0-1.0 confidence in diagnosis
+    string proposed_action = 7;       // what should be done
+    string action_reason = 8;        // why this action
+    int64 diagnosed_at_ms = 9;
+}
+
+// ── Remediation Actions ───────────────────────────────────────────────────────
+
+enum ActionType {
+    ACTION_NONE            = 0;
+    ACTION_RESTART_SERVICE = 1;
+    ACTION_CLEAR_STORAGE   = 2;
+    ACTION_RENEW_CERT      = 3;
+    ACTION_DRAIN_ENDPOINT  = 4;
+    ACTION_BLOCK_IP        = 5;
+    ACTION_NOTIFY_ADMIN    = 6;
+}
+
+enum ActionStatus {
+    ACTION_PENDING   = 0;
+    ACTION_EXECUTING = 1;
+    ACTION_SUCCEEDED = 2;
+    ACTION_FAILED    = 3;
+    ACTION_SKIPPED   = 4;
+}
+
+message RemediationAction {
+    string id = 1;
+    string incident_id = 2;
+    ActionType type = 3;
+    ActionStatus status = 4;
+    string target = 5;           // service name, endpoint, IP, etc.
+    string detail = 6;           // what exactly was done
+    string error = 7;            // error message if failed
+    int64 started_at_ms = 8;
+    int64 completed_at_ms = 9;
+}
+
+// ── RPC Messages ──────────────────────────────────────────────────────────────
+
+message ProcessIncidentRequest {
+    string incident_id = 1;
+    string rule_id = 2;
+    int32 tier = 3;                     // 0=observe, 1=auto_remediate, 2=require_approval
+    string trigger_event_name = 4;
+    bytes trigger_event_data = 5;
+    repeated string event_batch = 6;     // event names in batch
+    map<string, string> metadata = 7;
+}
+
+message ProcessIncidentResponse {
+    Diagnosis diagnosis = 1;
+    RemediationAction action = 2;   // nil if observe-only
+}
+
+message GetDiagnosisRequest {
+    string incident_id = 1;
+}
+
+message GetDiagnosisResponse {
+    Diagnosis diagnosis = 1;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+    int64 incidents_processed = 1;
+    int64 diagnoses_completed = 2;
+    int64 actions_executed = 3;
+    int64 actions_failed = 4;
+    int64 uptime_seconds = 5;
+}
+
+message ListActionsRequest {
+    int32 limit = 1;
+}
+
+message ListActionsResponse {
+    repeated RemediationAction actions = 1;
+}
+
+message StopRequest {}
+message StopResponse {}

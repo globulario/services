@@ -41,6 +41,7 @@ GO_TARGETS=(
   "ai_memory:golang/ai_memory/ai_memorypb"
   "ai_watcher:golang/ai_watcher/ai_watcherpb"
   "ai_router:golang/ai_router/ai_routerpb"
+  "ai_executor:golang/ai_executor/ai_executorpb"
 )
 
 TS_TARGETS=(

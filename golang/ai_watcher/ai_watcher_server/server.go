@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 	"github.com/globulario/services/golang/ai_watcher/ai_watcherpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -473,52 +474,101 @@ func (srv *server) processIncident(incident *ai_watcherpb.Incident, rule *ai_wat
 	}
 }
 
-// diagnoseAndRecord performs Tier 1 observation: gather context and store to memory.
+// callExecutor sends an incident to the ai_executor service for diagnosis and remediation.
+func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
+	addr := config.ResolveServiceAddr("ai_executor.AiExecutorService", "")
+	if addr == "" {
+		logger.Warn("ai_executor unavailable, falling back to local recording", "incident", incident.Id)
+		incident.Diagnosis = fmt.Sprintf("Observed %d events matching rule %s. Executor unavailable.",
+			len(incident.EventBatch), incident.Metadata["rule_id"])
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		return
+	}
+
+	// Internal service call — use insecure credentials.
+	cc, err := grpc.Dial(addr, grpc.WithInsecure())
+	if err != nil {
+		logger.Error("connect to ai_executor failed", "err", err)
+		incident.Diagnosis = "Executor connection failed: " + err.Error()
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		return
+	}
+	defer cc.Close()
+
+	client := ai_executorpb.NewAiExecutorServiceClient(cc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Build event batch names.
+	var batchNames []string
+	for _, evt := range incident.EventBatch {
+		batchNames = append(batchNames, evt)
+	}
+
+	resp, err := client.ProcessIncident(ctx, &ai_executorpb.ProcessIncidentRequest{
+		IncidentId:       incident.Id,
+		RuleId:           incident.Metadata["rule_id"],
+		Tier:             tier,
+		TriggerEventName: incident.TriggerEvent,
+		TriggerEventData: []byte(incident.TriggerEvent),
+		EventBatch:       batchNames,
+		Metadata:         incident.Metadata,
+	})
+	if err != nil {
+		logger.Error("executor ProcessIncident failed", "incident", incident.Id, "err", err)
+		incident.Diagnosis = "Executor error: " + err.Error()
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		return
+	}
+
+	// Apply diagnosis results back to the incident.
+	if resp.Diagnosis != nil {
+		incident.Diagnosis = resp.Diagnosis.Summary
+		incident.ProposedAction = resp.Diagnosis.ProposedAction
+	}
+
+	// Update status based on tier and action result.
+	switch tier {
+	case 0: // OBSERVE
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		logger.Info("incident diagnosed (observe)", "id", incident.Id,
+			"root_cause", resp.GetDiagnosis().GetRootCause(),
+			"confidence", resp.GetDiagnosis().GetConfidence())
+
+	case 1: // AUTO_REMEDIATE
+		if resp.Action != nil && resp.Action.Status == ai_executorpb.ActionStatus_ACTION_SUCCEEDED {
+			srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+			logger.Info("incident remediated", "id", incident.Id,
+				"action", resp.GetAction().GetType().String())
+		} else {
+			srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+			logger.Warn("remediation completed with non-success status", "id", incident.Id)
+		}
+
+	case 2: // REQUIRE_APPROVAL
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_AWAITING_APPROVAL)
+		srv.statsMu.Lock()
+		srv.stats.ApprovalsPending++
+		srv.statsMu.Unlock()
+		logger.Info("incident awaiting approval", "id", incident.Id,
+			"proposed_action", resp.GetDiagnosis().GetProposedAction())
+	}
+}
+
+// diagnoseAndRecord performs Tier 1 observation via the executor.
 func (srv *server) diagnoseAndRecord(incident *ai_watcherpb.Incident) {
-	// TODO: Call MCP tools to gather diagnosis:
-	//   - cluster_get_health
-	//   - cluster_get_doctor_report
-	//   - nodeagent_get_service_logs (for the affected service)
-	//   - memory_query (for similar past incidents)
-	//
-	// Then store the diagnosis in ai_memory via memory_store.
-
-	incident.Diagnosis = fmt.Sprintf("Observed %d events matching rule %s. Awaiting full MCP integration for automated diagnosis.",
-		len(incident.EventBatch), incident.Metadata["rule_id"])
-
-	srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
-	logger.Info("incident recorded (observe only)", "id", incident.Id, "events", len(incident.EventBatch))
+	srv.callExecutor(incident, 0)
 }
 
-// diagnoseAndAutoRemediate performs Tier 2: diagnose + auto-fix if whitelisted.
+// diagnoseAndAutoRemediate performs Tier 2 via the executor.
 func (srv *server) diagnoseAndAutoRemediate(incident *ai_watcherpb.Incident) {
-	// TODO: Same diagnosis as Tier 1, plus:
-	//   - Check auto_remediation whitelist for matching action
-	//   - If whitelisted: execute remediation via governor
-	//   - If not whitelisted: downgrade to Tier 1 (observe only)
-
-	incident.Diagnosis = "Auto-remediation pending MCP integration"
-	srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
-	logger.Info("incident auto-remediated (placeholder)", "id", incident.Id)
+	srv.callExecutor(incident, 1)
 }
 
-// diagnoseAndAwaitApproval performs Tier 3: diagnose, propose, wait.
+// diagnoseAndAwaitApproval performs Tier 3 via the executor.
 func (srv *server) diagnoseAndAwaitApproval(incident *ai_watcherpb.Incident) {
-	// TODO: Same diagnosis as Tier 1, plus:
-	//   - Formulate proposed action
-	//   - Set status to AWAITING_APPROVAL
-	//   - Publish notification event
-	//   - Wait for ApproveAction/DenyAction RPC
-
-	incident.Diagnosis = "Approval-gated remediation pending MCP integration"
-	incident.ProposedAction = "Pending diagnosis"
-	srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_AWAITING_APPROVAL)
-
-	srv.statsMu.Lock()
-	srv.stats.ApprovalsPending++
-	srv.statsMu.Unlock()
-
-	logger.Info("incident awaiting approval", "id", incident.Id)
+	srv.callExecutor(incident, 2)
 }
 
 func (srv *server) updateIncidentStatus(id string, status ai_watcherpb.IncidentStatus) {
