@@ -43,6 +43,7 @@ func scoreEndpoints(
 	node *nodeMetrics,
 	classifications map[string]ai_routerpb.ServiceClass,
 	weights scoringWeights,
+	anomalies *anomalyTracker,
 ) []scoringResult {
 
 	// Find max latency across all endpoints for normalization.
@@ -80,8 +81,11 @@ func scoreEndpoints(
 		errScore := clamp(ep.ErrorRate, 0, 1)
 		components["error_rate"] = errScore
 
-		// Anomaly component (Phase 3 — default 0 for now).
+		// Anomaly component (Phase 3 — from ai_watcher security events).
 		anomalyScore := 0.0
+		if anomalies != nil {
+			anomalyScore = anomalies.getAnomalyScore(ep.Service)
+		}
 		components["anomaly"] = anomalyScore
 
 		// Reliability component (Phase 6 — default 0 for now, meaning "fully reliable").
@@ -113,6 +117,9 @@ func scoreEndpoints(
 		}
 		if errScore > 0.1 {
 			reasons = append(reasons, "elevated error rate")
+		}
+		if anomalyScore > 0.3 {
+			reasons = append(reasons, "security anomaly detected")
 		}
 		if len(reasons) == 0 {
 			reasons = append(reasons, "healthy")

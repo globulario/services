@@ -87,6 +87,9 @@ type server struct {
 	// Cached policy (computed by scoring loop, read by GetRoutingPolicy)
 	cachedPolicy atomic.Pointer[ai_routerpb.RoutingPolicy]
 
+	// Anomaly tracking (security signals from ai_watcher events)
+	anomalies *anomalyTracker
+
 	// Runtime stats
 	stats     routerStats
 	statsMu   sync.Mutex
@@ -210,6 +213,7 @@ func (srv *server) Init() error {
 	// Initialize router state.
 	srv.mode = ai_routerpb.RouterMode_ROUTER_NEUTRAL
 	srv.classifications = defaultClassifications()
+	srv.anomalies = newAnomalyTracker()
 	srv.startedAt = time.Now()
 
 	return nil
@@ -218,7 +222,10 @@ func (srv *server) Init() error {
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
 func (srv *server) StartService() error {
-	// Start the dry-run scoring loop in the background.
+	// Start anomaly tracker (subscribes to security events).
+	go srv.anomalies.start()
+
+	// Start the scoring loop in the background.
 	go srv.scoringLoop()
 
 	return globular.StartService(srv, srv.grpcServer)

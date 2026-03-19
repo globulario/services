@@ -45,8 +45,8 @@ func (srv *server) scoringLoop() {
 			continue
 		}
 
-		// Score all endpoints.
-		results := scoreEndpoints(endpoints, node, srv.classifications, weights)
+		// Score all endpoints (includes anomaly signals from ai_watcher).
+		results := scoreEndpoints(endpoints, node, srv.classifications, weights, srv.anomalies)
 
 		// Apply exponential smoothing to prevent flapping.
 		for i := range results {
