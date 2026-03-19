@@ -7,6 +7,7 @@
 package storagepb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1249,19 +1250,21 @@ var File_storage_proto protoreflect.FileDescriptor
 
 const file_storage_proto_rawDesc = "" +
 	"\n" +
-	"\rstorage.proto\x12\astorage\"X\n" +
+	"\rstorage.proto\x12\astorage\x1a\x13globular_auth.proto\"X\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12&\n" +
-	"\x04type\x18\x03 \x01(\x0e2\x12.storage.StoreTypeR\x04type\"4\n" +
-	"\bOpenRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x12.storage.StoreTypeR\x04type\"C\n" +
+	"\bOpenRqst\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"!\n" +
 	"\aOpenRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1b\n" +
-	"\tCloseRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\"\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"*\n" +
+	"\tCloseRqst\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\"\"\n" +
 	"\bCloseRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"K\n" +
 	"\x14CreateConnectionRqst\x123\n" +
@@ -1269,43 +1272,52 @@ const file_storage_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x13.storage.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"H\n" +
-	"\x0eSetItemRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"W\n" +
+	"\x0eSetItemRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\fR\x05value\")\n" +
 	"\x0fSetItemResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"M\n" +
-	"\x13SetLargeItemRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\\\n" +
+	"\x13SetLargeItemRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\fR\x05value\".\n" +
 	"\x14SetLargeItemResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"2\n" +
-	"\x0eGetItemRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"A\n" +
+	"\x0eGetItemRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\")\n" +
 	"\x0fGetItemResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\fR\x06result\"5\n" +
-	"\x11RemoveItemRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x06result\x18\x01 \x01(\fR\x06result\"D\n" +
+	"\x11RemoveItemRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\",\n" +
 	"\x12RemoveItemResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1e\n" +
-	"\fClearRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"'\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"-\n" +
+	"\fClearRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\"'\n" +
 	"\rClearResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1d\n" +
-	"\vDropRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"&\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\",\n" +
+	"\vDropRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\"&\n" +
 	"\fDropResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"#\n" +
-	"\x11GetAllKeysRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"(\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"2\n" +
+	"\x11GetAllKeysRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05store\x10\x01R\x02id\"(\n" +
 	"\x12GetAllKeysResponse\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
@@ -1315,22 +1327,34 @@ const file_storage_proto_rawDesc = "" +
 	"\tBIG_CACHE\x10\x01\x12\r\n" +
 	"\tBADGER_DB\x10\x02\x12\r\n" +
 	"\tSCYLLA_DB\x10\x03\x12\b\n" +
-	"\x04ETCD\x10\x042\x8e\x06\n" +
-	"\x0eStorageService\x123\n" +
-	"\x04Stop\x12\x14.storage.StopRequest\x1a\x15.storage.StopResponse\x12+\n" +
-	"\x04Open\x12\x11.storage.OpenRqst\x1a\x10.storage.OpenRsp\x12.\n" +
-	"\x05Close\x12\x12.storage.CloseRqst\x1a\x11.storage.CloseRsp\x12O\n" +
-	"\x10CreateConnection\x12\x1d.storage.CreateConnectionRqst\x1a\x1c.storage.CreateConnectionRsp\x12O\n" +
-	"\x10DeleteConnection\x12\x1d.storage.DeleteConnectionRqst\x1a\x1c.storage.DeleteConnectionRsp\x12<\n" +
-	"\aSetItem\x12\x17.storage.SetItemRequest\x1a\x18.storage.SetItemResponse\x12M\n" +
-	"\fSetLargeItem\x12\x1c.storage.SetLargeItemRequest\x1a\x1d.storage.SetLargeItemResponse(\x01\x12>\n" +
-	"\aGetItem\x12\x17.storage.GetItemRequest\x1a\x18.storage.GetItemResponse0\x01\x12E\n" +
+	"\x04ETCD\x10\x042\x99\f\n" +
+	"\x0eStorageService\x12_\n" +
+	"\x04Stop\x12\x14.storage.StopRequest\x1a\x15.storage.StopResponse\"*\x82\xb5\x18&\n" +
+	"\fstorage.stop\x12\x05admin\x1a\b/storage*\x05admin\x12c\n" +
+	"\x04Open\x12\x11.storage.OpenRqst\x1a\x10.storage.OpenRsp\"6\x82\xb5\x182\n" +
+	"\fstorage.open\x12\x04read\x1a\x14/storage/stores/{id}*\x06viewer\x12h\n" +
+	"\x05Close\x12\x12.storage.CloseRqst\x1a\x11.storage.CloseRsp\"8\x82\xb5\x184\n" +
+	"\rstorage.close\x12\x05write\x1a\x14/storage/stores/{id}*\x06editor\x12\x93\x01\n" +
+	"\x10CreateConnection\x12\x1d.storage.CreateConnectionRqst\x1a\x1c.storage.CreateConnectionRsp\"B\x82\xb5\x18>\n" +
+	"\x18storage.createconnection\x12\x05admin\"\x14/storage/connections*\x05admin\x12\x98\x01\n" +
+	"\x10DeleteConnection\x12\x1d.storage.DeleteConnectionRqst\x1a\x1c.storage.DeleteConnectionRsp\"G\x82\xb5\x18C\n" +
+	"\x18storage.deleteconnection\x12\x05admin\x1a\x19/storage/connections/{id}*\x05admin\x12\x84\x01\n" +
+	"\aSetItem\x12\x17.storage.SetItemRequest\x1a\x18.storage.SetItemResponse\"F\x82\xb5\x18B\n" +
+	"\x0fstorage.setitem\x12\x05write\x1a /storage/stores/{id}/items/{key}*\x06editor\x12\x9a\x01\n" +
+	"\fSetLargeItem\x12\x1c.storage.SetLargeItemRequest\x1a\x1d.storage.SetLargeItemResponse\"K\x82\xb5\x18G\n" +
+	"\x14storage.setlargeitem\x12\x05write\x1a /storage/stores/{id}/items/{key}*\x06editor(\x01\x12\x85\x01\n" +
+	"\aGetItem\x12\x17.storage.GetItemRequest\x1a\x18.storage.GetItemResponse\"E\x82\xb5\x18A\n" +
+	"\x0fstorage.getitem\x12\x04read\x1a /storage/stores/{id}/items/{key}*\x06viewer0\x01\x12\x90\x01\n" +
 	"\n" +
-	"RemoveItem\x12\x1a.storage.RemoveItemRequest\x1a\x1b.storage.RemoveItemResponse\x126\n" +
-	"\x05Clear\x12\x15.storage.ClearRequest\x1a\x16.storage.ClearResponse\x123\n" +
-	"\x04Drop\x12\x14.storage.DropRequest\x1a\x15.storage.DropResponse\x12G\n" +
+	"RemoveItem\x12\x1a.storage.RemoveItemRequest\x1a\x1b.storage.RemoveItemResponse\"I\x82\xb5\x18E\n" +
+	"\x12storage.removeitem\x12\x05write\x1a /storage/stores/{id}/items/{key}*\x06editor\x12p\n" +
+	"\x05Clear\x12\x15.storage.ClearRequest\x1a\x16.storage.ClearResponse\"8\x82\xb5\x184\n" +
+	"\rstorage.clear\x12\x05write\x1a\x14/storage/stores/{id}*\x06editor\x12k\n" +
+	"\x04Drop\x12\x14.storage.DropRequest\x1a\x15.storage.DropResponse\"6\x82\xb5\x182\n" +
+	"\fstorage.drop\x12\x05admin\x1a\x14/storage/stores/{id}*\x05admin\x12\x87\x01\n" +
 	"\n" +
-	"GetAllKeys\x12\x1a.storage.GetAllKeysRequest\x1a\x1b.storage.GetAllKeysResponse0\x01B9Z7github.com/globulario/services/golang/storage/storagepbb\x06proto3"
+	"GetAllKeys\x12\x1a.storage.GetAllKeysRequest\x1a\x1b.storage.GetAllKeysResponse\">\x82\xb5\x18:\n" +
+	"\x0fstorage.getitem\x12\x04read\x1a\x19/storage/stores/{id}/keys*\x06viewer0\x01B9Z7github.com/globulario/services/golang/storage/storagepbb\x06proto3"
 
 var (
 	file_storage_proto_rawDescOnce sync.Once

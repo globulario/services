@@ -38,6 +38,8 @@ GO_TARGETS=(
   "cluster_doctor:golang/cluster_doctor/cluster_doctorpb"
   "backup_manager:golang/backup_manager/backup_managerpb"
   "backup_hook:golang/backup_hook/backup_hookpb"
+  "ai_memory:golang/ai_memory/ai_memorypb"
+  "ai_watcher:golang/ai_watcher/ai_watcherpb"
 )
 
 TS_TARGETS=(
@@ -120,6 +122,25 @@ for proto in "${TS_TARGETS[@]}"; do
   fi
 done
 rm -rf "$_auth_tmp"
+
+# ── authzgen: extract permissions and roles from proto AuthzRule annotations ──
+echo "=> Generating combined proto descriptor set"
+ALL_PROTOS=()
+for f in "$PROTO_DIR"/*.proto; do
+  ALL_PROTOS+=("$f")
+done
+DESCRIPTOR_OUT="$REPO_ROOT/generated/policy/descriptor.pb"
+mkdir -p "$(dirname "$DESCRIPTOR_OUT")"
+protoc -I "$PROTO_DIR" --descriptor_set_out="$DESCRIPTOR_OUT" --include_imports "${ALL_PROTOS[@]}"
+
+echo "=> Running authzgen to generate permissions and roles"
+(
+  cd "$GO_ROOT"
+  GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go run ./globularcli/tools/authzgen \
+    -descriptor "$DESCRIPTOR_OUT" \
+    -out "$REPO_ROOT/generated/policy"
+)
+echo "=> authzgen complete"
 
 echo "=> Building Go services"
 bash "$REPO_ROOT/golang/build/build-services.sh"

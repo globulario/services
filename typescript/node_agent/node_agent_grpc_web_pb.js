@@ -25,6 +25,8 @@ var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/time
 var cluster_controller_pb = require('./cluster_controller_pb.js')
 
 var plan_pb = require('./plan_pb.js')
+
+var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.node_agent = require('./node_agent_pb.js');
 

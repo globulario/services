@@ -11,6 +11,7 @@
 package searchpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -739,24 +740,29 @@ var File_search_proto protoreflect.FileDescriptor
 
 const file_search_proto_rawDesc = "" +
 	"\n" +
-	"\fsearch.proto\x12\x06search\"\x19\n" +
+	"\fsearch.proto\x12\x06search\x1a\x13globular_auth.proto\"\x19\n" +
 	"\x17GetEngineVersionRequest\"4\n" +
 	"\x18GetEngineVersionResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"\x9e\x01\n" +
-	"\x16IndexJsonObjectRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"\xad\x01\n" +
+	"\x16IndexJsonObjectRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\x04path\x12\x18\n" +
 	"\ajsonStr\x18\x02 \x01(\tR\ajsonStr\x12\x1a\n" +
 	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x0e\n" +
 	"\x02id\x18\x04 \x01(\tR\x02id\x12\x16\n" +
 	"\x06indexs\x18\x05 \x03(\tR\x06indexs\x12\x12\n" +
 	"\x04data\x18\x06 \x01(\tR\x04data\"\x19\n" +
-	"\x17IndexJsonObjectResponse\";\n" +
-	"\x15DeleteDocumentRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\x18\n" +
-	"\x16DeleteDocumentResponse\"\"\n" +
-	"\fCountRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"'\n" +
+	"\x17IndexJsonObjectResponse\"Z\n" +
+	"\x15DeleteDocumentRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\x04path\x12\x1e\n" +
+	"\x02id\x18\x02 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bdocumentR\x02id\"\x18\n" +
+	"\x16DeleteDocumentResponse\"1\n" +
+	"\fCountRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\x04path\"'\n" +
 	"\rCountResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\x05R\x06result\"f\n" +
 	"\fSearchResult\x12\x12\n" +
@@ -777,14 +783,20 @@ const file_search_proto_rawDesc = "" +
 	"\x17SearchDocumentsResponse\x12/\n" +
 	"\aresults\x18\x01 \x01(\v2\x15.search.SearchResultsR\aresults\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xca\x03\n" +
-	"\rSearchService\x121\n" +
-	"\x04Stop\x12\x13.search.StopRequest\x1a\x14.search.StopResponse\x12U\n" +
-	"\x10GetEngineVersion\x12\x1f.search.GetEngineVersionRequest\x1a .search.GetEngineVersionResponse\x12R\n" +
-	"\x0fIndexJsonObject\x12\x1e.search.IndexJsonObjectRequest\x1a\x1f.search.IndexJsonObjectResponse\x124\n" +
-	"\x05Count\x12\x14.search.CountRequest\x1a\x15.search.CountResponse\x12O\n" +
-	"\x0eDeleteDocument\x12\x1d.search.DeleteDocumentRequest\x1a\x1e.search.DeleteDocumentResponse\x12T\n" +
-	"\x0fSearchDocuments\x12\x1e.search.SearchDocumentsRequest\x1a\x1f.search.SearchDocumentsResponse0\x01B7Z5github.com/globulario/services/golang/search/searchpbb\x06proto3"
+	"\fStopResponse2\xac\x06\n" +
+	"\rSearchService\x12[\n" +
+	"\x04Stop\x12\x13.search.StopRequest\x1a\x14.search.StopResponse\"(\x82\xb5\x18$\n" +
+	"\vsearch.stop\x12\x05admin\x1a\a/search*\x05admin\x12\x82\x01\n" +
+	"\x10GetEngineVersion\x12\x1f.search.GetEngineVersionRequest\x1a .search.GetEngineVersionResponse\"+\x82\xb5\x18'\n" +
+	"\x0esearch.version\x12\x04read\x1a\a/search*\x06viewer\x12\x93\x01\n" +
+	"\x0fIndexJsonObject\x12\x1e.search.IndexJsonObjectRequest\x1a\x1f.search.IndexJsonObjectResponse\"?\x82\xb5\x18;\n" +
+	"\x12search.index.write\x12\x05write\x1a\x16/search/indexes/{path}*\x06editor\x12s\n" +
+	"\x05Count\x12\x14.search.CountRequest\x1a\x15.search.CountResponse\"=\x82\xb5\x189\n" +
+	"\x11search.index.read\x12\x04read\x1a\x16/search/indexes/{path}*\x06viewer\x12\xa3\x01\n" +
+	"\x0eDeleteDocument\x12\x1d.search.DeleteDocumentRequest\x1a\x1e.search.DeleteDocumentResponse\"R\x82\xb5\x18N\n" +
+	"\x16search.document.delete\x12\x06delete\x1a%/search/indexes/{path}/documents/{id}*\x05admin\x12\x87\x01\n" +
+	"\x0fSearchDocuments\x12\x1e.search.SearchDocumentsRequest\x1a\x1f.search.SearchDocumentsResponse\"1\x82\xb5\x18-\n" +
+	"\fsearch.query\x12\x04read\"\x0f/search/indexes*\x06viewer0\x01B7Z5github.com/globulario/services/golang/search/searchpbb\x06proto3"
 
 var (
 	file_search_proto_rawDescOnce sync.Once

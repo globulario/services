@@ -7,6 +7,7 @@
 package echopb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -201,17 +202,19 @@ var File_echo_proto protoreflect.FileDescriptor
 const file_echo_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"echo.proto\x12\x04echo\"'\n" +
+	"echo.proto\x12\x04echo\x1a\x13globular_auth.proto\"'\n" +
 	"\vEchoRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"M\n" +
 	"\fEchoResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12#\n" +
 	"\rmessage_count\x18\x02 \x01(\x05R\fmessageCount\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2k\n" +
-	"\vEchoService\x12-\n" +
-	"\x04Stop\x12\x11.echo.StopRequest\x1a\x12.echo.StopResponse\x12-\n" +
-	"\x04Echo\x12\x11.echo.EchoRequest\x1a\x12.echo.EchoResponseB3Z1github.com/globulario/services/golang/echo/echopbb\x06proto3"
+	"\fStopResponse2\xb7\x01\n" +
+	"\vEchoService\x12S\n" +
+	"\x04Stop\x12\x11.echo.StopRequest\x1a\x12.echo.StopResponse\"$\x82\xb5\x18 \n" +
+	"\techo.stop\x12\x05admin\x1a\x05/echo*\x05admin\x12S\n" +
+	"\x04Echo\x12\x11.echo.EchoRequest\x1a\x12.echo.EchoResponse\"$\x82\xb5\x18 \n" +
+	"\techo.echo\x12\x04read\x1a\x05/echo*\x06viewerB3Z1github.com/globulario/services/golang/echo/echopbb\x06proto3"
 
 var (
 	file_echo_proto_rawDescOnce sync.Once

@@ -7,6 +7,7 @@
 package monitoringpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1943,7 +1944,7 @@ var File_monitoring_proto protoreflect.FileDescriptor
 const file_monitoring_proto_rawDesc = "" +
 	"\n" +
 	"\x10monitoring.proto\x12\n" +
-	"monitoring\"q\n" +
+	"monitoring\x1a\x13globular_auth.proto\"q\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -1955,91 +1956,123 @@ const file_monitoring_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x16.monitoring.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"3\n" +
-	"\rAlertsRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"*\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"G\n" +
+	"\rAlertsRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"*\n" +
 	"\x0eAlertsResponse\x12\x18\n" +
-	"\aresults\x18\x01 \x01(\tR\aresults\":\n" +
-	"\x14AlertManagersRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"1\n" +
+	"\aresults\x18\x01 \x01(\tR\aresults\"N\n" +
+	"\x14AlertManagersRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"1\n" +
 	"\x15AlertManagersResponse\x12\x18\n" +
-	"\aresults\x18\x01 \x01(\tR\aresults\"<\n" +
-	"\x16CleanTombstonesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"1\n" +
+	"\aresults\x18\x01 \x01(\tR\aresults\"P\n" +
+	"\x16CleanTombstonesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"1\n" +
 	"\x17CleanTombstonesResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"3\n" +
-	"\rConfigRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"*\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"G\n" +
+	"\rConfigRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"*\n" +
 	"\x0eConfigResponse\x12\x18\n" +
-	"\aresults\x18\x01 \x01(\tR\aresults\"\x8b\x01\n" +
-	"\x13DeleteSeriesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x18\n" +
+	"\aresults\x18\x01 \x01(\tR\aresults\"\x9f\x01\n" +
+	"\x13DeleteSeriesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x18\n" +
 	"\amatches\x18\x02 \x03(\tR\amatches\x12\x1c\n" +
 	"\tstartTime\x18\x03 \x01(\x01R\tstartTime\x12\x18\n" +
 	"\aendTime\x18\x04 \x01(\x01R\aendTime\".\n" +
 	"\x14DeleteSeriesResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"2\n" +
-	"\fFlagsRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\")\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"F\n" +
+	"\fFlagsRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\")\n" +
 	"\rFlagsResponse\x12\x18\n" +
-	"\aresults\x18\x01 \x01(\tR\aresults\"7\n" +
-	"\x11LabelNamesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"H\n" +
+	"\aresults\x18\x01 \x01(\tR\aresults\"K\n" +
+	"\x11LabelNamesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"H\n" +
 	"\x12LabelNamesResponse\x12\x16\n" +
 	"\x06labels\x18\x01 \x03(\tR\x06labels\x12\x1a\n" +
-	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\x9e\x01\n" +
-	"\x12LabelValuesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\xb2\x01\n" +
+	"\x12LabelValuesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x16\n" +
 	"\x06values\x18\x03 \x03(\tR\x06values\x12\x1c\n" +
 	"\tstartTime\x18\x04 \x01(\x03R\tstartTime\x12\x18\n" +
 	"\aendTime\x18\x05 \x01(\x03R\aendTime\"S\n" +
 	"\x13LabelValuesResponse\x12 \n" +
 	"\vlabelValues\x18\x01 \x01(\tR\vlabelValues\x12\x1a\n" +
-	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"X\n" +
-	"\fQueryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"l\n" +
+	"\fQueryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x0e\n" +
 	"\x02ts\x18\x03 \x01(\x01R\x02ts\"A\n" +
 	"\rQueryResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x1a\n" +
-	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\x99\x01\n" +
-	"\x11QueryRangeRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\xad\x01\n" +
+	"\x11QueryRangeRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x1c\n" +
 	"\tstartTime\x18\x03 \x01(\x01R\tstartTime\x12\x18\n" +
 	"\aendTime\x18\x04 \x01(\x01R\aendTime\x12\x12\n" +
 	"\x04step\x18\x05 \x01(\x01R\x04step\"F\n" +
 	"\x12QueryRangeResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x1a\n" +
-	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\x85\x01\n" +
-	"\rSeriesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x18\n" +
+	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"\x99\x01\n" +
+	"\rSeriesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x18\n" +
 	"\amatches\x18\x02 \x03(\tR\amatches\x12\x1c\n" +
 	"\tstartTime\x18\x03 \x01(\x01R\tstartTime\x12\x18\n" +
 	"\aendTime\x18\x04 \x01(\x01R\aendTime\"H\n" +
 	"\x0eSeriesResponse\x12\x1a\n" +
 	"\bLabelSet\x18\x01 \x01(\tR\bLabelSet\x12\x1a\n" +
-	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"Q\n" +
-	"\x0fSnapshotRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1a\n" +
+	"\bwarnings\x18\x02 \x01(\tR\bwarnings\"e\n" +
+	"\x0fSnapshotRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x1a\n" +
 	"\bskipHead\x18\x02 \x01(\bR\bskipHead\"*\n" +
 	"\x10SnapshotResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"2\n" +
-	"\fRulesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"'\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"F\n" +
+	"\fRulesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"'\n" +
 	"\rRulesResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"4\n" +
-	"\x0eTargetsRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\")\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"H\n" +
+	"\x0eTargetsRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\")\n" +
 	"\x0fTargetsResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"\x8c\x01\n" +
-	"\x16TargetsMetadataRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12 \n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"\xa0\x01\n" +
+	"\x16TargetsMetadataRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12 \n" +
 	"\vmatchTarget\x18\x02 \x01(\tR\vmatchTarget\x12\x16\n" +
 	"\x06metric\x18\x03 \x01(\tR\x06metric\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\tR\x05limit\"1\n" +
@@ -2049,29 +2082,46 @@ const file_monitoring_proto_rawDesc = "" +
 	"\fStopResponse*\x1b\n" +
 	"\tStoreType\x12\x0e\n" +
 	"\n" +
-	"PROMETHEUS\x10\x002\xd1\n" +
+	"PROMETHEUS\x10\x002\x89\x17\n" +
+	"\x11MonitoringService\x12k\n" +
+	"\x04Stop\x12\x17.monitoring.StopRequest\x1a\x18.monitoring.StopResponse\"0\x82\xb5\x18,\n" +
+	"\x0fmonitoring.stop\x12\x05admin\x1a\v/monitoring*\x05admin\x12\xa0\x01\n" +
+	"\x10CreateConnection\x12 .monitoring.CreateConnectionRqst\x1a\x1f.monitoring.CreateConnectionRsp\"I\x82\xb5\x18E\n" +
+	"\x1cmonitoring.connection.create\x12\x05write\"\x17/monitoring/connections*\x05admin\x12\xa6\x01\n" +
+	"\x10DeleteConnection\x12 .monitoring.DeleteConnectionRqst\x1a\x1f.monitoring.DeleteConnectionRsp\"O\x82\xb5\x18K\n" +
+	"\x1cmonitoring.connection.delete\x12\x06delete\x1a\x1c/monitoring/connections/{id}*\x05admin\x12\x95\x01\n" +
+	"\x06Alerts\x12\x19.monitoring.AlertsRequest\x1a\x1a.monitoring.AlertsResponse\"T\x82\xb5\x18P\n" +
+	"\x11monitoring.alerts\x12\x04read\x1a-/monitoring/connections/{connectionId}/alerts*\x06viewer\x12\xb8\x01\n" +
+	"\rAlertManagers\x12 .monitoring.AlertManagersRequest\x1a!.monitoring.AlertManagersResponse\"b\x82\xb5\x18^\n" +
+	"\x18monitoring.alertmanagers\x12\x04read\x1a4/monitoring/connections/{connectionId}/alertmanagers*\x06viewer\x12\xbd\x01\n" +
+	"\x0fCleanTombstones\x12\".monitoring.CleanTombstonesRequest\x1a#.monitoring.CleanTombstonesResponse\"a\x82\xb5\x18]\n" +
+	"\x1amonitoring.cleantombstones\x12\x05write\x1a1/monitoring/connections/{connectionId}/tombstones*\x05admin\x12\x95\x01\n" +
+	"\x06Config\x12\x19.monitoring.ConfigRequest\x1a\x1a.monitoring.ConfigResponse\"T\x82\xb5\x18P\n" +
+	"\x11monitoring.config\x12\x04read\x1a-/monitoring/connections/{connectionId}/config*\x06viewer\x12\xae\x01\n" +
+	"\fDeleteSeries\x12\x1f.monitoring.DeleteSeriesRequest\x1a .monitoring.DeleteSeriesResponse\"[\x82\xb5\x18W\n" +
+	"\x17monitoring.deleteseries\x12\x06delete\x1a-/monitoring/connections/{connectionId}/series*\x05admin\x12\x90\x01\n" +
+	"\x05Flags\x12\x18.monitoring.FlagsRequest\x1a\x19.monitoring.FlagsResponse\"R\x82\xb5\x18N\n" +
+	"\x10monitoring.flags\x12\x04read\x1a,/monitoring/connections/{connectionId}/flags*\x06viewer\x12\xa5\x01\n" +
 	"\n" +
-	"\x11MonitoringService\x129\n" +
-	"\x04Stop\x12\x17.monitoring.StopRequest\x1a\x18.monitoring.StopResponse\x12U\n" +
-	"\x10CreateConnection\x12 .monitoring.CreateConnectionRqst\x1a\x1f.monitoring.CreateConnectionRsp\x12U\n" +
-	"\x10DeleteConnection\x12 .monitoring.DeleteConnectionRqst\x1a\x1f.monitoring.DeleteConnectionRsp\x12?\n" +
-	"\x06Alerts\x12\x19.monitoring.AlertsRequest\x1a\x1a.monitoring.AlertsResponse\x12T\n" +
-	"\rAlertManagers\x12 .monitoring.AlertManagersRequest\x1a!.monitoring.AlertManagersResponse\x12Z\n" +
-	"\x0fCleanTombstones\x12\".monitoring.CleanTombstonesRequest\x1a#.monitoring.CleanTombstonesResponse\x12?\n" +
-	"\x06Config\x12\x19.monitoring.ConfigRequest\x1a\x1a.monitoring.ConfigResponse\x12Q\n" +
-	"\fDeleteSeries\x12\x1f.monitoring.DeleteSeriesRequest\x1a .monitoring.DeleteSeriesResponse\x12<\n" +
-	"\x05Flags\x12\x18.monitoring.FlagsRequest\x1a\x19.monitoring.FlagsResponse\x12K\n" +
+	"LabelNames\x12\x1d.monitoring.LabelNamesRequest\x1a\x1e.monitoring.LabelNamesResponse\"X\x82\xb5\x18T\n" +
+	"\x15monitoring.labelnames\x12\x04read\x1a-/monitoring/connections/{connectionId}/labels*\x06viewer\x12\xb1\x01\n" +
+	"\vLabelValues\x12\x1e.monitoring.LabelValuesRequest\x1a\x1f.monitoring.LabelValuesResponse\"a\x82\xb5\x18]\n" +
+	"\x16monitoring.labelvalues\x12\x04read\x1a5/monitoring/connections/{connectionId}/labels/{label}*\x06viewer\x12\x90\x01\n" +
+	"\x05Query\x12\x18.monitoring.QueryRequest\x1a\x19.monitoring.QueryResponse\"R\x82\xb5\x18N\n" +
+	"\x10monitoring.query\x12\x04read\x1a,/monitoring/connections/{connectionId}/query*\x06viewer\x12\xac\x01\n" +
 	"\n" +
-	"LabelNames\x12\x1d.monitoring.LabelNamesRequest\x1a\x1e.monitoring.LabelNamesResponse\x12N\n" +
-	"\vLabelValues\x12\x1e.monitoring.LabelValuesRequest\x1a\x1f.monitoring.LabelValuesResponse\x12<\n" +
-	"\x05Query\x12\x18.monitoring.QueryRequest\x1a\x19.monitoring.QueryResponse\x12M\n" +
-	"\n" +
-	"QueryRange\x12\x1d.monitoring.QueryRangeRequest\x1a\x1e.monitoring.QueryRangeResponse0\x01\x12?\n" +
-	"\x06Series\x12\x19.monitoring.SeriesRequest\x1a\x1a.monitoring.SeriesResponse\x12E\n" +
-	"\bSnapshot\x12\x1b.monitoring.SnapshotRequest\x1a\x1c.monitoring.SnapshotResponse\x12<\n" +
-	"\x05Rules\x12\x18.monitoring.RulesRequest\x1a\x19.monitoring.RulesResponse\x12B\n" +
-	"\aTargets\x12\x1a.monitoring.TargetsRequest\x1a\x1b.monitoring.TargetsResponse\x12Z\n" +
-	"\x0fTargetsMetadata\x12\".monitoring.TargetsMetadataRequest\x1a#.monitoring.TargetsMetadataResponseB?Z=github.com/globulario/services/golang/monitoring/monitoringpbb\x06proto3"
+	"QueryRange\x12\x1d.monitoring.QueryRangeRequest\x1a\x1e.monitoring.QueryRangeResponse\"]\x82\xb5\x18Y\n" +
+	"\x15monitoring.queryrange\x12\x04read\x1a2/monitoring/connections/{connectionId}/query-range*\x06viewer0\x01\x12\x95\x01\n" +
+	"\x06Series\x12\x19.monitoring.SeriesRequest\x1a\x1a.monitoring.SeriesResponse\"T\x82\xb5\x18P\n" +
+	"\x11monitoring.series\x12\x04read\x1a-/monitoring/connections/{connectionId}/series*\x06viewer\x12\x9f\x01\n" +
+	"\bSnapshot\x12\x1b.monitoring.SnapshotRequest\x1a\x1c.monitoring.SnapshotResponse\"X\x82\xb5\x18T\n" +
+	"\x13monitoring.snapshot\x12\x05write\x1a//monitoring/connections/{connectionId}/snapshot*\x05admin\x12\x90\x01\n" +
+	"\x05Rules\x12\x18.monitoring.RulesRequest\x1a\x19.monitoring.RulesResponse\"R\x82\xb5\x18N\n" +
+	"\x10monitoring.rules\x12\x04read\x1a,/monitoring/connections/{connectionId}/rules*\x06viewer\x12\x9a\x01\n" +
+	"\aTargets\x12\x1a.monitoring.TargetsRequest\x1a\x1b.monitoring.TargetsResponse\"V\x82\xb5\x18R\n" +
+	"\x12monitoring.targets\x12\x04read\x1a./monitoring/connections/{connectionId}/targets*\x06viewer\x12\xc3\x01\n" +
+	"\x0fTargetsMetadata\x12\".monitoring.TargetsMetadataRequest\x1a#.monitoring.TargetsMetadataResponse\"g\x82\xb5\x18c\n" +
+	"\x1amonitoring.targetsmetadata\x12\x04read\x1a7/monitoring/connections/{connectionId}/targets/metadata*\x06viewerB?Z=github.com/globulario/services/golang/monitoring/monitoringpbb\x06proto3"
 
 var (
 	file_monitoring_proto_rawDescOnce sync.Once

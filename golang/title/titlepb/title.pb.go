@@ -7,6 +7,7 @@
 package titlepb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -4755,7 +4756,7 @@ var File_title_proto protoreflect.FileDescriptor
 
 const file_title_proto_rawDesc = "" +
 	"\n" +
-	"\vtitle.proto\x12\x05title\x1a\x1bgoogle/protobuf/empty.proto\"\xfc\x02\n" +
+	"\vtitle.proto\x12\x05title\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\xfc\x02\n" +
 	"\x06Person\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x10\n" +
 	"\x03URL\x18\x02 \x01(\tR\x03URL\x12\x1a\n" +
@@ -4811,26 +4812,32 @@ const file_title_proto_rawDesc = "" +
 	"\bDuration\x18\x0f \x01(\x05R\bDuration\x12\x12\n" +
 	"\x04UUID\x18\x10 \x01(\tR\x04UUID\".\n" +
 	"\x06Videos\x12$\n" +
-	"\x06videos\x18\x01 \x03(\v2\f.title.VideoR\x06videos\"V\n" +
+	"\x06videos\x18\x01 \x03(\v2\f.title.VideoR\x06videos\"e\n" +
 	"\x12CreateVideoRequest\x12\"\n" +
-	"\x05video\x18\x01 \x01(\v2\f.title.VideoR\x05video\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13CreateVideoResponse\"M\n" +
-	"\x13GetVideoByIdRequest\x12\x18\n" +
-	"\avideoId\x18\x01 \x01(\tR\avideoId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"Z\n" +
+	"\x05video\x18\x01 \x01(\v2\f.title.VideoR\x05video\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13CreateVideoResponse\"i\n" +
+	"\x13GetVideoByIdRequest\x12%\n" +
+	"\avideoId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05videoR\avideoId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"Z\n" +
 	"\x14GetVideoByIdResponse\x12\"\n" +
 	"\x05video\x18\x01 \x01(\v2\f.title.VideoR\x05video\x12\x1e\n" +
 	"\n" +
 	"filesPaths\x18\x03 \x03(\tR\n" +
-	"filesPaths\"L\n" +
-	"\x12DeleteVideoRequest\x12\x18\n" +
-	"\avideoId\x18\x01 \x01(\tR\avideoId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13DeleteVideoResponse\"^\n" +
+	"filesPaths\"h\n" +
+	"\x12DeleteVideoRequest\x12%\n" +
+	"\avideoId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05videoR\avideoId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13DeleteVideoResponse\"m\n" +
 	"\x1aUpdateVideoMetadataRequest\x12\"\n" +
-	"\x05video\x18\x01 \x01(\v2\f.title.VideoR\x05video\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x1d\n" +
+	"\x05video\x18\x01 \x01(\v2\f.title.VideoR\x05video\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x1d\n" +
 	"\x1bUpdateVideoMetadataResponse\"\xc9\x04\n" +
 	"\x05Title\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x10\n" +
@@ -4856,50 +4863,72 @@ const file_title_proto_rawDesc = "" +
 	"\x05Serie\x18\x14 \x01(\tR\x05Serie\x12\x12\n" +
 	"\x04UUID\x18\x15 \x01(\tR\x04UUID\".\n" +
 	"\x06Titles\x12$\n" +
-	"\x06titles\x18\x01 \x03(\v2\f.title.TitleR\x06titles\"V\n" +
+	"\x06titles\x18\x01 \x03(\v2\f.title.TitleR\x06titles\"e\n" +
 	"\x12CreateTitleRequest\x12\"\n" +
-	"\x05title\x18\x01 \x01(\v2\f.title.TitleR\x05title\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13CreateTitleResponse\"M\n" +
-	"\x13GetTitleByIdRequest\x12\x18\n" +
-	"\atitleId\x18\x01 \x01(\tR\atitleId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"Z\n" +
+	"\x05title\x18\x01 \x01(\v2\f.title.TitleR\x05title\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13CreateTitleResponse\"i\n" +
+	"\x13GetTitleByIdRequest\x12%\n" +
+	"\atitleId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"Z\n" +
 	"\x14GetTitleByIdResponse\x12\"\n" +
 	"\x05title\x18\x01 \x01(\v2\f.title.TitleR\x05title\x12\x1e\n" +
 	"\n" +
 	"filesPaths\x18\x03 \x03(\tR\n" +
-	"filesPaths\"L\n" +
-	"\x12DeleteTitleRequest\x12\x18\n" +
-	"\atitleId\x18\x01 \x01(\tR\atitleId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13DeleteTitleResponse\"^\n" +
+	"filesPaths\"h\n" +
+	"\x12DeleteTitleRequest\x12%\n" +
+	"\atitleId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13DeleteTitleResponse\"m\n" +
 	"\x1aUpdateTitleMetadataRequest\x12\"\n" +
-	"\x05title\x18\x01 \x01(\v2\f.title.TitleR\x05title\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x1d\n" +
-	"\x1bUpdateTitleMetadataResponse\"s\n" +
-	"\x1dAssociateFileWithTitleRequest\x12\x18\n" +
-	"\atitleId\x18\x01 \x01(\tR\atitleId\x12\x1a\n" +
-	"\bfilePath\x18\x02 \x01(\tR\bfilePath\x12\x1c\n" +
-	"\tindexPath\x18\x03 \x01(\tR\tindexPath\" \n" +
-	"\x1eAssociateFileWithTitleResponse\"t\n" +
-	"\x1eDissociateFileWithTitleRequest\x12\x18\n" +
-	"\atitleId\x18\x01 \x01(\tR\atitleId\x12\x1a\n" +
-	"\bfilePath\x18\x02 \x01(\tR\bfilePath\x12\x1c\n" +
-	"\tindexPath\x18\x03 \x01(\tR\tindexPath\"!\n" +
-	"\x1fDissociateFileWithTitleResponse\"P\n" +
-	"\x14GetFileTitlesRequest\x12\x1a\n" +
-	"\bfilePath\x18\x01 \x01(\tR\bfilePath\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\">\n" +
+	"\x05title\x18\x01 \x01(\v2\f.title.TitleR\x05title\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x1d\n" +
+	"\x1bUpdateTitleMetadataResponse\"\x9b\x01\n" +
+	"\x1dAssociateFileWithTitleRequest\x12%\n" +
+	"\atitleId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\x12&\n" +
+	"\bfilePath\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04fileR\bfilePath\x12+\n" +
+	"\tindexPath\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\" \n" +
+	"\x1eAssociateFileWithTitleResponse\"\x9c\x01\n" +
+	"\x1eDissociateFileWithTitleRequest\x12%\n" +
+	"\atitleId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\x12&\n" +
+	"\bfilePath\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04fileR\bfilePath\x12+\n" +
+	"\tindexPath\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"!\n" +
+	"\x1fDissociateFileWithTitleResponse\"k\n" +
+	"\x14GetFileTitlesRequest\x12&\n" +
+	"\bfilePath\x18\x01 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04fileR\bfilePath\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\">\n" +
 	"\x15GetFileTitlesResponse\x12%\n" +
-	"\x06titles\x18\x01 \x01(\v2\r.title.TitlesR\x06titles\"P\n" +
-	"\x14GetFileVideosRequest\x12\x1a\n" +
-	"\bfilePath\x18\x01 \x01(\tR\bfilePath\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\">\n" +
+	"\x06titles\x18\x01 \x01(\v2\r.title.TitlesR\x06titles\"k\n" +
+	"\x14GetFileVideosRequest\x12&\n" +
+	"\bfilePath\x18\x01 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04fileR\bfilePath\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\">\n" +
 	"\x15GetFileVideosResponse\x12%\n" +
-	"\x06videos\x18\x01 \x01(\v2\r.title.VideosR\x06videos\"N\n" +
-	"\x14GetTitleFilesRequest\x12\x18\n" +
-	"\atitleId\x18\x01 \x01(\tR\atitleId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"5\n" +
+	"\x06videos\x18\x01 \x01(\v2\r.title.VideosR\x06videos\"j\n" +
+	"\x14GetTitleFilesRequest\x12%\n" +
+	"\atitleId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"5\n" +
 	"\x15GetTitleFilesResponse\x12\x1c\n" +
 	"\tfilePaths\x18\x01 \x03(\tR\tfilePaths\"=\n" +
 	"\aSnippet\x12\x14\n" +
@@ -4927,53 +4956,65 @@ const file_title_proto_rawDesc = "" +
 	"\x05terms\x18\x03 \x03(\v2\x16.title.SearchFacetTermR\x05terms\x12\x14\n" +
 	"\x05other\x18\x04 \x01(\x05R\x05other\":\n" +
 	"\fSearchFacets\x12*\n" +
-	"\x06facets\x18\x01 \x03(\v2\x12.title.SearchFacetR\x06facets\"\x8d\x01\n" +
+	"\x06facets\x18\x01 \x03(\v2\x12.title.SearchFacetR\x06facets\"\x9c\x01\n" +
 	"\x13SearchTitlesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields\x12\x1c\n" +
-	"\tindexPath\x18\x03 \x01(\tR\tindexPath\x12\x12\n" +
+	"\x06fields\x18\x02 \x03(\tR\x06fields\x12+\n" +
+	"\tindexPath\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\x12\x12\n" +
 	"\x04size\x18\x04 \x01(\x05R\x04size\x12\x16\n" +
 	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\xa7\x01\n" +
 	"\x14SearchTitlesResponse\x120\n" +
 	"\asummary\x18\x01 \x01(\v2\x14.title.SearchSummaryH\x00R\asummary\x12$\n" +
 	"\x03hit\x18\x02 \x01(\v2\x10.title.SearchHitH\x00R\x03hit\x12-\n" +
 	"\x06facets\x18\x03 \x01(\v2\x13.title.SearchFacetsH\x00R\x06facetsB\b\n" +
-	"\x06result\"\x8e\x01\n" +
+	"\x06result\"\x9d\x01\n" +
 	"\x14SearchPersonsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields\x12\x1c\n" +
-	"\tindexPath\x18\x03 \x01(\tR\tindexPath\x12\x12\n" +
+	"\x06fields\x18\x02 \x03(\tR\x06fields\x12+\n" +
+	"\tindexPath\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\x12\x12\n" +
 	"\x04size\x18\x04 \x01(\x05R\x04size\x12\x16\n" +
 	"\x06offset\x18\x05 \x01(\x05R\x06offset\"\xa8\x01\n" +
 	"\x15SearchPersonsResponse\x120\n" +
 	"\asummary\x18\x01 \x01(\v2\x14.title.SearchSummaryH\x00R\asummary\x12$\n" +
 	"\x03hit\x18\x02 \x01(\v2\x10.title.SearchHitH\x00R\x03hit\x12-\n" +
 	"\x06facets\x18\x03 \x01(\v2\x13.title.SearchFacetsH\x00R\x06facetsB\b\n" +
-	"\x06result\"f\n" +
+	"\x06result\"u\n" +
 	"\x16CreatePublisherRequest\x12.\n" +
-	"\tpublisher\x18\x01 \x01(\v2\x10.title.PublisherR\tpublisher\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x19\n" +
-	"\x17CreatePublisherResponse\"X\n" +
-	"\x16DeletePublisherRequest\x12 \n" +
-	"\vPublisherID\x18\x01 \x01(\tR\vPublisherID\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x19\n" +
-	"\x17DeletePublisherResponse\"Y\n" +
-	"\x17GetPublisherByIdRequest\x12 \n" +
-	"\vPublisherID\x18\x01 \x01(\tR\vPublisherID\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"J\n" +
+	"\tpublisher\x18\x01 \x01(\v2\x10.title.PublisherR\tpublisher\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x19\n" +
+	"\x17CreatePublisherResponse\"x\n" +
+	"\x16DeletePublisherRequest\x121\n" +
+	"\vPublisherID\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\tpublisherR\vPublisherID\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x19\n" +
+	"\x17DeletePublisherResponse\"y\n" +
+	"\x17GetPublisherByIdRequest\x121\n" +
+	"\vPublisherID\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\tpublisherR\vPublisherID\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"J\n" +
 	"\x18GetPublisherByIdResponse\x12.\n" +
-	"\tpublisher\x18\x01 \x01(\v2\x10.title.PublisherR\tpublisher\"Z\n" +
+	"\tpublisher\x18\x01 \x01(\v2\x10.title.PublisherR\tpublisher\"i\n" +
 	"\x13CreatePersonRequest\x12%\n" +
-	"\x06person\x18\x01 \x01(\v2\r.title.PersonR\x06person\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x16\n" +
-	"\x14CreatePersonResponse\"O\n" +
-	"\x13DeletePersonRequest\x12\x1a\n" +
-	"\bpersonId\x18\x01 \x01(\tR\bpersonId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x16\n" +
-	"\x14DeletePersonResponse\"P\n" +
-	"\x14GetPersonByIdRequest\x12\x1a\n" +
-	"\bpersonId\x18\x01 \x01(\tR\bpersonId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\">\n" +
+	"\x06person\x18\x01 \x01(\v2\r.title.PersonR\x06person\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x16\n" +
+	"\x14CreatePersonResponse\"l\n" +
+	"\x13DeletePersonRequest\x12(\n" +
+	"\bpersonId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06personR\bpersonId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x16\n" +
+	"\x14DeletePersonResponse\"m\n" +
+	"\x14GetPersonByIdRequest\x12(\n" +
+	"\bpersonId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06personR\bpersonId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\">\n" +
 	"\x15GetPersonByIdResponse\x12%\n" +
 	"\x06person\x18\x01 \x01(\v2\r.title.PersonR\x06person\"\xe0\x03\n" +
 	"\x05Audio\x12\x0e\n" +
@@ -5008,36 +5049,48 @@ const file_title_proto_rawDesc = "" +
 	"\x06tracks\x18\x05 \x01(\v2\r.title.AudiosR\x06tracks\x12%\n" +
 	"\x06Poster\x18\x06 \x01(\v2\r.title.PosterR\x06Poster\".\n" +
 	"\x06Audios\x12$\n" +
-	"\x06audios\x18\x01 \x03(\v2\f.title.AudioR\x06audios\"V\n" +
+	"\x06audios\x18\x01 \x03(\v2\f.title.AudioR\x06audios\"e\n" +
 	"\x12CreateAudioRequest\x12\"\n" +
-	"\x05audio\x18\x01 \x01(\v2\f.title.AudioR\x05audio\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13CreateAudioResponse\"M\n" +
-	"\x13GetAudioByIdRequest\x12\x18\n" +
-	"\aaudioId\x18\x01 \x01(\tR\aaudioId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"Z\n" +
+	"\x05audio\x18\x01 \x01(\v2\f.title.AudioR\x05audio\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13CreateAudioResponse\"i\n" +
+	"\x13GetAudioByIdRequest\x12%\n" +
+	"\aaudioId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05audioR\aaudioId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"Z\n" +
 	"\x14GetAudioByIdResponse\x12\"\n" +
 	"\x05audio\x18\x01 \x01(\v2\f.title.AudioR\x05audio\x12\x1e\n" +
 	"\n" +
 	"filesPaths\x18\x02 \x03(\tR\n" +
-	"filesPaths\"L\n" +
-	"\x12DeleteAudioRequest\x12\x18\n" +
-	"\aaudioId\x18\x01 \x01(\tR\aaudioId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13DeleteAudioResponse\"P\n" +
-	"\x14GetFileAudiosRequest\x12\x1a\n" +
-	"\bfilePath\x18\x01 \x01(\tR\bfilePath\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\">\n" +
+	"filesPaths\"h\n" +
+	"\x12DeleteAudioRequest\x12%\n" +
+	"\aaudioId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05audioR\aaudioId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
+	"\x13DeleteAudioResponse\"k\n" +
+	"\x14GetFileAudiosRequest\x12&\n" +
+	"\bfilePath\x18\x01 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04fileR\bfilePath\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\">\n" +
 	"\x15GetFileAudiosResponse\x12%\n" +
-	"\x06audios\x18\x01 \x01(\v2\r.title.AudiosR\x06audios\"I\n" +
-	"\x0fGetAlbumRequest\x12\x18\n" +
-	"\aalbumId\x18\x01 \x01(\tR\aalbumId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"6\n" +
+	"\x06audios\x18\x01 \x01(\v2\r.title.AudiosR\x06audios\"e\n" +
+	"\x0fGetAlbumRequest\x12%\n" +
+	"\aalbumId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05albumR\aalbumId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"6\n" +
 	"\x10GetAlbumResponse\x12\"\n" +
-	"\x05album\x18\x01 \x01(\v2\f.title.AlbumR\x05album\"L\n" +
-	"\x12DeleteAlbumRequest\x12\x18\n" +
-	"\aalbumId\x18\x01 \x01(\tR\aalbumId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
+	"\x05album\x18\x01 \x01(\v2\f.title.AlbumR\x05album\"h\n" +
+	"\x12DeleteAlbumRequest\x12%\n" +
+	"\aalbumId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05albumR\aalbumId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\"\x15\n" +
 	"\x13DeleteAlbumResponse\"\xeb\x01\n" +
 	"\rWatchingEntry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
@@ -5054,56 +5107,93 @@ const file_title_proto_rawDesc = "" +
 	"updated_at\x18\b \x01(\tR\tupdatedAt\"\x15\n" +
 	"\x13ListWatchingRequest\"B\n" +
 	"\x14ListWatchingResponse\x12*\n" +
-	"\x05items\x18\x01 \x03(\v2\x14.title.WatchingEntryR\x05items\"/\n" +
-	"\x12GetWatchingRequest\x12\x19\n" +
-	"\btitle_id\x18\x01 \x01(\tR\atitleId\"A\n" +
+	"\x05items\x18\x01 \x03(\v2\x14.title.WatchingEntryR\x05items\"<\n" +
+	"\x12GetWatchingRequest\x12&\n" +
+	"\btitle_id\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\"A\n" +
 	"\x13SaveWatchingRequest\x12*\n" +
-	"\x05entry\x18\x01 \x01(\v2\x14.title.WatchingEntryR\x05entry\"2\n" +
-	"\x15RemoveWatchingRequest\x12\x19\n" +
-	"\btitle_id\x18\x01 \x01(\tR\atitleId\"Y\n" +
+	"\x05entry\x18\x01 \x01(\v2\x14.title.WatchingEntryR\x05entry\"?\n" +
+	"\x15RemoveWatchingRequest\x12&\n" +
+	"\btitle_id\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\atitleId\"Y\n" +
 	"\x13RebuildIndexRequest\x12 \n" +
 	"\vcollections\x18\x01 \x03(\tR\vcollections\x12 \n" +
-	"\vincremental\x18\x02 \x01(\bR\vincremental\"l\n" +
-	"\x18GetSeriesEpisodesRequest\x12\x1a\n" +
-	"\bseriesId\x18\x01 \x01(\tR\bseriesId\x12\x1c\n" +
-	"\tindexPath\x18\x02 \x01(\tR\tindexPath\x12\x16\n" +
+	"\vincremental\x18\x02 \x01(\bR\vincremental\"\x88\x01\n" +
+	"\x18GetSeriesEpisodesRequest\x12'\n" +
+	"\bseriesId\x18\x01 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05titleR\bseriesId\x12+\n" +
+	"\tindexPath\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05index\x10\x01R\tindexPath\x12\x16\n" +
 	"\x06season\x18\x03 \x01(\x05R\x06season\"E\n" +
 	"\x19GetSeriesEpisodesResponse\x12(\n" +
-	"\bepisodes\x18\x01 \x03(\v2\f.title.TitleR\bepisodes2\xf7\x13\n" +
-	"\fTitleService\x12P\n" +
-	"\x0fCreatePublisher\x12\x1d.title.CreatePublisherRequest\x1a\x1e.title.CreatePublisherResponse\x12P\n" +
-	"\x0fDeletePublisher\x12\x1d.title.DeletePublisherRequest\x1a\x1e.title.DeletePublisherResponse\x12S\n" +
-	"\x10GetPublisherById\x12\x1e.title.GetPublisherByIdRequest\x1a\x1f.title.GetPublisherByIdResponse\x12G\n" +
-	"\fCreatePerson\x12\x1a.title.CreatePersonRequest\x1a\x1b.title.CreatePersonResponse\x12G\n" +
-	"\fDeletePerson\x12\x1a.title.DeletePersonRequest\x1a\x1b.title.DeletePersonResponse\x12J\n" +
-	"\rGetPersonById\x12\x1b.title.GetPersonByIdRequest\x1a\x1c.title.GetPersonByIdResponse\x12D\n" +
-	"\vCreateTitle\x12\x19.title.CreateTitleRequest\x1a\x1a.title.CreateTitleResponse\x12G\n" +
-	"\fGetTitleById\x12\x1a.title.GetTitleByIdRequest\x1a\x1b.title.GetTitleByIdResponse\x12D\n" +
-	"\vDeleteTitle\x12\x19.title.DeleteTitleRequest\x1a\x1a.title.DeleteTitleResponse\x12\\\n" +
-	"\x13UpdateTitleMetadata\x12!.title.UpdateTitleMetadataRequest\x1a\".title.UpdateTitleMetadataResponse\x12D\n" +
-	"\vCreateAudio\x12\x19.title.CreateAudioRequest\x1a\x1a.title.CreateAudioResponse\x12G\n" +
-	"\fGetAudioById\x12\x1a.title.GetAudioByIdRequest\x1a\x1b.title.GetAudioByIdResponse\x12;\n" +
-	"\bGetAlbum\x12\x16.title.GetAlbumRequest\x1a\x17.title.GetAlbumResponse\x12D\n" +
-	"\vDeleteAudio\x12\x19.title.DeleteAudioRequest\x1a\x1a.title.DeleteAudioResponse\x12D\n" +
-	"\vDeleteAlbum\x12\x19.title.DeleteAlbumRequest\x1a\x1a.title.DeleteAlbumResponse\x12D\n" +
-	"\vCreateVideo\x12\x19.title.CreateVideoRequest\x1a\x1a.title.CreateVideoResponse\x12G\n" +
-	"\fGetVideoById\x12\x1a.title.GetVideoByIdRequest\x1a\x1b.title.GetVideoByIdResponse\x12D\n" +
-	"\vDeleteVideo\x12\x19.title.DeleteVideoRequest\x1a\x1a.title.DeleteVideoResponse\x12\\\n" +
-	"\x13UpdateVideoMetadata\x12!.title.UpdateVideoMetadataRequest\x1a\".title.UpdateVideoMetadataResponse\x12e\n" +
-	"\x16AssociateFileWithTitle\x12$.title.AssociateFileWithTitleRequest\x1a%.title.AssociateFileWithTitleResponse\x12h\n" +
-	"\x17DissociateFileWithTitle\x12%.title.DissociateFileWithTitleRequest\x1a&.title.DissociateFileWithTitleResponse\x12J\n" +
-	"\rGetFileTitles\x12\x1b.title.GetFileTitlesRequest\x1a\x1c.title.GetFileTitlesResponse\x12J\n" +
-	"\rGetFileVideos\x12\x1b.title.GetFileVideosRequest\x1a\x1c.title.GetFileVideosResponse\x12J\n" +
-	"\rGetFileAudios\x12\x1b.title.GetFileAudiosRequest\x1a\x1c.title.GetFileAudiosResponse\x12J\n" +
-	"\rGetTitleFiles\x12\x1b.title.GetTitleFilesRequest\x1a\x1c.title.GetTitleFilesResponse\x12I\n" +
-	"\fSearchTitles\x12\x1a.title.SearchTitlesRequest\x1a\x1b.title.SearchTitlesResponse0\x01\x12L\n" +
-	"\rSearchPersons\x12\x1b.title.SearchPersonsRequest\x1a\x1c.title.SearchPersonsResponse0\x01\x12G\n" +
-	"\fListWatching\x12\x1a.title.ListWatchingRequest\x1a\x1b.title.ListWatchingResponse\x12>\n" +
-	"\vGetWatching\x12\x19.title.GetWatchingRequest\x1a\x14.title.WatchingEntry\x12B\n" +
-	"\fSaveWatching\x12\x1a.title.SaveWatchingRequest\x1a\x16.google.protobuf.Empty\x12F\n" +
-	"\x0eRemoveWatching\x12\x1c.title.RemoveWatchingRequest\x1a\x16.google.protobuf.Empty\x12K\n" +
-	"\x15RebuildIndexFromStore\x12\x1a.title.RebuildIndexRequest\x1a\x16.google.protobuf.Empty\x12V\n" +
-	"\x11GetSeriesEpisodes\x12\x1f.title.GetSeriesEpisodesRequest\x1a .title.GetSeriesEpisodesResponseB5Z3github.com/globulario/services/golang/title/titlepbb\x06proto3"
+	"\bepisodes\x18\x01 \x03(\v2\f.title.TitleR\bepisodes2\xd3)\n" +
+	"\fTitleService\x12\xa4\x01\n" +
+	"\x0fCreatePublisher\x12\x1d.title.CreatePublisherRequest\x1a\x1e.title.CreatePublisherResponse\"R\x82\xb5\x18N\n" +
+	"\x16title.publisher.create\x12\x05write\"%/title/indexes/{indexPath}/publishers*\x06editor\x12\xb2\x01\n" +
+	"\x0fDeletePublisher\x12\x1d.title.DeletePublisherRequest\x1a\x1e.title.DeletePublisherResponse\"`\x82\xb5\x18\\\n" +
+	"\x16title.publisher.delete\x12\x06delete\x1a3/title/indexes/{indexPath}/publishers/{PublisherID}*\x05admin\x12\xb2\x01\n" +
+	"\x10GetPublisherById\x12\x1e.title.GetPublisherByIdRequest\x1a\x1f.title.GetPublisherByIdResponse\"]\x82\xb5\x18Y\n" +
+	"\x14title.publisher.read\x12\x04read\x1a3/title/indexes/{indexPath}/publishers/{PublisherID}*\x06viewer\x12\x95\x01\n" +
+	"\fCreatePerson\x12\x1a.title.CreatePersonRequest\x1a\x1b.title.CreatePersonResponse\"L\x82\xb5\x18H\n" +
+	"\x13title.person.create\x12\x05write\"\"/title/indexes/{indexPath}/persons*\x06editor\x12\xa0\x01\n" +
+	"\fDeletePerson\x12\x1a.title.DeletePersonRequest\x1a\x1b.title.DeletePersonResponse\"W\x82\xb5\x18S\n" +
+	"\x13title.person.delete\x12\x06delete\x1a-/title/indexes/{indexPath}/persons/{personId}*\x05admin\x12\xa0\x01\n" +
+	"\rGetPersonById\x12\x1b.title.GetPersonByIdRequest\x1a\x1c.title.GetPersonByIdResponse\"T\x82\xb5\x18P\n" +
+	"\x11title.person.read\x12\x04read\x1a-/title/indexes/{indexPath}/persons/{personId}*\x06viewer\x12\x90\x01\n" +
+	"\vCreateTitle\x12\x19.title.CreateTitleRequest\x1a\x1a.title.CreateTitleResponse\"J\x82\xb5\x18F\n" +
+	"\x12title.title.create\x12\x05write\"!/title/indexes/{indexPath}/titles*\x06editor\x12\x9a\x01\n" +
+	"\fGetTitleById\x12\x1a.title.GetTitleByIdRequest\x1a\x1b.title.GetTitleByIdResponse\"Q\x82\xb5\x18M\n" +
+	"\x10title.title.read\x12\x04read\x1a+/title/indexes/{indexPath}/titles/{titleId}*\x06viewer\x12\x9a\x01\n" +
+	"\vDeleteTitle\x12\x19.title.DeleteTitleRequest\x1a\x1a.title.DeleteTitleResponse\"T\x82\xb5\x18P\n" +
+	"\x12title.title.delete\x12\x06delete\x1a+/title/indexes/{indexPath}/titles/{titleId}*\x05admin\x12\xa8\x01\n" +
+	"\x13UpdateTitleMetadata\x12!.title.UpdateTitleMetadataRequest\x1a\".title.UpdateTitleMetadataResponse\"J\x82\xb5\x18F\n" +
+	"\x12title.title.update\x12\x05write\"!/title/indexes/{indexPath}/titles*\x06editor\x12\x90\x01\n" +
+	"\vCreateAudio\x12\x19.title.CreateAudioRequest\x1a\x1a.title.CreateAudioResponse\"J\x82\xb5\x18F\n" +
+	"\x12title.audio.create\x12\x05write\"!/title/indexes/{indexPath}/audios*\x06editor\x12\x9a\x01\n" +
+	"\fGetAudioById\x12\x1a.title.GetAudioByIdRequest\x1a\x1b.title.GetAudioByIdResponse\"Q\x82\xb5\x18M\n" +
+	"\x10title.audio.read\x12\x04read\x1a+/title/indexes/{indexPath}/audios/{audioId}*\x06viewer\x12\x8e\x01\n" +
+	"\bGetAlbum\x12\x16.title.GetAlbumRequest\x1a\x17.title.GetAlbumResponse\"Q\x82\xb5\x18M\n" +
+	"\x10title.album.read\x12\x04read\x1a+/title/indexes/{indexPath}/albums/{albumId}*\x06viewer\x12\x9a\x01\n" +
+	"\vDeleteAudio\x12\x19.title.DeleteAudioRequest\x1a\x1a.title.DeleteAudioResponse\"T\x82\xb5\x18P\n" +
+	"\x12title.audio.delete\x12\x06delete\x1a+/title/indexes/{indexPath}/audios/{audioId}*\x05admin\x12\x9a\x01\n" +
+	"\vDeleteAlbum\x12\x19.title.DeleteAlbumRequest\x1a\x1a.title.DeleteAlbumResponse\"T\x82\xb5\x18P\n" +
+	"\x12title.album.delete\x12\x06delete\x1a+/title/indexes/{indexPath}/albums/{albumId}*\x05admin\x12\x90\x01\n" +
+	"\vCreateVideo\x12\x19.title.CreateVideoRequest\x1a\x1a.title.CreateVideoResponse\"J\x82\xb5\x18F\n" +
+	"\x12title.video.create\x12\x05write\"!/title/indexes/{indexPath}/videos*\x06editor\x12\x9a\x01\n" +
+	"\fGetVideoById\x12\x1a.title.GetVideoByIdRequest\x1a\x1b.title.GetVideoByIdResponse\"Q\x82\xb5\x18M\n" +
+	"\x10title.video.read\x12\x04read\x1a+/title/indexes/{indexPath}/videos/{videoId}*\x06viewer\x12\x9a\x01\n" +
+	"\vDeleteVideo\x12\x19.title.DeleteVideoRequest\x1a\x1a.title.DeleteVideoResponse\"T\x82\xb5\x18P\n" +
+	"\x12title.video.delete\x12\x06delete\x1a+/title/indexes/{indexPath}/videos/{videoId}*\x05admin\x12\xa8\x01\n" +
+	"\x13UpdateVideoMetadata\x12!.title.UpdateVideoMetadataRequest\x1a\".title.UpdateVideoMetadataResponse\"J\x82\xb5\x18F\n" +
+	"\x12title.video.update\x12\x05write\"!/title/indexes/{indexPath}/videos*\x06editor\x12\xd7\x01\n" +
+	"\x16AssociateFileWithTitle\x12$.title.AssociateFileWithTitleRequest\x1a%.title.AssociateFileWithTitleResponse\"p\x82\xb5\x18l\n" +
+	"\x1dtitle.file_association.create\x12\x05write\x1a</title/indexes/{indexPath}/titles/{titleId}/files/{filePath}*\x06editor\x12\xda\x01\n" +
+	"\x17DissociateFileWithTitle\x12%.title.DissociateFileWithTitleRequest\x1a&.title.DissociateFileWithTitleResponse\"p\x82\xb5\x18l\n" +
+	"\x1dtitle.file_association.delete\x12\x06delete\x1a</title/indexes/{indexPath}/titles/{titleId}/files/{filePath}*\x05admin\x12\xaf\x01\n" +
+	"\rGetFileTitles\x12\x1b.title.GetFileTitlesRequest\x1a\x1c.title.GetFileTitlesResponse\"c\x82\xb5\x18_\n" +
+	"\x1btitle.file_association.read\x12\x04read\x1a2/title/indexes/{indexPath}/files/{filePath}/titles*\x06viewer\x12\xaf\x01\n" +
+	"\rGetFileVideos\x12\x1b.title.GetFileVideosRequest\x1a\x1c.title.GetFileVideosResponse\"c\x82\xb5\x18_\n" +
+	"\x1btitle.file_association.read\x12\x04read\x1a2/title/indexes/{indexPath}/files/{filePath}/videos*\x06viewer\x12\xaf\x01\n" +
+	"\rGetFileAudios\x12\x1b.title.GetFileAudiosRequest\x1a\x1c.title.GetFileAudiosResponse\"c\x82\xb5\x18_\n" +
+	"\x1btitle.file_association.read\x12\x04read\x1a2/title/indexes/{indexPath}/files/{filePath}/audios*\x06viewer\x12\xae\x01\n" +
+	"\rGetTitleFiles\x12\x1b.title.GetTitleFilesRequest\x1a\x1c.title.GetTitleFilesResponse\"b\x82\xb5\x18^\n" +
+	"\x1btitle.file_association.read\x12\x04read\x1a1/title/indexes/{indexPath}/titles/{titleId}/files*\x06viewer\x12\x87\x01\n" +
+	"\fSearchTitles\x12\x1a.title.SearchTitlesRequest\x1a\x1b.title.SearchTitlesResponse\"<\x82\xb5\x188\n" +
+	"\ftitle.search\x12\x04read\x1a\x1a/title/indexes/{indexPath}*\x06viewer0\x01\x12\x8a\x01\n" +
+	"\rSearchPersons\x12\x1b.title.SearchPersonsRequest\x1a\x1c.title.SearchPersonsResponse\"<\x82\xb5\x188\n" +
+	"\ftitle.search\x12\x04read\x1a\x1a/title/indexes/{indexPath}*\x06viewer0\x01\x12\x81\x01\n" +
+	"\fListWatching\x12\x1a.title.ListWatchingRequest\x1a\x1b.title.ListWatchingResponse\"8\x82\xb5\x184\n" +
+	"\x13title.watching.list\x12\x04read\"\x0f/title/watching*\x06viewer\x12\x83\x01\n" +
+	"\vGetWatching\x12\x19.title.GetWatchingRequest\x1a\x14.title.WatchingEntry\"C\x82\xb5\x18?\n" +
+	"\x13title.watching.read\x12\x04read\x1a\x1a/title/watching/{title_id}*\x06viewer\x12~\n" +
+	"\fSaveWatching\x12\x1a.title.SaveWatchingRequest\x1a\x16.google.protobuf.Empty\":\x82\xb5\x186\n" +
+	"\x14title.watching.write\x12\x05write\"\x0f/title/watching*\x06editor\x12\x8e\x01\n" +
+	"\x0eRemoveWatching\x12\x1c.title.RemoveWatchingRequest\x1a\x16.google.protobuf.Empty\"F\x82\xb5\x18B\n" +
+	"\x15title.watching.delete\x12\x06delete\x1a\x1a/title/watching/{title_id}*\x05admin\x12\x82\x01\n" +
+	"\x15RebuildIndexFromStore\x12\x1a.title.RebuildIndexRequest\x1a\x16.google.protobuf.Empty\"5\x82\xb5\x181\n" +
+	"\x19title.admin.rebuild_index\x12\x05admin\x1a\x06/title*\x05admin\x12\xb3\x01\n" +
+	"\x11GetSeriesEpisodes\x12\x1f.title.GetSeriesEpisodesRequest\x1a .title.GetSeriesEpisodesResponse\"[\x82\xb5\x18W\n" +
+	"\x10title.title.read\x12\x04read\x1a5/title/indexes/{indexPath}/titles/{seriesId}/episodes*\x06viewerB5Z3github.com/globulario/services/golang/title/titlepbb\x06proto3"
 
 var (
 	file_title_proto_rawDescOnce sync.Once

@@ -27,6 +27,8 @@ var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb
 goog.object.extend(proto, google_protobuf_empty_pb);
 var plan_pb = require('./plan_pb.js');
 goog.object.extend(proto, plan_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.cluster_controller.AffectedNodeDiff', null, global);
 goog.exportSymbol('proto.cluster_controller.ApplyNodePlanRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ApplyNodePlanResponse', null, global);
@@ -15149,7 +15151,8 @@ serviceName: jspb.Message.getFieldWithDefault(msg, 1, ""),
 desiredVersion: jspb.Message.getFieldWithDefault(msg, 2, ""),
 nodesAtDesired: jspb.Message.getFieldWithDefault(msg, 3, 0),
 nodesTotal: jspb.Message.getFieldWithDefault(msg, 4, 0),
-upgrading: jspb.Message.getFieldWithDefault(msg, 5, 0)
+upgrading: jspb.Message.getFieldWithDefault(msg, 5, 0),
+kind: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -15205,6 +15208,10 @@ proto.cluster_controller.ServiceSummary.deserializeBinaryFromReader = function(m
     case 5:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setUpgrading(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setKind(value);
       break;
     default:
       reader.skipField();
@@ -15267,6 +15274,13 @@ proto.cluster_controller.ServiceSummary.serializeBinaryToWriter = function(messa
   if (f !== 0) {
     writer.writeInt32(
       5,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -15360,6 +15374,24 @@ proto.cluster_controller.ServiceSummary.prototype.getUpgrading = function() {
  */
 proto.cluster_controller.ServiceSummary.prototype.setUpgrading = function(value) {
   return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+/**
+ * optional string kind = 6;
+ * @return {string}
+ */
+proto.cluster_controller.ServiceSummary.prototype.getKind = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ServiceSummary} returns this
+ */
+proto.cluster_controller.ServiceSummary.prototype.setKind = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 

@@ -7,6 +7,7 @@
 package dnspb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -4206,132 +4207,180 @@ var File_dns_proto protoreflect.FileDescriptor
 
 const file_dns_proto_rawDesc = "" +
 	"\n" +
-	"\tdns.proto\x12\x03dns\"E\n" +
-	"\vSetARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\f\n" +
+	"\tdns.proto\x12\x03dns\x1a\x13globular_auth.proto\"U\n" +
+	"\vSetARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\f\n" +
 	"\x01a\x18\x02 \x01(\tR\x01a\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"(\n" +
 	"\fSetAResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"6\n" +
-	"\x0eRemoveARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\f\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"F\n" +
+	"\x0eRemoveARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\f\n" +
 	"\x01a\x18\x02 \x01(\tR\x01a\")\n" +
 	"\x0fRemoveAResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"%\n" +
-	"\vGetARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"\x1c\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"5\n" +
+	"\vGetARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\"\x1c\n" +
 	"\fGetAResponse\x12\f\n" +
-	"\x01a\x18\x01 \x03(\tR\x01a\"N\n" +
-	"\x0eSetAAAARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
+	"\x01a\x18\x01 \x03(\tR\x01a\"^\n" +
+	"\x0eSetAAAARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\x12\n" +
 	"\x04aaaa\x18\x02 \x01(\tR\x04aaaa\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"+\n" +
 	"\x0fSetAAAAResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"?\n" +
-	"\x11RemoveAAAARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"O\n" +
+	"\x11RemoveAAAARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\x12\n" +
 	"\x04aaaa\x18\x02 \x01(\tR\x04aaaa\",\n" +
 	"\x12RemoveAAAAResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"(\n" +
-	"\x0eGetAAAARequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"%\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"8\n" +
+	"\x0eGetAAAARequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\"%\n" +
 	"\x0fGetAAAAResponse\x12\x12\n" +
-	"\x04aaaa\x18\x01 \x03(\tR\x04aaaa\"J\n" +
-	"\x0eSetTextRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x04aaaa\x18\x01 \x03(\tR\x04aaaa\"Z\n" +
+	"\x0eSetTextRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06values\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\")\n" +
 	"\x0fSetTextResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\" \n" +
-	"\x0eGetTextRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\")\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"0\n" +
+	"\x0eGetTextRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\")\n" +
 	"\x0fGetTextResponse\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\"#\n" +
-	"\x11RemoveTextRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\",\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"3\n" +
+	"\x11RemoveTextRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\",\n" +
 	"\x12RemoveTextResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"K\n" +
-	"\rSetTXTRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"[\n" +
+	"\rSetTXTRequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\x10\n" +
 	"\x03txt\x18\x02 \x01(\tR\x03txt\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"*\n" +
 	"\x0eSetTXTResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"'\n" +
-	"\rGetTXTRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"\"\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"7\n" +
+	"\rGetTXTRequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\"\"\n" +
 	"\x0eGetTXTResponse\x12\x10\n" +
-	"\x03txt\x18\x01 \x03(\tR\x03txt\"<\n" +
-	"\x10RemoveTXTRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x03txt\x18\x01 \x03(\tR\x03txt\"L\n" +
+	"\x10RemoveTXTRequest\x12&\n" +
+	"\x06domain\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x06domain\x12\x10\n" +
 	"\x03txt\x18\x02 \x01(\tR\x03txt\"+\n" +
 	"\x11RemoveTXTResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\fSetNsRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"P\n" +
+	"\fSetNsRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02ns\x18\x02 \x01(\tR\x02ns\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"'\n" +
 	"\rSetNsResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1e\n" +
-	"\fGetNsRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x1f\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\".\n" +
+	"\fGetNsRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"\x1f\n" +
 	"\rGetNsResponse\x12\x0e\n" +
-	"\x02ns\x18\x01 \x03(\tR\x02ns\"1\n" +
-	"\x0fRemoveNsRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x02ns\x18\x01 \x03(\tR\x02ns\"A\n" +
+	"\x0fRemoveNsRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02ns\x18\x02 \x01(\tR\x02ns\"*\n" +
 	"\x10RemoveNsResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"I\n" +
-	"\x0fSetCNameRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"Y\n" +
+	"\x0fSetCNameRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x14\n" +
 	"\x05cname\x18\x02 \x01(\tR\x05cname\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"*\n" +
 	"\x10SetCNameResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"!\n" +
-	"\x0fGetCNameRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"(\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"1\n" +
+	"\x0fGetCNameRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"(\n" +
 	"\x10GetCNameResponse\x12\x14\n" +
-	"\x05cname\x18\x01 \x01(\tR\x05cname\"$\n" +
-	"\x12RemoveCNameRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x05cname\x18\x01 \x01(\tR\x05cname\"4\n" +
+	"\x12RemoveCNameRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"-\n" +
 	"\x13RemoveCNameResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"=\n" +
 	"\x05AFSDB\x12\x18\n" +
 	"\asubtype\x18\x01 \x01(\rR\asubtype\x12\x1a\n" +
-	"\bhostname\x18\x02 \x01(\tR\bhostname\"U\n" +
-	"\x0fSetAfsdbRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\"e\n" +
+	"\x0fSetAfsdbRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12 \n" +
 	"\x05afsdb\x18\x02 \x01(\v2\n" +
 	".dns.AFSDBR\x05afsdb\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"*\n" +
 	"\x10SetAfsdbResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"!\n" +
-	"\x0fGetAfsdbRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"6\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"1\n" +
+	"\x0fGetAfsdbRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"6\n" +
 	"\x10GetAfsdbResponse\x12\"\n" +
 	"\x06result\x18\x01 \x01(\v2\n" +
-	".dns.AFSDBR\x06result\"$\n" +
-	"\x12RemoveAfsdbRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	".dns.AFSDBR\x06result\"4\n" +
+	"\x12RemoveAfsdbRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"-\n" +
 	"\x13RemoveAfsdbResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
 	"\x02MX\x12\x1e\n" +
 	"\n" +
 	"preference\x18\x01 \x01(\x05R\n" +
 	"preference\x12\x0e\n" +
-	"\x02mx\x18\x02 \x01(\tR\x02mx\"I\n" +
-	"\fSetMxRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\x02mx\x18\x02 \x01(\tR\x02mx\"Y\n" +
+	"\fSetMxRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x17\n" +
 	"\x02mx\x18\x02 \x01(\v2\a.dns.MXR\x02mx\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"'\n" +
 	"\rSetMxResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\".\n" +
-	"\fGetMxRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\">\n" +
+	"\fGetMxRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02mx\x18\x02 \x01(\tR\x02mx\"0\n" +
 	"\rGetMxResponse\x12\x1f\n" +
-	"\x06result\x18\x01 \x03(\v2\a.dns.MXR\x06result\"1\n" +
-	"\x0fRemoveMxRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x06result\x18\x01 \x03(\v2\a.dns.MXR\x06result\"A\n" +
+	"\x0fRemoveMxRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02mx\x18\x02 \x01(\tR\x02mx\"*\n" +
 	"\x10RemoveMxResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"e\n" +
@@ -4339,19 +4388,25 @@ const file_dns_proto_rawDesc = "" +
 	"\bpriority\x18\x01 \x01(\rR\bpriority\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\rR\x04port\x12\x16\n" +
-	"\x06target\x18\x04 \x01(\tR\x06target\"M\n" +
-	"\rSetSrvRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06target\x18\x04 \x01(\tR\x06target\"]\n" +
+	"\rSetSrvRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x1a\n" +
 	"\x03srv\x18\x02 \x01(\v2\b.dns.SRVR\x03srv\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"(\n" +
 	"\x0eSetSrvResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1f\n" +
-	"\rGetSrvRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"2\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
+	"\rGetSrvRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\"2\n" +
 	"\x0eGetSrvResponse\x12 \n" +
-	"\x06result\x18\x01 \x03(\v2\b.dns.SRVR\x06result\":\n" +
-	"\x10RemoveSrvRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x03(\v2\b.dns.SRVR\x06result\"J\n" +
+	"\x10RemoveSrvRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\"+\n" +
 	"\x11RemoveSrvResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\xa1\x01\n" +
@@ -4362,60 +4417,78 @@ const file_dns_proto_rawDesc = "" +
 	"\arefresh\x18\x04 \x01(\rR\arefresh\x12\x14\n" +
 	"\x05retry\x18\x05 \x01(\rR\x05retry\x12\x16\n" +
 	"\x06expire\x18\x06 \x01(\rR\x06expire\x12\x16\n" +
-	"\x06minttl\x18\a \x01(\rR\x06minttl\"M\n" +
-	"\rSetSoaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06minttl\x18\a \x01(\rR\x06minttl\"]\n" +
+	"\rSetSoaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x1a\n" +
 	"\x03soa\x18\x02 \x01(\v2\b.dns.SOAR\x03soa\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"(\n" +
 	"\x0eSetSoaResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
-	"\rGetSoaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"?\n" +
+	"\rGetSoaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02ns\x18\x02 \x01(\tR\x02ns\"2\n" +
 	"\x0eGetSoaResponse\x12 \n" +
-	"\x06result\x18\x01 \x03(\v2\b.dns.SOAR\x06result\"2\n" +
-	"\x10RemoveSoaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x06result\x18\x01 \x03(\v2\b.dns.SOAR\x06result\"B\n" +
+	"\x10RemoveSoaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x0e\n" +
 	"\x02ns\x18\x02 \x01(\tR\x02ns\"+\n" +
 	"\x11RemoveSoaResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"Q\n" +
 	"\x03URI\x12\x1a\n" +
 	"\bpriority\x18\x01 \x01(\rR\bpriority\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x16\n" +
-	"\x06target\x18\x03 \x01(\tR\x06target\"M\n" +
-	"\rSetUriRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\"]\n" +
+	"\rSetUriRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x1a\n" +
 	"\x03uri\x18\x02 \x01(\v2\b.dns.URIR\x03uri\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"(\n" +
 	"\x0eSetUriResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"7\n" +
-	"\rGetUriRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"G\n" +
+	"\rGetUriRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\"2\n" +
 	"\x0eGetUriResponse\x12 \n" +
-	"\x06result\x18\x01 \x03(\v2\b.dns.URIR\x06result\":\n" +
-	"\x10RemoveUriRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x03(\v2\b.dns.URIR\x06result\"J\n" +
+	"\x10RemoveUriRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\"+\n" +
 	"\x11RemoveUriResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"C\n" +
 	"\x03CAA\x12\x12\n" +
 	"\x04flag\x18\x01 \x01(\rR\x04flag\x12\x10\n" +
 	"\x03tag\x18\x02 \x01(\tR\x03tag\x12\x16\n" +
-	"\x06domain\x18\x03 \x01(\tR\x06domain\"M\n" +
-	"\rSetCaaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06domain\x18\x03 \x01(\tR\x06domain\"]\n" +
+	"\rSetCaaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x1a\n" +
 	"\x03caa\x18\x02 \x01(\v2\b.dns.CAAR\x03caa\x12\x10\n" +
 	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"(\n" +
 	"\x0eSetCaaResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"7\n" +
-	"\rGetCaaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"G\n" +
+	"\rGetCaaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\"2\n" +
 	"\x0eGetCaaResponse\x12 \n" +
-	"\x06result\x18\x01 \x03(\v2\b.dns.CAAR\x06result\":\n" +
-	"\x10RemoveCaaRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x03(\v2\b.dns.CAAR\x06result\"J\n" +
+	"\x10RemoveCaaRequest\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06record\x10\x01R\x02id\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\"+\n" +
 	"\x11RemoveCaaResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
@@ -4427,52 +4500,93 @@ const file_dns_proto_rawDesc = "" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x13\n" +
 	"\x11GetDomainsRequest\".\n" +
 	"\x12GetDomainsResponse\x12\x18\n" +
-	"\adomains\x18\x01 \x03(\tR\adomains2\xe1\x10\n" +
+	"\adomains\x18\x01 \x03(\tR\adomains2\xa5\"\n" +
 	"\n" +
-	"DnsService\x12=\n" +
+	"DnsService\x12n\n" +
 	"\n" +
-	"SetDomains\x12\x16.dns.SetDomainsRequest\x1a\x17.dns.SetDomainsResponse\x12=\n" +
+	"SetDomains\x12\x16.dns.SetDomainsRequest\x1a\x17.dns.SetDomainsResponse\"/\x82\xb5\x18+\n" +
+	"\x0edns.zone.write\x12\x05write\"\n" +
+	"/dns/zones*\x06editor\x12l\n" +
 	"\n" +
-	"GetDomains\x12\x16.dns.GetDomainsRequest\x1a\x17.dns.GetDomainsResponse\x12+\n" +
-	"\x04Stop\x12\x10.dns.StopRequest\x1a\x11.dns.StopResponse\x12+\n" +
-	"\x04SetA\x12\x10.dns.SetARequest\x1a\x11.dns.SetAResponse\x124\n" +
-	"\aRemoveA\x12\x13.dns.RemoveARequest\x1a\x14.dns.RemoveAResponse\x12+\n" +
-	"\x04GetA\x12\x10.dns.GetARequest\x1a\x11.dns.GetAResponse\x124\n" +
-	"\aSetAAAA\x12\x13.dns.SetAAAARequest\x1a\x14.dns.SetAAAAResponse\x12=\n" +
+	"GetDomains\x12\x16.dns.GetDomainsRequest\x1a\x17.dns.GetDomainsResponse\"-\x82\xb5\x18)\n" +
+	"\rdns.zone.read\x12\x04read\"\n" +
+	"/dns/zones*\x06viewer\x12O\n" +
+	"\x04Stop\x12\x10.dns.StopRequest\x1a\x11.dns.StopResponse\"\"\x82\xb5\x18\x1e\n" +
+	"\bdns.stop\x12\x05admin\x1a\x04/dns*\x05admin\x12i\n" +
+	"\x04SetA\x12\x10.dns.SetARequest\x1a\x11.dns.SetAResponse\"<\x82\xb5\x188\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x15/dns/records/{domain}*\x06editor\x12s\n" +
+	"\aRemoveA\x12\x13.dns.RemoveARequest\x1a\x14.dns.RemoveAResponse\"=\x82\xb5\x189\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x15/dns/records/{domain}*\x05admin\x12g\n" +
+	"\x04GetA\x12\x10.dns.GetARequest\x1a\x11.dns.GetAResponse\":\x82\xb5\x186\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x15/dns/records/{domain}*\x06viewer\x12r\n" +
+	"\aSetAAAA\x12\x13.dns.SetAAAARequest\x1a\x14.dns.SetAAAAResponse\"<\x82\xb5\x188\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x15/dns/records/{domain}*\x06editor\x12|\n" +
 	"\n" +
-	"RemoveAAAA\x12\x16.dns.RemoveAAAARequest\x1a\x17.dns.RemoveAAAAResponse\x124\n" +
-	"\aGetAAAA\x12\x13.dns.GetAAAARequest\x1a\x14.dns.GetAAAAResponse\x124\n" +
-	"\aSetText\x12\x13.dns.SetTextRequest\x1a\x14.dns.SetTextResponse\x124\n" +
-	"\aGetText\x12\x13.dns.GetTextRequest\x1a\x14.dns.GetTextResponse\x12=\n" +
+	"RemoveAAAA\x12\x16.dns.RemoveAAAARequest\x1a\x17.dns.RemoveAAAAResponse\"=\x82\xb5\x189\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x15/dns/records/{domain}*\x05admin\x12p\n" +
+	"\aGetAAAA\x12\x13.dns.GetAAAARequest\x1a\x14.dns.GetAAAAResponse\":\x82\xb5\x186\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x15/dns/records/{domain}*\x06viewer\x12n\n" +
+	"\aSetText\x12\x13.dns.SetTextRequest\x1a\x14.dns.SetTextResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12l\n" +
+	"\aGetText\x12\x13.dns.GetTextRequest\x1a\x14.dns.GetTextResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12x\n" +
 	"\n" +
-	"RemoveText\x12\x16.dns.RemoveTextRequest\x1a\x17.dns.RemoveTextResponse\x121\n" +
-	"\x06SetTXT\x12\x12.dns.SetTXTRequest\x1a\x13.dns.SetTXTResponse\x121\n" +
-	"\x06GetTXT\x12\x12.dns.GetTXTRequest\x1a\x13.dns.GetTXTResponse\x12:\n" +
-	"\tRemoveTXT\x12\x15.dns.RemoveTXTRequest\x1a\x16.dns.RemoveTXTResponse\x12.\n" +
-	"\x05SetNs\x12\x11.dns.SetNsRequest\x1a\x12.dns.SetNsResponse\x12.\n" +
-	"\x05GetNs\x12\x11.dns.GetNsRequest\x1a\x12.dns.GetNsResponse\x127\n" +
-	"\bRemoveNs\x12\x14.dns.RemoveNsRequest\x1a\x15.dns.RemoveNsResponse\x127\n" +
-	"\bSetCName\x12\x14.dns.SetCNameRequest\x1a\x15.dns.SetCNameResponse\x127\n" +
-	"\bGetCName\x12\x14.dns.GetCNameRequest\x1a\x15.dns.GetCNameResponse\x12@\n" +
-	"\vRemoveCName\x12\x17.dns.RemoveCNameRequest\x1a\x18.dns.RemoveCNameResponse\x12.\n" +
-	"\x05SetMx\x12\x11.dns.SetMxRequest\x1a\x12.dns.SetMxResponse\x12.\n" +
-	"\x05GetMx\x12\x11.dns.GetMxRequest\x1a\x12.dns.GetMxResponse\x127\n" +
-	"\bRemoveMx\x12\x14.dns.RemoveMxRequest\x1a\x15.dns.RemoveMxResponse\x121\n" +
-	"\x06SetSrv\x12\x12.dns.SetSrvRequest\x1a\x13.dns.SetSrvResponse\x121\n" +
-	"\x06GetSrv\x12\x12.dns.GetSrvRequest\x1a\x13.dns.GetSrvResponse\x12:\n" +
-	"\tRemoveSrv\x12\x15.dns.RemoveSrvRequest\x1a\x16.dns.RemoveSrvResponse\x121\n" +
-	"\x06SetSoa\x12\x12.dns.SetSoaRequest\x1a\x13.dns.SetSoaResponse\x121\n" +
-	"\x06GetSoa\x12\x12.dns.GetSoaRequest\x1a\x13.dns.GetSoaResponse\x12:\n" +
-	"\tRemoveSoa\x12\x15.dns.RemoveSoaRequest\x1a\x16.dns.RemoveSoaResponse\x121\n" +
-	"\x06SetUri\x12\x12.dns.SetUriRequest\x1a\x13.dns.SetUriResponse\x121\n" +
-	"\x06GetUri\x12\x12.dns.GetUriRequest\x1a\x13.dns.GetUriResponse\x12:\n" +
-	"\tRemoveUri\x12\x15.dns.RemoveUriRequest\x1a\x16.dns.RemoveUriResponse\x121\n" +
-	"\x06SetCaa\x12\x12.dns.SetCaaRequest\x1a\x13.dns.SetCaaResponse\x121\n" +
-	"\x06GetCaa\x12\x12.dns.GetCaaRequest\x1a\x13.dns.GetCaaResponse\x12:\n" +
-	"\tRemoveCaa\x12\x15.dns.RemoveCaaRequest\x1a\x16.dns.RemoveCaaResponse\x127\n" +
-	"\bSetAfsdb\x12\x14.dns.SetAfsdbRequest\x1a\x15.dns.SetAfsdbResponse\x127\n" +
-	"\bGetAfsdb\x12\x14.dns.GetAfsdbRequest\x1a\x15.dns.GetAfsdbResponse\x12@\n" +
-	"\vRemoveAfsdb\x12\x17.dns.RemoveAfsdbRequest\x1a\x18.dns.RemoveAfsdbResponseB1Z/github.com/globulario/services/golang/dns/dnspbb\x06proto3"
+	"RemoveText\x12\x16.dns.RemoveTextRequest\x1a\x17.dns.RemoveTextResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12o\n" +
+	"\x06SetTXT\x12\x12.dns.SetTXTRequest\x1a\x13.dns.SetTXTResponse\"<\x82\xb5\x188\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x15/dns/records/{domain}*\x06editor\x12m\n" +
+	"\x06GetTXT\x12\x12.dns.GetTXTRequest\x1a\x13.dns.GetTXTResponse\":\x82\xb5\x186\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x15/dns/records/{domain}*\x06viewer\x12y\n" +
+	"\tRemoveTXT\x12\x15.dns.RemoveTXTRequest\x1a\x16.dns.RemoveTXTResponse\"=\x82\xb5\x189\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x15/dns/records/{domain}*\x05admin\x12h\n" +
+	"\x05SetNs\x12\x11.dns.SetNsRequest\x1a\x12.dns.SetNsResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12f\n" +
+	"\x05GetNs\x12\x11.dns.GetNsRequest\x1a\x12.dns.GetNsResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12r\n" +
+	"\bRemoveNs\x12\x14.dns.RemoveNsRequest\x1a\x15.dns.RemoveNsResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12q\n" +
+	"\bSetCName\x12\x14.dns.SetCNameRequest\x1a\x15.dns.SetCNameResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12o\n" +
+	"\bGetCName\x12\x14.dns.GetCNameRequest\x1a\x15.dns.GetCNameResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12{\n" +
+	"\vRemoveCName\x12\x17.dns.RemoveCNameRequest\x1a\x18.dns.RemoveCNameResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12h\n" +
+	"\x05SetMx\x12\x11.dns.SetMxRequest\x1a\x12.dns.SetMxResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12f\n" +
+	"\x05GetMx\x12\x11.dns.GetMxRequest\x1a\x12.dns.GetMxResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12r\n" +
+	"\bRemoveMx\x12\x14.dns.RemoveMxRequest\x1a\x15.dns.RemoveMxResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12k\n" +
+	"\x06SetSrv\x12\x12.dns.SetSrvRequest\x1a\x13.dns.SetSrvResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12i\n" +
+	"\x06GetSrv\x12\x12.dns.GetSrvRequest\x1a\x13.dns.GetSrvResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12u\n" +
+	"\tRemoveSrv\x12\x15.dns.RemoveSrvRequest\x1a\x16.dns.RemoveSrvResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12k\n" +
+	"\x06SetSoa\x12\x12.dns.SetSoaRequest\x1a\x13.dns.SetSoaResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12i\n" +
+	"\x06GetSoa\x12\x12.dns.GetSoaRequest\x1a\x13.dns.GetSoaResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12u\n" +
+	"\tRemoveSoa\x12\x15.dns.RemoveSoaRequest\x1a\x16.dns.RemoveSoaResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12k\n" +
+	"\x06SetUri\x12\x12.dns.SetUriRequest\x1a\x13.dns.SetUriResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12i\n" +
+	"\x06GetUri\x12\x12.dns.GetUriRequest\x1a\x13.dns.GetUriResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12u\n" +
+	"\tRemoveUri\x12\x15.dns.RemoveUriRequest\x1a\x16.dns.RemoveUriResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12k\n" +
+	"\x06SetCaa\x12\x12.dns.SetCaaRequest\x1a\x13.dns.SetCaaResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12i\n" +
+	"\x06GetCaa\x12\x12.dns.GetCaaRequest\x1a\x13.dns.GetCaaResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12u\n" +
+	"\tRemoveCaa\x12\x15.dns.RemoveCaaRequest\x1a\x16.dns.RemoveCaaResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05admin\x12q\n" +
+	"\bSetAfsdb\x12\x14.dns.SetAfsdbRequest\x1a\x15.dns.SetAfsdbResponse\"8\x82\xb5\x184\n" +
+	"\x10dns.record.write\x12\x05write\x1a\x11/dns/records/{id}*\x06editor\x12o\n" +
+	"\bGetAfsdb\x12\x14.dns.GetAfsdbRequest\x1a\x15.dns.GetAfsdbResponse\"6\x82\xb5\x182\n" +
+	"\x0fdns.record.read\x12\x04read\x1a\x11/dns/records/{id}*\x06viewer\x12{\n" +
+	"\vRemoveAfsdb\x12\x17.dns.RemoveAfsdbRequest\x1a\x18.dns.RemoveAfsdbResponse\"9\x82\xb5\x185\n" +
+	"\x11dns.record.delete\x12\x06delete\x1a\x11/dns/records/{id}*\x05adminB1Z/github.com/globulario/services/golang/dns/dnspbb\x06proto3"
 
 var (
 	file_dns_proto_rawDescOnce sync.Once

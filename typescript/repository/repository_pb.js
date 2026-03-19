@@ -23,6 +23,8 @@ var global =
 
 var resource_pb = require('./resource_pb.js');
 goog.object.extend(proto, resource_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.repository.ApplicationDetail', null, global);
 goog.exportSymbol('proto.repository.ArtifactKind', null, global);
 goog.exportSymbol('proto.repository.ArtifactManifest', null, global);

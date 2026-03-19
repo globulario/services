@@ -7,6 +7,7 @@
 package eventpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -874,7 +875,7 @@ var File_event_proto protoreflect.FileDescriptor
 
 const file_event_proto_rawDesc = "" +
 	"\n" +
-	"\vevent.proto\x12\x05event\x1a\x1fgoogle/protobuf/timestamp.proto\"\v\n" +
+	"\vevent.proto\x12\x05event\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13globular_auth.proto\"\v\n" +
 	"\tKeepAlive\"/\n" +
 	"\x05Event\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -917,15 +918,23 @@ const file_event_proto_rawDesc = "" +
 	"\x0eafter_sequence\x18\x03 \x01(\x04R\rafterSequence\"m\n" +
 	"\x13QueryEventsResponse\x12-\n" +
 	"\x06events\x18\x01 \x03(\v2\x15.event.PersistedEventR\x06events\x12'\n" +
-	"\x0flatest_sequence\x18\x02 \x01(\x04R\x0elatestSequence2\xbe\x03\n" +
-	"\fEventService\x12/\n" +
-	"\x04Stop\x12\x12.event.StopRequest\x1a\x13.event.StopResponse\x12<\n" +
-	"\aOnEvent\x12\x15.event.OnEventRequest\x1a\x16.event.OnEventResponse\"\x000\x01\x121\n" +
-	"\x04Quit\x12\x12.event.QuitRequest\x1a\x13.event.QuitResponse\"\x00\x12@\n" +
-	"\tSubscribe\x12\x17.event.SubscribeRequest\x1a\x18.event.SubscribeResponse\"\x00\x12F\n" +
-	"\vUnSubscribe\x12\x19.event.UnSubscribeRequest\x1a\x1a.event.UnSubscribeResponse\"\x00\x12:\n" +
-	"\aPublish\x12\x15.event.PublishRequest\x1a\x16.event.PublishResponse\"\x00\x12F\n" +
-	"\vQueryEvents\x12\x19.event.QueryEventsRequest\x1a\x1a.event.QueryEventsResponse\"\x00B5Z3github.com/globulario/services/golang/event/eventpbb\x06proto3"
+	"\x0flatest_sequence\x18\x02 \x01(\x04R\x0elatestSequence2\xee\x05\n" +
+	"\fEventService\x12W\n" +
+	"\x04Stop\x12\x12.event.StopRequest\x1a\x13.event.StopResponse\"&\x82\xb5\x18\"\n" +
+	"\n" +
+	"event.stop\x12\x05admin\x1a\x06/event*\x05admin\x12k\n" +
+	"\aOnEvent\x12\x15.event.OnEventRequest\x1a\x16.event.OnEventResponse\"/\x82\xb5\x18+\n" +
+	"\x13event.stream.listen\x12\x04read\x1a\x06/event*\x06viewer0\x01\x12_\n" +
+	"\x04Quit\x12\x12.event.QuitRequest\x1a\x13.event.QuitResponse\".\x82\xb5\x18*\n" +
+	"\x11event.stream.quit\x12\x05write\x1a\x06/event*\x06editor\x12l\n" +
+	"\tSubscribe\x12\x17.event.SubscribeRequest\x1a\x18.event.SubscribeResponse\",\x82\xb5\x18(\n" +
+	"\x0fevent.subscribe\x12\x05write\x1a\x06/event*\x06editor\x12t\n" +
+	"\vUnSubscribe\x12\x19.event.UnSubscribeRequest\x1a\x1a.event.UnSubscribeResponse\".\x82\xb5\x18*\n" +
+	"\x11event.unsubscribe\x12\x05write\x1a\x06/event*\x06editor\x12d\n" +
+	"\aPublish\x12\x15.event.PublishRequest\x1a\x16.event.PublishResponse\"*\x82\xb5\x18&\n" +
+	"\revent.publish\x12\x05write\x1a\x06/event*\x06editor\x12m\n" +
+	"\vQueryEvents\x12\x19.event.QueryEventsRequest\x1a\x1a.event.QueryEventsResponse\"'\x82\xb5\x18#\n" +
+	"\vevent.query\x12\x04read\x1a\x06/event*\x06viewerB5Z3github.com/globulario/services/golang/event/eventpbb\x06proto3"
 
 var (
 	file_event_proto_rawDescOnce sync.Once

@@ -7,6 +7,7 @@
 package persistencepb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -2613,7 +2614,7 @@ var File_persistence_proto protoreflect.FileDescriptor
 
 const file_persistence_proto_rawDesc = "" +
 	"\n" +
-	"\x11persistence.proto\x12\vpersistence\x1a\x1cgoogle/protobuf/struct.proto\"\xea\x01\n" +
+	"\x11persistence.proto\x12\vpersistence\x1a\x1cgoogle/protobuf/struct.proto\x1a\x13globular_auth.proto\"\xea\x01\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -2632,26 +2633,34 @@ const file_persistence_proto_rawDesc = "" +
 	"connection\x12\x12\n" +
 	"\x04save\x18\x02 \x01(\bR\x04save\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"$\n" +
-	"\x12PingConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"+\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"8\n" +
+	"\x12PingConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"+\n" +
 	"\x11PingConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"\x8a\x01\n" +
-	"\x0eInsertManyRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"\x9e\x01\n" +
+	"\x0eInsertManyRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
 	"collection\x12\x12\n" +
 	"\x04data\x18\x04 \x01(\fR\x04data\x12\x18\n" +
 	"\aoptions\x18\x05 \x01(\tR\aoptions\"\x0f\n" +
-	"\rInsertManyRsp\"\x89\x01\n" +
-	"\rInsertOneRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\rInsertManyRsp\"\x9d\x01\n" +
+	"\rInsertOneRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2659,9 +2668,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x04data\x18\x04 \x01(\tR\x04data\x12\x18\n" +
 	"\aoptions\x18\x05 \x01(\tR\aoptions\"\x1e\n" +
 	"\fInsertOneRsp\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x86\x01\n" +
-	"\bFindRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x9a\x01\n" +
+	"\bFindRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2669,9 +2680,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\"\x1e\n" +
 	"\bFindResp\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"\x89\x01\n" +
-	"\vFindOneRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\x9d\x01\n" +
+	"\vFindOneRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2679,9 +2692,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\">\n" +
 	"\vFindOneResp\x12/\n" +
-	"\x06result\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06result\"\x91\x01\n" +
-	"\rAggregateRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06result\"\xa5\x01\n" +
+	"\rAggregateRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2689,10 +2704,12 @@ const file_persistence_proto_rawDesc = "" +
 	"\bpipeline\x18\x04 \x01(\tR\bpipeline\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\"#\n" +
 	"\rAggregateResp\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"\x9e\x01\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\xb2\x01\n" +
 	"\n" +
-	"UpdateRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"UpdateRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2701,9 +2718,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05value\x18\x05 \x01(\tR\x05value\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\"#\n" +
 	"\tUpdateRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xa1\x01\n" +
-	"\rUpdateOneRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xb5\x01\n" +
+	"\rUpdateOneRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2712,9 +2731,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05value\x18\x05 \x01(\tR\x05value\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\"&\n" +
 	"\fUpdateOneRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xa2\x01\n" +
-	"\x0eReplaceOneRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xb6\x01\n" +
+	"\x0eReplaceOneRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2723,10 +2744,12 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05value\x18\x05 \x01(\tR\x05value\x12\x18\n" +
 	"\aoptions\x18\x06 \x01(\tR\aoptions\"'\n" +
 	"\rReplaceOneRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x88\x01\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x9c\x01\n" +
 	"\n" +
-	"DeleteRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"DeleteRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2734,9 +2757,11 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x05 \x01(\tR\aoptions\"#\n" +
 	"\tDeleteRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x8b\x01\n" +
-	"\rDeleteOneRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x9f\x01\n" +
+	"\rDeleteOneRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2744,19 +2769,25 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x05 \x01(\tR\aoptions\"&\n" +
 	"\fDeleteOneRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\x12CreateDatabaseRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"T\n" +
+	"\x12CreateDatabaseRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\"+\n" +
 	"\x11CreateDatabaseRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\x12DeleteDatabaseRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"T\n" +
+	"\x12DeleteDatabaseRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\"+\n" +
 	"\x11DeleteDatabaseRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x82\x01\n" +
-	"\x14CreateCollectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x96\x01\n" +
+	"\x14CreateCollectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2765,17 +2796,21 @@ const file_persistence_proto_rawDesc = "" +
 	"optionsStr\x18\x04 \x01(\tR\n" +
 	"optionsStr\"-\n" +
 	"\x13CreateCollectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"b\n" +
-	"\x14DeleteCollectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"v\n" +
+	"\x14DeleteCollectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
 	"collection\"-\n" +
 	"\x13DeleteCollectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x87\x01\n" +
-	"\tCountRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x9b\x01\n" +
+	"\tCountRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x03 \x01(\tR\n" +
@@ -2783,22 +2818,28 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05query\x18\x04 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x05 \x01(\tR\aoptions\"\"\n" +
 	"\bCountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\x03R\x06result\"}\n" +
-	"\x0fRunAdminCmdRqst\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x12\n" +
+	"\x06result\x18\x01 \x01(\x03R\x06result\"\x91\x01\n" +
+	"\x0fRunAdminCmdRqst\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x12\n" +
 	"\x04user\x18\x02 \x01(\tR\x04user\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x16\n" +
 	"\x06script\x18\x04 \x01(\tR\x06script\"(\n" +
 	"\x0eRunAdminCmdRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"M\n" +
-	"\vConnectRqst\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1a\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"a\n" +
+	"\vConnectRqst\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\"$\n" +
 	"\n" +
 	"ConnectRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
-	"\x0eDisconnectRqst\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\"'\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"H\n" +
+	"\x0eDisconnectRqst\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\"'\n" +
 	"\rDisconnectRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
@@ -2807,33 +2848,55 @@ const file_persistence_proto_rawDesc = "" +
 	"\x05MONGO\x10\x00\x12\a\n" +
 	"\x03SQL\x10\x01\x12\n" +
 	"\n" +
-	"\x06SCYLLA\x10\x022\xbb\f\n" +
-	"\x12PersistenceService\x12;\n" +
-	"\x04Stop\x12\x18.persistence.StopRequest\x1a\x19.persistence.StopResponse\x12Q\n" +
-	"\x0eCreateDatabase\x12\x1f.persistence.CreateDatabaseRqst\x1a\x1e.persistence.CreateDatabaseRsp\x12<\n" +
-	"\aConnect\x12\x18.persistence.ConnectRqst\x1a\x17.persistence.ConnectRsp\x12E\n" +
+	"\x06SCYLLA\x10\x022\xca\x1d\n" +
+	"\x12PersistenceService\x12p\n" +
+	"\x04Stop\x12\x18.persistence.StopRequest\x1a\x19.persistence.StopResponse\"3\x82\xb5\x18/\n" +
+	"\x11persistence.admin\x12\x05admin\x1a\f/persistence*\x05admin\x12\xa1\x01\n" +
+	"\x0eCreateDatabase\x12\x1f.persistence.CreateDatabaseRqst\x1a\x1e.persistence.CreateDatabaseRsp\"N\x82\xb5\x18J\n" +
+	"\x11persistence.admin\x12\x05admin\"'/persistence/connections/{id}/databases*\x05admin\x12\x8c\x01\n" +
+	"\aConnect\x12\x18.persistence.ConnectRqst\x1a\x17.persistence.ConnectRsp\"N\x82\xb5\x18J\n" +
+	"\x11persistence.admin\x12\x05admin\x1a'/persistence/connections/{connectionId}*\x05admin\x12\x95\x01\n" +
 	"\n" +
-	"Disconnect\x12\x1b.persistence.DisconnectRqst\x1a\x1a.persistence.DisconnectRsp\x12Q\n" +
-	"\x0eDeleteDatabase\x12\x1f.persistence.DeleteDatabaseRqst\x1a\x1e.persistence.DeleteDatabaseRsp\x12W\n" +
-	"\x10CreateCollection\x12!.persistence.CreateCollectionRqst\x1a .persistence.CreateCollectionRsp\x12W\n" +
-	"\x10DeleteCollection\x12!.persistence.DeleteCollectionRqst\x1a .persistence.DeleteCollectionRsp\x12W\n" +
-	"\x10CreateConnection\x12!.persistence.CreateConnectionRqst\x1a .persistence.CreateConnectionRsp\x12W\n" +
-	"\x10DeleteConnection\x12!.persistence.DeleteConnectionRqst\x1a .persistence.DeleteConnectionRsp\x12G\n" +
-	"\x04Ping\x12\x1f.persistence.PingConnectionRqst\x1a\x1e.persistence.PingConnectionRsp\x126\n" +
-	"\x05Count\x12\x16.persistence.CountRqst\x1a\x15.persistence.CountRsp\x12B\n" +
-	"\tInsertOne\x12\x1a.persistence.InsertOneRqst\x1a\x19.persistence.InsertOneRsp\x12G\n" +
+	"Disconnect\x12\x1b.persistence.DisconnectRqst\x1a\x1a.persistence.DisconnectRsp\"N\x82\xb5\x18J\n" +
+	"\x11persistence.admin\x12\x05admin\x1a'/persistence/connections/{connectionId}*\x05admin\x12\xac\x01\n" +
+	"\x0eDeleteDatabase\x12\x1f.persistence.DeleteDatabaseRqst\x1a\x1e.persistence.DeleteDatabaseRsp\"Y\x82\xb5\x18U\n" +
+	"\x11persistence.admin\x12\x05admin\x1a2/persistence/connections/{id}/databases/{database}*\x05admin\x12\xbe\x01\n" +
+	"\x10CreateCollection\x12!.persistence.CreateCollectionRqst\x1a .persistence.CreateCollectionRsp\"e\x82\xb5\x18a\n" +
+	"\x11persistence.admin\x12\x05admin\">/persistence/connections/{id}/databases/{database}/collections*\x05admin\x12\xcb\x01\n" +
+	"\x10DeleteCollection\x12!.persistence.DeleteCollectionRqst\x1a .persistence.DeleteCollectionRsp\"r\x82\xb5\x18n\n" +
+	"\x11persistence.admin\x12\x05admin\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x05admin\x12\x98\x01\n" +
+	"\x10CreateConnection\x12!.persistence.CreateConnectionRqst\x1a .persistence.CreateConnectionRsp\"?\x82\xb5\x18;\n" +
+	"\x11persistence.admin\x12\x05admin\"\x18/persistence/connections*\x05admin\x12\x9d\x01\n" +
+	"\x10DeleteConnection\x12!.persistence.DeleteConnectionRqst\x1a .persistence.DeleteConnectionRsp\"D\x82\xb5\x18@\n" +
+	"\x11persistence.admin\x12\x05admin\x1a\x1d/persistence/connections/{id}*\x05admin\x12\x8c\x01\n" +
+	"\x04Ping\x12\x1f.persistence.PingConnectionRqst\x1a\x1e.persistence.PingConnectionRsp\"C\x82\xb5\x18?\n" +
+	"\x10persistence.read\x12\x04read\x1a\x1d/persistence/connections/{id}*\x06viewer\x12\xa9\x01\n" +
+	"\x05Count\x12\x16.persistence.CountRqst\x1a\x15.persistence.CountRsp\"q\x82\xb5\x18m\n" +
+	"\x10persistence.read\x12\x04read\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06viewer\x12\xb7\x01\n" +
+	"\tInsertOne\x12\x1a.persistence.InsertOneRqst\x1a\x19.persistence.InsertOneRsp\"s\x82\xb5\x18o\n" +
+	"\x11persistence.write\x12\x05write\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\xbc\x01\n" +
 	"\n" +
-	"InsertMany\x12\x1b.persistence.InsertManyRqst\x1a\x1a.persistence.InsertManyRsp(\x01\x126\n" +
-	"\x04Find\x12\x15.persistence.FindRqst\x1a\x15.persistence.FindResp0\x01\x12=\n" +
-	"\aFindOne\x12\x18.persistence.FindOneRqst\x1a\x18.persistence.FindOneResp\x12E\n" +
-	"\tAggregate\x12\x1a.persistence.AggregateRqst\x1a\x1a.persistence.AggregateResp0\x01\x129\n" +
-	"\x06Update\x12\x17.persistence.UpdateRqst\x1a\x16.persistence.UpdateRsp\x12B\n" +
-	"\tUpdateOne\x12\x1a.persistence.UpdateOneRqst\x1a\x19.persistence.UpdateOneRsp\x12E\n" +
+	"InsertMany\x12\x1b.persistence.InsertManyRqst\x1a\x1a.persistence.InsertManyRsp\"s\x82\xb5\x18o\n" +
+	"\x11persistence.write\x12\x05write\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor(\x01\x12\xa9\x01\n" +
+	"\x04Find\x12\x15.persistence.FindRqst\x1a\x15.persistence.FindResp\"q\x82\xb5\x18m\n" +
+	"\x10persistence.read\x12\x04read\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06viewer0\x01\x12\xb0\x01\n" +
+	"\aFindOne\x12\x18.persistence.FindOneRqst\x1a\x18.persistence.FindOneResp\"q\x82\xb5\x18m\n" +
+	"\x10persistence.read\x12\x04read\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06viewer\x12\xb8\x01\n" +
+	"\tAggregate\x12\x1a.persistence.AggregateRqst\x1a\x1a.persistence.AggregateResp\"q\x82\xb5\x18m\n" +
+	"\x10persistence.read\x12\x04read\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06viewer0\x01\x12\xae\x01\n" +
+	"\x06Update\x12\x17.persistence.UpdateRqst\x1a\x16.persistence.UpdateRsp\"s\x82\xb5\x18o\n" +
+	"\x11persistence.write\x12\x05write\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\xb7\x01\n" +
+	"\tUpdateOne\x12\x1a.persistence.UpdateOneRqst\x1a\x19.persistence.UpdateOneRsp\"s\x82\xb5\x18o\n" +
+	"\x11persistence.write\x12\x05write\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\xba\x01\n" +
 	"\n" +
-	"ReplaceOne\x12\x1b.persistence.ReplaceOneRqst\x1a\x1a.persistence.ReplaceOneRsp\x129\n" +
-	"\x06Delete\x12\x17.persistence.DeleteRqst\x1a\x16.persistence.DeleteRsp\x12B\n" +
-	"\tDeleteOne\x12\x1a.persistence.DeleteOneRqst\x1a\x19.persistence.DeleteOneRsp\x12H\n" +
-	"\vRunAdminCmd\x12\x1c.persistence.RunAdminCmdRqst\x1a\x1b.persistence.RunAdminCmdRspBAZ?github.com/globulario/services/golang/persistence/persistencepbb\x06proto3"
+	"ReplaceOne\x12\x1b.persistence.ReplaceOneRqst\x1a\x1a.persistence.ReplaceOneRsp\"s\x82\xb5\x18o\n" +
+	"\x11persistence.write\x12\x05write\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\xb0\x01\n" +
+	"\x06Delete\x12\x17.persistence.DeleteRqst\x1a\x16.persistence.DeleteRsp\"u\x82\xb5\x18q\n" +
+	"\x12persistence.delete\x12\x06delete\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\xb9\x01\n" +
+	"\tDeleteOne\x12\x1a.persistence.DeleteOneRqst\x1a\x19.persistence.DeleteOneRsp\"u\x82\xb5\x18q\n" +
+	"\x12persistence.delete\x12\x06delete\x1aK/persistence/connections/{id}/databases/{database}/collections/{collection}*\x06editor\x12\x98\x01\n" +
+	"\vRunAdminCmd\x12\x1c.persistence.RunAdminCmdRqst\x1a\x1b.persistence.RunAdminCmdRsp\"N\x82\xb5\x18J\n" +
+	"\x11persistence.admin\x12\x05admin\x1a'/persistence/connections/{connectionId}*\x05adminBAZ?github.com/globulario/services/golang/persistence/persistencepbb\x06proto3"
 
 var (
 	file_persistence_proto_rawDescOnce sync.Once

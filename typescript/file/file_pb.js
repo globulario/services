@@ -23,6 +23,8 @@ var global =
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
 goog.object.extend(proto, google_protobuf_struct_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.file.AddPublicDirRequest', null, global);
 goog.exportSymbol('proto.file.AddPublicDirResponse', null, global);
 goog.exportSymbol('proto.file.CopyRequest', null, global);

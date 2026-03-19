@@ -7,6 +7,7 @@
 package rbacpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -3010,7 +3011,7 @@ var File_rbac_proto protoreflect.FileDescriptor
 const file_rbac_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"rbac.proto\x12\x04rbac\x1a\x1cgoogle/protobuf/struct.proto\"\xc7\x01\n" +
+	"rbac.proto\x12\x04rbac\x1a\x1cgoogle/protobuf/struct.proto\x1a\x13globular_auth.proto\"\xc7\x01\n" +
 	"\n" +
 	"Permission\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
@@ -3024,78 +3025,95 @@ const file_rbac_proto_rawDesc = "" +
 	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12(\n" +
 	"\x06owners\x18\x03 \x01(\v2\x10.rbac.PermissionR\x06owners\x12*\n" +
 	"\aallowed\x18\x04 \x03(\v2\x10.rbac.PermissionR\aallowed\x12(\n" +
-	"\x06denied\x18\x05 \x03(\v2\x10.rbac.PermissionR\x06denied\"0\n" +
-	"\x1aGetResourcePermissionsRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"P\n" +
+	"\x06denied\x18\x05 \x03(\v2\x10.rbac.PermissionR\x06denied\"B\n" +
+	"\x1aGetResourcePermissionsRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\"P\n" +
 	"\x19GetResourcePermissionsRsp\x123\n" +
-	"\vpermissions\x18\x01 \x01(\v2\x11.rbac.PermissionsR\vpermissions\"N\n" +
-	"(GetResourcePermissionsByResourceTypeRqst\x12\"\n" +
-	"\fresourceType\x18\x01 \x01(\tR\fresourceType\"^\n" +
+	"\vpermissions\x18\x01 \x01(\v2\x11.rbac.PermissionsR\vpermissions\"e\n" +
+	"(GetResourcePermissionsByResourceTypeRqst\x129\n" +
+	"\fresourceType\x18\x01 \x01(\tB\x15\x8a\xb5\x18\x11\n" +
+	"\rresource_type\x10\x01R\fresourceType\"^\n" +
 	"'GetResourcePermissionsByResourceTypeRsp\x123\n" +
-	"\vpermissions\x18\x01 \x03(\v2\x11.rbac.PermissionsR\vpermissions\"\x9a\x01\n" +
-	"#GetResourcePermissionsBySubjectRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x124\n" +
+	"\vpermissions\x18\x01 \x03(\v2\x11.rbac.PermissionsR\vpermissions\"\xab\x01\n" +
+	"#GetResourcePermissionsBySubjectRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x124\n" +
 	"\fsubject_type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\vsubjectType\x12#\n" +
 	"\rresource_type\x18\x03 \x01(\tR\fresourceType\"Y\n" +
 	"\"GetResourcePermissionsBySubjectRsp\x123\n" +
-	"\vpermissions\x18\x01 \x03(\v2\x11.rbac.PermissionsR\vpermissions\"3\n" +
-	"\x1dDeleteResourcePermissionsRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"S\n" +
+	"\vpermissions\x18\x01 \x03(\v2\x11.rbac.PermissionsR\vpermissions\"E\n" +
+	"\x1dDeleteResourcePermissionsRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\"S\n" +
 	"\x1cDeleteResourcePermissionsRsp\x123\n" +
-	"\vpermissions\x18\x01 \x01(\v2\x11.rbac.PermissionsR\vpermissions\"p\n" +
-	"\x1cDeleteResourcePermissionRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\vpermissions\x18\x01 \x01(\v2\x11.rbac.PermissionsR\vpermissions\"\x82\x01\n" +
+	"\x1cDeleteResourcePermissionRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x14.rbac.PermissionTypeR\x04type\"\x1d\n" +
-	"\x1bDeleteResourcePermissionRsp\"\x89\x01\n" +
-	"\x1aSetResourcePermissionsRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\"\n" +
+	"\x1bDeleteResourcePermissionRsp\"\x9b\x01\n" +
+	"\x1aSetResourcePermissionsRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\"\n" +
 	"\fresourceType\x18\x02 \x01(\tR\fresourceType\x123\n" +
 	"\vpermissions\x18\x03 \x01(\v2\x11.rbac.PermissionsR\vpermissions\"\x1b\n" +
-	"\x19SetResourcePermissionsRsp\"m\n" +
-	"\x19GetResourcePermissionRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x19SetResourcePermissionsRsp\"\x7f\n" +
+	"\x19GetResourcePermissionRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x14.rbac.PermissionTypeR\x04type\"L\n" +
 	"\x18GetResourcePermissionRsp\x120\n" +
 	"\n" +
 	"permission\x18\x01 \x01(\v2\x10.rbac.PermissionR\n" +
-	"permission\"\xaf\x01\n" +
-	"\x19SetResourcePermissionRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\"\n" +
+	"permission\"\xc1\x01\n" +
+	"\x19SetResourcePermissionRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\"\n" +
 	"\fresourceType\x18\x02 \x01(\tR\fresourceType\x120\n" +
 	"\n" +
 	"permission\x18\x03 \x01(\v2\x10.rbac.PermissionR\n" +
 	"permission\x12(\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x14.rbac.PermissionTypeR\x04type\"\x1a\n" +
-	"\x18SetResourcePermissionRsp\"\x8f\x01\n" +
-	"\x14AddResourceOwnerRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\"\n" +
-	"\fresourceType\x18\x02 \x01(\tR\fresourceType\x12\x18\n" +
-	"\asubject\x18\x03 \x01(\tR\asubject\x12%\n" +
+	"\x18SetResourcePermissionRsp\"\xb0\x01\n" +
+	"\x14AddResourceOwnerRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\"\n" +
+	"\fresourceType\x18\x02 \x01(\tR\fresourceType\x12'\n" +
+	"\asubject\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\asubjectR\asubject\x12%\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"\x15\n" +
-	"\x13AddResourceOwnerRsp\"n\n" +
-	"\x17RemoveResourceOwnerRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
-	"\asubject\x18\x02 \x01(\tR\asubject\x12%\n" +
+	"\x13AddResourceOwnerRsp\"\x8f\x01\n" +
+	"\x17RemoveResourceOwnerRqst\x12$\n" +
+	"\x04path\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12'\n" +
+	"\asubject\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\asubjectR\asubject\x12%\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"\x18\n" +
-	"\x16RemoveResourceOwnerRsp\"V\n" +
-	"\x13DeleteAllAccessRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x16RemoveResourceOwnerRsp\"g\n" +
+	"\x13DeleteAllAccessRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"\x14\n" +
-	"\x12DeleteAllAccessRsp\"\x89\x01\n" +
-	"\x12ValidateAccessRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
-	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1e\n" +
+	"\x12DeleteAllAccessRsp\"\xaa\x01\n" +
+	"\x12ValidateAccessRqst\x12'\n" +
+	"\asubject\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\asubjectR\asubject\x12%\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12$\n" +
+	"\x04path\x18\x03 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\x12\x1e\n" +
 	"\n" +
 	"permission\x18\x04 \x01(\tR\n" +
 	"permission\"U\n" +
 	"\x11ValidateAccessRsp\x12\x1c\n" +
 	"\thasAccess\x18\x01 \x01(\bR\thasAccess\x12\"\n" +
-	"\faccessDenied\x18\x02 \x01(\bR\faccessDenied\"4\n" +
-	"\x1aGetActionResourceInfosRqst\x12\x16\n" +
-	"\x06action\x18\x01 \x01(\tR\x06action\"o\n" +
+	"\faccessDenied\x18\x02 \x01(\bR\faccessDenied\"D\n" +
+	"\x1aGetActionResourceInfosRqst\x12&\n" +
+	"\x06action\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06action\x10\x01R\x06action\"o\n" +
 	"\rResourceInfos\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x1e\n" +
 	"\n" +
@@ -3104,11 +3122,14 @@ const file_rbac_proto_rawDesc = "" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x14\n" +
 	"\x05field\x18\x04 \x01(\tR\x05field\"F\n" +
 	"\x19GetActionResourceInfosRsp\x12)\n" +
-	"\x05infos\x18\x01 \x03(\v2\x13.rbac.ResourceInfosR\x05infos\"\x98\x01\n" +
-	"\x12ValidateActionRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
-	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12\x16\n" +
-	"\x06action\x18\x03 \x01(\tR\x06action\x12)\n" +
+	"\x05infos\x18\x01 \x03(\v2\x13.rbac.ResourceInfosR\x05infos\"\xb7\x01\n" +
+	"\x12ValidateActionRqst\x12'\n" +
+	"\asubject\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\asubjectR\asubject\x12%\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12&\n" +
+	"\x06action\x18\x03 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06action\x10\x01R\x06action\x12)\n" +
 	"\x05infos\x18\x04 \x03(\v2\x13.rbac.ResourceInfosR\x05infos\"U\n" +
 	"\x11ValidateActionRsp\x12\x1c\n" +
 	"\thasAccess\x18\x01 \x01(\bR\thasAccess\x12\"\n" +
@@ -3123,40 +3144,48 @@ const file_rbac_proto_rawDesc = "" +
 	"\x0fnode_identities\x18\x04 \x03(\tR\x0enodeIdentities\x12\x1a\n" +
 	"\baccounts\x18\x05 \x03(\tR\baccounts\x12\x16\n" +
 	"\x06groups\x18\x06 \x03(\tR\x06groups\x12$\n" +
-	"\rorganizations\x18\a \x03(\tR\rorganizations\"n\n" +
-	"\x15GetSharedResourceRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\rorganizations\x18\a \x03(\tR\rorganizations\"\x7f\n" +
+	"\x15GetSharedResourceRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12\x14\n" +
 	"\x05owner\x18\x03 \x01(\tR\x05owner\"K\n" +
 	"\x14GetSharedResourceRsp\x123\n" +
-	"\x0esharedResource\x18\x01 \x03(\v2\v.rbac.ShareR\x0esharedResource\"\x89\x01\n" +
-	"\x1aRemoveSubjectFromShareRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x0esharedResource\x18\x01 \x03(\v2\v.rbac.ShareR\x0esharedResource\"\xaa\x01\n" +
+	"\x1aRemoveSubjectFromShareRqst\x12'\n" +
+	"\asubject\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\asubjectR\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12\x16\n" +
-	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path\"\x1b\n" +
-	"\x19RemoveSubjectFromShareRsp\"Y\n" +
-	"\x16DeleteSubjectShareRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x06domain\x18\x03 \x01(\tR\x06domain\x12$\n" +
+	"\x04path\x18\x04 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\bresource\x10\x01R\x04path\"\x1b\n" +
+	"\x19RemoveSubjectFromShareRsp\"j\n" +
+	"\x16DeleteSubjectShareRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"\x17\n" +
-	"\x15DeleteSubjectShareRsp\"\x88\x01\n" +
-	"\x1cSetSubjectAllocatedSpaceRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x15DeleteSubjectShareRsp\"\x99\x01\n" +
+	"\x1cSetSubjectAllocatedSpaceRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12'\n" +
 	"\x0fallocated_space\x18\x03 \x01(\x04R\x0eallocatedSpace\"\x1d\n" +
-	"\x1bSetSubjectAllocatedSpaceRsp\"_\n" +
-	"\x1cGetSubjectAllocatedSpaceRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x1bSetSubjectAllocatedSpaceRsp\"p\n" +
+	"\x1cGetSubjectAllocatedSpaceRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"F\n" +
 	"\x1bGetSubjectAllocatedSpaceRsp\x12'\n" +
-	"\x0fallocated_space\x18\x01 \x01(\x04R\x0eallocatedSpace\"_\n" +
-	"\x1cGetSubjectAvailableSpaceRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x0fallocated_space\x18\x01 \x01(\x04R\x0eallocatedSpace\"p\n" +
+	"\x1cGetSubjectAvailableSpaceRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\"F\n" +
 	"\x1bGetSubjectAvailableSpaceRsp\x12'\n" +
-	"\x0favailable_space\x18\x01 \x01(\x04R\x0eavailableSpace\"\x82\x01\n" +
-	"\x18ValidateSubjectSpaceRqst\x12\x18\n" +
-	"\asubject\x18\x01 \x01(\tR\asubject\x12%\n" +
+	"\x0favailable_space\x18\x01 \x01(\x04R\x0eavailableSpace\"\x93\x01\n" +
+	"\x18ValidateSubjectSpaceRqst\x12)\n" +
+	"\asubject\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\asubject\x10\x01R\asubject\x12%\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x11.rbac.SubjectTypeR\x04type\x12%\n" +
 	"\x0erequired_space\x18\x03 \x01(\x04R\rrequiredSpace\"5\n" +
 	"\x17ValidateSubjectSpaceRsp\x12\x1a\n" +
@@ -3184,33 +3213,58 @@ const file_rbac_proto_rawDesc = "" +
 	"\x05GROUP\x10\x02\x12\x10\n" +
 	"\fORGANIZATION\x10\x03\x12\x0f\n" +
 	"\vAPPLICATION\x10\x04\x12\b\n" +
-	"\x04ROLE\x10\x052\xdb\x11\n" +
-	"\vRbacService\x12[\n" +
-	"\x16SetResourcePermissions\x12 .rbac.SetResourcePermissionsRqst\x1a\x1f.rbac.SetResourcePermissionsRsp\x12d\n" +
-	"\x19DeleteResourcePermissions\x12#.rbac.DeleteResourcePermissionsRqst\x1a\".rbac.DeleteResourcePermissionsRsp\x12a\n" +
-	"\x18DeleteResourcePermission\x12\".rbac.DeleteResourcePermissionRqst\x1a!.rbac.DeleteResourcePermissionRsp\x12X\n" +
-	"\x15GetResourcePermission\x12\x1f.rbac.GetResourcePermissionRqst\x1a\x1e.rbac.GetResourcePermissionRsp\x12X\n" +
-	"\x15SetResourcePermission\x12\x1f.rbac.SetResourcePermissionRqst\x1a\x1e.rbac.SetResourcePermissionRsp\x12[\n" +
-	"\x16GetResourcePermissions\x12 .rbac.GetResourcePermissionsRqst\x1a\x1f.rbac.GetResourcePermissionsRsp\x12\x87\x01\n" +
-	"$GetResourcePermissionsByResourceType\x12..rbac.GetResourcePermissionsByResourceTypeRqst\x1a-.rbac.GetResourcePermissionsByResourceTypeRsp0\x01\x12x\n" +
-	"\x1fGetResourcePermissionsBySubject\x12).rbac.GetResourcePermissionsBySubjectRqst\x1a(.rbac.GetResourcePermissionsBySubjectRsp0\x01\x12I\n" +
-	"\x10AddResourceOwner\x12\x1a.rbac.AddResourceOwnerRqst\x1a\x19.rbac.AddResourceOwnerRsp\x12R\n" +
-	"\x13RemoveResourceOwner\x12\x1d.rbac.RemoveResourceOwnerRqst\x1a\x1c.rbac.RemoveResourceOwnerRsp\x12F\n" +
-	"\x0fDeleteAllAccess\x12\x19.rbac.DeleteAllAccessRqst\x1a\x18.rbac.DeleteAllAccessRsp\x12C\n" +
-	"\x0eValidateAccess\x12\x18.rbac.ValidateAccessRqst\x1a\x17.rbac.ValidateAccessRsp\x12p\n" +
-	"\x1dSetActionResourcesPermissions\x12'.rbac.SetActionResourcesPermissionsRqst\x1a&.rbac.SetActionResourcesPermissionsRsp\x12[\n" +
-	"\x16GetActionResourceInfos\x12 .rbac.GetActionResourceInfosRqst\x1a\x1f.rbac.GetActionResourceInfosRsp\x12C\n" +
-	"\x0eValidateAction\x12\x18.rbac.ValidateActionRqst\x1a\x17.rbac.ValidateActionRsp\x12U\n" +
-	"\x14ValidateSubjectSpace\x12\x1e.rbac.ValidateSubjectSpaceRqst\x1a\x1d.rbac.ValidateSubjectSpaceRsp\x12a\n" +
-	"\x18GetSubjectAvailableSpace\x12\".rbac.GetSubjectAvailableSpaceRqst\x1a!.rbac.GetSubjectAvailableSpaceRsp\x12a\n" +
-	"\x18GetSubjectAllocatedSpace\x12\".rbac.GetSubjectAllocatedSpaceRqst\x1a!.rbac.GetSubjectAllocatedSpaceRsp\x12a\n" +
-	"\x18SetSubjectAllocatedSpace\x12\".rbac.SetSubjectAllocatedSpaceRqst\x1a!.rbac.SetSubjectAllocatedSpaceRsp\x12L\n" +
-	"\x11GetSharedResource\x12\x1b.rbac.GetSharedResourceRqst\x1a\x1a.rbac.GetSharedResourceRsp\x12[\n" +
-	"\x16RemoveSubjectFromShare\x12 .rbac.RemoveSubjectFromShareRqst\x1a\x1f.rbac.RemoveSubjectFromShareRsp\x12O\n" +
-	"\x12DeleteSubjectShare\x12\x1c.rbac.DeleteSubjectShareRqst\x1a\x1b.rbac.DeleteSubjectShareRsp\x12C\n" +
-	"\x0eSetRoleBinding\x12\x18.rbac.SetRoleBindingRqst\x1a\x17.rbac.SetRoleBindingRsp\x12C\n" +
-	"\x0eGetRoleBinding\x12\x18.rbac.GetRoleBindingRqst\x1a\x17.rbac.GetRoleBindingRsp\x12K\n" +
-	"\x10ListRoleBindings\x12\x1a.rbac.ListRoleBindingsRqst\x1a\x19.rbac.ListRoleBindingsRsp0\x01B3Z1github.com/globulario/services/golang/rbac/rbacpbb\x06proto3"
+	"\x04ROLE\x10\x052\xe6 \n" +
+	"\vRbacService\x12\xab\x01\n" +
+	"\x16SetResourcePermissions\x12 .rbac.SetResourcePermissionsRqst\x1a\x1f.rbac.SetResourcePermissionsRsp\"N\x82\xb5\x18J\n" +
+	"\x16rbac.permissions.write\x12\x05admin\x1a\"/rbac/resources/{path}/permissions*\x05admin\x12\xb5\x01\n" +
+	"\x19DeleteResourcePermissions\x12#.rbac.DeleteResourcePermissionsRqst\x1a\".rbac.DeleteResourcePermissionsRsp\"O\x82\xb5\x18K\n" +
+	"\x17rbac.permissions.delete\x12\x05admin\x1a\"/rbac/resources/{path}/permissions*\x05admin\x12\xb8\x01\n" +
+	"\x18DeleteResourcePermission\x12\".rbac.DeleteResourcePermissionRqst\x1a!.rbac.DeleteResourcePermissionRsp\"U\x82\xb5\x18Q\n" +
+	"\x16rbac.permission.delete\x12\x05admin\x1a)/rbac/resources/{path}/permissions/{name}*\x05admin\x12\xad\x01\n" +
+	"\x15GetResourcePermission\x12\x1f.rbac.GetResourcePermissionRqst\x1a\x1e.rbac.GetResourcePermissionRsp\"S\x82\xb5\x18O\n" +
+	"\x14rbac.permission.read\x12\x04read\x1a)/rbac/resources/{path}/permissions/{name}*\x06viewer\x12\xa7\x01\n" +
+	"\x15SetResourcePermission\x12\x1f.rbac.SetResourcePermissionRqst\x1a\x1e.rbac.SetResourcePermissionRsp\"M\x82\xb5\x18I\n" +
+	"\x15rbac.permission.write\x12\x05admin\x1a\"/rbac/resources/{path}/permissions*\x05admin\x12\xaa\x01\n" +
+	"\x16GetResourcePermissions\x12 .rbac.GetResourcePermissionsRqst\x1a\x1f.rbac.GetResourcePermissionsRsp\"M\x82\xb5\x18I\n" +
+	"\x15rbac.permissions.read\x12\x04read\x1a\"/rbac/resources/{path}/permissions*\x06viewer\x12\xe3\x01\n" +
+	"$GetResourcePermissionsByResourceType\x12..rbac.GetResourcePermissionsByResourceTypeRqst\x1a-.rbac.GetResourcePermissionsByResourceTypeRsp\"Z\x82\xb5\x18V\n" +
+	"\x15rbac.permissions.read\x12\x04read\x1a//rbac/resource-types/{resourceType}/permissions*\x06viewer0\x01\x12\xc9\x01\n" +
+	"\x1fGetResourcePermissionsBySubject\x12).rbac.GetResourcePermissionsBySubjectRqst\x1a(.rbac.GetResourcePermissionsBySubjectRsp\"O\x82\xb5\x18K\n" +
+	"\x15rbac.permissions.read\x12\x04read\x1a$/rbac/subjects/{subject}/permissions*\x06viewer0\x01\x12\x96\x01\n" +
+	"\x10AddResourceOwner\x12\x1a.rbac.AddResourceOwnerRqst\x1a\x19.rbac.AddResourceOwnerRsp\"K\x82\xb5\x18G\n" +
+	"\x0erbac.owner.add\x12\x05admin\x1a'/rbac/resources/{path}/owners/{subject}*\x05admin\x12\xa2\x01\n" +
+	"\x13RemoveResourceOwner\x12\x1d.rbac.RemoveResourceOwnerRqst\x1a\x1c.rbac.RemoveResourceOwnerRsp\"N\x82\xb5\x18J\n" +
+	"\x11rbac.owner.remove\x12\x05admin\x1a'/rbac/resources/{path}/owners/{subject}*\x05admin\x12\x8f\x01\n" +
+	"\x0fDeleteAllAccess\x12\x19.rbac.DeleteAllAccessRqst\x1a\x18.rbac.DeleteAllAccessRsp\"G\x82\xb5\x18C\n" +
+	"\x12rbac.access.delete\x12\x05admin\x1a\x1f/rbac/subjects/{subject}/access*\x05admin\x12\x8c\x01\n" +
+	"\x0eValidateAccess\x12\x18.rbac.ValidateAccessRqst\x1a\x17.rbac.ValidateAccessRsp\"G\x82\xb5\x18C\n" +
+	"\x14rbac.access.validate\x12\x04read\x1a\x1d/rbac/resources/{path}/access*\x06viewer\x12\xbd\x01\n" +
+	"\x1dSetActionResourcesPermissions\x12'.rbac.SetActionResourcesPermissionsRqst\x1a&.rbac.SetActionResourcesPermissionsRsp\"K\x82\xb5\x18G\n" +
+	"\x1drbac.action_permissions.write\x12\x05admin\"\x18/rbac/action-permissions*\x05admin\x12\xb4\x01\n" +
+	"\x16GetActionResourceInfos\x12 .rbac.GetActionResourceInfosRqst\x1a\x1f.rbac.GetActionResourceInfosRsp\"W\x82\xb5\x18S\n" +
+	"\x1crbac.action_permissions.read\x12\x04read\x1a%/rbac/actions/{action}/resource-infos*\x06viewer\x12\x8e\x01\n" +
+	"\x0eValidateAction\x12\x18.rbac.ValidateActionRqst\x1a\x17.rbac.ValidateActionRsp\"I\x82\xb5\x18E\n" +
+	"\x14rbac.action.validate\x12\x04read\x1a\x1f/rbac/actions/{action}/validate*\x06viewer\x12\x9e\x01\n" +
+	"\x14ValidateSubjectSpace\x12\x1e.rbac.ValidateSubjectSpaceRqst\x1a\x1d.rbac.ValidateSubjectSpaceRsp\"G\x82\xb5\x18C\n" +
+	"\x13rbac.space.validate\x12\x04read\x1a\x1e/rbac/subjects/{subject}/space*\x06viewer\x12\xa6\x01\n" +
+	"\x18GetSubjectAvailableSpace\x12\".rbac.GetSubjectAvailableSpaceRqst\x1a!.rbac.GetSubjectAvailableSpaceRsp\"C\x82\xb5\x18?\n" +
+	"\x0frbac.space.read\x12\x04read\x1a\x1e/rbac/subjects/{subject}/space*\x06viewer\x12\xa6\x01\n" +
+	"\x18GetSubjectAllocatedSpace\x12\".rbac.GetSubjectAllocatedSpaceRqst\x1a!.rbac.GetSubjectAllocatedSpaceRsp\"C\x82\xb5\x18?\n" +
+	"\x0frbac.space.read\x12\x04read\x1a\x1e/rbac/subjects/{subject}/space*\x06viewer\x12\xa7\x01\n" +
+	"\x18SetSubjectAllocatedSpace\x12\".rbac.SetSubjectAllocatedSpaceRqst\x1a!.rbac.SetSubjectAllocatedSpaceRsp\"D\x82\xb5\x18@\n" +
+	"\x10rbac.space.write\x12\x05admin\x1a\x1e/rbac/subjects/{subject}/space*\x05admin\x12\x92\x01\n" +
+	"\x11GetSharedResource\x12\x1b.rbac.GetSharedResourceRqst\x1a\x1a.rbac.GetSharedResourceRsp\"D\x82\xb5\x18@\n" +
+	"\x0frbac.share.read\x12\x04read\x1a\x1f/rbac/subjects/{subject}/shares*\x06viewer\x12\xab\x01\n" +
+	"\x16RemoveSubjectFromShare\x12 .rbac.RemoveSubjectFromShareRqst\x1a\x1f.rbac.RemoveSubjectFromShareRsp\"N\x82\xb5\x18J\n" +
+	"\x11rbac.share.delete\x12\x05admin\x1a'/rbac/resources/{path}/shares/{subject}*\x05admin\x12\x97\x01\n" +
+	"\x12DeleteSubjectShare\x12\x1c.rbac.DeleteSubjectShareRqst\x1a\x1b.rbac.DeleteSubjectShareRsp\"F\x82\xb5\x18B\n" +
+	"\x11rbac.share.delete\x12\x05admin\x1a\x1f/rbac/subjects/{subject}/shares*\x05admin\x12\x85\x01\n" +
+	"\x0eSetRoleBinding\x12\x18.rbac.SetRoleBindingRqst\x1a\x17.rbac.SetRoleBindingRsp\"@\x82\xb5\x18<\n" +
+	"\x17rbac.role_binding.write\x12\x05admin\"\x13/rbac/role-bindings*\x05admin\x12\x84\x01\n" +
+	"\x0eGetRoleBinding\x12\x18.rbac.GetRoleBindingRqst\x1a\x17.rbac.GetRoleBindingRsp\"?\x82\xb5\x18;\n" +
+	"\x16rbac.role_binding.read\x12\x04read\"\x13/rbac/role-bindings*\x06viewer\x12\x8c\x01\n" +
+	"\x10ListRoleBindings\x12\x1a.rbac.ListRoleBindingsRqst\x1a\x19.rbac.ListRoleBindingsRsp\"?\x82\xb5\x18;\n" +
+	"\x16rbac.role_binding.list\x12\x04read\"\x13/rbac/role-bindings*\x06viewer0\x01B3Z1github.com/globulario/services/golang/rbac/rbacpbb\x06proto3"
 
 var (
 	file_rbac_proto_rawDescOnce sync.Once

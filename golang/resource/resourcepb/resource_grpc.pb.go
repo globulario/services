@@ -103,7 +103,7 @@ const (
 // Service for managing Globular resources like permissions, accounts,
 // organizations, roles, etc., using Persistence service for data storage.
 type ResourceServiceClient interface {
-	// Creates an object reference inside another object. For example, add a reference to an account in a group's 'members' field.
+	// Creates an object reference inside another object.
 	CreateReference(ctx context.Context, in *CreateReferenceRqst, opts ...grpc.CallOption) (*CreateReferenceRsp, error)
 	// Deletes a reference from an object.
 	DeleteReference(ctx context.Context, in *DeleteReferenceRqst, opts ...grpc.CallOption) (*DeleteReferenceRsp, error)
@@ -225,7 +225,7 @@ type ResourceServiceClient interface {
 	GetPackagesDescriptor(ctx context.Context, in *GetPackagesDescriptorRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetPackagesDescriptorResponse], error)
 	// Saves or updates a service package descriptor.
 	SetPackageDescriptor(ctx context.Context, in *SetPackageDescriptorRequest, opts ...grpc.CallOption) (*SetPackageDescriptorResponse, error)
-	// Retrieves a package bundle.
+	// Saves a package bundle.
 	SetPackageBundle(ctx context.Context, in *SetPackageBundleRequest, opts ...grpc.CallOption) (*SetPackageBundleResponse, error)
 	// Gets the checksum for a specified package bundle.
 	GetPackageBundleChecksum(ctx context.Context, in *GetPackageBundleChecksumRequest, opts ...grpc.CallOption) (*GetPackageBundleChecksumResponse, error)
@@ -1081,7 +1081,7 @@ func (c *resourceServiceClient) SetServiceCorsPolicy(ctx context.Context, in *Se
 // Service for managing Globular resources like permissions, accounts,
 // organizations, roles, etc., using Persistence service for data storage.
 type ResourceServiceServer interface {
-	// Creates an object reference inside another object. For example, add a reference to an account in a group's 'members' field.
+	// Creates an object reference inside another object.
 	CreateReference(context.Context, *CreateReferenceRqst) (*CreateReferenceRsp, error)
 	// Deletes a reference from an object.
 	DeleteReference(context.Context, *DeleteReferenceRqst) (*DeleteReferenceRsp, error)
@@ -1203,7 +1203,7 @@ type ResourceServiceServer interface {
 	GetPackagesDescriptor(*GetPackagesDescriptorRequest, grpc.ServerStreamingServer[GetPackagesDescriptorResponse]) error
 	// Saves or updates a service package descriptor.
 	SetPackageDescriptor(context.Context, *SetPackageDescriptorRequest) (*SetPackageDescriptorResponse, error)
-	// Retrieves a package bundle.
+	// Saves a package bundle.
 	SetPackageBundle(context.Context, *SetPackageBundleRequest) (*SetPackageBundleResponse, error)
 	// Gets the checksum for a specified package bundle.
 	GetPackageBundleChecksum(context.Context, *GetPackageBundleChecksumRequest) (*GetPackageBundleChecksumResponse, error)

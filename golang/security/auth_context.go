@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/globulario/services/golang/netutil"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -154,8 +155,13 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 
 						// Use cert Organization as cluster_id hint when available.
 						// Convention: cert.Subject.Organization[0] == cluster domain.
-						if len(cert.Subject.Organization) > 0 {
+						// Fallback: certs generated before the Organization fix may have
+						// empty or stale Organization ("Globular"). Use the default
+						// cluster domain for backward compatibility.
+						if len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] != "Globular" {
 							authCtx.ClusterID = cert.Subject.Organization[0]
+						} else {
+							authCtx.ClusterID = netutil.DefaultClusterDomain()
 						}
 
 						slog.Debug("mTLS identity extracted",

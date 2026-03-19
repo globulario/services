@@ -21,6 +21,8 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.dns.AFSDB', null, global);
 goog.exportSymbol('proto.dns.CAA', null, global);
 goog.exportSymbol('proto.dns.GetAAAARequest', null, global);

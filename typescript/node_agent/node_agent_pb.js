@@ -27,6 +27,8 @@ var cluster_controller_pb = require('./cluster_controller_pb.js');
 goog.object.extend(proto, cluster_controller_pb);
 var plan_pb = require('./plan_pb.js');
 goog.object.extend(proto, plan_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.node_agent.ApplyPlanRequest', null, global);
 goog.exportSymbol('proto.node_agent.ApplyPlanResponse', null, global);
 goog.exportSymbol('proto.node_agent.ApplyPlanV1Request', null, global);

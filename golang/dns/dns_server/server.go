@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -297,7 +298,7 @@ func (srv *server) ensureDefaultInternalZone() error {
 	// Determine internal domain name
 	internalDomain := os.Getenv("GLOBULAR_INTERNAL_DOMAIN")
 	if internalDomain == "" {
-		internalDomain = "globular.internal"
+		internalDomain = netutil.DefaultClusterDomain()
 	}
 	if !strings.HasSuffix(internalDomain, ".") {
 		internalDomain += "."
@@ -620,7 +621,7 @@ func main() {
 
 	// preserve historical defaults when config is absent
 	if srv.Domain == "" || srv.Domain == "localhost" {
-		srv.Domain = "globular.internal"
+		srv.Domain = netutil.DefaultClusterDomain()
 	}
 	if srv.Address == "" || strings.HasPrefix(srv.Address, "127.0.0.1:") || strings.HasPrefix(srv.Address, "localhost:") {
 		srv.Address = fmt.Sprintf("127.0.0.1:%d", srv.Port)

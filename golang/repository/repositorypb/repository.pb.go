@@ -7,6 +7,7 @@
 package repositorypb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -2439,7 +2440,7 @@ var File_repository_proto protoreflect.FileDescriptor
 const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"\x10repository.proto\x12\n" +
-	"repository\x1a\x0eresource.proto\"\xa8\x01\n" +
+	"repository\x1a\x0eresource.proto\x1a\x13globular_auth.proto\"\xa8\x01\n" +
 	"\vArtifactRef\x12!\n" +
 	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -2519,17 +2520,19 @@ const file_repository_proto_rawDesc = "" +
 	"\fbuild_source\x18\x06 \x01(\tR\vbuildSource\x12%\n" +
 	"\x0etimestamp_unix\x18\a \x01(\x03R\rtimestampUnix\x12\x1d\n" +
 	"\n" +
-	"cluster_id\x18\b \x01(\tR\tclusterId\"\xbc\x01\n" +
-	"\x17SetArtifactStateRequest\x12)\n" +
-	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"cluster_id\x18\b \x01(\tR\tclusterId\"\xce\x01\n" +
+	"\x17SetArtifactStateRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
 	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x12;\n" +
 	"\ftarget_state\x18\x03 \x01(\x0e2\x18.repository.PublishStateR\vtargetState\x12\x16\n" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\"\x9a\x01\n" +
 	"\x18SetArtifactStateResponse\x12?\n" +
 	"\x0eprevious_state\x18\x01 \x01(\x0e2\x18.repository.PublishStateR\rpreviousState\x12=\n" +
-	"\rcurrent_state\x18\x02 \x01(\x0e2\x18.repository.PublishStateR\fcurrentState\"8\n" +
-	"\x13GetNamespaceRequest\x12!\n" +
-	"\fnamespace_id\x18\x01 \x01(\tR\vnamespaceId\"h\n" +
+	"\rcurrent_state\x18\x02 \x01(\x0e2\x18.repository.PublishStateR\fcurrentState\"K\n" +
+	"\x13GetNamespaceRequest\x124\n" +
+	"\fnamespace_id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\vnamespaceId\"h\n" +
 	"\rNamespaceInfo\x12!\n" +
 	"\fnamespace_id\x18\x01 \x01(\tR\vnamespaceId\x12\x16\n" +
 	"\x06owners\x18\x02 \x03(\tR\x06owners\x12\x1c\n" +
@@ -2538,34 +2541,40 @@ const file_repository_proto_rawDesc = "" +
 	"\tnamespace\x18\x01 \x01(\v2\x19.repository.NamespaceInfoR\tnamespace\"\x16\n" +
 	"\x14ListArtifactsRequest\"S\n" +
 	"\x15ListArtifactsResponse\x12:\n" +
-	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\xb1\x01\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\xc4\x01\n" +
 	"\x15UploadArtifactRequest\x12\x12\n" +
-	"\x04user\x18\x01 \x01(\tR\x04user\x12\"\n" +
-	"\forganization\x18\x02 \x01(\tR\forganization\x12)\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x125\n" +
+	"\forganization\x18\x02 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\forganization\x12)\n" +
 	"\x03ref\x18\x03 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x12\n" +
 	"\x04data\x18\x04 \x01(\fR\x04data\x12!\n" +
 	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\"0\n" +
 	"\x16UploadArtifactResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"g\n" +
-	"\x17DownloadArtifactRequest\x12)\n" +
-	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"y\n" +
+	"\x17DownloadArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
 	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\".\n" +
 	"\x18DownloadArtifactResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"j\n" +
-	"\x1aGetArtifactManifestRequest\x12)\n" +
-	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"|\n" +
+	"\x1aGetArtifactManifestRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
 	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\"W\n" +
 	"\x1bGetArtifactManifestResponse\x128\n" +
-	"\bmanifest\x18\x01 \x01(\v2\x1c.repository.ArtifactManifestR\bmanifest\"a\n" +
+	"\bmanifest\x18\x01 \x01(\v2\x1c.repository.ArtifactManifestR\bmanifest\"t\n" +
 	"\x13UploadBundleRequest\x12\x12\n" +
-	"\x04user\x18\x01 \x01(\tR\x04user\x12\"\n" +
-	"\forganization\x18\x02 \x01(\tR\forganization\x12\x12\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x125\n" +
+	"\forganization\x18\x02 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\forganization\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\".\n" +
 	"\x14UploadBundleResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"p\n" +
-	"\x15DownloadBundleRequest\x12;\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x80\x01\n" +
+	"\x15DownloadBundleRequest\x12K\n" +
 	"\n" +
-	"descriptor\x18\x01 \x01(\v2\x1b.resource.PackageDescriptorR\n" +
+	"descriptor\x18\x01 \x01(\v2\x1b.resource.PackageDescriptorB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06bundle\x10\x01R\n" +
 	"descriptor\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\",\n" +
 	"\x16DownloadBundleResponse\x12\x12\n" +
@@ -2581,15 +2590,17 @@ const file_repository_proto_rawDesc = "" +
 	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12%\n" +
 	"\x0epublished_unix\x18\a \x01(\x03R\rpublishedUnix\x12\x16\n" +
 	"\x06sha256\x18\b \x01(\tR\x06sha256\x12!\n" +
-	"\fbuild_number\x18\t \x01(\x03R\vbuildNumber\",\n" +
-	"\x12ListBundlesRequest\x12\x16\n" +
-	"\x06prefix\x18\x01 \x01(\tR\x06prefix\"J\n" +
+	"\fbuild_number\x18\t \x01(\x03R\vbuildNumber\":\n" +
+	"\x12ListBundlesRequest\x12$\n" +
+	"\x06prefix\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06bundleR\x06prefix\"J\n" +
 	"\x13ListBundlesResponse\x123\n" +
-	"\abundles\x18\x01 \x03(\v2\x19.repository.BundleSummaryR\abundles\"\xd7\x01\n" +
+	"\abundles\x18\x01 \x03(\v2\x19.repository.BundleSummaryR\abundles\"\xe8\x01\n" +
 	"\x16SearchArtifactsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12,\n" +
-	"\x04kind\x18\x02 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\x12!\n" +
-	"\fpublisher_id\x18\x03 \x01(\tR\vpublisherId\x12\x1a\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\x122\n" +
+	"\fpublisher_id\x18\x03 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\tnamespaceR\vpublisherId\x12\x1a\n" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12\x1b\n" +
 	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -2598,21 +2609,26 @@ const file_repository_proto_rawDesc = "" +
 	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12\x1f\n" +
 	"\vtotal_count\x18\x03 \x01(\x05R\n" +
-	"totalCount\"o\n" +
-	"\x1aGetArtifactVersionsRequest\x12!\n" +
-	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"totalCount\"\x92\x01\n" +
+	"\x1aGetArtifactVersionsRequest\x124\n" +
+	"\fpublisher_id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tnamespace\x10\x01R\vpublisherId\x12\"\n" +
+	"\x04name\x18\x02 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bartifactR\x04name\x12\x1a\n" +
 	"\bplatform\x18\x03 \x01(\tR\bplatform\"W\n" +
 	"\x1bGetArtifactVersionsResponse\x128\n" +
-	"\bversions\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\bversions\"X\n" +
-	"\x15DeleteArtifactRequest\x12)\n" +
-	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x14\n" +
+	"\bversions\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\bversions\"j\n" +
+	"\x15DeleteArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"J\n" +
 	"\x16DeleteArtifactResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xa3\x01\n" +
-	"\x16PromoteArtifactRequest\x12)\n" +
-	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12!\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb5\x01\n" +
+	"\x16PromoteArtifactRequest\x12;\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
+	"\bartifact\x10\x01R\x03ref\x12!\n" +
 	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x12;\n" +
 	"\ftarget_state\x18\x03 \x01(\x0e2\x18.repository.PublishStateR\vtargetState\"\xcb\x01\n" +
 	"\x17PromoteArtifactResponse\x12\x16\n" +
@@ -2641,21 +2657,34 @@ const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"\x06YANKED\x10\a\x12\x0f\n" +
 	"\vQUARANTINED\x10\b\x12\v\n" +
-	"\aREVOKED\x10\t2\xb8\t\n" +
-	"\x11PackageRepository\x12Y\n" +
-	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse0\x01\x12S\n" +
-	"\fUploadBundle\x12\x1f.repository.UploadBundleRequest\x1a .repository.UploadBundleResponse(\x01\x12T\n" +
-	"\rListArtifacts\x12 .repository.ListArtifactsRequest\x1a!.repository.ListArtifactsResponse\x12Y\n" +
-	"\x0eUploadArtifact\x12!.repository.UploadArtifactRequest\x1a\".repository.UploadArtifactResponse(\x01\x12_\n" +
-	"\x10DownloadArtifact\x12#.repository.DownloadArtifactRequest\x1a$.repository.DownloadArtifactResponse0\x01\x12f\n" +
-	"\x13GetArtifactManifest\x12&.repository.GetArtifactManifestRequest\x1a'.repository.GetArtifactManifestResponse\x12N\n" +
-	"\vListBundles\x12\x1e.repository.ListBundlesRequest\x1a\x1f.repository.ListBundlesResponse\x12Z\n" +
-	"\x0fSearchArtifacts\x12\".repository.SearchArtifactsRequest\x1a#.repository.SearchArtifactsResponse\x12f\n" +
-	"\x13GetArtifactVersions\x12&.repository.GetArtifactVersionsRequest\x1a'.repository.GetArtifactVersionsResponse\x12W\n" +
-	"\x0eDeleteArtifact\x12!.repository.DeleteArtifactRequest\x1a\".repository.DeleteArtifactResponse\x12Z\n" +
-	"\x0fPromoteArtifact\x12\".repository.PromoteArtifactRequest\x1a#.repository.PromoteArtifactResponse\x12]\n" +
-	"\x10SetArtifactState\x12#.repository.SetArtifactStateRequest\x1a$.repository.SetArtifactStateResponse\x12Q\n" +
-	"\fGetNamespace\x12\x1f.repository.GetNamespaceRequest\x1a .repository.GetNamespaceResponseB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\aREVOKED\x10\t2\xe7\x11\n" +
+	"\x11PackageRepository\x12\xa7\x01\n" +
+	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse\"L\x82\xb5\x18H\n" +
+	"\x16repository.bundle.read\x12\x04read\x1a /repository/bundles/{descriptor}*\x06viewer0\x01\x12\xb0\x01\n" +
+	"\fUploadBundle\x12\x1f.repository.UploadBundleRequest\x1a .repository.UploadBundleResponse\"[\x82\xb5\x18W\n" +
+	"\x17repository.bundle.write\x12\x05write\"-/repository/namespaces/{organization}/bundles*\x06editor(\x01\x12\x99\x01\n" +
+	"\rListArtifacts\x12 .repository.ListArtifactsRequest\x1a!.repository.ListArtifactsResponse\"C\x82\xb5\x18?\n" +
+	"\x18repository.artifact.list\x12\x04read\"\x15/repository/artifacts*\x06viewer\x12\xba\x01\n" +
+	"\x0eUploadArtifact\x12!.repository.UploadArtifactRequest\x1a\".repository.UploadArtifactResponse\"_\x82\xb5\x18[\n" +
+	"\x19repository.artifact.write\x12\x05write\"//repository/namespaces/{organization}/artifacts*\x06editor(\x01\x12\xaa\x01\n" +
+	"\x10DownloadArtifact\x12#.repository.DownloadArtifactRequest\x1a$.repository.DownloadArtifactResponse\"I\x82\xb5\x18E\n" +
+	"\x18repository.artifact.read\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer0\x01\x12\xb1\x01\n" +
+	"\x13GetArtifactManifest\x12&.repository.GetArtifactManifestRequest\x1a'.repository.GetArtifactManifestResponse\"I\x82\xb5\x18E\n" +
+	"\x18repository.artifact.read\x12\x04read\x1a\x1b/repository/artifacts/{ref}*\x06viewer\x12\x8f\x01\n" +
+	"\vListBundles\x12\x1e.repository.ListBundlesRequest\x1a\x1f.repository.ListBundlesResponse\"?\x82\xb5\x18;\n" +
+	"\x16repository.bundle.list\x12\x04read\"\x13/repository/bundles*\x06viewer\x12\xa1\x01\n" +
+	"\x0fSearchArtifacts\x12\".repository.SearchArtifactsRequest\x1a#.repository.SearchArtifactsResponse\"E\x82\xb5\x18A\n" +
+	"\x1arepository.artifact.search\x12\x04read\"\x15/repository/artifacts*\x06viewer\x12\xd5\x01\n" +
+	"\x13GetArtifactVersions\x12&.repository.GetArtifactVersionsRequest\x1a'.repository.GetArtifactVersionsResponse\"m\x82\xb5\x18i\n" +
+	"\x18repository.artifact.read\x12\x04read\x1a?/repository/namespaces/{publisher_id}/artifacts/{name}/versions*\x06viewer\x12\xa5\x01\n" +
+	"\x0eDeleteArtifact\x12!.repository.DeleteArtifactRequest\x1a\".repository.DeleteArtifactResponse\"L\x82\xb5\x18H\n" +
+	"\x1arepository.artifact.delete\x12\x06delete\x1a\x1b/repository/artifacts/{ref}*\x05admin\x12\xa9\x01\n" +
+	"\x0fPromoteArtifact\x12\".repository.PromoteArtifactRequest\x1a#.repository.PromoteArtifactResponse\"M\x82\xb5\x18I\n" +
+	"\x1brepository.artifact.promote\x12\x05write\x1a\x1b/repository/artifacts/{ref}*\x06editor\x12\xae\x01\n" +
+	"\x10SetArtifactState\x12#.repository.SetArtifactStateRequest\x1a$.repository.SetArtifactStateResponse\"O\x82\xb5\x18K\n" +
+	"\x1drepository.artifact.set_state\x12\x05write\x1a\x1b/repository/artifacts/{ref}*\x06editor\x12\xa7\x01\n" +
+	"\fGetNamespace\x12\x1f.repository.GetNamespaceRequest\x1a .repository.GetNamespaceResponse\"T\x82\xb5\x18P\n" +
+	"\x19repository.namespace.read\x12\x04read\x1a%/repository/namespaces/{namespace_id}*\x06viewerB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once

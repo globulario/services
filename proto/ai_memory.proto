@@ -1,0 +1,197 @@
+syntax = "proto3";
+
+package ai_memory;
+
+option go_package = "github.com/globulario/services/golang/ai_memory/ai_memorypb";
+
+// AiMemoryService provides structured, cluster-scoped memory for AI agents.
+// Backed by ScyllaDB, it enables AI agents to store, query, and manage
+// knowledge that persists across conversations, machines, and agent instances.
+service AiMemoryService {
+
+    // Store creates or updates a memory entry.
+    rpc Store(StoreRqst) returns (StoreRsp);
+
+    // Query retrieves memories matching filters (tags, type, text search).
+    rpc Query(QueryRqst) returns (QueryRsp);
+
+    // Get retrieves a single memory by ID.
+    rpc Get(GetRqst) returns (GetRsp);
+
+    // Update modifies an existing memory entry.
+    rpc Update(UpdateRqst) returns (UpdateRsp);
+
+    // Delete removes a memory entry by ID.
+    rpc Delete(DeleteRqst) returns (DeleteRsp);
+
+    // List returns memory summaries (id, title, type, tags) without full content.
+    rpc List(ListRqst) returns (ListRsp);
+
+    // SaveSession persists a conversation session summary for continuity.
+    rpc SaveSession(SaveSessionRqst) returns (SaveSessionRsp);
+
+    // ResumeSession retrieves the most relevant session for a given topic.
+    rpc ResumeSession(ResumeSessionRqst) returns (ResumeSessionRsp);
+
+    // Stop gracefully shuts down the service.
+    rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// ── Memory types ────────────────────────────────────────────────────────────
+
+enum MemoryType {
+    MEMORY_UNSPECIFIED = 0;
+    FEEDBACK           = 1;  // User corrections and confirmed approaches
+    ARCHITECTURE       = 2;  // System design knowledge
+    DECISION           = 3;  // Design decisions and their rationale
+    DEBUG              = 4;  // Debugging sessions and root causes
+    SESSION            = 5;  // Conversation session summaries
+    USER               = 6;  // User profile, preferences, role
+    PROJECT            = 7;  // Ongoing work, goals, initiatives
+    REFERENCE          = 8;  // Pointers to external resources
+    SCRATCH            = 9;  // Temporary analysis, auto-expires
+}
+
+// ── Core message ────────────────────────────────────────────────────────────
+
+message Memory {
+    string      id              = 1;  // UUID, auto-generated if empty on Store
+    string      project         = 2;  // Partition key (e.g. "globular-services")
+    MemoryType  type            = 3;
+    repeated string tags        = 4;  // Searchable tags (e.g. ["dns", "badgerdb"])
+    string      title           = 5;  // Short summary for listing
+    string      content         = 6;  // Full memory content
+    int64       created_at      = 7;  // Unix timestamp
+    int64       updated_at      = 8;  // Unix timestamp
+    int32       ttl_seconds     = 9;  // 0 = no expiry, >0 = ScyllaDB native TTL
+    string      agent_id        = 10; // Which AI agent wrote this
+    string      conversation_id = 11; // Link to originating conversation
+    string      cluster_id      = 12; // Auto-populated from cluster identity
+    map<string, string> metadata = 13; // Flexible key-value: related_to, root_cause, confidence, etc.
+    repeated string related_ids  = 14; // Links to other memory IDs (bidirectional graph)
+    int32       reference_count  = 15; // How many times this memory has been queried/used
+}
+
+// ── Session message ─────────────────────────────────────────────────────────
+
+message Session {
+    string          id               = 1;
+    string          project          = 2;
+    string          topic            = 3;  // Main topic/area of the session
+    string          summary          = 4;  // What was accomplished
+    repeated string decisions        = 5;  // Key decisions made
+    repeated string open_questions   = 6;  // Unresolved items
+    repeated string related_memories = 7;  // IDs of memories created/referenced
+    int64           created_at       = 8;
+    string          agent_id         = 9;
+    string          cluster_id       = 10;
+}
+
+// ── Store ───────────────────────────────────────────────────────────────────
+
+message StoreRqst {
+    Memory memory = 1;
+}
+
+message StoreRsp {
+    string id = 1; // The assigned or existing ID
+}
+
+// ── Query ───────────────────────────────────────────────────────────────────
+
+message QueryRqst {
+    string      project     = 1; // Required: partition key
+    MemoryType  type        = 2; // Optional: filter by type (0 = all)
+    repeated string tags    = 3; // Optional: filter by tags (AND logic)
+    string      text_search = 4; // Optional: substring match on title + content
+    int32       limit       = 5; // Max results (default 20)
+    int32       offset      = 6; // Pagination offset
+}
+
+message QueryRsp {
+    repeated Memory memories = 1;
+    int32 total              = 2; // Total matching count (for pagination)
+}
+
+// ── Get ─────────────────────────────────────────────────────────────────────
+
+message GetRqst {
+    string id      = 1;
+    string project = 2;
+}
+
+message GetRsp {
+    Memory memory = 1;
+}
+
+// ── Update ──────────────────────────────────────────────────────────────────
+
+message UpdateRqst {
+    Memory memory = 1; // ID + project required; only non-empty fields are updated
+}
+
+message UpdateRsp {
+    bool success = 1;
+}
+
+// ── Delete ──────────────────────────────────────────────────────────────────
+
+message DeleteRqst {
+    string id      = 1;
+    string project = 2;
+}
+
+message DeleteRsp {
+    bool success = 1;
+}
+
+// ── List ────────────────────────────────────────────────────────────────────
+
+message ListRqst {
+    string      project  = 1;
+    MemoryType  type     = 2; // Optional filter
+    repeated string tags = 3; // Optional filter
+    int32       limit    = 4;
+    int32       offset   = 5;
+}
+
+// MemorySummary is a lightweight view without full content.
+message MemorySummary {
+    string          id         = 1;
+    MemoryType      type       = 2;
+    repeated string tags       = 3;
+    string          title      = 4;
+    int64           created_at = 5;
+    int64           updated_at = 6;
+    string          agent_id   = 7;
+}
+
+message ListRsp {
+    repeated MemorySummary memories = 1;
+    int32 total                     = 2;
+}
+
+// ── Session RPCs ────────────────────────────────────────────────────────────
+
+message SaveSessionRqst {
+    Session session = 1;
+}
+
+message SaveSessionRsp {
+    string id = 1;
+}
+
+message ResumeSessionRqst {
+    string project = 1;
+    string topic   = 2; // Fuzzy match on topic + summary
+    int32  limit   = 3; // How many recent sessions to return (default 1)
+}
+
+message ResumeSessionRsp {
+    repeated Session sessions = 1;
+}
+
+// ── Stop ────────────────────────────────────────────────────────────────────
+
+message StopRequest {}
+message StopResponse {}

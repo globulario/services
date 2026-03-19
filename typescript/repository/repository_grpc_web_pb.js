@@ -21,6 +21,8 @@ grpc.web = require('grpc-web');
 
 
 var resource_pb = require('./resource_pb.js')
+
+var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.repository = require('./repository_pb.js');
 

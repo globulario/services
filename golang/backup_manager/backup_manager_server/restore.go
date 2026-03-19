@@ -285,6 +285,9 @@ func (srv *server) executeRestore(job *backup_managerpb.BackupJob, art *backup_m
 	// gRPC services also need to re-register their ports in the restored etcd.
 	srv.restartAllServices(ctx)
 
+	// Reseed RBAC after restore — role bindings may have been wiped by the etcd restore.
+	srv.reseedRBAC(ctx)
+
 	// Schedule a delayed self-restart so the backup-manager reloads the
 	// restored job store from disk. We can't restart immediately because
 	// we need to finish writing the restore job result first.
@@ -804,6 +807,39 @@ func isSystemdActive(unit string) bool {
 		return false
 	}
 	return strings.TrimSpace(string(out)) == "active"
+}
+
+// reseedRBAC waits for the RBAC service to become healthy after a restore,
+// then reseeds SA role bindings and cluster roles that may have been wiped.
+func (srv *server) reseedRBAC(ctx context.Context) {
+	const rbacPort = 10000
+
+	// Wait up to 30 seconds for RBAC service to become reachable.
+	slog.Info("reseedRBAC: waiting for RBAC service")
+	ready := false
+	for i := 0; i < 60; i++ {
+		if isPortOpen("127.0.0.1", rbacPort) {
+			ready = true
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !ready {
+		slog.Warn("reseedRBAC: RBAC service not reachable after 30s, skipping reseed")
+		return
+	}
+
+	// Give the RBAC service a moment to finish startup after port is open.
+	time.Sleep(2 * time.Second)
+
+	// Use the globular CLI seed command via exec for simplicity and reuse.
+	slog.Info("reseedRBAC: running globular rbac seed")
+	out, err := exec.CommandContext(ctx, "globular", "rbac", "seed", "--insecure").CombinedOutput()
+	if err != nil {
+		slog.Warn("reseedRBAC: seed command failed", "err", err, "output", string(out))
+	} else {
+		slog.Info("reseedRBAC: seed complete", "output", string(out))
+	}
 }
 
 // findDestinationByName looks up a configured destination by its name.

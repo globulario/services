@@ -10,6 +10,7 @@
 package conversationpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -2033,7 +2034,7 @@ func (*SendMessageResponse) Descriptor() ([]byte, []int) {
 
 type DeleteMessageRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * The message uuid
+	// * The conversation uuid
 	Conversation  string `protobuf:"bytes,1,opt,name=conversation,proto3" json:"conversation,omitempty"`
 	Uuid          string `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2572,7 +2573,7 @@ var File_conversation_proto protoreflect.FileDescriptor
 
 const file_conversation_proto_rawDesc = "" +
 	"\n" +
-	"\x12conversation.proto\x12\fconversation\"\xa3\x01\n" +
+	"\x12conversation.proto\x12\fconversation\x1a\x13globular_auth.proto\"\xa3\x01\n" +
 	"\n" +
 	"Invitation\x12\"\n" +
 	"\fconversation\x18\x01 \x01(\tR\fconversation\x12\x12\n" +
@@ -2622,9 +2623,10 @@ const file_conversation_proto_rawDesc = "" +
 	"\bkeywords\x18\x02 \x03(\tR\bkeywords\x12\x1a\n" +
 	"\blanguage\x18\x03 \x01(\tR\blanguage\"\\\n" +
 	"\x1aCreateConversationResponse\x12>\n" +
-	"\fconversation\x18\x01 \x01(\v2\x1a.conversation.ConversationR\fconversation\"H\n" +
-	"\x19DeleteConversationRequest\x12+\n" +
-	"\x11conversation_uuid\x18\x01 \x01(\tR\x10conversationUuid\"\x1c\n" +
+	"\fconversation\x18\x01 \x01(\v2\x1a.conversation.ConversationR\fconversation\"^\n" +
+	"\x19DeleteConversationRequest\x12A\n" +
+	"\x11conversation_uuid\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\x10conversationUuid\"\x1c\n" +
 	"\x1aDeleteConversationResponse\"Q\n" +
 	"\x15SendInvitationRequest\x128\n" +
 	"\n" +
@@ -2645,13 +2647,15 @@ const file_conversation_proto_rawDesc = "" +
 	"\n" +
 	"invitation\x18\x01 \x01(\v2\x18.conversation.InvitationR\n" +
 	"invitation\"\x1a\n" +
-	"\x18RevokeInvitationResponse\"9\n" +
-	"\x1dGetReceivedInvitationsRequest\x12\x18\n" +
-	"\aaccount\x18\x01 \x01(\tR\aaccount\"]\n" +
+	"\x18RevokeInvitationResponse\"J\n" +
+	"\x1dGetReceivedInvitationsRequest\x12)\n" +
+	"\aaccount\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\aaccount\"]\n" +
 	"\x1eGetReceivedInvitationsResponse\x12;\n" +
-	"\vinvitations\x18\x01 \x01(\v2\x19.conversation.InvitationsR\vinvitations\"5\n" +
-	"\x19GetSentInvitationsRequest\x12\x18\n" +
-	"\aaccount\x18\x01 \x01(\tR\aaccount\"Y\n" +
+	"\vinvitations\x18\x01 \x01(\v2\x19.conversation.InvitationsR\vinvitations\"F\n" +
+	"\x19GetSentInvitationsRequest\x12)\n" +
+	"\aaccount\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\aaccount\"Y\n" +
 	"\x1aGetSentInvitationsResponse\x12;\n" +
 	"\vinvitations\x18\x01 \x01(\v2\x19.conversation.InvitationsR\vinvitations\"\xa2\x01\n" +
 	"\x18FindConversationsRequest\x12\x14\n" +
@@ -2661,54 +2665,68 @@ const file_conversation_proto_rawDesc = "" +
 	"\bpageSize\x18\x04 \x01(\x05R\bpageSize\x12 \n" +
 	"\vsnippetSize\x18\x05 \x01(\x05R\vsnippetSize\"]\n" +
 	"\x19FindConversationsResponse\x12@\n" +
-	"\rconversations\x18\x01 \x03(\v2\x1a.conversation.ConversationR\rconversations\"o\n" +
-	"\x17JoinConversationRequest\x12+\n" +
-	"\x11conversation_uuid\x18\x01 \x01(\tR\x10conversationUuid\x12'\n" +
+	"\rconversations\x18\x01 \x03(\v2\x1a.conversation.ConversationR\rconversations\"\x85\x01\n" +
+	"\x17JoinConversationRequest\x12A\n" +
+	"\x11conversation_uuid\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\x10conversationUuid\x12'\n" +
 	"\x0fconnection_uuid\x18\x02 \x01(\tR\x0econnectionUuid\"\x83\x01\n" +
 	"\x18JoinConversationResponse\x12'\n" +
 	"\x03msg\x18\x01 \x01(\v2\x15.conversation.MessageR\x03msg\x12>\n" +
-	"\fconversation\x18\x02 \x01(\v2\x1a.conversation.ConversationR\fconversation\"g\n" +
-	"\x1eKickoutFromConversationRequest\x12+\n" +
-	"\x11conversation_uuid\x18\x01 \x01(\tR\x10conversationUuid\x12\x18\n" +
-	"\aaccount\x18\x02 \x01(\tR\aaccount\"!\n" +
-	"\x1fKickoutFromConversationResponse\"(\n" +
-	"\x16GetConversationRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"Y\n" +
+	"\fconversation\x18\x02 \x01(\v2\x1a.conversation.ConversationR\fconversation\"\x8c\x01\n" +
+	"\x1eKickoutFromConversationRequest\x12A\n" +
+	"\x11conversation_uuid\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\x10conversationUuid\x12'\n" +
+	"\aaccount\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\aaccount\"!\n" +
+	"\x1fKickoutFromConversationResponse\">\n" +
+	"\x16GetConversationRequest\x12$\n" +
+	"\x02id\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\x02id\"Y\n" +
 	"\x17GetConversationResponse\x12>\n" +
-	"\fconversation\x18\x01 \x01(\v2\x1a.conversation.ConversationR\fconversation\"3\n" +
-	"\x17GetConversationsRequest\x12\x18\n" +
-	"\acreator\x18\x01 \x01(\tR\acreator\"]\n" +
+	"\fconversation\x18\x01 \x01(\v2\x1a.conversation.ConversationR\fconversation\"B\n" +
+	"\x17GetConversationsRequest\x12'\n" +
+	"\acreator\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\acreator\"]\n" +
 	"\x18GetConversationsResponse\x12A\n" +
-	"\rconversations\x18\x01 \x01(\v2\x1b.conversation.ConversationsR\rconversations\"p\n" +
-	"\x18LeaveConversationRequest\x12+\n" +
-	"\x11conversation_uuid\x18\x01 \x01(\tR\x10conversationUuid\x12'\n" +
+	"\rconversations\x18\x01 \x01(\v2\x1b.conversation.ConversationsR\rconversations\"\x86\x01\n" +
+	"\x18LeaveConversationRequest\x12A\n" +
+	"\x11conversation_uuid\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\x10conversationUuid\x12'\n" +
 	"\x0fconnection_uuid\x18\x02 \x01(\tR\x0econnectionUuid\"[\n" +
 	"\x19LeaveConversationResponse\x12>\n" +
 	"\fconversation\x18\x01 \x01(\v2\x1a.conversation.ConversationR\fconversation\"=\n" +
 	"\x12SendMessageRequest\x12'\n" +
 	"\x03msg\x18\x01 \x01(\v2\x15.conversation.MessageR\x03msg\"\x15\n" +
-	"\x13SendMessageResponse\"N\n" +
-	"\x14DeleteMessageRequest\x12\"\n" +
-	"\fconversation\x18\x01 \x01(\tR\fconversation\x12\x12\n" +
-	"\x04uuid\x18\x02 \x01(\tR\x04uuid\"\x17\n" +
+	"\x13SendMessageResponse\"s\n" +
+	"\x14DeleteMessageRequest\x128\n" +
+	"\fconversation\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\fconversation\x12!\n" +
+	"\x04uuid\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\amessageR\x04uuid\"\x17\n" +
 	"\x15DeleteMessageResponse\"1\n" +
 	"\x13FindMessagesRequest\x12\x1a\n" +
 	"\bkeywords\x18\x01 \x03(\tR\bkeywords\"G\n" +
 	"\x14FindMessagesResponse\x12/\n" +
-	"\amessage\x18\x01 \x01(\v2\x15.conversation.MessageR\amessage\"i\n" +
-	"\x0fLikeMessageRqst\x12\"\n" +
-	"\fconversation\x18\x01 \x01(\tR\fconversation\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\v2\x15.conversation.MessageR\amessage\"\x8e\x01\n" +
+	"\x0fLikeMessageRqst\x128\n" +
+	"\fconversation\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\fconversation\x12'\n" +
+	"\amessage\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\amessageR\amessage\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\"\x15\n" +
-	"\x13LikeMessageResponse\"l\n" +
-	"\x12DislikeMessageRqst\x12\"\n" +
-	"\fconversation\x18\x01 \x01(\tR\fconversation\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
+	"\x13LikeMessageResponse\"\x91\x01\n" +
+	"\x12DislikeMessageRqst\x128\n" +
+	"\fconversation\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\fconversation\x12'\n" +
+	"\amessage\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\amessageR\amessage\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\"\x18\n" +
-	"\x16DislikeMessageResponse\"l\n" +
-	"\x12SetMessageReadRqst\x12\"\n" +
-	"\fconversation\x18\x01 \x01(\tR\fconversation\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
+	"\x16DislikeMessageResponse\"\x91\x01\n" +
+	"\x12SetMessageReadRqst\x128\n" +
+	"\fconversation\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\fconversation\x10\x01R\fconversation\x12'\n" +
+	"\amessage\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\amessageR\amessage\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\"\x18\n" +
 	"\x16SetMessageReadResponse\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
@@ -2716,32 +2734,55 @@ const file_conversation_proto_rawDesc = "" +
 	"\x11ConversationState\x12\n" +
 	"\n" +
 	"\x06ACTIVE\x10\x00\x12\r\n" +
-	"\tSUSPENDED\x10\x012\xa0\x11\n" +
-	"\x13ConversationService\x12=\n" +
-	"\x04Stop\x12\x19.conversation.StopRequest\x1a\x1a.conversation.StopResponse\x12H\n" +
-	"\aConnect\x12\x1c.conversation.ConnectRequest\x1a\x1d.conversation.ConnectResponse0\x01\x12O\n" +
+	"\tSUSPENDED\x10\x012\xbb \n" +
+	"\x13ConversationService\x12t\n" +
+	"\x04Stop\x12\x19.conversation.StopRequest\x1a\x1a.conversation.StopResponse\"5\x82\xb5\x181\n" +
+	"\x12conversation.admin\x12\x05admin\x1a\r/conversation*\x05admin\x12\x8d\x01\n" +
+	"\aConnect\x12\x1c.conversation.ConnectRequest\x1a\x1d.conversation.ConnectResponse\"C\x82\xb5\x18?\n" +
+	"\x14conversation.connect\x12\x04read\"\x19/conversation/connections*\x06viewer0\x01\x12\x94\x01\n" +
 	"\n" +
-	"Disconnect\x12\x1f.conversation.DisconnectRequest\x1a .conversation.DisconnectResponse\x12g\n" +
-	"\x12CreateConversation\x12'.conversation.CreateConversationRequest\x1a(.conversation.CreateConversationResponse\x12g\n" +
-	"\x12DeleteConversation\x12'.conversation.DeleteConversationRequest\x1a(.conversation.DeleteConversationResponse\x12d\n" +
-	"\x11FindConversations\x12&.conversation.FindConversationsRequest\x1a'.conversation.FindConversationsResponse\x12c\n" +
-	"\x10JoinConversation\x12%.conversation.JoinConversationRequest\x1a&.conversation.JoinConversationResponse0\x01\x12d\n" +
-	"\x11LeaveConversation\x12&.conversation.LeaveConversationRequest\x1a'.conversation.LeaveConversationResponse\x12^\n" +
-	"\x0fGetConversation\x12$.conversation.GetConversationRequest\x1a%.conversation.GetConversationResponse\x12a\n" +
-	"\x10GetConversations\x12%.conversation.GetConversationsRequest\x1a&.conversation.GetConversationsResponse\x12v\n" +
-	"\x17KickoutFromConversation\x12,.conversation.KickoutFromConversationRequest\x1a-.conversation.KickoutFromConversationResponse\x12[\n" +
-	"\x0eSendInvitation\x12#.conversation.SendInvitationRequest\x1a$.conversation.SendInvitationResponse\x12a\n" +
-	"\x10AcceptInvitation\x12%.conversation.AcceptInvitationRequest\x1a&.conversation.AcceptInvitationResponse\x12d\n" +
-	"\x11DeclineInvitation\x12&.conversation.DeclineInvitationRequest\x1a'.conversation.DeclineInvitationResponse\x12a\n" +
-	"\x10RevokeInvitation\x12%.conversation.RevokeInvitationRequest\x1a&.conversation.RevokeInvitationResponse\x12s\n" +
-	"\x16GetReceivedInvitations\x12+.conversation.GetReceivedInvitationsRequest\x1a,.conversation.GetReceivedInvitationsResponse\x12g\n" +
-	"\x12GetSentInvitations\x12'.conversation.GetSentInvitationsRequest\x1a(.conversation.GetSentInvitationsResponse\x12R\n" +
-	"\vSendMessage\x12 .conversation.SendMessageRequest\x1a!.conversation.SendMessageResponse\x12X\n" +
-	"\rDeleteMessage\x12\".conversation.DeleteMessageRequest\x1a#.conversation.DeleteMessageResponse\x12W\n" +
-	"\fFindMessages\x12!.conversation.FindMessagesRequest\x1a\".conversation.FindMessagesResponse0\x01\x12O\n" +
-	"\vLikeMessage\x12\x1d.conversation.LikeMessageRqst\x1a!.conversation.LikeMessageResponse\x12X\n" +
-	"\x0eDislikeMessage\x12 .conversation.DislikeMessageRqst\x1a$.conversation.DislikeMessageResponse\x12X\n" +
-	"\x0eSetMessageRead\x12 .conversation.SetMessageReadRqst\x1a$.conversation.SetMessageReadResponseBCZAgithub.com/globulario/services/golang/conversation/conversationpbb\x06proto3"
+	"Disconnect\x12\x1f.conversation.DisconnectRequest\x1a .conversation.DisconnectResponse\"C\x82\xb5\x18?\n" +
+	"\x14conversation.connect\x12\x04read\"\x19/conversation/connections*\x06viewer\x12\xae\x01\n" +
+	"\x12CreateConversation\x12'.conversation.CreateConversationRequest\x1a(.conversation.CreateConversationResponse\"E\x82\xb5\x18A\n" +
+	"\x13conversation.create\x12\x05write\"\x1b/conversation/conversations*\x06editor\x12\xc2\x01\n" +
+	"\x12DeleteConversation\x12'.conversation.DeleteConversationRequest\x1a(.conversation.DeleteConversationResponse\"Y\x82\xb5\x18U\n" +
+	"\x13conversation.delete\x12\x06delete\x1a//conversation/conversations/{conversation_uuid}*\x05admin\x12\xa8\x01\n" +
+	"\x11FindConversations\x12&.conversation.FindConversationsRequest\x1a'.conversation.FindConversationsResponse\"B\x82\xb5\x18>\n" +
+	"\x11conversation.list\x12\x04read\"\x1b/conversation/conversations*\x06viewer\x12\xbb\x01\n" +
+	"\x10JoinConversation\x12%.conversation.JoinConversationRequest\x1a&.conversation.JoinConversationResponse\"V\x82\xb5\x18R\n" +
+	"\x11conversation.join\x12\x04read\x1a//conversation/conversations/{conversation_uuid}*\x06viewer0\x01\x12\xbe\x01\n" +
+	"\x11LeaveConversation\x12&.conversation.LeaveConversationRequest\x1a'.conversation.LeaveConversationResponse\"X\x82\xb5\x18T\n" +
+	"\x12conversation.leave\x12\x05write\x1a//conversation/conversations/{conversation_uuid}*\x06editor\x12\xa7\x01\n" +
+	"\x0fGetConversation\x12$.conversation.GetConversationRequest\x1a%.conversation.GetConversationResponse\"G\x82\xb5\x18C\n" +
+	"\x11conversation.read\x12\x04read\x1a /conversation/conversations/{id}*\x06viewer\x12\xa5\x01\n" +
+	"\x10GetConversations\x12%.conversation.GetConversationsRequest\x1a&.conversation.GetConversationsResponse\"B\x82\xb5\x18>\n" +
+	"\x11conversation.read\x12\x04read\"\x1b/conversation/conversations*\x06viewer\x12\xd0\x01\n" +
+	"\x17KickoutFromConversation\x12,.conversation.KickoutFromConversationRequest\x1a-.conversation.KickoutFromConversationResponse\"X\x82\xb5\x18T\n" +
+	"\x13conversation.manage\x12\x05write\x1a//conversation/conversations/{conversation_uuid}*\x05admin\x12\xa0\x01\n" +
+	"\x0eSendInvitation\x12#.conversation.SendInvitationRequest\x1a$.conversation.SendInvitationResponse\"C\x82\xb5\x18?\n" +
+	"\x13conversation.invite\x12\x05write\"\x19/conversation/invitations*\x06editor\x12\xa6\x01\n" +
+	"\x10AcceptInvitation\x12%.conversation.AcceptInvitationRequest\x1a&.conversation.AcceptInvitationResponse\"C\x82\xb5\x18?\n" +
+	"\x13conversation.invite\x12\x05write\"\x19/conversation/invitations*\x06editor\x12\xa9\x01\n" +
+	"\x11DeclineInvitation\x12&.conversation.DeclineInvitationRequest\x1a'.conversation.DeclineInvitationResponse\"C\x82\xb5\x18?\n" +
+	"\x13conversation.invite\x12\x05write\"\x19/conversation/invitations*\x06editor\x12\xa6\x01\n" +
+	"\x10RevokeInvitation\x12%.conversation.RevokeInvitationRequest\x1a&.conversation.RevokeInvitationResponse\"C\x82\xb5\x18?\n" +
+	"\x13conversation.invite\x12\x05write\"\x19/conversation/invitations*\x06editor\x12\xd8\x01\n" +
+	"\x16GetReceivedInvitations\x12+.conversation.GetReceivedInvitationsRequest\x1a,.conversation.GetReceivedInvitationsResponse\"c\x82\xb5\x18_\n" +
+	"\x18conversation.invite.read\x12\x04read\x1a5/conversation/accounts/{account}/invitations/received*\x06viewer\x12\xc8\x01\n" +
+	"\x12GetSentInvitations\x12'.conversation.GetSentInvitationsRequest\x1a(.conversation.GetSentInvitationsResponse\"_\x82\xb5\x18[\n" +
+	"\x18conversation.invite.read\x12\x04read\x1a1/conversation/accounts/{account}/invitations/sent*\x06viewer\x12\xb8\x01\n" +
+	"\vSendMessage\x12 .conversation.SendMessageRequest\x1a!.conversation.SendMessageResponse\"d\x82\xb5\x18`\n" +
+	"\x1aconversation.message.write\x12\x05write\"3/conversation/conversations/{conversation}/messages*\x06editor\x12\xc6\x01\n" +
+	"\rDeleteMessage\x12\".conversation.DeleteMessageRequest\x1a#.conversation.DeleteMessageResponse\"l\x82\xb5\x18h\n" +
+	"\x1bconversation.message.delete\x12\x06delete\x1a:/conversation/conversations/{conversation}/messages/{uuid}*\x05admin\x12\x9e\x01\n" +
+	"\fFindMessages\x12!.conversation.FindMessagesRequest\x1a\".conversation.FindMessagesResponse\"E\x82\xb5\x18A\n" +
+	"\x19conversation.message.read\x12\x04read\"\x16/conversation/messages*\x06viewer0\x01\x12\xbf\x01\n" +
+	"\vLikeMessage\x12\x1d.conversation.LikeMessageRqst\x1a!.conversation.LikeMessageResponse\"n\x82\xb5\x18j\n" +
+	"\x1aconversation.message.react\x12\x05write\x1a=/conversation/conversations/{conversation}/messages/{message}*\x06editor\x12\xc8\x01\n" +
+	"\x0eDislikeMessage\x12 .conversation.DislikeMessageRqst\x1a$.conversation.DislikeMessageResponse\"n\x82\xb5\x18j\n" +
+	"\x1aconversation.message.react\x12\x05write\x1a=/conversation/conversations/{conversation}/messages/{message}*\x06editor\x12\xc8\x01\n" +
+	"\x0eSetMessageRead\x12 .conversation.SetMessageReadRqst\x1a$.conversation.SetMessageReadResponse\"n\x82\xb5\x18j\n" +
+	"\x1aconversation.message.write\x12\x05write\x1a=/conversation/conversations/{conversation}/messages/{message}*\x06editorBCZAgithub.com/globulario/services/golang/conversation/conversationpbb\x06proto3"
 
 var (
 	file_conversation_proto_rawDescOnce sync.Once

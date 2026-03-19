@@ -1,0 +1,196 @@
+syntax = "proto3";
+
+package ai_watcher;
+
+option go_package = "github.com/globulario/services/golang/ai_watcher/ai_watcherpb";
+
+// AiWatcherService is a lightweight event-driven daemon that subscribes to
+// cluster events, filters them through configurable rules, and triggers
+// AI-assisted diagnosis and remediation when needed.
+//
+// Three permission tiers:
+//   Tier 1 (observe)  — always allowed: read logs, query doctor, store findings
+//   Tier 2 (auto-fix) — pre-approved: restart services, clear corrupted storage
+//   Tier 3 (approval) — hold and notify: config changes, desired state changes
+service AiWatcherService {
+
+    // GetConfig returns the current watcher configuration (rules, tiers, notification settings).
+    rpc GetConfig(GetConfigRqst) returns (GetConfigRsp);
+
+    // SetConfig updates the watcher configuration.
+    rpc SetConfig(SetConfigRqst) returns (SetConfigRsp);
+
+    // GetStatus returns the watcher's current state (running, paused, event stats).
+    rpc GetStatus(GetStatusRqst) returns (GetStatusRsp);
+
+    // Pause temporarily stops event processing without unsubscribing.
+    rpc Pause(PauseRqst) returns (PauseRsp);
+
+    // Resume restarts event processing after a pause.
+    rpc Resume(ResumeRqst) returns (ResumeRsp);
+
+    // GetIncidents returns a list of incidents the watcher has detected and handled.
+    rpc GetIncidents(GetIncidentsRqst) returns (GetIncidentsRsp);
+
+    // GetIncident returns a single incident with full details.
+    rpc GetIncident(GetIncidentRqst) returns (GetIncidentRsp);
+
+    // ApproveAction approves a pending Tier 3 action.
+    rpc ApproveAction(ApproveActionRqst) returns (ApproveActionRsp);
+
+    // DenyAction denies a pending Tier 3 action.
+    rpc DenyAction(DenyActionRqst) returns (DenyActionRsp);
+
+    // GetPendingApprovals returns all actions waiting for human approval.
+    rpc GetPendingApprovals(GetPendingApprovalsRqst) returns (GetPendingApprovalsRsp);
+
+    // Stop gracefully shuts down the watcher.
+    rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// ── Permission Tiers ────────────────────────────────────────────────────────
+
+enum PermissionTier {
+    OBSERVE       = 0; // Tier 1: read-only, always allowed
+    AUTO_REMEDIATE = 1; // Tier 2: pre-approved actions
+    REQUIRE_APPROVAL = 2; // Tier 3: hold and notify
+}
+
+// ── Event Rules ─────────────────────────────────────────────────────────────
+
+// EventRule defines when the watcher should react to an event.
+message EventRule {
+    string id              = 1;  // Unique rule ID
+    string event_pattern   = 2;  // Event name pattern to match (supports prefix: "cluster.*")
+    string description     = 3;  // Human-readable description
+    bool   enabled         = 4;  // Whether this rule is active
+    PermissionTier tier    = 5;  // What the watcher is allowed to do
+    int32  cooldown_seconds = 6; // Minimum seconds between triggers for same pattern
+    int32  batch_window_seconds = 7; // Wait this long to batch correlated events (default 10)
+
+    // Conditions for triggering (all must match).
+    string severity_min    = 8;  // Minimum severity: "info", "warning", "error", "critical"
+    int32  repeat_threshold = 9; // Only trigger after N occurrences in batch window
+}
+
+// ── Watcher Config ──────────────────────────────────────────────────────────
+
+message WatcherConfig {
+    bool   enabled              = 1;  // Master switch
+    bool   paused               = 2;  // Temporarily paused
+    repeated EventRule rules    = 3;  // Event matching rules
+    repeated string subscribe_topics = 4; // Event topics to subscribe to
+
+    // Notification settings (for Tier 3 approvals and incident reports).
+    NotificationConfig notifications = 5;
+
+    // Auto-remediation whitelist (Tier 2 actions).
+    repeated AutoRemediationRule auto_remediation = 6;
+
+    // Global cooldown: minimum seconds between any AI invocations.
+    int32 global_cooldown_seconds = 7; // Default 30
+}
+
+message NotificationConfig {
+    repeated string channels = 1; // "log", "event", "webhook"
+    string webhook_url       = 2; // For external notifications
+    string webhook_secret    = 3; // HMAC signing secret
+}
+
+message AutoRemediationRule {
+    string id          = 1;  // Unique rule ID
+    string action      = 2;  // Action name: "restart_service", "clear_storage", "cert_renew"
+    string description = 3;  // What this allows
+    bool   enabled     = 4;
+    int32  max_retries = 5;  // Max times to auto-retry (default 3)
+    repeated string target_services = 6; // Which services this applies to ("*" for all)
+}
+
+// ── Incidents ───────────────────────────────────────────────────────────────
+
+enum IncidentStatus {
+    INCIDENT_DETECTED   = 0; // Event received, diagnosis starting
+    INCIDENT_DIAGNOSING = 1; // AI is investigating
+    INCIDENT_AWAITING_APPROVAL = 2; // Tier 3: waiting for human
+    INCIDENT_REMEDIATING = 3; // Fix in progress
+    INCIDENT_RESOLVED   = 4; // Successfully fixed
+    INCIDENT_FAILED     = 5; // Remediation failed
+    INCIDENT_IGNORED    = 6; // Below threshold or duplicate
+}
+
+message Incident {
+    string id                    = 1;  // UUID
+    string trigger_event         = 2;  // Event name that triggered this
+    repeated string event_batch  = 3;  // All events in the batch window
+    IncidentStatus status        = 4;
+    PermissionTier tier          = 5;  // Which tier handled this
+    string diagnosis             = 6;  // AI's diagnosis summary
+    string proposed_action       = 7;  // What the AI wants to do
+    string action_taken          = 8;  // What was actually done
+    string result                = 9;  // Outcome description
+    int64  detected_at           = 10; // Unix timestamp
+    int64  resolved_at           = 11; // Unix timestamp (0 if unresolved)
+    string memory_id             = 12; // Link to ai_memory entry storing this incident
+    repeated string related_incidents = 13; // IDs of correlated incidents
+    map<string, string> metadata = 14; // Flexible attributes
+}
+
+// ── RPC Messages ────────────────────────────────────────────────────────────
+
+message GetConfigRqst {}
+message GetConfigRsp { WatcherConfig config = 1; }
+
+message SetConfigRqst { WatcherConfig config = 1; }
+message SetConfigRsp { bool success = 1; }
+
+message GetStatusRqst {}
+message GetStatusRsp {
+    bool   running           = 1;
+    bool   paused            = 2;
+    int64  started_at        = 3;
+    int64  events_received   = 4;  // Total events since start
+    int64  events_filtered   = 5;  // Events that matched rules
+    int64  incidents_created = 6;
+    int64  auto_remediations = 7;  // Tier 2 actions taken
+    int64  approvals_pending = 8;  // Tier 3 waiting
+    string last_event_at     = 9;  // Timestamp of last event
+    string last_incident_at  = 10; // Timestamp of last incident
+}
+
+message PauseRqst {}
+message PauseRsp { bool success = 1; }
+
+message ResumeRqst {}
+message ResumeRsp { bool success = 1; }
+
+message GetIncidentsRqst {
+    IncidentStatus status = 1; // Filter by status (0 = all)
+    int32 limit           = 2; // Default 20
+}
+message GetIncidentsRsp {
+    repeated Incident incidents = 1;
+    int32 total                 = 2;
+}
+
+message GetIncidentRqst { string id = 1; }
+message GetIncidentRsp { Incident incident = 1; }
+
+message ApproveActionRqst {
+    string incident_id = 1;
+    string approver    = 2; // Who approved (username or "api")
+}
+message ApproveActionRsp { bool success = 1; }
+
+message DenyActionRqst {
+    string incident_id = 1;
+    string reason      = 2;
+}
+message DenyActionRsp { bool success = 1; }
+
+message GetPendingApprovalsRqst {}
+message GetPendingApprovalsRsp {
+    repeated Incident pending = 1;
+}
+
+message StopRequest {}
+message StopResponse {}

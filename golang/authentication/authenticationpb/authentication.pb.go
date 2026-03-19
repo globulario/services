@@ -10,6 +10,7 @@
 package authenticationpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -777,9 +778,10 @@ var File_authentication_proto protoreflect.FileDescriptor
 
 const file_authentication_proto_rawDesc = "" +
 	"\n" +
-	"\x14authentication.proto\x12\x0eauthentication\x1a\x1bgoogle/protobuf/empty.proto\"Z\n" +
-	"\x10AuthenticateRqst\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\x14authentication.proto\x12\x0eauthentication\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"i\n" +
+	"\x10AuthenticateRqst\x12!\n" +
+	"\x04name\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\x04name\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x16\n" +
 	"\x06issuer\x18\x03 \x01(\tR\x06issuer\"'\n" +
 	"\x0fAuthenticateRsp\x12\x14\n" +
@@ -792,9 +794,10 @@ const file_authentication_proto_rawDesc = "" +
 	"\x10RefreshTokenRqst\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"'\n" +
 	"\x0fRefreshTokenRsp\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"v\n" +
-	"\x12SetPasswordRequest\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12 \n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\x85\x01\n" +
+	"\x12SetPasswordRequest\x12+\n" +
+	"\taccountId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\x12 \n" +
 	"\voldPassword\x18\x02 \x01(\tR\voldPassword\x12 \n" +
 	"\vnewPassword\x18\x03 \x01(\tR\vnewPassword\"+\n" +
 	"\x13SetPasswordResponse\x12\x14\n" +
@@ -808,25 +811,36 @@ const file_authentication_proto_rawDesc = "" +
 	"\boldEmail\x18\x01 \x01(\tR\boldEmail\x12\x1a\n" +
 	"\bnewEmail\x18\x02 \x01(\tR\bnewEmail\",\n" +
 	"\x14SetRootEmailResponse\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\",\n" +
-	"\x18GeneratePeerTokenRequest\x12\x10\n" +
-	"\x03mac\x18\x02 \x01(\tR\x03mac\"1\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"8\n" +
+	"\x18GeneratePeerTokenRequest\x12\x1c\n" +
+	"\x03mac\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04peerR\x03mac\"1\n" +
 	"\x19GeneratePeerTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"\x8a\x01\n" +
 	"\x1eIssueClientCertificateResponse\x12\x1c\n" +
 	"\n" +
 	"ca_crt_pem\x18\x01 \x01(\fR\bcaCrtPem\x12$\n" +
 	"\x0eclient_crt_pem\x18\x02 \x01(\fR\fclientCrtPem\x12$\n" +
-	"\x0eclient_key_pem\x18\x03 \x01(\fR\fclientKeyPem2\xf6\x05\n" +
-	"\x15AuthenticationService\x12Q\n" +
-	"\fAuthenticate\x12 .authentication.AuthenticateRqst\x1a\x1f.authentication.AuthenticateRsp\x12T\n" +
-	"\rValidateToken\x12!.authentication.ValidateTokenRqst\x1a .authentication.ValidateTokenRsp\x12Q\n" +
-	"\fRefreshToken\x12 .authentication.RefreshTokenRqst\x1a\x1f.authentication.RefreshTokenRsp\x12h\n" +
-	"\x11GeneratePeerToken\x12(.authentication.GeneratePeerTokenRequest\x1a).authentication.GeneratePeerTokenResponse\x12V\n" +
-	"\vSetPassword\x12\".authentication.SetPasswordRequest\x1a#.authentication.SetPasswordResponse\x12b\n" +
-	"\x0fSetRootPassword\x12&.authentication.SetRootPasswordRequest\x1a'.authentication.SetRootPasswordResponse\x12Y\n" +
-	"\fSetRootEmail\x12#.authentication.SetRootEmailRequest\x1a$.authentication.SetRootEmailResponse\x12`\n" +
-	"\x16IssueClientCertificate\x12\x16.google.protobuf.Empty\x1a..authentication.IssueClientCertificateResponseBGZEgithub.com/globulario/services/golang/authentication/authenticationpbb\x06proto3"
+	"\x0eclient_key_pem\x18\x03 \x01(\fR\fclientKeyPem2\x9c\n" +
+	"\n" +
+	"\x15AuthenticationService\x12\x99\x01\n" +
+	"\fAuthenticate\x12 .authentication.AuthenticateRqst\x1a\x1f.authentication.AuthenticateRsp\"F\x82\xb5\x18B\n" +
+	"\x11auth.authenticate\x12\x04read\x1a\x1f/authentication/accounts/{name}*\x06viewer\x12\x95\x01\n" +
+	"\rValidateToken\x12!.authentication.ValidateTokenRqst\x1a .authentication.ValidateTokenRsp\"?\x82\xb5\x18;\n" +
+	"\x13auth.token.validate\x12\x04read\x1a\x16/authentication/tokens*\x06viewer\x12\x91\x01\n" +
+	"\fRefreshToken\x12 .authentication.RefreshTokenRqst\x1a\x1f.authentication.RefreshTokenRsp\">\x82\xb5\x18:\n" +
+	"\x12auth.token.refresh\x12\x04read\x1a\x16/authentication/tokens*\x06viewer\x12\xab\x01\n" +
+	"\x11GeneratePeerToken\x12(.authentication.GeneratePeerTokenRequest\x1a).authentication.GeneratePeerTokenResponse\"A\x82\xb5\x18=\n" +
+	"\x0fauth.peer.token\x12\x05write\x1a\x1b/authentication/peers/{mac}*\x06editor\x12\xa4\x01\n" +
+	"\vSetPassword\x12\".authentication.SetPasswordRequest\x1a#.authentication.SetPasswordResponse\"L\x82\xb5\x18H\n" +
+	"\x11auth.password.set\x12\x05write\x1a$/authentication/accounts/{accountId}*\x06editor\x12\xa0\x01\n" +
+	"\x0fSetRootPassword\x12&.authentication.SetRootPasswordRequest\x1a'.authentication.SetRootPasswordResponse\"<\x82\xb5\x188\n" +
+	"\x12auth.root.password\x12\x05admin\x1a\x14/authentication/root*\x05admin\x12\x94\x01\n" +
+	"\fSetRootEmail\x12#.authentication.SetRootEmailRequest\x1a$.authentication.SetRootEmailResponse\"9\x82\xb5\x185\n" +
+	"\x0fauth.root.email\x12\x05admin\x1a\x14/authentication/root*\x05admin\x12\xab\x01\n" +
+	"\x16IssueClientCertificate\x12\x16.google.protobuf.Empty\x1a..authentication.IssueClientCertificateResponse\"I\x82\xb5\x18E\n" +
+	"\x16auth.certificate.issue\x12\x05write\x1a\x1c/authentication/certificates*\x06editorBGZEgithub.com/globulario/services/golang/authentication/authenticationpbb\x06proto3"
 
 var (
 	file_authentication_proto_rawDescOnce sync.Once

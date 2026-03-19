@@ -7,6 +7,7 @@
 package resourcepb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -8806,7 +8807,7 @@ var File_resource_proto protoreflect.FileDescriptor
 
 const file_resource_proto_rawDesc = "" +
 	"\n" +
-	"\x0eresource.proto\x12\bresource\"\x8c\x02\n" +
+	"\x0eresource.proto\x12\bresource\x1a\x13globular_auth.proto\"\x8c\x02\n" +
 	"\rPackageBundle\x12I\n" +
 	"\x11packageDescriptor\x18\x01 \x01(\v2\x1b.resource.PackageDescriptorR\x11packageDescriptor\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x18\n" +
@@ -8819,13 +8820,15 @@ const file_resource_proto_rawDesc = "" +
 	"\x17SetPackageBundleRequest\x12/\n" +
 	"\x06bundle\x18\x01 \x01(\v2\x17.resource.PackageBundleR\x06bundle\"2\n" +
 	"\x18SetPackageBundleResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"1\n" +
-	"\x1fGetPackageBundleChecksumRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\">\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
+	"\x1fGetPackageBundleChecksumRequest\x12\x1d\n" +
+	"\x02id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\apackageR\x02id\">\n" +
 	" GetPackageBundleChecksumResponse\x12\x1a\n" +
-	"\bchecksum\x18\x01 \x01(\tR\bchecksum\"=\n" +
-	"\x18GetPackageBundlesRequest\x12!\n" +
-	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\"N\n" +
+	"\bchecksum\x18\x01 \x01(\tR\bchecksum\"L\n" +
+	"\x18GetPackageBundlesRequest\x120\n" +
+	"\fpublisher_id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\vpublisherId\"N\n" +
 	"\x19GetPackageBundlesResponse\x121\n" +
 	"\abundles\x18\x01 \x03(\v2\x17.resource.PackageBundleR\abundles\"\xf4\x03\n" +
 	"\x11PackageDescriptor\x12\x0e\n" +
@@ -8845,10 +8848,12 @@ const file_resource_proto_rawDesc = "" +
 	"\x04icon\x18\x0e \x01(\tR\x04icon\x12\x14\n" +
 	"\x05alias\x18\x0f \x01(\tR\x05alias\x12\x1a\n" +
 	"\btypeName\x18\x10 \x01(\tR\btypeName\x12!\n" +
-	"\fbuild_number\x18\x11 \x01(\x03R\vbuildNumber\"]\n" +
-	"\x1bGetPackageDescriptorRequest\x12\x1c\n" +
-	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12 \n" +
-	"\vPublisherID\x18\x02 \x01(\tR\vPublisherID\"U\n" +
+	"\fbuild_number\x18\x11 \x01(\x03R\vbuildNumber\"}\n" +
+	"\x1bGetPackageDescriptorRequest\x12-\n" +
+	"\tserviceId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\apackage\x10\x01R\tserviceId\x12/\n" +
+	"\vPublisherID\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\vPublisherID\"U\n" +
 	"\x1cGetPackageDescriptorResponse\x125\n" +
 	"\aresults\x18\x01 \x03(\v2\x1b.resource.PackageDescriptorR\aresults\"N\n" +
 	"\x1cGetPackagesDescriptorRequest\x12\x14\n" +
@@ -8873,14 +8878,16 @@ const file_resource_proto_rawDesc = "" +
 	"\baccounts\x18\x06 \x03(\tR\baccounts\x12$\n" +
 	"\rorganizations\x18\a \x03(\tR\rorganizations\x12\x16\n" +
 	"\x06groups\x18\b \x03(\tR\x06groups\x12\x1a\n" +
-	"\btypeName\x18\t \x01(\tR\btypeName\"F\n" +
-	"\x12AddRoleActionsRqst\x12\x16\n" +
-	"\x06roleId\x18\x01 \x01(\tR\x06roleId\x12\x18\n" +
+	"\btypeName\x18\t \x01(\tR\btypeName\"T\n" +
+	"\x12AddRoleActionsRqst\x12$\n" +
+	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04role\x10\x01R\x06roleId\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions\"+\n" +
 	"\x11AddRoleActionsRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"F\n" +
-	"\x14RemoveRoleActionRqst\x12\x16\n" +
-	"\x06roleId\x18\x01 \x01(\tR\x06roleId\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"T\n" +
+	"\x14RemoveRoleActionRqst\x12$\n" +
+	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04role\x10\x01R\x06roleId\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\"-\n" +
 	"\x13RemoveRoleActionRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
@@ -8908,45 +8915,56 @@ const file_resource_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\v2\x11.resource.AccountR\aaccount\x12)\n" +
 	"\x10confirm_password\x18\x02 \x01(\tR\x0fconfirmPassword\",\n" +
 	"\x12RegisterAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"\"\n" +
-	"\x10AccountExistRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\")\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"3\n" +
+	"\x10AccountExistRqst\x12\x1f\n" +
+	"\x02id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\x02id\")\n" +
 	"\x0fAccountExistRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"A\n" +
 	"\x0fGetAccountsRqst\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"?\n" +
 	"\x0eGetAccountsRsp\x12-\n" +
-	"\baccounts\x18\x01 \x03(\v2\x11.resource.AccountR\baccounts\".\n" +
-	"\x0eGetAccountRqst\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\"<\n" +
+	"\baccounts\x18\x01 \x03(\v2\x11.resource.AccountR\baccounts\"?\n" +
+	"\x0eGetAccountRqst\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\"<\n" +
 	"\rGetAccountRsp\x12+\n" +
 	"\aaccount\x18\x01 \x01(\v2\x11.resource.AccountR\aaccount\"=\n" +
 	"\x0eSetAccountRqst\x12+\n" +
 	"\aaccount\x18\x01 \x01(\v2\x11.resource.AccountR\aaccount\"\x0f\n" +
-	"\rSetAccountRsp\"|\n" +
-	"\x16SetAccountPasswordRqst\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12!\n" +
+	"\rSetAccountRsp\"\x8d\x01\n" +
+	"\x16SetAccountPasswordRqst\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12!\n" +
 	"\fold_password\x18\x02 \x01(\tR\voldPassword\x12!\n" +
 	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"\x17\n" +
-	"\x15SetAccountPasswordRsp\"g\n" +
-	"\x0fSetEmailRequest\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +
+	"\x15SetAccountPasswordRsp\"x\n" +
+	"\x0fSetEmailRequest\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12\x1a\n" +
 	"\boldEmail\x18\x02 \x01(\tR\boldEmail\x12\x1a\n" +
 	"\bnewEmail\x18\x03 \x01(\tR\bnewEmail\"\x12\n" +
-	"\x10SetEmailResponse\"#\n" +
-	"\x11DeleteAccountRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"*\n" +
+	"\x10SetEmailResponse\"4\n" +
+	"\x11DeleteAccountRqst\x12\x1f\n" +
+	"\x02id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\x02id\"*\n" +
 	"\x10DeleteAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"J\n" +
-	"\x12AddAccountRoleRqst\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\"+\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"g\n" +
+	"\x12AddAccountRoleRqst\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\"+\n" +
 	"\x11AddAccountRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"M\n" +
-	"\x15RemoveAccountRoleRqst\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\".\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"j\n" +
+	"\x15RemoveAccountRoleRqst\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\".\n" +
 	"\x14RemoveAccountRoleRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x9d\x01\n" +
 	"\aContact\x12\x0e\n" +
@@ -8954,18 +8972,20 @@ const file_resource_proto_rawDesc = "" +
 	"\x0einvitationTime\x18\x02 \x01(\x03R\x0einvitationTime\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\tR\x06status\x12\x1a\n" +
 	"\bringtone\x18\x04 \x01(\tR\bringtone\x12&\n" +
-	"\x0eprofilePicture\x18\x05 \x01(\tR\x0eprofilePicture\"b\n" +
-	"\x15SetAccountContactRqst\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\x12+\n" +
+	"\x0eprofilePicture\x18\x05 \x01(\tR\x0eprofilePicture\"s\n" +
+	"\x15SetAccountContactRqst\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12+\n" +
 	"\acontact\x18\x02 \x01(\v2\x11.resource.ContactR\acontact\".\n" +
 	"\x14SetAccountContactRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
 	"\x0eCreateRoleRqst\x12\"\n" +
 	"\x04role\x18\x01 \x01(\v2\x0e.resource.RoleR\x04role\"'\n" +
 	"\rCreateRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\x0eUpdateRoleRqst\x12\x16\n" +
-	"\x06roleId\x18\x01 \x01(\tR\x06roleId\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"N\n" +
+	"\x0eUpdateRoleRqst\x12$\n" +
+	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04role\x10\x01R\x06roleId\x12\x16\n" +
 	"\x06values\x18\x02 \x01(\tR\x06values\"'\n" +
 	"\rUpdateRoleRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\">\n" +
@@ -8973,9 +8993,10 @@ const file_resource_proto_rawDesc = "" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"3\n" +
 	"\vGetRolesRsp\x12$\n" +
-	"\x05roles\x18\x01 \x03(\v2\x0e.resource.RoleR\x05roles\"(\n" +
-	"\x0eDeleteRoleRqst\x12\x16\n" +
-	"\x06roleId\x18\x01 \x01(\tR\x06roleId\"'\n" +
+	"\x05roles\x18\x01 \x03(\v2\x0e.resource.RoleR\x05roles\"6\n" +
+	"\x0eDeleteRoleRqst\x12$\n" +
+	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04role\x10\x01R\x06roleId\"'\n" +
 	"\rDeleteRoleRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x9d\x03\n" +
 	"\vApplication\x12\x0e\n" +
@@ -8997,23 +9018,27 @@ const file_resource_proto_rawDesc = "" +
 	"\btypeName\x18\x0f \x01(\tR\btypeName\"P\n" +
 	"\x15CreateApplicationRqst\x127\n" +
 	"\vapplication\x18\x01 \x01(\v2\x15.resource.ApplicationR\vapplication\"\x16\n" +
-	"\x14CreateApplicationRsp\"U\n" +
-	"\x15UpdateApplicationRqst\x12$\n" +
-	"\rapplicationId\x18\x01 \x01(\tR\rapplicationId\x12\x16\n" +
+	"\x14CreateApplicationRsp\"j\n" +
+	"\x15UpdateApplicationRqst\x129\n" +
+	"\rapplicationId\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\rapplicationId\x12\x16\n" +
 	"\x06values\x18\x02 \x01(\tR\x06values\".\n" +
 	"\x14UpdateApplicationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"=\n" +
-	"\x15DeleteApplicationRqst\x12$\n" +
-	"\rapplicationId\x18\x01 \x01(\tR\rapplicationId\".\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"R\n" +
+	"\x15DeleteApplicationRqst\x129\n" +
+	"\rapplicationId\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\rapplicationId\".\n" +
 	"\x14DeleteApplicationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"[\n" +
-	"\x19AddApplicationActionsRqst\x12$\n" +
-	"\rapplicationId\x18\x01 \x01(\tR\rapplicationId\x12\x18\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"p\n" +
+	"\x19AddApplicationActionsRqst\x129\n" +
+	"\rapplicationId\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\rapplicationId\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions\"2\n" +
 	"\x18AddApplicationActionsRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"[\n" +
-	"\x1bRemoveApplicationActionRqst\x12$\n" +
-	"\rapplicationId\x18\x01 \x01(\tR\rapplicationId\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"p\n" +
+	"\x1bRemoveApplicationActionRqst\x129\n" +
+	"\rapplicationId\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\rapplicationId\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\"4\n" +
 	"\x1aRemoveApplicationActionRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"6\n" +
@@ -9025,17 +9050,20 @@ const file_resource_proto_rawDesc = "" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"O\n" +
 	"\x12GetApplicationsRsp\x129\n" +
-	"\fapplications\x18\x01 \x03(\v2\x15.resource.ApplicationR\fapplications\"+\n" +
-	"\x19GetApplicationVersionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"4\n" +
+	"\fapplications\x18\x01 \x03(\v2\x15.resource.ApplicationR\fapplications\"@\n" +
+	"\x19GetApplicationVersionRqst\x12#\n" +
+	"\x02id\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\x02id\"4\n" +
 	"\x18GetApplicationVersionRsp\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion\"(\n" +
-	"\x16GetApplicationIconRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"+\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\"=\n" +
+	"\x16GetApplicationIconRqst\x12#\n" +
+	"\x02id\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\x02id\"+\n" +
 	"\x15GetApplicationIconRsp\x12\x12\n" +
-	"\x04icon\x18\x01 \x01(\tR\x04icon\")\n" +
-	"\x17GetApplicationAliasRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\".\n" +
+	"\x04icon\x18\x01 \x01(\tR\x04icon\">\n" +
+	"\x17GetApplicationAliasRqst\x12#\n" +
+	"\x02id\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\vapplication\x10\x01R\x02id\".\n" +
 	"\x16GetApplicationAliasRsp\x12\x14\n" +
 	"\x05alias\x18\x01 \x01(\tR\x05alias\"\xed\x01\n" +
 	"\x05Group\x12\x0e\n" +
@@ -9051,9 +9079,10 @@ const file_resource_proto_rawDesc = "" +
 	"\x0fCreateGroupRqst\x12%\n" +
 	"\x05group\x18\x01 \x01(\v2\x0f.resource.GroupR\x05group\"(\n" +
 	"\x0eCreateGroupRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"C\n" +
-	"\x0fUpdateGroupRqst\x12\x18\n" +
-	"\agroupId\x18\x01 \x01(\tR\agroupId\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"R\n" +
+	"\x0fUpdateGroupRqst\x12'\n" +
+	"\agroupId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\agroupId\x12\x16\n" +
 	"\x06values\x18\x02 \x01(\tR\x06values\"(\n" +
 	"\x0eUpdateGroupRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"?\n" +
@@ -9061,29 +9090,40 @@ const file_resource_proto_rawDesc = "" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"7\n" +
 	"\fGetGroupsRsp\x12'\n" +
-	"\x06groups\x18\x01 \x03(\v2\x0f.resource.GroupR\x06groups\"'\n" +
-	"\x0fDeleteGroupRqst\x12\x14\n" +
-	"\x05group\x18\x01 \x01(\tR\x05group\"(\n" +
+	"\x06groups\x18\x01 \x03(\v2\x0f.resource.GroupR\x06groups\"6\n" +
+	"\x0fDeleteGroupRqst\x12#\n" +
+	"\x05group\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\x05group\"(\n" +
 	"\x0eDeleteGroupRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"S\n" +
-	"\x19AddGroupMemberAccountRqst\x12\x18\n" +
-	"\agroupId\x18\x01 \x01(\tR\agroupId\x12\x1c\n" +
-	"\taccountId\x18\x02 \x01(\tR\taccountId\"2\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"q\n" +
+	"\x19AddGroupMemberAccountRqst\x12'\n" +
+	"\agroupId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\agroupId\x12+\n" +
+	"\taccountId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\"2\n" +
 	"\x18AddGroupMemberAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"V\n" +
-	"\x1cRemoveGroupMemberAccountRqst\x12\x18\n" +
-	"\agroupId\x18\x01 \x01(\tR\agroupId\x12\x1c\n" +
-	"\taccountId\x18\x02 \x01(\tR\taccountId\"5\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"t\n" +
+	"\x1cRemoveGroupMemberAccountRqst\x12'\n" +
+	"\agroupId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\agroupId\x12+\n" +
+	"\taccountId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\"5\n" +
 	"\x1bRemoveGroupMemberAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"D\n" +
-	"\x10AddGroupRoleRqst\x12\x18\n" +
-	"\agroupId\x18\x01 \x01(\tR\agroupId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\")\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"_\n" +
+	"\x10AddGroupRoleRqst\x12'\n" +
+	"\agroupId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\agroupId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\")\n" +
 	"\x0fAddGroupRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"G\n" +
-	"\x13RemoveGroupRoleRqst\x12\x18\n" +
-	"\agroupId\x18\x01 \x01(\tR\agroupId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\",\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"b\n" +
+	"\x13RemoveGroupRoleRqst\x12'\n" +
+	"\agroupId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05group\x10\x01R\agroupId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\",\n" +
 	"\x12RemoveGroupRoleRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\xa0\x02\n" +
 	"\fOrganization\x12\x0e\n" +
@@ -9102,9 +9142,10 @@ const file_resource_proto_rawDesc = "" +
 	"\x16CreateOrganizationRqst\x12:\n" +
 	"\forganization\x18\x01 \x01(\v2\x16.resource.OrganizationR\forganization\"/\n" +
 	"\x15CreateOrganizationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"X\n" +
-	"\x16UpdateOrganizationRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"n\n" +
+	"\x16UpdateOrganizationRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12\x16\n" +
 	"\x06values\x18\x02 \x01(\tR\x06values\"/\n" +
 	"\x15UpdateOrganizationRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"F\n" +
@@ -9112,54 +9153,75 @@ const file_resource_proto_rawDesc = "" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"S\n" +
 	"\x13GetOrganizationsRsp\x12<\n" +
-	"\rorganizations\x18\x01 \x03(\v2\x16.resource.OrganizationR\rorganizations\"b\n" +
-	"\x1aAddOrganizationAccountRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x1c\n" +
-	"\taccountId\x18\x02 \x01(\tR\taccountId\"3\n" +
+	"\rorganizations\x18\x01 \x03(\v2\x16.resource.OrganizationR\rorganizations\"\x87\x01\n" +
+	"\x1aAddOrganizationAccountRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12+\n" +
+	"\taccountId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\"3\n" +
 	"\x19AddOrganizationAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\\\n" +
-	"\x18AddOrganizationGroupRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x18\n" +
-	"\agroupId\x18\x02 \x01(\tR\agroupId\"1\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x7f\n" +
+	"\x18AddOrganizationGroupRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12%\n" +
+	"\agroupId\x18\x02 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05groupR\agroupId\"1\n" +
 	"\x17AddOrganizationGroupRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"Y\n" +
-	"\x17AddOrganizationRoleRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\"0\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"{\n" +
+	"\x17AddOrganizationRoleRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\"0\n" +
 	"\x16AddOrganizationRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"n\n" +
-	"\x1eAddOrganizationApplicationRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12$\n" +
-	"\rapplicationId\x18\x02 \x01(\tR\rapplicationId\"7\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x97\x01\n" +
+	"\x1eAddOrganizationApplicationRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x127\n" +
+	"\rapplicationId\x18\x02 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\vapplicationR\rapplicationId\"7\n" +
 	"\x1dAddOrganizationApplicationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"_\n" +
-	"\x1bRemoveOrganizationGroupRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x18\n" +
-	"\agroupId\x18\x02 \x01(\tR\agroupId\"4\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x82\x01\n" +
+	"\x1bRemoveOrganizationGroupRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12%\n" +
+	"\agroupId\x18\x02 \x01(\tB\v\x8a\xb5\x18\a\n" +
+	"\x05groupR\agroupId\"4\n" +
 	"\x1aRemoveOrganizationGroupRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\\\n" +
-	"\x1aRemoveOrganizationRoleRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
-	"\x06roleId\x18\x02 \x01(\tR\x06roleId\"3\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"~\n" +
+	"\x1aRemoveOrganizationRoleRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12\"\n" +
+	"\x06roleId\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04roleR\x06roleId\"3\n" +
 	"\x19RemoveOrganizationRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"q\n" +
-	"!RemoveOrganizationApplicationRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12$\n" +
-	"\rapplicationId\x18\x02 \x01(\tR\rapplicationId\":\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x9a\x01\n" +
+	"!RemoveOrganizationApplicationRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x127\n" +
+	"\rapplicationId\x18\x02 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\vapplicationR\rapplicationId\":\n" +
 	" RemoveOrganizationApplicationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"e\n" +
-	"\x1dRemoveOrganizationAccountRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x1c\n" +
-	"\taccountId\x18\x02 \x01(\tR\taccountId\"6\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x8a\x01\n" +
+	"\x1dRemoveOrganizationAccountRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12+\n" +
+	"\taccountId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\"6\n" +
 	"\x1cRemoveOrganizationAccountRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"a\n" +
-	"\x19IsOrgnanizationMemberRqst\x12&\n" +
-	"\x0eorganizationId\x18\x01 \x01(\tR\x0eorganizationId\x12\x1c\n" +
-	"\taccountId\x18\x02 \x01(\tR\taccountId\"2\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x86\x01\n" +
+	"\x19IsOrgnanizationMemberRqst\x12<\n" +
+	"\x0eorganizationId\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\x0eorganizationId\x12+\n" +
+	"\taccountId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aaccountR\taccountId\"2\n" +
 	"\x18IsOrgnanizationMemberRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"<\n" +
-	"\x16DeleteOrganizationRqst\x12\"\n" +
-	"\forganization\x18\x01 \x01(\tR\forganization\"/\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"R\n" +
+	"\x16DeleteOrganizationRqst\x128\n" +
+	"\forganization\x18\x01 \x01(\tB\x14\x8a\xb5\x18\x10\n" +
+	"\forganization\x10\x01R\forganization\"/\n" +
 	"\x15DeleteOrganizationRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\xc2\x04\n" +
 	"\fNodeIdentity\x12\x17\n" +
@@ -9188,18 +9250,20 @@ const file_resource_proto_rawDesc = "" +
 	"\x16UpsertNodeIdentityRqst\x12*\n" +
 	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\"C\n" +
 	"\x15UpsertNodeIdentityRsp\x12*\n" +
-	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\".\n" +
-	"\x13GetNodeIdentityRqst\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"@\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\"<\n" +
+	"\x13GetNodeIdentityRqst\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"@\n" +
 	"\x12GetNodeIdentityRsp\x12*\n" +
 	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\"H\n" +
 	"\x16ListNodeIdentitiesRqst\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"E\n" +
 	"\x15ListNodeIdentitiesRsp\x12,\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x16.resource.NodeIdentityR\x05nodes\"O\n" +
-	"\x1aSetNodeIdentityEnabledRqst\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x16.resource.NodeIdentityR\x05nodes\"]\n" +
+	"\x1aSetNodeIdentityEnabledRqst\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\"3\n" +
 	"\x19SetNodeIdentityEnabledRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x9e\x01\n" +
@@ -9209,24 +9273,27 @@ const file_resource_proto_rawDesc = "" +
 	"\x06callee\x18\x03 \x01(\tR\x06callee\x12\x1c\n" +
 	"\tstartTime\x18\x04 \x01(\x03R\tstartTime\x12\x18\n" +
 	"\aendTime\x18\x05 \x01(\x03R\aendTime\x12\x1a\n" +
-	"\btypeName\x18\x06 \x01(\tR\btypeName\"3\n" +
-	"\x12GetCallHistoryRqst\x12\x1d\n" +
+	"\btypeName\x18\x06 \x01(\tR\btypeName\"D\n" +
+	"\x12GetCallHistoryRqst\x12.\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"9\n" +
+	"account_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\"9\n" +
 	"\x11GetCallHistoryRsp\x12$\n" +
 	"\x05calls\x18\x01 \x03(\v2\x0e.resource.CallR\x05calls\"1\n" +
 	"\vSetCallRqst\x12\"\n" +
 	"\x04call\x18\x01 \x01(\v2\x0e.resource.CallR\x04call\"\f\n" +
 	"\n" +
-	"SetCallRsp\"C\n" +
-	"\x0eDeleteCallRqst\x12\x1d\n" +
+	"SetCallRsp\"T\n" +
+	"\x0eDeleteCallRqst\x12.\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
+	"account_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12\x12\n" +
 	"\x04uuid\x18\x02 \x01(\tR\x04uuid\"\x0f\n" +
-	"\rDeleteCallRsp\"G\n" +
-	"\x0eClearCallsRqst\x12\x1d\n" +
+	"\rDeleteCallRsp\"X\n" +
+	"\x0eClearCallsRqst\x12.\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12\x16\n" +
+	"account_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\x12\x16\n" +
 	"\x06filter\x18\x02 \x01(\tR\x06filter\"\x0f\n" +
 	"\rClearCallsRsp\"\xf9\x01\n" +
 	"\fNotification\x12\x0e\n" +
@@ -9240,20 +9307,25 @@ const file_resource_proto_rawDesc = "" +
 	"\btypeName\x18\b \x01(\tR\btypeName\"T\n" +
 	"\x16CreateNotificationRqst\x12:\n" +
 	"\fnotification\x18\x01 \x01(\v2\x16.resource.NotificationR\fnotification\"\x17\n" +
-	"\x15CreateNotificationRsp\"4\n" +
-	"\x14GetNotificationsRqst\x12\x1c\n" +
-	"\trecipient\x18\x01 \x01(\tR\trecipient\"S\n" +
+	"\x15CreateNotificationRsp\"E\n" +
+	"\x14GetNotificationsRqst\x12-\n" +
+	"\trecipient\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\trecipient\"S\n" +
 	"\x13GetNotificationsRsp\x12<\n" +
-	"\rnotifications\x18\x01 \x03(\v2\x16.resource.NotificationR\rnotifications\"F\n" +
-	"\x16DeleteNotificationRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
-	"\trecipient\x18\x02 \x01(\tR\trecipient\"\x17\n" +
-	"\x15DeleteNotificationRsp\"9\n" +
-	"\x19ClearAllNotificationsRqst\x12\x1c\n" +
-	"\trecipient\x18\x01 \x01(\tR\trecipient\"\x1a\n" +
-	"\x18ClearAllNotificationsRsp\"\x85\x01\n" +
-	"\x1cClearNotificationsByTypeRqst\x12\x1c\n" +
-	"\trecipient\x18\x01 \x01(\tR\trecipient\x12G\n" +
+	"\rnotifications\x18\x01 \x03(\v2\x16.resource.NotificationR\rnotifications\"k\n" +
+	"\x16DeleteNotificationRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fnotificationR\x02id\x12-\n" +
+	"\trecipient\x18\x02 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\trecipient\"\x17\n" +
+	"\x15DeleteNotificationRsp\"J\n" +
+	"\x19ClearAllNotificationsRqst\x12-\n" +
+	"\trecipient\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\trecipient\"\x1a\n" +
+	"\x18ClearAllNotificationsRsp\"\x96\x01\n" +
+	"\x1cClearNotificationsByTypeRqst\x12-\n" +
+	"\trecipient\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\trecipient\x12G\n" +
 	"\x11notification_type\x18\x02 \x01(\x0e2\x1a.resource.NotificationTypeR\x10notificationType\"\x1d\n" +
 	"\x1bClearNotificationsByTypeRsp\"\xb6\x01\n" +
 	"\aSession\x12\x1c\n" +
@@ -9264,29 +9336,35 @@ const file_resource_proto_rawDesc = "" +
 	"\btypeName\x18\x05 \x01(\tR\btypeName\"C\n" +
 	"\x14UpdateSessionRequest\x12+\n" +
 	"\asession\x18\x01 \x01(\v2\x11.resource.SessionR\asession\"\x17\n" +
-	"\x15UpdateSessionResponse\"4\n" +
-	"\x14RemoveSessionRequest\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\"\x17\n" +
+	"\x15UpdateSessionResponse\"E\n" +
+	"\x14RemoveSessionRequest\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\"\x17\n" +
 	"\x15RemoveSessionResponse\"D\n" +
 	"\x12GetSessionsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x02 \x01(\tR\aoptions\"D\n" +
 	"\x13GetSessionsResponse\x12-\n" +
-	"\bsessions\x18\x01 \x03(\v2\x11.resource.SessionR\bsessions\"1\n" +
-	"\x11GetSessionRequest\x12\x1c\n" +
-	"\taccountId\x18\x01 \x01(\tR\taccountId\"A\n" +
+	"\bsessions\x18\x01 \x03(\v2\x11.resource.SessionR\bsessions\"B\n" +
+	"\x11GetSessionRequest\x12-\n" +
+	"\taccountId\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aaccount\x10\x01R\taccountId\"A\n" +
 	"\x12GetSessionResponse\x12+\n" +
-	"\asession\x18\x01 \x01(\v2\x11.resource.SessionR\asession\"\xc3\x01\n" +
-	"\x13CreateReferenceRqst\x12\x1a\n" +
-	"\bsourceId\x18\x01 \x01(\tR\bsourceId\x12*\n" +
+	"\asession\x18\x01 \x01(\v2\x11.resource.SessionR\asession\"\xe7\x01\n" +
+	"\x13CreateReferenceRqst\x12-\n" +
+	"\bsourceId\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\treference\x10\x01R\bsourceId\x12*\n" +
 	"\x10sourceCollection\x18\x02 \x01(\tR\x10sourceCollection\x12\x1c\n" +
-	"\tfieldName\x18\x03 \x01(\tR\tfieldName\x12\x1a\n" +
-	"\btargetId\x18\x04 \x01(\tR\btargetId\x12*\n" +
+	"\tfieldName\x18\x03 \x01(\tR\tfieldName\x12+\n" +
+	"\btargetId\x18\x04 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\treferenceR\btargetId\x12*\n" +
 	"\x10targetCollection\x18\x05 \x01(\tR\x10targetCollection\"\x14\n" +
-	"\x12CreateReferenceRsp\"\x95\x01\n" +
-	"\x13DeleteReferenceRqst\x12\x14\n" +
-	"\x05refId\x18\x01 \x01(\tR\x05refId\x12\x1a\n" +
-	"\btargetId\x18\x02 \x01(\tR\btargetId\x12 \n" +
+	"\x12CreateReferenceRsp\"\xb9\x01\n" +
+	"\x13DeleteReferenceRqst\x12'\n" +
+	"\x05refId\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\treference\x10\x01R\x05refId\x12+\n" +
+	"\btargetId\x18\x02 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\treferenceR\btargetId\x12 \n" +
 	"\vtargetField\x18\x03 \x01(\tR\vtargetField\x12*\n" +
 	"\x10targetCollection\x18\x04 \x01(\tR\x10targetCollection\"\x14\n" +
 	"\x12DeleteReferenceRsp\"\x1d\n" +
@@ -9297,9 +9375,10 @@ const file_resource_proto_rawDesc = "" +
 	"\x11allow_all_origins\x18\x03 \x01(\bR\x0fallowAllOrigins\x12'\n" +
 	"\x0fallowed_origins\x18\x04 \x01(\tR\x0eallowedOrigins\"U\n" +
 	"\x1aGetServicesCorsPoliciesRsp\x127\n" +
-	"\bpolicies\x18\x01 \x03(\v2\x1b.resource.ServiceCorsPolicyR\bpolicies\"\x7f\n" +
-	"\x18SetServiceCorsPolicyRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12*\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x1b.resource.ServiceCorsPolicyR\bpolicies\"\x90\x01\n" +
+	"\x18SetServiceCorsPolicyRqst\x12\x1f\n" +
+	"\x02id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\aservice\x10\x01R\x02id\x12*\n" +
 	"\x11allow_all_origins\x18\x02 \x01(\bR\x0fallowAllOrigins\x12'\n" +
 	"\x0fallowed_origins\x18\x03 \x01(\tR\x0eallowedOrigins\"\x19\n" +
 	"\x17SetServiceCorsPolicyRsp*F\n" +
@@ -9315,90 +9394,164 @@ const file_resource_proto_rawDesc = "" +
 	"\n" +
 	"\x06ONLINE\x10\x00\x12\v\n" +
 	"\aOFFLINE\x10\x01\x12\b\n" +
-	"\x04AWAY\x10\x022\x8e2\n" +
-	"\x0fResourceService\x12N\n" +
-	"\x0fCreateReference\x12\x1d.resource.CreateReferenceRqst\x1a\x1c.resource.CreateReferenceRsp\x12N\n" +
-	"\x0fDeleteReference\x12\x1d.resource.DeleteReferenceRqst\x1a\x1c.resource.DeleteReferenceRsp\x12W\n" +
-	"\x12CreateOrganization\x12 .resource.CreateOrganizationRqst\x1a\x1f.resource.CreateOrganizationRsp\x12W\n" +
-	"\x12UpdateOrganization\x12 .resource.UpdateOrganizationRqst\x1a\x1f.resource.UpdateOrganizationRsp\x12S\n" +
-	"\x10GetOrganizations\x12\x1e.resource.GetOrganizationsRqst\x1a\x1d.resource.GetOrganizationsRsp0\x01\x12W\n" +
-	"\x12DeleteOrganization\x12 .resource.DeleteOrganizationRqst\x1a\x1f.resource.DeleteOrganizationRsp\x12c\n" +
-	"\x16AddOrganizationAccount\x12$.resource.AddOrganizationAccountRqst\x1a#.resource.AddOrganizationAccountRsp\x12]\n" +
-	"\x14AddOrganizationGroup\x12\".resource.AddOrganizationGroupRqst\x1a!.resource.AddOrganizationGroupRsp\x12Z\n" +
-	"\x13AddOrganizationRole\x12!.resource.AddOrganizationRoleRqst\x1a .resource.AddOrganizationRoleRsp\x12o\n" +
-	"\x1aAddOrganizationApplication\x12(.resource.AddOrganizationApplicationRqst\x1a'.resource.AddOrganizationApplicationRsp\x12E\n" +
-	"\fAddGroupRole\x12\x1a.resource.AddGroupRoleRqst\x1a\x19.resource.AddGroupRoleRsp\x12N\n" +
-	"\x0fRemoveGroupRole\x12\x1d.resource.RemoveGroupRoleRqst\x1a\x1c.resource.RemoveGroupRoleRsp\x12l\n" +
-	"\x19RemoveOrganizationAccount\x12'.resource.RemoveOrganizationAccountRqst\x1a&.resource.RemoveOrganizationAccountRsp\x12f\n" +
-	"\x17RemoveOrganizationGroup\x12%.resource.RemoveOrganizationGroupRqst\x1a$.resource.RemoveOrganizationGroupRsp\x12c\n" +
-	"\x16RemoveOrganizationRole\x12$.resource.RemoveOrganizationRoleRqst\x1a#.resource.RemoveOrganizationRoleRsp\x12x\n" +
-	"\x1dRemoveOrganizationApplication\x12+.resource.RemoveOrganizationApplicationRqst\x1a*.resource.RemoveOrganizationApplicationRsp\x12B\n" +
-	"\vCreateGroup\x12\x19.resource.CreateGroupRqst\x1a\x18.resource.CreateGroupRsp\x12B\n" +
-	"\vUpdateGroup\x12\x19.resource.UpdateGroupRqst\x1a\x18.resource.UpdateGroupRsp\x12>\n" +
-	"\tGetGroups\x12\x17.resource.GetGroupsRqst\x1a\x16.resource.GetGroupsRsp0\x01\x12B\n" +
-	"\vDeleteGroup\x12\x19.resource.DeleteGroupRqst\x1a\x18.resource.DeleteGroupRsp\x12`\n" +
-	"\x15AddGroupMemberAccount\x12#.resource.AddGroupMemberAccountRqst\x1a\".resource.AddGroupMemberAccountRsp\x12i\n" +
-	"\x18RemoveGroupMemberAccount\x12&.resource.RemoveGroupMemberAccountRqst\x1a%.resource.RemoveGroupMemberAccountRsp\x12N\n" +
-	"\x0fRegisterAccount\x12\x1d.resource.RegisterAccountRqst\x1a\x1c.resource.RegisterAccountRsp\x12H\n" +
-	"\rDeleteAccount\x12\x1b.resource.DeleteAccountRqst\x1a\x1a.resource.DeleteAccountRsp\x12?\n" +
+	"\x04AWAY\x10\x022\xa3^\n" +
+	"\x0fResourceService\x12\x94\x01\n" +
+	"\x0fCreateReference\x12\x1d.resource.CreateReferenceRqst\x1a\x1c.resource.CreateReferenceRsp\"D\x82\xb5\x18@\n" +
+	"\x19resource.reference.create\x12\x05write\"\x14/resource/references*\x06editor\x12\x94\x01\n" +
+	"\x0fDeleteReference\x12\x1d.resource.DeleteReferenceRqst\x1a\x1c.resource.DeleteReferenceRsp\"D\x82\xb5\x18@\n" +
+	"\x19resource.reference.delete\x12\x05write\"\x14/resource/references*\x06editor\x12\xa2\x01\n" +
+	"\x12CreateOrganization\x12 .resource.CreateOrganizationRqst\x1a\x1f.resource.CreateOrganizationRsp\"I\x82\xb5\x18E\n" +
+	"\x1cresource.organization.create\x12\x05admin\"\x17/resource/organizations*\x05admin\x12\xb4\x01\n" +
+	"\x12UpdateOrganization\x12 .resource.UpdateOrganizationRqst\x1a\x1f.resource.UpdateOrganizationRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.update\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\x9c\x01\n" +
+	"\x10GetOrganizations\x12\x1e.resource.GetOrganizationsRqst\x1a\x1d.resource.GetOrganizationsRsp\"G\x82\xb5\x18C\n" +
+	"\x1aresource.organization.list\x12\x04read\"\x17/resource/organizations*\x06viewer0\x01\x12\xb1\x01\n" +
+	"\x12DeleteOrganization\x12 .resource.DeleteOrganizationRqst\x1a\x1f.resource.DeleteOrganizationRsp\"X\x82\xb5\x18T\n" +
+	"\x1cresource.organization.delete\x12\x05admin\x1a&/resource/organizations/{organization}*\x05admin\x12\xc0\x01\n" +
+	"\x16AddOrganizationAccount\x12$.resource.AddOrganizationAccountRqst\x1a#.resource.AddOrganizationAccountRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xba\x01\n" +
+	"\x14AddOrganizationGroup\x12\".resource.AddOrganizationGroupRqst\x1a!.resource.AddOrganizationGroupRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xb7\x01\n" +
+	"\x13AddOrganizationRole\x12!.resource.AddOrganizationRoleRqst\x1a .resource.AddOrganizationRoleRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xcc\x01\n" +
+	"\x1aAddOrganizationApplication\x12(.resource.AddOrganizationApplicationRqst\x1a'.resource.AddOrganizationApplicationRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\x8d\x01\n" +
+	"\fAddGroupRole\x12\x1a.resource.AddGroupRoleRqst\x1a\x19.resource.AddGroupRoleRsp\"F\x82\xb5\x18B\n" +
+	"\x15resource.group.manage\x12\x05write\x1a\x1a/resource/groups/{groupId}*\x06editor\x12\x96\x01\n" +
+	"\x0fRemoveGroupRole\x12\x1d.resource.RemoveGroupRoleRqst\x1a\x1c.resource.RemoveGroupRoleRsp\"F\x82\xb5\x18B\n" +
+	"\x15resource.group.manage\x12\x05write\x1a\x1a/resource/groups/{groupId}*\x06editor\x12\xc9\x01\n" +
+	"\x19RemoveOrganizationAccount\x12'.resource.RemoveOrganizationAccountRqst\x1a&.resource.RemoveOrganizationAccountRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xc3\x01\n" +
+	"\x17RemoveOrganizationGroup\x12%.resource.RemoveOrganizationGroupRqst\x1a$.resource.RemoveOrganizationGroupRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xc0\x01\n" +
+	"\x16RemoveOrganizationRole\x12$.resource.RemoveOrganizationRoleRqst\x1a#.resource.RemoveOrganizationRoleRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\xd5\x01\n" +
+	"\x1dRemoveOrganizationApplication\x12+.resource.RemoveOrganizationApplicationRqst\x1a*.resource.RemoveOrganizationApplicationRsp\"[\x82\xb5\x18W\n" +
+	"\x1cresource.organization.manage\x12\x05write\x1a(/resource/organizations/{organizationId}*\x06editor\x12\x80\x01\n" +
+	"\vCreateGroup\x12\x19.resource.CreateGroupRqst\x1a\x18.resource.CreateGroupRsp\"<\x82\xb5\x188\n" +
+	"\x15resource.group.create\x12\x05write\"\x10/resource/groups*\x06editor\x12\x8a\x01\n" +
+	"\vUpdateGroup\x12\x19.resource.UpdateGroupRqst\x1a\x18.resource.UpdateGroupRsp\"F\x82\xb5\x18B\n" +
+	"\x15resource.group.update\x12\x05write\x1a\x1a/resource/groups/{groupId}*\x06editor\x12y\n" +
+	"\tGetGroups\x12\x17.resource.GetGroupsRqst\x1a\x16.resource.GetGroupsRsp\"9\x82\xb5\x185\n" +
+	"\x13resource.group.list\x12\x04read\"\x10/resource/groups*\x06viewer0\x01\x12\x87\x01\n" +
+	"\vDeleteGroup\x12\x19.resource.DeleteGroupRqst\x1a\x18.resource.DeleteGroupRsp\"C\x82\xb5\x18?\n" +
+	"\x15resource.group.delete\x12\x05admin\x1a\x18/resource/groups/{group}*\x05admin\x12\xa8\x01\n" +
+	"\x15AddGroupMemberAccount\x12#.resource.AddGroupMemberAccountRqst\x1a\".resource.AddGroupMemberAccountRsp\"F\x82\xb5\x18B\n" +
+	"\x15resource.group.manage\x12\x05write\x1a\x1a/resource/groups/{groupId}*\x06editor\x12\xb1\x01\n" +
+	"\x18RemoveGroupMemberAccount\x12&.resource.RemoveGroupMemberAccountRqst\x1a%.resource.RemoveGroupMemberAccountRsp\"F\x82\xb5\x18B\n" +
+	"\x15resource.group.manage\x12\x05write\x1a\x1a/resource/groups/{groupId}*\x06editor\x12\x90\x01\n" +
+	"\x0fRegisterAccount\x12\x1d.resource.RegisterAccountRqst\x1a\x1c.resource.RegisterAccountRsp\"@\x82\xb5\x18<\n" +
+	"\x17resource.account.create\x12\x05write\"\x12/resource/accounts*\x06editor\x12\x8e\x01\n" +
+	"\rDeleteAccount\x12\x1b.resource.DeleteAccountRqst\x1a\x1a.resource.DeleteAccountRsp\"D\x82\xb5\x18@\n" +
+	"\x17resource.account.delete\x12\x05admin\x1a\x17/resource/accounts/{id}*\x05admin\x12\x8a\x01\n" +
 	"\n" +
-	"GetAccount\x12\x18.resource.GetAccountRqst\x1a\x17.resource.GetAccountRsp\x12?\n" +
+	"GetAccount\x12\x18.resource.GetAccountRqst\x1a\x17.resource.GetAccountRsp\"I\x82\xb5\x18E\n" +
+	"\x15resource.account.read\x12\x04read\x1a\x1e/resource/accounts/{accountId}*\x06viewer\x12\x80\x01\n" +
 	"\n" +
-	"SetAccount\x12\x18.resource.SetAccountRqst\x1a\x17.resource.SetAccountRsp\x12W\n" +
-	"\x12SetAccountPassword\x12 .resource.SetAccountPasswordRqst\x1a\x1f.resource.SetAccountPasswordRsp\x12D\n" +
-	"\vGetAccounts\x12\x19.resource.GetAccountsRqst\x1a\x18.resource.GetAccountsRsp0\x01\x12K\n" +
-	"\x0eAddAccountRole\x12\x1c.resource.AddAccountRoleRqst\x1a\x1b.resource.AddAccountRoleRsp\x12T\n" +
-	"\x11RemoveAccountRole\x12\x1f.resource.RemoveAccountRoleRqst\x1a\x1e.resource.RemoveAccountRoleRsp\x12T\n" +
-	"\x11SetAccountContact\x12\x1f.resource.SetAccountContactRqst\x1a\x1e.resource.SetAccountContactRsp\x12A\n" +
-	"\bSetEmail\x12\x19.resource.SetEmailRequest\x1a\x1a.resource.SetEmailResponse\x12`\n" +
-	"\x15IsOrgnanizationMember\x12#.resource.IsOrgnanizationMemberRqst\x1a\".resource.IsOrgnanizationMemberRsp\x12?\n" +
+	"SetAccount\x12\x18.resource.SetAccountRqst\x1a\x17.resource.SetAccountRsp\"?\x82\xb5\x18;\n" +
+	"\x16resource.account.write\x12\x05write\"\x12/resource/accounts*\x06editor\x12\xa3\x01\n" +
+	"\x12SetAccountPassword\x12 .resource.SetAccountPasswordRqst\x1a\x1f.resource.SetAccountPasswordRsp\"J\x82\xb5\x18F\n" +
+	"\x16resource.account.write\x12\x05admin\x1a\x1e/resource/accounts/{accountId}*\x05admin\x12\x83\x01\n" +
+	"\vGetAccounts\x12\x19.resource.GetAccountsRqst\x1a\x18.resource.GetAccountsRsp\"=\x82\xb5\x189\n" +
+	"\x15resource.account.read\x12\x04read\"\x12/resource/accounts*\x06viewer0\x01\x12\x99\x01\n" +
+	"\x0eAddAccountRole\x12\x1c.resource.AddAccountRoleRqst\x1a\x1b.resource.AddAccountRoleRsp\"L\x82\xb5\x18H\n" +
+	"\x17resource.account.manage\x12\x05write\x1a\x1e/resource/accounts/{accountId}*\x06editor\x12\xa2\x01\n" +
+	"\x11RemoveAccountRole\x12\x1f.resource.RemoveAccountRoleRqst\x1a\x1e.resource.RemoveAccountRoleRsp\"L\x82\xb5\x18H\n" +
+	"\x17resource.account.manage\x12\x05write\x1a\x1e/resource/accounts/{accountId}*\x06editor\x12\xa1\x01\n" +
+	"\x11SetAccountContact\x12\x1f.resource.SetAccountContactRqst\x1a\x1e.resource.SetAccountContactRsp\"K\x82\xb5\x18G\n" +
+	"\x16resource.account.write\x12\x05write\x1a\x1e/resource/accounts/{accountId}*\x06editor\x12\x8e\x01\n" +
+	"\bSetEmail\x12\x19.resource.SetEmailRequest\x1a\x1a.resource.SetEmailResponse\"K\x82\xb5\x18G\n" +
+	"\x16resource.account.write\x12\x05write\x1a\x1e/resource/accounts/{accountId}*\x06editor\x12\xba\x01\n" +
+	"\x15IsOrgnanizationMember\x12#.resource.IsOrgnanizationMemberRqst\x1a\".resource.IsOrgnanizationMemberRsp\"X\x82\xb5\x18T\n" +
+	"\x1aresource.organization.read\x12\x04read\x1a(/resource/organizations/{organizationId}*\x06viewer\x12{\n" +
 	"\n" +
-	"CreateRole\x12\x18.resource.CreateRoleRqst\x1a\x17.resource.CreateRoleRsp\x12?\n" +
+	"CreateRole\x12\x18.resource.CreateRoleRqst\x1a\x17.resource.CreateRoleRsp\":\x82\xb5\x186\n" +
+	"\x14resource.role.create\x12\x05write\"\x0f/resource/roles*\x06editor\x12\x84\x01\n" +
 	"\n" +
-	"UpdateRole\x12\x18.resource.UpdateRoleRqst\x1a\x17.resource.UpdateRoleRsp\x12;\n" +
-	"\bGetRoles\x12\x16.resource.GetRolesRqst\x1a\x15.resource.GetRolesRsp0\x01\x12?\n" +
+	"UpdateRole\x12\x18.resource.UpdateRoleRqst\x1a\x17.resource.UpdateRoleRsp\"C\x82\xb5\x18?\n" +
+	"\x14resource.role.update\x12\x05write\x1a\x18/resource/roles/{roleId}*\x06editor\x12t\n" +
+	"\bGetRoles\x12\x16.resource.GetRolesRqst\x1a\x15.resource.GetRolesRsp\"7\x82\xb5\x183\n" +
+	"\x12resource.role.list\x12\x04read\"\x0f/resource/roles*\x06viewer0\x01\x12\x83\x01\n" +
 	"\n" +
-	"DeleteRole\x12\x18.resource.DeleteRoleRqst\x1a\x17.resource.DeleteRoleRsp\x12K\n" +
-	"\x0eAddRoleActions\x12\x1c.resource.AddRoleActionsRqst\x1a\x1b.resource.AddRoleActionsRsp\x12Q\n" +
-	"\x10RemoveRoleAction\x12\x1e.resource.RemoveRoleActionRqst\x1a\x1d.resource.RemoveRoleActionRsp\x12T\n" +
-	"\x11RemoveRolesAction\x12\x1f.resource.RemoveRolesActionRqst\x1a\x1e.resource.RemoveRolesActionRsp\x12T\n" +
-	"\x11CreateApplication\x12\x1f.resource.CreateApplicationRqst\x1a\x1e.resource.CreateApplicationRsp\x12T\n" +
-	"\x11UpdateApplication\x12\x1f.resource.UpdateApplicationRqst\x1a\x1e.resource.UpdateApplicationRsp\x12P\n" +
-	"\x0fGetApplications\x12\x1d.resource.GetApplicationsRqst\x1a\x1c.resource.GetApplicationsRsp0\x01\x12T\n" +
-	"\x11DeleteApplication\x12\x1f.resource.DeleteApplicationRqst\x1a\x1e.resource.DeleteApplicationRsp\x12`\n" +
-	"\x15AddApplicationActions\x12#.resource.AddApplicationActionsRqst\x1a\".resource.AddApplicationActionsRsp\x12f\n" +
-	"\x17RemoveApplicationAction\x12%.resource.RemoveApplicationActionRqst\x1a$.resource.RemoveApplicationActionRsp\x12i\n" +
-	"\x18RemoveApplicationsAction\x12&.resource.RemoveApplicationsActionRqst\x1a%.resource.RemoveApplicationsActionRsp\x12`\n" +
-	"\x15GetApplicationVersion\x12#.resource.GetApplicationVersionRqst\x1a\".resource.GetApplicationVersionRsp\x12W\n" +
-	"\x12UpsertNodeIdentity\x12 .resource.UpsertNodeIdentityRqst\x1a\x1f.resource.UpsertNodeIdentityRsp\x12N\n" +
-	"\x0fGetNodeIdentity\x12\x1d.resource.GetNodeIdentityRqst\x1a\x1c.resource.GetNodeIdentityRsp\x12Y\n" +
-	"\x12ListNodeIdentities\x12 .resource.ListNodeIdentitiesRqst\x1a\x1f.resource.ListNodeIdentitiesRsp0\x01\x12c\n" +
-	"\x16SetNodeIdentityEnabled\x12$.resource.SetNodeIdentityEnabledRqst\x1a#.resource.SetNodeIdentityEnabledRsp\x12W\n" +
-	"\x12CreateNotification\x12 .resource.CreateNotificationRqst\x1a\x1f.resource.CreateNotificationRsp\x12S\n" +
-	"\x10GetNotifications\x12\x1e.resource.GetNotificationsRqst\x1a\x1d.resource.GetNotificationsRsp0\x01\x12W\n" +
-	"\x12DeleteNotification\x12 .resource.DeleteNotificationRqst\x1a\x1f.resource.DeleteNotificationRsp\x12`\n" +
-	"\x15ClearAllNotifications\x12#.resource.ClearAllNotificationsRqst\x1a\".resource.ClearAllNotificationsRsp\x12i\n" +
-	"\x18ClearNotificationsByType\x12&.resource.ClearNotificationsByTypeRqst\x1a%.resource.ClearNotificationsByTypeRsp\x12a\n" +
-	"\fFindPackages\x12'.resource.FindPackagesDescriptorRequest\x1a(.resource.FindPackagesDescriptorResponse\x12e\n" +
-	"\x14GetPackageDescriptor\x12%.resource.GetPackageDescriptorRequest\x1a&.resource.GetPackageDescriptorResponse\x12j\n" +
-	"\x15GetPackagesDescriptor\x12&.resource.GetPackagesDescriptorRequest\x1a'.resource.GetPackagesDescriptorResponse0\x01\x12e\n" +
-	"\x14SetPackageDescriptor\x12%.resource.SetPackageDescriptorRequest\x1a&.resource.SetPackageDescriptorResponse\x12Y\n" +
-	"\x10SetPackageBundle\x12!.resource.SetPackageBundleRequest\x1a\".resource.SetPackageBundleResponse\x12q\n" +
-	"\x18GetPackageBundleChecksum\x12).resource.GetPackageBundleChecksumRequest\x1a*.resource.GetPackageBundleChecksumResponse\x12\\\n" +
-	"\x11GetPackageBundles\x12\".resource.GetPackageBundlesRequest\x1a#.resource.GetPackageBundlesResponse\x12P\n" +
-	"\rUpdateSession\x12\x1e.resource.UpdateSessionRequest\x1a\x1f.resource.UpdateSessionResponse\x12J\n" +
-	"\vGetSessions\x12\x1c.resource.GetSessionsRequest\x1a\x1d.resource.GetSessionsResponse\x12P\n" +
-	"\rRemoveSession\x12\x1e.resource.RemoveSessionRequest\x1a\x1f.resource.RemoveSessionResponse\x12G\n" +
+	"DeleteRole\x12\x18.resource.DeleteRoleRqst\x1a\x17.resource.DeleteRoleRsp\"B\x82\xb5\x18>\n" +
+	"\x14resource.role.delete\x12\x05admin\x1a\x18/resource/roles/{roleId}*\x05admin\x12\x90\x01\n" +
+	"\x0eAddRoleActions\x12\x1c.resource.AddRoleActionsRqst\x1a\x1b.resource.AddRoleActionsRsp\"C\x82\xb5\x18?\n" +
+	"\x14resource.role.manage\x12\x05write\x1a\x18/resource/roles/{roleId}*\x06editor\x12\x96\x01\n" +
+	"\x10RemoveRoleAction\x12\x1e.resource.RemoveRoleActionRqst\x1a\x1d.resource.RemoveRoleActionRsp\"C\x82\xb5\x18?\n" +
+	"\x14resource.role.manage\x12\x05write\x1a\x18/resource/roles/{roleId}*\x06editor\x12\x8f\x01\n" +
+	"\x11RemoveRolesAction\x12\x1f.resource.RemoveRolesActionRqst\x1a\x1e.resource.RemoveRolesActionRsp\"9\x82\xb5\x185\n" +
+	"\x14resource.role.manage\x12\x05admin\"\x0f/resource/roles*\x05admin\x12\x9e\x01\n" +
+	"\x11CreateApplication\x12\x1f.resource.CreateApplicationRqst\x1a\x1e.resource.CreateApplicationRsp\"H\x82\xb5\x18D\n" +
+	"\x1bresource.application.create\x12\x05write\"\x16/resource/applications*\x06editor\x12\xae\x01\n" +
+	"\x11UpdateApplication\x12\x1f.resource.UpdateApplicationRqst\x1a\x1e.resource.UpdateApplicationRsp\"X\x82\xb5\x18T\n" +
+	"\x1bresource.application.update\x12\x05write\x1a&/resource/applications/{applicationId}*\x06editor\x12\x97\x01\n" +
+	"\x0fGetApplications\x12\x1d.resource.GetApplicationsRqst\x1a\x1c.resource.GetApplicationsRsp\"E\x82\xb5\x18A\n" +
+	"\x19resource.application.read\x12\x04read\"\x16/resource/applications*\x06viewer0\x01\x12\xad\x01\n" +
+	"\x11DeleteApplication\x12\x1f.resource.DeleteApplicationRqst\x1a\x1e.resource.DeleteApplicationRsp\"W\x82\xb5\x18S\n" +
+	"\x1bresource.application.delete\x12\x05admin\x1a&/resource/applications/{applicationId}*\x05admin\x12\xba\x01\n" +
+	"\x15AddApplicationActions\x12#.resource.AddApplicationActionsRqst\x1a\".resource.AddApplicationActionsRsp\"X\x82\xb5\x18T\n" +
+	"\x1bresource.application.manage\x12\x05write\x1a&/resource/applications/{applicationId}*\x06editor\x12\xc0\x01\n" +
+	"\x17RemoveApplicationAction\x12%.resource.RemoveApplicationActionRqst\x1a$.resource.RemoveApplicationActionRsp\"X\x82\xb5\x18T\n" +
+	"\x1bresource.application.manage\x12\x05write\x1a&/resource/applications/{applicationId}*\x06editor\x12\xb2\x01\n" +
+	"\x18RemoveApplicationsAction\x12&.resource.RemoveApplicationsActionRqst\x1a%.resource.RemoveApplicationsActionRsp\"G\x82\xb5\x18C\n" +
+	"\x1bresource.application.manage\x12\x05admin\"\x16/resource/applications*\x05admin\x12\xac\x01\n" +
+	"\x15GetApplicationVersion\x12#.resource.GetApplicationVersionRqst\x1a\".resource.GetApplicationVersionRsp\"J\x82\xb5\x18F\n" +
+	"\x19resource.application.read\x12\x04read\x1a\x1b/resource/applications/{id}*\x06viewer\x12\x91\x01\n" +
+	"\x12UpsertNodeIdentity\x12 .resource.UpsertNodeIdentityRqst\x1a\x1f.resource.UpsertNodeIdentityRsp\"8\x82\xb5\x184\n" +
+	"\x13resource.node.write\x12\x05admin\"\x0f/resource/nodes*\x05admin\x12\x91\x01\n" +
+	"\x0fGetNodeIdentity\x12\x1d.resource.GetNodeIdentityRqst\x1a\x1c.resource.GetNodeIdentityRsp\"A\x82\xb5\x18=\n" +
+	"\x12resource.node.read\x12\x04read\x1a\x19/resource/nodes/{node_id}*\x06viewer\x12\x92\x01\n" +
+	"\x12ListNodeIdentities\x12 .resource.ListNodeIdentitiesRqst\x1a\x1f.resource.ListNodeIdentitiesRsp\"7\x82\xb5\x183\n" +
+	"\x12resource.node.list\x12\x04read\"\x0f/resource/nodes*\x06viewer0\x01\x12\xa7\x01\n" +
+	"\x16SetNodeIdentityEnabled\x12$.resource.SetNodeIdentityEnabledRqst\x1a#.resource.SetNodeIdentityEnabledRsp\"B\x82\xb5\x18>\n" +
+	"\x13resource.node.write\x12\x05admin\x1a\x19/resource/nodes/{node_id}*\x05admin\x12\xa2\x01\n" +
+	"\x12CreateNotification\x12 .resource.CreateNotificationRqst\x1a\x1f.resource.CreateNotificationRsp\"I\x82\xb5\x18E\n" +
+	"\x1bresource.notification.write\x12\x05write\"\x17/resource/notifications*\x06editor\x12\xb1\x01\n" +
+	"\x10GetNotifications\x12\x1e.resource.GetNotificationsRqst\x1a\x1d.resource.GetNotificationsRsp\"\\\x82\xb5\x18X\n" +
+	"\x1aresource.notification.read\x12\x04read\x1a,/resource/accounts/{recipient}/notifications*\x06viewer0\x01\x12\xbd\x01\n" +
+	"\x12DeleteNotification\x12 .resource.DeleteNotificationRqst\x1a\x1f.resource.DeleteNotificationRsp\"d\x82\xb5\x18`\n" +
+	"\x1cresource.notification.delete\x12\x05write\x1a1/resource/accounts/{recipient}/notifications/{id}*\x06editor\x12\xc1\x01\n" +
+	"\x15ClearAllNotifications\x12#.resource.ClearAllNotificationsRqst\x1a\".resource.ClearAllNotificationsRsp\"_\x82\xb5\x18[\n" +
+	"\x1cresource.notification.delete\x12\x05write\x1a,/resource/accounts/{recipient}/notifications*\x06editor\x12\xca\x01\n" +
+	"\x18ClearNotificationsByType\x12&.resource.ClearNotificationsByTypeRqst\x1a%.resource.ClearNotificationsByTypeRsp\"_\x82\xb5\x18[\n" +
+	"\x1cresource.notification.delete\x12\x05write\x1a,/resource/accounts/{recipient}/notifications*\x06editor\x12\xa0\x01\n" +
+	"\fFindPackages\x12'.resource.FindPackagesDescriptorRequest\x1a(.resource.FindPackagesDescriptorResponse\"=\x82\xb5\x189\n" +
+	"\x15resource.package.list\x12\x04read\"\x12/resource/packages*\x06viewer\x12\xb0\x01\n" +
+	"\x14GetPackageDescriptor\x12%.resource.GetPackageDescriptorRequest\x1a&.resource.GetPackageDescriptorResponse\"I\x82\xb5\x18E\n" +
+	"\x15resource.package.read\x12\x04read\x1a\x1e/resource/packages/{serviceId}*\x06viewer\x12\xa9\x01\n" +
+	"\x15GetPackagesDescriptor\x12&.resource.GetPackagesDescriptorRequest\x1a'.resource.GetPackagesDescriptorResponse\"=\x82\xb5\x189\n" +
+	"\x15resource.package.read\x12\x04read\"\x12/resource/packages*\x06viewer0\x01\x12\xa5\x01\n" +
+	"\x14SetPackageDescriptor\x12%.resource.SetPackageDescriptorRequest\x1a&.resource.SetPackageDescriptorResponse\">\x82\xb5\x18:\n" +
+	"\x16resource.package.write\x12\x05admin\"\x12/resource/packages*\x05admin\x12\x99\x01\n" +
+	"\x10SetPackageBundle\x12!.resource.SetPackageBundleRequest\x1a\".resource.SetPackageBundleResponse\">\x82\xb5\x18:\n" +
+	"\x16resource.package.write\x12\x05admin\"\x12/resource/packages*\x05admin\x12\xb5\x01\n" +
+	"\x18GetPackageBundleChecksum\x12).resource.GetPackageBundleChecksumRequest\x1a*.resource.GetPackageBundleChecksumResponse\"B\x82\xb5\x18>\n" +
+	"\x15resource.package.read\x12\x04read\x1a\x17/resource/packages/{id}*\x06viewer\x12\x9b\x01\n" +
+	"\x11GetPackageBundles\x12\".resource.GetPackageBundlesRequest\x1a#.resource.GetPackageBundlesResponse\"=\x82\xb5\x189\n" +
+	"\x15resource.package.list\x12\x04read\"\x12/resource/packages*\x06viewer\x12\x91\x01\n" +
+	"\rUpdateSession\x12\x1e.resource.UpdateSessionRequest\x1a\x1f.resource.UpdateSessionResponse\"?\x82\xb5\x18;\n" +
+	"\x16resource.session.write\x12\x05write\"\x12/resource/sessions*\x06editor\x12\x89\x01\n" +
+	"\vGetSessions\x12\x1c.resource.GetSessionsRequest\x1a\x1d.resource.GetSessionsResponse\"=\x82\xb5\x189\n" +
+	"\x15resource.session.read\x12\x04read\"\x12/resource/sessions*\x06viewer\x12\x9d\x01\n" +
+	"\rRemoveSession\x12\x1e.resource.RemoveSessionRequest\x1a\x1f.resource.RemoveSessionResponse\"K\x82\xb5\x18G\n" +
+	"\x17resource.session.delete\x12\x05admin\x1a\x1e/resource/sessions/{accountId}*\x05admin\x12\x92\x01\n" +
 	"\n" +
-	"GetSession\x12\x1b.resource.GetSessionRequest\x1a\x1c.resource.GetSessionResponse\x12K\n" +
-	"\x0eGetCallHistory\x12\x1c.resource.GetCallHistoryRqst\x1a\x1b.resource.GetCallHistoryRsp\x126\n" +
-	"\aSetCall\x12\x15.resource.SetCallRqst\x1a\x14.resource.SetCallRsp\x12?\n" +
+	"GetSession\x12\x1b.resource.GetSessionRequest\x1a\x1c.resource.GetSessionResponse\"I\x82\xb5\x18E\n" +
+	"\x15resource.session.read\x12\x04read\x1a\x1e/resource/sessions/{accountId}*\x06viewer\x12\x9a\x01\n" +
+	"\x0eGetCallHistory\x12\x1c.resource.GetCallHistoryRqst\x1a\x1b.resource.GetCallHistoryRsp\"M\x82\xb5\x18I\n" +
+	"\x12resource.call.read\x12\x04read\x1a%/resource/accounts/{account_id}/calls*\x06viewer\x12q\n" +
+	"\aSetCall\x12\x15.resource.SetCallRqst\x1a\x14.resource.SetCallRsp\"9\x82\xb5\x185\n" +
+	"\x13resource.call.write\x12\x05write\"\x0f/resource/calls*\x06editor\x12\x98\x01\n" +
 	"\n" +
-	"DeleteCall\x12\x18.resource.DeleteCallRqst\x1a\x17.resource.DeleteCallRsp\x12?\n" +
+	"DeleteCall\x12\x18.resource.DeleteCallRqst\x1a\x17.resource.DeleteCallRsp\"W\x82\xb5\x18S\n" +
+	"\x14resource.call.delete\x12\x05write\x1a,/resource/accounts/{account_id}/calls/{uuid}*\x06editor\x12\x90\x01\n" +
 	"\n" +
-	"ClearCalls\x12\x18.resource.ClearCallsRqst\x1a\x17.resource.ClearCallsRsp\x12f\n" +
-	"\x17GetServicesCorsPolicies\x12%.resource.GetServicesCorsPoliciesRqst\x1a$.resource.GetServicesCorsPoliciesRsp\x12]\n" +
-	"\x14SetServiceCorsPolicy\x12\".resource.SetServiceCorsPolicyRqst\x1a!.resource.SetServiceCorsPolicyRspB;Z9github.com/globulario/services/golang/resource/resourcepbb\x06proto3"
+	"ClearCalls\x12\x18.resource.ClearCallsRqst\x1a\x17.resource.ClearCallsRsp\"O\x82\xb5\x18K\n" +
+	"\x14resource.call.delete\x12\x05admin\x1a%/resource/accounts/{account_id}/calls*\x05admin\x12\xa7\x01\n" +
+	"\x17GetServicesCorsPolicies\x12%.resource.GetServicesCorsPoliciesRqst\x1a$.resource.GetServicesCorsPoliciesRsp\"?\x82\xb5\x18;\n" +
+	"\x12resource.cors.read\x12\x04read\"\x17/resource/cors-policies*\x06viewer\x12\xa4\x01\n" +
+	"\x14SetServiceCorsPolicy\x12\".resource.SetServiceCorsPolicyRqst\x1a!.resource.SetServiceCorsPolicyRsp\"E\x82\xb5\x18A\n" +
+	"\x13resource.cors.write\x12\x05admin\x1a\x1c/resource/cors-policies/{id}*\x05adminB;Z9github.com/globulario/services/golang/resource/resourcepbb\x06proto3"
 
 var (
 	file_resource_proto_rawDescOnce sync.Once

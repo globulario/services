@@ -76,3 +76,56 @@ func SeedServiceRoles(ctx context.Context, serviceName string, store RoleStore) 
 
 	return result, nil
 }
+
+// SeedClusterRoles loads cluster-roles.json and seeds any missing roles into RBAC.
+// Cluster roles use the same non-destructive seeding rule as service roles.
+func SeedClusterRoles(ctx context.Context, store RoleStore, force bool) (*SeedResult, error) {
+	roles, fromFile, _ := LoadClusterRoles()
+	if !fromFile || len(roles) == 0 {
+		slog.Warn("policy: seed: no cluster-roles.json found")
+		return &SeedResult{}, nil
+	}
+
+	result := &SeedResult{}
+	for roleName, actions := range roles {
+		exists, err := store.RoleExists(ctx, roleName)
+		if err != nil {
+			slog.Warn("policy: seed: failed to check cluster role existence",
+				"role", roleName, "error", err)
+			result.Failed++
+			continue
+		}
+
+		if exists && !force {
+			result.Skipped++
+			continue
+		}
+
+		metadata := map[string]string{
+			"source":    "cluster-roles",
+			"managed":   "seed",
+			"seeded_at": time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := store.CreateRole(ctx, roleName, actions, metadata); err != nil {
+			slog.Error("policy: seed: failed to create cluster role",
+				"role", roleName, "error", err)
+			result.Failed++
+			continue
+		}
+
+		slog.Info("policy: seeded cluster role", "role", roleName, "actions", len(actions))
+		result.Seeded++
+	}
+
+	return result, nil
+}
+
+// Merge adds the counts from another SeedResult into this one.
+func (r *SeedResult) Merge(other *SeedResult) {
+	if other == nil {
+		return
+	}
+	r.Seeded += other.Seeded
+	r.Skipped += other.Skipped
+	r.Failed += other.Failed
+}

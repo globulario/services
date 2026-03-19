@@ -7,6 +7,7 @@
 package backup_hookpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -446,9 +447,11 @@ var File_backup_hook_proto protoreflect.FileDescriptor
 
 const file_backup_hook_proto_rawDesc = "" +
 	"\n" +
-	"\x11backup_hook.proto\x12\vbackup_hook\"\xae\x02\n" +
-	"\x14PrepareBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x12\n" +
+	"\x11backup_hook.proto\x12\vbackup_hook\x1a\x13globular_auth.proto\"\xbe\x02\n" +
+	"\x14PrepareBackupRequest\x12+\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06backup\x10\x01R\bbackupId\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x1c\n" +
 	"\tproviders\x18\x03 \x03(\tR\tproviders\x12\x1a\n" +
 	"\bservices\x18\x04 \x03(\tR\bservices\x12E\n" +
@@ -480,9 +483,11 @@ const file_backup_hook_proto_rawDesc = "" +
 	"size_bytes\x18\t \x01(\x04R\tsizeBytes\x12+\n" +
 	"\x11rebuild_supported\x18\n" +
 	" \x01(\bR\x10rebuildSupported\x12\x14\n" +
-	"\x05scope\x18\v \x01(\tR\x05scope\"\xb0\x02\n" +
-	"\x15FinalizeBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x12\n" +
+	"\x05scope\x18\v \x01(\tR\x05scope\"\xc0\x02\n" +
+	"\x15FinalizeBackupRequest\x12+\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\x06backup\x10\x01R\bbackupId\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x1c\n" +
 	"\tproviders\x18\x03 \x03(\tR\tproviders\x12\x1a\n" +
 	"\bservices\x18\x04 \x03(\tR\bservices\x12F\n" +
@@ -497,10 +502,12 @@ const file_backup_hook_proto_rawDesc = "" +
 	"\adetails\x18\x03 \x03(\v20.backup_hook.FinalizeBackupResponse.DetailsEntryR\adetails\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xc6\x01\n" +
-	"\x11BackupHookService\x12V\n" +
-	"\rPrepareBackup\x12!.backup_hook.PrepareBackupRequest\x1a\".backup_hook.PrepareBackupResponse\x12Y\n" +
-	"\x0eFinalizeBackup\x12\".backup_hook.FinalizeBackupRequest\x1a#.backup_hook.FinalizeBackupResponseBOZMgithub.com/globulario/services/golang/backup_hook/backup_hookpb;backup_hookpbb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xe2\x02\n" +
+	"\x11BackupHookService\x12\xa2\x01\n" +
+	"\rPrepareBackup\x12!.backup_hook.PrepareBackupRequest\x1a\".backup_hook.PrepareBackupResponse\"J\x82\xb5\x18F\n" +
+	"\x13backup_hook.prepare\x12\x05admin\x1a!/backup/hooks/{backup_id}/prepare*\x05admin\x12\xa7\x01\n" +
+	"\x0eFinalizeBackup\x12\".backup_hook.FinalizeBackupRequest\x1a#.backup_hook.FinalizeBackupResponse\"L\x82\xb5\x18H\n" +
+	"\x14backup_hook.finalize\x12\x05admin\x1a\"/backup/hooks/{backup_id}/finalize*\x05adminBOZMgithub.com/globulario/services/golang/backup_hook/backup_hookpb;backup_hookpbb\x06proto3"
 
 var (
 	file_backup_hook_proto_rawDescOnce sync.Once

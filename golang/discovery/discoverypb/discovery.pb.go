@@ -7,6 +7,7 @@
 package discoverypb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -679,14 +680,18 @@ var File_discovery_proto protoreflect.FileDescriptor
 
 const file_discovery_proto_rawDesc = "" +
 	"\n" +
-	"\x0fdiscovery.proto\x12\tdiscovery\x1a\x10repository.proto\x1a\x0eresource.proto\"\xdd\x02\n" +
-	"\x15PublishServiceRequest\x12\x1c\n" +
-	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12 \n" +
+	"\x0fdiscovery.proto\x12\tdiscovery\x1a\x10repository.proto\x1a\x0eresource.proto\x1a\x13globular_auth.proto\"\x91\x03\n" +
+	"\x15PublishServiceRequest\x12+\n" +
+	"\tserviceId\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\aserviceR\tserviceId\x12 \n" +
 	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12\x12\n" +
 	"\x04user\x18\x03 \x01(\tR\x04user\x12\"\n" +
-	"\forganization\x18\x04 \x01(\tR\forganization\x12 \n" +
-	"\vdiscoveryId\x18\x05 \x01(\tR\vdiscoveryId\x12\"\n" +
-	"\frepositoryId\x18\x06 \x01(\tR\frepositoryId\x12 \n" +
+	"\forganization\x18\x04 \x01(\tR\forganization\x123\n" +
+	"\vdiscoveryId\x18\x05 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tdiscovery\x10\x01R\vdiscoveryId\x124\n" +
+	"\frepositoryId\x18\x06 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"repositoryR\frepositoryId\x12 \n" +
 	"\vdescription\x18\a \x01(\tR\vdescription\x12\x1a\n" +
 	"\bkeywords\x18\b \x03(\tR\bkeywords\x12\x18\n" +
 	"\aversion\x18\t \x01(\tR\aversion\x12\x1a\n" +
@@ -694,9 +699,10 @@ const file_discovery_proto_rawDesc = "" +
 	" \x01(\tR\bplatform\x12\x12\n" +
 	"\x04path\x18\v \x01(\tR\x04path\"0\n" +
 	"\x16PublishServiceResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xf6\x03\n" +
-	"\x19PublishApplicationRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xae\x04\n" +
+	"\x19PublishApplicationRequest\x12%\n" +
+	"\x04name\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\vapplicationR\x04name\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x12\x12\n" +
 	"\x04user\x18\x04 \x01(\tR\x04user\x12\"\n" +
@@ -704,12 +710,15 @@ const file_discovery_proto_rawDesc = "" +
 	"\aversion\x18\x06 \x01(\tR\aversion\x12\x1a\n" +
 	"\bkeywords\x18\a \x03(\tR\bkeywords\x12 \n" +
 	"\vdescription\x18\b \x01(\tR\vdescription\x12\x18\n" +
-	"\aactions\x18\t \x03(\tR\aactions\x12\x1e\n" +
+	"\aactions\x18\t \x03(\tR\aactions\x120\n" +
 	"\n" +
 	"repository\x18\n" +
-	" \x01(\tR\n" +
-	"repository\x12\x1c\n" +
-	"\tdiscovery\x18\v \x01(\tR\tdiscovery\x12\x12\n" +
+	" \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"repositoryR\n" +
+	"repository\x12/\n" +
+	"\tdiscovery\x18\v \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tdiscovery\x10\x01R\tdiscovery\x12\x12\n" +
 	"\x04icon\x18\f \x01(\tR\x04icon\x12\x14\n" +
 	"\x05alias\x18\r \x01(\tR\x05alias\x12$\n" +
 	"\x05roles\x18\x0e \x03(\v2\x0e.resource.RoleR\x05roles\x12'\n" +
@@ -745,12 +754,16 @@ const file_discovery_proto_rawDesc = "" +
 	"\x05START\x10\x03\"T\n" +
 	"\vInstallPlan\x12\x17\n" +
 	"\aplan_id\x18\x01 \x01(\tR\x06planId\x12,\n" +
-	"\x05steps\x18\x02 \x03(\v2\x16.discovery.InstallStepR\x05steps2\x87\x03\n" +
-	"\x10PackageDiscovery\x12U\n" +
-	"\x0ePublishService\x12 .discovery.PublishServiceRequest\x1a!.discovery.PublishServiceResponse\x12a\n" +
-	"\x12PublishApplication\x12$.discovery.PublishApplicationRequest\x1a%.discovery.PublishApplicationResponse\x12R\n" +
-	"\x12ResolveInstallPlan\x12$.discovery.ResolveInstallPlanRequest\x1a\x16.discovery.InstallPlan\x12e\n" +
-	"\x14GetPackageDescriptor\x12%.resource.GetPackageDescriptorRequest\x1a&.resource.GetPackageDescriptorResponseB=Z;github.com/globulario/services/golang/discovery/discoverypbb\x06proto3"
+	"\x05steps\x18\x02 \x03(\v2\x16.discovery.InstallStepR\x05steps2\xb7\x05\n" +
+	"\x10PackageDiscovery\x12\x9a\x01\n" +
+	"\x0ePublishService\x12 .discovery.PublishServiceRequest\x1a!.discovery.PublishServiceResponse\"C\x82\xb5\x18?\n" +
+	"\x19discovery.publish.service\x12\x05write\"\x13/discovery/services*\x06editor\x12\xa6\x01\n" +
+	"\x12PublishApplication\x12$.discovery.PublishApplicationRequest\x1a%.discovery.PublishApplicationResponse\"C\x82\xb5\x18?\n" +
+	"\x15discovery.publish.app\x12\x05write\"\x17/discovery/applications*\x06editor\x12\x9d\x01\n" +
+	"\x12ResolveInstallPlan\x12$.discovery.ResolveInstallPlanRequest\x1a\x16.discovery.InstallPlan\"I\x82\xb5\x18E\n" +
+	"\x1bdiscovery.install_plan.read\x12\x04read\"\x18/discovery/install-plans*\x06viewer\x12\xbc\x01\n" +
+	"\x14GetPackageDescriptor\x12%.resource.GetPackageDescriptorRequest\x1a&.resource.GetPackageDescriptorResponse\"U\x82\xb5\x18Q\n" +
+	"!discovery.package_descriptor.read\x12\x04read\"\x1e/discovery/package-descriptors*\x06viewerB=Z;github.com/globulario/services/golang/discovery/discoverypbb\x06proto3"
 
 var (
 	file_discovery_proto_rawDescOnce sync.Once

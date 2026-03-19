@@ -7,6 +7,7 @@
 package node_agentpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	planpb "github.com/globulario/services/golang/plan/planpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -2413,7 +2414,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"\n" +
 	"\x10node_agent.proto\x12\n" +
 	"node_agent\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18cluster_controller.proto\x1a\n" +
-	"plan.proto\"d\n" +
+	"plan.proto\x1a\x13globular_auth.proto\"d\n" +
 	"\x12JoinClusterRequest\x12/\n" +
 	"\x13controller_endpoint\x18\x01 \x01(\tR\x12controllerEndpoint\x12\x1d\n" +
 	"\n" +
@@ -2445,16 +2446,19 @@ const file_node_agent_proto_rawDesc = "" +
 	"\fbuild_number\x18\r \x01(\x03R\vbuildNumber\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"K\n" +
-	"\x1cListInstalledPackagesRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Y\n" +
+	"\x1cListInstalledPackagesRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\"Y\n" +
 	"\x1dListInstalledPackagesResponse\x128\n" +
-	"\bpackages\x18\x01 \x03(\v2\x1c.node_agent.InstalledPackageR\bpackages\"]\n" +
-	"\x1aGetInstalledPackageRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
-	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"U\n" +
+	"\bpackages\x18\x01 \x03(\v2\x1c.node_agent.InstalledPackageR\bpackages\"z\n" +
+	"\x1aGetInstalledPackageRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12!\n" +
+	"\x04name\x18\x03 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\apackageR\x04name\"U\n" +
 	"\x1bGetInstalledPackageResponse\x126\n" +
 	"\apackage\x18\x01 \x01(\v2\x1c.node_agent.InstalledPackageR\apackage\"P\n" +
 	"\n" +
@@ -2483,16 +2487,20 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x13ApplyPlanV1Response\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12\x17\n" +
 	"\aplan_id\x18\x02 \x01(\tR\x06planId\x12'\n" +
-	"\x0fplan_generation\x18\x03 \x01(\x04R\x0eplanGeneration\"T\n" +
-	"\x16GetPlanStatusV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12!\n" +
-	"\foperation_id\x18\x02 \x01(\tR\voperationId\"S\n" +
+	"\x0fplan_generation\x18\x03 \x01(\x04R\x0eplanGeneration\"s\n" +
+	"\x16GetPlanStatusV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x122\n" +
+	"\foperation_id\x18\x02 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\toperationR\voperationId\"S\n" +
 	"\x17GetPlanStatusV1Response\x128\n" +
-	"\x06status\x18\x01 \x01(\v2 .globular.plan.v1.NodePlanStatusR\x06status\"3\n" +
-	"\x18WatchPlanStatusV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\":\n" +
-	"\x15WatchOperationRequest\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\"\xf7\x01\n" +
+	"\x06status\x18\x01 \x01(\v2 .globular.plan.v1.NodePlanStatusR\x06status\"A\n" +
+	"\x18WatchPlanStatusV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"K\n" +
+	"\x15WatchOperationRequest\x122\n" +
+	"\foperation_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\toperationR\voperationId\"\xf7\x01\n" +
 	"\x0eOperationEvent\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\x128\n" +
 	"\x05phase\x18\x02 \x01(\x0e2\".cluster_controller.OperationPhaseR\x05phase\x12\x18\n" +
@@ -2516,19 +2524,22 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x0ftimeout_seconds\x18\x03 \x01(\rR\x0etimeoutSeconds\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x02\n" +
-	"\x18RunBackupProviderRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x122\n" +
-	"\x04spec\x18\x02 \x01(\v2\x1e.node_agent.BackupProviderSpecR\x04spec\x12\x17\n" +
-	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12H\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa5\x02\n" +
+	"\x18RunBackupProviderRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x122\n" +
+	"\x04spec\x18\x02 \x01(\v2\x1e.node_agent.BackupProviderSpecR\x04spec\x12%\n" +
+	"\anode_id\x18\x03 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12H\n" +
 	"\x06labels\x18\x04 \x03(\v20.node_agent.RunBackupProviderRequest.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"4\n" +
 	"\x19RunBackupProviderResponse\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\"5\n" +
-	"\x1aGetBackupTaskResultRequest\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\"\xc1\x04\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"H\n" +
+	"\x1aGetBackupTaskResultRequest\x12*\n" +
+	"\atask_id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\vbackup_taskR\x06taskId\"\xc1\x04\n" +
 	"\x14BackupProviderResult\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x18\n" +
@@ -2557,24 +2568,28 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x05force\x18\x04 \x01(\bR\x05force\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
-	"\x19RunRestoreProviderRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x123\n" +
-	"\x04spec\x18\x02 \x01(\v2\x1f.node_agent.RestoreProviderSpecR\x04spec\x12\x17\n" +
-	"\anode_id\x18\x03 \x01(\tR\x06nodeId\"5\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa2\x01\n" +
+	"\x19RunRestoreProviderRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x123\n" +
+	"\x04spec\x18\x02 \x01(\v2\x1f.node_agent.RestoreProviderSpecR\x04spec\x12%\n" +
+	"\anode_id\x18\x03 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"5\n" +
 	"\x1aRunRestoreProviderResponse\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\"6\n" +
-	"\x1bGetRestoreTaskResultRequest\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\"X\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"J\n" +
+	"\x1bGetRestoreTaskResultRequest\x12+\n" +
+	"\atask_id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\frestore_taskR\x06taskId\"X\n" +
 	"\x1cGetRestoreTaskResultResponse\x128\n" +
 	"\x06result\x18\x01 \x01(\v2 .node_agent.BackupProviderResultR\x06result\"Z\n" +
 	"\x16RotateNodeTokenRequest\x12\x1b\n" +
 	"\tnew_token\x18\x01 \x01(\tR\bnewToken\x12#\n" +
 	"\rnew_principal\x18\x02 \x01(\tR\fnewPrincipal\")\n" +
 	"\x17RotateNodeTokenResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"]\n" +
-	"\x15GetServiceLogsRequest\x12\x12\n" +
-	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x14\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"q\n" +
+	"\x15GetServiceLogsRequest\x12&\n" +
+	"\x04unit\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fservice_unitR\x04unit\x12\x14\n" +
 	"\x05lines\x18\x02 \x01(\x05R\x05lines\x12\x1a\n" +
 	"\bpriority\x18\x03 \x01(\tR\bpriority\"a\n" +
 	"\x16GetServiceLogsResponse\x12\x12\n" +
@@ -2597,25 +2612,42 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x1cGetCertificateStatusResponse\x12<\n" +
 	"\vserver_cert\x18\x01 \x01(\v2\x1b.node_agent.CertificateInfoR\n" +
 	"serverCert\x124\n" +
-	"\aca_cert\x18\x02 \x01(\v2\x1b.node_agent.CertificateInfoR\x06caCert2\xd2\f\n" +
-	"\x10NodeAgentService\x12N\n" +
-	"\vJoinCluster\x12\x1e.node_agent.JoinClusterRequest\x1a\x1f.node_agent.JoinClusterResponse\x12Q\n" +
-	"\fGetInventory\x12\x1f.node_agent.GetInventoryRequest\x1a .node_agent.GetInventoryResponse\x12H\n" +
-	"\tApplyPlan\x12\x1c.node_agent.ApplyPlanRequest\x1a\x1d.node_agent.ApplyPlanResponse\x12N\n" +
-	"\vApplyPlanV1\x12\x1e.node_agent.ApplyPlanV1Request\x1a\x1f.node_agent.ApplyPlanV1Response\x12Z\n" +
-	"\x0fGetPlanStatusV1\x12\".node_agent.GetPlanStatusV1Request\x1a#.node_agent.GetPlanStatusV1Response\x12]\n" +
-	"\x11WatchPlanStatusV1\x12$.node_agent.WatchPlanStatusV1Request\x1a .globular.plan.v1.NodePlanStatus0\x01\x12Q\n" +
-	"\x0eWatchOperation\x12!.node_agent.WatchOperationRequest\x1a\x1a.node_agent.OperationEvent0\x01\x12c\n" +
-	"\x12BootstrapFirstNode\x12%.node_agent.BootstrapFirstNodeRequest\x1a&.node_agent.BootstrapFirstNodeResponse\x12`\n" +
-	"\x11RunBackupProvider\x12$.node_agent.RunBackupProviderRequest\x1a%.node_agent.RunBackupProviderResponse\x12f\n" +
-	"\x13GetBackupTaskResult\x12&.node_agent.GetBackupTaskResultRequest\x1a'.node_agent.GetBackupTaskResultResponse\x12c\n" +
-	"\x12RunRestoreProvider\x12%.node_agent.RunRestoreProviderRequest\x1a&.node_agent.RunRestoreProviderResponse\x12i\n" +
-	"\x14GetRestoreTaskResult\x12'.node_agent.GetRestoreTaskResultRequest\x1a(.node_agent.GetRestoreTaskResultResponse\x12l\n" +
-	"\x15ListInstalledPackages\x12(.node_agent.ListInstalledPackagesRequest\x1a).node_agent.ListInstalledPackagesResponse\x12f\n" +
-	"\x13GetInstalledPackage\x12&.node_agent.GetInstalledPackageRequest\x1a'.node_agent.GetInstalledPackageResponse\x12Z\n" +
-	"\x0fRotateNodeToken\x12\".node_agent.RotateNodeTokenRequest\x1a#.node_agent.RotateNodeTokenResponse\x12W\n" +
-	"\x0eGetServiceLogs\x12!.node_agent.GetServiceLogsRequest\x1a\".node_agent.GetServiceLogsResponse\x12i\n" +
-	"\x14GetCertificateStatus\x12'.node_agent.GetCertificateStatusRequest\x1a(.node_agent.GetCertificateStatusResponseBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
+	"\aca_cert\x18\x02 \x01(\v2\x1b.node_agent.CertificateInfoR\x06caCert2\xe1\x17\n" +
+	"\x10NodeAgentService\x12\x90\x01\n" +
+	"\vJoinCluster\x12\x1e.node_agent.JoinClusterRequest\x1a\x1f.node_agent.JoinClusterResponse\"@\x82\xb5\x18<\n" +
+	"\x17node_agent.cluster.join\x12\x05admin\x1a\x13/node_agent/cluster*\x05admin\x12\x97\x01\n" +
+	"\fGetInventory\x12\x1f.node_agent.GetInventoryRequest\x1a .node_agent.GetInventoryResponse\"D\x82\xb5\x18@\n" +
+	"\x19node_agent.inventory.read\x12\x04read\x1a\x15/node_agent/inventory*\x06viewer\x12\x85\x01\n" +
+	"\tApplyPlan\x12\x1c.node_agent.ApplyPlanRequest\x1a\x1d.node_agent.ApplyPlanResponse\";\x82\xb5\x187\n" +
+	"\x15node_agent.plan.apply\x12\x05admin\x1a\x10/node_agent/plan*\x05admin\x12\x91\x01\n" +
+	"\vApplyPlanV1\x12\x1e.node_agent.ApplyPlanV1Request\x1a\x1f.node_agent.ApplyPlanV1Response\"A\x82\xb5\x18=\n" +
+	"\x18node_agent.plan_v1.apply\x12\x05admin\x1a\x13/node_agent/plan-v1*\x05admin\x12\xb4\x01\n" +
+	"\x0fGetPlanStatusV1\x12\".node_agent.GetPlanStatusV1Request\x1a#.node_agent.GetPlanStatusV1Response\"X\x82\xb5\x18T\n" +
+	"\x1bnode_agent.plan_status.read\x12\x04read\x1a'/node_agent/nodes/{node_id}/plan-status*\x06viewer\x12\xb8\x01\n" +
+	"\x11WatchPlanStatusV1\x12$.node_agent.WatchPlanStatusV1Request\x1a .globular.plan.v1.NodePlanStatus\"Y\x82\xb5\x18U\n" +
+	"\x1cnode_agent.plan_status.watch\x12\x04read\x1a'/node_agent/nodes/{node_id}/plan-status*\x06viewer0\x01\x12\xa8\x01\n" +
+	"\x0eWatchOperation\x12!.node_agent.WatchOperationRequest\x1a\x1a.node_agent.OperationEvent\"U\x82\xb5\x18Q\n" +
+	"\x1anode_agent.operation.watch\x12\x04read\x1a%/node_agent/operations/{operation_id}*\x06viewer0\x01\x12\xaa\x01\n" +
+	"\x12BootstrapFirstNode\x12%.node_agent.BootstrapFirstNodeRequest\x1a&.node_agent.BootstrapFirstNodeResponse\"E\x82\xb5\x18A\n" +
+	"\x1cnode_agent.cluster.bootstrap\x12\x05admin\x1a\x13/node_agent/cluster*\x05admin\x12\xc2\x01\n" +
+	"\x11RunBackupProvider\x12$.node_agent.RunBackupProviderRequest\x1a%.node_agent.RunBackupProviderResponse\"`\x82\xb5\x18\\\n" +
+	"\x1enode_agent.backup_provider.run\x12\x05admin\x1a,/node_agent/nodes/{node_id}/backup-providers*\x05admin\x12\xbb\x01\n" +
+	"\x13GetBackupTaskResult\x12&.node_agent.GetBackupTaskResultRequest\x1a'.node_agent.GetBackupTaskResultResponse\"S\x82\xb5\x18O\n" +
+	"\x1bnode_agent.backup_task.read\x12\x04read\x1a\"/node_agent/backup-tasks/{task_id}*\x06viewer\x12\xc7\x01\n" +
+	"\x12RunRestoreProvider\x12%.node_agent.RunRestoreProviderRequest\x1a&.node_agent.RunRestoreProviderResponse\"b\x82\xb5\x18^\n" +
+	"\x1fnode_agent.restore_provider.run\x12\x05admin\x1a-/node_agent/nodes/{node_id}/restore-providers*\x05admin\x12\xc0\x01\n" +
+	"\x14GetRestoreTaskResult\x12'.node_agent.GetRestoreTaskResultRequest\x1a(.node_agent.GetRestoreTaskResultResponse\"U\x82\xb5\x18Q\n" +
+	"\x1cnode_agent.restore_task.read\x12\x04read\x1a#/node_agent/restore-tasks/{task_id}*\x06viewer\x12\xc9\x01\n" +
+	"\x15ListInstalledPackages\x12(.node_agent.ListInstalledPackagesRequest\x1a).node_agent.ListInstalledPackagesResponse\"[\x82\xb5\x18W\n" +
+	"!node_agent.installed_package.list\x12\x04read\"$/node_agent/nodes/{node_id}/packages*\x06viewer\x12\xca\x01\n" +
+	"\x13GetInstalledPackage\x12&.node_agent.GetInstalledPackageRequest\x1a'.node_agent.GetInstalledPackageResponse\"b\x82\xb5\x18^\n" +
+	"!node_agent.installed_package.read\x12\x04read\x1a+/node_agent/nodes/{node_id}/packages/{name}*\x06viewer\x12\xa4\x01\n" +
+	"\x0fRotateNodeToken\x12\".node_agent.RotateNodeTokenRequest\x1a#.node_agent.RotateNodeTokenResponse\"H\x82\xb5\x18D\n" +
+	"\x1cnode_agent.node_token.rotate\x12\x05admin\x1a\x16/node_agent/node-token*\x05admin\x12\xab\x01\n" +
+	"\x0eGetServiceLogs\x12!.node_agent.GetServiceLogsRequest\x1a\".node_agent.GetServiceLogsResponse\"R\x82\xb5\x18N\n" +
+	"\x1cnode_agent.service_logs.read\x12\x04read\x1a /node_agent/services/{unit}/logs*\x06viewer\x12\xbb\x01\n" +
+	"\x14GetCertificateStatus\x12'.node_agent.GetCertificateStatusRequest\x1a(.node_agent.GetCertificateStatusResponse\"P\x82\xb5\x18L\n" +
+	"\"node_agent.certificate_status.read\x12\x04read\x1a\x18/node_agent/certificates*\x06viewerBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
 
 var (
 	file_node_agent_proto_rawDescOnce sync.Once

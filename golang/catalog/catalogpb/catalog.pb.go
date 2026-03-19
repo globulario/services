@@ -10,6 +10,7 @@
 package catalogpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -6851,7 +6852,7 @@ var File_catalog_proto protoreflect.FileDescriptor
 
 const file_catalog_proto_rawDesc = "" +
 	"\n" +
-	"\rcatalog.proto\x12\acatalog\"a\n" +
+	"\rcatalog.proto\x12\acatalog\x1a\x13globular_auth.proto\"a\n" +
 	"\tReference\x12\x1a\n" +
 	"\brefColId\x18\x01 \x01(\tR\brefColId\x12\x1a\n" +
 	"\brefObjId\x18\x02 \x01(\tR\brefObjId\x12\x1c\n" +
@@ -6876,9 +6877,11 @@ const file_catalog_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x13.catalog.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x87\x03\n" +
 	"\x12PropertyDefinition\x12\x0e\n" +
@@ -6917,15 +6920,19 @@ const file_catalog_proto_rawDesc = "" +
 	"\x19equivalentsItemDefintions\x18\v \x01(\v2\x13.catalog.ReferencesR\x19equivalentsItemDefintions\x123\n" +
 	"\n" +
 	"categories\x18\f \x01(\v2\x13.catalog.ReferencesR\n" +
-	"categories\"\xb5\x01\n" +
-	"#AppendItemDefinitionCategoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12.\n" +
+	"categories\"\xc9\x01\n" +
+	"#AppendItemDefinitionCategoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12.\n" +
 	"\bcategory\x18\x02 \x01(\v2\x12.catalog.ReferenceR\bcategory\x12:\n" +
 	"\x0eitemDefinition\x18\x03 \x01(\v2\x12.catalog.ReferenceR\x0eitemDefinition\">\n" +
 	"$AppendItemDefinitionCategoryResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xb5\x01\n" +
-	"#RemoveItemDefinitionCategoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12.\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xc9\x01\n" +
+	"#RemoveItemDefinitionCategoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12.\n" +
 	"\bcategory\x18\x02 \x01(\v2\x12.catalog.ReferenceR\bcategory\x12:\n" +
 	"\x0eitemDefinition\x18\x03 \x01(\v2\x12.catalog.ReferenceR\x0eitemDefinition\">\n" +
 	"$RemoveItemDefinitionCategoryResponse\x12\x16\n" +
@@ -7023,145 +7030,201 @@ const file_catalog_proto_rawDesc = "" +
 	"\fItemInstance\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12*\n" +
 	"\x10itemDefinitionId\x18\x02 \x01(\tR\x10itemDefinitionId\x12.\n" +
-	"\x06values\x18\x03 \x03(\v2\x16.catalog.PropertyValueR\x06values\"|\n" +
-	"\x18SaveUnitOfMeasureRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12<\n" +
+	"\x06values\x18\x03 \x03(\v2\x16.catalog.PropertyValueR\x06values\"\x90\x01\n" +
+	"\x18SaveUnitOfMeasureRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12<\n" +
 	"\runitOfMeasure\x18\x02 \x01(\v2\x16.catalog.UnitOfMeasureR\runitOfMeasure\"+\n" +
 	"\x19SaveUnitOfMeasureResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"l\n" +
-	"\x14SaveInventoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x120\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x80\x01\n" +
+	"\x14SaveInventoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x120\n" +
 	"\tinventory\x18\x02 \x01(\v2\x12.catalog.InventoryR\tinventory\"'\n" +
 	"\x15SaveInventoryResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x90\x01\n" +
-	"\x1dSavePropertyDefinitionRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12K\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xa4\x01\n" +
+	"\x1dSavePropertyDefinitionRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12K\n" +
 	"\x12propertyDefinition\x18\x02 \x01(\v2\x1b.catalog.PropertyDefinitionR\x12propertyDefinition\"0\n" +
 	"\x1eSavePropertyDefinitionResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x80\x01\n" +
-	"\x19SaveItemDefinitionRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12?\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x94\x01\n" +
+	"\x19SaveItemDefinitionRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12?\n" +
 	"\x0eitemDefinition\x18\x02 \x01(\v2\x17.catalog.ItemDefinitionR\x0eitemDefinition\",\n" +
 	"\x1aSaveItemDefinitionResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"x\n" +
-	"\x17SaveItemInstanceRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x8c\x01\n" +
+	"\x17SaveItemInstanceRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x129\n" +
 	"\fitemInstance\x18\x02 \x01(\v2\x15.catalog.ItemInstanceR\fitemInstance\"*\n" +
 	"\x18SaveItemInstanceResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"x\n" +
-	"\x17SaveManufacturerRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x8c\x01\n" +
+	"\x17SaveManufacturerRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x129\n" +
 	"\fmanufacturer\x18\x02 \x01(\v2\x15.catalog.ManufacturerR\fmanufacturer\"*\n" +
 	"\x18SaveManufacturerResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"h\n" +
-	"\x13SaveSupplierRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12-\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"|\n" +
+	"\x13SaveSupplierRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12-\n" +
 	"\bsupplier\x18\x02 \x01(\v2\x11.catalog.SupplierR\bsupplier\"&\n" +
 	"\x14SaveSupplierResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"x\n" +
-	"\x17SaveLocalisationRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x8c\x01\n" +
+	"\x17SaveLocalisationRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x129\n" +
 	"\flocalisation\x18\x02 \x01(\v2\x15.catalog.LocalisationR\flocalisation\"*\n" +
 	"\x18SaveLocalisationResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"h\n" +
-	"\x13SaveCategoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12-\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"|\n" +
+	"\x13SaveCategoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12-\n" +
 	"\bcategory\x18\x02 \x01(\v2\x11.catalog.CategoryR\bcategory\"&\n" +
 	"\x14SaveCategoryResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"d\n" +
-	"\x12SavePackageRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12*\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"x\n" +
+	"\x12SavePackageRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12*\n" +
 	"\apackage\x18\x02 \x01(\v2\x10.catalog.PackageR\apackage\"%\n" +
 	"\x13SavePackageResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x84\x01\n" +
-	"\x1aSavePackageSupplierRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12B\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x98\x01\n" +
+	"\x1aSavePackageSupplierRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12B\n" +
 	"\x0fpackageSupplier\x18\x02 \x01(\v2\x18.catalog.PackageSupplierR\x0fpackageSupplier\"-\n" +
 	"\x1bSavePackageSupplierResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x88\x01\n" +
-	"\x1bSaveItemManufacturerRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12E\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x9c\x01\n" +
+	"\x1bSaveItemManufacturerRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12E\n" +
 	"\x10itemManafacturer\x18\x02 \x01(\v2\x19.catalog.ItemManufacturerR\x10itemManafacturer\".\n" +
 	"\x1cSaveItemManufacturerResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"X\n" +
-	"\x12GetSupplierRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"|\n" +
+	"\x12GetSupplierRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
 	"\n" +
-	"supplierId\x18\x02 \x01(\tR\n" +
+	"connection\x10\x01R\fconnectionId\x12.\n" +
+	"\n" +
+	"supplierId\x18\x02 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bsupplierR\n" +
 	"supplierId\"D\n" +
 	"\x13GetSupplierResponse\x12-\n" +
 	"\bsupplier\x18\x01 \x01(\v2\x11.catalog.SupplierR\bsupplier\"<\n" +
 	"\tSuppliers\x12/\n" +
-	"\tsuppliers\x18\x01 \x03(\v2\x11.catalog.SupplierR\tsuppliers\"`\n" +
-	"\x1aGetSupplierPackagesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1e\n" +
+	"\tsuppliers\x18\x01 \x03(\v2\x11.catalog.SupplierR\tsuppliers\"\x84\x01\n" +
+	"\x1aGetSupplierPackagesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
 	"\n" +
-	"supplierId\x18\x02 \x01(\tR\n" +
+	"connection\x10\x01R\fconnectionId\x12.\n" +
+	"\n" +
+	"supplierId\x18\x02 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bsupplierR\n" +
 	"supplierId\"c\n" +
 	"\x1bGetSupplierPackagesResponse\x12D\n" +
-	"\x10packagesSupplier\x18\x01 \x03(\v2\x18.catalog.PackageSupplierR\x10packagesSupplier\"i\n" +
-	"\x13GetSuppliersRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\x10packagesSupplier\x18\x01 \x03(\v2\x18.catalog.PackageSupplierR\x10packagesSupplier\"}\n" +
+	"\x13GetSuppliersRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"G\n" +
 	"\x14GetSuppliersResponse\x12/\n" +
 	"\tsuppliers\x18\x01 \x03(\v2\x11.catalog.SupplierR\tsuppliers\"L\n" +
 	"\rManufacturers\x12;\n" +
-	"\rmanufacturers\x18\x01 \x03(\v2\x15.catalog.ManufacturerR\rmanufacturers\"d\n" +
-	"\x16GetManufacturerRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12&\n" +
-	"\x0emanufacturerId\x18\x02 \x01(\tR\x0emanufacturerId\"T\n" +
+	"\rmanufacturers\x18\x01 \x03(\v2\x15.catalog.ManufacturerR\rmanufacturers\"\x8c\x01\n" +
+	"\x16GetManufacturerRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12:\n" +
+	"\x0emanufacturerId\x18\x02 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fmanufacturerR\x0emanufacturerId\"T\n" +
 	"\x17GetManufacturerResponse\x129\n" +
-	"\fmanufacturer\x18\x01 \x01(\v2\x15.catalog.ManufacturerR\fmanufacturer\"m\n" +
-	"\x17GetManufacturersRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\fmanufacturer\x18\x01 \x01(\v2\x15.catalog.ManufacturerR\fmanufacturer\"\x81\x01\n" +
+	"\x17GetManufacturersRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"W\n" +
 	"\x18GetManufacturersResponse\x12;\n" +
 	"\rmanufacturers\x18\x01 \x03(\v2\x15.catalog.ManufacturerR\rmanufacturers\"8\n" +
 	"\bPackages\x12,\n" +
-	"\bpackages\x18\x01 \x03(\v2\x10.catalog.PackageR\bpackages\"U\n" +
-	"\x11GetPackageRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1c\n" +
-	"\tpackageId\x18\x02 \x01(\tR\tpackageId\"@\n" +
+	"\bpackages\x18\x01 \x03(\v2\x10.catalog.PackageR\bpackages\"x\n" +
+	"\x11GetPackageRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12+\n" +
+	"\tpackageId\x18\x02 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\apackageR\tpackageId\"@\n" +
 	"\x12GetPackageResponse\x12*\n" +
-	"\apacakge\x18\x01 \x01(\v2\x10.catalog.PackageR\apacakge\"h\n" +
-	"\x12GetPackagesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\apacakge\x18\x01 \x01(\v2\x10.catalog.PackageR\apacakge\"|\n" +
+	"\x12GetPackagesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"C\n" +
 	"\x13GetPackagesResponse\x12,\n" +
 	"\bpackages\x18\x01 \x03(\v2\x10.catalog.PackageR\bpackages\"L\n" +
 	"\rLocalisations\x12;\n" +
-	"\rlocalisations\x18\x01 \x03(\v2\x15.catalog.LocalisationR\rlocalisations\"d\n" +
-	"\x16GetLocalisationRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12&\n" +
-	"\x0elocalisationId\x18\x02 \x01(\tR\x0elocalisationId\"T\n" +
+	"\rlocalisations\x18\x01 \x03(\v2\x15.catalog.LocalisationR\rlocalisations\"\x8c\x01\n" +
+	"\x16GetLocalisationRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12:\n" +
+	"\x0elocalisationId\x18\x02 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\flocalisationR\x0elocalisationId\"T\n" +
 	"\x17GetLocalisationResponse\x129\n" +
-	"\flocalisation\x18\x01 \x01(\v2\x15.catalog.LocalisationR\flocalisation\"m\n" +
-	"\x17GetLocalisationsRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\flocalisation\x18\x01 \x01(\v2\x15.catalog.LocalisationR\flocalisation\"\x81\x01\n" +
+	"\x17GetLocalisationsRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"W\n" +
 	"\x18GetLocalisationsResponse\x12;\n" +
 	"\rlocalisations\x18\x01 \x03(\v2\x15.catalog.LocalisationR\rlocalisations\"P\n" +
 	"\x0eUnitOfMeasures\x12>\n" +
-	"\x0eunitOfMeasures\x18\x01 \x03(\v2\x16.catalog.UnitOfMeasureR\x0eunitOfMeasures\"g\n" +
-	"\x17GetUnitOfMeasureRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12(\n" +
-	"\x0funitOfMeasureId\x18\x02 \x01(\tR\x0funitOfMeasureId\"X\n" +
+	"\x0eunitOfMeasures\x18\x01 \x03(\v2\x16.catalog.UnitOfMeasureR\x0eunitOfMeasures\"\x92\x01\n" +
+	"\x17GetUnitOfMeasureRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12?\n" +
+	"\x0funitOfMeasureId\x18\x02 \x01(\tB\x15\x8a\xb5\x18\x11\n" +
+	"\x0funit_of_measureR\x0funitOfMeasureId\"X\n" +
 	"\x18GetUnitOfMeasureResponse\x12<\n" +
-	"\runitOfMeasure\x18\x01 \x01(\v2\x16.catalog.UnitOfMeasureR\runitOfMeasure\"n\n" +
-	"\x18GetUnitOfMeasuresRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\runitOfMeasure\x18\x01 \x01(\v2\x16.catalog.UnitOfMeasureR\runitOfMeasure\"\x82\x01\n" +
+	"\x18GetUnitOfMeasuresRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"[\n" +
 	"\x19GetUnitOfMeasuresResponse\x12>\n" +
 	"\x0eunitOfMeasures\x18\x01 \x03(\v2\x16.catalog.UnitOfMeasureR\x0eunitOfMeasures\"C\n" +
 	"\vInventories\x124\n" +
-	"\vinventories\x18\x01 \x03(\v2\x12.catalog.InventoryR\vinventories\"k\n" +
-	"\x15GetInventoriesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\vinventories\x18\x01 \x03(\v2\x12.catalog.InventoryR\vinventories\"\x7f\n" +
+	"\x15GetInventoriesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"N\n" +
 	"\x16GetInventoriesResponse\x124\n" +
@@ -7170,16 +7233,22 @@ const file_catalog_proto_rawDesc = "" +
 	"Categories\x121\n" +
 	"\n" +
 	"categories\x18\x01 \x03(\v2\x11.catalog.CategoryR\n" +
-	"categories\"X\n" +
-	"\x12GetCategoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x1e\n" +
+	"categories\"|\n" +
+	"\x12GetCategoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
 	"\n" +
-	"categoryId\x18\x02 \x01(\tR\n" +
+	"connection\x10\x01R\fconnectionId\x12.\n" +
+	"\n" +
+	"categoryId\x18\x02 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bcategoryR\n" +
 	"categoryId\"D\n" +
 	"\x13GetCategoryResponse\x12-\n" +
-	"\bcategory\x18\x01 \x01(\v2\x11.catalog.CategoryR\bcategory\"j\n" +
-	"\x14GetCategoriesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\bcategory\x18\x01 \x01(\v2\x11.catalog.CategoryR\bcategory\"~\n" +
+	"\x14GetCategoriesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"J\n" +
 	"\x15GetCategoriesResponse\x121\n" +
@@ -7187,83 +7256,115 @@ const file_catalog_proto_rawDesc = "" +
 	"categories\x18\x01 \x03(\v2\x11.catalog.CategoryR\n" +
 	"categories\"L\n" +
 	"\rItemInstances\x12;\n" +
-	"\ritemInstances\x18\x01 \x03(\v2\x15.catalog.ItemInstanceR\ritemInstances\"d\n" +
-	"\x16GetItemInstanceRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12&\n" +
-	"\x0eitemInstanceId\x18\x02 \x01(\tR\x0eitemInstanceId\"T\n" +
+	"\ritemInstances\x18\x01 \x03(\v2\x15.catalog.ItemInstanceR\ritemInstances\"\x8d\x01\n" +
+	"\x16GetItemInstanceRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12;\n" +
+	"\x0eitemInstanceId\x18\x02 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
+	"\ritem_instanceR\x0eitemInstanceId\"T\n" +
 	"\x17GetItemInstanceResponse\x129\n" +
-	"\fitemInstance\x18\x01 \x01(\v2\x15.catalog.ItemInstanceR\fitemInstance\"m\n" +
-	"\x17GetItemInstancesRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\fitemInstance\x18\x01 \x01(\v2\x15.catalog.ItemInstanceR\fitemInstance\"\x81\x01\n" +
+	"\x17GetItemInstancesRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"W\n" +
 	"\x18GetItemInstancesResponse\x12;\n" +
 	"\ritemInstances\x18\x01 \x03(\v2\x15.catalog.ItemInstanceR\ritemInstances\"T\n" +
 	"\x0fItemDefinitions\x12A\n" +
-	"\x0fitemDefinitions\x18\x01 \x03(\v2\x17.catalog.ItemDefinitionR\x0fitemDefinitions\"j\n" +
-	"\x18GetItemDefinitionRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12*\n" +
-	"\x10itemDefinitionId\x18\x02 \x01(\tR\x10itemDefinitionId\"\\\n" +
+	"\x0fitemDefinitions\x18\x01 \x03(\v2\x17.catalog.ItemDefinitionR\x0fitemDefinitions\"\x95\x01\n" +
+	"\x18GetItemDefinitionRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12A\n" +
+	"\x10itemDefinitionId\x18\x02 \x01(\tB\x15\x8a\xb5\x18\x11\n" +
+	"\x0fitem_definitionR\x10itemDefinitionId\"\\\n" +
 	"\x19GetItemDefinitionResponse\x12?\n" +
-	"\x0eitemDefinition\x18\x01 \x01(\v2\x17.catalog.ItemDefinitionR\x0eitemDefinition\"o\n" +
-	"\x19GetItemDefinitionsRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\x0eitemDefinition\x18\x01 \x01(\v2\x17.catalog.ItemDefinitionR\x0eitemDefinition\"\x83\x01\n" +
+	"\x19GetItemDefinitionsRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x18\n" +
 	"\aoptions\x18\x03 \x01(\tR\aoptions\"_\n" +
 	"\x1aGetItemDefinitionsResponse\x12A\n" +
-	"\x0fitemDefinitions\x18\x01 \x03(\v2\x17.catalog.ItemDefinitionR\x0fitemDefinitions\"\x86\x01\n" +
-	"\x1cDeletePackageSupplierRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12B\n" +
+	"\x0fitemDefinitions\x18\x01 \x03(\v2\x17.catalog.ItemDefinitionR\x0fitemDefinitions\"\x9a\x01\n" +
+	"\x1cDeletePackageSupplierRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12B\n" +
 	"\x0fpackageSupplier\x18\x02 \x01(\v2\x18.catalog.PackageSupplierR\x0fpackageSupplier\"7\n" +
 	"\x1dDeletePackageSupplierResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"f\n" +
-	"\x14DeletePackageRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12*\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"z\n" +
+	"\x14DeletePackageRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12*\n" +
 	"\apackage\x18\x02 \x01(\v2\x10.catalog.PackageR\apackage\"/\n" +
 	"\x15DeletePackageResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"j\n" +
-	"\x15DeleteSupplierRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"~\n" +
+	"\x15DeleteSupplierRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12-\n" +
 	"\bsupplier\x18\x02 \x01(\v2\x11.catalog.SupplierR\bsupplier\"0\n" +
 	"\x16DeleteSupplierResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x92\x01\n" +
-	"\x1fDeletePropertyDefinitionRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12K\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xa6\x01\n" +
+	"\x1fDeletePropertyDefinitionRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12K\n" +
 	"\x12propertyDefinition\x18\x02 \x01(\v2\x1b.catalog.PropertyDefinitionR\x12propertyDefinition\":\n" +
 	" DeletePropertyDefinitionResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"~\n" +
-	"\x1aDeleteUnitOfMeasureRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12<\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x92\x01\n" +
+	"\x1aDeleteUnitOfMeasureRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12<\n" +
 	"\runitOfMeasure\x18\x02 \x01(\v2\x16.catalog.UnitOfMeasureR\runitOfMeasure\"5\n" +
 	"\x1bDeleteUnitOfMeasureResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"r\n" +
-	"\x19DeleteItemInstanceRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x121\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x86\x01\n" +
+	"\x19DeleteItemInstanceRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x121\n" +
 	"\binstance\x18\x02 \x01(\v2\x15.catalog.ItemInstanceR\binstance\"4\n" +
 	"\x1aDeleteItemInstanceResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"z\n" +
-	"\x19DeleteManufacturerRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x129\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x8e\x01\n" +
+	"\x19DeleteManufacturerRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x129\n" +
 	"\fmanufacturer\x18\x02 \x01(\v2\x15.catalog.ManufacturerR\fmanufacturer\"4\n" +
 	"\x1aDeleteManufacturerResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x8a\x01\n" +
-	"\x1dDeleteItemManufacturerRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12E\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x9e\x01\n" +
+	"\x1dDeleteItemManufacturerRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12E\n" +
 	"\x10itemManufacturer\x18\x02 \x01(\v2\x19.catalog.ItemManufacturerR\x10itemManufacturer\"8\n" +
 	"\x1eDeleteItemManufacturerResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"j\n" +
-	"\x15DeleteCategoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"~\n" +
+	"\x15DeleteCategoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12-\n" +
 	"\bcategory\x18\x02 \x01(\v2\x11.catalog.CategoryR\bcategory\"0\n" +
 	"\x16DeleteCategoryResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"z\n" +
-	"\x19DeleteLocalisationRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x129\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x8e\x01\n" +
+	"\x19DeleteLocalisationRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x129\n" +
 	"\flocalisation\x18\x02 \x01(\v2\x15.catalog.LocalisationR\flocalisation\"4\n" +
 	"\x1aDeleteLocalisationResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"n\n" +
-	"\x16DeleteInventoryRequest\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x120\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x82\x01\n" +
+	"\x16DeleteInventoryRequest\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x120\n" +
 	"\tinventory\x18\x02 \x01(\v2\x12.catalog.InventoryR\tinventory\"1\n" +
 	"\x17DeleteInventoryResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
@@ -7274,55 +7375,101 @@ const file_catalog_proto_rawDesc = "" +
 	"\bCurrency\x12\x06\n" +
 	"\x02us\x10\x00\x12\a\n" +
 	"\x03can\x10\x01\x12\b\n" +
-	"\x04euro\x10\x022\xac \n" +
-	"\x0eCatalogService\x123\n" +
-	"\x04Stop\x12\x14.catalog.StopRequest\x1a\x15.catalog.StopResponse\x12Q\n" +
-	"\x10CreateConnection\x12\x1d.catalog.CreateConnectionRqst\x1a\x1c.catalog.CreateConnectionRsp\"\x00\x12Q\n" +
-	"\x10DeleteConnection\x12\x1d.catalog.DeleteConnectionRqst\x1a\x1c.catalog.DeleteConnectionRsp\"\x00\x12\\\n" +
-	"\x11SaveUnitOfMeasure\x12!.catalog.SaveUnitOfMeasureRequest\x1a\".catalog.SaveUnitOfMeasureResponse\"\x00\x12k\n" +
-	"\x16SavePropertyDefinition\x12&.catalog.SavePropertyDefinitionRequest\x1a'.catalog.SavePropertyDefinitionResponse\"\x00\x12_\n" +
-	"\x12SaveItemDefinition\x12\".catalog.SaveItemDefinitionRequest\x1a#.catalog.SaveItemDefinitionResponse\"\x00\x12Y\n" +
-	"\x10SaveItemInstance\x12 .catalog.SaveItemInstanceRequest\x1a!.catalog.SaveItemInstanceResponse\"\x00\x12P\n" +
-	"\rSaveInventory\x12\x1d.catalog.SaveInventoryRequest\x1a\x1e.catalog.SaveInventoryResponse\"\x00\x12Y\n" +
-	"\x10SaveManufacturer\x12 .catalog.SaveManufacturerRequest\x1a!.catalog.SaveManufacturerResponse\"\x00\x12M\n" +
-	"\fSaveSupplier\x12\x1c.catalog.SaveSupplierRequest\x1a\x1d.catalog.SaveSupplierResponse\"\x00\x12Y\n" +
-	"\x10SaveLocalisation\x12 .catalog.SaveLocalisationRequest\x1a!.catalog.SaveLocalisationResponse\"\x00\x12J\n" +
-	"\vSavePackage\x12\x1b.catalog.SavePackageRequest\x1a\x1c.catalog.SavePackageResponse\"\x00\x12b\n" +
-	"\x13SavePackageSupplier\x12#.catalog.SavePackageSupplierRequest\x1a$.catalog.SavePackageSupplierResponse\"\x00\x12e\n" +
-	"\x14SaveItemManufacturer\x12$.catalog.SaveItemManufacturerRequest\x1a%.catalog.SaveItemManufacturerResponse\"\x00\x12M\n" +
-	"\fSaveCategory\x12\x1c.catalog.SaveCategoryRequest\x1a\x1d.catalog.SaveCategoryResponse\"\x00\x12{\n" +
-	"\x1cAppendItemDefinitionCategory\x12,.catalog.AppendItemDefinitionCategoryRequest\x1a-.catalog.AppendItemDefinitionCategoryResponse\x12{\n" +
-	"\x1cRemoveItemDefinitionCategory\x12,.catalog.RemoveItemDefinitionCategoryRequest\x1a-.catalog.RemoveItemDefinitionCategoryResponse\x12H\n" +
-	"\vgetSupplier\x12\x1b.catalog.GetSupplierRequest\x1a\x1c.catalog.GetSupplierResponse\x12K\n" +
-	"\fgetSuppliers\x12\x1c.catalog.GetSuppliersRequest\x1a\x1d.catalog.GetSuppliersResponse\x12T\n" +
-	"\x0fgetManufacturer\x12\x1f.catalog.GetManufacturerRequest\x1a .catalog.GetManufacturerResponse\x12W\n" +
-	"\x10getManufacturers\x12 .catalog.GetManufacturersRequest\x1a!.catalog.GetManufacturersResponse\x12`\n" +
-	"\x13getSupplierPackages\x12#.catalog.GetSupplierPackagesRequest\x1a$.catalog.GetSupplierPackagesResponse\x12E\n" +
+	"\x04euro\x10\x022\xdeD\n" +
+	"\x0eCatalogService\x12_\n" +
+	"\x04Stop\x12\x14.catalog.StopRequest\x1a\x15.catalog.StopResponse\"*\x82\xb5\x18&\n" +
+	"\fcatalog.stop\x12\x05admin\x1a\b/catalog*\x05admin\x12\x95\x01\n" +
+	"\x10CreateConnection\x12\x1d.catalog.CreateConnectionRqst\x1a\x1c.catalog.CreateConnectionRsp\"D\x82\xb5\x18@\n" +
+	"\x19catalog.connection.create\x12\x05write\"\x14/catalog/connections*\x06editor\x12\x9a\x01\n" +
+	"\x10DeleteConnection\x12\x1d.catalog.DeleteConnectionRqst\x1a\x1c.catalog.DeleteConnectionRsp\"I\x82\xb5\x18E\n" +
+	"\x19catalog.connection.delete\x12\x06delete\x1a\x19/catalog/connections/{id}*\x05admin\x12\xc4\x01\n" +
+	"\x11SaveUnitOfMeasure\x12!.catalog.SaveUnitOfMeasureRequest\x1a\".catalog.SaveUnitOfMeasureResponse\"h\x82\xb5\x18d\n" +
+	"\x1dcatalog.unit_of_measure.write\x12\x05write\"4/catalog/connections/{connectionId}/unit-of-measures*\x06editor\x12\xdb\x01\n" +
+	"\x16SavePropertyDefinition\x12&.catalog.SavePropertyDefinitionRequest\x1a'.catalog.SavePropertyDefinitionResponse\"p\x82\xb5\x18l\n" +
+	"!catalog.property_definition.write\x12\x05write\"8/catalog/connections/{connectionId}/property-definitions*\x06editor\x12\xc7\x01\n" +
+	"\x12SaveItemDefinition\x12\".catalog.SaveItemDefinitionRequest\x1a#.catalog.SaveItemDefinitionResponse\"h\x82\xb5\x18d\n" +
+	"\x1dcatalog.item_definition.write\x12\x05write\"4/catalog/connections/{connectionId}/item-definitions*\x06editor\x12\xbd\x01\n" +
+	"\x10SaveItemInstance\x12 .catalog.SaveItemInstanceRequest\x1a!.catalog.SaveItemInstanceResponse\"d\x82\xb5\x18`\n" +
+	"\x1bcatalog.item_instance.write\x12\x05write\"2/catalog/connections/{connectionId}/item-instances*\x06editor\x12\xad\x01\n" +
+	"\rSaveInventory\x12\x1d.catalog.SaveInventoryRequest\x1a\x1e.catalog.SaveInventoryResponse\"]\x82\xb5\x18Y\n" +
+	"\x17catalog.inventory.write\x12\x05write\"//catalog/connections/{connectionId}/inventories*\x06editor\x12\xbb\x01\n" +
+	"\x10SaveManufacturer\x12 .catalog.SaveManufacturerRequest\x1a!.catalog.SaveManufacturerResponse\"b\x82\xb5\x18^\n" +
+	"\x1acatalog.manufacturer.write\x12\x05write\"1/catalog/connections/{connectionId}/manufacturers*\x06editor\x12\xa7\x01\n" +
+	"\fSaveSupplier\x12\x1c.catalog.SaveSupplierRequest\x1a\x1d.catalog.SaveSupplierResponse\"Z\x82\xb5\x18V\n" +
+	"\x16catalog.supplier.write\x12\x05write\"-/catalog/connections/{connectionId}/suppliers*\x06editor\x12\xbb\x01\n" +
+	"\x10SaveLocalisation\x12 .catalog.SaveLocalisationRequest\x1a!.catalog.SaveLocalisationResponse\"b\x82\xb5\x18^\n" +
+	"\x1acatalog.localisation.write\x12\x05write\"1/catalog/connections/{connectionId}/localisations*\x06editor\x12\xa2\x01\n" +
+	"\vSavePackage\x12\x1b.catalog.SavePackageRequest\x1a\x1c.catalog.SavePackageResponse\"X\x82\xb5\x18T\n" +
+	"\x15catalog.package.write\x12\x05write\",/catalog/connections/{connectionId}/packages*\x06editor\x12\xcc\x01\n" +
+	"\x13SavePackageSupplier\x12#.catalog.SavePackageSupplierRequest\x1a$.catalog.SavePackageSupplierResponse\"j\x82\xb5\x18f\n" +
+	"\x1ecatalog.package_supplier.write\x12\x05write\"5/catalog/connections/{connectionId}/package-suppliers*\x06editor\x12\xd1\x01\n" +
+	"\x14SaveItemManufacturer\x12$.catalog.SaveItemManufacturerRequest\x1a%.catalog.SaveItemManufacturerResponse\"l\x82\xb5\x18h\n" +
+	"\x1fcatalog.item_manufacturer.write\x12\x05write\"6/catalog/connections/{connectionId}/item-manufacturers*\x06editor\x12\xa8\x01\n" +
+	"\fSaveCategory\x12\x1c.catalog.SaveCategoryRequest\x1a\x1d.catalog.SaveCategoryResponse\"[\x82\xb5\x18W\n" +
+	"\x16catalog.category.write\x12\x05write\"./catalog/connections/{connectionId}/categories*\x06editor\x12\xed\x01\n" +
+	"\x1cAppendItemDefinitionCategory\x12,.catalog.AppendItemDefinitionCategoryRequest\x1a-.catalog.AppendItemDefinitionCategoryResponse\"p\x82\xb5\x18l\n" +
+	"%catalog.item_definition.category.link\x12\x05write\"4/catalog/connections/{connectionId}/item-definitions*\x06editor\x12\xef\x01\n" +
+	"\x1cRemoveItemDefinitionCategory\x12,.catalog.RemoveItemDefinitionCategoryRequest\x1a-.catalog.RemoveItemDefinitionCategoryResponse\"r\x82\xb5\x18n\n" +
+	"'catalog.item_definition.category.unlink\x12\x05write\"4/catalog/connections/{connectionId}/item-definitions*\x06editor\x12\xaf\x01\n" +
+	"\vgetSupplier\x12\x1b.catalog.GetSupplierRequest\x1a\x1c.catalog.GetSupplierResponse\"e\x82\xb5\x18a\n" +
+	"\x15catalog.supplier.read\x12\x04read\x1a:/catalog/connections/{connectionId}/suppliers/{supplierId}*\x06viewer\x12\xa5\x01\n" +
+	"\fgetSuppliers\x12\x1c.catalog.GetSuppliersRequest\x1a\x1d.catalog.GetSuppliersResponse\"X\x82\xb5\x18T\n" +
+	"\x15catalog.supplier.list\x12\x04read\"-/catalog/connections/{connectionId}/suppliers*\x06viewer\x12\xc7\x01\n" +
+	"\x0fgetManufacturer\x12\x1f.catalog.GetManufacturerRequest\x1a .catalog.GetManufacturerResponse\"q\x82\xb5\x18m\n" +
+	"\x19catalog.manufacturer.read\x12\x04read\x1aB/catalog/connections/{connectionId}/manufacturers/{manufacturerId}*\x06viewer\x12\xb9\x01\n" +
+	"\x10getManufacturers\x12 .catalog.GetManufacturersRequest\x1a!.catalog.GetManufacturersResponse\"`\x82\xb5\x18\\\n" +
+	"\x19catalog.manufacturer.list\x12\x04read\"1/catalog/connections/{connectionId}/manufacturers*\x06viewer\x12\xd8\x01\n" +
+	"\x13getSupplierPackages\x12#.catalog.GetSupplierPackagesRequest\x1a$.catalog.GetSupplierPackagesResponse\"v\x82\xb5\x18r\n" +
+	"\x1dcatalog.package_supplier.read\x12\x04read\x1aC/catalog/connections/{connectionId}/suppliers/{supplierId}/packages*\x06viewer\x12\xa9\x01\n" +
 	"\n" +
-	"getPackage\x12\x1a.catalog.GetPackageRequest\x1a\x1b.catalog.GetPackageResponse\x12H\n" +
-	"\vgetPackages\x12\x1b.catalog.GetPackagesRequest\x1a\x1c.catalog.GetPackagesResponse\x12W\n" +
-	"\x10getUnitOfMeasure\x12 .catalog.GetUnitOfMeasureRequest\x1a!.catalog.GetUnitOfMeasureResponse\x12Z\n" +
-	"\x11getUnitOfMeasures\x12!.catalog.GetUnitOfMeasuresRequest\x1a\".catalog.GetUnitOfMeasuresResponse\x12Z\n" +
-	"\x11getItemDefinition\x12!.catalog.GetItemDefinitionRequest\x1a\".catalog.GetItemDefinitionResponse\x12]\n" +
-	"\x12getItemDefinitions\x12\".catalog.GetItemDefinitionsRequest\x1a#.catalog.GetItemDefinitionsResponse\x12T\n" +
-	"\x0fgetItemInstance\x12\x1f.catalog.GetItemInstanceRequest\x1a .catalog.GetItemInstanceResponse\x12W\n" +
-	"\x10getItemInstances\x12 .catalog.GetItemInstancesRequest\x1a!.catalog.GetItemInstancesResponse\x12T\n" +
-	"\x0fgetLocalisation\x12\x1f.catalog.GetLocalisationRequest\x1a .catalog.GetLocalisationResponse\x12W\n" +
-	"\x10getLocalisations\x12 .catalog.GetLocalisationsRequest\x1a!.catalog.GetLocalisationsResponse\x12H\n" +
-	"\vgetCategory\x12\x1b.catalog.GetCategoryRequest\x1a\x1c.catalog.GetCategoryResponse\x12N\n" +
-	"\rgetCategories\x12\x1d.catalog.GetCategoriesRequest\x1a\x1e.catalog.GetCategoriesResponse\x12Q\n" +
-	"\x0egetInventories\x12\x1e.catalog.GetInventoriesRequest\x1a\x1f.catalog.GetInventoriesResponse\x12T\n" +
-	"\x0fdeleteInventory\x12\x1f.catalog.DeleteInventoryRequest\x1a .catalog.DeleteInventoryResponse\x12N\n" +
-	"\rdeletePackage\x12\x1d.catalog.DeletePackageRequest\x1a\x1e.catalog.DeletePackageResponse\x12f\n" +
-	"\x15deletePackageSupplier\x12%.catalog.DeletePackageSupplierRequest\x1a&.catalog.DeletePackageSupplierResponse\x12Q\n" +
-	"\x0edeleteSupplier\x12\x1e.catalog.DeleteSupplierRequest\x1a\x1f.catalog.DeleteSupplierResponse\x12o\n" +
-	"\x18deletePropertyDefinition\x12(.catalog.DeletePropertyDefinitionRequest\x1a).catalog.DeletePropertyDefinitionResponse\x12`\n" +
-	"\x13deleteUnitOfMeasure\x12#.catalog.DeleteUnitOfMeasureRequest\x1a$.catalog.DeleteUnitOfMeasureResponse\x12]\n" +
-	"\x12deleteItemInstance\x12\".catalog.DeleteItemInstanceRequest\x1a#.catalog.DeleteItemInstanceResponse\x12]\n" +
-	"\x12deleteManufacturer\x12\".catalog.DeleteManufacturerRequest\x1a#.catalog.DeleteManufacturerResponse\x12i\n" +
-	"\x16deleteItemManufacturer\x12&.catalog.DeleteItemManufacturerRequest\x1a'.catalog.DeleteItemManufacturerResponse\x12Q\n" +
-	"\x0edeleteCategory\x12\x1e.catalog.DeleteCategoryRequest\x1a\x1f.catalog.DeleteCategoryResponse\x12]\n" +
-	"\x12deleteLocalisation\x12\".catalog.DeleteLocalisationRequest\x1a#.catalog.DeleteLocalisationResponseB9Z7github.com/globulario/services/golang/catalog/catalogpbb\x06proto3"
+	"getPackage\x12\x1a.catalog.GetPackageRequest\x1a\x1b.catalog.GetPackageResponse\"b\x82\xb5\x18^\n" +
+	"\x14catalog.package.read\x12\x04read\x1a8/catalog/connections/{connectionId}/packages/{packageId}*\x06viewer\x12\xa0\x01\n" +
+	"\vgetPackages\x12\x1b.catalog.GetPackagesRequest\x1a\x1c.catalog.GetPackagesResponse\"V\x82\xb5\x18R\n" +
+	"\x14catalog.package.list\x12\x04read\",/catalog/connections/{connectionId}/packages*\x06viewer\x12\xd1\x01\n" +
+	"\x10getUnitOfMeasure\x12 .catalog.GetUnitOfMeasureRequest\x1a!.catalog.GetUnitOfMeasureResponse\"x\x82\xb5\x18t\n" +
+	"\x1ccatalog.unit_of_measure.read\x12\x04read\x1aF/catalog/connections/{connectionId}/unit-of-measures/{unitOfMeasureId}*\x06viewer\x12\xc2\x01\n" +
+	"\x11getUnitOfMeasures\x12!.catalog.GetUnitOfMeasuresRequest\x1a\".catalog.GetUnitOfMeasuresResponse\"f\x82\xb5\x18b\n" +
+	"\x1ccatalog.unit_of_measure.list\x12\x04read\"4/catalog/connections/{connectionId}/unit-of-measures*\x06viewer\x12\xd5\x01\n" +
+	"\x11getItemDefinition\x12!.catalog.GetItemDefinitionRequest\x1a\".catalog.GetItemDefinitionResponse\"y\x82\xb5\x18u\n" +
+	"\x1ccatalog.item_definition.read\x12\x04read\x1aG/catalog/connections/{connectionId}/item-definitions/{itemDefinitionId}*\x06viewer\x12\xc5\x01\n" +
+	"\x12getItemDefinitions\x12\".catalog.GetItemDefinitionsRequest\x1a#.catalog.GetItemDefinitionsResponse\"f\x82\xb5\x18b\n" +
+	"\x1ccatalog.item_definition.list\x12\x04read\"4/catalog/connections/{connectionId}/item-definitions*\x06viewer\x12\xc9\x01\n" +
+	"\x0fgetItemInstance\x12\x1f.catalog.GetItemInstanceRequest\x1a .catalog.GetItemInstanceResponse\"s\x82\xb5\x18o\n" +
+	"\x1acatalog.item_instance.read\x12\x04read\x1aC/catalog/connections/{connectionId}/item-instances/{itemInstanceId}*\x06viewer\x12\xbb\x01\n" +
+	"\x10getItemInstances\x12 .catalog.GetItemInstancesRequest\x1a!.catalog.GetItemInstancesResponse\"b\x82\xb5\x18^\n" +
+	"\x1acatalog.item_instance.list\x12\x04read\"2/catalog/connections/{connectionId}/item-instances*\x06viewer\x12\xc7\x01\n" +
+	"\x0fgetLocalisation\x12\x1f.catalog.GetLocalisationRequest\x1a .catalog.GetLocalisationResponse\"q\x82\xb5\x18m\n" +
+	"\x19catalog.localisation.read\x12\x04read\x1aB/catalog/connections/{connectionId}/localisations/{localisationId}*\x06viewer\x12\xb9\x01\n" +
+	"\x10getLocalisations\x12 .catalog.GetLocalisationsRequest\x1a!.catalog.GetLocalisationsResponse\"`\x82\xb5\x18\\\n" +
+	"\x19catalog.localisation.list\x12\x04read\"1/catalog/connections/{connectionId}/localisations*\x06viewer\x12\xb0\x01\n" +
+	"\vgetCategory\x12\x1b.catalog.GetCategoryRequest\x1a\x1c.catalog.GetCategoryResponse\"f\x82\xb5\x18b\n" +
+	"\x15catalog.category.read\x12\x04read\x1a;/catalog/connections/{connectionId}/categories/{categoryId}*\x06viewer\x12\xa9\x01\n" +
+	"\rgetCategories\x12\x1d.catalog.GetCategoriesRequest\x1a\x1e.catalog.GetCategoriesResponse\"Y\x82\xb5\x18U\n" +
+	"\x15catalog.category.list\x12\x04read\"./catalog/connections/{connectionId}/categories*\x06viewer\x12\xae\x01\n" +
+	"\x0egetInventories\x12\x1e.catalog.GetInventoriesRequest\x1a\x1f.catalog.GetInventoriesResponse\"[\x82\xb5\x18W\n" +
+	"\x16catalog.inventory.list\x12\x04read\"//catalog/connections/{connectionId}/inventories*\x06viewer\x12\xb4\x01\n" +
+	"\x0fdeleteInventory\x12\x1f.catalog.DeleteInventoryRequest\x1a .catalog.DeleteInventoryResponse\"^\x82\xb5\x18Z\n" +
+	"\x18catalog.inventory.delete\x12\x06delete\"//catalog/connections/{connectionId}/inventories*\x05admin\x12\xa9\x01\n" +
+	"\rdeletePackage\x12\x1d.catalog.DeletePackageRequest\x1a\x1e.catalog.DeletePackageResponse\"Y\x82\xb5\x18U\n" +
+	"\x16catalog.package.delete\x12\x06delete\",/catalog/connections/{connectionId}/packages*\x05admin\x12\xd3\x01\n" +
+	"\x15deletePackageSupplier\x12%.catalog.DeletePackageSupplierRequest\x1a&.catalog.DeletePackageSupplierResponse\"k\x82\xb5\x18g\n" +
+	"\x1fcatalog.package_supplier.delete\x12\x06delete\"5/catalog/connections/{connectionId}/package-suppliers*\x05admin\x12\xae\x01\n" +
+	"\x0edeleteSupplier\x12\x1e.catalog.DeleteSupplierRequest\x1a\x1f.catalog.DeleteSupplierResponse\"[\x82\xb5\x18W\n" +
+	"\x17catalog.supplier.delete\x12\x06delete\"-/catalog/connections/{connectionId}/suppliers*\x05admin\x12\xe2\x01\n" +
+	"\x18deletePropertyDefinition\x12(.catalog.DeletePropertyDefinitionRequest\x1a).catalog.DeletePropertyDefinitionResponse\"q\x82\xb5\x18m\n" +
+	"\"catalog.property_definition.delete\x12\x06delete\"8/catalog/connections/{connectionId}/property-definitions*\x05admin\x12\xcb\x01\n" +
+	"\x13deleteUnitOfMeasure\x12#.catalog.DeleteUnitOfMeasureRequest\x1a$.catalog.DeleteUnitOfMeasureResponse\"i\x82\xb5\x18e\n" +
+	"\x1ecatalog.unit_of_measure.delete\x12\x06delete\"4/catalog/connections/{connectionId}/unit-of-measures*\x05admin\x12\xc4\x01\n" +
+	"\x12deleteItemInstance\x12\".catalog.DeleteItemInstanceRequest\x1a#.catalog.DeleteItemInstanceResponse\"e\x82\xb5\x18a\n" +
+	"\x1ccatalog.item_instance.delete\x12\x06delete\"2/catalog/connections/{connectionId}/item-instances*\x05admin\x12\xc2\x01\n" +
+	"\x12deleteManufacturer\x12\".catalog.DeleteManufacturerRequest\x1a#.catalog.DeleteManufacturerResponse\"c\x82\xb5\x18_\n" +
+	"\x1bcatalog.manufacturer.delete\x12\x06delete\"1/catalog/connections/{connectionId}/manufacturers*\x05admin\x12\xd8\x01\n" +
+	"\x16deleteItemManufacturer\x12&.catalog.DeleteItemManufacturerRequest\x1a'.catalog.DeleteItemManufacturerResponse\"m\x82\xb5\x18i\n" +
+	" catalog.item_manufacturer.delete\x12\x06delete\"6/catalog/connections/{connectionId}/item-manufacturers*\x05admin\x12\xaf\x01\n" +
+	"\x0edeleteCategory\x12\x1e.catalog.DeleteCategoryRequest\x1a\x1f.catalog.DeleteCategoryResponse\"\\\x82\xb5\x18X\n" +
+	"\x17catalog.category.delete\x12\x06delete\"./catalog/connections/{connectionId}/categories*\x05admin\x12\xc2\x01\n" +
+	"\x12deleteLocalisation\x12\".catalog.DeleteLocalisationRequest\x1a#.catalog.DeleteLocalisationResponse\"c\x82\xb5\x18_\n" +
+	"\x1bcatalog.localisation.delete\x12\x06delete\"1/catalog/connections/{connectionId}/localisations*\x05adminB9Z7github.com/globulario/services/golang/catalog/catalogpbb\x06proto3"
 
 var (
 	file_catalog_proto_rawDescOnce sync.Once

@@ -10,6 +10,7 @@
 package spcpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -236,7 +237,7 @@ var File_spc_proto protoreflect.FileDescriptor
 
 const file_spc_proto_rawDesc = "" +
 	"\n" +
-	"\tspc.proto\x12\x03spc\"\xbf\x01\n" +
+	"\tspc.proto\x12\x03spc\x1a\x13globular_auth.proto\"\xbf\x01\n" +
 	"\x11CreateAnalyseRqst\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\tR\x04data\x12\x16\n" +
 	"\x06tolzon\x18\x02 \x01(\x01R\x06tolzon\x12\x14\n" +
@@ -248,11 +249,13 @@ const file_spc_proto_rawDesc = "" +
 	"\x10CreateAnalyseRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\tR\x06result\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2{\n" +
+	"\fStopResponse2\xd5\x01\n" +
 	"\n" +
-	"SpcService\x12+\n" +
-	"\x04Stop\x12\x10.spc.StopRequest\x1a\x11.spc.StopResponse\x12@\n" +
-	"\rCreateAnalyse\x12\x16.spc.CreateAnalyseRqst\x1a\x15.spc.CreateAnalyseRsp\"\x00B1Z/github.com/globulario/services/golang/spc/spcpbb\x06proto3"
+	"SpcService\x12O\n" +
+	"\x04Stop\x12\x10.spc.StopRequest\x1a\x11.spc.StopResponse\"\"\x82\xb5\x18\x1e\n" +
+	"\bspc.stop\x12\x05admin\x1a\x04/spc*\x05admin\x12v\n" +
+	"\rCreateAnalyse\x12\x16.spc.CreateAnalyseRqst\x1a\x15.spc.CreateAnalyseRsp\"6\x82\xb5\x182\n" +
+	"\x12spc.analyse.create\x12\x05write\"\r/spc/analyses*\x06editorB1Z/github.com/globulario/services/golang/spc/spcpbb\x06proto3"
 
 var (
 	file_spc_proto_rawDescOnce sync.Once

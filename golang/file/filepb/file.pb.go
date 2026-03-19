@@ -10,6 +10,7 @@
 package filepb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -2231,7 +2232,7 @@ var File_file_proto protoreflect.FileDescriptor
 const file_file_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"file.proto\x12\x04file\x1a\x1cgoogle/protobuf/struct.proto\"\a\n" +
+	"file.proto\x12\x04file\x1a\x1cgoogle/protobuf/struct.proto\x1a\x13globular_auth.proto\"\a\n" +
 	"\x05Empty\"\xb7\x02\n" +
 	"\bFileInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -2245,51 +2246,60 @@ const file_file_proto_rawDesc = "" +
 	"\bchecksum\x18\t \x01(\tR\bchecksum\x123\n" +
 	"\bmetadata\x18\n" +
 	" \x01(\v2\x17.google.protobuf.StructR\bmetadata\x12$\n" +
-	"\x05files\x18\v \x03(\v2\x0e.file.FileInfoR\x05files\"\x94\x01\n" +
-	"\x0eReadDirRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\x05files\x18\v \x03(\v2\x0e.file.FileInfoR\x05files\"\xa2\x01\n" +
+	"\x0eReadDirRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x1c\n" +
 	"\trecursive\x18\x02 \x01(\bR\trecursive\x12&\n" +
 	"\x0ethumbnailWidth\x18\x03 \x01(\x05R\x0ethumbnailWidth\x12(\n" +
 	"\x0fthumbnailHeight\x18\x04 \x01(\x05R\x0fthumbnailHeight\"5\n" +
 	"\x0fReadDirResponse\x12\"\n" +
-	"\x04info\x18\x01 \x01(\v2\x0e.file.FileInfoR\x04info\":\n" +
-	"\x10CreateDirRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04info\x18\x01 \x01(\v2\x0e.file.FileInfoR\x04info\"H\n" +
+	"\x10CreateDirRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"+\n" +
 	"\x11CreateDirResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x10DeleteDirRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"+\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
+	"\x10DeleteDirRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\"+\n" +
 	"\x11DeleteDirResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"Y\n" +
-	"\rRenameRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x19\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"g\n" +
+	"\rRenameRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x19\n" +
 	"\bnew_name\x18\x02 \x01(\tR\anewName\x12\x19\n" +
 	"\bold_name\x18\x03 \x01(\tR\aoldName\"(\n" +
 	"\x0eRenameResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"7\n" +
-	"\vCopyRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"E\n" +
+	"\vCopyRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x14\n" +
 	"\x05files\x18\x02 \x03(\tR\x05files\"&\n" +
 	"\fCopyResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"7\n" +
-	"\vMoveRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"E\n" +
+	"\vMoveRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x14\n" +
 	"\x05files\x18\x02 \x03(\tR\x05files\"&\n" +
 	"\fMoveResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"z\n" +
-	"\x12GetFileInfoRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12&\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x88\x01\n" +
+	"\x12GetFileInfoRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12&\n" +
 	"\x0ethumbnailWidth\x18\x02 \x01(\x05R\x0ethumbnailWidth\x12(\n" +
 	"\x0fthumbnailHeight\x18\x03 \x01(\x05R\x0fthumbnailHeight\"9\n" +
 	"\x13GetFileInfoResponse\x12\"\n" +
-	"\x04info\x18\x01 \x01(\v2\x0e.file.FileInfoR\x04info\",\n" +
-	"\x16GetFileMetadataRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"J\n" +
+	"\x04info\x18\x01 \x01(\v2\x0e.file.FileInfoR\x04info\":\n" +
+	"\x16GetFileMetadataRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\"J\n" +
 	"\x17GetFileMetadataResponse\x12/\n" +
-	"\x06result\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06result\"%\n" +
-	"\x0fReadFileRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"&\n" +
+	"\x06result\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06result\"3\n" +
+	"\x0fReadFileRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\"&\n" +
 	"\x10ReadFileResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"E\n" +
 	"\x0fSaveFileRequest\x12\x14\n" +
@@ -2297,49 +2307,58 @@ const file_file_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x01(\fH\x00R\x04dataB\x06\n" +
 	"\x04file\"*\n" +
 	"\x10SaveFileResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"'\n" +
-	"\x11DeleteFileRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\",\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"5\n" +
+	"\x11DeleteFileRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\",\n" +
 	"\x12DeleteFileResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x9a\x01\n" +
-	"\x14GetThumbnailsRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xa8\x01\n" +
+	"\x14GetThumbnailsRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x1c\n" +
 	"\trecursive\x18\x02 \x01(\bR\trecursive\x12&\n" +
 	"\x0ethumbnailWidth\x18\x03 \x01(\x05R\x0ethumbnailWidth\x12(\n" +
 	"\x0fthumbnailHeight\x18\x04 \x01(\x05R\x0fthumbnailHeight\"+\n" +
 	"\x15GetThumbnailsResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"@\n" +
-	"\x14CreateArchiveRequest\x12\x14\n" +
-	"\x05paths\x18\x01 \x03(\tR\x05paths\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"L\n" +
+	"\x14CreateArchiveRequest\x12 \n" +
+	"\x05paths\x18\x01 \x03(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04pathR\x05paths\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"/\n" +
 	"\x15CreateArchiveResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"L\n" +
-	"\x10CreateLnkRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"Z\n" +
+	"\x10CreateLnkRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
 	"\x03lnk\x18\x03 \x01(\tR\x03lnk\"\x13\n" +
-	"\x11CreateLnkResponse\")\n" +
-	"\x13AddPublicDirRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x16\n" +
-	"\x14AddPublicDirResponse\",\n" +
-	"\x16RemovePublicDirRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x19\n" +
+	"\x11CreateLnkResponse\"7\n" +
+	"\x13AddPublicDirRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\"\x16\n" +
+	"\x14AddPublicDirResponse\":\n" +
+	"\x16RemovePublicDirRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\"\x19\n" +
 	"\x17RemovePublicDirResponse\"\x16\n" +
 	"\x14GetPublicDirsRequest\"+\n" +
 	"\x15GetPublicDirsResponse\x12\x12\n" +
-	"\x04dirs\x18\x01 \x03(\tR\x04dirs\"?\n" +
-	"\x15WriteExcelFileRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04dirs\x18\x01 \x03(\tR\x04dirs\"M\n" +
+	"\x15WriteExcelFileRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\tR\x04data\"0\n" +
 	"\x16WriteExcelFileResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"#\n" +
 	"\rHtmlToPdfRqst\x12\x12\n" +
 	"\x04html\x18\x01 \x01(\tR\x04html\"%\n" +
 	"\x11HtmlToPdfResponse\x12\x10\n" +
-	"\x03pdf\x18\x01 \x01(\fR\x03pdf\"{\n" +
+	"\x03pdf\x18\x01 \x01(\fR\x03pdf\"\x89\x01\n" +
 	"\x11UploadFileRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
-	"\x04dest\x18\x02 \x01(\tR\x04dest\x12\x12\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12 \n" +
+	"\x04dest\x18\x02 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04dest\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12\x14\n" +
 	"\x05isDir\x18\x05 \x01(\bR\x05isDir\"Z\n" +
@@ -2348,32 +2367,63 @@ const file_file_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +
 	"\x04info\x18\x03 \x01(\tR\x04info\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xd4\n" +
+	"\fStopResponse2\xf3\x12\n" +
+	"\vFileService\x12T\n" +
+	"\x04Stop\x12\x11.file.StopRequest\x1a\x12.file.StopResponse\"%\x82\xb5\x18!\n" +
 	"\n" +
-	"\vFileService\x12-\n" +
-	"\x04Stop\x12\x11.file.StopRequest\x1a\x12.file.StopResponse\x12E\n" +
-	"\fAddPublicDir\x12\x19.file.AddPublicDirRequest\x1a\x1a.file.AddPublicDirResponse\x12N\n" +
-	"\x0fRemovePublicDir\x12\x1c.file.RemovePublicDirRequest\x1a\x1d.file.RemovePublicDirResponse\x12H\n" +
-	"\rGetPublicDirs\x12\x1a.file.GetPublicDirsRequest\x1a\x1b.file.GetPublicDirsResponse\x128\n" +
-	"\aReadDir\x12\x14.file.ReadDirRequest\x1a\x15.file.ReadDirResponse0\x01\x12<\n" +
-	"\tCreateDir\x12\x16.file.CreateDirRequest\x1a\x17.file.CreateDirResponse\x12<\n" +
-	"\tCreateLnk\x12\x16.file.CreateLnkRequest\x1a\x17.file.CreateLnkResponse\x12<\n" +
-	"\tDeleteDir\x12\x16.file.DeleteDirRequest\x1a\x17.file.DeleteDirResponse\x123\n" +
-	"\x06Rename\x12\x13.file.RenameRequest\x1a\x14.file.RenameResponse\x12-\n" +
-	"\x04Move\x12\x11.file.MoveRequest\x1a\x12.file.MoveResponse\x12-\n" +
-	"\x04Copy\x12\x11.file.CopyRequest\x1a\x12.file.CopyResponse\x12H\n" +
-	"\rCreateArchive\x12\x1a.file.CreateArchiveRequest\x1a\x1b.file.CreateArchiveResponse\x12B\n" +
-	"\vGetFileInfo\x12\x18.file.GetFileInfoRequest\x1a\x19.file.GetFileInfoResponse\x12N\n" +
-	"\x0fGetFileMetadata\x12\x1c.file.GetFileMetadataRequest\x1a\x1d.file.GetFileMetadataResponse\x12;\n" +
-	"\bReadFile\x12\x15.file.ReadFileRequest\x1a\x16.file.ReadFileResponse0\x01\x12;\n" +
-	"\bSaveFile\x12\x15.file.SaveFileRequest\x1a\x16.file.SaveFileResponse(\x01\x12?\n" +
+	"file.admin\x12\x05admin\x1a\x05/file*\x05admin\x12z\n" +
+	"\fAddPublicDir\x12\x19.file.AddPublicDirRequest\x1a\x1a.file.AddPublicDirResponse\"3\x82\xb5\x18/\n" +
+	"\ffile.publish\x12\x05admin\x1a\x11/file/path/{path}*\x05admin\x12\x83\x01\n" +
+	"\x0fRemovePublicDir\x12\x1c.file.RemovePublicDirRequest\x1a\x1d.file.RemovePublicDirResponse\"3\x82\xb5\x18/\n" +
+	"\ffile.publish\x12\x05admin\x1a\x11/file/path/{path}*\x05admin\x12}\n" +
+	"\rGetPublicDirs\x12\x1a.file.GetPublicDirsRequest\x1a\x1b.file.GetPublicDirsResponse\"3\x82\xb5\x18/\n" +
+	"\ffile.publish\x12\x04read\"\x11/file/public-dirs*\x06viewer\x12j\n" +
+	"\aReadDir\x12\x14.file.ReadDirRequest\x1a\x15.file.ReadDirResponse\"0\x82\xb5\x18,\n" +
+	"\tfile.list\x12\x04read\x1a\x11/file/path/{path}*\x06viewer0\x01\x12p\n" +
+	"\tCreateDir\x12\x16.file.CreateDirRequest\x1a\x17.file.CreateDirResponse\"2\x82\xb5\x18.\n" +
 	"\n" +
-	"DeleteFile\x12\x17.file.DeleteFileRequest\x1a\x18.file.DeleteFileResponse\x12J\n" +
-	"\rGetThumbnails\x12\x1a.file.GetThumbnailsRequest\x1a\x1b.file.GetThumbnailsResponse0\x01\x12A\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12p\n" +
+	"\tCreateLnk\x12\x16.file.CreateLnkRequest\x1a\x17.file.CreateLnkResponse\"2\x82\xb5\x18.\n" +
 	"\n" +
-	"UploadFile\x12\x17.file.UploadFileRequest\x1a\x18.file.UploadFileResponse0\x01\x12K\n" +
-	"\x0eWriteExcelFile\x12\x1b.file.WriteExcelFileRequest\x1a\x1c.file.WriteExcelFileResponse\x129\n" +
-	"\tHtmlToPdf\x12\x13.file.HtmlToPdfRqst\x1a\x17.file.HtmlToPdfResponseB3Z1github.com/globulario/services/golang/file/filepbb\x06proto3"
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12q\n" +
+	"\tDeleteDir\x12\x16.file.DeleteDirRequest\x1a\x17.file.DeleteDirResponse\"3\x82\xb5\x18/\n" +
+	"\vfile.delete\x12\x06delete\x1a\x11/file/path/{path}*\x05admin\x12g\n" +
+	"\x06Rename\x12\x13.file.RenameRequest\x1a\x14.file.RenameResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12a\n" +
+	"\x04Move\x12\x11.file.MoveRequest\x1a\x12.file.MoveResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12a\n" +
+	"\x04Copy\x12\x11.file.CopyRequest\x1a\x12.file.CopyResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12u\n" +
+	"\rCreateArchive\x12\x1a.file.CreateArchiveRequest\x1a\x1b.file.CreateArchiveResponse\"+\x82\xb5\x18'\n" +
+	"\n" +
+	"file.write\x12\x05write\"\n" +
+	"/file/path*\x06editor\x12t\n" +
+	"\vGetFileInfo\x12\x18.file.GetFileInfoRequest\x1a\x19.file.GetFileInfoResponse\"0\x82\xb5\x18,\n" +
+	"\tfile.list\x12\x04read\x1a\x11/file/path/{path}*\x06viewer\x12\x80\x01\n" +
+	"\x0fGetFileMetadata\x12\x1c.file.GetFileMetadataRequest\x1a\x1d.file.GetFileMetadataResponse\"0\x82\xb5\x18,\n" +
+	"\tfile.list\x12\x04read\x1a\x11/file/path/{path}*\x06viewer\x12m\n" +
+	"\bReadFile\x12\x15.file.ReadFileRequest\x1a\x16.file.ReadFileResponse\"0\x82\xb5\x18,\n" +
+	"\tfile.read\x12\x04read\x1a\x11/file/path/{path}*\x06viewer0\x01\x12o\n" +
+	"\bSaveFile\x12\x15.file.SaveFileRequest\x1a\x16.file.SaveFileResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor(\x01\x12t\n" +
+	"\n" +
+	"DeleteFile\x12\x17.file.DeleteFileRequest\x1a\x18.file.DeleteFileResponse\"3\x82\xb5\x18/\n" +
+	"\vfile.delete\x12\x06delete\x1a\x11/file/path/{path}*\x05admin\x12|\n" +
+	"\rGetThumbnails\x12\x1a.file.GetThumbnailsRequest\x1a\x1b.file.GetThumbnailsResponse\"0\x82\xb5\x18,\n" +
+	"\tfile.read\x12\x04read\x1a\x11/file/path/{path}*\x06viewer0\x01\x12u\n" +
+	"\n" +
+	"UploadFile\x12\x17.file.UploadFileRequest\x1a\x18.file.UploadFileResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{dest}*\x06editor0\x01\x12\x7f\n" +
+	"\x0eWriteExcelFile\x12\x1b.file.WriteExcelFileRequest\x1a\x1c.file.WriteExcelFileResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12_\n" +
+	"\tHtmlToPdf\x12\x13.file.HtmlToPdfRqst\x1a\x17.file.HtmlToPdfResponse\"$\x82\xb5\x18 \n" +
+	"\tfile.read\x12\x04read\"\x05/file*\x06viewerB3Z1github.com/globulario/services/golang/file/filepbb\x06proto3"
 
 var (
 	file_file_proto_rawDescOnce sync.Once

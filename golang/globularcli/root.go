@@ -81,6 +81,7 @@ func init() {
 
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(debugCmd)
+	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(pkgCmd)
 	rootCmd.AddCommand(servicesCmd)
 	rootCmd.AddCommand(namespaceCmd)

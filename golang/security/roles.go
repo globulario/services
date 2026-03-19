@@ -59,12 +59,15 @@ var (
 )
 
 func init() {
-	// Load cluster roles from external policy file (required).
+	// Load cluster roles from external policy file.
+	// On service nodes, cluster-roles.json lives in /var/lib/globular/policy/rbac/.
+	// On developer machines (CLI usage), the file is typically absent — that's fine
+	// because the CLI doesn't make role-binding decisions locally.
 	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
 		RolePermissions = extRoles
 		slog.Info("security: loaded cluster roles from external policy file", "roles", len(extRoles))
 	} else {
-		slog.Warn("security: no cluster-roles.json found — RolePermissions is empty; all role-binding checks will deny")
+		slog.Debug("security: no cluster-roles.json found — RolePermissions empty (normal for CLI usage)")
 		RolePermissions = make(map[string][]string)
 	}
 

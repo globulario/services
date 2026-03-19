@@ -103,6 +103,15 @@ func NewStaticDependencySource() DependencySource {
 				{Name: "persistence", Required: true},
 			},
 			"torrent": nil,
+
+			// AI services
+			"ai_memory": {
+				{Name: "persistence", Required: true}, // ScyllaDB
+			},
+			"ai_watcher": {
+				{Name: "event", Required: true},
+				{Name: "ai_memory", Required: true},
+			},
 		},
 
 		ports: map[string][]int{
@@ -129,6 +138,8 @@ func NewStaticDependencySource() DependencySource {
 			"spc":            {11701},
 			"torrent":        {11801},
 			"sql":            {11901},
+			"ai_memory":      {10200},
+			"ai_watcher":     {10210},
 		},
 	}
 }

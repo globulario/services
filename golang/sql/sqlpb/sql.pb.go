@@ -7,6 +7,7 @@
 package sqlpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -781,7 +782,7 @@ var File_sql_proto protoreflect.FileDescriptor
 
 const file_sql_proto_rawDesc = "" +
 	"\n" +
-	"\tsql.proto\x12\x03sql\"\xce\x01\n" +
+	"\tsql.proto\x12\x03sql\x1a\x13globular_auth.proto\"\xce\x01\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -798,17 +799,23 @@ const file_sql_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x0f.sql.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"$\n" +
-	"\x12PingConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"+\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"8\n" +
+	"\x12PingConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"+\n" +
 	"\x11PingConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"{\n" +
-	"\x05Query\x12\"\n" +
-	"\fconnectionId\x18\x01 \x01(\tR\fconnectionId\x12\x14\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"\x8f\x01\n" +
+	"\x05Query\x126\n" +
+	"\fconnectionId\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\fconnectionId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x1e\n" +
 	"\n" +
 	"parameters\x18\x03 \x01(\tR\n" +
@@ -829,15 +836,21 @@ const file_sql_proto_rawDesc = "" +
 	"\faffectedRows\x18\x01 \x01(\x03R\faffectedRows\x12\x16\n" +
 	"\x06lastId\x18\x02 \x01(\x03R\x06lastId\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xfd\x02\n" +
+	"\fStopResponse2\xf1\x05\n" +
 	"\n" +
-	"SqlService\x12+\n" +
-	"\x04Stop\x12\x10.sql.StopRequest\x1a\x11.sql.StopResponse\x12G\n" +
-	"\x10CreateConnection\x12\x19.sql.CreateConnectionRqst\x1a\x18.sql.CreateConnectionRsp\x12G\n" +
-	"\x10DeleteConnection\x12\x19.sql.DeleteConnectionRqst\x1a\x18.sql.DeleteConnectionRsp\x127\n" +
-	"\x04Ping\x12\x17.sql.PingConnectionRqst\x1a\x16.sql.PingConnectionRsp\x12=\n" +
-	"\fQueryContext\x12\x15.sql.QueryContextRqst\x1a\x14.sql.QueryContextRsp0\x01\x128\n" +
-	"\vExecContext\x12\x14.sql.ExecContextRqst\x1a\x13.sql.ExecContextRspB1Z/github.com/globulario/services/golang/sql/sqlpbb\x06proto3"
+	"SqlService\x12O\n" +
+	"\x04Stop\x12\x10.sql.StopRequest\x1a\x11.sql.StopResponse\"\"\x82\xb5\x18\x1e\n" +
+	"\bsql.stop\x12\x05admin\x1a\x04/sql*\x05admin\x12\x83\x01\n" +
+	"\x10CreateConnection\x12\x19.sql.CreateConnectionRqst\x1a\x18.sql.CreateConnectionRsp\":\x82\xb5\x186\n" +
+	"\x14sql.createconnection\x12\x05write\"\x10/sql/connections*\x05admin\x12\x89\x01\n" +
+	"\x10DeleteConnection\x12\x19.sql.DeleteConnectionRqst\x1a\x18.sql.DeleteConnectionRsp\"@\x82\xb5\x18<\n" +
+	"\x14sql.deleteconnection\x12\x06delete\x1a\x15/sql/connections/{id}*\x05admin\x12l\n" +
+	"\x04Ping\x12\x17.sql.PingConnectionRqst\x1a\x16.sql.PingConnectionRsp\"3\x82\xb5\x18/\n" +
+	"\bsql.ping\x12\x04read\x1a\x15/sql/connections/{id}*\x06viewer\x12\x8a\x01\n" +
+	"\fQueryContext\x12\x15.sql.QueryContextRqst\x1a\x14.sql.QueryContextRsp\"K\x82\xb5\x18G\n" +
+	"\x10sql.querycontext\x12\x04read\x1a%/sql/connections/{connectionId}/query*\x06viewer0\x01\x12\x84\x01\n" +
+	"\vExecContext\x12\x14.sql.ExecContextRqst\x1a\x13.sql.ExecContextRsp\"J\x82\xb5\x18F\n" +
+	"\x0fsql.execcontext\x12\x05write\x1a$/sql/connections/{connectionId}/exec*\x06editorB1Z/github.com/globulario/services/golang/sql/sqlpbb\x06proto3"
 
 var (
 	file_sql_proto_rawDescOnce sync.Once

@@ -6,6 +6,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/netutil"
 )
 
 // Config captures DNS service configuration persisted to disk.
@@ -57,13 +58,13 @@ type Config struct {
 func DefaultConfig() *Config {
 	cfg := &Config{
 		Name:              "dns.DnsService",
-		Domain:            "globular.internal",
+		Domain:            netutil.DefaultClusterDomain(),
 		Address:           "127.0.0.1:10006",
 		Port:              defaultPort,
 		Proxy:             defaultProxy,
 		Protocol:          "grpc",
 		Version:           "0.0.1",
-		PublisherID:       "globular.internal",
+		PublisherID:       netutil.DefaultClusterDomain(),
 		Description:       "DNS service",
 		Keywords:          []string{"DNS", "Records", "Resolver"},
 		Repositories:      []string{},

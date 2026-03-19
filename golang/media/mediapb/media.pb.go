@@ -7,6 +7,7 @@
 package mediapb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -2537,37 +2538,44 @@ var File_media_proto protoreflect.FileDescriptor
 
 const file_media_proto_rawDesc = "" +
 	"\n" +
-	"\vmedia.proto\x12\x05media\"W\n" +
-	"\x19CreateVideoPreviewRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x0e\n" +
+	"\vmedia.proto\x12\x05media\x1a\x13globular_auth.proto\"f\n" +
+	"\x19CreateVideoPreviewRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\x12\x0e\n" +
 	"\x02nb\x18\x02 \x01(\x05R\x02nb\x12\x16\n" +
 	"\x06height\x18\x03 \x01(\x05R\x06height\"\x1c\n" +
-	"\x1aCreateVideoPreviewResponse\"X\n" +
-	"\x1aCreateVideoTimeLineRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
+	"\x1aCreateVideoPreviewResponse\"g\n" +
+	"\x1aCreateVideoTimeLineRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\x12\x14\n" +
 	"\x05width\x18\x02 \x01(\x05R\x05width\x12\x10\n" +
 	"\x03fps\x18\x03 \x01(\x02R\x03fps\"\x1d\n" +
-	"\x1bCreateVideoTimeLineResponse\"4\n" +
-	"\x1eConvertVideoToMpeg4H264Request\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"9\n" +
+	"\x1bCreateVideoTimeLineResponse\"C\n" +
+	"\x1eConvertVideoToMpeg4H264Request\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\"9\n" +
 	"\x1fConvertVideoToMpeg4H264Response\x12\x16\n" +
-	"\x06output\x18\x01 \x01(\tR\x06output\".\n" +
-	"\x18ConvertVideoToHlsRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"3\n" +
+	"\x06output\x18\x01 \x01(\tR\x06output\"=\n" +
+	"\x18ConvertVideoToHlsRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\"3\n" +
 	"\x19ConvertVideoToHlsResponse\x12\x16\n" +
-	"\x06output\x18\x01 \x01(\tR\x06output\".\n" +
-	"\x18StartProcessVideoRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x1b\n" +
-	"\x19StartProcessVideoResponse\".\n" +
-	"\x18StartProcessAudioRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x1b\n" +
+	"\x06output\x18\x01 \x01(\tR\x06output\"=\n" +
+	"\x18StartProcessVideoRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\"\x1b\n" +
+	"\x19StartProcessVideoResponse\"=\n" +
+	"\x18StartProcessAudioRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05audio\x10\x01R\x04path\"\x1b\n" +
 	"\x19StartProcessAudioResponse\"\x17\n" +
 	"\x15IsProcessVideoRequest\"@\n" +
 	"\x16IsProcessVideoResponse\x12&\n" +
-	"\x0eisProcessVideo\x18\x01 \x01(\bR\x0eisProcessVideo\"R\n" +
+	"\x0eisProcessVideo\x18\x01 \x01(\bR\x0eisProcessVideo\"`\n" +
 	"\x12UploadVideoRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
-	"\x04dest\x18\x02 \x01(\tR\x04dest\x12\x16\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12 \n" +
+	"\x04dest\x18\x02 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04dest\x12\x16\n" +
 	"\x06format\x18\x03 \x01(\tR\x06format\"?\n" +
 	"\x13UploadVideoResponse\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x16\n" +
@@ -2593,9 +2601,10 @@ const file_media_proto_rawDesc = "" +
 	" GetVideoConversionErrorsResponse\x123\n" +
 	"\x06errors\x18\x01 \x03(\v2\x1b.media.VideoConversionErrorR\x06errors\"#\n" +
 	"!ClearVideoConversionErrorsRequest\"$\n" +
-	"\"ClearVideoConversionErrorsResponse\"6\n" +
-	" ClearVideoConversionErrorRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"#\n" +
+	"\"ClearVideoConversionErrorsResponse\"E\n" +
+	" ClearVideoConversionErrorRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\"#\n" +
 	"!ClearVideoConversionErrorResponse\"!\n" +
 	"\x1fClearVideoConversionLogsRequest\"\"\n" +
 	" ClearVideoConversionLogsResponse\"m\n" +
@@ -2606,12 +2615,14 @@ const file_media_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\"\x1f\n" +
 	"\x1dGetVideoConversionLogsRequest\"O\n" +
 	"\x1eGetVideoConversionLogsResponse\x12-\n" +
-	"\x04logs\x18\x01 \x03(\v2\x19.media.VideoConversionLogR\x04logs\"+\n" +
-	"\x17GeneratePlaylistRequest\x12\x10\n" +
-	"\x03dir\x18\x01 \x01(\tR\x03dir\"\x1a\n" +
-	"\x18GeneratePlaylistResponse\"<\n" +
-	"\x14CreateVttFileRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x10\n" +
+	"\x04logs\x18\x01 \x03(\v2\x19.media.VideoConversionLogR\x04logs\"9\n" +
+	"\x17GeneratePlaylistRequest\x12\x1e\n" +
+	"\x03dir\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x03dir\"\x1a\n" +
+	"\x18GeneratePlaylistResponse\"K\n" +
+	"\x14CreateVttFileRequest\x12!\n" +
+	"\x04path\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\x05video\x10\x01R\x04path\x12\x10\n" +
 	"\x03fps\x18\x02 \x01(\x02R\x03fps\"\x17\n" +
 	"\x15CreateVttFileResponse\"\x17\n" +
 	"\x15ListMediaFilesRequest\">\n" +
@@ -2654,44 +2665,77 @@ const file_media_proto_rawDesc = "" +
 	"\x1eSyncChannelFromPlaylistRequest\x12#\n" +
 	"\rplaylist_json\x18\x01 \x01(\tR\fplaylistJson\"K\n" +
 	"\x1fSyncChannelFromPlaylistResponse\x12(\n" +
-	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"7\n" +
-	"\x11GetChannelRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\">\n" +
+	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"T\n" +
+	"\x11GetChannelRequest\x12\x1f\n" +
+	"\x02id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\achannel\x10\x01R\x02id\x12\x1e\n" +
+	"\x04path\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04pathR\x04path\">\n" +
 	"\x12GetChannelResponse\x12(\n" +
-	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"G\n" +
-	"\x13ListChannelsRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"U\n" +
+	"\x13ListChannelsRequest\x12 \n" +
+	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04path\x12\x1c\n" +
 	"\textractor\x18\x02 \x01(\tR\textractor\"B\n" +
 	"\x14ListChannelsResponse\x12*\n" +
-	"\bchannels\x18\x01 \x03(\v2\x0e.media.ChannelR\bchannels2\x92\x12\n" +
-	"\fMediaService\x12/\n" +
-	"\x04Stop\x12\x12.media.StopRequest\x1a\x13.media.StopResponse\x12F\n" +
-	"\vUploadVideo\x12\x19.media.UploadVideoRequest\x1a\x1a.media.UploadVideoResponse0\x01\x12Y\n" +
-	"\x12CreateVideoPreview\x12 .media.CreateVideoPreviewRequest\x1a!.media.CreateVideoPreviewResponse\x12\\\n" +
-	"\x13CreateVideoTimeLine\x12!.media.CreateVideoTimeLineRequest\x1a\".media.CreateVideoTimeLineResponse\x12h\n" +
-	"\x17ConvertVideoToMpeg4H264\x12%.media.ConvertVideoToMpeg4H264Request\x1a&.media.ConvertVideoToMpeg4H264Response\x12V\n" +
-	"\x11ConvertVideoToHls\x12\x1f.media.ConvertVideoToHlsRequest\x1a .media.ConvertVideoToHlsResponse\x12V\n" +
-	"\x11StartProcessVideo\x12\x1f.media.StartProcessVideoRequest\x1a .media.StartProcessVideoResponse\x12V\n" +
-	"\x11StartProcessAudio\x12\x1f.media.StartProcessAudioRequest\x1a .media.StartProcessAudioResponse\x12S\n" +
-	"\x10StopProcessVideo\x12\x1e.media.StopProcessVideoRequest\x1a\x1f.media.StopProcessVideoResponse\x12M\n" +
-	"\x0eIsProcessVideo\x12\x1c.media.IsProcessVideoRequest\x1a\x1d.media.IsProcessVideoResponse\x12Y\n" +
-	"\x12SetVideoConversion\x12 .media.SetVideoConversionRequest\x1a!.media.SetVideoConversionResponse\x12k\n" +
-	"\x18SetVideoStreamConversion\x12&.media.SetVideoStreamConversionRequest\x1a'.media.SetVideoStreamConversionResponse\x12t\n" +
-	"\x1bSetStartVideoConversionHour\x12).media.SetStartVideoConversionHourRequest\x1a*.media.SetStartVideoConversionHourResponse\x12}\n" +
-	"\x1eSetMaximumVideoConversionDelay\x12,.media.SetMaximumVideoConversionDelayRequest\x1a-.media.SetMaximumVideoConversionDelayResponse\x12k\n" +
-	"\x18GetVideoConversionErrors\x12&.media.GetVideoConversionErrorsRequest\x1a'.media.GetVideoConversionErrorsResponse\x12q\n" +
-	"\x1aClearVideoConversionErrors\x12(.media.ClearVideoConversionErrorsRequest\x1a).media.ClearVideoConversionErrorsResponse\x12n\n" +
-	"\x19ClearVideoConversionError\x12'.media.ClearVideoConversionErrorRequest\x1a(.media.ClearVideoConversionErrorResponse\x12k\n" +
-	"\x18ClearVideoConversionLogs\x12&.media.ClearVideoConversionLogsRequest\x1a'.media.ClearVideoConversionLogsResponse\x12e\n" +
-	"\x16GetVideoConversionLogs\x12$.media.GetVideoConversionLogsRequest\x1a%.media.GetVideoConversionLogsResponse\x12S\n" +
-	"\x10GeneratePlaylist\x12\x1e.media.GeneratePlaylistRequest\x1a\x1f.media.GeneratePlaylistResponse\x12J\n" +
-	"\rCreateVttFile\x12\x1b.media.CreateVttFileRequest\x1a\x1c.media.CreateVttFileResponse\x12B\n" +
-	"\x0eListMediaFiles\x12\x1c.media.ListMediaFilesRequest\x1a\x10.media.MediaFile0\x01\x12h\n" +
-	"\x17SyncChannelFromPlaylist\x12%.media.SyncChannelFromPlaylistRequest\x1a&.media.SyncChannelFromPlaylistResponse\x12A\n" +
+	"\bchannels\x18\x01 \x03(\v2\x0e.media.ChannelR\bchannels2\xa7\x1d\n" +
+	"\fMediaService\x12W\n" +
+	"\x04Stop\x12\x12.media.StopRequest\x1a\x13.media.StopResponse\"&\x82\xb5\x18\"\n" +
 	"\n" +
-	"GetChannel\x12\x18.media.GetChannelRequest\x1a\x19.media.GetChannelResponse\x12G\n" +
-	"\fListChannels\x12\x1a.media.ListChannelsRequest\x1a\x1b.media.ListChannelsResponseB5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
+	"media.stop\x12\x05admin\x1a\x06/media*\x05admin\x12~\n" +
+	"\vUploadVideo\x12\x19.media.UploadVideoRequest\x1a\x1a.media.UploadVideoResponse\"6\x82\xb5\x182\n" +
+	"\fmedia.upload\x12\x05write\x1a\x13/media/files/{dest}*\x06editor0\x01\x12\x92\x01\n" +
+	"\x12CreateVideoPreview\x12 .media.CreateVideoPreviewRequest\x1a!.media.CreateVideoPreviewResponse\"7\x82\xb5\x183\n" +
+	"\rmedia.preview\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\x96\x01\n" +
+	"\x13CreateVideoTimeLine\x12!.media.CreateVideoTimeLineRequest\x1a\".media.CreateVideoTimeLineResponse\"8\x82\xb5\x184\n" +
+	"\x0emedia.timeline\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\xa5\x01\n" +
+	"\x17ConvertVideoToMpeg4H264\x12%.media.ConvertVideoToMpeg4H264Request\x1a&.media.ConvertVideoToMpeg4H264Response\";\x82\xb5\x187\n" +
+	"\x11media.converth264\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\x92\x01\n" +
+	"\x11ConvertVideoToHls\x12\x1f.media.ConvertVideoToHlsRequest\x1a .media.ConvertVideoToHlsResponse\":\x82\xb5\x186\n" +
+	"\x10media.converthls\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\x94\x01\n" +
+	"\x11StartProcessVideo\x12\x1f.media.StartProcessVideoRequest\x1a .media.StartProcessVideoResponse\"<\x82\xb5\x188\n" +
+	"\x12media.processvideo\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\x94\x01\n" +
+	"\x11StartProcessAudio\x12\x1f.media.StartProcessAudioRequest\x1a .media.StartProcessAudioResponse\"<\x82\xb5\x188\n" +
+	"\x12media.processaudio\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12\x82\x01\n" +
+	"\x10StopProcessVideo\x12\x1e.media.StopProcessVideoRequest\x1a\x1f.media.StopProcessVideoResponse\"-\x82\xb5\x18)\n" +
+	"\x11media.stopprocess\x12\x05admin\x1a\x06/media*\x05admin\x12}\n" +
+	"\x0eIsProcessVideo\x12\x1c.media.IsProcessVideoRequest\x1a\x1d.media.IsProcessVideoResponse\".\x82\xb5\x18*\n" +
+	"\x12media.isprocessing\x12\x04read\x1a\x06/media*\x06viewer\x12\x91\x01\n" +
+	"\x12SetVideoConversion\x12 .media.SetVideoConversionRequest\x1a!.media.SetVideoConversionResponse\"6\x82\xb5\x182\n" +
+	"\x13media.setconversion\x12\x05admin\x1a\r/media/config*\x05admin\x12\xa9\x01\n" +
+	"\x18SetVideoStreamConversion\x12&.media.SetVideoStreamConversionRequest\x1a'.media.SetVideoStreamConversionResponse\"<\x82\xb5\x188\n" +
+	"\x19media.setstreamconversion\x12\x05admin\x1a\r/media/config*\x05admin\x12\xab\x01\n" +
+	"\x1bSetStartVideoConversionHour\x12).media.SetStartVideoConversionHourRequest\x1a*.media.SetStartVideoConversionHourResponse\"5\x82\xb5\x181\n" +
+	"\x12media.setstarthour\x12\x05admin\x1a\r/media/config*\x05admin\x12\xb3\x01\n" +
+	"\x1eSetMaximumVideoConversionDelay\x12,.media.SetMaximumVideoConversionDelayRequest\x1a-.media.SetMaximumVideoConversionDelayResponse\"4\x82\xb5\x180\n" +
+	"\x11media.setmaxdelay\x12\x05admin\x1a\r/media/config*\x05admin\x12\xaa\x01\n" +
+	"\x18GetVideoConversionErrors\x12&.media.GetVideoConversionErrorsRequest\x1a'.media.GetVideoConversionErrorsResponse\"=\x82\xb5\x189\n" +
+	"\x0fmedia.geterrors\x12\x04read\x1a\x18/media/conversion/errors*\x06viewer\x12\xb3\x01\n" +
+	"\x1aClearVideoConversionErrors\x12(.media.ClearVideoConversionErrorsRequest\x1a).media.ClearVideoConversionErrorsResponse\"@\x82\xb5\x18<\n" +
+	"\x11media.clearerrors\x12\x06delete\x1a\x18/media/conversion/errors*\x05admin\x12\xb6\x01\n" +
+	"\x19ClearVideoConversionError\x12'.media.ClearVideoConversionErrorRequest\x1a(.media.ClearVideoConversionErrorResponse\"F\x82\xb5\x18B\n" +
+	"\x10media.clearerror\x12\x06delete\x1a\x1f/media/conversion/errors/{path}*\x05admin\x12\xa9\x01\n" +
+	"\x18ClearVideoConversionLogs\x12&.media.ClearVideoConversionLogsRequest\x1a'.media.ClearVideoConversionLogsResponse\"<\x82\xb5\x188\n" +
+	"\x0fmedia.clearlogs\x12\x06delete\x1a\x16/media/conversion/logs*\x05admin\x12\xa0\x01\n" +
+	"\x16GetVideoConversionLogs\x12$.media.GetVideoConversionLogsRequest\x1a%.media.GetVideoConversionLogsResponse\"9\x82\xb5\x185\n" +
+	"\rmedia.getlogs\x12\x04read\x1a\x16/media/conversion/logs*\x06viewer\x12\x8c\x01\n" +
+	"\x10GeneratePlaylist\x12\x1e.media.GeneratePlaylistRequest\x1a\x1f.media.GeneratePlaylistResponse\"7\x82\xb5\x183\n" +
+	"\x0emedia.playlist\x12\x05write\x1a\x12/media/files/{dir}*\x06editor\x12\x7f\n" +
+	"\rCreateVttFile\x12\x1b.media.CreateVttFileRequest\x1a\x1c.media.CreateVttFileResponse\"3\x82\xb5\x18/\n" +
+	"\tmedia.vtt\x12\x05write\x1a\x13/media/files/{path}*\x06editor\x12p\n" +
+	"\x0eListMediaFiles\x12\x1c.media.ListMediaFilesRequest\x1a\x10.media.MediaFile\",\x82\xb5\x18(\n" +
+	"\n" +
+	"media.list\x12\x04read\"\f/media/files*\x06viewer0\x01\x12\x9c\x01\n" +
+	"\x17SyncChannelFromPlaylist\x12%.media.SyncChannelFromPlaylistRequest\x1a&.media.SyncChannelFromPlaylistResponse\"2\x82\xb5\x18.\n" +
+	"\fmedia.upload\x12\x05write\"\x0f/media/channels*\x06editor\x12w\n" +
+	"\n" +
+	"GetChannel\x12\x18.media.GetChannelRequest\x1a\x19.media.GetChannelResponse\"4\x82\xb5\x180\n" +
+	"\n" +
+	"media.list\x12\x04read\x1a\x14/media/channels/{id}*\x06viewer\x12x\n" +
+	"\fListChannels\x12\x1a.media.ListChannelsRequest\x1a\x1b.media.ListChannelsResponse\"/\x82\xb5\x18+\n" +
+	"\n" +
+	"media.list\x12\x04read\"\x0f/media/channels*\x06viewerB5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
 
 var (
 	file_media_proto_rawDescOnce sync.Once

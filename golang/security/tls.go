@@ -737,7 +737,7 @@ func GenerateAuthorityTrustCertificate(path string, _ string, expiration_delay i
 	if err != nil {
 		return err
 	}
-	subj := pkix.Name{CommonName: domain + " Root CA"}
+	subj := pkix.Name{CommonName: domain + " Root CA", Organization: []string{domain}}
 	serial, _ := serialNumber()
 	now := time.Now()
 	tpl := &x509.Certificate{
@@ -910,7 +910,7 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 
 	dns, ips, _ := parseSANsFromConf(path)
 	tpl := &x509.CertificateRequest{
-		Subject:     pkix.Name{CommonName: domain},
+		Subject:     pkix.Name{CommonName: domain, Organization: []string{domain}},
 		DNSNames:    dns,
 		IPAddresses: ips,
 	}
@@ -937,7 +937,7 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 
 	dns, ips, _ := parseSANsFromConf(path)
 	tpl := &x509.CertificateRequest{
-		Subject:     pkix.Name{CommonName: domain},
+		Subject:     pkix.Name{CommonName: domain, Organization: []string{domain}},
 		DNSNames:    dns,
 		IPAddresses: ips,
 	}

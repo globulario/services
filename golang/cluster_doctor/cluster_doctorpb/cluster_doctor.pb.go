@@ -7,6 +7,7 @@
 package cluster_doctorpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1185,7 +1186,7 @@ var File_cluster_doctor_proto protoreflect.FileDescriptor
 
 const file_cluster_doctor_proto_rawDesc = "" +
 	"\n" +
-	"\x14cluster_doctor.proto\x12\x0ecluster_doctor\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa0\x02\n" +
+	"\x14cluster_doctor.proto\x12\x0ecluster_doctor\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13globular_auth.proto\"\xa0\x02\n" +
 	"\fReportHeader\x12=\n" +
 	"\fgenerated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\x12\x1f\n" +
 	"\vsnapshot_id\x18\x02 \x01(\tR\n" +
@@ -1232,18 +1233,20 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\rtop_issue_ids\x18\x05 \x03(\tR\vtopIssueIds\x1aC\n" +
 	"\x15CountsByCategoryEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01\",\n" +
-	"\x11NodeReportRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xe2\x01\n" +
+	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01\":\n" +
+	"\x11NodeReportRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"\xe2\x01\n" +
 	"\n" +
 	"NodeReport\x124\n" +
 	"\x06header\x18\x01 \x01(\v2\x1c.cluster_doctor.ReportHeaderR\x06header\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x1c\n" +
 	"\treachable\x18\x03 \x01(\bR\treachable\x122\n" +
 	"\x15heartbeat_age_seconds\x18\x04 \x01(\x03R\x13heartbeatAgeSeconds\x123\n" +
-	"\bfindings\x18\x05 \x03(\v2\x17.cluster_doctor.FindingR\bfindings\"-\n" +
-	"\x12DriftReportRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\xe6\x01\n" +
+	"\bfindings\x18\x05 \x03(\v2\x17.cluster_doctor.FindingR\bfindings\";\n" +
+	"\x12DriftReportRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"\xe6\x01\n" +
 	"\tDriftItem\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1d\n" +
 	"\n" +
@@ -1255,10 +1258,11 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\vDriftReport\x124\n" +
 	"\x06header\x18\x01 \x01(\v2\x1c.cluster_doctor.ReportHeaderR\x06header\x12/\n" +
 	"\x05items\x18\x02 \x03(\v2\x19.cluster_doctor.DriftItemR\x05items\x12*\n" +
-	"\x11total_drift_count\x18\x03 \x01(\rR\x0ftotalDriftCount\"6\n" +
-	"\x15ExplainFindingRequest\x12\x1d\n" +
+	"\x11total_drift_count\x18\x03 \x01(\rR\x0ftotalDriftCount\"E\n" +
+	"\x15ExplainFindingRequest\x12,\n" +
 	"\n" +
-	"finding_id\x18\x01 \x01(\tR\tfindingId\"\xc2\x02\n" +
+	"finding_id\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\afindingR\tfindingId\"\xc2\x02\n" +
 	"\x12FindingExplanation\x12\x1d\n" +
 	"\n" +
 	"finding_id\x18\x01 \x01(\tR\tfindingId\x12!\n" +
@@ -1298,12 +1302,16 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x11INVARIANT_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eINVARIANT_PASS\x10\x01\x12\x12\n" +
 	"\x0eINVARIANT_FAIL\x10\x02\x12\x15\n" +
-	"\x11INVARIANT_PENDING\x10\x032\xef\x02\n" +
-	"\x14ClusterDoctorService\x12W\n" +
-	"\x10GetClusterReport\x12$.cluster_doctor.ClusterReportRequest\x1a\x1d.cluster_doctor.ClusterReport\x12N\n" +
-	"\rGetNodeReport\x12!.cluster_doctor.NodeReportRequest\x1a\x1a.cluster_doctor.NodeReport\x12Q\n" +
-	"\x0eGetDriftReport\x12\".cluster_doctor.DriftReportRequest\x1a\x1b.cluster_doctor.DriftReport\x12[\n" +
-	"\x0eExplainFinding\x12%.cluster_doctor.ExplainFindingRequest\x1a\".cluster_doctor.FindingExplanationBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
+	"\x11INVARIANT_PENDING\x10\x032\xe0\x05\n" +
+	"\x14ClusterDoctorService\x12\xaf\x01\n" +
+	"\x10GetClusterReport\x12$.cluster_doctor.ClusterReportRequest\x1a\x1d.cluster_doctor.ClusterReport\"V\x82\xb5\x18R\n" +
+	"\"cluster_doctor.cluster_report.read\x12\x04read\x1a\x1e/cluster_doctor/cluster/report*\x06viewer\x12\xab\x01\n" +
+	"\rGetNodeReport\x12!.cluster_doctor.NodeReportRequest\x1a\x1a.cluster_doctor.NodeReport\"[\x82\xb5\x18W\n" +
+	"\x1fcluster_doctor.node_report.read\x12\x04read\x1a&/cluster_doctor/nodes/{node_id}/report*\x06viewer\x12\xae\x01\n" +
+	"\x0eGetDriftReport\x12\".cluster_doctor.DriftReportRequest\x1a\x1b.cluster_doctor.DriftReport\"[\x82\xb5\x18W\n" +
+	" cluster_doctor.drift_report.read\x12\x04read\x1a%/cluster_doctor/nodes/{node_id}/drift*\x06viewer\x12\xb6\x01\n" +
+	"\x0eExplainFinding\x12%.cluster_doctor.ExplainFindingRequest\x1a\".cluster_doctor.FindingExplanation\"Y\x82\xb5\x18U\n" +
+	"\x1ecluster_doctor.finding.explain\x12\x04read\x1a%/cluster_doctor/findings/{finding_id}*\x06viewerBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
 
 var (
 	file_cluster_doctor_proto_rawDescOnce sync.Once

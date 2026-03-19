@@ -131,7 +131,7 @@ type CatalogServiceClient interface {
 	// Getter for localisation
 	GetLocalisation(ctx context.Context, in *GetLocalisationRequest, opts ...grpc.CallOption) (*GetLocalisationResponse, error)
 	GetLocalisations(ctx context.Context, in *GetLocalisationsRequest, opts ...grpc.CallOption) (*GetLocalisationsResponse, error)
-	// Getter for localisation
+	// Getter for category
 	GetCategory(ctx context.Context, in *GetCategoryRequest, opts ...grpc.CallOption) (*GetCategoryResponse, error)
 	GetCategories(ctx context.Context, in *GetCategoriesRequest, opts ...grpc.CallOption) (*GetCategoriesResponse, error)
 	// Get the inventories
@@ -689,7 +689,7 @@ type CatalogServiceServer interface {
 	// Getter for localisation
 	GetLocalisation(context.Context, *GetLocalisationRequest) (*GetLocalisationResponse, error)
 	GetLocalisations(context.Context, *GetLocalisationsRequest) (*GetLocalisationsResponse, error)
-	// Getter for localisation
+	// Getter for category
 	GetCategory(context.Context, *GetCategoryRequest) (*GetCategoryResponse, error)
 	GetCategories(context.Context, *GetCategoriesRequest) (*GetCategoriesResponse, error)
 	// Get the inventories

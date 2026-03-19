@@ -7,6 +7,7 @@
 package ldappb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1237,7 +1238,7 @@ var File_ldap_proto protoreflect.FileDescriptor
 const file_ldap_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"ldap.proto\x12\x04ldap\"t\n" +
+	"ldap.proto\x12\x04ldap\x1a\x13globular_auth.proto\"t\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -1250,17 +1251,23 @@ const file_ldap_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x10.ldap.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x1b\n" +
-	"\tCloseRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\"\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
+	"\tCloseRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"\"\n" +
 	"\bCloseRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"h\n" +
-	"\x06Search\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"|\n" +
+	"\x06Search\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x16\n" +
 	"\x06baseDN\x18\x02 \x01(\tR\x06baseDN\x12\x16\n" +
 	"\x06filter\x18\x03 \x01(\tR\x06filter\x12\x1e\n" +
 	"\n" +
@@ -1271,9 +1278,11 @@ const file_ldap_proto_rawDesc = "" +
 	"\x06search\x18\x01 \x01(\v2\f.ldap.SearchR\x06search\"$\n" +
 	"\n" +
 	"SearchResp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\tR\x06result\"J\n" +
-	"\x10AuthenticateRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x06result\x18\x01 \x01(\tR\x06result\"^\n" +
+	"\x10AuthenticateRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12\x10\n" +
 	"\x03pwd\x18\x03 \x01(\tR\x03pwd\")\n" +
 	"\x0fAuthenticateRsp\x12\x16\n" +
@@ -1290,34 +1299,50 @@ const file_ldap_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
 	"\x04base\x18\x03 \x01(\tR\x04base\x12\x14\n" +
-	"\x05query\x18\x04 \x01(\tR\x05query\"\xd3\x01\n" +
-	"\fLdapSyncInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
-	"\fconnectionId\x18\x02 \x01(\tR\fconnectionId\x12\x18\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query\"\xf8\x01\n" +
+	"\fLdapSyncInfo\x12!\n" +
+	"\x02id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tsync_info\x10\x01R\x02id\x124\n" +
+	"\fconnectionId\x18\x02 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"connectionR\fconnectionId\x12\x18\n" +
 	"\arefresh\x18\x03 \x01(\x05R\arefresh\x12;\n" +
 	"\x0fgroup_sync_info\x18\x04 \x01(\v2\x13.ldap.GroupSyncInfoR\rgroupSyncInfo\x128\n" +
 	"\x0euser_sync_info\x18\x05 \x01(\v2\x12.ldap.UserSyncInfoR\fuserSyncInfo\"@\n" +
 	"\x16setLdapSyncInfoRequest\x12&\n" +
 	"\x04info\x18\x01 \x01(\v2\x12.ldap.LdapSyncInfoR\x04info\"\x19\n" +
-	"\x17setLdapSyncInfoResponse\"(\n" +
-	"\x16getLdapSyncInfoRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
+	"\x17setLdapSyncInfoResponse\";\n" +
+	"\x16getLdapSyncInfoRequest\x12!\n" +
+	"\x02id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tsync_info\x10\x01R\x02id\"C\n" +
 	"\x17getLdapSyncInfoResponse\x12(\n" +
-	"\x05infos\x18\x01 \x03(\v2\x12.ldap.LdapSyncInfoR\x05infos\"+\n" +
-	"\x19deleteLdapSyncInfoRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x1c\n" +
-	"\x1adeleteLdapSyncInfoResponse2\xa6\x05\n" +
-	"\vLdapService\x12-\n" +
-	"\x04Stop\x12\x11.ldap.StopRequest\x1a\x12.ldap.StopResponse\x12I\n" +
-	"\x10CreateConnection\x12\x1a.ldap.CreateConnectionRqst\x1a\x19.ldap.CreateConnectionRsp\x12I\n" +
-	"\x10DeleteConnection\x12\x1a.ldap.DeleteConnectionRqst\x1a\x19.ldap.DeleteConnectionRsp\x12(\n" +
-	"\x05Close\x12\x0f.ldap.CloseRqst\x1a\x0e.ldap.CloseRsp\x12,\n" +
-	"\x06Search\x12\x10.ldap.SearchRqst\x1a\x10.ldap.SearchResp\x12=\n" +
-	"\fAuthenticate\x12\x16.ldap.AuthenticateRqst\x1a\x15.ldap.AuthenticateRsp\x12B\n" +
-	"\vSynchronize\x12\x18.ldap.SynchronizeRequest\x1a\x19.ldap.SynchronizeResponse\x12N\n" +
-	"\x0fsetLdapSyncInfo\x12\x1c.ldap.setLdapSyncInfoRequest\x1a\x1d.ldap.setLdapSyncInfoResponse\x12W\n" +
-	"\x12deleteLdapSyncInfo\x12\x1f.ldap.deleteLdapSyncInfoRequest\x1a .ldap.deleteLdapSyncInfoResponse\x12N\n" +
-	"\x0fgetLdapSyncInfo\x12\x1c.ldap.getLdapSyncInfoRequest\x1a\x1d.ldap.getLdapSyncInfoResponseB3Z1github.com/globulario/services/golang/ldap/ldappbb\x06proto3"
+	"\x05infos\x18\x01 \x03(\v2\x12.ldap.LdapSyncInfoR\x05infos\">\n" +
+	"\x19deleteLdapSyncInfoRequest\x12!\n" +
+	"\x02id\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tsync_info\x10\x01R\x02id\"\x1c\n" +
+	"\x1adeleteLdapSyncInfoResponse2\xf2\t\n" +
+	"\vLdapService\x12S\n" +
+	"\x04Stop\x12\x11.ldap.StopRequest\x1a\x12.ldap.StopResponse\"$\x82\xb5\x18 \n" +
+	"\tldap.stop\x12\x05admin\x1a\x05/ldap*\x05admin\x12\x87\x01\n" +
+	"\x10CreateConnection\x12\x1a.ldap.CreateConnectionRqst\x1a\x19.ldap.CreateConnectionRsp\"<\x82\xb5\x188\n" +
+	"\x15ldap.createconnection\x12\x05admin\"\x11/ldap/connections*\x05admin\x12\x8d\x01\n" +
+	"\x10DeleteConnection\x12\x1a.ldap.DeleteConnectionRqst\x1a\x19.ldap.DeleteConnectionRsp\"B\x82\xb5\x18>\n" +
+	"\x15ldap.deleteconnection\x12\x06delete\x1a\x16/ldap/connections/{id}*\x05admin\x12`\n" +
+	"\x05Close\x12\x0f.ldap.CloseRqst\x1a\x0e.ldap.CloseRsp\"6\x82\xb5\x182\n" +
+	"\n" +
+	"ldap.close\x12\x05admin\x1a\x16/ldap/connections/{id}*\x05admin\x12e\n" +
+	"\x06Search\x12\x10.ldap.SearchRqst\x1a\x10.ldap.SearchResp\"7\x82\xb5\x183\n" +
+	"\vldap.search\x12\x04read\x1a\x16/ldap/connections/{id}*\x06viewer\x12|\n" +
+	"\fAuthenticate\x12\x16.ldap.AuthenticateRqst\x1a\x15.ldap.AuthenticateRsp\"=\x82\xb5\x189\n" +
+	"\x11ldap.authenticate\x12\x04read\x1a\x16/ldap/connections/{id}*\x06viewer\x12o\n" +
+	"\vSynchronize\x12\x18.ldap.SynchronizeRequest\x1a\x19.ldap.SynchronizeResponse\"+\x82\xb5\x18'\n" +
+	"\x10ldap.synchronize\x12\x05admin\x1a\x05/ldap*\x05admin\x12\x8a\x01\n" +
+	"\x0fsetLdapSyncInfo\x12\x1c.ldap.setLdapSyncInfoRequest\x1a\x1d.ldap.setLdapSyncInfoResponse\":\x82\xb5\x186\n" +
+	"\x14ldap.setldapsyncinfo\x12\x05write\"\x10/ldap/sync-infos*\x05admin\x12\x9c\x01\n" +
+	"\x12deleteLdapSyncInfo\x12\x1f.ldap.deleteLdapSyncInfoRequest\x1a .ldap.deleteLdapSyncInfoResponse\"C\x82\xb5\x18?\n" +
+	"\x17ldap.deleteldapsyncinfo\x12\x06delete\x1a\x15/ldap/sync-infos/{id}*\x05admin\x12\x8f\x01\n" +
+	"\x0fgetLdapSyncInfo\x12\x1c.ldap.getLdapSyncInfoRequest\x1a\x1d.ldap.getLdapSyncInfoResponse\"?\x82\xb5\x18;\n" +
+	"\x14ldap.getldapsyncinfo\x12\x04read\x1a\x15/ldap/sync-infos/{id}*\x06viewerB3Z1github.com/globulario/services/golang/ldap/ldappbb\x06proto3"
 
 var (
 	file_ldap_proto_rawDescOnce sync.Once

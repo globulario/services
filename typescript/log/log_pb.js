@@ -21,6 +21,8 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.log.ClearAllLogRqst', null, global);
 goog.exportSymbol('proto.log.ClearAllLogRsp', null, global);
 goog.exportSymbol('proto.log.DeleteLogRqst', null, global);

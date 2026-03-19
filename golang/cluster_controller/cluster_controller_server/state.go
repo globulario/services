@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/netutil"
 	"github.com/google/uuid"
 )
 
@@ -122,7 +123,7 @@ func newControllerState() *controllerState {
 		CreatedAt:    time.Now(),
 		// Day-0 Security: Initialize with default internal domain
 		ClusterNetworkSpec: &cluster_controllerpb.ClusterNetworkSpec{
-			ClusterDomain: "globular.internal",
+			ClusterDomain: netutil.DefaultClusterDomain(),
 			Protocol:      "https",
 		},
 		NetworkingGeneration: 1,
@@ -153,12 +154,12 @@ func loadControllerState(path string) (*controllerState, error) {
 	// Day-0 Security: Ensure internal domain is always set
 	if state.ClusterNetworkSpec == nil {
 		state.ClusterNetworkSpec = &cluster_controllerpb.ClusterNetworkSpec{
-			ClusterDomain: "globular.internal",
+			ClusterDomain: netutil.DefaultClusterDomain(),
 			Protocol:      "https",
 		}
 		state.NetworkingGeneration++
 	} else if state.ClusterNetworkSpec.ClusterDomain == "" {
-		state.ClusterNetworkSpec.ClusterDomain = "globular.internal"
+		state.ClusterNetworkSpec.ClusterDomain = netutil.DefaultClusterDomain()
 		state.NetworkingGeneration++
 	}
 	return state, nil

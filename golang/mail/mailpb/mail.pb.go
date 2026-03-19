@@ -7,6 +7,7 @@
 package mailpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -829,7 +830,7 @@ var File_mail_proto protoreflect.FileDescriptor
 const file_mail_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"mail.proto\x12\x04mail\"t\n" +
+	"mail.proto\x12\x04mail\x1a\x13globular_auth.proto\"t\n" +
 	"\n" +
 	"Connection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -842,9 +843,11 @@ const file_mail_proto_rawDesc = "" +
 	"connection\x18\x01 \x01(\v2\x10.mail.ConnectionR\n" +
 	"connection\"-\n" +
 	"\x13CreateConnectionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"&\n" +
-	"\x14DeleteConnectionRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"-\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
+	"\x14DeleteConnectionRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\"-\n" +
 	"\x13DeleteConnectionRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\":\n" +
 	"\n" +
@@ -860,14 +863,18 @@ const file_mail_proto_rawDesc = "" +
 	"\x02cc\x18\x04 \x03(\v2\x10.mail.CarbonCopyR\x02cc\x12\x18\n" +
 	"\asubject\x18\x05 \x01(\tR\asubject\x12\x12\n" +
 	"\x04body\x18\x06 \x01(\tR\x04body\x12*\n" +
-	"\bbodyType\x18\a \x01(\x0e2\x0e.mail.BodyTypeR\bbodyType\"B\n" +
-	"\rSendEmailRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
+	"\bbodyType\x18\a \x01(\x0e2\x0e.mail.BodyTypeR\bbodyType\"V\n" +
+	"\rSendEmailRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12!\n" +
 	"\x05email\x18\x02 \x01(\v2\v.mail.EmailR\x05email\"&\n" +
 	"\fSendEmailRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x95\x01\n" +
-	"\x1dSendEmailWithAttachementsRqst\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xa9\x01\n" +
+	"\x1dSendEmailWithAttachementsRqst\x12\"\n" +
+	"\x02id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\n" +
+	"connection\x10\x01R\x02id\x12#\n" +
 	"\x05email\x18\x02 \x01(\v2\v.mail.EmailH\x00R\x05email\x127\n" +
 	"\fattachements\x18\x03 \x01(\v2\x11.mail.AttachementH\x00R\fattachementsB\x06\n" +
 	"\x04data\"6\n" +
@@ -877,13 +884,18 @@ const file_mail_proto_rawDesc = "" +
 	"\fStopResponse*\x1e\n" +
 	"\bBodyType\x12\b\n" +
 	"\x04TEXT\x10\x00\x12\b\n" +
-	"\x04HTML\x10\x012\xf8\x02\n" +
-	"\vMailService\x12-\n" +
-	"\x04Stop\x12\x11.mail.StopRequest\x1a\x12.mail.StopResponse\x12K\n" +
-	"\x10CreateConnection\x12\x1a.mail.CreateConnectionRqst\x1a\x19.mail.CreateConnectionRsp\"\x00\x12K\n" +
-	"\x10DeleteConnection\x12\x1a.mail.DeleteConnectionRqst\x1a\x19.mail.DeleteConnectionRsp\"\x00\x126\n" +
-	"\tSendEmail\x12\x13.mail.SendEmailRqst\x1a\x12.mail.SendEmailRsp\"\x00\x12h\n" +
-	"\x19SendEmailWithAttachements\x12#.mail.SendEmailWithAttachementsRqst\x1a\".mail.SendEmailWithAttachementsRsp\"\x00(\x01B3Z1github.com/globulario/services/golang/mail/mailpbb\x06proto3"
+	"\x04HTML\x10\x012\xaf\x05\n" +
+	"\vMailService\x12S\n" +
+	"\x04Stop\x12\x11.mail.StopRequest\x1a\x12.mail.StopResponse\"$\x82\xb5\x18 \n" +
+	"\tmail.stop\x12\x05admin\x1a\x05/mail*\x05admin\x12\x87\x01\n" +
+	"\x10CreateConnection\x12\x1a.mail.CreateConnectionRqst\x1a\x19.mail.CreateConnectionRsp\"<\x82\xb5\x188\n" +
+	"\x15mail.createconnection\x12\x05write\"\x11/mail/connections*\x05admin\x12\x8d\x01\n" +
+	"\x10DeleteConnection\x12\x1a.mail.DeleteConnectionRqst\x1a\x19.mail.DeleteConnectionRsp\"B\x82\xb5\x18>\n" +
+	"\x15mail.deleteconnection\x12\x06delete\x1a\x16/mail/connections/{id}*\x05admin\x12v\n" +
+	"\tSendEmail\x12\x13.mail.SendEmailRqst\x1a\x12.mail.SendEmailRsp\"@\x82\xb5\x18<\n" +
+	"\x0email.sendemail\x12\x05write\x1a\x1b/mail/connections/{id}/send*\x06editor\x12\xb8\x01\n" +
+	"\x19SendEmailWithAttachements\x12#.mail.SendEmailWithAttachementsRqst\x1a\".mail.SendEmailWithAttachementsRsp\"P\x82\xb5\x18L\n" +
+	"\x1email.sendemailwithattachements\x12\x05write\x1a\x1b/mail/connections/{id}/send*\x06editor(\x01B3Z1github.com/globulario/services/golang/mail/mailpbb\x06proto3"
 
 var (
 	file_mail_proto_rawDescOnce sync.Once

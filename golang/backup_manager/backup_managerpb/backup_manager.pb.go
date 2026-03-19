@@ -7,6 +7,7 @@
 package backup_managerpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -5872,7 +5873,7 @@ var File_backup_manager_proto protoreflect.FileDescriptor
 
 const file_backup_manager_proto_rawDesc = "" +
 	"\n" +
-	"\x14backup_manager.proto\x12\x0ebackup_manager\"G\n" +
+	"\x14backup_manager.proto\x12\x0ebackup_manager\x1a\x13globular_auth.proto\"G\n" +
 	"\vBackupScope\x12\x1c\n" +
 	"\tproviders\x18\x01 \x03(\tR\tproviders\x12\x1a\n" +
 	"\bservices\x18\x02 \x03(\tR\bservices\"\x82\x01\n" +
@@ -6021,9 +6022,11 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"*\n" +
 	"\x11RunBackupResponse\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\",\n" +
-	"\x13GetBackupJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"C\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\">\n" +
+	"\x13GetBackupJobRequest\x12'\n" +
+	"\x06job_id\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"backup_jobR\x05jobId\"C\n" +
 	"\x14GetBackupJobResponse\x12+\n" +
 	"\x03job\x18\x01 \x01(\v2\x19.backup_manager.BackupJobR\x03job\"\x98\x01\n" +
 	"\x15ListBackupJobsRequest\x12\x14\n" +
@@ -6042,13 +6045,15 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\rquality_state\x18\x05 \x01(\x0e2\x1c.backup_manager.QualityStateR\fqualityState\"e\n" +
 	"\x13ListBackupsResponse\x128\n" +
 	"\abackups\x18\x01 \x03(\v2\x1e.backup_manager.BackupArtifactR\abackups\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\rR\x05total\"/\n" +
-	"\x10GetBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\"K\n" +
+	"\x05total\x18\x02 \x01(\rR\x05total\"=\n" +
+	"\x10GetBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\"K\n" +
 	"\x11GetBackupResponse\x126\n" +
-	"\x06backup\x18\x01 \x01(\v2\x1e.backup_manager.BackupArtifactR\x06backup\"n\n" +
-	"\x13DeleteBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12:\n" +
+	"\x06backup\x18\x01 \x01(\v2\x1e.backup_manager.BackupArtifactR\x06backup\"|\n" +
+	"\x13DeleteBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12:\n" +
 	"\x19delete_provider_artifacts\x18\x02 \x01(\bR\x17deleteProviderArtifacts\"\xe2\x01\n" +
 	"\x14DeleteBackupResponse\x12\x18\n" +
 	"\adeleted\x18\x01 \x01(\bR\adeleted\x12\x18\n" +
@@ -6058,9 +6063,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\fDeleteResult\x12\x16\n" +
 	"\x06target\x18\x01 \x01(\tR\x06target\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"H\n" +
-	"\x15ValidateBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x12\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"V\n" +
+	"\x15ValidateBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12\x12\n" +
 	"\x04deep\x18\x02 \x01(\bR\x04deep\"\xbd\x01\n" +
 	"\x16ValidateBackupResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x127\n" +
@@ -6069,9 +6075,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x0fValidationIssue\x12:\n" +
 	"\bseverity\x18\x01 \x01(\x0e2\x1e.backup_manager.BackupSeverityR\bseverity\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xad\x02\n" +
-	"\x12RestorePlanRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12!\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xbb\x02\n" +
+	"\x12RestorePlanRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12!\n" +
 	"\finclude_etcd\x18\x02 \x01(\bR\vincludeEtcd\x12%\n" +
 	"\x0einclude_config\x18\x03 \x01(\bR\rincludeConfig\x12#\n" +
 	"\rinclude_minio\x18\x04 \x01(\bR\fincludeMinio\x12%\n" +
@@ -6086,9 +6093,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\vRestoreStep\x12\x14\n" +
 	"\x05order\x18\x01 \x01(\rR\x05order\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
-	"\adetails\x18\x03 \x01(\tR\adetails\"\xae\x03\n" +
-	"\x14RestoreBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12!\n" +
+	"\adetails\x18\x03 \x01(\tR\adetails\"\xbc\x03\n" +
+	"\x14RestoreBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12!\n" +
 	"\finclude_etcd\x18\x02 \x01(\bR\vincludeEtcd\x12%\n" +
 	"\x0einclude_config\x18\x03 \x01(\bR\rincludeConfig\x12#\n" +
 	"\rinclude_minio\x18\x04 \x01(\bR\fincludeMinio\x12%\n" +
@@ -6105,14 +6113,18 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x17\n" +
 	"\adry_run\x18\x02 \x01(\bR\x06dryRun\x121\n" +
 	"\x05steps\x18\x03 \x03(\v2\x1b.backup_manager.RestoreStepR\x05steps\x12;\n" +
-	"\bwarnings\x18\x04 \x03(\v2\x1f.backup_manager.ValidationIssueR\bwarnings\"/\n" +
-	"\x16CancelBackupJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"O\n" +
+	"\bwarnings\x18\x04 \x03(\v2\x1f.backup_manager.ValidationIssueR\bwarnings\"A\n" +
+	"\x16CancelBackupJobRequest\x12'\n" +
+	"\x06job_id\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"backup_jobR\x05jobId\"O\n" +
 	"\x17CancelBackupJobResponse\x12\x1a\n" +
 	"\bcanceled\x18\x01 \x01(\bR\bcanceled\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"Z\n" +
-	"\x16DeleteBackupJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12)\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"l\n" +
+	"\x16DeleteBackupJobRequest\x12'\n" +
+	"\x06job_id\x18\x01 \x01(\tB\x10\x8a\xb5\x18\f\n" +
+	"\n" +
+	"backup_jobR\x05jobId\x12)\n" +
 	"\x10delete_artifacts\x18\x02 \x01(\bR\x0fdeleteArtifacts\"M\n" +
 	"\x17DeleteBackupJobResponse\x12\x18\n" +
 	"\adeleted\x18\x01 \x01(\bR\adeleted\x12\x18\n" +
@@ -6160,9 +6172,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02ok\x18\x03 \x01(\bR\x02ok\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x8d\x01\n" +
-	"\x15RunRestoreTestRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x126\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x9b\x01\n" +
+	"\x15RunRestoreTestRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x126\n" +
 	"\x05level\x18\x02 \x01(\x0e2 .backup_manager.RestoreTestLevelR\x05level\x12\x1f\n" +
 	"\vtarget_root\x18\x03 \x01(\tR\n" +
 	"targetRoot\"\x84\x01\n" +
@@ -6181,21 +6194,24 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"3\n" +
-	"\x14PromoteBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\"\x84\x01\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"A\n" +
+	"\x14PromoteBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\"\x84\x01\n" +
 	"\x15PromoteBackupResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12A\n" +
 	"\rquality_state\x18\x02 \x01(\x0e2\x1c.backup_manager.QualityStateR\fqualityState\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"2\n" +
-	"\x13DemoteBackupRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\"\x83\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"@\n" +
+	"\x13DemoteBackupRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\"\x83\x01\n" +
 	"\x14DemoteBackupResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12A\n" +
 	"\rquality_state\x18\x02 \x01(\x0e2\x1c.backup_manager.QualityStateR\fqualityState\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xcc\x02\n" +
-	"\x18PrepareBackupHookRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12.\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xda\x02\n" +
+	"\x18PrepareBackupHookRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12.\n" +
 	"\x04mode\x18\x02 \x01(\x0e2\x1a.backup_manager.BackupModeR\x04mode\x121\n" +
 	"\x05scope\x18\x03 \x01(\v2\x1b.backup_manager.BackupScopeR\x05scope\x12L\n" +
 	"\x06labels\x18\x04 \x03(\v24.backup_manager.PrepareBackupHookRequest.LabelsEntryR\x06labels\x12'\n" +
@@ -6226,9 +6242,10 @@ const file_backup_manager_proto_rawDesc = "" +
 	"size_bytes\x18\t \x01(\x04R\tsizeBytes\x12+\n" +
 	"\x11rebuild_supported\x18\n" +
 	" \x01(\bR\x10rebuildSupported\x12\x14\n" +
-	"\x05scope\x18\v \x01(\tR\x05scope\"\xd0\x02\n" +
-	"\x19FinalizeBackupHookRequest\x12\x1b\n" +
-	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12.\n" +
+	"\x05scope\x18\v \x01(\tR\x05scope\"\xde\x02\n" +
+	"\x19FinalizeBackupHookRequest\x12)\n" +
+	"\tbackup_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x06backupR\bbackupId\x12.\n" +
 	"\x04mode\x18\x02 \x01(\x0e2\x1a.backup_manager.BackupModeR\x04mode\x121\n" +
 	"\x05scope\x18\x03 \x01(\v2\x1b.backup_manager.BackupScopeR\x05scope\x12M\n" +
 	"\x06labels\x18\x04 \x03(\v25.backup_manager.FinalizeBackupHookRequest.LabelsEntryR\x06labels\x12)\n" +
@@ -6252,18 +6269,20 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x17ListMinioBucketsRequest\"q\n" +
 	"\x18ListMinioBucketsResponse\x129\n" +
 	"\abuckets\x18\x01 \x03(\v2\x1f.backup_manager.MinioBucketInfoR\abuckets\x12\x1a\n" +
-	"\bendpoint\x18\x02 \x01(\tR\bendpoint\"\x9e\x01\n" +
-	"\x18CreateMinioBucketRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x129\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\"\xb2\x01\n" +
+	"\x18CreateMinioBucketRequest\x12&\n" +
+	"\x04name\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fminio_bucketR\x04name\x129\n" +
 	"\x19set_as_backup_destination\x18\x02 \x01(\bR\x16setAsBackupDestination\x123\n" +
 	"\x16set_as_scylla_location\x18\x03 \x01(\bR\x13setAsScyllaLocation\"f\n" +
 	"\x19CreateMinioBucketResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1f\n" +
 	"\vbucket_name\x18\x03 \x01(\tR\n" +
-	"bucketName\"D\n" +
-	"\x18DeleteMinioBucketRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"bucketName\"X\n" +
+	"\x18DeleteMinioBucketRequest\x12&\n" +
+	"\x04name\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fminio_bucketR\x04name\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"E\n" +
 	"\x19DeleteMinioBucketResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
@@ -6367,36 +6386,63 @@ const file_backup_manager_proto_rawDesc = "" +
 	"\x10RestoreTestLevel\x12\"\n" +
 	"\x1eRESTORE_TEST_LEVEL_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESTORE_TEST_LIGHT\x10\x01\x12\x16\n" +
-	"\x12RESTORE_TEST_HEAVY\x10\x022\xfa\x12\n" +
-	"\x14BackupManagerService\x12P\n" +
-	"\tRunBackup\x12 .backup_manager.RunBackupRequest\x1a!.backup_manager.RunBackupResponse\x12Y\n" +
-	"\fGetBackupJob\x12#.backup_manager.GetBackupJobRequest\x1a$.backup_manager.GetBackupJobResponse\x12_\n" +
-	"\x0eListBackupJobs\x12%.backup_manager.ListBackupJobsRequest\x1a&.backup_manager.ListBackupJobsResponse\x12V\n" +
-	"\vListBackups\x12\".backup_manager.ListBackupsRequest\x1a#.backup_manager.ListBackupsResponse\x12P\n" +
-	"\tGetBackup\x12 .backup_manager.GetBackupRequest\x1a!.backup_manager.GetBackupResponse\x12Y\n" +
-	"\fDeleteBackup\x12#.backup_manager.DeleteBackupRequest\x1a$.backup_manager.DeleteBackupResponse\x12_\n" +
-	"\x0eValidateBackup\x12%.backup_manager.ValidateBackupRequest\x1a&.backup_manager.ValidateBackupResponse\x12V\n" +
-	"\vRestorePlan\x12\".backup_manager.RestorePlanRequest\x1a#.backup_manager.RestorePlanResponse\x12\\\n" +
-	"\rRestoreBackup\x12$.backup_manager.RestoreBackupRequest\x1a%.backup_manager.RestoreBackupResponse\x12b\n" +
-	"\x0fCancelBackupJob\x12&.backup_manager.CancelBackupJobRequest\x1a'.backup_manager.CancelBackupJobResponse\x12b\n" +
-	"\x0fDeleteBackupJob\x12&.backup_manager.DeleteBackupJobRequest\x1a'.backup_manager.DeleteBackupJobResponse\x12Y\n" +
-	"\fRunRetention\x12#.backup_manager.RunRetentionRequest\x1a$.backup_manager.RunRetentionResponse\x12k\n" +
-	"\x12GetRetentionStatus\x12).backup_manager.GetRetentionStatusRequest\x1a*.backup_manager.GetRetentionStatusResponse\x12_\n" +
-	"\x0ePreflightCheck\x12%.backup_manager.PreflightCheckRequest\x1a&.backup_manager.PreflightCheckResponse\x12_\n" +
-	"\x0eRunRestoreTest\x12%.backup_manager.RunRestoreTestRequest\x1a&.backup_manager.RunRestoreTestResponse\x12\\\n" +
-	"\rPromoteBackup\x12$.backup_manager.PromoteBackupRequest\x1a%.backup_manager.PromoteBackupResponse\x12Y\n" +
-	"\fDemoteBackup\x12#.backup_manager.DemoteBackupRequest\x1a$.backup_manager.DemoteBackupResponse\x12e\n" +
-	"\x10ListMinioBuckets\x12'.backup_manager.ListMinioBucketsRequest\x1a(.backup_manager.ListMinioBucketsResponse\x12h\n" +
-	"\x11CreateMinioBucket\x12(.backup_manager.CreateMinioBucketRequest\x1a).backup_manager.CreateMinioBucketResponse\x12h\n" +
-	"\x11DeleteMinioBucket\x12(.backup_manager.DeleteMinioBucketRequest\x1a).backup_manager.DeleteMinioBucketResponse\x12h\n" +
-	"\x11GetScheduleStatus\x12(.backup_manager.GetScheduleStatusRequest\x1a).backup_manager.GetScheduleStatusResponse\x12h\n" +
-	"\x11GetRecoveryStatus\x12(.backup_manager.GetRecoveryStatusRequest\x1a).backup_manager.GetRecoveryStatusResponse\x12h\n" +
-	"\x11ApplyRecoverySeed\x12(.backup_manager.ApplyRecoverySeedRequest\x1a).backup_manager.ApplyRecoverySeedResponse\x12q\n" +
-	"\x14TestScyllaConnection\x12+.backup_manager.TestScyllaConnectionRequest\x1a,.backup_manager.TestScyllaConnectionResponse\x12A\n" +
-	"\x04Stop\x12\x1b.backup_manager.StopRequest\x1a\x1c.backup_manager.StopResponse2\xe2\x01\n" +
-	"\x11BackupHookService\x12d\n" +
-	"\rPrepareBackup\x12(.backup_manager.PrepareBackupHookRequest\x1a).backup_manager.PrepareBackupHookResponse\x12g\n" +
-	"\x0eFinalizeBackup\x12).backup_manager.FinalizeBackupHookRequest\x1a*.backup_manager.FinalizeBackupHookResponseBXZVgithub.com/globulario/services/golang/backup_manager/backup_managerpb;backup_managerpbb\x06proto3"
+	"\x12RESTORE_TEST_HEAVY\x10\x022\xa4#\n" +
+	"\x14BackupManagerService\x12\x98\x01\n" +
+	"\tRunBackup\x12 .backup_manager.RunBackupRequest\x1a!.backup_manager.RunBackupResponse\"F\x82\xb5\x18B\n" +
+	"\x19backup_manager.backup.run\x12\x05admin\"\x17/backup_manager/backups*\x05admin\x12\xa5\x01\n" +
+	"\fGetBackupJob\x12#.backup_manager.GetBackupJobRequest\x1a$.backup_manager.GetBackupJobResponse\"J\x82\xb5\x18F\n" +
+	"\x17backup_manager.job.read\x12\x04read\x1a\x1d/backup_manager/jobs/{job_id}*\x06viewer\x12\xa2\x01\n" +
+	"\x0eListBackupJobs\x12%.backup_manager.ListBackupJobsRequest\x1a&.backup_manager.ListBackupJobsResponse\"A\x82\xb5\x18=\n" +
+	"\x17backup_manager.job.list\x12\x04read\"\x14/backup_manager/jobs*\x06viewer\x12\x9f\x01\n" +
+	"\vListBackups\x12\".backup_manager.ListBackupsRequest\x1a#.backup_manager.ListBackupsResponse\"G\x82\xb5\x18C\n" +
+	"\x1abackup_manager.backup.list\x12\x04read\"\x17/backup_manager/backups*\x06viewer\x12\xa5\x01\n" +
+	"\tGetBackup\x12 .backup_manager.GetBackupRequest\x1a!.backup_manager.GetBackupResponse\"S\x82\xb5\x18O\n" +
+	"\x1abackup_manager.backup.read\x12\x04read\x1a#/backup_manager/backups/{backup_id}*\x06viewer\x12\xb1\x01\n" +
+	"\fDeleteBackup\x12#.backup_manager.DeleteBackupRequest\x1a$.backup_manager.DeleteBackupResponse\"V\x82\xb5\x18R\n" +
+	"\x1cbackup_manager.backup.delete\x12\x06delete\x1a#/backup_manager/backups/{backup_id}*\x05admin\x12\xb8\x01\n" +
+	"\x0eValidateBackup\x12%.backup_manager.ValidateBackupRequest\x1a&.backup_manager.ValidateBackupResponse\"W\x82\xb5\x18S\n" +
+	"\x1ebackup_manager.backup.validate\x12\x04read\x1a#/backup_manager/backups/{backup_id}*\x06viewer\x12\xb9\x01\n" +
+	"\vRestorePlan\x12\".backup_manager.RestorePlanRequest\x1a#.backup_manager.RestorePlanResponse\"a\x82\xb5\x18]\n" +
+	"\x1bbackup_manager.restore.plan\x12\x04read\x1a0/backup_manager/backups/{backup_id}/restore-plan*\x06viewer\x12\xbd\x01\n" +
+	"\rRestoreBackup\x12$.backup_manager.RestoreBackupRequest\x1a%.backup_manager.RestoreBackupResponse\"_\x82\xb5\x18[\n" +
+	"\x1ebackup_manager.restore.execute\x12\x05admin\x1a+/backup_manager/backups/{backup_id}/restore*\x05admin\x12\xb0\x01\n" +
+	"\x0fCancelBackupJob\x12&.backup_manager.CancelBackupJobRequest\x1a'.backup_manager.CancelBackupJobResponse\"L\x82\xb5\x18H\n" +
+	"\x19backup_manager.job.cancel\x12\x05admin\x1a\x1d/backup_manager/jobs/{job_id}*\x05admin\x12\xb1\x01\n" +
+	"\x0fDeleteBackupJob\x12&.backup_manager.DeleteBackupJobRequest\x1a'.backup_manager.DeleteBackupJobResponse\"M\x82\xb5\x18I\n" +
+	"\x19backup_manager.job.delete\x12\x06delete\x1a\x1d/backup_manager/jobs/{job_id}*\x05admin\x12\xa6\x01\n" +
+	"\fRunRetention\x12#.backup_manager.RunRetentionRequest\x1a$.backup_manager.RunRetentionResponse\"K\x82\xb5\x18G\n" +
+	"\x1cbackup_manager.retention.run\x12\x05admin\x1a\x19/backup_manager/retention*\x05admin\x12\xbb\x01\n" +
+	"\x12GetRetentionStatus\x12).backup_manager.GetRetentionStatusRequest\x1a*.backup_manager.GetRetentionStatusResponse\"N\x82\xb5\x18J\n" +
+	"\x1fbackup_manager.retention.status\x12\x04read\x1a\x19/backup_manager/retention*\x06viewer\x12\xae\x01\n" +
+	"\x0ePreflightCheck\x12%.backup_manager.PreflightCheckRequest\x1a&.backup_manager.PreflightCheckResponse\"M\x82\xb5\x18I\n" +
+	"\x1ebackup_manager.preflight.check\x12\x04read\x1a\x19/backup_manager/preflight*\x06viewer\x12\xc6\x01\n" +
+	"\x0eRunRestoreTest\x12%.backup_manager.RunRestoreTestRequest\x1a&.backup_manager.RunRestoreTestResponse\"e\x82\xb5\x18a\n" +
+	"\x1fbackup_manager.restore_test.run\x12\x05admin\x1a0/backup_manager/backups/{backup_id}/restore-test*\x05admin\x12\xb5\x01\n" +
+	"\rPromoteBackup\x12$.backup_manager.PromoteBackupRequest\x1a%.backup_manager.PromoteBackupResponse\"W\x82\xb5\x18S\n" +
+	"\x1dbackup_manager.backup.promote\x12\x05write\x1a#/backup_manager/backups/{backup_id}*\x06editor\x12\xb1\x01\n" +
+	"\fDemoteBackup\x12#.backup_manager.DemoteBackupRequest\x1a$.backup_manager.DemoteBackupResponse\"V\x82\xb5\x18R\n" +
+	"\x1cbackup_manager.backup.demote\x12\x05write\x1a#/backup_manager/backups/{backup_id}*\x06editor\x12\xba\x01\n" +
+	"\x10ListMinioBuckets\x12'.backup_manager.ListMinioBucketsRequest\x1a(.backup_manager.ListMinioBucketsResponse\"S\x82\xb5\x18O\n" +
+	" backup_manager.minio_bucket.list\x12\x04read\"\x1d/backup_manager/minio-buckets*\x06viewer\x12\xc0\x01\n" +
+	"\x11CreateMinioBucket\x12(.backup_manager.CreateMinioBucketRequest\x1a).backup_manager.CreateMinioBucketResponse\"V\x82\xb5\x18R\n" +
+	"\"backup_manager.minio_bucket.create\x12\x05write\"\x1d/backup_manager/minio-buckets*\x06editor\x12\xc7\x01\n" +
+	"\x11DeleteMinioBucket\x12(.backup_manager.DeleteMinioBucketRequest\x1a).backup_manager.DeleteMinioBucketResponse\"]\x82\xb5\x18Y\n" +
+	"\"backup_manager.minio_bucket.delete\x12\x06delete\x1a$/backup_manager/minio-buckets/{name}*\x05admin\x12\xb6\x01\n" +
+	"\x11GetScheduleStatus\x12(.backup_manager.GetScheduleStatusRequest\x1a).backup_manager.GetScheduleStatusResponse\"L\x82\xb5\x18H\n" +
+	"\x1ebackup_manager.schedule.status\x12\x04read\x1a\x18/backup_manager/schedule*\x06viewer\x12\xb6\x01\n" +
+	"\x11GetRecoveryStatus\x12(.backup_manager.GetRecoveryStatusRequest\x1a).backup_manager.GetRecoveryStatusResponse\"L\x82\xb5\x18H\n" +
+	"\x1ebackup_manager.recovery.status\x12\x04read\x1a\x18/backup_manager/recovery*\x06viewer\x12\xba\x01\n" +
+	"\x11ApplyRecoverySeed\x12(.backup_manager.ApplyRecoverySeedRequest\x1a).backup_manager.ApplyRecoverySeedResponse\"P\x82\xb5\x18L\n" +
+	"\"backup_manager.recovery.apply_seed\x12\x05admin\x1a\x18/backup_manager/recovery*\x05admin\x12\xc4\x01\n" +
+	"\x14TestScyllaConnection\x12+.backup_manager.TestScyllaConnectionRequest\x1a,.backup_manager.TestScyllaConnectionResponse\"Q\x82\xb5\x18M\n" +
+	"%backup_manager.scylla.test_connection\x12\x04read\x1a\x16/backup_manager/scylla*\x06viewer\x12{\n" +
+	"\x04Stop\x12\x1b.backup_manager.StopRequest\x1a\x1c.backup_manager.StopResponse\"8\x82\xb5\x184\n" +
+	"\x13backup_manager.stop\x12\x05admin\x1a\x0f/backup_manager*\x05admin2\xae\x03\n" +
+	"\x11BackupHookService\x12\xc8\x01\n" +
+	"\rPrepareBackup\x12(.backup_manager.PrepareBackupHookRequest\x1a).backup_manager.PrepareBackupHookResponse\"b\x82\xb5\x18^\n" +
+	"\x1bbackup_manager.hook.prepare\x12\x05admin\x1a1/backup_manager/backups/{backup_id}/hooks/prepare*\x05admin\x12\xcd\x01\n" +
+	"\x0eFinalizeBackup\x12).backup_manager.FinalizeBackupHookRequest\x1a*.backup_manager.FinalizeBackupHookResponse\"d\x82\xb5\x18`\n" +
+	"\x1cbackup_manager.hook.finalize\x12\x05admin\x1a2/backup_manager/backups/{backup_id}/hooks/finalize*\x05adminBXZVgithub.com/globulario/services/golang/backup_manager/backup_managerpb;backup_managerpbb\x06proto3"
 
 var (
 	file_backup_manager_proto_rawDescOnce sync.Once

@@ -7,6 +7,7 @@
 package blogpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1889,7 +1890,7 @@ var File_blog_proto protoreflect.FileDescriptor
 const file_blog_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"blog.proto\x12\x04blog\"x\n" +
+	"blog.proto\x12\x04blog\x1a\x13globular_auth.proto\"x\n" +
 	"\x05Emoji\x12\x1d\n" +
 	"\n" +
 	"Account_id\x18\x01 \x01(\tR\tAccountId\x12\"\n" +
@@ -1933,9 +1934,10 @@ const file_blog_proto_rawDesc = "" +
 	"\tthumbnail\x18\a \x01(\tR\tthumbnail\x12\x12\n" +
 	"\x04text\x18\b \x01(\tR\x04text\"E\n" +
 	"\x16CreateBlogPostResponse\x12+\n" +
-	"\tblog_post\x18\x01 \x01(\v2\x0e.blog.BlogPostR\bblogPost\"t\n" +
-	"\x13SaveBlogPostRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12+\n" +
+	"\tblog_post\x18\x01 \x01(\v2\x0e.blog.BlogPostR\bblogPost\"\x87\x01\n" +
+	"\x13SaveBlogPostRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12+\n" +
 	"\tblog_post\x18\x02 \x01(\v2\x0e.blog.BlogPostR\bblogPost\x12\x1c\n" +
 	"\tindexPath\x18\x03 \x01(\tR\tindexPath\"\x16\n" +
 	"\x14SaveBlogPostResponse\"J\n" +
@@ -1947,28 +1949,33 @@ const file_blog_proto_rawDesc = "" +
 	"\x13GetBlogPostsRequest\x12\x14\n" +
 	"\x05uuids\x18\x01 \x03(\tR\x05uuids\"C\n" +
 	"\x14GetBlogPostsResponse\x12+\n" +
-	"\tblog_post\x18\x01 \x01(\v2\x0e.blog.BlogPostR\bblogPost\"I\n" +
-	"\x15DeleteBlogPostRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x1c\n" +
+	"\tblog_post\x18\x01 \x01(\v2\x0e.blog.BlogPostR\bblogPost\"\\\n" +
+	"\x15DeleteBlogPostRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12\x1c\n" +
 	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x18\n" +
-	"\x16DeleteBlogPostResponse\"H\n" +
-	"\x0fAddEmojiRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12!\n" +
+	"\x16DeleteBlogPostResponse\"[\n" +
+	"\x0fAddEmojiRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12!\n" +
 	"\x05emoji\x18\x02 \x01(\v2\v.blog.EmojiR\x05emoji\"5\n" +
 	"\x10AddEmojiResponse\x12!\n" +
-	"\x05emoji\x18\x01 \x01(\v2\v.blog.EmojiR\x05emoji\"K\n" +
-	"\x12RemoveEmojiRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12!\n" +
+	"\x05emoji\x18\x01 \x01(\v2\v.blog.EmojiR\x05emoji\"^\n" +
+	"\x12RemoveEmojiRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12!\n" +
 	"\x05emoji\x18\x02 \x01(\v2\v.blog.EmojiR\x05emoji\"8\n" +
 	"\x13RemoveEmojiResponse\x12!\n" +
-	"\x05emoji\x18\x01 \x01(\v2\v.blog.EmojiR\x05emoji\"P\n" +
-	"\x11AddCommentRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12'\n" +
+	"\x05emoji\x18\x01 \x01(\v2\v.blog.EmojiR\x05emoji\"c\n" +
+	"\x11AddCommentRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12'\n" +
 	"\acomment\x18\x02 \x01(\v2\r.blog.CommentR\acomment\"=\n" +
 	"\x12AddCommentResponse\x12'\n" +
-	"\acomment\x18\x01 \x01(\v2\r.blog.CommentR\acomment\"S\n" +
-	"\x14RemoveCommentRequest\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12'\n" +
+	"\acomment\x18\x01 \x01(\v2\r.blog.CommentR\acomment\"f\n" +
+	"\x14RemoveCommentRequest\x12%\n" +
+	"\x04uuid\x18\x01 \x01(\tB\x11\x8a\xb5\x18\r\n" +
+	"\tblog_post\x10\x01R\x04uuid\x12'\n" +
 	"\acomment\x18\x02 \x01(\v2\r.blog.CommentR\acomment\"\x17\n" +
 	"\x15RemoveCommentResponse\"=\n" +
 	"\aSnippet\x12\x14\n" +
@@ -2007,19 +2014,31 @@ const file_blog_proto_rawDesc = "" +
 	"\rBogPostStatus\x12\t\n" +
 	"\x05DRAFT\x10\x00\x12\r\n" +
 	"\tPUBLISHED\x10\x01\x12\f\n" +
-	"\bARCHIVED\x10\x022\xf7\x05\n" +
-	"\vBlogService\x12K\n" +
-	"\x0eCreateBlogPost\x12\x1b.blog.CreateBlogPostRequest\x1a\x1c.blog.CreateBlogPostResponse\x12E\n" +
-	"\fSaveBlogPost\x12\x19.blog.SaveBlogPostRequest\x1a\x1a.blog.SaveBlogPostResponse\x12b\n" +
-	"\x15GetBlogPostsByAuthors\x12\".blog.GetBlogPostsByAuthorsRequest\x1a#.blog.GetBlogPostsByAuthorsResponse0\x01\x12G\n" +
-	"\fGetBlogPosts\x12\x19.blog.GetBlogPostsRequest\x1a\x1a.blog.GetBlogPostsResponse0\x01\x12P\n" +
-	"\x0fSearchBlogPosts\x12\x1c.blog.SearchBlogPostsRequest\x1a\x1d.blog.SearchBlogPostsResponse0\x01\x12K\n" +
-	"\x0eDeleteBlogPost\x12\x1b.blog.DeleteBlogPostRequest\x1a\x1c.blog.DeleteBlogPostResponse\x129\n" +
-	"\bAddEmoji\x12\x15.blog.AddEmojiRequest\x1a\x16.blog.AddEmojiResponse\x12B\n" +
-	"\vRemoveEmoji\x12\x18.blog.RemoveEmojiRequest\x1a\x19.blog.RemoveEmojiResponse\x12?\n" +
+	"\bARCHIVED\x10\x022\xa3\n" +
 	"\n" +
-	"AddComment\x12\x17.blog.AddCommentRequest\x1a\x18.blog.AddCommentResponse\x12H\n" +
-	"\rRemoveComment\x12\x1a.blog.RemoveCommentRequest\x1a\x1b.blog.RemoveCommentResponseB3Z1github.com/globulario/services/golang/blog/blogpbb\x06proto3"
+	"\vBlogService\x12z\n" +
+	"\x0eCreateBlogPost\x12\x1b.blog.CreateBlogPostRequest\x1a\x1c.blog.CreateBlogPostResponse\"-\x82\xb5\x18)\n" +
+	"\vblog.create\x12\x05write\"\v/blog/posts*\x06editor\x12y\n" +
+	"\fSaveBlogPost\x12\x19.blog.SaveBlogPostRequest\x1a\x1a.blog.SaveBlogPostResponse\"2\x82\xb5\x18.\n" +
+	"\tblog.save\x12\x05write\x1a\x12/blog/posts/{uuid}*\x06editor\x12\x93\x01\n" +
+	"\x15GetBlogPostsByAuthors\x12\".blog.GetBlogPostsByAuthorsRequest\x1a#.blog.GetBlogPostsByAuthorsResponse\"/\x82\xb5\x18+\n" +
+	"\x0eblog.byauthors\x12\x04read\"\v/blog/posts*\x06viewer0\x01\x12s\n" +
+	"\fGetBlogPosts\x12\x19.blog.GetBlogPostsRequest\x1a\x1a.blog.GetBlogPostsResponse\"*\x82\xb5\x18&\n" +
+	"\tblog.read\x12\x04read\"\v/blog/posts*\x06viewer0\x01\x12~\n" +
+	"\x0fSearchBlogPosts\x12\x1c.blog.SearchBlogPostsRequest\x1a\x1d.blog.SearchBlogPostsResponse\",\x82\xb5\x18(\n" +
+	"\vblog.search\x12\x04read\"\v/blog/posts*\x06viewer0\x01\x12\x81\x01\n" +
+	"\x0eDeleteBlogPost\x12\x1b.blog.DeleteBlogPostRequest\x1a\x1c.blog.DeleteBlogPostResponse\"4\x82\xb5\x180\n" +
+	"\vblog.delete\x12\x06delete\x1a\x12/blog/posts/{uuid}*\x05admin\x12u\n" +
+	"\bAddEmoji\x12\x15.blog.AddEmojiRequest\x1a\x16.blog.AddEmojiResponse\":\x82\xb5\x186\n" +
+	"\n" +
+	"blog.react\x12\x05write\x1a\x19/blog/posts/{uuid}/emojis*\x06editor\x12\x84\x01\n" +
+	"\vRemoveEmoji\x12\x18.blog.RemoveEmojiRequest\x1a\x19.blog.RemoveEmojiResponse\"@\x82\xb5\x18<\n" +
+	"\x10blog.removereact\x12\x06delete\x1a\x19/blog/posts/{uuid}/emojis*\x05admin\x12\x7f\n" +
+	"\n" +
+	"AddComment\x12\x17.blog.AddCommentRequest\x1a\x18.blog.AddCommentResponse\">\x82\xb5\x18:\n" +
+	"\fblog.comment\x12\x05write\x1a\x1b/blog/posts/{uuid}/comments*\x06editor\x12\x8e\x01\n" +
+	"\rRemoveComment\x12\x1a.blog.RemoveCommentRequest\x1a\x1b.blog.RemoveCommentResponse\"D\x82\xb5\x18@\n" +
+	"\x12blog.removecomment\x12\x06delete\x1a\x1b/blog/posts/{uuid}/comments*\x05adminB3Z1github.com/globulario/services/golang/blog/blogpbb\x06proto3"
 
 var (
 	file_blog_proto_rawDescOnce sync.Once

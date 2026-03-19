@@ -59,6 +59,9 @@ type ToolGroupConfig struct {
 	Persistence bool `json:"persistence"` // default false (requires allowlist)
 	Storage     bool `json:"storage"`     // default false (requires allowlist)
 	Composed    bool `json:"composed"`    // default true
+	CLI         bool `json:"cli"`         // default true
+	Governor    bool `json:"governor"`    // default true
+	Memory      bool `json:"memory"`      // default true (AI memory service)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -104,6 +107,9 @@ func defaultConfig() *MCPConfig {
 			RBAC:        true,
 			Resource:    true,
 			Composed:    true,
+			CLI:         true,
+			Governor:    true,
+			Memory:      true,
 			File:        true,
 			Persistence: false, // requires explicit allowlist
 			Storage:     false, // requires explicit allowlist
@@ -153,12 +159,52 @@ func loadConfig() *MCPConfig {
 			continue
 		}
 		log.Printf("mcp: loaded config from %s", p)
+
+		// Apply defaults for new tool groups that may be missing from
+		// older config files. When a bool field is absent from the JSON
+		// object, Go decodes it as false — so we check the raw JSON
+		// and restore the default for any missing field.
+		applyToolGroupDefaults(data, cfg)
+
 		return cfg
 	}
 
 	log.Println("mcp: no config file found, writing defaults to " + defaultConfigPath)
 	writeDefaultConfig(cfg)
 	return cfg
+}
+
+// applyToolGroupDefaults re-applies default=true for tool group fields that
+// are missing from the on-disk config (e.g. added in a newer version).
+func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
+	// Parse just the tool_groups section to see which keys are present.
+	var raw struct {
+		ToolGroups map[string]json.RawMessage `json:"tool_groups"`
+	}
+	if err := json.Unmarshal(rawJSON, &raw); err != nil || raw.ToolGroups == nil {
+		return
+	}
+
+	// These tool groups default to true when absent from config.
+	defaultTrue := map[string]*bool{
+		"cli":      &cfg.ToolGroups.CLI,
+		"governor": &cfg.ToolGroups.Governor,
+		"memory":   &cfg.ToolGroups.Memory,
+	}
+
+	updated := false
+	for key, field := range defaultTrue {
+		if _, present := raw.ToolGroups[key]; !present {
+			*field = true
+			updated = true
+			log.Printf("mcp: config missing tool_groups.%s — defaulting to true", key)
+		}
+	}
+
+	// Re-write config with the new defaults so next restart picks them up.
+	if updated {
+		writeDefaultConfig(cfg)
+	}
 }
 
 // writeDefaultConfig persists the default config so operators can discover and

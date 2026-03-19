@@ -14,10 +14,10 @@ svc_name_from_exe() {
 # Check if service requires Scylla database
 needs_scylla() {
   local svc="$1"
-  # ScyllaDB is used for resource and rbac services
+  # ScyllaDB is used for resource, rbac, and ai_memory services
   # NOTE: ScyllaDB must be installed and configured with TLS before these services start
   case "${svc}" in
-    resource|rbac) return 0 ;;
+    resource|rbac|ai_memory) return 0 ;;
     *) return 1 ;;
   esac
 }

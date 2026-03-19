@@ -185,7 +185,16 @@ var bootstrapCmd = &cobra.Command{
 			ControllerBind: bootstrapBind,
 			Profiles:       bootstrapProfiles,
 		}
-		resp, err := client.BootstrapFirstNode(ctxWithTimeout(), req)
+		// Bootstrap is a long-running operation (starts services, registers node).
+		// Use a generous timeout — 2 minutes minimum, or the user's --timeout if longer.
+		bootstrapTimeout := 2 * time.Minute
+		if rootCfg.timeout > bootstrapTimeout {
+			bootstrapTimeout = rootCfg.timeout
+		}
+		bctx, bcancel := context.WithTimeout(context.Background(), bootstrapTimeout)
+		defer bcancel()
+
+		resp, err := client.BootstrapFirstNode(bctx, req)
 		if err != nil {
 			return err
 		}
@@ -209,7 +218,16 @@ var joinCmd = &cobra.Command{
 		}
 		defer cc.Close()
 		client := node_agentpb.NewNodeAgentServiceClient(cc)
-		resp, err := client.JoinCluster(ctxWithTimeout(), &node_agentpb.JoinClusterRequest{
+
+		// Join is also a long operation — use 2 minute timeout.
+		joinTimeout := 2 * time.Minute
+		if rootCfg.timeout > joinTimeout {
+			joinTimeout = rootCfg.timeout
+		}
+		jctx, jcancel := context.WithTimeout(context.Background(), joinTimeout)
+		defer jcancel()
+
+		resp, err := client.JoinCluster(jctx, &node_agentpb.JoinClusterRequest{
 			ControllerEndpoint: controllerAddr,
 			JoinToken:          joinToken,
 		})

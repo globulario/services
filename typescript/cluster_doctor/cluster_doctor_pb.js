@@ -23,6 +23,8 @@ var global =
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 goog.object.extend(proto, google_protobuf_timestamp_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.cluster_doctor.ClusterReport', null, global);
 goog.exportSymbol('proto.cluster_doctor.ClusterReportRequest', null, global);
 goog.exportSymbol('proto.cluster_doctor.ClusterStatus', null, global);

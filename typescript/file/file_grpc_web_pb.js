@@ -21,6 +21,8 @@ grpc.web = require('grpc-web');
 
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
+
+var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.file = require('./file_pb.js');
 

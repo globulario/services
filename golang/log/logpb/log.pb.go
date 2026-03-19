@@ -7,6 +7,7 @@
 package logpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -569,7 +570,7 @@ var File_log_proto protoreflect.FileDescriptor
 
 const file_log_proto_rawDesc = "" +
 	"\n" +
-	"\tlog.proto\x12\x03log\"\x8d\x03\n" +
+	"\tlog.proto\x12\x03log\x1a\x13globular_auth.proto\"\x8d\x03\n" +
 	"\aLogInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\x05level\x18\x02 \x01(\x0e2\r.log.LogLevelR\x05level\x12 \n" +
@@ -591,9 +592,10 @@ const file_log_proto_rawDesc = "" +
 	"\aLogRqst\x12 \n" +
 	"\x04info\x18\x01 \x01(\v2\f.log.LogInfoR\x04info\" \n" +
 	"\x06LogRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
-	"\rDeleteLogRqst\x12\x1e\n" +
-	"\x03log\x18\x01 \x01(\v2\f.log.LogInfoR\x03log\"&\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
+	"\rDeleteLogRqst\x12/\n" +
+	"\x03log\x18\x01 \x01(\v2\f.log.LogInfoB\x0f\x8a\xb5\x18\v\n" +
+	"\tlog_entryR\x03log\"&\n" +
 	"\fDeleteLogRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\"\n" +
 	"\n" +
@@ -611,13 +613,18 @@ const file_log_proto_rawDesc = "" +
 	"\fWARN_MESSAGE\x10\x02\x12\x10\n" +
 	"\fINFO_MESSAGE\x10\x03\x12\x11\n" +
 	"\rDEBUG_MESSAGE\x10\x04\x12\x11\n" +
-	"\rTRACE_MESSAGE\x10\x052\xc9\x01\n" +
+	"\rTRACE_MESSAGE\x10\x052\x80\x03\n" +
 	"\n" +
-	"LogService\x12 \n" +
-	"\x03Log\x12\f.log.LogRqst\x1a\v.log.LogRsp\x12+\n" +
-	"\x06GetLog\x12\x0f.log.GetLogRqst\x1a\x0e.log.GetLogRsp0\x01\x122\n" +
-	"\tDeleteLog\x12\x12.log.DeleteLogRqst\x1a\x11.log.DeleteLogRsp\x128\n" +
-	"\vClearAllLog\x12\x14.log.ClearAllLogRqst\x1a\x13.log.ClearAllLogRspB1Z/github.com/globulario/services/golang/log/logpbb\x06proto3"
+	"LogService\x12N\n" +
+	"\x03Log\x12\f.log.LogRqst\x1a\v.log.LogRsp\",\x82\xb5\x18(\n" +
+	"\tlog.write\x12\x05write\"\f/log/entries*\x06editor\x12W\n" +
+	"\x06GetLog\x12\x0f.log.GetLogRqst\x1a\x0e.log.GetLogRsp\"*\x82\xb5\x18&\n" +
+	"\blog.read\x12\x04read\"\f/log/entries*\x06viewer0\x01\x12a\n" +
+	"\tDeleteLog\x12\x12.log.DeleteLogRqst\x1a\x11.log.DeleteLogRsp\"-\x82\xb5\x18)\n" +
+	"\n" +
+	"log.delete\x12\x06delete\"\f/log/entries*\x05admin\x12f\n" +
+	"\vClearAllLog\x12\x14.log.ClearAllLogRqst\x1a\x13.log.ClearAllLogRsp\",\x82\xb5\x18(\n" +
+	"\tlog.clear\x12\x06delete\"\f/log/entries*\x05adminB1Z/github.com/globulario/services/golang/log/logpbb\x06proto3"
 
 var (
 	file_log_proto_rawDescOnce sync.Once

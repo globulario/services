@@ -11,6 +11,7 @@
 package torrentpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -652,7 +653,7 @@ var File_torrent_proto protoreflect.FileDescriptor
 
 const file_torrent_proto_rawDesc = "" +
 	"\n" +
-	"\rtorrent.proto\x12\atorrent\"p\n" +
+	"\rtorrent.proto\x12\atorrent\x1a\x13globular_auth.proto\"p\n" +
 	"\n" +
 	"TorrentLnk\x12\x10\n" +
 	"\x03Lnk\x18\x01 \x01(\tR\x03Lnk\x12\x12\n" +
@@ -686,20 +687,26 @@ const file_torrent_proto_rawDesc = "" +
 	"\vDestination\x18\v \x01(\tR\vDestination\"\x18\n" +
 	"\x16GetTorrentInfosRequest\"E\n" +
 	"\x17GetTorrentInfosResponse\x12*\n" +
-	"\x05infos\x18\x01 \x03(\v2\x14.torrent.TorrentInfoR\x05infos\"T\n" +
+	"\x05infos\x18\x01 \x03(\v2\x14.torrent.TorrentInfoR\x05infos\"b\n" +
 	"\x16DownloadTorrentRequest\x12\x12\n" +
-	"\x04link\x18\x01 \x01(\tR\x04link\x12\x12\n" +
-	"\x04dest\x18\x02 \x01(\tR\x04dest\x12\x12\n" +
+	"\x04link\x18\x01 \x01(\tR\x04link\x12 \n" +
+	"\x04dest\x18\x02 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04path\x10\x01R\x04dest\x12\x12\n" +
 	"\x04seed\x18\x03 \x01(\bR\x04seed\"\x19\n" +
-	"\x17DownloadTorrentResponse\"(\n" +
-	"\x12DropTorrentRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x15\n" +
-	"\x13DropTorrentResponse2\xdb\x02\n" +
-	"\x0eTorrentService\x12T\n" +
-	"\x0fDownloadTorrent\x12\x1f.torrent.DownloadTorrentRequest\x1a .torrent.DownloadTorrentResponse\x12V\n" +
-	"\x0fGetTorrentInfos\x12\x1f.torrent.GetTorrentInfosRequest\x1a .torrent.GetTorrentInfosResponse0\x01\x12H\n" +
-	"\vDropTorrent\x12\x1b.torrent.DropTorrentRequest\x1a\x1c.torrent.DropTorrentResponse\x12Q\n" +
-	"\x0eGetTorrentLnks\x12\x1e.torrent.GetTorrentLnksRequest\x1a\x1f.torrent.GetTorrentLnksResponseB9Z7github.com/globulario/services/golang/torrent/torrentpbb\x06proto3"
+	"\x17DownloadTorrentResponse\"7\n" +
+	"\x12DropTorrentRequest\x12!\n" +
+	"\x04name\x18\x01 \x01(\tB\r\x8a\xb5\x18\t\n" +
+	"\atorrentR\x04name\"\x15\n" +
+	"\x13DropTorrentResponse2\xcf\x04\n" +
+	"\x0eTorrentService\x12\x96\x01\n" +
+	"\x0fDownloadTorrent\x12\x1f.torrent.DownloadTorrentRequest\x1a .torrent.DownloadTorrentResponse\"@\x82\xb5\x18<\n" +
+	"\x10torrent.download\x12\x05write\x1a\x19/torrent/downloads/{dest}*\x06editor\x12\x8c\x01\n" +
+	"\x0fGetTorrentInfos\x12\x1f.torrent.GetTorrentInfosRequest\x1a .torrent.GetTorrentInfosResponse\"4\x82\xb5\x180\n" +
+	"\ftorrent.list\x12\x04read\"\x12/torrent/downloads*\x06viewer0\x01\x12\x88\x01\n" +
+	"\vDropTorrent\x12\x1b.torrent.DropTorrentRequest\x1a\x1c.torrent.DropTorrentResponse\">\x82\xb5\x18:\n" +
+	"\x0etorrent.delete\x12\x06delete\x1a\x19/torrent/downloads/{name}*\x05admin\x12\x89\x01\n" +
+	"\x0eGetTorrentLnks\x12\x1e.torrent.GetTorrentLnksRequest\x1a\x1f.torrent.GetTorrentLnksResponse\"6\x82\xb5\x182\n" +
+	"\x12torrent.links.read\x12\x04read\"\x0e/torrent/links*\x06viewerB9Z7github.com/globulario/services/golang/torrent/torrentpbb\x06proto3"
 
 var (
 	file_torrent_proto_rawDescOnce sync.Once

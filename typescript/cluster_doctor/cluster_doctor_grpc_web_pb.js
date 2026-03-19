@@ -21,6 +21,8 @@ grpc.web = require('grpc-web');
 
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
+
+var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.cluster_doctor = require('./cluster_doctor_pb.js');
 
