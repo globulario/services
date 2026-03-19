@@ -90,6 +90,9 @@ type server struct {
 	// Anomaly tracking (security signals from ai_watcher events)
 	anomalies *anomalyTracker
 
+	// Drain manager (stream-aware graceful endpoint removal)
+	drains *drainManager
+
 	// Runtime stats
 	stats     routerStats
 	statsMu   sync.Mutex
@@ -214,6 +217,7 @@ func (srv *server) Init() error {
 	srv.mode = ai_routerpb.RouterMode_ROUTER_NEUTRAL
 	srv.classifications = defaultClassifications()
 	srv.anomalies = newAnomalyTracker()
+	srv.drains = newDrainManager()
 	srv.startedAt = time.Now()
 
 	return nil

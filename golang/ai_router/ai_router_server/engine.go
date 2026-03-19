@@ -106,6 +106,29 @@ func (srv *server) scoringLoop() {
 
 		// Apply safety invariants (max delta, min weight, cooldown).
 		clamps := safety.validate(policy, srv.classifications)
+
+		// Check for drain conditions and manage active drains.
+		for svcName, sp := range policy.Services {
+			class := srv.classifications[svcName]
+			for ep, w := range sp.Weights {
+				if shouldDrain(w, class) {
+					reason := "low_score"
+					if srv.anomalies.getAnomalyScore(svcName) > 0.3 {
+						reason = "security_anomaly"
+					}
+					if srv.drains.startDrain(svcName, ep, class, reason) {
+						sp.Reasons = append(sp.Reasons, "drain started: "+ep+" ("+reason+")")
+					}
+				} else if w >= 50 && srv.drains.isDraining(svcName, ep) {
+					// Endpoint recovered — cancel drain.
+					srv.drains.cancelDrain(svcName, ep)
+					sp.Reasons = append(sp.Reasons, "drain cancelled: "+ep+" (recovered)")
+				}
+			}
+		}
+
+		// Apply active drains to policy (set weight=0, add drain entries).
+		drainEvents := srv.drains.applyDrains(policy)
 		for _, c := range clamps {
 			logger.Info("safety", "clamp", c, "cycle", cycle)
 		}
@@ -155,7 +178,18 @@ func (srv *server) scoringLoop() {
 		srv.stats.LastPolicyAt = time.Now()
 		srv.statsMu.Unlock()
 
-		if changed > 0 || len(clamps) > 0 || cycle%12 == 0 {
+		// Publish drain events.
+		for _, de := range drainEvents {
+			logger.Info("drain_event", "event", de, "cycle", cycle)
+			if srv.anomalies != nil {
+				srv.anomalies.publishRoutingEvent("routing.drain.completed", map[string]interface{}{
+					"detail": de,
+					"cycle":  cycle,
+				})
+			}
+		}
+
+		if changed > 0 || len(clamps) > 0 || len(drainEvents) > 0 || cycle%12 == 0 {
 			logger.Info("scoring_summary",
 				"cycle", cycle,
 				"mode", mode.String(),
@@ -163,6 +197,7 @@ func (srv *server) scoringLoop() {
 				"endpoints", len(results),
 				"would_change", changed,
 				"safety_clamps", len(clamps),
+				"active_drains", srv.drains.activeDrains(),
 				"cpu", round2(node.CPUUsage),
 				"memory", round2(node.MemoryUsage),
 			)
