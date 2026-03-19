@@ -12,6 +12,11 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+// OnSecurityEvent is a callback invoked on every auth denial.
+// Set by globular_service.StartService to publish events to the event bus.
+// Safe to leave nil — denials are still logged normally.
+var OnSecurityEvent func(decision *AuditDecision)
+
 // PolicyVersion is the version of the authorization policy in effect.
 // Security Fix #10: Track policy version for audit correlation.
 //
@@ -219,6 +224,11 @@ func LogAuthzDecision(
 		slog.Int64("latency_ms", latencyMs),             // Security Fix #10
 		slog.String("policy_version", PolicyVersion),    // Security Fix #10
 	)
+
+	// Fire security event hook on denials so the ai_watcher can react.
+	if !allowed && OnSecurityEvent != nil {
+		OnSecurityEvent(&decision)
+	}
 }
 
 // LogAuthzDecisionSimple is a convenience wrapper for cases where we don't have

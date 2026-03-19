@@ -104,6 +104,27 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.LastSeen = reportedAt
 
 	if !unitsEqual(node.Units, units) {
+		// Detect units that transitioned from active to non-active (crash/stop).
+		oldStates := make(map[string]string, len(node.Units))
+		for _, u := range node.Units {
+			oldStates[strings.ToLower(u.Name)] = strings.ToLower(u.State)
+		}
+		for _, u := range units {
+			newState := strings.ToLower(u.State)
+			if newState == "active" || newState == "" {
+				continue
+			}
+			if oldStates[strings.ToLower(u.Name)] == "active" {
+				srv.emitClusterEvent("service.exited", map[string]interface{}{
+					"severity":       "ERROR",
+					"node_id":        nodeID,
+					"unit":           u.Name,
+					"previous_state": "active",
+					"current_state":  u.State,
+					"correlation_id": "node:" + nodeID + ":unit:" + u.Name,
+				})
+			}
+		}
 		node.Units = units
 		changed = true
 	}

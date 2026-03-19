@@ -458,6 +458,13 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 				currentNode.MarkedUnhealthySince = now
 				currentNode.LastError = fmt.Sprintf("no contact for %v", timeSinceSeen.Round(time.Second))
 				log.Printf("node %s marked unhealthy: %s", node.NodeID, currentNode.LastError)
+				srv.emitClusterEvent("cluster.health.degraded", map[string]interface{}{
+					"severity":       "WARNING",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"reason":         currentNode.LastError,
+					"correlation_id": fmt.Sprintf("node:%s", node.NodeID),
+				})
 				stateDirty = true
 			}
 
@@ -493,6 +500,12 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 			currentNode.MarkedUnhealthySince = time.Time{}
 			currentNode.LastError = ""
 			log.Printf("node %s recovered and marked healthy", node.NodeID)
+			srv.emitClusterEvent("cluster.health.recovered", map[string]interface{}{
+				"severity":       "INFO",
+				"node_id":        node.NodeID,
+				"hostname":       node.Identity.Hostname,
+				"correlation_id": fmt.Sprintf("node:%s", node.NodeID),
+			})
 			stateDirty = true
 		}
 		srv.unlock()

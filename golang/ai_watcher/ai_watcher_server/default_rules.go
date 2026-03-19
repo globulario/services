@@ -85,6 +85,17 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				SeverityMin:         "warning",
 				RepeatThreshold:     1,
 			},
+			{
+				Id:                  "auth-denial",
+				EventPattern:        "alert.auth.denied",
+				Description:         "Authorization denied — possible misconfiguration or intrusion attempt",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     60,
+				BatchWindowSeconds:  15,
+				SeverityMin:         "warning",
+				RepeatThreshold:     3, // only fire after 3+ denials in window (filters noise)
+			},
 		},
 
 		// Auto-remediation rules — Tier 2 (disabled by default, user opts in).

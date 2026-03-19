@@ -172,6 +172,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					if !isPlanStuck(status, lastEmitMs, now) {
 						continue
 					}
+					srv.emitClusterEvent("operation.stalled", map[string]interface{}{
+						"severity":       "ERROR",
+						"node_id":        node.NodeID,
+						"hostname":       node.Identity.Hostname,
+						"plan_type":      "network",
+						"plan_id":        currentPlan.GetPlanId(),
+						"correlation_id": fmt.Sprintf("plan:%s:net", node.NodeID),
+					})
 				}
 			}
 			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
@@ -366,6 +374,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				if !isPlanStuck(status, lastEmitMs, now) {
 					continue
 				}
+				srv.emitClusterEvent("operation.stalled", map[string]interface{}{
+					"severity":       "ERROR",
+					"node_id":        node.NodeID,
+					"hostname":       node.Identity.Hostname,
+					"plan_type":      "service",
+					"plan_id":        currentPlan.GetPlanId(),
+					"correlation_id": fmt.Sprintf("plan:%s:svc", node.NodeID),
+				})
 			} else {
 				continue
 			}

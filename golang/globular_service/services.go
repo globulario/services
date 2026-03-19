@@ -25,9 +25,11 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	globular_client "github.com/globulario/services/golang/globular_client"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
@@ -725,12 +727,16 @@ func StartService(s Service, srv *grpc.Server) error {
 	// Etcd watch for desired config changes on this service id.
 	go watchDesiredConfig(s, srv)
 
+	// Wire event publishing for service lifecycle and security events.
+	go initServiceEvents(s)
+
 	// Wait for termination signal.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	<-ch
 
 	// Graceful shutdown.
+	publishServiceEvent("service.stopped", s, nil)
 	StopService(s, srv)
 	return nil
 }
@@ -986,6 +992,75 @@ func StopService(s Service, srv *grpc.Server) error {
 	}
 	slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
 	return nil
+}
+
+// ------------------------------
+// Service event publishing
+// ------------------------------
+
+// serviceEventClient is the shared event client for publishing lifecycle/security events.
+// Initialized lazily by initServiceEvents, safe to be nil.
+var serviceEventClient *event_client.Event_Client
+
+// initServiceEvents connects to the event service and wires up hooks.
+// Runs in a background goroutine — failures are non-fatal (best-effort).
+func initServiceEvents(s Service) {
+	// Give event service time to start (it may boot after us).
+	time.Sleep(10 * time.Second)
+
+	addr := config.ResolveServiceAddr("event.EventService", "localhost:10010")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
+	if err != nil {
+		slog.Debug("initServiceEvents: event service unavailable, events disabled", "err", err)
+		return
+	}
+	client, ok := c.(*event_client.Event_Client)
+	if !ok {
+		return
+	}
+	serviceEventClient = client
+
+	// Wire the security hook — publish auth denials as events.
+	interceptors.OnSecurityEvent = func(decision *interceptors.AuditDecision) {
+		if decision == nil || serviceEventClient == nil {
+			return
+		}
+		// Only publish genuine denials, not bootstrap noise.
+		if decision.Reason == "bootstrap_method_blocked" || decision.Reason == "bootstrap_remote" {
+			return
+		}
+		payload, _ := json.Marshal(map[string]interface{}{
+			"severity":    "WARNING",
+			"subject":     decision.Subject,
+			"method":      decision.GRPCMethod,
+			"reason":      decision.Reason,
+			"remote_addr": decision.RemoteAddr,
+			"service":     s.GetName(),
+		})
+		_ = serviceEventClient.Publish("alert.auth.denied", payload)
+	}
+
+	// Publish service.started now that we're wired up.
+	publishServiceEvent("service.started", s, nil)
+	slog.Debug("initServiceEvents: event publishing active", "service", s.GetName())
+}
+
+// publishServiceEvent publishes a lifecycle event. Safe to call with nil client.
+func publishServiceEvent(name string, s Service, extra map[string]interface{}) {
+	if serviceEventClient == nil {
+		return
+	}
+	payload := map[string]interface{}{
+		"service": s.GetName(),
+		"id":      s.GetId(),
+		"port":    s.GetPort(),
+	}
+	for k, v := range extra {
+		payload[k] = v
+	}
+	data, _ := json.Marshal(payload)
+	_ = serviceEventClient.Publish(name, data)
 }
 
 // ------------------------------
