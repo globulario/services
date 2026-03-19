@@ -1021,7 +1021,7 @@ func initServiceEvents(s Service) {
 	}
 	serviceEventClient = client
 
-	// Wire the security hook — publish auth denials as events.
+	// Wire the security hook — publish auth denials and DoS alerts as events.
 	interceptors.OnSecurityEvent = func(decision *interceptors.AuditDecision) {
 		if decision == nil || serviceEventClient == nil {
 			return
@@ -1030,15 +1030,24 @@ func initServiceEvents(s Service) {
 		if decision.Reason == "bootstrap_method_blocked" || decision.Reason == "bootstrap_remote" {
 			return
 		}
+
+		// Pick event name based on the type of security event.
+		eventName := "alert.auth.denied"
+		severity := "WARNING"
+		if decision.Reason == "dos_rate_exceeded" {
+			eventName = "alert.dos.detected"
+			severity = "ERROR"
+		}
+
 		payload, _ := json.Marshal(map[string]interface{}{
-			"severity":    "WARNING",
+			"severity":    severity,
 			"subject":     decision.Subject,
 			"method":      decision.GRPCMethod,
 			"reason":      decision.Reason,
 			"remote_addr": decision.RemoteAddr,
 			"service":     s.GetName(),
 		})
-		_ = serviceEventClient.Publish("alert.auth.denied", payload)
+		_ = serviceEventClient.Publish(eventName, payload)
 	}
 
 	// Publish service.started now that we're wired up.

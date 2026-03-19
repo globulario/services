@@ -641,6 +641,23 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Resolve method path to stable action key for RBAC validation.
 	// If no mapping exists, actionKey falls back to the raw method path.
 	actionKey := policy.GlobalResolver().Resolve(method)
+
+	// DoS detection: track request rate per source IP.
+	if remoteAddr := extractRemoteAddr(ctx); getDosTracker().track(remoteAddr) {
+		if OnSecurityEvent != nil {
+			OnSecurityEvent(&AuditDecision{
+				Timestamp:     time.Now().UTC(),
+				Subject:       "",
+				PrincipalType: "unknown",
+				AuthMethod:    "none",
+				GRPCMethod:    method,
+				RemoteAddr:    remoteAddr,
+				Allowed:       false,
+				Reason:        "dos_rate_exceeded",
+				CallSource:    "remote",
+			})
+		}
+	}
 	var routing string
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {

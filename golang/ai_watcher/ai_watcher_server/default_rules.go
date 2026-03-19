@@ -107,6 +107,17 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				SeverityMin:         "warning",
 				RepeatThreshold:     5, // 5+ failed logins in 30s = suspicious
 			},
+			{
+				Id:                  "dos-detected",
+				EventPattern:        "alert.dos.detected",
+				Description:         "Request flood from single source — possible DoS attack",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     120,
+				BatchWindowSeconds:  10,
+				SeverityMin:         "error",
+				RepeatThreshold:     1, // one alert = already confirmed flood
+			},
 		},
 
 		// Auto-remediation rules — Tier 2 (disabled by default, user opts in).
