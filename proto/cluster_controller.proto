@@ -723,6 +723,9 @@ message ServiceSummary {
   int32 nodes_at_desired = 3;
   int32 nodes_total = 4;
   int32 upgrading = 5;
+  // Package kind: "SERVICE", "INFRASTRUCTURE", "APPLICATION", "COMMAND".
+  // Allows the frontend to filter — e.g. the Services Catalog only shows SERVICE.
+  string kind = 6;
 }
 
 message GetClusterHealthV1Response {

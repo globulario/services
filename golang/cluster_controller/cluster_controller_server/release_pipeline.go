@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/google/uuid"
@@ -167,6 +168,12 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Use the cluster domain (not the UUID cluster ID) — the node-agent
 	// validates plan.ClusterId against its local cluster domain.
 	clusterID := srv.state.ClusterNetworkSpec.GetClusterDomain()
+	if clusterID == "" {
+		// Fallback: read domain from config (same source the node-agent uses).
+		if d, err := config.GetDomain(); err == nil && d != "" {
+			clusterID = d
+		}
+	}
 	srv.unlock()
 
 	if len(nodeIDs) == 0 {
@@ -272,6 +279,11 @@ func (srv *server) reconcileApplying(ctx context.Context, h *releaseHandle) {
 		}
 	}
 
+	// Only patch if the phase actually changed — otherwise we trigger a
+	// watch event → re-enqueue → reconcile loop with no progress.
+	if newPhase == h.Phase {
+		return
+	}
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                newPhase,
 		Nodes:                updatedNodes,

@@ -113,6 +113,8 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	// Merge InfrastructureRelease entries so infrastructure daemons
 	// (etcd, minio, prometheus, etc.) appear in the health summary
 	// alongside gRPC services. Without this they show as "unmanaged".
+	// Track infra names so we can set the Kind field on summaries.
+	infraNames := make(map[string]bool)
 	if srv.resources != nil {
 		if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 			for _, obj := range items {
@@ -122,6 +124,7 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 						canon = canonicalServiceName(rel.Meta.Name)
 					}
 					if canon != "" {
+						infraNames[canon] = true
 						if _, exists := desiredCanon[canon]; !exists {
 							desiredCanon[canon] = rel.Spec.Version
 						}
@@ -279,12 +282,17 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		total := int32(serviceCounts[svc])
 		at := int32(serviceAtDesired[svc])
 		up := int32(serviceUpgrading[svc])
+		kind := "SERVICE"
+		if infraNames[svc] {
+			kind = "INFRASTRUCTURE"
+		}
 		summaries = append(summaries, &cluster_controllerpb.ServiceSummary{
 			ServiceName:    svc,
 			DesiredVersion: ver,
 			NodesAtDesired: at,
 			NodesTotal:     total,
 			Upgrading:      up,
+			Kind:           kind,
 		})
 	}
 

@@ -434,8 +434,24 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		}
 	}
 
+	// Step 2.7: Build set of infrastructure-managed packages so we don't
+	// import them as services. MCP, gateway, xds, etc. are INFRASTRUCTURE
+	// and already have InfrastructureRelease objects — creating a duplicate
+	// ServiceDesiredVersion/ServiceRelease causes ghost entries in the admin UI.
+	infraManaged := make(map[string]bool)
+	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range infraItems {
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
+				infraManaged[canonicalServiceName(rel.Spec.Component)] = true
+			}
+		}
+	}
+
 	// Step 3: Upsert only what is missing or different.
 	for name, inst := range installed {
+		if infraManaged[name] {
+			continue // managed by InfrastructureRelease, not ServiceRelease
+		}
 		ex, found := existingMap[name]
 		if found && versionutil.EqualFull(ex.version, ex.buildNumber, inst.version, inst.buildNumber) {
 			// Already present with matching version+build — skip.

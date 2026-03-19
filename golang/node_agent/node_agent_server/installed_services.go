@@ -167,7 +167,7 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 	skipSystemd := map[string]bool{
 		// Core infrastructure (no desired-state model)
 		"etcd": true, "minio": true, "envoy": true,
-		"xds": true, "gateway": true,
+		"xds": true, "gateway": true, "mcp": true,
 		// Infrastructure services (from /packages/specs/*_service.yaml)
 		"node-exporter": true, "prometheus": true,
 		"scylla-manager": true, "scylla-manager-agent": true,

@@ -7,6 +7,7 @@
 package cluster_controllerpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	planpb "github.com/globulario/services/golang/plan/planpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -4100,8 +4101,11 @@ type ServiceSummary struct {
 	NodesAtDesired int32                  `protobuf:"varint,3,opt,name=nodes_at_desired,json=nodesAtDesired,proto3" json:"nodes_at_desired,omitempty"`
 	NodesTotal     int32                  `protobuf:"varint,4,opt,name=nodes_total,json=nodesTotal,proto3" json:"nodes_total,omitempty"`
 	Upgrading      int32                  `protobuf:"varint,5,opt,name=upgrading,proto3" json:"upgrading,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Package kind: "SERVICE", "INFRASTRUCTURE", "APPLICATION", "COMMAND".
+	// Allows the frontend to filter — e.g. the Services Catalog only shows SERVICE.
+	Kind          string `protobuf:"bytes,6,opt,name=kind,proto3" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ServiceSummary) Reset() {
@@ -4167,6 +4171,13 @@ func (x *ServiceSummary) GetUpgrading() int32 {
 		return x.Upgrading
 	}
 	return 0
+}
+
+func (x *ServiceSummary) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
 }
 
 type GetClusterHealthV1Response struct {
@@ -5930,7 +5941,7 @@ var File_cluster_controller_proto protoreflect.FileDescriptor
 const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"\x18cluster_controller.proto\x12\x12cluster_controller\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\n" +
-	"plan.proto\"\x8e\x01\n" +
+	"plan.proto\x1a\x13globular_auth.proto\"\x8e\x01\n" +
 	"\vClusterInfo\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12%\n" +
@@ -6031,10 +6042,11 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"<\n" +
-	"\x1bGetJoinRequestStatusRequest\x12\x1d\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"P\n" +
+	"\x1bGetJoinRequestStatusRequest\x121\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\"\xcb\x01\n" +
+	"request_id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fjoin_requestR\trequestId\"\xcb\x01\n" +
 	"\x1cGetJoinRequestStatusResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x1a\n" +
@@ -6058,10 +6070,11 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x19\n" +
 	"\x17ListJoinRequestsRequest\"[\n" +
 	"\x18ListJoinRequestsResponse\x12?\n" +
-	"\apending\x18\x01 \x03(\v2%.cluster_controller.JoinRequestRecordR\apending\"\xfb\x01\n" +
-	"\x12ApproveJoinRequest\x12\x1d\n" +
+	"\apending\x18\x01 \x03(\v2%.cluster_controller.JoinRequestRecordR\apending\"\x8f\x02\n" +
+	"\x12ApproveJoinRequest\x121\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"request_id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fjoin_requestR\trequestId\x12\x1b\n" +
 	"\anode_id\x18\x02 \x01(\tB\x02\x18\x01R\x06nodeId\x12\x1a\n" +
 	"\bprofiles\x18\x03 \x03(\tR\bprofiles\x12P\n" +
 	"\bmetadata\x18\x04 \x03(\v24.cluster_controller.ApproveJoinRequest.MetadataEntryR\bmetadata\x1a;\n" +
@@ -6073,10 +6086,11 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1d\n" +
 	"\n" +
 	"node_token\x18\x03 \x01(\tR\tnodeToken\x12%\n" +
-	"\x0enode_principal\x18\x04 \x01(\tR\rnodePrincipal\"g\n" +
-	"\x11RejectJoinRequest\x12\x1d\n" +
+	"\x0enode_principal\x18\x04 \x01(\tR\rnodePrincipal\"{\n" +
+	"\x11RejectJoinRequest\x121\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
+	"request_id\x18\x01 \x01(\tB\x12\x8a\xb5\x18\x0e\n" +
+	"\fjoin_requestR\trequestId\x12\x1b\n" +
 	"\anode_id\x18\x02 \x01(\tB\x02\x18\x01R\x06nodeId\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\"G\n" +
 	"\x12RejectJoinResponse\x12\x17\n" +
@@ -6084,14 +6098,16 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\x12\n" +
 	"\x10ListNodesRequest\"I\n" +
 	"\x11ListNodesResponse\x124\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x1e.cluster_controller.NodeRecordR\x05nodes\"M\n" +
-	"\x16SetNodeProfilesRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x1e.cluster_controller.NodeRecordR\x05nodes\"[\n" +
+	"\x16SetNodeProfilesRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x1a\n" +
 	"\bprofiles\x18\x02 \x03(\tR\bprofiles\"<\n" +
 	"\x17SetNodeProfilesResponse\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\"X\n" +
-	"\x11RemoveNodeRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x14\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\"f\n" +
+	"\x11RemoveNodeRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\x12\x14\n" +
 	"\x05drain\x18\x03 \x01(\bR\x05drain\"Q\n" +
 	"\x12RemoveNodeResponse\x12!\n" +
@@ -6120,13 +6136,15 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x1cUpdateClusterNetworkResponse\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\x04R\n" +
-	"generation\"/\n" +
-	"\x14ApplyNodePlanRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\":\n" +
+	"generation\"=\n" +
+	"\x14ApplyNodePlanRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\":\n" +
 	"\x15ApplyNodePlanResponse\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\"a\n" +
-	"\x16ApplyNodePlanV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12.\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\"o\n" +
+	"\x16ApplyNodePlanV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12.\n" +
 	"\x04plan\x18\x02 \x01(\v2\x1a.globular.plan.v1.NodePlanR\x04plan\"<\n" +
 	"\x17ApplyNodePlanV1Response\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\"\xb2\x01\n" +
@@ -6148,9 +6166,10 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x0frendered_config\x18\x05 \x03(\v20.cluster_controller.NodePlan.RenderedConfigEntryR\x0erenderedConfig\x1aA\n" +
 	"\x13RenderedConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc1\x01\n" +
-	"\x16UpgradeGlobularRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcf\x01\n" +
+	"\x16UpgradeGlobularRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\x12\x1a\n" +
 	"\bartifact\x18\x03 \x01(\fR\bartifact\x12\x16\n" +
 	"\x06sha256\x18\x04 \x01(\tR\x06sha256\x12\x1f\n" +
@@ -6165,22 +6184,27 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"generation\x12%\n" +
 	"\x0eterminal_state\x18\x03 \x01(\tR\rterminalState\x12\"\n" +
 	"\rerror_step_id\x18\x04 \x01(\tR\verrorStepId\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"-\n" +
-	"\x12GetNodePlanRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"G\n" +
+	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\";\n" +
+	"\x12GetNodePlanRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"G\n" +
 	"\x13GetNodePlanResponse\x120\n" +
-	"\x04plan\x18\x01 \x01(\v2\x1c.cluster_controller.NodePlanR\x04plan\"/\n" +
-	"\x14GetNodePlanV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"G\n" +
+	"\x04plan\x18\x01 \x01(\v2\x1c.cluster_controller.NodePlanR\x04plan\"=\n" +
+	"\x14GetNodePlanV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"G\n" +
 	"\x15GetNodePlanV1Response\x12.\n" +
-	"\x04plan\x18\x01 \x01(\v2\x1a.globular.plan.v1.NodePlanR\x04plan\"1\n" +
-	"\x16ReconcileNodeV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\x19\n" +
-	"\x17ReconcileNodeV1Response\"7\n" +
-	"\x1cWatchNodePlanStatusV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\",\n" +
-	"\x11StartApplyRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"7\n" +
+	"\x04plan\x18\x01 \x01(\v2\x1a.globular.plan.v1.NodePlanR\x04plan\"?\n" +
+	"\x16ReconcileNodeV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"\x19\n" +
+	"\x17ReconcileNodeV1Response\"E\n" +
+	"\x1cWatchNodePlanStatusV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\":\n" +
+	"\x11StartApplyRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"7\n" +
 	"\x12StartApplyResponse\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\"\x90\x02\n" +
 	"\x0eOperationEvent\x12!\n" +
@@ -6191,10 +6215,12 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\apercent\x18\x05 \x01(\x05R\apercent\x12\x12\n" +
 	"\x04done\x18\x06 \x01(\bR\x04done\x12\x14\n" +
 	"\x05error\x18\a \x01(\tR\x05error\x12*\n" +
-	"\x02ts\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\"\xba\x01\n" +
-	"\x18CompleteOperationRequest\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12\x17\n" +
-	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\x02ts\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\"\xd9\x01\n" +
+	"\x18CompleteOperationRequest\x122\n" +
+	"\foperation_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\toperationR\voperationId\x12%\n" +
+	"\anode_id\x18\x02 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x18\n" +
 	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x18\n" +
@@ -6228,10 +6254,12 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x17ReportNodeStatusRequest\x126\n" +
 	"\x06status\x18\x01 \x01(\v2\x1e.cluster_controller.NodeStatusR\x06status\"4\n" +
 	"\x18ReportNodeStatusResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"T\n" +
-	"\x16WatchOperationsRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12!\n" +
-	"\foperation_id\x18\x02 \x01(\tR\voperationId\"\xf1\x01\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"s\n" +
+	"\x16WatchOperationsRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x122\n" +
+	"\foperation_id\x18\x02 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\toperationR\voperationId\"\xf1\x01\n" +
 	"\x0eDesiredNetwork\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1b\n" +
@@ -6241,10 +6269,11 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\facme_enabled\x18\x05 \x01(\bR\vacmeEnabled\x12\x1f\n" +
 	"\vadmin_email\x18\x06 \x01(\tR\n" +
 	"adminEmail\x12+\n" +
-	"\x11alternate_domains\x18\a \x03(\tR\x10alternateDomains\":\n" +
-	"\x19GetClusterHealthV1Request\x12\x1d\n" +
+	"\x11alternate_domains\x18\a \x03(\tR\x10alternateDomains\"K\n" +
+	"\x19GetClusterHealthV1Request\x12.\n" +
 	"\n" +
-	"cluster_id\x18\x01 \x01(\tR\tclusterId\"\xfc\x04\n" +
+	"cluster_id\x18\x01 \x01(\tB\x0f\x8a\xb5\x18\v\n" +
+	"\acluster\x10\x01R\tclusterId\"\xfc\x04\n" +
 	"\n" +
 	"NodeHealth\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x120\n" +
@@ -6262,23 +6291,25 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x12installed_versions\x18\v \x03(\v25.cluster_controller.NodeHealth.InstalledVersionsEntryR\x11installedVersions\x1aD\n" +
 	"\x16InstalledVersionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc5\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd9\x01\n" +
 	"\x0eServiceSummary\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12'\n" +
 	"\x0fdesired_version\x18\x02 \x01(\tR\x0edesiredVersion\x12(\n" +
 	"\x10nodes_at_desired\x18\x03 \x01(\x05R\x0enodesAtDesired\x12\x1f\n" +
 	"\vnodes_total\x18\x04 \x01(\x05R\n" +
 	"nodesTotal\x12\x1c\n" +
-	"\tupgrading\x18\x05 \x01(\x05R\tupgrading\"\x92\x01\n" +
+	"\tupgrading\x18\x05 \x01(\x05R\tupgrading\x12\x12\n" +
+	"\x04kind\x18\x06 \x01(\tR\x04kind\"\x92\x01\n" +
 	"\x1aGetClusterHealthV1Response\x124\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x1e.cluster_controller.NodeHealthR\x05nodes\x12>\n" +
 	"\bservices\x18\x02 \x03(\v2\".cluster_controller.ServiceSummaryR\bservices\"W\n" +
 	"\x0fNodeHealthCheck\x12\x1c\n" +
 	"\tsubsystem\x18\x01 \x01(\tR\tsubsystem\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"7\n" +
-	"\x1cGetNodeHealthDetailV1Request\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\x9a\x03\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"E\n" +
+	"\x1cGetNodeHealthDetailV1Request\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\"\x9a\x03\n" +
 	"\x1dGetNodeHealthDetailV1Response\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12%\n" +
 	"\x0eoverall_status\x18\x02 \x01(\tR\roverallStatus\x12\x18\n" +
@@ -6289,9 +6320,10 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x14can_apply_privileged\x18\x06 \x01(\bR\x12canApplyPrivileged\x12-\n" +
 	"\x12inventory_complete\x18\a \x01(\bR\x11inventoryComplete\x127\n" +
 	"\tlast_seen\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\x12)\n" +
-	"\x10privilege_reason\x18\t \x01(\tR\x0fprivilegeReason\"Q\n" +
-	"\x1aPreviewNodeProfilesRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\x10privilege_reason\x18\t \x01(\tR\x0fprivilegeReason\"_\n" +
+	"\x1aPreviewNodeProfilesRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12\x1a\n" +
 	"\bprofiles\x18\x02 \x03(\tR\bprofiles\"t\n" +
 	"\x0eConfigFileDiff\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x19\n" +
@@ -6320,18 +6352,21 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\bservices\x18\x01 \x03(\v2\".cluster_controller.DesiredServiceR\bservices\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"[\n" +
 	"\x1bUpsertDesiredServiceRequest\x12<\n" +
-	"\aservice\x18\x01 \x01(\v2\".cluster_controller.DesiredServiceR\aservice\"<\n" +
-	"\x1bRemoveDesiredServiceRequest\x12\x1d\n" +
+	"\aservice\x18\x01 \x01(\v2\".cluster_controller.DesiredServiceR\aservice\"S\n" +
+	"\x1bRemoveDesiredServiceRequest\x124\n" +
 	"\n" +
-	"service_id\x18\x01 \x01(\tR\tserviceId\"\x9c\x01\n" +
+	"service_id\x18\x01 \x01(\tB\x15\x8a\xb5\x18\x11\n" +
+	"\x0fdesired_serviceR\tserviceId\"\x9c\x01\n" +
 	"\x17SeedDesiredStateRequest\x12D\n" +
 	"\x04mode\x18\x01 \x01(\x0e20.cluster_controller.SeedDesiredStateRequest.ModeR\x04mode\";\n" +
 	"\x04Mode\x12\x18\n" +
 	"\x14DEFAULT_CORE_PROFILE\x10\x00\x12\x19\n" +
-	"\x15IMPORT_FROM_INSTALLED\x10\x01\"z\n" +
-	"\x17ValidateArtifactRequest\x12\x1d\n" +
+	"\x15IMPORT_FROM_INSTALLED\x10\x01\"\x8a\x01\n" +
+	"\x17ValidateArtifactRequest\x12-\n" +
 	"\n" +
-	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +
+	"service_id\x18\x01 \x01(\tB\x0e\x8a\xb5\x18\n" +
+	"\n" +
+	"\bartifactR\tserviceId\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12&\n" +
 	"\x0ftarget_node_ids\x18\x03 \x03(\tR\rtargetNodeIds\"\x99\x01\n" +
 	"\x0fValidationIssue\x12H\n" +
@@ -6391,10 +6426,13 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12!\n" +
 	"\foperation_id\x18\x03 \x01(\tR\voperationId\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\"\xcd\x01\n" +
-	"\x1aReportPlanRejectionRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x17\n" +
-	"\aplan_id\x18\x02 \x01(\tR\x06planId\x12\x1e\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\xe7\x01\n" +
+	"\x1aReportPlanRejectionRequest\x12%\n" +
+	"\anode_id\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
+	"\x04node\x10\x01R\x06nodeId\x12#\n" +
+	"\aplan_id\x18\x02 \x01(\tB\n" +
+	"\x8a\xb5\x18\x06\n" +
+	"\x04planR\x06planId\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x03 \x01(\x04R\n" +
 	"generation\x12\x16\n" +
@@ -6420,44 +6458,78 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"OP_RUNNING\x10\x02\x12\x10\n" +
 	"\fOP_SUCCEEDED\x10\x03\x12\r\n" +
-	"\tOP_FAILED\x10\x042\xb6\x1c\n" +
-	"\x18ClusterControllerService\x12M\n" +
-	"\x0eGetClusterInfo\x12\x1a.google.protobuf.Timestamp\x1a\x1f.cluster_controller.ClusterInfo\x12j\n" +
-	"\x0fCreateJoinToken\x12*.cluster_controller.CreateJoinTokenRequest\x1a+.cluster_controller.CreateJoinTokenResponse\x12^\n" +
-	"\vRequestJoin\x12&.cluster_controller.RequestJoinRequest\x1a'.cluster_controller.RequestJoinResponse\x12m\n" +
-	"\x10ListJoinRequests\x12+.cluster_controller.ListJoinRequestsRequest\x1a,.cluster_controller.ListJoinRequestsResponse\x12^\n" +
-	"\vApproveJoin\x12&.cluster_controller.ApproveJoinRequest\x1a'.cluster_controller.ApproveJoinResponse\x12[\n" +
+	"\tOP_FAILED\x10\x042\xf66\n" +
+	"\x18ClusterControllerService\x12\x9f\x01\n" +
+	"\x0eGetClusterInfo\x12\x1a.google.protobuf.Timestamp\x1a\x1f.cluster_controller.ClusterInfo\"P\x82\xb5\x18L\n" +
+	"\x1fcluster_controller.cluster.info\x12\x04read\x1a\x1b/cluster_controller/cluster*\x06viewer\x12\xc5\x01\n" +
+	"\x0fCreateJoinToken\x12*.cluster_controller.CreateJoinTokenRequest\x1a+.cluster_controller.CreateJoinTokenResponse\"Y\x82\xb5\x18U\n" +
+	"$cluster_controller.join_token.create\x12\x05admin\"\x1f/cluster_controller/join-tokens*\x05admin\x12\xbe\x01\n" +
+	"\vRequestJoin\x12&.cluster_controller.RequestJoinRequest\x1a'.cluster_controller.RequestJoinResponse\"^\x82\xb5\x18Z\n" +
+	"&cluster_controller.join_request.create\x12\x05write\"!/cluster_controller/join-requests*\x06editor\x12\xc9\x01\n" +
+	"\x10ListJoinRequests\x12+.cluster_controller.ListJoinRequestsRequest\x1a,.cluster_controller.ListJoinRequestsResponse\"Z\x82\xb5\x18V\n" +
+	"$cluster_controller.join_request.list\x12\x04read\"!/cluster_controller/join-requests*\x05admin\x12\xcb\x01\n" +
+	"\vApproveJoin\x12&.cluster_controller.ApproveJoinRequest\x1a'.cluster_controller.ApproveJoinResponse\"k\x82\xb5\x18g\n" +
+	"'cluster_controller.join_request.approve\x12\x05admin\x1a./cluster_controller/join-requests/{request_id}*\x05admin\x12\xc7\x01\n" +
 	"\n" +
-	"RejectJoin\x12%.cluster_controller.RejectJoinRequest\x1a&.cluster_controller.RejectJoinResponse\x12X\n" +
-	"\tListNodes\x12$.cluster_controller.ListNodesRequest\x1a%.cluster_controller.ListNodesResponse\x12j\n" +
-	"\x0fSetNodeProfiles\x12*.cluster_controller.SetNodeProfilesRequest\x1a+.cluster_controller.SetNodeProfilesResponse\x12[\n" +
+	"RejectJoin\x12%.cluster_controller.RejectJoinRequest\x1a&.cluster_controller.RejectJoinResponse\"j\x82\xb5\x18f\n" +
+	"&cluster_controller.join_request.reject\x12\x05admin\x1a./cluster_controller/join-requests/{request_id}*\x05admin\x12\xa5\x01\n" +
+	"\tListNodes\x12$.cluster_controller.ListNodesRequest\x1a%.cluster_controller.ListNodesResponse\"K\x82\xb5\x18G\n" +
+	"\x1ccluster_controller.node.list\x12\x04read\"\x19/cluster_controller/nodes*\x06viewer\x12\xc9\x01\n" +
+	"\x0fSetNodeProfiles\x12*.cluster_controller.SetNodeProfilesRequest\x1a+.cluster_controller.SetNodeProfilesResponse\"]\x82\xb5\x18Y\n" +
+	"$cluster_controller.node.set_profiles\x12\x05admin\x1a#/cluster_controller/nodes/{node_id}*\x05admin\x12\xb4\x01\n" +
 	"\n" +
-	"RemoveNode\x12%.cluster_controller.RemoveNodeRequest\x1a&.cluster_controller.RemoveNodeResponse\x12m\n" +
-	"\x10GetClusterHealth\x12+.cluster_controller.GetClusterHealthRequest\x1a,.cluster_controller.GetClusterHealthResponse\x12^\n" +
-	"\vGetNodePlan\x12&.cluster_controller.GetNodePlanRequest\x1a'.cluster_controller.GetNodePlanResponse\x12d\n" +
-	"\rGetNodePlanV1\x12(.cluster_controller.GetNodePlanV1Request\x1a).cluster_controller.GetNodePlanV1Response\x12j\n" +
-	"\x0fReconcileNodeV1\x12*.cluster_controller.ReconcileNodeV1Request\x1a+.cluster_controller.ReconcileNodeV1Response\x12m\n" +
-	"\x15WatchNodePlanStatusV1\x120.cluster_controller.WatchNodePlanStatusV1Request\x1a .globular.plan.v1.NodePlanStatus0\x01\x12y\n" +
-	"\x14UpdateClusterNetwork\x12/.cluster_controller.UpdateClusterNetworkRequest\x1a0.cluster_controller.UpdateClusterNetworkResponse\x12d\n" +
-	"\rApplyNodePlan\x12(.cluster_controller.ApplyNodePlanRequest\x1a).cluster_controller.ApplyNodePlanResponse\x12j\n" +
-	"\x0fApplyNodePlanV1\x12*.cluster_controller.ApplyNodePlanV1Request\x1a+.cluster_controller.ApplyNodePlanV1Response\x12m\n" +
-	"\x10ReportNodeStatus\x12+.cluster_controller.ReportNodeStatusRequest\x1a,.cluster_controller.ReportNodeStatusResponse\x12y\n" +
-	"\x14GetJoinRequestStatus\x12/.cluster_controller.GetJoinRequestStatusRequest\x1a0.cluster_controller.GetJoinRequestStatusResponse\x12j\n" +
-	"\x0fUpgradeGlobular\x12*.cluster_controller.UpgradeGlobularRequest\x1a+.cluster_controller.UpgradeGlobularResponse\x12p\n" +
-	"\x11CompleteOperation\x12,.cluster_controller.CompleteOperationRequest\x1a-.cluster_controller.CompleteOperationResponse\x12c\n" +
-	"\x0fWatchOperations\x12*.cluster_controller.WatchOperationsRequest\x1a\".cluster_controller.OperationEvent0\x01\x12s\n" +
-	"\x12GetClusterHealthV1\x12-.cluster_controller.GetClusterHealthV1Request\x1a..cluster_controller.GetClusterHealthV1Response\x12|\n" +
-	"\x15GetNodeHealthDetailV1\x120.cluster_controller.GetNodeHealthDetailV1Request\x1a1.cluster_controller.GetNodeHealthDetailV1Response\x12v\n" +
-	"\x13PreviewNodeProfiles\x12..cluster_controller.PreviewNodeProfilesRequest\x1a/.cluster_controller.PreviewNodeProfilesResponse\x12K\n" +
-	"\x0fGetDesiredState\x12\x16.google.protobuf.Empty\x1a .cluster_controller.DesiredState\x12i\n" +
-	"\x14UpsertDesiredService\x12/.cluster_controller.UpsertDesiredServiceRequest\x1a .cluster_controller.DesiredState\x12i\n" +
-	"\x14RemoveDesiredService\x12/.cluster_controller.RemoveDesiredServiceRequest\x1a .cluster_controller.DesiredState\x12a\n" +
-	"\x10SeedDesiredState\x12+.cluster_controller.SeedDesiredStateRequest\x1a .cluster_controller.DesiredState\x12e\n" +
-	"\x10ValidateArtifact\x12+.cluster_controller.ValidateArtifactRequest\x1a$.cluster_controller.ValidationReport\x12c\n" +
-	"\x16PreviewDesiredServices\x12(.cluster_controller.DesiredServicesDelta\x1a\x1f.cluster_controller.PlanPreview\x12v\n" +
-	"\x13PlanServiceUpgrades\x12..cluster_controller.PlanServiceUpgradesRequest\x1a/.cluster_controller.PlanServiceUpgradesResponse\x12y\n" +
-	"\x14ApplyServiceUpgrades\x12/.cluster_controller.ApplyServiceUpgradesRequest\x1a0.cluster_controller.ApplyServiceUpgradesResponse\x12v\n" +
-	"\x13ReportPlanRejection\x12..cluster_controller.ReportPlanRejectionRequest\x1a/.cluster_controller.ReportPlanRejectionResponseBdZbgithub.com/globulario/services/golang/cluster_controller/cluster_controllerpb;cluster_controllerpbb\x06proto3"
+	"RemoveNode\x12%.cluster_controller.RemoveNodeRequest\x1a&.cluster_controller.RemoveNodeResponse\"W\x82\xb5\x18S\n" +
+	"\x1ecluster_controller.node.remove\x12\x05admin\x1a#/cluster_controller/nodes/{node_id}*\x05admin\x12\xc8\x01\n" +
+	"\x10GetClusterHealth\x12+.cluster_controller.GetClusterHealthRequest\x1a,.cluster_controller.GetClusterHealthResponse\"Y\x82\xb5\x18U\n" +
+	"!cluster_controller.cluster.health\x12\x04read\x1a\"/cluster_controller/cluster/health*\x06viewer\x12\xbf\x01\n" +
+	"\vGetNodePlan\x12&.cluster_controller.GetNodePlanRequest\x1a'.cluster_controller.GetNodePlanResponse\"_\x82\xb5\x18[\n" +
+	"!cluster_controller.node.plan.read\x12\x04read\x1a(/cluster_controller/nodes/{node_id}/plan*\x06viewer\x12\xcb\x01\n" +
+	"\rGetNodePlanV1\x12(.cluster_controller.GetNodePlanV1Request\x1a).cluster_controller.GetNodePlanV1Response\"e\x82\xb5\x18a\n" +
+	"$cluster_controller.node.plan_v1.read\x12\x04read\x1a+/cluster_controller/nodes/{node_id}/plan-v1*\x06viewer\x12\xc6\x01\n" +
+	"\x0fReconcileNodeV1\x12*.cluster_controller.ReconcileNodeV1Request\x1a+.cluster_controller.ReconcileNodeV1Response\"Z\x82\xb5\x18V\n" +
+	"!cluster_controller.node.reconcile\x12\x05admin\x1a#/cluster_controller/nodes/{node_id}*\x05admin\x12\xdd\x01\n" +
+	"\x15WatchNodePlanStatusV1\x120.cluster_controller.WatchNodePlanStatusV1Request\x1a .globular.plan.v1.NodePlanStatus\"n\x82\xb5\x18j\n" +
+	")cluster_controller.node.plan_status.watch\x12\x04read\x1a//cluster_controller/nodes/{node_id}/plan-status*\x06viewer0\x01\x12\xd5\x01\n" +
+	"\x14UpdateClusterNetwork\x12/.cluster_controller.UpdateClusterNetworkRequest\x1a0.cluster_controller.UpdateClusterNetworkResponse\"Z\x82\xb5\x18V\n" +
+	"!cluster_controller.network.update\x12\x05admin\x1a#/cluster_controller/cluster/network*\x05admin\x12\xc6\x01\n" +
+	"\rApplyNodePlan\x12(.cluster_controller.ApplyNodePlanRequest\x1a).cluster_controller.ApplyNodePlanResponse\"`\x82\xb5\x18\\\n" +
+	"\"cluster_controller.node.plan.apply\x12\x05admin\x1a(/cluster_controller/nodes/{node_id}/plan*\x05admin\x12\xd2\x01\n" +
+	"\x0fApplyNodePlanV1\x12*.cluster_controller.ApplyNodePlanV1Request\x1a+.cluster_controller.ApplyNodePlanV1Response\"f\x82\xb5\x18b\n" +
+	"%cluster_controller.node.plan_v1.apply\x12\x05admin\x1a+/cluster_controller/nodes/{node_id}/plan-v1*\x05admin\x12\xc4\x01\n" +
+	"\x10ReportNodeStatus\x12+.cluster_controller.ReportNodeStatusRequest\x1a,.cluster_controller.ReportNodeStatusResponse\"U\x82\xb5\x18Q\n" +
+	"%cluster_controller.node.status.report\x12\x05write\"\x19/cluster_controller/nodes*\x06editor\x12\xe5\x01\n" +
+	"\x14GetJoinRequestStatus\x12/.cluster_controller.GetJoinRequestStatusRequest\x1a0.cluster_controller.GetJoinRequestStatusResponse\"j\x82\xb5\x18f\n" +
+	"&cluster_controller.join_request.status\x12\x04read\x1a./cluster_controller/join-requests/{request_id}*\x06viewer\x12\xc4\x01\n" +
+	"\x0fUpgradeGlobular\x12*.cluster_controller.UpgradeGlobularRequest\x1a+.cluster_controller.UpgradeGlobularResponse\"X\x82\xb5\x18T\n" +
+	"\x1fcluster_controller.node.upgrade\x12\x05admin\x1a#/cluster_controller/nodes/{node_id}*\x05admin\x12\xeb\x01\n" +
+	"\x11CompleteOperation\x12,.cluster_controller.CompleteOperationRequest\x1a-.cluster_controller.CompleteOperationResponse\"y\x82\xb5\x18u\n" +
+	"%cluster_controller.operation.complete\x12\x05write\x1a=/cluster_controller/nodes/{node_id}/operations/{operation_id}*\x06editor\x12\xda\x01\n" +
+	"\x0fWatchOperations\x12*.cluster_controller.WatchOperationsRequest\x1a\".cluster_controller.OperationEvent\"u\x82\xb5\x18q\n" +
+	"\"cluster_controller.operation.watch\x12\x04read\x1a=/cluster_controller/nodes/{node_id}/operations/{operation_id}*\x06viewer0\x01\x12\xd1\x01\n" +
+	"\x12GetClusterHealthV1\x12-.cluster_controller.GetClusterHealthV1Request\x1a..cluster_controller.GetClusterHealthV1Response\"\\\x82\xb5\x18X\n" +
+	"$cluster_controller.cluster.health_v1\x12\x04read\x1a\"/cluster_controller/cluster/health*\x06viewer\x12\xe3\x01\n" +
+	"\x15GetNodeHealthDetailV1\x120.cluster_controller.GetNodeHealthDetailV1Request\x1a1.cluster_controller.GetNodeHealthDetailV1Response\"e\x82\xb5\x18a\n" +
+	"%cluster_controller.node.health_detail\x12\x04read\x1a*/cluster_controller/nodes/{node_id}/health*\x06viewer\x12\xe2\x01\n" +
+	"\x13PreviewNodeProfiles\x12..cluster_controller.PreviewNodeProfilesRequest\x1a/.cluster_controller.PreviewNodeProfilesResponse\"j\x82\xb5\x18f\n" +
+	"(cluster_controller.node.profiles.preview\x12\x04read\x1a,/cluster_controller/nodes/{node_id}/profiles*\x06viewer\x12\xa9\x01\n" +
+	"\x0fGetDesiredState\x12\x16.google.protobuf.Empty\x1a .cluster_controller.DesiredState\"\\\x82\xb5\x18X\n" +
+	"%cluster_controller.desired_state.read\x12\x04read\x1a!/cluster_controller/desired-state*\x06viewer\x12\xd4\x01\n" +
+	"\x14UpsertDesiredService\x12/.cluster_controller.UpsertDesiredServiceRequest\x1a .cluster_controller.DesiredState\"i\x82\xb5\x18e\n" +
+	")cluster_controller.desired_service.upsert\x12\x05admin\"*/cluster_controller/desired-state/services*\x05admin\x12\xe1\x01\n" +
+	"\x14RemoveDesiredService\x12/.cluster_controller.RemoveDesiredServiceRequest\x1a .cluster_controller.DesiredState\"v\x82\xb5\x18r\n" +
+	")cluster_controller.desired_service.remove\x12\x05admin\x1a7/cluster_controller/desired-state/services/{service_id}*\x05admin\x12\xbf\x01\n" +
+	"\x10SeedDesiredState\x12+.cluster_controller.SeedDesiredStateRequest\x1a .cluster_controller.DesiredState\"\\\x82\xb5\x18X\n" +
+	"%cluster_controller.desired_state.seed\x12\x05admin\x1a!/cluster_controller/desired-state*\x05admin\x12\xcb\x01\n" +
+	"\x10ValidateArtifact\x12+.cluster_controller.ValidateArtifactRequest\x1a$.cluster_controller.ValidationReport\"d\x82\xb5\x18`\n" +
+	"$cluster_controller.artifact.validate\x12\x04read\x1a*/cluster_controller/artifacts/{service_id}*\x06viewer\x12\xcf\x01\n" +
+	"\x16PreviewDesiredServices\x12(.cluster_controller.DesiredServicesDelta\x1a\x1f.cluster_controller.PlanPreview\"j\x82\xb5\x18f\n" +
+	"*cluster_controller.desired_service.preview\x12\x04read\"*/cluster_controller/desired-state/services*\x06viewer\x12\xc9\x01\n" +
+	"\x13PlanServiceUpgrades\x12..cluster_controller.PlanServiceUpgradesRequest\x1a/.cluster_controller.PlanServiceUpgradesResponse\"Q\x82\xb5\x18M\n" +
+	"\x1fcluster_controller.upgrade.plan\x12\x04read\"\x1c/cluster_controller/upgrades*\x06viewer\x12\xcd\x01\n" +
+	"\x14ApplyServiceUpgrades\x12/.cluster_controller.ApplyServiceUpgradesRequest\x1a0.cluster_controller.ApplyServiceUpgradesResponse\"R\x82\xb5\x18N\n" +
+	" cluster_controller.upgrade.apply\x12\x05admin\"\x1c/cluster_controller/upgrades*\x05admin\x12\xe0\x01\n" +
+	"\x13ReportPlanRejection\x12..cluster_controller.ReportPlanRejectionRequest\x1a/.cluster_controller.ReportPlanRejectionResponse\"h\x82\xb5\x18d\n" +
+	"\x1ecluster_controller.plan.reject\x12\x05write\x1a3/cluster_controller/nodes/{node_id}/plans/{plan_id}*\x06editorBdZbgithub.com/globulario/services/golang/cluster_controller/cluster_controllerpb;cluster_controllerpbb\x06proto3"
 
 var (
 	file_cluster_controller_proto_rawDescOnce sync.Once

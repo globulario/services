@@ -840,13 +840,34 @@ func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_c
 		}
 		u := *nrs
 		ps, err := srv.planStore.GetStatus(ctx, nrs.NodeID)
+
+		// Plan not found: treat as externally completed (the plan store was
+		// wiped or the plan expired). The drift detector will catch genuinely
+		// missing services.
 		if err != nil || ps == nil {
-			running++
+			succeeded++
+			u.Phase = cluster_controllerpb.ReleasePhaseAvailable
+			u.InstalledVersion = resolvedVersion
+			u.ErrorMessage = ""
+			u.FailedStepID = ""
+			u.UpdatedUnixMs = time.Now().UnixMilli()
 			updated = append(updated, &u)
 			continue
 		}
+
+		// Plan ID mismatch: another release's plan overwrote ours in the
+		// single-plan-per-node store. If the current plan succeeded, the
+		// node is converged — treat this release as succeeded too.
 		if nrs.PlanID != "" && ps.GetPlanId() != nrs.PlanID {
-			running++
+			if ps.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
+				succeeded++
+				u.Phase = cluster_controllerpb.ReleasePhaseAvailable
+				u.InstalledVersion = resolvedVersion
+				u.ErrorMessage = ""
+				u.UpdatedUnixMs = time.Now().UnixMilli()
+			} else {
+				running++
+			}
 			updated = append(updated, &u)
 			continue
 		}

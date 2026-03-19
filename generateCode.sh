@@ -105,6 +105,22 @@ for proto in "${TS_TARGETS[@]}"; do
   protoc_generate_ts "$proto"
 done
 
+# Generate globular_auth_pb into a temp dir and copy into every TS service
+# directory that imports it. The proto extends MethodOptions/FieldOptions and
+# is imported by most service protos, so the generated .d.ts/.js files must
+# exist alongside each service's generated code.
+echo "=> Distributing globular_auth_pb to TypeScript service directories"
+_auth_tmp="$(mktemp -d)"
+protoc --js_out=import_style=commonjs:"$_auth_tmp" -I "$PROTO_DIR" "$PROTO_DIR/globular_auth.proto"
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:"$_auth_tmp" -I "$PROTO_DIR" "$PROTO_DIR/globular_auth.proto"
+for proto in "${TS_TARGETS[@]}"; do
+  svc_dir="$TS_ROOT/$proto"
+  if [ -d "$svc_dir" ]; then
+    cp -f "$_auth_tmp"/globular_auth_pb.* "$svc_dir/" 2>/dev/null || true
+  fi
+done
+rm -rf "$_auth_tmp"
+
 echo "=> Building Go services"
 bash "$REPO_ROOT/golang/build/build-services.sh"
 
