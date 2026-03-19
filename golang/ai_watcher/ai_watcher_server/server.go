@@ -266,7 +266,7 @@ func (srv *server) eventLoop() {
 
 		// Connect to event service.
 		eventAddr := srv.resolveEventEndpoint()
-		client, err := event_client.NewEventService_Client(eventAddr, "ai_watcher_"+srv.Id)
+		client, err := event_client.NewEventService_Client(eventAddr, srv.Id)
 		if err != nil {
 			logger.Error("event service connection failed, retrying in 10s", "err", err)
 			time.Sleep(10 * time.Second)
