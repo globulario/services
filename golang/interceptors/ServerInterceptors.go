@@ -104,6 +104,9 @@ func init() {
 	AllowUnauthenticated(
 		"/grpc.health.v1.Health/Check",
 		"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
+		// Authentication endpoints must work without any prior auth (login flow).
+		"/authentication.AuthenticationService/Authenticate",
+		"/authentication.AuthenticationService/RefreshToken",
 	)
 }
 
@@ -683,10 +686,11 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// all services call these for authorization checks and they may have
 	// different domain configs during setup. The RBAC service is already
 	// excluded from role-binding checks to prevent circular calls.
-	isRbacInfra := method == "/rbac.RbacService/GetRoleBinding" ||
-		method == "/rbac.RbacService/GetActionResourceInfos" ||
-		method == "/rbac.RbacService/ListRoleBindings"
-	if !authCtx.IsBootstrap && !isRbacInfra {
+	// Skip cluster_id enforcement for:
+	// - Bootstrap mode (Day-0)
+	// - mTLS-authenticated calls (TLS trust chain already prevents cross-cluster)
+	// - Unauthenticated/public endpoints (login, health)
+	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster_id)
 		localClusterID, err := security.GetLocalClusterID()
 		if err == nil && localClusterID != "" {
@@ -1102,13 +1106,9 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
-	// Once cluster is initialized, ALL non-bootstrap requests must have matching cluster_id
-	// Exempt RBAC infrastructure methods (same as unary interceptor).
-	isRbacInfraStream := method == "/rbac.RbacService/GetRoleBinding" ||
-		method == "/rbac.RbacService/GetActionResourceInfos" ||
-		method == "/rbac.RbacService/ListRoleBindings"
+	// Skip for bootstrap, mTLS (TLS trust chain sufficient), and public methods.
 	streamInitialized := false
-	if authCtx != nil && !authCtx.IsBootstrap && !isRbacInfraStream {
+	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster ID)
 		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
 			streamInitialized = true
