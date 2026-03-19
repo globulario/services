@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
@@ -15,16 +16,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// remediator executes remediation actions and records outcomes.
-type remediator struct{}
-
-func newRemediator() *remediator {
-	return &remediator{}
+// remediator executes remediation actions via real backends and verifies outcomes.
+type remediator struct {
+	dispatcher *actionDispatcher
 }
 
-// execute runs a remediation action based on the diagnosis.
-// For Tier 2 (auto-remediate): executes the proposed action.
-// Returns the action record with status.
+func newRemediator() *remediator {
+	return &remediator{
+		dispatcher: newActionDispatcher(),
+	}
+}
+
+// execute runs a remediation action based on the diagnosis and tier.
 func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, tier int32) *ai_executorpb.RemediationAction {
 	action := &ai_executorpb.RemediationAction{
 		Id:          Utility.RandomUUID(),
@@ -36,86 +39,109 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 
 	// Determine action type from proposed action string.
 	proposed := diagnosis.GetProposedAction()
-	switch {
-	case proposed == "observe_and_record":
-		action.Type = ai_executorpb.ActionType_ACTION_NONE
+	action.Type = classifyAction(proposed)
+
+	// Tier 0 (observe): record only, don't execute.
+	if tier == 0 {
 		action.Status = ai_executorpb.ActionStatus_ACTION_SKIPPED
-		action.Detail = "Observation only — no remediation needed"
+		action.Detail = "Tier 1 (observe): diagnosed and recorded, no execution"
 		action.CompletedAtMs = time.Now().UnixMilli()
-		return action
-
-	case contains(proposed, "restart_service"):
-		action.Type = ai_executorpb.ActionType_ACTION_RESTART_SERVICE
-
-	case contains(proposed, "block_ip"):
-		action.Type = ai_executorpb.ActionType_ACTION_BLOCK_IP
-
-	case contains(proposed, "drain_endpoint"):
-		action.Type = ai_executorpb.ActionType_ACTION_DRAIN_ENDPOINT
-
-	case contains(proposed, "alert_admin"), contains(proposed, "notify"):
-		action.Type = ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
-
-	case contains(proposed, "lock_account"):
-		action.Type = ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN // escalate to admin for now
-
-	default:
-		action.Type = ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
-	}
-
-	// Tier check: only Tier 2 auto-executes. Others record only.
-	if tier == 0 { // OBSERVE
-		action.Status = ai_executorpb.ActionStatus_ACTION_SKIPPED
-		action.Detail = "Tier 1 (observe): action recorded but not executed"
-		action.CompletedAtMs = time.Now().UnixMilli()
+		go r.recordOutcome(ctx, diagnosis, action)
 		return action
 	}
 
-	if tier == 2 { // REQUIRE_APPROVAL
+	// Tier 2 (approval required): don't execute yet, wait for approval.
+	if tier == 2 {
 		action.Status = ai_executorpb.ActionStatus_ACTION_PENDING
 		action.Detail = "Tier 3 (approval required): awaiting human approval"
 		return action
 	}
 
-	// Tier 1 = AUTO_REMEDIATE: execute the action.
+	// Tier 1 (auto-remediate): execute via real backend.
 	action.Status = ai_executorpb.ActionStatus_ACTION_EXECUTING
+
 	logger.Info("executing remediation",
 		"incident", diagnosis.GetIncidentId(),
 		"action_type", action.Type.String(),
 		"target", action.Target,
 	)
 
-	// Publish the action as an event so ai_watcher and ai_router can react.
-	go publishActionEvent(action)
+	// Dispatch to real backend with verification.
+	result, err := r.dispatcher.dispatch(ctx, action, diagnosis)
+	if err != nil {
+		action.Status = ai_executorpb.ActionStatus_ACTION_FAILED
+		action.Error = err.Error()
+		action.CompletedAtMs = time.Now().UnixMilli()
+		logger.Error("remediation failed",
+			"incident", diagnosis.GetIncidentId(),
+			"action_type", action.Type.String(),
+			"err", err,
+		)
+	} else {
+		action.Status = ai_executorpb.ActionStatus_ACTION_SUCCEEDED
+		action.Detail = result
+		action.CompletedAtMs = time.Now().UnixMilli()
+		logger.Info("remediation succeeded",
+			"incident", diagnosis.GetIncidentId(),
+			"action_type", action.Type.String(),
+			"result", result,
+		)
+	}
+
+	// Publish outcome event.
+	go func() {
+		globular.PublishEvent("operation.remediation.completed", map[string]interface{}{
+			"severity":    statusSeverity(action.Status),
+			"incident_id": action.GetIncidentId(),
+			"action_type": action.GetType().String(),
+			"status":      action.GetStatus().String(),
+			"target":      action.GetTarget(),
+			"result":      action.GetDetail(),
+			"error":       action.GetError(),
+		})
+	}()
 
 	// Record to ai_memory.
-	go recordActionToMemory(ctx, diagnosis, action)
-
-	action.Status = ai_executorpb.ActionStatus_ACTION_SUCCEEDED
-	action.CompletedAtMs = time.Now().UnixMilli()
-
-	logger.Info("remediation complete",
-		"incident", diagnosis.GetIncidentId(),
-		"action_type", action.Type.String(),
-		"status", action.Status.String(),
-	)
+	go r.recordOutcome(ctx, diagnosis, action)
 
 	return action
 }
 
-// publishActionEvent publishes the remediation action as a cluster event.
-func publishActionEvent(action *ai_executorpb.RemediationAction) {
-	globular.PublishEvent("operation.remediation", map[string]interface{}{
-		"severity":    "WARNING",
-		"incident_id": action.GetIncidentId(),
-		"action_type": action.GetType().String(),
-		"target":      action.GetTarget(),
-		"status":      action.GetStatus().String(),
-	})
+// classifyAction maps a proposed action string to an ActionType.
+func classifyAction(proposed string) ai_executorpb.ActionType {
+	switch {
+	case proposed == "observe_and_record":
+		return ai_executorpb.ActionType_ACTION_NONE
+	case strings.Contains(proposed, "restart_service"):
+		return ai_executorpb.ActionType_ACTION_RESTART_SERVICE
+	case strings.Contains(proposed, "block_ip"):
+		return ai_executorpb.ActionType_ACTION_BLOCK_IP
+	case strings.Contains(proposed, "drain_endpoint"):
+		return ai_executorpb.ActionType_ACTION_DRAIN_ENDPOINT
+	case strings.Contains(proposed, "clear"):
+		return ai_executorpb.ActionType_ACTION_CLEAR_STORAGE
+	case strings.Contains(proposed, "renew_cert"):
+		return ai_executorpb.ActionType_ACTION_RENEW_CERT
+	case strings.Contains(proposed, "notify"), strings.Contains(proposed, "alert_admin"):
+		return ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
+	default:
+		return ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
+	}
 }
 
-// recordActionToMemory stores the incident diagnosis and action in ai_memory.
-func recordActionToMemory(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, action *ai_executorpb.RemediationAction) {
+func statusSeverity(s ai_executorpb.ActionStatus) string {
+	switch s {
+	case ai_executorpb.ActionStatus_ACTION_SUCCEEDED:
+		return "INFO"
+	case ai_executorpb.ActionStatus_ACTION_FAILED:
+		return "ERROR"
+	default:
+		return "WARNING"
+	}
+}
+
+// recordOutcome stores the incident diagnosis and action in ai_memory.
+func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, action *ai_executorpb.RemediationAction) {
 	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
 	if addr == "" {
 		return
@@ -131,14 +157,17 @@ func recordActionToMemory(ctx context.Context, diagnosis *ai_executorpb.Diagnosi
 	defer cc.Close()
 
 	content, _ := json.Marshal(map[string]interface{}{
-		"incident_id":    diagnosis.GetIncidentId(),
-		"summary":        diagnosis.GetSummary(),
-		"root_cause":     diagnosis.GetRootCause(),
-		"confidence":     diagnosis.GetConfidence(),
+		"incident_id":     diagnosis.GetIncidentId(),
+		"summary":         diagnosis.GetSummary(),
+		"root_cause":      diagnosis.GetRootCause(),
+		"confidence":      diagnosis.GetConfidence(),
 		"proposed_action": diagnosis.GetProposedAction(),
-		"action_type":    action.GetType().String(),
-		"action_status":  action.GetStatus().String(),
-		"evidence":       diagnosis.GetEvidence(),
+		"action_type":     action.GetType().String(),
+		"action_status":   action.GetStatus().String(),
+		"action_result":   action.GetDetail(),
+		"action_error":    action.GetError(),
+		"evidence":        diagnosis.GetEvidence(),
+		"verified":        action.GetStatus() == ai_executorpb.ActionStatus_ACTION_SUCCEEDED,
 	})
 
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -149,7 +178,7 @@ func recordActionToMemory(ctx context.Context, diagnosis *ai_executorpb.Diagnosi
 		Memory: &ai_memorypb.Memory{
 			Project: "globular-services",
 			Type:    ai_memorypb.MemoryType_DEBUG,
-			Title:   fmt.Sprintf("incident: %s → %s", diagnosis.GetRootCause(), action.GetType().String()),
+			Title:   fmt.Sprintf("incident: %s → %s (%s)", diagnosis.GetRootCause(), action.GetType(), action.GetStatus()),
 			Content: string(content),
 			Tags:    []string{"incident", "remediation", diagnosis.GetRootCause()},
 			Metadata: map[string]string{
@@ -157,20 +186,8 @@ func recordActionToMemory(ctx context.Context, diagnosis *ai_executorpb.Diagnosi
 				"action":        action.GetType().String(),
 				"action_status": action.GetStatus().String(),
 				"confidence":    fmt.Sprintf("%.2f", diagnosis.GetConfidence()),
+				"verified":      fmt.Sprintf("%v", action.GetStatus() == ai_executorpb.ActionStatus_ACTION_SUCCEEDED),
 			},
 		},
 	})
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) > 0 && containsStr(s, substr))
-}
-
-func containsStr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
