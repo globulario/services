@@ -26,6 +26,21 @@ service AiExecutorService {
     // ListActions returns recent remediation actions taken.
     rpc ListActions(ListActionsRequest) returns (ListActionsResponse);
 
+    // ApproveAction approves a Tier 3 pending action and triggers execution.
+    rpc ApproveAction(ApproveActionRequest) returns (ApproveActionResponse);
+
+    // DenyAction denies a Tier 3 pending action.
+    rpc DenyAction(DenyActionRequest) returns (DenyActionResponse);
+
+    // RetryAction retries a failed action.
+    rpc RetryAction(RetryActionRequest) returns (RetryActionResponse);
+
+    // GetJob returns a durable job record by incident ID.
+    rpc GetJob(GetJobRequest) returns (GetJobResponse);
+
+    // ListJobs returns jobs filtered by state.
+    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+
     // Stop gracefully shuts down the executor.
     rpc Stop(StopRequest) returns (StopResponse);
 }
@@ -117,6 +132,104 @@ message ListActionsRequest {
 
 message ListActionsResponse {
     repeated RemediationAction actions = 1;
+}
+
+// ── Job State Machine ─────────────────────────────────────────────────────────
+
+enum JobState {
+    JOB_DETECTED          = 0;
+    JOB_DIAGNOSING        = 1;
+    JOB_DIAGNOSED         = 2;
+    JOB_EXECUTING         = 3;
+    JOB_SUCCEEDED         = 4;
+    JOB_FAILED            = 5;
+    JOB_AWAITING_APPROVAL = 6;
+    JOB_APPROVED          = 7;
+    JOB_DENIED            = 8;
+    JOB_EXPIRED           = 9;
+    JOB_CLOSED            = 10;
+}
+
+// Job is a durable record of an incident's remediation lifecycle.
+// Persisted in etcd at /globular/ai/jobs/{incident_id}.
+// Survives restarts. Idempotency key prevents double execution.
+message Job {
+    string incident_id = 1;
+    string action_id = 2;
+    JobState state = 3;
+    int32 tier = 4;
+
+    // Proposed action (preserved exactly — never recomputed after approval).
+    ActionType action_type = 5;
+    string action_target = 6;
+    string action_params = 7;   // JSON
+
+    // Diagnosis context.
+    Diagnosis diagnosis = 8;
+
+    // Approval metadata.
+    string approved_by = 9;
+    int64 approved_at_ms = 10;
+    string denied_by = 11;
+    string denied_reason = 12;
+    int64 expires_at_ms = 13;
+
+    // Execution tracking.
+    int32 attempts = 14;
+    int64 last_attempt_at_ms = 15;
+    string result = 16;
+    string error = 17;
+    string idempotency_key = 18;
+
+    // Timestamps.
+    int64 created_at_ms = 19;
+    int64 updated_at_ms = 20;
+}
+
+// ── Approval RPCs ─────────────────────────────────────────────────────────────
+
+message ApproveActionRequest {
+    string incident_id = 1;
+    string approved_by = 2;  // who approved (username or "cli")
+}
+
+message ApproveActionResponse {
+    Job job = 1;
+}
+
+message DenyActionRequest {
+    string incident_id = 1;
+    string denied_by = 2;
+    string reason = 3;
+}
+
+message DenyActionResponse {
+    Job job = 1;
+}
+
+message RetryActionRequest {
+    string incident_id = 1;
+}
+
+message RetryActionResponse {
+    Job job = 1;
+}
+
+message GetJobRequest {
+    string incident_id = 1;
+}
+
+message GetJobResponse {
+    Job job = 1;
+}
+
+message ListJobsRequest {
+    JobState state_filter = 1;  // 0 = all
+    int32 limit = 2;
+}
+
+message ListJobsResponse {
+    repeated Job jobs = 1;
 }
 
 message StopRequest {}

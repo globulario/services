@@ -23,6 +23,11 @@ const (
 	AiExecutorService_GetDiagnosis_FullMethodName    = "/ai_executor.AiExecutorService/GetDiagnosis"
 	AiExecutorService_GetStatus_FullMethodName       = "/ai_executor.AiExecutorService/GetStatus"
 	AiExecutorService_ListActions_FullMethodName     = "/ai_executor.AiExecutorService/ListActions"
+	AiExecutorService_ApproveAction_FullMethodName   = "/ai_executor.AiExecutorService/ApproveAction"
+	AiExecutorService_DenyAction_FullMethodName      = "/ai_executor.AiExecutorService/DenyAction"
+	AiExecutorService_RetryAction_FullMethodName     = "/ai_executor.AiExecutorService/RetryAction"
+	AiExecutorService_GetJob_FullMethodName          = "/ai_executor.AiExecutorService/GetJob"
+	AiExecutorService_ListJobs_FullMethodName        = "/ai_executor.AiExecutorService/ListJobs"
 	AiExecutorService_Stop_FullMethodName            = "/ai_executor.AiExecutorService/Stop"
 )
 
@@ -47,6 +52,16 @@ type AiExecutorServiceClient interface {
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
 	// ListActions returns recent remediation actions taken.
 	ListActions(ctx context.Context, in *ListActionsRequest, opts ...grpc.CallOption) (*ListActionsResponse, error)
+	// ApproveAction approves a Tier 3 pending action and triggers execution.
+	ApproveAction(ctx context.Context, in *ApproveActionRequest, opts ...grpc.CallOption) (*ApproveActionResponse, error)
+	// DenyAction denies a Tier 3 pending action.
+	DenyAction(ctx context.Context, in *DenyActionRequest, opts ...grpc.CallOption) (*DenyActionResponse, error)
+	// RetryAction retries a failed action.
+	RetryAction(ctx context.Context, in *RetryActionRequest, opts ...grpc.CallOption) (*RetryActionResponse, error)
+	// GetJob returns a durable job record by incident ID.
+	GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error)
+	// ListJobs returns jobs filtered by state.
+	ListJobs(ctx context.Context, in *ListJobsRequest, opts ...grpc.CallOption) (*ListJobsResponse, error)
 	// Stop gracefully shuts down the executor.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 }
@@ -99,6 +114,56 @@ func (c *aiExecutorServiceClient) ListActions(ctx context.Context, in *ListActio
 	return out, nil
 }
 
+func (c *aiExecutorServiceClient) ApproveAction(ctx context.Context, in *ApproveActionRequest, opts ...grpc.CallOption) (*ApproveActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveActionResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_ApproveAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) DenyAction(ctx context.Context, in *DenyActionRequest, opts ...grpc.CallOption) (*DenyActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DenyActionResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_DenyAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) RetryAction(ctx context.Context, in *RetryActionRequest, opts ...grpc.CallOption) (*RetryActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryActionResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_RetryAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetJobResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_GetJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) ListJobs(ctx context.Context, in *ListJobsRequest, opts ...grpc.CallOption) (*ListJobsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListJobsResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_ListJobs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *aiExecutorServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StopResponse)
@@ -130,6 +195,16 @@ type AiExecutorServiceServer interface {
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
 	// ListActions returns recent remediation actions taken.
 	ListActions(context.Context, *ListActionsRequest) (*ListActionsResponse, error)
+	// ApproveAction approves a Tier 3 pending action and triggers execution.
+	ApproveAction(context.Context, *ApproveActionRequest) (*ApproveActionResponse, error)
+	// DenyAction denies a Tier 3 pending action.
+	DenyAction(context.Context, *DenyActionRequest) (*DenyActionResponse, error)
+	// RetryAction retries a failed action.
+	RetryAction(context.Context, *RetryActionRequest) (*RetryActionResponse, error)
+	// GetJob returns a durable job record by incident ID.
+	GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error)
+	// ListJobs returns jobs filtered by state.
+	ListJobs(context.Context, *ListJobsRequest) (*ListJobsResponse, error)
 	// Stop gracefully shuts down the executor.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 	mustEmbedUnimplementedAiExecutorServiceServer()
@@ -153,6 +228,21 @@ func (UnimplementedAiExecutorServiceServer) GetStatus(context.Context, *GetStatu
 }
 func (UnimplementedAiExecutorServiceServer) ListActions(context.Context, *ListActionsRequest) (*ListActionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListActions not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) ApproveAction(context.Context, *ApproveActionRequest) (*ApproveActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveAction not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) DenyAction(context.Context, *DenyActionRequest) (*DenyActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DenyAction not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) RetryAction(context.Context, *RetryActionRequest) (*RetryActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryAction not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetJob not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) ListJobs(context.Context, *ListJobsRequest) (*ListJobsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListJobs not implemented")
 }
 func (UnimplementedAiExecutorServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
@@ -250,6 +340,96 @@ func _AiExecutorService_ListActions_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AiExecutorService_ApproveAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).ApproveAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_ApproveAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).ApproveAction(ctx, req.(*ApproveActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_DenyAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DenyActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).DenyAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_DenyAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).DenyAction(ctx, req.(*DenyActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_RetryAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).RetryAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_RetryAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).RetryAction(ctx, req.(*RetryActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_GetJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).GetJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_GetJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).GetJob(ctx, req.(*GetJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_ListJobs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListJobsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).ListJobs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_ListJobs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).ListJobs(ctx, req.(*ListJobsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AiExecutorService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StopRequest)
 	if err := dec(in); err != nil {
@@ -290,6 +470,26 @@ var AiExecutorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListActions",
 			Handler:    _AiExecutorService_ListActions_Handler,
+		},
+		{
+			MethodName: "ApproveAction",
+			Handler:    _AiExecutorService_ApproveAction_Handler,
+		},
+		{
+			MethodName: "DenyAction",
+			Handler:    _AiExecutorService_DenyAction_Handler,
+		},
+		{
+			MethodName: "RetryAction",
+			Handler:    _AiExecutorService_RetryAction_Handler,
+		},
+		{
+			MethodName: "GetJob",
+			Handler:    _AiExecutorService_GetJob_Handler,
+		},
+		{
+			MethodName: "ListJobs",
+			Handler:    _AiExecutorService_ListJobs_Handler,
 		},
 		{
 			MethodName: "Stop",

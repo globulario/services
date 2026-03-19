@@ -74,19 +74,17 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// Executor state
-	diagnoser    *diagnoser
-	remediator   *remediator
-	stats        executorStats
-	statsMu      sync.Mutex
-	startedAt    time.Time
+	diagnoser  *diagnoser
+	remediator *remediator
+	jobStore   *jobStore
+	notifier   *multiNotifier
+	stats      executorStats
+	statsMu    sync.Mutex
+	startedAt  time.Time
 
 	// Recent actions log
 	recentActions   []*ai_executorpb.RemediationAction
 	recentActionsMu sync.RWMutex
-
-	// Diagnoses cache
-	diagnoses   map[string]*ai_executorpb.Diagnosis
-	diagnosesMu sync.RWMutex
 }
 
 type executorStats struct {
@@ -187,8 +185,12 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 	srv.diagnoser = newDiagnoser()
 	srv.remediator = newRemediator()
-	srv.diagnoses = make(map[string]*ai_executorpb.Diagnosis)
+	srv.jobStore = newJobStore()
+	srv.notifier = newMultiNotifier()
 	srv.startedAt = time.Now()
+
+	// Start expiry checker in background.
+	go srv.expiryLoop()
 	return nil
 }
 
@@ -196,6 +198,18 @@ func (srv *server) Save() error { return globular.SaveService(srv) }
 
 func (srv *server) StartService() error {
 	return globular.StartService(srv, srv.grpcServer)
+}
+
+// expiryLoop checks for stale approvals every minute.
+func (srv *server) expiryLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		expired := srv.jobStore.expireStaleApprovals()
+		if expired > 0 {
+			logger.Info("expired stale approvals", "count", expired)
+		}
+	}
 }
 
 func (srv *server) StopService() error {

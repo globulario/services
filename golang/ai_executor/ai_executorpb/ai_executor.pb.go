@@ -137,6 +137,79 @@ func (ActionStatus) EnumDescriptor() ([]byte, []int) {
 	return file_ai_executor_proto_rawDescGZIP(), []int{1}
 }
 
+type JobState int32
+
+const (
+	JobState_JOB_DETECTED          JobState = 0
+	JobState_JOB_DIAGNOSING        JobState = 1
+	JobState_JOB_DIAGNOSED         JobState = 2
+	JobState_JOB_EXECUTING         JobState = 3
+	JobState_JOB_SUCCEEDED         JobState = 4
+	JobState_JOB_FAILED            JobState = 5
+	JobState_JOB_AWAITING_APPROVAL JobState = 6
+	JobState_JOB_APPROVED          JobState = 7
+	JobState_JOB_DENIED            JobState = 8
+	JobState_JOB_EXPIRED           JobState = 9
+	JobState_JOB_CLOSED            JobState = 10
+)
+
+// Enum value maps for JobState.
+var (
+	JobState_name = map[int32]string{
+		0:  "JOB_DETECTED",
+		1:  "JOB_DIAGNOSING",
+		2:  "JOB_DIAGNOSED",
+		3:  "JOB_EXECUTING",
+		4:  "JOB_SUCCEEDED",
+		5:  "JOB_FAILED",
+		6:  "JOB_AWAITING_APPROVAL",
+		7:  "JOB_APPROVED",
+		8:  "JOB_DENIED",
+		9:  "JOB_EXPIRED",
+		10: "JOB_CLOSED",
+	}
+	JobState_value = map[string]int32{
+		"JOB_DETECTED":          0,
+		"JOB_DIAGNOSING":        1,
+		"JOB_DIAGNOSED":         2,
+		"JOB_EXECUTING":         3,
+		"JOB_SUCCEEDED":         4,
+		"JOB_FAILED":            5,
+		"JOB_AWAITING_APPROVAL": 6,
+		"JOB_APPROVED":          7,
+		"JOB_DENIED":            8,
+		"JOB_EXPIRED":           9,
+		"JOB_CLOSED":            10,
+	}
+)
+
+func (x JobState) Enum() *JobState {
+	p := new(JobState)
+	*p = x
+	return p
+}
+
+func (x JobState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JobState) Descriptor() protoreflect.EnumDescriptor {
+	return file_ai_executor_proto_enumTypes[2].Descriptor()
+}
+
+func (JobState) Type() protoreflect.EnumType {
+	return &file_ai_executor_proto_enumTypes[2]
+}
+
+func (x JobState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JobState.Descriptor instead.
+func (JobState) EnumDescriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{2}
+}
+
 type Diagnosis struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IncidentId     string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
@@ -785,6 +858,682 @@ func (x *ListActionsResponse) GetActions() []*RemediationAction {
 	return nil
 }
 
+// Job is a durable record of an incident's remediation lifecycle.
+// Persisted in etcd at /globular/ai/jobs/{incident_id}.
+// Survives restarts. Idempotency key prevents double execution.
+type Job struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	ActionId   string                 `protobuf:"bytes,2,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	State      JobState               `protobuf:"varint,3,opt,name=state,proto3,enum=ai_executor.JobState" json:"state,omitempty"`
+	Tier       int32                  `protobuf:"varint,4,opt,name=tier,proto3" json:"tier,omitempty"`
+	// Proposed action (preserved exactly — never recomputed after approval).
+	ActionType   ActionType `protobuf:"varint,5,opt,name=action_type,json=actionType,proto3,enum=ai_executor.ActionType" json:"action_type,omitempty"`
+	ActionTarget string     `protobuf:"bytes,6,opt,name=action_target,json=actionTarget,proto3" json:"action_target,omitempty"`
+	ActionParams string     `protobuf:"bytes,7,opt,name=action_params,json=actionParams,proto3" json:"action_params,omitempty"` // JSON
+	// Diagnosis context.
+	Diagnosis *Diagnosis `protobuf:"bytes,8,opt,name=diagnosis,proto3" json:"diagnosis,omitempty"`
+	// Approval metadata.
+	ApprovedBy   string `protobuf:"bytes,9,opt,name=approved_by,json=approvedBy,proto3" json:"approved_by,omitempty"`
+	ApprovedAtMs int64  `protobuf:"varint,10,opt,name=approved_at_ms,json=approvedAtMs,proto3" json:"approved_at_ms,omitempty"`
+	DeniedBy     string `protobuf:"bytes,11,opt,name=denied_by,json=deniedBy,proto3" json:"denied_by,omitempty"`
+	DeniedReason string `protobuf:"bytes,12,opt,name=denied_reason,json=deniedReason,proto3" json:"denied_reason,omitempty"`
+	ExpiresAtMs  int64  `protobuf:"varint,13,opt,name=expires_at_ms,json=expiresAtMs,proto3" json:"expires_at_ms,omitempty"`
+	// Execution tracking.
+	Attempts        int32  `protobuf:"varint,14,opt,name=attempts,proto3" json:"attempts,omitempty"`
+	LastAttemptAtMs int64  `protobuf:"varint,15,opt,name=last_attempt_at_ms,json=lastAttemptAtMs,proto3" json:"last_attempt_at_ms,omitempty"`
+	Result          string `protobuf:"bytes,16,opt,name=result,proto3" json:"result,omitempty"`
+	Error           string `protobuf:"bytes,17,opt,name=error,proto3" json:"error,omitempty"`
+	IdempotencyKey  string `protobuf:"bytes,18,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// Timestamps.
+	CreatedAtMs   int64 `protobuf:"varint,19,opt,name=created_at_ms,json=createdAtMs,proto3" json:"created_at_ms,omitempty"`
+	UpdatedAtMs   int64 `protobuf:"varint,20,opt,name=updated_at_ms,json=updatedAtMs,proto3" json:"updated_at_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Job) Reset() {
+	*x = Job{}
+	mi := &file_ai_executor_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Job) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Job) ProtoMessage() {}
+
+func (x *Job) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Job.ProtoReflect.Descriptor instead.
+func (*Job) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Job) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *Job) GetActionId() string {
+	if x != nil {
+		return x.ActionId
+	}
+	return ""
+}
+
+func (x *Job) GetState() JobState {
+	if x != nil {
+		return x.State
+	}
+	return JobState_JOB_DETECTED
+}
+
+func (x *Job) GetTier() int32 {
+	if x != nil {
+		return x.Tier
+	}
+	return 0
+}
+
+func (x *Job) GetActionType() ActionType {
+	if x != nil {
+		return x.ActionType
+	}
+	return ActionType_ACTION_NONE
+}
+
+func (x *Job) GetActionTarget() string {
+	if x != nil {
+		return x.ActionTarget
+	}
+	return ""
+}
+
+func (x *Job) GetActionParams() string {
+	if x != nil {
+		return x.ActionParams
+	}
+	return ""
+}
+
+func (x *Job) GetDiagnosis() *Diagnosis {
+	if x != nil {
+		return x.Diagnosis
+	}
+	return nil
+}
+
+func (x *Job) GetApprovedBy() string {
+	if x != nil {
+		return x.ApprovedBy
+	}
+	return ""
+}
+
+func (x *Job) GetApprovedAtMs() int64 {
+	if x != nil {
+		return x.ApprovedAtMs
+	}
+	return 0
+}
+
+func (x *Job) GetDeniedBy() string {
+	if x != nil {
+		return x.DeniedBy
+	}
+	return ""
+}
+
+func (x *Job) GetDeniedReason() string {
+	if x != nil {
+		return x.DeniedReason
+	}
+	return ""
+}
+
+func (x *Job) GetExpiresAtMs() int64 {
+	if x != nil {
+		return x.ExpiresAtMs
+	}
+	return 0
+}
+
+func (x *Job) GetAttempts() int32 {
+	if x != nil {
+		return x.Attempts
+	}
+	return 0
+}
+
+func (x *Job) GetLastAttemptAtMs() int64 {
+	if x != nil {
+		return x.LastAttemptAtMs
+	}
+	return 0
+}
+
+func (x *Job) GetResult() string {
+	if x != nil {
+		return x.Result
+	}
+	return ""
+}
+
+func (x *Job) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *Job) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *Job) GetCreatedAtMs() int64 {
+	if x != nil {
+		return x.CreatedAtMs
+	}
+	return 0
+}
+
+func (x *Job) GetUpdatedAtMs() int64 {
+	if x != nil {
+		return x.UpdatedAtMs
+	}
+	return 0
+}
+
+type ApproveActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	ApprovedBy    string                 `protobuf:"bytes,2,opt,name=approved_by,json=approvedBy,proto3" json:"approved_by,omitempty"` // who approved (username or "cli")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveActionRequest) Reset() {
+	*x = ApproveActionRequest{}
+	mi := &file_ai_executor_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveActionRequest) ProtoMessage() {}
+
+func (x *ApproveActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveActionRequest.ProtoReflect.Descriptor instead.
+func (*ApproveActionRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ApproveActionRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *ApproveActionRequest) GetApprovedBy() string {
+	if x != nil {
+		return x.ApprovedBy
+	}
+	return ""
+}
+
+type ApproveActionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveActionResponse) Reset() {
+	*x = ApproveActionResponse{}
+	mi := &file_ai_executor_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveActionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveActionResponse) ProtoMessage() {}
+
+func (x *ApproveActionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveActionResponse.ProtoReflect.Descriptor instead.
+func (*ApproveActionResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ApproveActionResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type DenyActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	DeniedBy      string                 `protobuf:"bytes,2,opt,name=denied_by,json=deniedBy,proto3" json:"denied_by,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DenyActionRequest) Reset() {
+	*x = DenyActionRequest{}
+	mi := &file_ai_executor_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DenyActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DenyActionRequest) ProtoMessage() {}
+
+func (x *DenyActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DenyActionRequest.ProtoReflect.Descriptor instead.
+func (*DenyActionRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DenyActionRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *DenyActionRequest) GetDeniedBy() string {
+	if x != nil {
+		return x.DeniedBy
+	}
+	return ""
+}
+
+func (x *DenyActionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type DenyActionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DenyActionResponse) Reset() {
+	*x = DenyActionResponse{}
+	mi := &file_ai_executor_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DenyActionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DenyActionResponse) ProtoMessage() {}
+
+func (x *DenyActionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DenyActionResponse.ProtoReflect.Descriptor instead.
+func (*DenyActionResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *DenyActionResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type RetryActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryActionRequest) Reset() {
+	*x = RetryActionRequest{}
+	mi := &file_ai_executor_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryActionRequest) ProtoMessage() {}
+
+func (x *RetryActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryActionRequest.ProtoReflect.Descriptor instead.
+func (*RetryActionRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RetryActionRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+type RetryActionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryActionResponse) Reset() {
+	*x = RetryActionResponse{}
+	mi := &file_ai_executor_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryActionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryActionResponse) ProtoMessage() {}
+
+func (x *RetryActionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryActionResponse.ProtoReflect.Descriptor instead.
+func (*RetryActionResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RetryActionResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type GetJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJobRequest) Reset() {
+	*x = GetJobRequest{}
+	mi := &file_ai_executor_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobRequest) ProtoMessage() {}
+
+func (x *GetJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobRequest.ProtoReflect.Descriptor instead.
+func (*GetJobRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetJobRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+type GetJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJobResponse) Reset() {
+	*x = GetJobResponse{}
+	mi := &file_ai_executor_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobResponse) ProtoMessage() {}
+
+func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobResponse.ProtoReflect.Descriptor instead.
+func (*GetJobResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetJobResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+type ListJobsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StateFilter   JobState               `protobuf:"varint,1,opt,name=state_filter,json=stateFilter,proto3,enum=ai_executor.JobState" json:"state_filter,omitempty"` // 0 = all
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListJobsRequest) Reset() {
+	*x = ListJobsRequest{}
+	mi := &file_ai_executor_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListJobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListJobsRequest) ProtoMessage() {}
+
+func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListJobsRequest.ProtoReflect.Descriptor instead.
+func (*ListJobsRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListJobsRequest) GetStateFilter() JobState {
+	if x != nil {
+		return x.StateFilter
+	}
+	return JobState_JOB_DETECTED
+}
+
+func (x *ListJobsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListJobsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Jobs          []*Job                 `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListJobsResponse) Reset() {
+	*x = ListJobsResponse{}
+	mi := &file_ai_executor_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListJobsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListJobsResponse) ProtoMessage() {}
+
+func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
+func (*ListJobsResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListJobsResponse) GetJobs() []*Job {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -793,7 +1542,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_ai_executor_proto_msgTypes[10]
+	mi := &file_ai_executor_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -805,7 +1554,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_executor_proto_msgTypes[10]
+	mi := &file_ai_executor_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -818,7 +1567,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_ai_executor_proto_rawDescGZIP(), []int{10}
+	return file_ai_executor_proto_rawDescGZIP(), []int{21}
 }
 
 type StopResponse struct {
@@ -829,7 +1578,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_ai_executor_proto_msgTypes[11]
+	mi := &file_ai_executor_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -841,7 +1590,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_executor_proto_msgTypes[11]
+	mi := &file_ai_executor_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,7 +1603,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_ai_executor_proto_rawDescGZIP(), []int{11}
+	return file_ai_executor_proto_rawDescGZIP(), []int{22}
 }
 
 var File_ai_executor_proto protoreflect.FileDescriptor
@@ -918,7 +1667,61 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\x12ListActionsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\"O\n" +
 	"\x13ListActionsResponse\x128\n" +
-	"\aactions\x18\x01 \x03(\v2\x1e.ai_executor.RemediationActionR\aactions\"\r\n" +
+	"\aactions\x18\x01 \x03(\v2\x1e.ai_executor.RemediationActionR\aactions\"\xd3\x05\n" +
+	"\x03Job\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\x12\x1b\n" +
+	"\taction_id\x18\x02 \x01(\tR\bactionId\x12+\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x15.ai_executor.JobStateR\x05state\x12\x12\n" +
+	"\x04tier\x18\x04 \x01(\x05R\x04tier\x128\n" +
+	"\vaction_type\x18\x05 \x01(\x0e2\x17.ai_executor.ActionTypeR\n" +
+	"actionType\x12#\n" +
+	"\raction_target\x18\x06 \x01(\tR\factionTarget\x12#\n" +
+	"\raction_params\x18\a \x01(\tR\factionParams\x124\n" +
+	"\tdiagnosis\x18\b \x01(\v2\x16.ai_executor.DiagnosisR\tdiagnosis\x12\x1f\n" +
+	"\vapproved_by\x18\t \x01(\tR\n" +
+	"approvedBy\x12$\n" +
+	"\x0eapproved_at_ms\x18\n" +
+	" \x01(\x03R\fapprovedAtMs\x12\x1b\n" +
+	"\tdenied_by\x18\v \x01(\tR\bdeniedBy\x12#\n" +
+	"\rdenied_reason\x18\f \x01(\tR\fdeniedReason\x12\"\n" +
+	"\rexpires_at_ms\x18\r \x01(\x03R\vexpiresAtMs\x12\x1a\n" +
+	"\battempts\x18\x0e \x01(\x05R\battempts\x12+\n" +
+	"\x12last_attempt_at_ms\x18\x0f \x01(\x03R\x0flastAttemptAtMs\x12\x16\n" +
+	"\x06result\x18\x10 \x01(\tR\x06result\x12\x14\n" +
+	"\x05error\x18\x11 \x01(\tR\x05error\x12'\n" +
+	"\x0fidempotency_key\x18\x12 \x01(\tR\x0eidempotencyKey\x12\"\n" +
+	"\rcreated_at_ms\x18\x13 \x01(\x03R\vcreatedAtMs\x12\"\n" +
+	"\rupdated_at_ms\x18\x14 \x01(\x03R\vupdatedAtMs\"X\n" +
+	"\x14ApproveActionRequest\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\x12\x1f\n" +
+	"\vapproved_by\x18\x02 \x01(\tR\n" +
+	"approvedBy\";\n" +
+	"\x15ApproveActionResponse\x12\"\n" +
+	"\x03job\x18\x01 \x01(\v2\x10.ai_executor.JobR\x03job\"i\n" +
+	"\x11DenyActionRequest\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\x12\x1b\n" +
+	"\tdenied_by\x18\x02 \x01(\tR\bdeniedBy\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"8\n" +
+	"\x12DenyActionResponse\x12\"\n" +
+	"\x03job\x18\x01 \x01(\v2\x10.ai_executor.JobR\x03job\"5\n" +
+	"\x12RetryActionRequest\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\"9\n" +
+	"\x13RetryActionResponse\x12\"\n" +
+	"\x03job\x18\x01 \x01(\v2\x10.ai_executor.JobR\x03job\"0\n" +
+	"\rGetJobRequest\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\"4\n" +
+	"\x0eGetJobResponse\x12\"\n" +
+	"\x03job\x18\x01 \x01(\v2\x10.ai_executor.JobR\x03job\"a\n" +
+	"\x0fListJobsRequest\x128\n" +
+	"\fstate_filter\x18\x01 \x01(\x0e2\x15.ai_executor.JobStateR\vstateFilter\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"8\n" +
+	"\x10ListJobsResponse\x12$\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x10.ai_executor.JobR\x04jobs\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
 	"\fStopResponse*\xb3\x01\n" +
 	"\n" +
@@ -935,12 +1738,34 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\x10ACTION_EXECUTING\x10\x01\x12\x14\n" +
 	"\x10ACTION_SUCCEEDED\x10\x02\x12\x11\n" +
 	"\rACTION_FAILED\x10\x03\x12\x12\n" +
-	"\x0eACTION_SKIPPED\x10\x042\xa1\x03\n" +
+	"\x0eACTION_SKIPPED\x10\x04*\xd7\x01\n" +
+	"\bJobState\x12\x10\n" +
+	"\fJOB_DETECTED\x10\x00\x12\x12\n" +
+	"\x0eJOB_DIAGNOSING\x10\x01\x12\x11\n" +
+	"\rJOB_DIAGNOSED\x10\x02\x12\x11\n" +
+	"\rJOB_EXECUTING\x10\x03\x12\x11\n" +
+	"\rJOB_SUCCEEDED\x10\x04\x12\x0e\n" +
+	"\n" +
+	"JOB_FAILED\x10\x05\x12\x19\n" +
+	"\x15JOB_AWAITING_APPROVAL\x10\x06\x12\x10\n" +
+	"\fJOB_APPROVED\x10\a\x12\x0e\n" +
+	"\n" +
+	"JOB_DENIED\x10\b\x12\x0f\n" +
+	"\vJOB_EXPIRED\x10\t\x12\x0e\n" +
+	"\n" +
+	"JOB_CLOSED\x10\n" +
+	"2\xa6\x06\n" +
 	"\x11AiExecutorService\x12\\\n" +
 	"\x0fProcessIncident\x12#.ai_executor.ProcessIncidentRequest\x1a$.ai_executor.ProcessIncidentResponse\x12S\n" +
 	"\fGetDiagnosis\x12 .ai_executor.GetDiagnosisRequest\x1a!.ai_executor.GetDiagnosisResponse\x12J\n" +
 	"\tGetStatus\x12\x1d.ai_executor.GetStatusRequest\x1a\x1e.ai_executor.GetStatusResponse\x12P\n" +
-	"\vListActions\x12\x1f.ai_executor.ListActionsRequest\x1a .ai_executor.ListActionsResponse\x12;\n" +
+	"\vListActions\x12\x1f.ai_executor.ListActionsRequest\x1a .ai_executor.ListActionsResponse\x12V\n" +
+	"\rApproveAction\x12!.ai_executor.ApproveActionRequest\x1a\".ai_executor.ApproveActionResponse\x12M\n" +
+	"\n" +
+	"DenyAction\x12\x1e.ai_executor.DenyActionRequest\x1a\x1f.ai_executor.DenyActionResponse\x12P\n" +
+	"\vRetryAction\x12\x1f.ai_executor.RetryActionRequest\x1a .ai_executor.RetryActionResponse\x12A\n" +
+	"\x06GetJob\x12\x1a.ai_executor.GetJobRequest\x1a\x1b.ai_executor.GetJobResponse\x12G\n" +
+	"\bListJobs\x12\x1c.ai_executor.ListJobsRequest\x1a\x1d.ai_executor.ListJobsResponse\x12;\n" +
 	"\x04Stop\x12\x18.ai_executor.StopRequest\x1a\x19.ai_executor.StopResponseBAZ?github.com/globulario/services/golang/ai_executor/ai_executorpbb\x06proto3"
 
 var (
@@ -955,48 +1780,79 @@ func file_ai_executor_proto_rawDescGZIP() []byte {
 	return file_ai_executor_proto_rawDescData
 }
 
-var file_ai_executor_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ai_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_ai_executor_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_ai_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_ai_executor_proto_goTypes = []any{
 	(ActionType)(0),                 // 0: ai_executor.ActionType
 	(ActionStatus)(0),               // 1: ai_executor.ActionStatus
-	(*Diagnosis)(nil),               // 2: ai_executor.Diagnosis
-	(*RemediationAction)(nil),       // 3: ai_executor.RemediationAction
-	(*ProcessIncidentRequest)(nil),  // 4: ai_executor.ProcessIncidentRequest
-	(*ProcessIncidentResponse)(nil), // 5: ai_executor.ProcessIncidentResponse
-	(*GetDiagnosisRequest)(nil),     // 6: ai_executor.GetDiagnosisRequest
-	(*GetDiagnosisResponse)(nil),    // 7: ai_executor.GetDiagnosisResponse
-	(*GetStatusRequest)(nil),        // 8: ai_executor.GetStatusRequest
-	(*GetStatusResponse)(nil),       // 9: ai_executor.GetStatusResponse
-	(*ListActionsRequest)(nil),      // 10: ai_executor.ListActionsRequest
-	(*ListActionsResponse)(nil),     // 11: ai_executor.ListActionsResponse
-	(*StopRequest)(nil),             // 12: ai_executor.StopRequest
-	(*StopResponse)(nil),            // 13: ai_executor.StopResponse
-	nil,                             // 14: ai_executor.ProcessIncidentRequest.MetadataEntry
+	(JobState)(0),                   // 2: ai_executor.JobState
+	(*Diagnosis)(nil),               // 3: ai_executor.Diagnosis
+	(*RemediationAction)(nil),       // 4: ai_executor.RemediationAction
+	(*ProcessIncidentRequest)(nil),  // 5: ai_executor.ProcessIncidentRequest
+	(*ProcessIncidentResponse)(nil), // 6: ai_executor.ProcessIncidentResponse
+	(*GetDiagnosisRequest)(nil),     // 7: ai_executor.GetDiagnosisRequest
+	(*GetDiagnosisResponse)(nil),    // 8: ai_executor.GetDiagnosisResponse
+	(*GetStatusRequest)(nil),        // 9: ai_executor.GetStatusRequest
+	(*GetStatusResponse)(nil),       // 10: ai_executor.GetStatusResponse
+	(*ListActionsRequest)(nil),      // 11: ai_executor.ListActionsRequest
+	(*ListActionsResponse)(nil),     // 12: ai_executor.ListActionsResponse
+	(*Job)(nil),                     // 13: ai_executor.Job
+	(*ApproveActionRequest)(nil),    // 14: ai_executor.ApproveActionRequest
+	(*ApproveActionResponse)(nil),   // 15: ai_executor.ApproveActionResponse
+	(*DenyActionRequest)(nil),       // 16: ai_executor.DenyActionRequest
+	(*DenyActionResponse)(nil),      // 17: ai_executor.DenyActionResponse
+	(*RetryActionRequest)(nil),      // 18: ai_executor.RetryActionRequest
+	(*RetryActionResponse)(nil),     // 19: ai_executor.RetryActionResponse
+	(*GetJobRequest)(nil),           // 20: ai_executor.GetJobRequest
+	(*GetJobResponse)(nil),          // 21: ai_executor.GetJobResponse
+	(*ListJobsRequest)(nil),         // 22: ai_executor.ListJobsRequest
+	(*ListJobsResponse)(nil),        // 23: ai_executor.ListJobsResponse
+	(*StopRequest)(nil),             // 24: ai_executor.StopRequest
+	(*StopResponse)(nil),            // 25: ai_executor.StopResponse
+	nil,                             // 26: ai_executor.ProcessIncidentRequest.MetadataEntry
 }
 var file_ai_executor_proto_depIdxs = []int32{
 	0,  // 0: ai_executor.RemediationAction.type:type_name -> ai_executor.ActionType
 	1,  // 1: ai_executor.RemediationAction.status:type_name -> ai_executor.ActionStatus
-	14, // 2: ai_executor.ProcessIncidentRequest.metadata:type_name -> ai_executor.ProcessIncidentRequest.MetadataEntry
-	2,  // 3: ai_executor.ProcessIncidentResponse.diagnosis:type_name -> ai_executor.Diagnosis
-	3,  // 4: ai_executor.ProcessIncidentResponse.action:type_name -> ai_executor.RemediationAction
-	2,  // 5: ai_executor.GetDiagnosisResponse.diagnosis:type_name -> ai_executor.Diagnosis
-	3,  // 6: ai_executor.ListActionsResponse.actions:type_name -> ai_executor.RemediationAction
-	4,  // 7: ai_executor.AiExecutorService.ProcessIncident:input_type -> ai_executor.ProcessIncidentRequest
-	6,  // 8: ai_executor.AiExecutorService.GetDiagnosis:input_type -> ai_executor.GetDiagnosisRequest
-	8,  // 9: ai_executor.AiExecutorService.GetStatus:input_type -> ai_executor.GetStatusRequest
-	10, // 10: ai_executor.AiExecutorService.ListActions:input_type -> ai_executor.ListActionsRequest
-	12, // 11: ai_executor.AiExecutorService.Stop:input_type -> ai_executor.StopRequest
-	5,  // 12: ai_executor.AiExecutorService.ProcessIncident:output_type -> ai_executor.ProcessIncidentResponse
-	7,  // 13: ai_executor.AiExecutorService.GetDiagnosis:output_type -> ai_executor.GetDiagnosisResponse
-	9,  // 14: ai_executor.AiExecutorService.GetStatus:output_type -> ai_executor.GetStatusResponse
-	11, // 15: ai_executor.AiExecutorService.ListActions:output_type -> ai_executor.ListActionsResponse
-	13, // 16: ai_executor.AiExecutorService.Stop:output_type -> ai_executor.StopResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	26, // 2: ai_executor.ProcessIncidentRequest.metadata:type_name -> ai_executor.ProcessIncidentRequest.MetadataEntry
+	3,  // 3: ai_executor.ProcessIncidentResponse.diagnosis:type_name -> ai_executor.Diagnosis
+	4,  // 4: ai_executor.ProcessIncidentResponse.action:type_name -> ai_executor.RemediationAction
+	3,  // 5: ai_executor.GetDiagnosisResponse.diagnosis:type_name -> ai_executor.Diagnosis
+	4,  // 6: ai_executor.ListActionsResponse.actions:type_name -> ai_executor.RemediationAction
+	2,  // 7: ai_executor.Job.state:type_name -> ai_executor.JobState
+	0,  // 8: ai_executor.Job.action_type:type_name -> ai_executor.ActionType
+	3,  // 9: ai_executor.Job.diagnosis:type_name -> ai_executor.Diagnosis
+	13, // 10: ai_executor.ApproveActionResponse.job:type_name -> ai_executor.Job
+	13, // 11: ai_executor.DenyActionResponse.job:type_name -> ai_executor.Job
+	13, // 12: ai_executor.RetryActionResponse.job:type_name -> ai_executor.Job
+	13, // 13: ai_executor.GetJobResponse.job:type_name -> ai_executor.Job
+	2,  // 14: ai_executor.ListJobsRequest.state_filter:type_name -> ai_executor.JobState
+	13, // 15: ai_executor.ListJobsResponse.jobs:type_name -> ai_executor.Job
+	5,  // 16: ai_executor.AiExecutorService.ProcessIncident:input_type -> ai_executor.ProcessIncidentRequest
+	7,  // 17: ai_executor.AiExecutorService.GetDiagnosis:input_type -> ai_executor.GetDiagnosisRequest
+	9,  // 18: ai_executor.AiExecutorService.GetStatus:input_type -> ai_executor.GetStatusRequest
+	11, // 19: ai_executor.AiExecutorService.ListActions:input_type -> ai_executor.ListActionsRequest
+	14, // 20: ai_executor.AiExecutorService.ApproveAction:input_type -> ai_executor.ApproveActionRequest
+	16, // 21: ai_executor.AiExecutorService.DenyAction:input_type -> ai_executor.DenyActionRequest
+	18, // 22: ai_executor.AiExecutorService.RetryAction:input_type -> ai_executor.RetryActionRequest
+	20, // 23: ai_executor.AiExecutorService.GetJob:input_type -> ai_executor.GetJobRequest
+	22, // 24: ai_executor.AiExecutorService.ListJobs:input_type -> ai_executor.ListJobsRequest
+	24, // 25: ai_executor.AiExecutorService.Stop:input_type -> ai_executor.StopRequest
+	6,  // 26: ai_executor.AiExecutorService.ProcessIncident:output_type -> ai_executor.ProcessIncidentResponse
+	8,  // 27: ai_executor.AiExecutorService.GetDiagnosis:output_type -> ai_executor.GetDiagnosisResponse
+	10, // 28: ai_executor.AiExecutorService.GetStatus:output_type -> ai_executor.GetStatusResponse
+	12, // 29: ai_executor.AiExecutorService.ListActions:output_type -> ai_executor.ListActionsResponse
+	15, // 30: ai_executor.AiExecutorService.ApproveAction:output_type -> ai_executor.ApproveActionResponse
+	17, // 31: ai_executor.AiExecutorService.DenyAction:output_type -> ai_executor.DenyActionResponse
+	19, // 32: ai_executor.AiExecutorService.RetryAction:output_type -> ai_executor.RetryActionResponse
+	21, // 33: ai_executor.AiExecutorService.GetJob:output_type -> ai_executor.GetJobResponse
+	23, // 34: ai_executor.AiExecutorService.ListJobs:output_type -> ai_executor.ListJobsResponse
+	25, // 35: ai_executor.AiExecutorService.Stop:output_type -> ai_executor.StopResponse
+	26, // [26:36] is the sub-list for method output_type
+	16, // [16:26] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_ai_executor_proto_init() }
@@ -1009,8 +1865,8 @@ func file_ai_executor_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_executor_proto_rawDesc), len(file_ai_executor_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   13,
+			NumEnums:      3,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
