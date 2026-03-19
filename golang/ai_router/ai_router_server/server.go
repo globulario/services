@@ -218,6 +218,9 @@ func (srv *server) Init() error {
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
 func (srv *server) StartService() error {
+	// Start the dry-run scoring loop in the background.
+	go srv.scoringLoop()
+
 	return globular.StartService(srv, srv.grpcServer)
 }
 
