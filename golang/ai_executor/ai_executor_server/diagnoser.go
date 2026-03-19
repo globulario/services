@@ -15,14 +15,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// diagnoser gathers evidence from cluster services to build an incident diagnosis.
+// diagnoser gathers evidence from cluster services, then uses Claude
+// for reasoning when available, with deterministic fallback.
 type diagnoser struct {
 	controllerAddr string
 	memoryAddr     string
+	claude         *claudeClient
 }
 
 func newDiagnoser() *diagnoser {
-	return &diagnoser{}
+	return &diagnoser{
+		claude: newClaudeClient(),
+	}
 }
 
 // diagnose gathers context and builds a diagnosis for an incident.
@@ -76,13 +80,53 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		}
 	}
 
-	// 3. Analyze the event pattern to determine likely cause.
+	// 3. Try Claude for intelligent analysis (falls back to deterministic).
+	var proposedAction, actionReason string
+
+	if d.claude.isAvailable() && rootCause == "" {
+		healthStr := ""
+		if health != nil {
+			healthStr = fmt.Sprintf("%d healthy, %d unhealthy, %d unknown nodes",
+				health.HealthyNodes, health.UnhealthyNodes, health.UnknownNodes)
+		}
+
+		analysis, err := d.claude.analyzeIncident(callCtx, req, evidence, healthStr)
+		if err == nil && analysis != nil {
+			rootCause = analysis.RootCause
+			confidence = float32(analysis.Confidence)
+			proposedAction = analysis.ProposedAction
+			actionReason = analysis.Rationale
+			evidence = append(evidence, "claude_analysis: "+analysis.Summary)
+			if analysis.Detail != "" {
+				evidence = append(evidence, "claude_detail: "+analysis.Detail)
+			}
+			if analysis.RiskLevel == "high" && proposedAction != "observe_and_record" && proposedAction != "notify_admin" {
+				// Safety: Claude said high risk — escalate to notify instead of auto-fix.
+				actionReason = actionReason + " [SAFETY: high risk, escalated to notify]"
+				proposedAction = "notify_admin"
+			}
+			logger.Info("claude_diagnosis",
+				"incident", req.GetIncidentId(),
+				"root_cause", rootCause,
+				"confidence", confidence,
+				"proposed_action", proposedAction,
+				"risk_level", analysis.RiskLevel,
+			)
+		} else {
+			if err != nil {
+				logger.Warn("claude analysis failed, using deterministic fallback", "err", err)
+				evidence = append(evidence, "claude: unavailable, using deterministic analysis")
+			}
+		}
+	}
+
+	// 4. Deterministic fallback if Claude didn't provide an answer.
 	if rootCause == "" {
 		rootCause, confidence = d.analyzeEventPattern(eventName, eventPayload, req.GetEventBatch())
 	}
-
-	// 4. Determine proposed action.
-	proposedAction, actionReason := d.proposeAction(ruleID, rootCause, eventPayload)
+	if proposedAction == "" {
+		proposedAction, actionReason = d.proposeAction(ruleID, rootCause, eventPayload)
+	}
 
 	summary := fmt.Sprintf("%s triggered by %s (%d events in batch)",
 		ruleID, eventName, len(req.GetEventBatch()))
