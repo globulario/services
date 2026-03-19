@@ -679,7 +679,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Security Fix #9: Cluster ID Enforcement
 	// Once cluster is initialized, all non-bootstrap requests MUST have
 	// verified cluster_id matching local cluster_id (prevents cross-cluster attacks)
-	if !authCtx.IsBootstrap {
+	// Exempt RBAC infrastructure methods from cluster_id enforcement —
+	// all services call these for authorization checks and they may have
+	// different domain configs during setup. The RBAC service is already
+	// excluded from role-binding checks to prevent circular calls.
+	isRbacInfra := method == "/rbac.RbacService/GetRoleBinding" ||
+		method == "/rbac.RbacService/GetActionResourceInfos" ||
+		method == "/rbac.RbacService/ListRoleBindings"
+	if !authCtx.IsBootstrap && !isRbacInfra {
 		// Check if cluster is initialized (has local cluster_id)
 		localClusterID, err := security.GetLocalClusterID()
 		if err == nil && localClusterID != "" {
@@ -728,21 +735,27 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			"authentication required: provide --token or configure client certificates")
 	}
 
-	// Role-binding check: applies to all explicitly role-mapped gRPC methods.
-	// Skip the RBAC service itself (would cause a circular RPC call).
-	// Only fires for authenticated subjects post-cluster-initialization.
-	if clusterInitialized && security.IsRoleBasedMethod(actionKey) &&
-		!strings.HasPrefix(method, "/rbac.RbacService/") &&
+	// Role-binding check: applies to all authenticated gRPC methods post-cluster-init.
+	// Only skip GetRoleBinding itself to prevent circular RPC calls.
+	// For explicitly role-mapped methods: deny if no matching role.
+	// For unmapped methods: allow if caller has a matching role (e.g. admin wildcard),
+	// otherwise fall through to the resource-mapping check below.
+	if clusterInitialized &&
+		method != "/rbac.RbacService/GetRoleBinding" &&
 		authCtx != nil && authCtx.Subject != "" {
 
 		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
-		if !allowed {
+		if allowed {
+			LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
+			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
+		}
+		// For explicitly role-mapped methods, deny immediately.
+		// For unmapped methods, fall through to resource-mapping check.
+		if security.IsRoleBasedMethod(actionKey) {
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return nil, status.Errorf(codes.PermissionDenied,
 				"permission denied: %s — assign a role with 'globular rbac bind'", actionKey)
 		}
-		LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
-		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
 
 	// 3) Only consult RBAC if there are resource mappings for this action.
@@ -1090,8 +1103,12 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
 	// Once cluster is initialized, ALL non-bootstrap requests must have matching cluster_id
+	// Exempt RBAC infrastructure methods (same as unary interceptor).
+	isRbacInfraStream := method == "/rbac.RbacService/GetRoleBinding" ||
+		method == "/rbac.RbacService/GetActionResourceInfos" ||
+		method == "/rbac.RbacService/ListRoleBindings"
 	streamInitialized := false
-	if authCtx != nil && !authCtx.IsBootstrap {
+	if authCtx != nil && !authCtx.IsBootstrap && !isRbacInfraStream {
 		// Check if cluster is initialized (has local cluster ID)
 		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
 			streamInitialized = true

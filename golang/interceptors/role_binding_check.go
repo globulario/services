@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/security"
+	"google.golang.org/grpc/metadata"
 )
 
 // checkRoleBinding fetches the role binding for subject from the RBAC service
@@ -27,6 +28,13 @@ func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+
+	// Attach cluster_id so the RBAC service's own interceptor accepts the call.
+	clusterID, err := security.GetLocalClusterID()
+	if err == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 
 	binding, err := rbacClient.GetRoleBindingWithCtx(ctx, subject)
 	if err != nil {

@@ -29,7 +29,8 @@ const roleBindingPrefix = "ROLE_BINDINGS/"
 func (srv *server) callerIsAdmin(subject string) (bool, error) {
 	data, err := srv.getItem(roleBindingPrefix + subject)
 	if err != nil {
-		if strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "key not found") {
 			return false, nil
 		}
 		return false, err
@@ -115,8 +116,9 @@ func (srv *server) GetRoleBinding(ctx context.Context, rqst *rbacpb.GetRoleBindi
 			return nil, status.Error(codes.Unauthenticated,
 				"authentication required to read role bindings")
 		}
-		// Allow self-read; otherwise require admin.
-		if authCtx.Subject != rqst.GetSubject() {
+		// Allow self-read and service-to-service mTLS calls (interceptor
+		// authorization checks). Otherwise require admin.
+		if authCtx.Subject != rqst.GetSubject() && authCtx.AuthMethod != "mtls" {
 			ok, err := srv.callerIsAdmin(authCtx.Subject)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "role lookup failed: %v", err)
