@@ -8,20 +8,19 @@ import (
 )
 
 // scoringLoop runs the background scoring cycle every 5 seconds.
-// In neutral/observe mode: computes scores, logs results, but doesn't cache
-// the policy for xDS consumption.
-// In active mode (Phase 1+): also stores the policy for GetRoutingPolicy.
+// Computes per-endpoint scores, applies safety invariants, and caches
+// the routing policy for the xDS watcher to consume.
 func (srv *server) scoringLoop() {
-	// Wait for service startup.
+	// Wait for service startup and Prometheus to be reachable.
 	time.Sleep(15 * time.Second)
 
 	coll := newCollector()
 	weights := defaultWeights()
+	safety := newSafetyValidator()
 	ticker := time.NewTicker(scoringInterval)
 	defer ticker.Stop()
 
-	var previousScores map[string]float64 // key → previous score for smoothing
-	previousScores = make(map[string]float64)
+	previousScores := make(map[string]float64)
 	const smoothAlpha = 0.3
 
 	cycle := uint64(0)
@@ -29,7 +28,7 @@ func (srv *server) scoringLoop() {
 		cycle++
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 
-		// Collect metrics.
+		// Collect metrics from Prometheus.
 		endpoints, node, err := coll.collectAll(ctx)
 		cancel()
 		if err != nil {
@@ -49,12 +48,11 @@ func (srv *server) scoringLoop() {
 		// Score all endpoints.
 		results := scoreEndpoints(endpoints, node, srv.classifications, weights)
 
-		// Apply smoothing.
+		// Apply exponential smoothing to prevent flapping.
 		for i := range results {
 			key := results[i].Service + "/" + results[i].Instance
 			if prev, ok := previousScores[key]; ok {
 				results[i].Score = smoothScore(results[i].Score, prev, smoothAlpha)
-				// Recompute weight from smoothed score.
 				w := uint32(100 * (1 - results[i].Score))
 				if w < 1 {
 					w = 1
@@ -64,14 +62,57 @@ func (srv *server) scoringLoop() {
 			previousScores[key] = results[i].Score
 		}
 
-		// Log dry-run results.
+		// Read current mode.
 		srv.modeMu.RLock()
 		mode := srv.mode
 		srv.modeMu.RUnlock()
 
+		// Compute data quality confidence.
+		confidence := computeConfidence(endpoints, node)
+
+		// Build policy from scoring results.
+		policy := &ai_routerpb.RoutingPolicy{
+			Services:     make(map[string]*ai_routerpb.ServicePolicy),
+			Generation:   cycle,
+			ComputedAtMs: time.Now().UnixMilli(),
+			Mode:         mode,
+		}
+
 		changed := 0
 		for _, r := range results {
-			if r.Score > 0.3 || cycle%12 == 0 { // log notable scores, or every minute for all
+			sp := policy.Services[r.Service]
+			if sp == nil {
+				class := srv.classifications[r.Service]
+				sp = &ai_routerpb.ServicePolicy{
+					Weights:      make(map[string]uint32),
+					ServiceClass: class,
+					Confidence:   float32(confidence),
+					Reasons:      []string{},
+				}
+				policy.Services[r.Service] = sp
+			}
+			sp.Weights[r.Instance] = r.Weight
+			if r.Weight < 90 {
+				changed++
+				sp.Reasons = append(sp.Reasons, r.Reasons...)
+			}
+		}
+
+		// Apply stability controls (outlier detection, circuit breakers, retries).
+		for svcName, sp := range policy.Services {
+			avgErr := computeAvgErrorRate(endpoints, svcName)
+			applyStabilityControls(sp, sp.ServiceClass, avgErr)
+		}
+
+		// Apply safety invariants (max delta, min weight, cooldown).
+		clamps := safety.validate(policy, srv.classifications)
+		for _, c := range clamps {
+			logger.Info("safety", "clamp", c, "cycle", cycle)
+		}
+
+		// Log notable scores.
+		for _, r := range results {
+			if r.Score > 0.3 || cycle%12 == 0 {
 				logger.Info("scoring",
 					"mode", mode.String(),
 					"cycle", cycle,
@@ -85,37 +126,28 @@ func (srv *server) scoringLoop() {
 					"reasons", r.Reasons,
 				)
 			}
-			if r.Weight < 90 {
-				changed++
-			}
 		}
 
-		// Build policy.
-		policy := &ai_routerpb.RoutingPolicy{
-			Services:     make(map[string]*ai_routerpb.ServicePolicy),
-			Generation:   cycle,
-			ComputedAtMs: time.Now().UnixMilli(),
-			Mode:         mode,
-		}
-
-		for _, r := range results {
-			sp := policy.Services[r.Service]
-			if sp == nil {
-				sp = &ai_routerpb.ServicePolicy{
-					Weights:      make(map[string]uint32),
-					ServiceClass: srv.classifications[r.Service],
-					Confidence:   0.0, // Phase 0.5: dry-run, no confidence
-					Reasons:      []string{"phase-0.5: dry-run scoring, not applied"},
-				}
-				policy.Services[r.Service] = sp
-			}
-			sp.Weights[r.Instance] = r.Weight
-		}
-
-		// In observe mode: cache the policy (readable via GetRoutingPolicy but
-		// xDS watcher treats confidence=0 as passthrough).
-		if mode == ai_routerpb.RouterMode_ROUTER_OBSERVE || mode == ai_routerpb.RouterMode_ROUTER_ACTIVE {
+		// Cache policy based on mode.
+		switch mode {
+		case ai_routerpb.RouterMode_ROUTER_ACTIVE:
+			// Active: cache with real confidence — xDS watcher applies weights.
 			srv.cachedPolicy.Store(policy)
+			srv.statsMu.Lock()
+			srv.stats.PoliciesApplied++
+			srv.statsMu.Unlock()
+
+		case ai_routerpb.RouterMode_ROUTER_OBSERVE:
+			// Observe: cache for visibility via GetRoutingPolicy, but
+			// confidence tells xDS watcher not to apply.
+			for _, sp := range policy.Services {
+				sp.Confidence = 0 // signal: don't apply
+				sp.Reasons = append(sp.Reasons, "observe mode: computed but not applied")
+			}
+			srv.cachedPolicy.Store(policy)
+
+		default:
+			// Neutral: don't cache.
 		}
 
 		srv.statsMu.Lock()
@@ -123,12 +155,14 @@ func (srv *server) scoringLoop() {
 		srv.stats.LastPolicyAt = time.Now()
 		srv.statsMu.Unlock()
 
-		if changed > 0 || cycle%12 == 0 {
+		if changed > 0 || len(clamps) > 0 || cycle%12 == 0 {
 			logger.Info("scoring_summary",
 				"cycle", cycle,
 				"mode", mode.String(),
+				"confidence", round2(confidence),
 				"endpoints", len(results),
 				"would_change", changed,
+				"safety_clamps", len(clamps),
 				"cpu", round2(node.CPUUsage),
 				"memory", round2(node.MemoryUsage),
 			)
