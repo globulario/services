@@ -14,6 +14,7 @@
 package policy
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,9 @@ import (
 	"strings"
 	"sync"
 )
+
+//go:embed rbac/cluster-roles.json
+var embeddedClusterRoles []byte
 
 // Default filesystem roots. Overridable for testing.
 var (
@@ -494,6 +498,32 @@ func validatePermissions(pf *PermissionsFile) []string {
 		}
 	}
 	return errs
+}
+
+// EnsureClusterRolesDeployed writes the embedded cluster-roles.json to
+// /var/lib/globular/policy/rbac/cluster-roles.json if no policy file exists
+// at any of the search paths. This guarantees the controller can start on a
+// fresh installation without a separate deployment step.
+// Admin overrides in /etc/ take precedence and are never touched.
+func EnsureClusterRolesDeployed() error {
+	// If any policy file already exists (admin override, generated, or legacy), do nothing.
+	paths := clusterRolesPaths()
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return nil // file exists — nothing to deploy
+		}
+	}
+
+	// No policy file found — deploy the embedded default.
+	dest := filepath.Join(PackageRoot, "rbac", "cluster-roles.json")
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return fmt.Errorf("create policy dir: %w", err)
+	}
+	if err := os.WriteFile(dest, embeddedClusterRoles, 0644); err != nil {
+		return fmt.Errorf("write cluster-roles.json: %w", err)
+	}
+	slog.Info("policy: deployed embedded cluster-roles.json", "path", dest)
+	return nil
 }
 
 func validateClusterRoles(crf *ClusterRolesFile) []string {

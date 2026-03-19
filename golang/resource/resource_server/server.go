@@ -49,7 +49,7 @@ import (
 // -----------------------------------------------------------------------------
 
 var (
-	defaultPort  = 10301
+	defaultPort  = 10010
 	defaultProxy = defaultPort + 1
 
 	allowAllOrigins   = true
@@ -865,83 +865,26 @@ func main() {
 	}
 	policy.GlobalResolver().RegisterFromInterface(s.Permissions)
 
-	// Handle --describe flag (print service metadata and exit)
+	// Handle --describe and --health flags using standard framework helpers.
 	if *showDescribe {
-		s.Process = os.Getpid()
-		s.State = "starting"
-		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-			s.Domain = strings.ToLower(v)
-		} else {
-			s.Domain = "localhost"
-		}
-		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-			s.Address = strings.ToLower(v)
-		} else {
-			s.Address = "localhost:" + Utility.ToString(s.Port)
-		}
-		if s.Id == "" {
-			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		}
-		b, err := globular.DescribeJSON(s)
-		if err != nil {
-			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-			os.Exit(2)
-		}
-		_, _ = os.Stdout.Write(b)
-		_, _ = os.Stdout.Write([]byte("\n"))
+		globular.HandleDescribeFlag(s, logger)
 		return
 	}
-
-	// Handle --health flag (print health status and exit)
 	if *showHealth {
-		if s.Port == 0 || s.Name == "" {
-			logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-			os.Exit(2)
-		}
-		b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-		if err != nil {
-			logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-			os.Exit(2)
-		}
-		_, _ = os.Stdout.Write(b)
-		_, _ = os.Stdout.Write([]byte("\n"))
+		globular.HandleHealthFlag(s, logger)
 		return
 	}
 
-	// ---- Positional arguments (service ID and config path) ----
+	// ---- Port allocation + positional arguments + runtime config ----
+	// Uses the framework’s dynamic port allocator (queries etcd for existing
+	// assignments, avoids conflicts). No hardcoded port needed.
 	args := flag.Args()
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	} else if len(args) == 1 {
-		s.Id = args[0]
-	} else if len(args) >= 2 {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+	if err := globular.AllocatePortIfNeeded(s, args); err != nil {
+		logger.Error("port allocation failed", "error", err)
+		os.Exit(1)
 	}
-
-	// Now it’s safe to read local config (may try etcd or file fallback)
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
-		s.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = strings.TrimSpace(a)
-	}
-	if strings.TrimSpace(s.Address) == "" {
-		s.Address = "localhost:" + Utility.ToString(s.Port)
-	}
+	globular.ParsePositionalArgs(s, args)
+	globular.LoadRuntimeConfig(s)
 
 	// Backend informations.
 	scyllaDetected := false

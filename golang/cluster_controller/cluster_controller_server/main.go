@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	globular_service "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/security"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
@@ -218,7 +220,16 @@ func main() {
 	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
 	srv.initResourceStore(etcdClient)
 
-	// Gap 4: Verify built-in roles exist (including node-executor) at startup
+	// Ensure cluster-roles.json is deployed on disk before checking roles.
+	// On fresh installs, the file doesn't exist yet — deploy the embedded copy.
+	if err := policy.EnsureClusterRolesDeployed(); err != nil {
+		logger.Warn("failed to deploy embedded cluster-roles.json", "err", err)
+	}
+
+	// Reload roles from the (now-deployed) policy file.
+	security.ReloadClusterRoles()
+
+	// Verify built-in roles exist (including node-executor) at startup.
 	if err := security.EnsureBuiltinRolesExist(); err != nil {
 		logger.Error("FATAL: built-in role bootstrap failed", "err", err)
 		os.Exit(1)

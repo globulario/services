@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
@@ -567,15 +568,11 @@ func tryGatewayConfig(serviceName string) []string {
 func ResolveServiceAddrs(serviceName string) []string {
 	// 1. Try local service config files first — fastest, always current for this node.
 	if addrs := tryLocalServicesDir(serviceName); len(addrs) > 0 {
+		slog.Debug("service discovery: resolved via local files", "service", serviceName, "addrs", addrs)
 		return addrs
 	}
 
-	// 2. Try gateway config endpoint — no group membership required.
-	if addrs := tryGatewayConfig(serviceName); len(addrs) > 0 {
-		return addrs
-	}
-
-	// 3. Fall back to etcd for cross-node cluster discovery.
+	// 2. Try etcd — authoritative source of truth for service configs.
 	if svcs, err := GetServicesConfigurationsByName(serviceName); err == nil && len(svcs) > 0 {
 		var addrs []string
 		for _, s := range svcs {
@@ -586,10 +583,19 @@ func ResolveServiceAddrs(serviceName string) []string {
 			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(s), port))
 		}
 		if len(addrs) > 0 {
+			slog.Debug("service discovery: resolved via etcd", "service", serviceName, "addrs", addrs)
 			return addrs
 		}
 	}
 
+	// 3. Fall back to gateway config endpoint — useful when etcd is unreachable
+	// (e.g. non-root CLI user without etcd certs) but may serve cached data.
+	if addrs := tryGatewayConfig(serviceName); len(addrs) > 0 {
+		slog.Debug("service discovery: resolved via gateway", "service", serviceName, "addrs", addrs)
+		return addrs
+	}
+
+	slog.Debug("service discovery: no endpoint found", "service", serviceName)
 	return nil
 }
 

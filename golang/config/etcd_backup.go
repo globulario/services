@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -172,6 +173,13 @@ func saveServiceConfigFile(id string, desired map[string]interface{}) error {
 		desired["Id"] = id
 	}
 
+	// Clean up stale JSON files for the same service Name but different Id.
+	// When a service gets a new UUID (port reallocation, reinstall), the old
+	// file remains on disk and poisons service discovery. Remove them now.
+	if name, _ := desired["Name"].(string); name != "" {
+		removeStaleServiceFiles(dir, id, name)
+	}
+
 	b, err := json.MarshalIndent(desired, "", "  ")
 	if err != nil {
 		return fmt.Errorf("saveServiceConfigFile marshal: %w", err)
@@ -187,6 +195,41 @@ func saveServiceConfigFile(id string, desired map[string]interface{}) error {
 		return fmt.Errorf("saveServiceConfigFile rename: %w", err)
 	}
 	return nil
+}
+
+// removeStaleServiceFiles scans the services config directory and removes any
+// JSON files that have the same service Name but a different Id. This prevents
+// stale configs from poisoning service discovery after a service gets a new UUID
+// (e.g., due to port reallocation or reinstall).
+func removeStaleServiceFiles(dir, currentId, serviceName string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		// Skip the current service's own file.
+		fileId := strings.TrimSuffix(e.Name(), ".json")
+		if fileId == currentId {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			continue
+		}
+		name, _ := cfg["Name"].(string)
+		if strings.EqualFold(name, serviceName) {
+			os.Remove(path)
+			fmt.Printf("saveServiceConfigFile: removed stale config %s (same Name %q, old Id %s)\n", e.Name(), serviceName, fileId)
+		}
+	}
 }
 
 // DumpServiceConfigsToDisk reads all service configs from etcd and writes

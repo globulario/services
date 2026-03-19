@@ -728,7 +728,7 @@ func isAuthErr(err error) bool {
 // ── Descriptor upsert ──────────────────────────────────────────────────────
 
 // defaultResourcePort is the fallback used when service discovery is unavailable.
-const defaultResourcePort = 10301
+const defaultResourcePort = 10010
 
 // setPackageDescriptor calls ResourceService.SetPackageDescriptor with the
 // caller's JWT (injected by dialGRPC) so RBAC applies under user identity.

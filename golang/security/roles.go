@@ -74,6 +74,17 @@ func init() {
 	rebuildMethodIndex()
 }
 
+// ReloadClusterRoles re-reads cluster-roles.json from disk and rebuilds the
+// method index. Called after EnsureClusterRolesDeployed writes the embedded
+// default so that the controller picks up roles without a process restart.
+func ReloadClusterRoles() {
+	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
+		RolePermissions = extRoles
+		slog.Info("security: reloaded cluster roles from policy file", "roles", len(extRoles))
+	}
+	rebuildMethodIndex()
+}
+
 // rebuildMethodIndex recomputes methodSet and methodPrefix from RolePermissions.
 // Handles both gRPC method paths (/pkg.Service/Method) and stable action keys (file.read).
 func rebuildMethodIndex() {
