@@ -426,40 +426,8 @@ func svcHost(svc map[string]interface{}) string {
 	return "localhost"
 }
 
-// tryLocalServicesDir scans GetServicesConfigDir() for *.json files and returns
-// all "host:port" addresses for services whose Name matches serviceName.
-// This is the authoritative local fallback for standalone and Day-0 deployments.
-func tryLocalServicesDir(serviceName string) []string {
-	dir := GetServicesConfigDir()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var addrs []string
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			continue
-		}
-		var svc map[string]interface{}
-		if err := json.Unmarshal(data, &svc); err != nil {
-			continue
-		}
-		name, _ := svc["Name"].(string)
-		if !strings.EqualFold(name, serviceName) {
-			continue
-		}
-		port := svcPort(svc)
-		if port == 0 {
-			continue
-		}
-		addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(svc), port))
-	}
-	return addrs
-}
+// NOTE: tryLocalServicesDir was removed. Disk JSON files are no longer written
+// or read for service discovery. etcd is the single source of truth.
 
 // tryGatewayConfig fetches the gateway's /config endpoint over HTTPS (or HTTP)
 // and returns all endpoints for the named service. This endpoint is accessible
@@ -566,13 +534,7 @@ func tryGatewayConfig(serviceName string) []string {
 //  3. etcd — authoritative for cross-node cluster discovery, but may contain
 //     stale entries from previous runs or reconfigured services.
 func ResolveServiceAddrs(serviceName string) []string {
-	// 1. Try local service config files first — fastest, always current for this node.
-	if addrs := tryLocalServicesDir(serviceName); len(addrs) > 0 {
-		slog.Debug("service discovery: resolved via local files", "service", serviceName, "addrs", addrs)
-		return addrs
-	}
-
-	// 2. Try etcd — authoritative source of truth for service configs.
+	// 1. Try etcd — single source of truth for service configs.
 	if svcs, err := GetServicesConfigurationsByName(serviceName); err == nil && len(svcs) > 0 {
 		var addrs []string
 		for _, s := range svcs {
@@ -588,8 +550,8 @@ func ResolveServiceAddrs(serviceName string) []string {
 		}
 	}
 
-	// 3. Fall back to gateway config endpoint — useful when etcd is unreachable
-	// (e.g. non-root CLI user without etcd certs) but may serve cached data.
+	// 2. Fall back to gateway config endpoint — useful when etcd is unreachable
+	// (e.g. non-root CLI user without etcd certs).
 	if addrs := tryGatewayConfig(serviceName); len(addrs) > 0 {
 		slog.Debug("service discovery: resolved via gateway", "service", serviceName, "addrs", addrs)
 		return addrs

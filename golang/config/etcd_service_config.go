@@ -161,10 +161,8 @@ func BootstrapServicesFromFiles() error {
 	return nil
 }
 
-// SaveServiceConfiguration persists desired/runtime in separate keys
-// and mirrors the desired config to a JSON file on disk:
-//
-//	<ServicesConfigDir>/<Id>.json  (default: /var/lib/globular/services/<Id>.json)
+// SaveServiceConfiguration persists desired/runtime in separate etcd keys.
+// etcd is the single source of truth — no disk JSON files are written.
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -188,11 +186,6 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	rtBytes, _ := json.Marshal(runtime)
 	if _, err = c.Put(ctx, etcdKey(id, runtimeKey), string(rtBytes)); err != nil {
 		return fmt.Errorf("save runtime: %w", err)
-	}
-
-	// Mirror desired config to disk (best effort).
-	if err := saveServiceConfigFile(id, desired); err != nil {
-		fmt.Printf("SaveServiceConfiguration: failed to persist %s to disk: %v\n", id, err)
 	}
 
 	// Fire-and-forget backup of /globular keys (best-effort).

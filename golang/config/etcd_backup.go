@@ -7,12 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
-
-	Utility "github.com/globulario/utility"
 )
 
 // CreateEtcdSnapshot saves a binary etcd snapshot under
@@ -153,107 +150,14 @@ func RestoreGlobularKeysJSON(path string) error {
 	return nil
 }
 
-// saveServiceConfigFile writes the "desired" config to
-//
-//	<ServicesConfigDir>/<id>.json  (default: /var/lib/globular/services/<id>.json)
-//
-// using an atomic tmp+rename write.
-func saveServiceConfigFile(id string, desired map[string]interface{}) error {
-	if id == "" {
-		return fmt.Errorf("saveServiceConfigFile: empty id")
-	}
+// NOTE: saveServiceConfigFile and removeStaleServiceFiles were removed.
+// Disk JSON files in /var/lib/globular/services/ are no longer written.
+// etcd is the single source of truth. Disk files caused stale config bugs
+// where old JSON files with wrong ports poisoned service discovery.
 
-	dir := GetServicesConfigDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("saveServiceConfigFile mkdir: %w", err)
-	}
-
-	// Ensure Id is present in the payload.
-	if _, ok := desired["Id"]; !ok {
-		desired["Id"] = id
-	}
-
-	// Clean up stale JSON files for the same service Name but different Id.
-	// When a service gets a new UUID (port reallocation, reinstall), the old
-	// file remains on disk and poisons service discovery. Remove them now.
-	if name, _ := desired["Name"].(string); name != "" {
-		removeStaleServiceFiles(dir, id, name)
-	}
-
-	b, err := json.MarshalIndent(desired, "", "  ")
-	if err != nil {
-		return fmt.Errorf("saveServiceConfigFile marshal: %w", err)
-	}
-
-	tmp := filepath.Join(dir, id+".json.tmp")
-	final := filepath.Join(dir, id+".json")
-
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("saveServiceConfigFile write tmp: %w", err)
-	}
-	if err := os.Rename(tmp, final); err != nil {
-		return fmt.Errorf("saveServiceConfigFile rename: %w", err)
-	}
-	return nil
-}
-
-// removeStaleServiceFiles scans the services config directory and removes any
-// JSON files that have the same service Name but a different Id. This prevents
-// stale configs from poisoning service discovery after a service gets a new UUID
-// (e.g., due to port reallocation or reinstall).
-func removeStaleServiceFiles(dir, currentId, serviceName string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		// Skip the current service's own file.
-		fileId := strings.TrimSuffix(e.Name(), ".json")
-		if fileId == currentId {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg map[string]interface{}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			continue
-		}
-		name, _ := cfg["Name"].(string)
-		if strings.EqualFold(name, serviceName) {
-			os.Remove(path)
-			fmt.Printf("saveServiceConfigFile: removed stale config %s (same Name %q, old Id %s)\n", e.Name(), serviceName, fileId)
-		}
-	}
-}
-
-// DumpServiceConfigsToDisk reads all service configs from etcd and writes
-// each one to <ServicesConfigDir>/<id>.json.  This is useful after an etcd
-// snapshot restore so that the disk mirror is re-populated before services
-// start.  Errors are collected but never fatal.
+// DumpServiceConfigsToDisk is a no-op. Disk JSON files are no longer written.
+// etcd is the single source of truth; backup/restore operates on etcd snapshots.
+// Retained for API compatibility with restore_provider.go.
 func DumpServiceConfigsToDisk() (int, []string) {
-	cfgs, err := GetServicesConfigurations()
-	if err != nil {
-		return 0, []string{fmt.Sprintf("list services: %v", err)}
-	}
-
-	var errs []string
-	count := 0
-	for _, cfg := range cfgs {
-		id := Utility.ToString(cfg["Id"])
-		if id == "" {
-			continue
-		}
-		if err := saveServiceConfigFile(id, cfg); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", id, err))
-			continue
-		}
-		count++
-	}
-	return count, errs
+	return 0, nil
 }
