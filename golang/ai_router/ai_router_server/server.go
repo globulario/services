@@ -96,6 +96,9 @@ type server struct {
 	// Cluster context (deployment/recovery awareness)
 	context_ *clusterContext
 
+	// Learning store (ai_memory integration for historical patterns)
+	learning *learningStore
+
 	// Runtime stats
 	stats     routerStats
 	statsMu   sync.Mutex
@@ -222,6 +225,7 @@ func (srv *server) Init() error {
 	srv.anomalies = newAnomalyTracker()
 	srv.drains = newDrainManager()
 	srv.context_ = newClusterContext()
+	srv.learning = newLearningStore()
 	srv.startedAt = time.Now()
 
 	return nil

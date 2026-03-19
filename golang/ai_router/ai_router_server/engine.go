@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/globulario/services/golang/ai_router/ai_routerpb"
@@ -204,6 +205,37 @@ func (srv *server) scoringLoop() {
 		srv.stats.PoliciesComputed++
 		srv.stats.LastPolicyAt = time.Now()
 		srv.statsMu.Unlock()
+
+		// Phase 6: Record notable decisions in ai_memory for learning.
+		if (changed > 0 || len(clamps) > 0 || len(drainEvents) > 0) && mode == ai_routerpb.RouterMode_ROUTER_ACTIVE {
+			go func() {
+				var epRecords []endpointDecisionRecord
+				for _, r := range results {
+					if r.Weight < 90 || r.Score > 0.3 {
+						epRecords = append(epRecords, endpointDecisionRecord{
+							Service:  r.Service,
+							Instance: r.Instance,
+							Score:    round2(r.Score),
+							Weight:   r.Weight,
+							Reasons:  r.Reasons,
+						})
+					}
+				}
+				srv.learning.recordDecision(ctx, &routingDecisionRecord{
+					Cycle:            cycle,
+					Mode:             mode.String(),
+					Confidence:       confidence,
+					EndpointsChanged: changed,
+					SafetyClamps:     len(clamps),
+					ActiveDrains:     srv.drains.activeDrains(),
+					Summary:          fmt.Sprintf("cycle %d: %d changes, %d clamps", cycle, changed, len(clamps)),
+					Endpoints:        epRecords,
+					CPU:              round2(node.CPUUsage),
+					Memory:           round2(node.MemoryUsage),
+					Timestamp:        time.Now(),
+				})
+			}()
+		}
 
 		// Publish drain events.
 		for _, de := range drainEvents {
