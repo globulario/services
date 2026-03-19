@@ -37,154 +37,19 @@ const (
 	RoleNodeExecutor = "globular-node-executor"
 )
 
-// RolePermissions maps each role to the set of gRPC method paths it is
-// allowed to call.  These are the MINIMUM permission sets for each role;
-// admins can always expand them via the RBAC service.
+// RolePermissions maps each role to the set of gRPC method paths or stable
+// action keys it is allowed to call.
+//
+// Loaded exclusively from an external cluster-roles.json policy file.
+// Search order:
+//  1. /etc/globular/policy/rbac/cluster-roles.json          (admin override)
+//  2. /var/lib/globular/policy/rbac/cluster-roles.generated.json  (package-shipped)
+//  3. /var/lib/globular/policy/rbac/cluster-roles.json       (legacy)
 //
 // "/*" is the global wildcard: grants access to every gRPC method.
 // "/pkg.Service/*" is a service wildcard: grants access to all methods in
 // the named service.
-var RolePermissions = map[string][]string{
-	// -------------------------------------------------------------------------
-	// Admin: unrestricted access
-	// -------------------------------------------------------------------------
-	RoleAdmin: {"/*"},
-
-	// -------------------------------------------------------------------------
-	// Publisher: artifact/service publishing pipeline
-	// -------------------------------------------------------------------------
-	RolePublisher: {
-		"/discovery.PackageDiscovery/PublishService",
-		"/discovery.PackageDiscovery/PublishApplication",
-		"/repository.PackageRepository/UploadArtifact",
-		"/repository.PackageRepository/UploadBundle",
-		// Read-back for verification after publish
-		"/repository.PackageRepository/GetArtifactManifest",
-		"/repository.PackageRepository/ListArtifacts",
-		"/discovery.PackageDiscovery/GetPackageDescriptor",
-	},
-
-	// -------------------------------------------------------------------------
-	// Operator: service lifecycle + domain management
-	// -------------------------------------------------------------------------
-	RoleOperator: {
-		// ServiceRelease CRUD
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
-		"/clustercontroller.ResourcesService/GetServiceRelease",
-		"/clustercontroller.ResourcesService/ListServiceReleases",
-		"/clustercontroller.ResourcesService/DeleteServiceRelease",
-		// Desired-version management
-		"/clustercontroller.ResourcesService/ApplyServiceDesiredVersion",
-		"/clustercontroller.ResourcesService/DeleteServiceDesiredVersion",
-		"/clustercontroller.ResourcesService/ListServiceDesiredVersions",
-		// Node plans (apply and inspect)
-		"/clustercontroller.ClusterControllerService/ApplyNodePlan",
-		"/clustercontroller.ClusterControllerService/GetNodePlan",
-		"/clustercontroller.ClusterControllerService/ListNodes",
-		// Cluster lifecycle
-		"/clustercontroller.ClusterControllerService/UpgradeGlobular",
-		"/clustercontroller.ClusterControllerService/UpdateClusterNetwork",
-		// Domain / DNS management
-		"/dns.DnsService/*",
-		// Health / status (read)
-		"/clustercontroller.ClusterControllerService/GetClusterHealth",
-		"/clustercontroller.ClusterControllerService/GetClusterInfo",
-	},
-
-	// -------------------------------------------------------------------------
-	// Controller SA: least-privilege for cluster-controller automation
-	// -------------------------------------------------------------------------
-	RoleControllerSA: {
-		// Read ServiceRelease (needed to compute reconciliation diff)
-		"/clustercontroller.ResourcesService/GetServiceRelease",
-		"/clustercontroller.ResourcesService/ListServiceReleases",
-		// Apply desired-version state (output of reconcile)
-		"/clustercontroller.ResourcesService/ApplyServiceDesiredVersion",
-		"/clustercontroller.ResourcesService/ListServiceDesiredVersions",
-		// Apply node plans (schedule work on agents)
-		"/clustercontroller.ClusterControllerService/ApplyNodePlan",
-		"/clustercontroller.ClusterControllerService/GetNodePlan",
-		// Read node status
-		"/clustercontroller.ClusterControllerService/ListNodes",
-		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
-		// Watch for streaming updates
-		"/clustercontroller.ResourcesService/Watch",
-		"/clustercontroller.ClusterControllerService/WatchOperations",
-		// Complete operations
-		"/clustercontroller.ClusterControllerService/CompleteOperation",
-		// Cluster network (read)
-		"/clustercontroller.ResourcesService/GetClusterNetwork",
-		// Health (read)
-		"/clustercontroller.ClusterControllerService/GetClusterHealth",
-		"/clustercontroller.ClusterControllerService/GetClusterInfo",
-	},
-
-	// -------------------------------------------------------------------------
-	// Node executor: per-node scoped role for node_<uuid> principals
-	// -------------------------------------------------------------------------
-	RoleNodeExecutor: {
-		// Report own status to controller
-		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
-		// Report plan rejections
-		"/clustercontroller.ClusterControllerService/ReportPlanRejection",
-		// Join workflow (needed during bootstrap)
-		"/clustercontroller.ClusterControllerService/RequestJoin",
-		"/clustercontroller.ClusterControllerService/GetJoinRequestStatus",
-		// Execute plans addressed to this node
-		"/nodeagent.NodeAgentService/ApplyPlan",
-		"/nodeagent.NodeAgentService/ApplyPlanV1",
-		"/nodeagent.NodeAgentService/GetPlanStatusV1",
-		"/nodeagent.NodeAgentService/WatchPlanStatusV1",
-		"/nodeagent.NodeAgentService/WatchOperation",
-		"/nodeagent.NodeAgentService/GetInventory",
-		// Installed-state reporting (own node only)
-		"/nodeagent.NodeAgentService/ListInstalledPackages",
-		"/nodeagent.NodeAgentService/GetInstalledPackage",
-		// Download artifacts from repository (v1: unauthenticated; listed for audit)
-		"/repository.PackageRepository/DownloadArtifact",
-		"/repository.PackageRepository/GetArtifactManifest",
-		// Notify controller when plan execution completes
-		"/clustercontroller.ClusterControllerService/CompleteOperation",
-		// Cluster info needed for plan execution
-		"/clustercontroller.ClusterControllerService/GetClusterInfo",
-		"/clustercontroller.ResourcesService/GetClusterNetwork",
-		// DNS operations needed during network reconciliation and ACME cert issuance
-		// (node-agent calls local DNS service during plan execution)
-		"/dns.DnsService/SetDomains",
-		"/dns.DnsService/SetA",
-		"/dns.DnsService/SetAAAA",
-		"/dns.DnsService/SetSoa",
-		"/dns.DnsService/SetNs",
-		"/dns.DnsService/SetTXT",
-		"/dns.DnsService/RemoveTXT",
-		"/dns.DnsService/GetTXT",
-		// Backup/restore operations (own node)
-		"/nodeagent.NodeAgentService/RunBackupProvider",
-		"/nodeagent.NodeAgentService/GetBackupTaskResult",
-		"/nodeagent.NodeAgentService/RunRestoreProvider",
-		"/nodeagent.NodeAgentService/GetRestoreTaskResult",
-	},
-
-	// -------------------------------------------------------------------------
-	// Node-agent SA: least-privilege for per-node agent processes
-	// -------------------------------------------------------------------------
-	RoleNodeAgentSA: {
-		// Report own status
-		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
-		// Request and complete join workflow
-		"/clustercontroller.ClusterControllerService/RequestJoin",
-		"/clustercontroller.ClusterControllerService/GetJoinRequestStatus",
-		// Execute plans addressed to this node
-		"/nodeagent.NodeAgentService/ApplyPlan",
-		"/nodeagent.NodeAgentService/WatchOperation",
-		"/nodeagent.NodeAgentService/GetInventory",
-		// Bootstrap (restricted to loopback by BootstrapGate during Day-0)
-		"/nodeagent.NodeAgentService/BootstrapFirstNode",
-		// Cluster info needed for plan execution
-		"/clustercontroller.ClusterControllerService/GetClusterInfo",
-		"/clustercontroller.ResourcesService/GetClusterNetwork",
-	},
-}
+var RolePermissions map[string][]string
 
 // methodSet is the set of exact gRPC methods listed in RolePermissions
 // (excluding global "/*" wildcard, but including service-wildcard prefixes).
@@ -194,11 +59,13 @@ var (
 )
 
 func init() {
-	// Try loading cluster roles from external policy file; merge with compiled defaults.
+	// Load cluster roles from external policy file (required).
 	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
-		// External file replaces compiled defaults entirely.
 		RolePermissions = extRoles
-		slog.Info("security: using cluster roles from external policy file")
+		slog.Info("security: loaded cluster roles from external policy file", "roles", len(extRoles))
+	} else {
+		slog.Warn("security: no cluster-roles.json found — RolePermissions is empty; all role-binding checks will deny")
+		RolePermissions = make(map[string][]string)
 	}
 
 	rebuildMethodIndex()
@@ -327,9 +194,9 @@ func matchesPermission(perm, action string) bool {
 	return false
 }
 
-// EnsureBuiltinRolesExist verifies that all built-in roles (including
-// node-executor) exist in the role permission map. This is called at
-// cluster bootstrap to guarantee that role bindings never target missing roles.
+// EnsureBuiltinRolesExist verifies that the expected roles exist in the
+// loaded RolePermissions map. Called at cluster bootstrap to guarantee
+// that role bindings never target missing roles.
 // Returns an error listing any missing roles.
 func EnsureBuiltinRolesExist() error {
 	required := []string{RoleAdmin, RolePublisher, RoleOperator, RoleControllerSA, RoleNodeAgentSA, RoleNodeExecutor}
@@ -340,7 +207,7 @@ func EnsureBuiltinRolesExist() error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("missing built-in roles in RolePermissions: %v", missing)
+		return fmt.Errorf("missing roles in cluster-roles.json: %v — ensure the policy file is deployed", missing)
 	}
 	return nil
 }

@@ -1,0 +1,95 @@
+{
+  "version": "1.0.0",
+  "roles": {
+    "globular-admin": ["/*"],
+
+    "globular-publisher": [
+      "/discovery.PackageDiscovery/PublishService",
+      "/discovery.PackageDiscovery/PublishApplication",
+      "/repository.PackageRepository/UploadArtifact",
+      "/repository.PackageRepository/UploadBundle",
+      "/repository.PackageRepository/GetArtifactManifest",
+      "/repository.PackageRepository/ListArtifacts",
+      "/discovery.PackageDiscovery/GetPackageDescriptor"
+    ],
+
+    "globular-operator": [
+      "/clustercontroller.ResourcesService/ApplyServiceRelease",
+      "/clustercontroller.ResourcesService/GetServiceRelease",
+      "/clustercontroller.ResourcesService/ListServiceReleases",
+      "/clustercontroller.ResourcesService/DeleteServiceRelease",
+      "/clustercontroller.ResourcesService/ApplyServiceDesiredVersion",
+      "/clustercontroller.ResourcesService/DeleteServiceDesiredVersion",
+      "/clustercontroller.ResourcesService/ListServiceDesiredVersions",
+      "/clustercontroller.ClusterControllerService/ApplyNodePlan",
+      "/clustercontroller.ClusterControllerService/GetNodePlan",
+      "/clustercontroller.ClusterControllerService/ListNodes",
+      "/clustercontroller.ClusterControllerService/UpgradeGlobular",
+      "/clustercontroller.ClusterControllerService/UpdateClusterNetwork",
+      "/dns.DnsService/*",
+      "/clustercontroller.ClusterControllerService/GetClusterHealth",
+      "/clustercontroller.ClusterControllerService/GetClusterInfo"
+    ],
+
+    "globular-controller-sa": [
+      "/clustercontroller.ResourcesService/GetServiceRelease",
+      "/clustercontroller.ResourcesService/ListServiceReleases",
+      "/clustercontroller.ResourcesService/ApplyServiceDesiredVersion",
+      "/clustercontroller.ResourcesService/ListServiceDesiredVersions",
+      "/clustercontroller.ClusterControllerService/ApplyNodePlan",
+      "/clustercontroller.ClusterControllerService/GetNodePlan",
+      "/clustercontroller.ClusterControllerService/ListNodes",
+      "/clustercontroller.ClusterControllerService/ReportNodeStatus",
+      "/clustercontroller.ResourcesService/Watch",
+      "/clustercontroller.ClusterControllerService/WatchOperations",
+      "/clustercontroller.ClusterControllerService/CompleteOperation",
+      "/clustercontroller.ResourcesService/GetClusterNetwork",
+      "/clustercontroller.ClusterControllerService/GetClusterHealth",
+      "/clustercontroller.ClusterControllerService/GetClusterInfo"
+    ],
+
+    "globular-node-agent-sa": [
+      "/clustercontroller.ClusterControllerService/ReportNodeStatus",
+      "/clustercontroller.ClusterControllerService/RequestJoin",
+      "/clustercontroller.ClusterControllerService/GetJoinRequestStatus",
+      "/nodeagent.NodeAgentService/ApplyPlan",
+      "/nodeagent.NodeAgentService/WatchOperation",
+      "/nodeagent.NodeAgentService/GetInventory",
+      "/nodeagent.NodeAgentService/BootstrapFirstNode",
+      "/clustercontroller.ClusterControllerService/GetClusterInfo",
+      "/clustercontroller.ResourcesService/GetClusterNetwork"
+    ],
+
+    "globular-node-executor": [
+      "/clustercontroller.ClusterControllerService/ReportNodeStatus",
+      "/clustercontroller.ClusterControllerService/ReportPlanRejection",
+      "/clustercontroller.ClusterControllerService/RequestJoin",
+      "/clustercontroller.ClusterControllerService/GetJoinRequestStatus",
+      "/nodeagent.NodeAgentService/ApplyPlan",
+      "/nodeagent.NodeAgentService/ApplyPlanV1",
+      "/nodeagent.NodeAgentService/GetPlanStatusV1",
+      "/nodeagent.NodeAgentService/WatchPlanStatusV1",
+      "/nodeagent.NodeAgentService/WatchOperation",
+      "/nodeagent.NodeAgentService/GetInventory",
+      "/nodeagent.NodeAgentService/ListInstalledPackages",
+      "/nodeagent.NodeAgentService/GetInstalledPackage",
+      "/repository.PackageRepository/DownloadArtifact",
+      "/repository.PackageRepository/GetArtifactManifest",
+      "/clustercontroller.ClusterControllerService/CompleteOperation",
+      "/clustercontroller.ClusterControllerService/GetClusterInfo",
+      "/clustercontroller.ResourcesService/GetClusterNetwork",
+      "/dns.DnsService/SetDomains",
+      "/dns.DnsService/SetA",
+      "/dns.DnsService/SetAAAA",
+      "/dns.DnsService/SetSoa",
+      "/dns.DnsService/SetNs",
+      "/dns.DnsService/SetTXT",
+      "/dns.DnsService/RemoveTXT",
+      "/dns.DnsService/GetTXT",
+      "/nodeagent.NodeAgentService/RunBackupProvider",
+      "/nodeagent.NodeAgentService/GetBackupTaskResult",
+      "/nodeagent.NodeAgentService/RunRestoreProvider",
+      "/nodeagent.NodeAgentService/GetRestoreTaskResult"
+    ]
+  }
+}
