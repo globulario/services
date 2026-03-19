@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
@@ -138,12 +139,26 @@ func (srv *server) run() {
 				if srv.ring != nil {
 					srv.ring.append(name, data)
 				}
-				uuids := channels[name]
-				if uuids == nil {
+				// Collect all subscriber UUIDs matching this event name.
+				// Supports exact match and wildcard patterns (e.g. "cluster.*"
+				// matches "cluster.health_changed").
+				seen := make(map[string]bool)
+				var matchedUUIDs []string
+				for pattern, puuids := range channels {
+					if matchesChannel(pattern, name) {
+						for _, u := range puuids {
+							if !seen[u] {
+								seen[u] = true
+								matchedUUIDs = append(matchedUUIDs, u)
+							}
+						}
+					}
+				}
+				if len(matchedUUIDs) == 0 {
 					continue
 				}
 				var toDelete []string
-				for _, uuid := range uuids {
+				for _, uuid := range matchedUUIDs {
 					stream := streams[uuid]
 					if stream == nil {
 						toDelete = append(toDelete, uuid)
@@ -234,6 +249,23 @@ func (srv *server) cleanupSubscribers(
 
 		srv.logger.Info("subscriber cleanup", "uuid", uuid)
 	}
+}
+
+// matchesChannel returns true if the subscription pattern matches the event name.
+// Supports exact match ("cluster.health" == "cluster.health") and glob-style
+// wildcard ("cluster.*" matches "cluster.health", "cluster.drift", etc.).
+func matchesChannel(pattern, eventName string) bool {
+	if pattern == eventName {
+		return true
+	}
+	if strings.HasSuffix(pattern, ".*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(eventName, prefix)
+	}
+	if pattern == "*" {
+		return true
+	}
+	return false
 }
 
 func (srv *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventpb.QuitResponse, error) {
