@@ -83,10 +83,24 @@ func etcdKey(id, leaf string) string {
 // the services config directory (default: /var/lib/globular/services)
 // and applies them to etcd by calling SaveServiceConfiguration for each.
 //
-// It is safe to call this on every startup: it will simply re-assert the
-// desired configs into etcd (overwriting whatever was there with the
-// file's contents).
+// This only runs when etcd contains NO service configs (cold recovery after
+// data-dir loss). On normal startup etcd is authoritative and the disk
+// JSON files are just a backup mirror — re-asserting them unconditionally
+// would resurrect services that were intentionally removed.
 func BootstrapServicesFromFiles() error {
+	// Check if etcd already has service configs — if so, etcd is
+	// authoritative and we must not overwrite it from disk.
+	existing, err := GetServicesConfigurations()
+	if err != nil {
+		// etcd unavailable — skip bootstrap, caller will retry later.
+		fmt.Printf("BootstrapServicesFromFiles: etcd unavailable, skipping: %v\n", err)
+		return nil
+	}
+	if len(existing) > 0 {
+		fmt.Printf("BootstrapServicesFromFiles: etcd already has %d service configs, skipping disk bootstrap\n", len(existing))
+		return nil
+	}
+
 	dir := GetServicesConfigDir()
 
 	fi, err := os.Stat(dir)
@@ -143,7 +157,7 @@ func BootstrapServicesFromFiles() error {
 		count++
 	}
 
-	fmt.Printf("BootstrapServicesFromFiles: loaded %d service configs from %s\n", count, dir)
+	fmt.Printf("BootstrapServicesFromFiles: recovered %d service configs from %s to etcd\n", count, dir)
 	return nil
 }
 

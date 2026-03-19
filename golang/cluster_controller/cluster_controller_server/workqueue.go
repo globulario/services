@@ -41,6 +41,7 @@ type workQueue struct {
 	mu       sync.Mutex
 	pending  map[string]struct{}
 	inFlight map[string]struct{}
+	dirty    map[string]struct{} // enqueued while in-flight — needs re-processing
 	rl       *rateLimiter
 }
 
@@ -49,6 +50,7 @@ func newWorkQueue(size int) *workQueue {
 		ch:       make(chan string, size),
 		pending:  make(map[string]struct{}),
 		inFlight: make(map[string]struct{}),
+		dirty:    make(map[string]struct{}),
 		rl:       newRateLimiter(),
 	}
 }
@@ -60,6 +62,10 @@ func (q *workQueue) Enqueue(key string) {
 		return
 	}
 	if _, ok := q.inFlight[key]; ok {
+		// Mark dirty so Done() re-enqueues after the current processing finishes.
+		// Without this, watch events that arrive while a key is being processed
+		// (e.g. PENDING→RESOLVED transition) are silently lost.
+		q.dirty[key] = struct{}{}
 		return
 	}
 	q.pending[key] = struct{}{}
@@ -93,10 +99,23 @@ func (q *workQueue) Get(ctx context.Context) (string, bool) {
 func (q *workQueue) Done(key string, err error) {
 	q.mu.Lock()
 	delete(q.inFlight, key)
+	wasDirty := false
+	if _, ok := q.dirty[key]; ok {
+		delete(q.dirty, key)
+		wasDirty = true
+	}
 	q.mu.Unlock()
+
 	if err == nil {
 		q.rl.forget(key)
+	} else {
+		q.EnqueueAfter(key, q.rl.backoff(key))
 		return
 	}
-	q.EnqueueAfter(key, q.rl.backoff(key))
+
+	// If a new event arrived while we were processing this key,
+	// re-enqueue immediately so the updated state is reconciled.
+	if wasDirty {
+		q.Enqueue(key)
+	}
 }

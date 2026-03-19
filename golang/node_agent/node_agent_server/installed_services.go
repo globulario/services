@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/plan/versionutil"
 )
@@ -54,7 +52,12 @@ func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServ
 	}
 
 	loadMarkers(ctx, byService, recordErr)
-	loadServiceConfigs(ctx, byService, recordErr)
+	// NOTE: loadServiceConfigs intentionally removed — disk JSON files
+	// (/var/lib/globular/services/*.json) are a mirror of etcd, not an
+	// independent source of truth. Reading them here created a resurrection
+	// vector: after package.clear_state deleted the etcd record, the disk
+	// file could re-create the installed-state record on the next heartbeat.
+	// Version markers + systemd units are sufficient for local discovery.
 	loadSystemdUnits(ctx, byService, recordErr)
 
 	inst := make(map[ServiceKey]InstalledServiceInfo, len(byService))
@@ -139,68 +142,6 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 	}
 }
 
-func loadServiceConfigs(ctx context.Context, byService map[string]*InstalledServiceInfo, recordErr func(error)) {
-	cfgRoot := config.GetServicesConfigDir()
-	entries, err := os.ReadDir(cfgRoot)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			recordErr(fmt.Errorf("list service configs: %w", err))
-		}
-		return
-	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		if err := ctx.Err(); err != nil {
-			recordErr(err)
-			return
-		}
-		path := filepath.Join(cfgRoot, name)
-		info, err := os.Stat(path)
-		if err != nil {
-			recordErr(fmt.Errorf("stat %s: %w", path, err))
-			continue
-		}
-		if info.IsDir() || filepath.Ext(name) != ".json" {
-			continue
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			recordErr(fmt.Errorf("read service config %s: %w", path, err))
-			continue
-		}
-		var raw map[string]interface{}
-		if err := json.Unmarshal(data, &raw); err != nil {
-			recordErr(fmt.Errorf("parse service config %s: %w", path, err))
-			continue
-		}
-		svc := canonicalServiceName(extractString(raw, "Name", "ServiceName", "service_name", "service"))
-		if svc == "" {
-			continue
-		}
-		entry := ensureServiceEntry(byService, svc)
-		if entry.ServiceName == "" {
-			entry.ServiceName = svc
-		}
-		if entry.Version == "" {
-			if v := extractString(raw, "Version", "version"); v != "" {
-				entry.Version = v
-			}
-		}
-		if entry.PublisherID == "" {
-			entry.PublisherID = extractString(raw, "PublisherID", "publisher_id", "PublisherId", "publisherId", "Publisher")
-		}
-		if len(entry.Config) == 0 {
-			if cfg := extractStringMap(raw, "Config", "config"); len(cfg) > 0 {
-				entry.Config = cfg
-			}
-		}
-	}
-}
 
 // loadSystemdUnits discovers active globular-*.service systemd units and adds
 // them as installed services when they were not already found by markers or
@@ -321,28 +262,3 @@ func canonicalServiceName(name string) string {
 	return key
 }
 
-func extractString(raw map[string]interface{}, keys ...string) string {
-	for _, k := range keys {
-		if v, ok := raw[k]; ok {
-			if s, ok := v.(string); ok {
-				return strings.TrimSpace(s)
-			}
-		}
-	}
-	return ""
-}
-
-func extractStringMap(raw map[string]interface{}, keys ...string) map[string]string {
-	for _, k := range keys {
-		if v, ok := raw[k]; ok {
-			if m, ok := v.(map[string]interface{}); ok {
-				out := make(map[string]string, len(m))
-				for mk, mv := range m {
-					out[mk] = fmt.Sprint(mv)
-				}
-				return out
-			}
-		}
-	}
-	return nil
-}
