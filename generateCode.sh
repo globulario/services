@@ -40,6 +40,7 @@ GO_TARGETS=(
   "backup_hook:golang/backup_hook/backup_hookpb"
   "ai_memory:golang/ai_memory/ai_memorypb"
   "ai_watcher:golang/ai_watcher/ai_watcherpb"
+  "ai_router:golang/ai_router/ai_routerpb"
 )
 
 TS_TARGETS=(

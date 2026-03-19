@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+package ai_router;
+
+option go_package = "github.com/globulario/services/golang/ai_router/ai_routerpb";
+
+// AiRouterService is a control-plane routing policy engine that computes
+// dynamic endpoint weights, circuit breaker overrides, and drain strategies
+// based on real-time metrics, anomaly signals, and historical patterns.
+//
+// It does NOT sit in the request path. It shapes the xDS configuration
+// that Envoy uses to distribute traffic.
+service AiRouterService {
+
+    // GetRoutingPolicy returns the current routing policy for all or one service.
+    // Called by the xDS watcher every sync cycle (~5 seconds).
+    // Returns empty/neutral policy when the router has no opinion.
+    rpc GetRoutingPolicy(GetRoutingPolicyRequest) returns (GetRoutingPolicyResponse);
+
+    // GetStatus returns operational status: mode, uptime, policies served, etc.
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+
+    // SetMode switches between neutral, observe, and active modes.
+    rpc SetMode(SetModeRequest) returns (SetModeResponse);
+
+    // GetServiceClassifications returns the current service class map.
+    rpc GetServiceClassifications(GetServiceClassificationsRequest) returns (GetServiceClassificationsResponse);
+
+    // Stop gracefully shuts down the router.
+    rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// ── Service Classification ────────────────────────────────────────────────────
+
+enum ServiceClass {
+    SERVICE_CLASS_UNSPECIFIED   = 0;
+    STATELESS_UNARY            = 1; // default: per-request balancing, fast drain
+    STREAM_HEAVY               = 2; // long-lived streams, slow drain
+    CONTROL_PLANE              = 3; // must always be reachable, min weight
+    DEPLOYMENT_SENSITIVE       = 4; // needs warm-up after restart
+}
+
+// ── Router Mode ───────────────────────────────────────────────────────────────
+
+enum RouterMode {
+    ROUTER_NEUTRAL = 0; // no routing opinion, passthrough
+    ROUTER_OBSERVE = 1; // compute policies, log but don't apply
+    ROUTER_ACTIVE  = 2; // compute and apply policies
+}
+
+// ── Routing Policy ────────────────────────────────────────────────────────────
+
+message RoutingPolicy {
+    // Per-service routing decisions.
+    map<string, ServicePolicy> services = 1;
+
+    // Monotonically increasing generation number.
+    uint64 generation = 2;
+
+    // When this policy was computed (Unix ms).
+    int64 computed_at_ms = 3;
+
+    // Router mode when this policy was generated.
+    RouterMode mode = 4;
+}
+
+message ServicePolicy {
+    // Endpoint weights: "ip:port" → weight (1-100, 0 = draining).
+    map<string, uint32> weights = 1;
+
+    // Endpoints being drained.
+    repeated DrainEntry drain = 2;
+
+    // Circuit breaker overrides (empty = use defaults).
+    CircuitBreakerOverride circuit_breaker = 3;
+
+    // Outlier detection config (empty = use defaults).
+    OutlierDetectionOverride outlier_detection = 4;
+
+    // Retry policy (empty = no retries).
+    RetryPolicyOverride retry_policy = 5;
+
+    // Service classification.
+    ServiceClass service_class = 6;
+
+    // Decision metadata.
+    float confidence = 7;     // 0.0-1.0
+    repeated string reasons = 8; // human-readable explanation
+}
+
+message DrainEntry {
+    string endpoint = 1;
+    string reason = 2;
+    int64 started_at_ms = 3;
+    int64 grace_period_ms = 4;
+}
+
+message CircuitBreakerOverride {
+    uint32 max_connections = 1;
+    uint32 max_pending_requests = 2;
+    uint32 max_requests = 3;
+    uint32 max_retries = 4;
+}
+
+message OutlierDetectionOverride {
+    uint32 consecutive_5xx = 1;
+    uint32 interval_ms = 2;
+    uint32 base_ejection_time_ms = 3;
+    uint32 max_ejection_percent = 4;
+}
+
+message RetryPolicyOverride {
+    string retry_on = 1;    // e.g. "5xx,reset,connect-failure"
+    uint32 num_retries = 2;
+    uint32 backoff_ms = 3;
+}
+
+// ── RPC Messages ──────────────────────────────────────────────────────────────
+
+message GetRoutingPolicyRequest {
+    // If empty, return policy for all services.
+    // If set, return policy for this service only.
+    string service_name = 1;
+}
+
+message GetRoutingPolicyResponse {
+    RoutingPolicy policy = 1;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+    RouterMode mode = 1;
+    string version = 2;
+    int64 uptime_seconds = 3;
+    int64 policies_computed = 4;
+    int64 policies_applied = 5;
+    int64 last_policy_at_ms = 6;
+    int64 last_metrics_at_ms = 7;
+    int32 services_tracked = 8;
+    int32 endpoints_tracked = 9;
+}
+
+message SetModeRequest {
+    RouterMode mode = 1;
+}
+
+message SetModeResponse {
+    RouterMode previous_mode = 1;
+    RouterMode current_mode = 2;
+}
+
+message GetServiceClassificationsRequest {}
+
+message GetServiceClassificationsResponse {
+    map<string, ServiceClass> classifications = 1;
+}
+
+message StopRequest {}
+message StopResponse {}
