@@ -19,7 +19,9 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
+	globular_client "github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/gocql/gocql"
 	"google.golang.org/grpc"
@@ -265,14 +267,16 @@ func (srv *server) eventLoop() {
 			continue
 		}
 
-		// Connect to event service.
+		// Connect to event service via standard discovery pattern.
 		eventAddr := srv.resolveEventEndpoint()
-		client, err := event_client.NewEventService_Client(eventAddr, srv.Id)
+		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+		c, err := globular_client.GetClient(eventAddr, "event.EventService", "NewEventService_Client")
 		if err != nil {
 			logger.Error("event service connection failed, retrying in 10s", "err", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
+		client := c.(*event_client.Event_Client)
 		srv.eventClient = client
 
 		logger.Info("connected to event service", "address", eventAddr)

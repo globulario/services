@@ -3,6 +3,7 @@ package event_client
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
@@ -64,10 +65,10 @@ type Event_Client struct {
 	actions chan map[string]interface{}
 
 	// Return true if the client is connected.
-	isConnected bool
+	isConnected atomic.Bool
 
 	// it will be started at first subjecribe...
-	isRunning bool
+	isRunning atomic.Bool
 }
 
 // Create a connection to the service.
@@ -82,7 +83,7 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	client.uuid = Utility.RandomUUID()
 
 	// The channel where data will be exchange.
-	client.actions = make(chan map[string]interface{})
+	client.actions = make(chan map[string]interface{}, 64)
 
 	err = client.Reconnect()
 	if err != nil {
@@ -119,9 +120,9 @@ func (client *Event_Client) Reconnect() error {
 func (client *Event_Client) run() error {
 
 	// Create the channel.
-	data_channel := make(chan *eventpb.Event, 0)
-	keep_alive := make(chan *eventpb.KeepAlive, 0)
-	exit := make(chan bool, 0)
+	data_channel := make(chan *eventpb.Event, 100)
+	keep_alive := make(chan *eventpb.KeepAlive, 1)
+	exit := make(chan bool, 1)
 
 	// start listenting to events from the server...
 	err := client.onEvent(client.uuid, data_channel, keep_alive, exit)
@@ -131,7 +132,7 @@ func (client *Event_Client) run() error {
 
 	// the map that will contain the event handler.
 	handlers := make(map[string]map[string]func(*eventpb.Event))
-	client.isRunning = true
+	client.isRunning.Store(true)
 
 	//
 
@@ -139,20 +140,33 @@ func (client *Event_Client) run() error {
 		select {
 		case <-exit:
 
+			// Close old connection before reconnecting.
+			if client.cc != nil {
+				client.cc.Close()
+			}
+
+			// Give the server a moment to come back.
+			time.Sleep(2 * time.Second)
+
 			/** So here I will try to reconnect **/
 			err := client.Reconnect()
 			if err != nil {
 				return err
 			}
 
-			time.Sleep(5 * time.Second)
-			nb_try_connect := 10 // give service time to restart 10 * 500ms so 5 sec
+			// Drain any stale exit signals from the old stream goroutine.
+			select {
+			case <-exit:
+			default:
+			}
+
+			nb_try_connect := 10
 
 			for i := 0; i < nb_try_connect; i++ {
 				// Now I will reconnect the stream...
 				err = client.onEvent(client.uuid, data_channel, keep_alive, exit)
 				if err == nil {
-					// I will reconnect subscribers...
+					// Re-subscribe all handlers on the server.
 					for name, listeners := range handlers {
 						for uuid := range listeners {
 							rqst := &eventpb.SubscribeRequest{
@@ -201,8 +215,8 @@ func (client *Event_Client) run() error {
 					}
 				}
 			} else if action["action"].(string) == "stop" {
-				client.isConnected = false
-				client.isRunning = false
+				client.isConnected.Store(false)
+				client.isRunning.Store(false)
 				break
 			}
 		}
@@ -267,16 +281,21 @@ func (client *Event_Client) GetMac() string {
 func (client *Event_Client) Close() {
 
 	// nothing to do if the client is not connected.
-	if !client.isConnected {
+	if !client.isConnected.Load() && !client.isRunning.Load() {
 		return
 	}
 
-	client.cc.Close()
+	client.isConnected.Store(false)
 
-	action := make(map[string]interface{})
-	action["action"] = "stop"
-	// set the action.
-	client.actions <- action
+	// Signal the run loop to stop (non-blocking in case it already exited).
+	select {
+	case client.actions <- map[string]interface{}{"action": "stop"}:
+	default:
+	}
+
+	if client.cc != nil {
+		client.cc.Close()
+	}
 }
 
 // Set grpc_service port.
@@ -388,27 +407,35 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
 		return err
 	}
 
-	client.isConnected = true
+	client.isConnected.Store(true)
 
 	// Run in it own goroutine.
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err != nil || !client.isConnected || msg == nil {
-				// end of stream...
-				client.Close()
-				stream.CloseSend()
-				client.isConnected = false
-				exit <- true
+			if err != nil || !client.isConnected.Load() || msg == nil {
+				// Stream broke — signal reconnect (don't call Close which stops the run loop).
+				client.isConnected.Store(false)
+				select {
+				case exit <- true:
+				default:
+				}
 				return
 			}
 
 			// Get the result...
 			switch op := msg.Data.(type) {
 			case *eventpb.OnEventResponse_Evt:
-				data_channel <- op.Evt
+				select {
+				case data_channel <- op.Evt:
+				default:
+					// drop event if handler is too slow
+				}
 			case *eventpb.OnEventResponse_Ka:
-				keep_alive <- op.Ka
+				select {
+				case keep_alive <- op.Ka:
+				default:
+				}
 			}
 		}
 
@@ -422,7 +449,7 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
  * Maximize chance to connect with the event server...
  **/
 func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
-	if !client.isRunning {
+	if !client.isRunning.Load() {
 		// Open a connection with the server. In case the server is not readyz
 		// It will wait 5 second and try it again.
 		nb_try_connect := 10
@@ -439,23 +466,16 @@ func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *ev
 		}()
 	}
 
-	registered := false
-	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
-
-		err := client.subscribe(name, uuid, fct)
-		if err == nil {
-			registered = true
-		} else {
-			nbTry--
-			time.Sleep(1 * time.Second)
+	var lastErr error
+	for nbTry := 30; nbTry > 0; nbTry-- {
+		lastErr = client.subscribe(name, uuid, fct)
+		if lastErr == nil {
+			return nil
 		}
+		time.Sleep(1 * time.Second)
 	}
 
-	if !registered {
-		return errors.New("fail to subscribe to " + name)
-	}
-
-	return nil
+	return errors.New("fail to subscribe to " + name + ": " + lastErr.Error())
 }
 
 // Subscribe to an event it return it subscriber uuid. The uuid must be use
@@ -520,7 +540,7 @@ func (client *Event_Client) SubscribeCtx(ctx context.Context, name, uuid string,
         ctx = client.GetCtx()
     }
     // ensure the background loop is running
-    if !client.isRunning {
+    if !client.isRunning.Load() {
         go client.run()
     }
 
