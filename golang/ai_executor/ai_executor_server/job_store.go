@@ -123,6 +123,11 @@ func (js *jobStore) approve(incidentID, approvedBy string) (*ai_executorpb.Job, 
 		return nil, fmt.Errorf("job not found: %s", incidentID)
 	}
 
+	// Idempotency: if already approved, return without re-executing.
+	if job.ApprovedBy != "" {
+		return job, nil
+	}
+
 	if job.State != ai_executorpb.JobState_JOB_AWAITING_APPROVAL {
 		return nil, fmt.Errorf("job %s not awaiting approval (state=%s)", incidentID, job.State)
 	}
@@ -133,11 +138,6 @@ func (js *jobStore) approve(incidentID, approvedBy string) (*ai_executorpb.Job, 
 		job.UpdatedAtMs = time.Now().UnixMilli()
 		go js.persistJob(job)
 		return nil, fmt.Errorf("job %s has expired", incidentID)
-	}
-
-	// Idempotency: if already approved, return without re-executing.
-	if job.ApprovedBy != "" {
-		return job, nil
 	}
 
 	job.State = ai_executorpb.JobState_JOB_APPROVED
