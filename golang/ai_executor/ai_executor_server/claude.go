@@ -1,33 +1,24 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
-	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 )
 
-// claudeClient maintains a long-running Claude Code CLI subprocess.
-// Prompts are sent via stdin (stream-json) and responses read from stdout,
-// avoiding cold-start overhead on every incident. Claude Code runs under
-// the user's subscription and has MCP tools wired up (memory, cluster
-// health, node agent, RBAC, etc.) — no separate API key needed.
+// claudeClient invokes the Claude Code CLI per-incident using --print mode.
+// Each call spawns a fresh subprocess with the prompt on stdin and reads
+// a single JSON result from stdout. Claude Code runs under the user's
+// subscription and has MCP tools wired up (memory, cluster health, etc.).
 type claudeClient struct {
 	cliBinary string
-
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	scanner *bufio.Scanner
-	running bool
+	mu        sync.Mutex
 }
 
 func newClaudeClient() *claudeClient {
@@ -62,44 +53,21 @@ func (c *claudeClient) isAvailable() bool {
 	return c.cliBinary != ""
 }
 
-// streamMessage is the JSON envelope sent to Claude CLI via stream-json input.
-type streamMessage struct {
+// cliResult is the JSON object returned by `claude --print --output-format json`.
+type cliResult struct {
 	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
+	Result  string `json:"result"`
+	IsError bool   `json:"is_error"`
 }
 
-// streamResponse is one chunk from Claude CLI's stream-json output.
-type streamResponse struct {
-	Type    string `json:"type"`              // "assistant", "result", "error", etc.
-	Content string `json:"content,omitempty"` // text content for assistant messages
-	Result  string `json:"result,omitempty"`  // final result text
-	Message struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	} `json:"message,omitempty"`
-	Subtype string `json:"subtype,omitempty"`
-}
+// sendPrompt invokes Claude CLI with the given prompt and returns the result text.
+func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-// ensureRunning starts the Claude CLI subprocess if not already running.
-func (c *claudeClient) ensureRunning() error {
-	if c.running {
-		// Check if process is still alive.
-		if c.cmd != nil && c.cmd.Process != nil {
-			if c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited() {
-				c.running = false
-			} else {
-				return nil
-			}
-		}
-	}
-
-	cmd := exec.Command(c.cliBinary,
+	cmd := exec.CommandContext(ctx, c.cliBinary,
 		"--print",
-		"--verbose",
-		"--input-format", "stream-json",
-		"--output-format", "stream-json",
+		"--output-format", "json",
 		"--permission-mode", "bypassPermissions",
 		"--no-session-persistence",
 		"--model", "sonnet",
@@ -111,8 +79,7 @@ func (c *claudeClient) ensureRunning() error {
 
 	cmd.Env = os.Environ()
 
-	// Set working directory to the services repo so Claude picks up
-	// the MCP configuration and has access to all Globular MCP tools.
+	// Set working directory so Claude picks up MCP configuration.
 	workDir := os.Getenv("GLOBULAR_SERVICES_DIR")
 	if workDir == "" {
 		workDir = "/home/dave/Documents/github.com/globulario/services"
@@ -121,153 +88,43 @@ func (c *claudeClient) ensureRunning() error {
 		cmd.Dir = workDir
 	}
 
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("create stdin pipe: %w", err)
-	}
+	// Send prompt on stdin.
+	cmd.Stdin = strings.NewReader(prompt)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		stdin.Close()
-		return fmt.Errorf("create stdout pipe: %w", err)
-	}
+	// Capture stdout and stderr.
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	// Capture stderr for diagnostics.
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		stdin.Close()
-		return fmt.Errorf("create stderr pipe: %w", err)
-	}
-	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			logger.Warn("claude: stderr", "line", scanner.Text())
+	logger.Info("claude: invoking CLI", "prompt_len", len(prompt))
+
+	if err := cmd.Run(); err != nil {
+		if se := stderr.String(); se != "" {
+			logger.Warn("claude: stderr", "output", se)
 		}
-	}()
-
-	if err := cmd.Start(); err != nil {
-		stdin.Close()
-		return fmt.Errorf("start claude CLI: %w", err)
+		return "", fmt.Errorf("claude CLI failed: %w", err)
 	}
 
-	c.cmd = cmd
-	c.stdin = stdin
-	c.scanner = bufio.NewScanner(stdout)
-	c.scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large responses
-	c.running = true
+	// Parse the JSON result.
+	var result cliResult
+	if err := json.Unmarshal([]byte(stdout.String()), &result); err != nil {
+		// If JSON parsing fails, return raw stdout as the result.
+		raw := strings.TrimSpace(stdout.String())
+		if raw != "" {
+			return raw, nil
+		}
+		return "", fmt.Errorf("parse claude output: %w", err)
+	}
 
-	logger.Info("claude: subprocess started", "pid", cmd.Process.Pid)
-	return nil
+	if result.IsError {
+		return "", fmt.Errorf("claude returned error: %s", result.Result)
+	}
+
+	return result.Result, nil
 }
 
-// sendPrompt sends a prompt to the running Claude subprocess and reads the response.
-func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if err := c.ensureRunning(); err != nil {
-		return "", err
-	}
-
-	// Send the user message as stream-json.
-	msg := streamMessage{
-		Type:    "user",
-		Content: prompt,
-	}
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		return "", fmt.Errorf("marshal prompt: %w", err)
-	}
-	msgBytes = append(msgBytes, '\n')
-
-	if _, err := c.stdin.Write(msgBytes); err != nil {
-		c.running = false
-		return "", fmt.Errorf("write to claude stdin: %w", err)
-	}
-
-	// Read response lines until we get a result message.
-	var responseText strings.Builder
-	deadline := time.Now().Add(60 * time.Second)
-
-	for c.scanner.Scan() {
-		if time.Now().After(deadline) {
-			return "", fmt.Errorf("timeout waiting for claude response")
-		}
-
-		line := c.scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		var resp streamResponse
-		if err := json.Unmarshal([]byte(line), &resp); err != nil {
-			continue // Skip malformed lines.
-		}
-
-		switch resp.Type {
-		case "assistant":
-			// Accumulate assistant text chunks.
-			if resp.Content != "" {
-				responseText.WriteString(resp.Content)
-			}
-			for _, block := range resp.Message.Content {
-				if block.Type == "text" {
-					responseText.WriteString(block.Text)
-				}
-			}
-
-		case "result":
-			// Final result — use it if available, otherwise use accumulated text.
-			if resp.Result != "" {
-				return resp.Result, nil
-			}
-			result := responseText.String()
-			if result != "" {
-				return result, nil
-			}
-			return "", fmt.Errorf("empty result from claude")
-
-		case "error":
-			c.running = false
-			return "", fmt.Errorf("claude error: %s", resp.Content)
-		}
-	}
-
-	if err := c.scanner.Err(); err != nil {
-		c.running = false
-		return "", fmt.Errorf("read claude stdout: %w", err)
-	}
-
-	// Scanner ended — process exited.
-	c.running = false
-	result := responseText.String()
-	if result != "" {
-		return result, nil
-	}
-	return "", fmt.Errorf("claude process exited unexpectedly")
-}
-
-// shutdown cleanly stops the Claude subprocess.
-func (c *claudeClient) shutdown() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.stdin != nil {
-		c.stdin.Close()
-	}
-	if c.cmd != nil && c.cmd.Process != nil {
-		c.cmd.Process.Signal(os.Interrupt)
-		done := make(chan error, 1)
-		go func() { done <- c.cmd.Wait() }()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			c.cmd.Process.Kill()
-		}
-	}
-	c.running = false
-	logger.Info("claude: subprocess stopped")
-}
+// shutdown is a no-op — each invocation is a fresh subprocess.
+func (c *claudeClient) shutdown() {}
 
 // analyzeIncident sends evidence to Claude and gets a reasoned diagnosis.
 func (c *claudeClient) analyzeIncident(ctx context.Context, req *ai_executorpb.ProcessIncidentRequest, evidence []string, clusterHealth string) (*claudeAnalysis, error) {
