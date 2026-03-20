@@ -219,6 +219,9 @@ func main() {
 	logger.Info("initializing cluster controller server")
 	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
 	srv.initResourceStore(etcdClient)
+	if etcdClient != nil {
+		srv.etcdMembers = newEtcdMemberManager(etcdClient)
+	}
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.
 	// On fresh installs, the file doesn't exist yet — deploy the embedded copy.

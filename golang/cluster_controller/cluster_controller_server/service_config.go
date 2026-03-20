@@ -28,6 +28,15 @@ type memberNode struct {
 	Profiles []string
 }
 
+// etcdMemberState tracks which nodes are already etcd members.
+// This is populated by querying the live etcd cluster before rendering configs.
+type etcdMemberState struct {
+	// Bootstrapped is true if at least one etcd member is active.
+	Bootstrapped bool
+	// MemberPeerURLs maps etcd member name → peer URL for existing members.
+	MemberPeerURLs map[string]string
+}
+
 // serviceConfigContext contains everything needed to render a service config for a specific node.
 type serviceConfigContext struct {
 	Membership     *clusterMembership
@@ -35,6 +44,7 @@ type serviceConfigContext struct {
 	ClusterID      string
 	Domain         string
 	ExternalDomain string // Public external domain (e.g., "globular.cloud") for ingress routing
+	EtcdState      *etcdMemberState
 }
 
 // profilesForEtcd lists the profiles that run etcd.
@@ -103,8 +113,23 @@ func sanitizeEtcdName(hostname string) string {
 	return name
 }
 
+// Canonical PKI paths for etcd TLS configuration (rendered into etcd.yaml).
+const (
+	etcdCACert     = "/var/lib/globular/pki/ca.crt"
+	etcdServerCert = "/var/lib/globular/pki/issued/services/service.crt"
+	etcdServerKey  = "/var/lib/globular/pki/issued/services/service.key"
+)
+
 // renderEtcdConfig generates the etcd configuration YAML for a node.
 // File path: /var/lib/globular/config/etcd.yaml
+//
+// TLS is mandatory for both client and peer connections:
+//   - Client: https://<ip>:2379 with service cert + CA
+//   - Peer:   https://<ip>:2380 with service cert + CA (peer-trusted-ca for mutual auth)
+//
+// initial-cluster-state is "new" only for a fresh cluster bootstrap (no existing
+// etcd members). For all subsequent config renders (expansion, restarts) it is
+// "existing" because the data directory already contains cluster membership.
 func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	if ctx == nil || ctx.CurrentNode == nil {
 		return "", false
@@ -128,7 +153,7 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 		nodeName = sanitizeEtcdName(ctx.CurrentNode.NodeID)
 	}
 
-	// Build initial-cluster string
+	// Build initial-cluster string with HTTPS peer URLs.
 	var initialClusterParts []string
 	for _, node := range etcdNodes {
 		peerName := sanitizeEtcdName(node.Hostname)
@@ -139,7 +164,7 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 		if peerIP == "" {
 			peerIP = "127.0.0.1"
 		}
-		initialClusterParts = append(initialClusterParts, fmt.Sprintf("%s=http://%s:2380", peerName, peerIP))
+		initialClusterParts = append(initialClusterParts, fmt.Sprintf("%s=https://%s:2380", peerName, peerIP))
 	}
 	initialCluster := strings.Join(initialClusterParts, ",")
 
@@ -150,29 +175,70 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	}
 	clusterToken = clusterToken + "-etcd-cluster"
 
-	// Use single-node mode if only one node
-	listenClientURLs := fmt.Sprintf("http://%s:2379,http://127.0.0.1:2379", currentIP)
-	if len(etcdNodes) == 1 {
-		listenClientURLs = "http://127.0.0.1:2379"
+	// initial-cluster-state: "new" only for first bootstrap, "existing" for all
+	// subsequent operations (expansion, restart). The controller sets EtcdState
+	// based on querying the live etcd cluster.
+	clusterState := "existing"
+	if ctx.EtcdState == nil || !ctx.EtcdState.Bootstrapped {
+		clusterState = "new"
 	}
 
-	config := map[string]interface{}{
-		"name":                        nodeName,
-		"data-dir":                    "/var/lib/globular/etcd",
-		"listen-client-urls":          listenClientURLs,
-		"advertise-client-urls":       fmt.Sprintf("http://%s:2379", currentIP),
-		"listen-peer-urls":            fmt.Sprintf("http://%s:2380", currentIP),
-		"initial-advertise-peer-urls": fmt.Sprintf("http://%s:2380", currentIP),
-		"initial-cluster":             initialCluster,
-		"initial-cluster-state":       "new",
-		"initial-cluster-token":       clusterToken,
+	// Client listen URLs: always include loopback; multi-node also binds the node IP.
+	listenClientURLs := fmt.Sprintf("https://%s:2379,https://127.0.0.1:2379", currentIP)
+	if len(etcdNodes) == 1 && clusterState == "new" {
+		listenClientURLs = "https://127.0.0.1:2379"
 	}
 
-	yaml, err := renderYAML(config)
-	if err != nil {
+	// Build YAML with nested TLS sections (etcd native config format).
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("name: %q\n", nodeName))
+	sb.WriteString(fmt.Sprintf("data-dir: %q\n", "/var/lib/globular/etcd"))
+	sb.WriteString(fmt.Sprintf("listen-client-urls: %q\n", listenClientURLs))
+	sb.WriteString(fmt.Sprintf("advertise-client-urls: %q\n", fmt.Sprintf("https://%s:2379", currentIP)))
+	sb.WriteString(fmt.Sprintf("listen-peer-urls: %q\n", fmt.Sprintf("https://%s:2380", currentIP)))
+	sb.WriteString(fmt.Sprintf("initial-advertise-peer-urls: %q\n", fmt.Sprintf("https://%s:2380", currentIP)))
+	sb.WriteString(fmt.Sprintf("initial-cluster: %q\n", initialCluster))
+	sb.WriteString(fmt.Sprintf("initial-cluster-state: %q\n", clusterState))
+	sb.WriteString(fmt.Sprintf("initial-cluster-token: %q\n", clusterToken))
+	sb.WriteString("\n")
+
+	// Client TLS (for etcdctl and service connections)
+	sb.WriteString("client-transport-security:\n")
+	sb.WriteString(fmt.Sprintf("  cert-file: %s\n", etcdServerCert))
+	sb.WriteString(fmt.Sprintf("  key-file: %s\n", etcdServerKey))
+	sb.WriteString(fmt.Sprintf("  trusted-ca-file: %s\n", etcdCACert))
+	sb.WriteString("\n")
+
+	// Peer TLS (inter-node etcd replication)
+	sb.WriteString("peer-transport-security:\n")
+	sb.WriteString(fmt.Sprintf("  cert-file: %s\n", etcdServerCert))
+	sb.WriteString(fmt.Sprintf("  key-file: %s\n", etcdServerKey))
+	sb.WriteString(fmt.Sprintf("  trusted-ca-file: %s\n", etcdCACert))
+
+	return sb.String(), true
+}
+
+// renderEtcdEndpoints generates a newline-separated list of all etcd client endpoints.
+// Services read this file to discover all etcd members in the cluster.
+// File path: /var/lib/globular/config/etcd_endpoints
+func renderEtcdEndpoints(ctx *serviceConfigContext) (string, bool) {
+	if ctx == nil || ctx.Membership == nil {
 		return "", false
 	}
-	return yaml, true
+	etcdNodes := filterNodesByProfile(ctx.Membership, profilesForEtcd)
+	if len(etcdNodes) == 0 {
+		return "", false
+	}
+
+	var endpoints []string
+	for _, node := range etcdNodes {
+		ip := node.IP
+		if ip == "" {
+			ip = "127.0.0.1"
+		}
+		endpoints = append(endpoints, fmt.Sprintf("https://%s:2379", ip))
+	}
+	return strings.Join(endpoints, "\n") + "\n", true
 }
 
 // renderMinioConfig generates the MinIO environment configuration for a node.
@@ -440,6 +506,9 @@ type rendererSpec struct {
 	render       func(*serviceConfigContext) (string, bool)   // rendering function
 }
 
+// profilesForEtcdEndpoints — every profile needs to know where etcd is.
+var profilesForEtcdEndpoints = []string{"core", "compute", "control-plane", "gateway", "storage", "dns"}
+
 // renderers is the authoritative list of all config renderers in the controller.
 // This registry is validated at startup by validateRenderers().
 var renderers = []rendererSpec{
@@ -449,6 +518,13 @@ var renderers = []rendererSpec{
 		outputs:      []string{"/var/lib/globular/config/etcd.yaml"},
 		restartUnits: []string{"globular-etcd.service"},
 		render:       renderEtcdConfig,
+	},
+	{
+		name:         "etcd-endpoints",
+		profiles:     profilesForEtcdEndpoints,
+		outputs:      []string{"/var/lib/globular/config/etcd_endpoints"},
+		restartUnits: nil, // services discover endpoints on next connection
+		render:       renderEtcdEndpoints,
 	},
 	{
 		name:         "minio",

@@ -178,6 +178,9 @@ type server struct {
 	// on every ReportNodeStatus heartbeat.
 	autoImportDone atomic.Bool
 
+	// etcd cluster membership manager (for multi-node expansion)
+	etcdMembers *etcdMemberManager
+
 	// event publishing (fire-and-forget, nil-safe)
 	eventClient *event_client.Event_Client
 

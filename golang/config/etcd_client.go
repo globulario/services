@@ -221,6 +221,10 @@ func normalizeEndpoints(raw []string) []string {
 	return hostports
 }
 
+// etcdEndpointsFile is the path where the cluster controller renders the list
+// of all etcd member endpoints. Each line is a URL like "https://10.0.0.63:2379".
+const etcdEndpointsFile = "/var/lib/globular/config/etcd_endpoints"
+
 // etcdEndpointsFromEnv: prefer HTTPS if TLS exists, else HTTP. Always emit scheme.
 func etcdEndpointsFromEnv() []string {
 	// explicit env (may include scheme) wins
@@ -232,6 +236,12 @@ func etcdEndpointsFromEnv() []string {
 	}
 	if s := os.Getenv("ETCDCTL_ENDPOINTS"); s != "" {
 		return mapSanitized(splitCSV(s))
+	}
+
+	// Read cluster-rendered endpoints file (written by controller reconciliation).
+	// This file contains all etcd member URLs, one per line.
+	if eps := readEndpointsFile(etcdEndpointsFile); len(eps) > 0 {
+		return mapSanitized(eps)
 	}
 
 	// Build stable advertised host (same logic as server)
@@ -265,6 +275,23 @@ func etcdEndpointsFromEnv() []string {
 	}
 
 	return mapSanitized(eps)
+}
+
+// readEndpointsFile reads a newline-separated file of etcd endpoint URLs.
+// Returns nil if the file doesn't exist or is empty.
+func readEndpointsFile(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var eps []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			eps = append(eps, line)
+		}
+	}
+	return eps
 }
 
 // GetEtcdTLS returns a tls.Config for etcd clients.

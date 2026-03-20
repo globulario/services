@@ -151,7 +151,7 @@ func TestSanitizeEtcdName(t *testing.T) {
 }
 
 func TestRenderEtcdConfig(t *testing.T) {
-	t.Run("single node cluster", func(t *testing.T) {
+	t.Run("single node fresh bootstrap", func(t *testing.T) {
 		ctx := &serviceConfigContext{
 			Membership: &clusterMembership{
 				ClusterID: "test-cluster",
@@ -161,6 +161,7 @@ func TestRenderEtcdConfig(t *testing.T) {
 			},
 			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
 			ClusterID:   "test-cluster",
+			EtcdState:   nil, // no etcd running yet = fresh bootstrap
 		}
 
 		config, ok := renderEtcdConfig(ctx)
@@ -168,7 +169,6 @@ func TestRenderEtcdConfig(t *testing.T) {
 			t.Fatal("renderEtcdConfig() returned false")
 		}
 
-		// Check for expected keys
 		if !strings.Contains(config, `name: "host1"`) {
 			t.Error("config missing name field")
 		}
@@ -178,23 +178,41 @@ func TestRenderEtcdConfig(t *testing.T) {
 		if !strings.Contains(config, "initial-cluster-token") {
 			t.Error("config missing initial-cluster-token field")
 		}
-		// Single node should use localhost only
-		if !strings.Contains(config, `listen-client-urls: "http://127.0.0.1:2379"`) {
-			t.Error("single node should use localhost for listen-client-urls")
+		// Fresh bootstrap single-node uses localhost only
+		if !strings.Contains(config, `listen-client-urls: "https://127.0.0.1:2379"`) {
+			t.Errorf("single node bootstrap should use localhost-only listen-client-urls, got:\n%s", config)
+		}
+		// Must use HTTPS
+		if strings.Contains(config, "http://") {
+			t.Error("etcd config must use HTTPS, found http://")
+		}
+		// Fresh bootstrap = initial-cluster-state: "new"
+		if !strings.Contains(config, `initial-cluster-state: "new"`) {
+			t.Error("fresh bootstrap should use initial-cluster-state: new")
+		}
+		// Must have TLS sections
+		if !strings.Contains(config, "client-transport-security:") {
+			t.Error("config missing client-transport-security section")
+		}
+		if !strings.Contains(config, "peer-transport-security:") {
+			t.Error("config missing peer-transport-security section")
+		}
+		if !strings.Contains(config, "cert-file: /var/lib/globular/pki/issued/services/service.crt") {
+			t.Error("config missing cert-file path")
 		}
 	})
 
-	t.Run("multi-node cluster", func(t *testing.T) {
+	t.Run("single node already bootstrapped", func(t *testing.T) {
 		ctx := &serviceConfigContext{
 			Membership: &clusterMembership{
 				ClusterID: "test-cluster",
 				Nodes: []memberNode{
 					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
-					{NodeID: "n2", Hostname: "host2", IP: "192.168.1.11", Profiles: []string{"core"}},
 				},
 			},
 			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
 			ClusterID:   "test-cluster",
+			EtcdState:   &etcdMemberState{Bootstrapped: true, MemberPeerURLs: map[string]string{"host1": "https://192.168.1.10:2380"}},
 		}
 
 		config, ok := renderEtcdConfig(ctx)
@@ -202,16 +220,56 @@ func TestRenderEtcdConfig(t *testing.T) {
 			t.Fatal("renderEtcdConfig() returned false")
 		}
 
-		// Check for initial-cluster with both nodes
-		if !strings.Contains(config, "192.168.1.10:2380") {
+		// Already bootstrapped = initial-cluster-state: "existing"
+		if !strings.Contains(config, `initial-cluster-state: "existing"`) {
+			t.Errorf("bootstrapped node should use initial-cluster-state: existing, got:\n%s", config)
+		}
+	})
+
+	t.Run("multi-node expansion", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+					{NodeID: "n2", Hostname: "host2", IP: "192.168.1.11", Profiles: []string{"core"}},
+					{NodeID: "n3", Hostname: "host3", IP: "192.168.1.12", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n2", Hostname: "host2", IP: "192.168.1.11", Profiles: []string{"core"}},
+			ClusterID:   "test-cluster",
+			EtcdState:   &etcdMemberState{Bootstrapped: true, MemberPeerURLs: map[string]string{"host1": "https://192.168.1.10:2380"}},
+		}
+
+		config, ok := renderEtcdConfig(ctx)
+		if !ok {
+			t.Fatal("renderEtcdConfig() returned false")
+		}
+
+		// All 3 nodes in initial-cluster with HTTPS
+		if !strings.Contains(config, "host1=https://192.168.1.10:2380") {
 			t.Error("config missing first node peer URL")
 		}
-		if !strings.Contains(config, "192.168.1.11:2380") {
+		if !strings.Contains(config, "host2=https://192.168.1.11:2380") {
 			t.Error("config missing second node peer URL")
 		}
-		// Multi-node should have both localhost and IP in listen-client-urls
-		if !strings.Contains(config, "192.168.1.10:2379") && !strings.Contains(config, "127.0.0.1:2379") {
-			t.Error("multi-node should have IP in listen-client-urls")
+		if !strings.Contains(config, "host3=https://192.168.1.12:2380") {
+			t.Error("config missing third node peer URL")
+		}
+		// Expansion = initial-cluster-state: "existing"
+		if !strings.Contains(config, `initial-cluster-state: "existing"`) {
+			t.Error("expansion should use initial-cluster-state: existing")
+		}
+		// Multi-node should have both IP and localhost in listen-client-urls
+		if !strings.Contains(config, "https://192.168.1.11:2379") {
+			t.Error("multi-node should have node IP in listen-client-urls")
+		}
+		if !strings.Contains(config, "https://127.0.0.1:2379") {
+			t.Error("multi-node should have localhost in listen-client-urls")
+		}
+		// No HTTP URLs
+		if strings.Contains(config, "http://") {
+			t.Error("etcd config must use HTTPS, found http://")
 		}
 	})
 
@@ -230,6 +288,66 @@ func TestRenderEtcdConfig(t *testing.T) {
 		_, ok := renderEtcdConfig(ctx)
 		if ok {
 			t.Error("renderEtcdConfig() should return false for node without etcd profile")
+		}
+	})
+}
+
+func TestRenderEtcdEndpoints(t *testing.T) {
+	t.Run("single node", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+				},
+			},
+		}
+		content, ok := renderEtcdEndpoints(ctx)
+		if !ok {
+			t.Fatal("renderEtcdEndpoints() returned false")
+		}
+		if !strings.Contains(content, "https://192.168.1.10:2379") {
+			t.Errorf("expected https endpoint, got: %s", content)
+		}
+	})
+
+	t.Run("three nodes", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "10.0.0.1", Profiles: []string{"core"}},
+					{NodeID: "n2", Hostname: "host2", IP: "10.0.0.2", Profiles: []string{"core"}},
+					{NodeID: "n3", Hostname: "host3", IP: "10.0.0.3", Profiles: []string{"core"}},
+				},
+			},
+		}
+		content, ok := renderEtcdEndpoints(ctx)
+		if !ok {
+			t.Fatal("renderEtcdEndpoints() returned false")
+		}
+		lines := strings.Split(strings.TrimSpace(content), "\n")
+		if len(lines) != 3 {
+			t.Errorf("expected 3 endpoints, got %d: %v", len(lines), lines)
+		}
+		for _, line := range lines {
+			if !strings.HasPrefix(line, "https://") {
+				t.Errorf("endpoint must use https: %s", line)
+			}
+		}
+	})
+
+	t.Run("no etcd nodes", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "10.0.0.1", Profiles: []string{"gateway"}},
+				},
+			},
+		}
+		_, ok := renderEtcdEndpoints(ctx)
+		if ok {
+			t.Error("should return false when no etcd-profile nodes exist")
 		}
 	})
 }
@@ -564,6 +682,7 @@ func TestRenderServiceConfigs(t *testing.T) {
 
 		expectedPaths := []string{
 			"/var/lib/globular/config/etcd.yaml",
+			"/var/lib/globular/config/etcd_endpoints",
 			"/var/lib/globular/minio/minio.env",
 			"/var/lib/globular/xds/config.json",
 			"/var/lib/globular/dns/dns_init.json",

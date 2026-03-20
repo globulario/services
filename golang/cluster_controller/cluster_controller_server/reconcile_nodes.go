@@ -58,7 +58,20 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	srv.unlock()
 	now := time.Now()
 
-	// (RECONCILE_CYCLE removed — not in required event set)
+	// Pre-reconcile: ensure etcd cluster membership matches desired etcd nodes.
+	// New nodes with etcd profiles must be registered as etcd members BEFORE
+	// their plan is dispatched, otherwise etcd rejects the new instance.
+	if srv.etcdMembers != nil {
+		membership := srv.snapshotClusterMembership()
+		desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
+		if len(desiredEtcdNodes) > 0 {
+			if added, err := srv.etcdMembers.reconcileMembers(ctx, desiredEtcdNodes); err != nil {
+				log.Printf("reconcile: etcd member-add failed: %v", err)
+			} else if len(added) > 0 {
+				log.Printf("reconcile: registered %d new etcd members: %v", len(added), added)
+			}
+		}
+	}
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
@@ -800,12 +813,21 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 		}
 	}
 
+	// Query live etcd cluster to determine member state for correct initial-cluster-state.
+	var etcdState *etcdMemberState
+	if srv.etcdMembers != nil {
+		if st, err := srv.etcdMembers.snapshotEtcdMembers(context.Background()); err == nil {
+			etcdState = st
+		}
+	}
+
 	ctx := &serviceConfigContext{
 		Membership:     membership,
 		CurrentNode:    currentMember,
 		ClusterID:      membership.ClusterID,
 		Domain:         domain,
 		ExternalDomain: externalDomain,
+		EtcdState:      etcdState,
 	}
 
 	serviceConfigs := renderServiceConfigs(ctx)
@@ -841,12 +863,19 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 			externalDomain = extDNS.GetDomain()
 		}
 	}
+	var etcdState *etcdMemberState
+	if srv.etcdMembers != nil {
+		if st, err := srv.etcdMembers.snapshotEtcdMembers(context.Background()); err == nil {
+			etcdState = st
+		}
+	}
 	ctx := &serviceConfigContext{
 		Membership:     membership,
 		CurrentNode:    currentMember,
 		ClusterID:      membership.ClusterID,
 		Domain:         domain,
 		ExternalDomain: externalDomain,
+		EtcdState:      etcdState,
 	}
 	return renderServiceConfigs(ctx)
 }
