@@ -24,7 +24,7 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				EventPattern:        "service.exited",
 				Description:         "Service exited with non-zero code",
 				Enabled:             true,
-				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				Tier:                ai_watcherpb.PermissionTier_AUTO_REMEDIATE,
 				CooldownSeconds:     60,
 				BatchWindowSeconds:  10,
 				SeverityMin:         "error",
@@ -142,13 +142,13 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 			},
 		},
 
-		// Auto-remediation rules — Tier 2 (disabled by default, user opts in).
+		// Auto-remediation rules — Tier 1 (disabled by default, user opts in).
 		AutoRemediation: []*ai_watcherpb.AutoRemediationRule{
 			{
 				Id:             "restart-crashed",
 				Action:         "restart_service",
 				Description:    "Restart a service that crashed and isn't self-healing",
-				Enabled:        false, // User must explicitly enable
+				Enabled:        true, // Enabled for V1 validation
 				MaxRetries:     3,
 				TargetServices: []string{"*"},
 			},

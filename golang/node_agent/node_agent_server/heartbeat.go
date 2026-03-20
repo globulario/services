@@ -28,6 +28,16 @@ import (
 
 func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 	go srv.heartbeatLoop(ctx)
+
+	// Start event publisher — monitors systemd units and publishes
+	// state changes to the event service for the ai_watcher.
+	ep := newEventPublisher(srv.nodeID)
+	go ep.run(ctx)
+
+	// Start event handler — subscribes to operation events (restart, etc.)
+	// and executes them with root privileges.
+	eh := newEventHandler(srv)
+	go eh.run(ctx)
 }
 
 func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
