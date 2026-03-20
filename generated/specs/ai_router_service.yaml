@@ -46,6 +46,7 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      # INV-PKI-1: Removed obsolete config/tls directory - all certs under pki/
 
   - id: install-ai_router-payload
     type: install_package_payload
@@ -82,6 +83,7 @@ steps:
           WorkingDirectory={{.StateDir}}/ai_router
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           Environment=GLOBULAR_BOOTSTRAP=1
+          ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'
           ExecStart={{.Prefix}}/bin/ai_router_server
           Restart=on-failure
           RestartSec=2

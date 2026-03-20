@@ -1,11 +1,11 @@
 version: 1
 
 metadata:
-  name: ai_executor
+  name: file
 
 service:
-  name: ai_executor
-  exec: ai_executor_server
+  name: file
+  exec: file_server
 
 steps:
   - id: ensure-user-group
@@ -36,7 +36,7 @@ steps:
         owner: globular
         group: globular
         mode: 0750
-      - path: "{{.StateDir}}/ai_executor"
+      - path: "{{.StateDir}}/file"
         owner: globular
         group: globular
         mode: 0750
@@ -48,31 +48,31 @@ steps:
         mode: 0750
       # INV-PKI-1: Removed obsolete config/tls directory - all certs under pki/
 
-  - id: install-ai_executor-payload
+  - id: install-file-payload
     type: install_package_payload
     install_bins: true
     install_config: false
     install_spec: false
     install_systemd: false
 
-  - id: ensure-ai_executor-config
+  - id: ensure-file-config
     type: ensure_service_config
-    service_name: ai_executor
-    exec: ai_executor_server
+    service_name: file
+    exec: file_server
     address_host: auto
     rewrite_if_out_of_range: true
 
-  - id: install-ai_executor-service
+  - id: install-file-service
     type: install_services
     units:
-      - name: globular-ai-executor.service
+      - name: globular-file.service
         owner: root
         group: root
         mode: 0644
         atomic: true
         content: |
           [Unit]
-          Description=Globular ai_executor
+          Description=Globular file
           After=network-online.target
           Wants=network-online.target
 
@@ -80,11 +80,11 @@ steps:
           Type=simple
           User=globular
           Group=globular
-          WorkingDirectory={{.StateDir}}/ai_executor
+          WorkingDirectory={{.StateDir}}/file
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           Environment=GLOBULAR_BOOTSTRAP=1
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'
-          ExecStart={{.Prefix}}/bin/ai_executor_server
+          ExecStart={{.Prefix}}/bin/file_server
           Restart=on-failure
           RestartSec=2
           LimitNOFILE=524288
@@ -92,19 +92,19 @@ steps:
           [Install]
           WantedBy=multi-user.target
 
-  - id: enable-ai_executor
+  - id: enable-file
     type: enable_services
     services:
-      - globular-ai-executor.service
+      - globular-file.service
 
-  - id: start-ai_executor
+  - id: start-file
     type: start_services
     services:
-      - globular-ai-executor.service
+      - globular-file.service
     binaries:
-      globular-ai-executor.service: ai_executor_server
+      globular-file.service: file_server
 
-  - id: health-ai_executor
+  - id: health-file
     type: health_checks
     services:
-      - globular-ai-executor.service
+      - globular-file.service
