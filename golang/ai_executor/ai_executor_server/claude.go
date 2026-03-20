@@ -98,20 +98,20 @@ func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, e
 
 	logger.Info("claude: invoking CLI", "prompt_len", len(prompt))
 
-	if err := cmd.Run(); err != nil {
-		if se := stderr.String(); se != "" {
-			logger.Warn("claude: stderr", "output", se)
-		}
-		return "", fmt.Errorf("claude CLI failed: %w", err)
+	// Run and capture output. Claude CLI may exit 1 but still return valid
+	// JSON with is_error=true (e.g. auth failures), so check stdout first.
+	runErr := cmd.Run()
+	out := strings.TrimSpace(stdout.String())
+	if runErr != nil && out == "" {
+		se := strings.TrimSpace(stderr.String())
+		logger.Warn("claude: CLI failed with no output", "err", runErr, "stderr", se)
+		return "", fmt.Errorf("claude CLI failed: %w (stderr: %s)", runErr, se)
 	}
 
-	// Parse the JSON result.
 	var result cliResult
-	if err := json.Unmarshal([]byte(stdout.String()), &result); err != nil {
-		// If JSON parsing fails, return raw stdout as the result.
-		raw := strings.TrimSpace(stdout.String())
-		if raw != "" {
-			return raw, nil
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		if out != "" {
+			return out, nil
 		}
 		return "", fmt.Errorf("parse claude output: %w", err)
 	}
