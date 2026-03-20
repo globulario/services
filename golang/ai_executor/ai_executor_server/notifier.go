@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
@@ -140,10 +141,13 @@ type eventNotifier struct{}
 func (en *eventNotifier) Notify(_ context.Context, n *Notification) error {
 	eventName := "alert.incident." + string(n.Type)
 
+	// Build a human-readable message for the admin dashboard.
+	message := en.buildHumanMessage(n)
+
 	payload := map[string]interface{}{
 		"severity":        n.Severity,
 		"incident_id":     n.IncidentID,
-		"message":         n.Summary, // dashboard displays this field
+		"message":         message,
 		"summary":         n.Summary,
 		"root_cause":      n.RootCause,
 		"confidence":      n.Confidence,
@@ -156,10 +160,73 @@ func (en *eventNotifier) Notify(_ context.Context, n *Notification) error {
 		payload["approve_cmd"] = n.ApproveCmd
 		payload["deny_cmd"] = n.DenyCmd
 		payload["expires_at"] = n.ExpiresAt.Format(time.RFC3339)
-		payload["severity"] = "ERROR" // approvals are urgent
+		payload["severity"] = "ERROR"
+	}
+
+	// Resolved incidents are informational, not urgent.
+	if n.Type == NotifyResolved {
+		payload["severity"] = "INFO"
 	}
 
 	globular.PublishEvent(eventName, payload)
 
 	return nil
+}
+
+// buildHumanMessage creates a readable message for the admin dashboard.
+func (en *eventNotifier) buildHumanMessage(n *Notification) string {
+	rootCause := n.RootCause
+	action := humanActionName(n.ProposedAction)
+	confidence := fmt.Sprintf("%d%%", int(n.Confidence*100))
+
+	switch n.Type {
+	case NotifyResolved:
+		if rootCause != "" {
+			return fmt.Sprintf("Diagnosed %s (%s confidence). Action: %s. Incident resolved.",
+				rootCause, confidence, action)
+		}
+		return fmt.Sprintf("Incident resolved. Action: %s.", action)
+
+	case NotifyApprovalRequired:
+		return fmt.Sprintf("Detected %s (%s confidence). Proposed: %s — awaiting admin approval. Run: %s",
+			rootCause, confidence, action, n.ApproveCmd)
+
+	case NotifyFailed:
+		return fmt.Sprintf("Failed to remediate %s. Action %s failed. Manual intervention required.",
+			rootCause, action)
+
+	case NotifyExpired:
+		return fmt.Sprintf("Approval expired for %s. Proposed action %s was not approved in time.",
+			rootCause, action)
+
+	case NotifyDenied:
+		return fmt.Sprintf("Admin denied %s for %s.", action, rootCause)
+
+	default:
+		return n.Summary
+	}
+}
+
+func humanActionName(action string) string {
+	base := action
+	target := ""
+	if i := strings.Index(action, ":"); i >= 0 {
+		base = action[:i]
+		target = action[i+1:]
+	}
+	names := map[string]string{
+		"restart_service": "restart service",
+		"notify_admin":    "notify admin",
+		"observe_and_record": "observe and record",
+		"drain_endpoint":  "drain endpoint",
+		"block_ip":        "block IP",
+	}
+	name := names[base]
+	if name == "" {
+		name = action
+	}
+	if target != "" {
+		name = fmt.Sprintf("%s %q", name, target)
+	}
+	return name
 }

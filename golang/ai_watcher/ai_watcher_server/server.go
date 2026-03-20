@@ -104,9 +104,13 @@ type server struct {
 	lastTriggerMu sync.Mutex
 
 	// Batch window
-	eventBatch   map[string][]string // rule ID -> batched event names
-	eventBatchMu sync.Mutex
-	batchTimers  map[string]*time.Timer
+	eventBatch     map[string][]string // rule ID -> batched event names
+	eventBatchData map[string][]byte   // rule ID -> first event's raw data
+	eventBatchMu   sync.Mutex
+	batchTimers    map[string]*time.Timer
+
+	triggerDataMap   map[string][]byte // incident ID -> trigger event raw data
+	triggerDataMapMu sync.Mutex
 }
 
 type watcherStats struct {
@@ -231,7 +235,9 @@ func (srv *server) Init() error {
 	srv.incidents = make(map[string]*ai_watcherpb.Incident)
 	srv.lastTrigger = make(map[string]time.Time)
 	srv.eventBatch = make(map[string][]string)
+	srv.eventBatchData = make(map[string][]byte)
 	srv.batchTimers = make(map[string]*time.Timer)
+	srv.triggerDataMap = make(map[string][]byte)
 	srv.startedAt = time.Now()
 
 	return nil
@@ -389,6 +395,11 @@ func (srv *server) addToBatch(rule *ai_watcherpb.EventRule, eventName string, ev
 
 	srv.eventBatch[ruleID] = append(srv.eventBatch[ruleID], eventName)
 
+	// Keep the first event's data for the executor (contains unit, service, node_id).
+	if _, hasData := srv.eventBatchData[ruleID]; !hasData && evt != nil {
+		srv.eventBatchData[ruleID] = evt.GetData()
+	}
+
 	// If this is the first event in the batch, start a timer.
 	if _, exists := srv.batchTimers[ruleID]; !exists {
 		srv.batchTimers[ruleID] = time.AfterFunc(batchWindow, func() {
@@ -403,7 +414,9 @@ func (srv *server) fireBatch(rule *ai_watcherpb.EventRule) {
 
 	srv.eventBatchMu.Lock()
 	events := srv.eventBatch[ruleID]
+	triggerData := srv.eventBatchData[ruleID]
 	delete(srv.eventBatch, ruleID)
+	delete(srv.eventBatchData, ruleID)
 	delete(srv.batchTimers, ruleID)
 	srv.eventBatchMu.Unlock()
 
@@ -451,6 +464,13 @@ func (srv *server) fireBatch(rule *ai_watcherpb.EventRule) {
 		"events", len(events),
 		"trigger", events[0],
 	)
+
+	// Store trigger event data for the executor.
+	if len(triggerData) > 0 {
+		srv.triggerDataMapMu.Lock()
+		srv.triggerDataMap[incident.Id] = triggerData
+		srv.triggerDataMapMu.Unlock()
+	}
 
 	// Process based on tier.
 	go srv.processIncident(incident, rule)
@@ -508,12 +528,22 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 		batchNames = append(batchNames, evt)
 	}
 
+	// Retrieve the trigger event's raw data (contains unit, service, node_id).
+	srv.triggerDataMapMu.Lock()
+	triggerData := srv.triggerDataMap[incident.Id]
+	delete(srv.triggerDataMap, incident.Id)
+	srv.triggerDataMapMu.Unlock()
+
+	if len(triggerData) == 0 {
+		triggerData = []byte(incident.TriggerEvent) // fallback to event name
+	}
+
 	resp, err := client.ProcessIncident(ctx, &ai_executorpb.ProcessIncidentRequest{
 		IncidentId:       incident.Id,
 		RuleId:           incident.Metadata["rule_id"],
 		Tier:             tier,
 		TriggerEventName: incident.TriggerEvent,
-		TriggerEventData: []byte(incident.TriggerEvent),
+		TriggerEventData: triggerData,
 		EventBatch:       batchNames,
 		Metadata:         incident.Metadata,
 	})
