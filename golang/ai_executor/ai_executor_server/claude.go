@@ -175,6 +175,14 @@ func buildAnalysisPrompt(req *ai_executorpb.ProcessIncidentRequest, evidence []s
 	fmt.Fprintf(&b, "- Events in batch: %d\n", len(req.GetEventBatch()))
 	fmt.Fprintf(&b, "- Tier: %d (0=observe, 1=auto-fix, 2=needs approval)\n\n", req.GetTier())
 
+	// Include the trigger event payload so Claude knows which service/unit is affected.
+	if len(req.GetTriggerEventData()) > 0 {
+		b.WriteString("## Trigger Event Data\n")
+		b.WriteString("```json\n")
+		b.Write(req.GetTriggerEventData())
+		b.WriteString("\n```\n\n")
+	}
+
 	if len(req.GetMetadata()) > 0 {
 		b.WriteString("## Metadata\n")
 		for k, v := range req.GetMetadata() {

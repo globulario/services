@@ -128,11 +128,26 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		proposedAction, actionReason = d.proposeAction(ruleID, rootCause, eventPayload)
 	}
 
-	summary := fmt.Sprintf("%s triggered by %s (%d events in batch)",
-		ruleID, eventName, len(req.GetEventBatch()))
+	// Extract service identity from the event payload for human-readable messages.
+	svcName, _ := eventPayload["service"].(string)
+	unitName, _ := eventPayload["unit"].(string)
+	if svcName == "" && unitName != "" {
+		svcName = unitName
+	}
 
-	detail := fmt.Sprintf("Rule: %s\nTrigger: %s\nBatch size: %d\nRoot cause: %s\nConfidence: %.0f%%\nEvidence:\n  - %s",
-		ruleID, eventName, len(req.GetEventBatch()), rootCause, confidence*100,
+	// Enrich root cause with the specific service name if not already included.
+	if svcName != "" && !strings.Contains(rootCause, svcName) {
+		rootCause = fmt.Sprintf("%s (%s)", rootCause, svcName)
+	}
+
+	summary := fmt.Sprintf("%s triggered by %s", ruleID, eventName)
+	if svcName != "" {
+		summary = fmt.Sprintf("%s on %s", summary, svcName)
+	}
+	summary = fmt.Sprintf("%s (%d events in batch)", summary, len(req.GetEventBatch()))
+
+	detail := fmt.Sprintf("Rule: %s\nTrigger: %s\nService: %s\nBatch size: %d\nRoot cause: %s\nConfidence: %.0f%%\nEvidence:\n  - %s",
+		ruleID, eventName, svcName, len(req.GetEventBatch()), rootCause, confidence*100,
 		strings.Join(evidence, "\n  - "))
 
 	return &ai_executorpb.Diagnosis{
