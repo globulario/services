@@ -22,9 +22,11 @@ import (
 
 // serviceState tracks the last known state of a systemd service.
 type serviceState struct {
-	ActiveState string // "active", "inactive", "failed", etc.
-	SubState    string // "running", "dead", "exited", etc.
-	MainPID     string // main process ID — changes on restart
+	ActiveState    string // "active", "inactive", "failed", etc.
+	SubState       string // "running", "dead", "exited", etc.
+	MainPID        string // main process ID — changes on restart
+	Result         string // "success", "exit-code", "signal", etc.
+	ExecMainStatus string // exit code (e.g., "203" = binary not found)
 }
 
 // eventPublisher monitors systemd unit states and publishes changes
@@ -116,7 +118,10 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 
 	for _, u := range units {
 		prev, existed := ep.lastStates[u.Name]
-		current := serviceState{ActiveState: u.ActiveState, SubState: u.SubState, MainPID: u.MainPID}
+		current := serviceState{
+			ActiveState: u.ActiveState, SubState: u.SubState, MainPID: u.MainPID,
+			Result: u.Result, ExecMainStatus: u.ExecMainStatus,
+		}
 
 		// Crash-loops sit in activating/auto-restart permanently — publish
 		// on first sight and re-publish after a cooldown.
@@ -178,6 +183,9 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 			"prev_sub":      prev.SubState,
 			"main_pid":      u.MainPID,
 			"prev_pid":      prev.MainPID,
+			"result":        u.Result,
+			"exit_status":   u.ExecMainStatus,
+			"exit_reason":   exitReason(u.ExecMainStatus),
 		}
 		data, _ := json.Marshal(payload)
 
@@ -208,17 +216,18 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 
 // unitInfo holds parsed systemd unit state.
 type unitInfo struct {
-	Name        string
-	ActiveState string
-	SubState    string
-	MainPID     string
+	Name           string
+	ActiveState    string
+	SubState       string
+	MainPID        string
+	Result         string // "success", "exit-code", "signal", etc.
+	ExecMainStatus string // numeric exit code: "0", "203", etc.
 }
 
-// listGlobularUnits queries systemd for all globular-* service units with PIDs.
+// listGlobularUnits queries systemd for all globular-* service units.
 func listGlobularUnits(ctx context.Context) []unitInfo {
-	// Use show to get structured data including MainPID.
 	out, err := exec.CommandContext(ctx, "systemctl", "show",
-		"--property=Id,ActiveState,SubState,MainPID",
+		"--property=Id,ActiveState,SubState,MainPID,Result,ExecMainStatus",
 		"--no-pager", "globular-*.service").Output()
 	if err != nil {
 		return nil
@@ -251,6 +260,10 @@ func listGlobularUnits(ctx context.Context) []unitInfo {
 			current.SubState = v
 		case "MainPID":
 			current.MainPID = v
+		case "Result":
+			current.Result = v
+		case "ExecMainStatus":
+			current.ExecMainStatus = v
 		}
 	}
 	// Don't forget the last unit.
@@ -258,4 +271,33 @@ func listGlobularUnits(ctx context.Context) []unitInfo {
 		units = append(units, current)
 	}
 	return units
+}
+
+// exitReason maps systemd ExecMainStatus codes to human-readable reasons.
+func exitReason(code string) string {
+	switch code {
+	case "0":
+		return "clean exit"
+	case "1":
+		return "general error"
+	case "2":
+		return "misuse of shell command"
+	case "126":
+		return "command not executable (permission denied)"
+	case "127":
+		return "command not found"
+	case "200":
+		return "working directory missing (CHDIR)"
+	case "203":
+		return "binary not found (EXEC) — check if the executable is installed"
+	case "217":
+		return "user not found — check User= in systemd unit"
+	case "226":
+		return "namespace setup failed"
+	default:
+		if code != "" {
+			return "exit code " + code
+		}
+		return ""
+	}
 }
