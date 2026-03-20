@@ -1,83 +1,289 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 )
 
-// claudeClient calls the Anthropic Messages API for incident reasoning.
-// When the API key is unavailable, falls back to deterministic analysis.
+// claudeClient maintains a long-running Claude Code CLI subprocess.
+// Prompts are sent via stdin (stream-json) and responses read from stdout,
+// avoiding cold-start overhead on every incident. Claude Code runs under
+// the user's subscription and has MCP tools wired up (memory, cluster
+// health, node agent, RBAC, etc.) — no separate API key needed.
 type claudeClient struct {
-	apiKey     string
-	model      string
-	httpClient *http.Client
+	cliBinary string
+
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	scanner *bufio.Scanner
+	running bool
 }
 
-const (
-	claudeAPIURL       = "https://api.anthropic.com/v1/messages"
-	claudeDefaultModel = "claude-sonnet-4-20250514"
-	claudeMaxTokens    = 1024
-)
-
 func newClaudeClient() *claudeClient {
-	key := os.Getenv("ANTHROPIC_API_KEY")
-	if key == "" {
-		// Try reading from file (deployed clusters store keys in config).
-		if data, err := os.ReadFile("/var/lib/globular/config/anthropic_api_key"); err == nil {
-			key = strings.TrimSpace(string(data))
+	binary := os.Getenv("CLAUDE_CLI_PATH")
+	if binary == "" {
+		for _, path := range []string{
+			"/usr/local/bin/claude",
+			"/usr/bin/claude",
+			"/home/dave/.local/bin/claude",
+			os.ExpandEnv("$HOME/.claude/bin/claude"),
+		} {
+			if _, err := os.Stat(path); err == nil {
+				binary = path
+				break
+			}
 		}
 	}
 
-	model := os.Getenv("GLOBULAR_AI_MODEL")
-	if model == "" {
-		model = claudeDefaultModel
-	}
-
-	if key != "" {
-		logger.Info("claude: API key configured", "model", model)
+	if binary != "" {
+		logger.Info("claude: CLI configured", "binary", binary)
 	} else {
-		logger.Info("claude: no API key, using deterministic fallback")
+		logger.Info("claude: CLI not found, using deterministic fallback")
 	}
 
 	return &claudeClient{
-		apiKey:     key,
-		model:      model,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		cliBinary: binary,
 	}
 }
 
-// isAvailable returns true if the Claude API is configured.
+// isAvailable returns true if the Claude CLI is found.
 func (c *claudeClient) isAvailable() bool {
-	return c.apiKey != ""
+	return c.cliBinary != ""
+}
+
+// streamMessage is the JSON envelope sent to Claude CLI via stream-json input.
+type streamMessage struct {
+	Type    string `json:"type"`
+	Content string `json:"content,omitempty"`
+}
+
+// streamResponse is one chunk from Claude CLI's stream-json output.
+type streamResponse struct {
+	Type    string `json:"type"`              // "assistant", "result", "error", etc.
+	Content string `json:"content,omitempty"` // text content for assistant messages
+	Result  string `json:"result,omitempty"`  // final result text
+	Message struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"message,omitempty"`
+	Subtype string `json:"subtype,omitempty"`
+}
+
+// ensureRunning starts the Claude CLI subprocess if not already running.
+func (c *claudeClient) ensureRunning() error {
+	if c.running {
+		// Check if process is still alive.
+		if c.cmd != nil && c.cmd.Process != nil {
+			if c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited() {
+				c.running = false
+			} else {
+				return nil
+			}
+		}
+	}
+
+	cmd := exec.Command(c.cliBinary,
+		"--print",
+		"--verbose",
+		"--input-format", "stream-json",
+		"--output-format", "stream-json",
+		"--permission-mode", "bypassPermissions",
+		"--no-session-persistence",
+		"--model", "sonnet",
+		"--system-prompt", "You are the AI operations engine for a Globular cluster. "+
+			"You have MCP tools available to query cluster health, memory, node status, and RBAC. "+
+			"Always respond with structured JSON analysis when asked to diagnose incidents. "+
+			"Safety first — when uncertain, recommend observe_and_record.",
+	)
+
+	cmd.Env = os.Environ()
+
+	// Set working directory to the services repo so Claude picks up
+	// the MCP configuration and has access to all Globular MCP tools.
+	workDir := os.Getenv("GLOBULAR_SERVICES_DIR")
+	if workDir == "" {
+		workDir = "/home/dave/Documents/github.com/globulario/services"
+	}
+	if _, err := os.Stat(workDir); err == nil {
+		cmd.Dir = workDir
+	}
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("create stdin pipe: %w", err)
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		stdin.Close()
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	// Capture stderr for diagnostics.
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		stdin.Close()
+		return fmt.Errorf("create stderr pipe: %w", err)
+	}
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			logger.Warn("claude: stderr", "line", scanner.Text())
+		}
+	}()
+
+	if err := cmd.Start(); err != nil {
+		stdin.Close()
+		return fmt.Errorf("start claude CLI: %w", err)
+	}
+
+	c.cmd = cmd
+	c.stdin = stdin
+	c.scanner = bufio.NewScanner(stdout)
+	c.scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large responses
+	c.running = true
+
+	logger.Info("claude: subprocess started", "pid", cmd.Process.Pid)
+	return nil
+}
+
+// sendPrompt sends a prompt to the running Claude subprocess and reads the response.
+func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.ensureRunning(); err != nil {
+		return "", err
+	}
+
+	// Send the user message as stream-json.
+	msg := streamMessage{
+		Type:    "user",
+		Content: prompt,
+	}
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return "", fmt.Errorf("marshal prompt: %w", err)
+	}
+	msgBytes = append(msgBytes, '\n')
+
+	if _, err := c.stdin.Write(msgBytes); err != nil {
+		c.running = false
+		return "", fmt.Errorf("write to claude stdin: %w", err)
+	}
+
+	// Read response lines until we get a result message.
+	var responseText strings.Builder
+	deadline := time.Now().Add(60 * time.Second)
+
+	for c.scanner.Scan() {
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("timeout waiting for claude response")
+		}
+
+		line := c.scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var resp streamResponse
+		if err := json.Unmarshal([]byte(line), &resp); err != nil {
+			continue // Skip malformed lines.
+		}
+
+		switch resp.Type {
+		case "assistant":
+			// Accumulate assistant text chunks.
+			if resp.Content != "" {
+				responseText.WriteString(resp.Content)
+			}
+			for _, block := range resp.Message.Content {
+				if block.Type == "text" {
+					responseText.WriteString(block.Text)
+				}
+			}
+
+		case "result":
+			// Final result — use it if available, otherwise use accumulated text.
+			if resp.Result != "" {
+				return resp.Result, nil
+			}
+			result := responseText.String()
+			if result != "" {
+				return result, nil
+			}
+			return "", fmt.Errorf("empty result from claude")
+
+		case "error":
+			c.running = false
+			return "", fmt.Errorf("claude error: %s", resp.Content)
+		}
+	}
+
+	if err := c.scanner.Err(); err != nil {
+		c.running = false
+		return "", fmt.Errorf("read claude stdout: %w", err)
+	}
+
+	// Scanner ended — process exited.
+	c.running = false
+	result := responseText.String()
+	if result != "" {
+		return result, nil
+	}
+	return "", fmt.Errorf("claude process exited unexpectedly")
+}
+
+// shutdown cleanly stops the Claude subprocess.
+func (c *claudeClient) shutdown() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.stdin != nil {
+		c.stdin.Close()
+	}
+	if c.cmd != nil && c.cmd.Process != nil {
+		c.cmd.Process.Signal(os.Interrupt)
+		done := make(chan error, 1)
+		go func() { done <- c.cmd.Wait() }()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			c.cmd.Process.Kill()
+		}
+	}
+	c.running = false
+	logger.Info("claude: subprocess stopped")
 }
 
 // analyzeIncident sends evidence to Claude and gets a reasoned diagnosis.
 func (c *claudeClient) analyzeIncident(ctx context.Context, req *ai_executorpb.ProcessIncidentRequest, evidence []string, clusterHealth string) (*claudeAnalysis, error) {
 	if !c.isAvailable() {
-		return nil, fmt.Errorf("claude API not configured")
+		return nil, fmt.Errorf("claude CLI not found")
 	}
 
-	// Build the prompt with all gathered evidence.
 	prompt := buildAnalysisPrompt(req, evidence, clusterHealth)
 
-	response, err := c.callAPI(ctx, prompt)
+	response, err := c.sendPrompt(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("claude API call failed: %w", err)
+		return nil, fmt.Errorf("claude analysis failed: %w", err)
 	}
 
-	// Parse Claude's structured response.
 	analysis, err := parseAnalysis(response)
 	if err != nil {
-		// If parsing fails, use the raw text as the diagnosis.
 		return &claudeAnalysis{
 			RootCause:      "analysis_available",
 			Confidence:     0.5,
@@ -104,7 +310,6 @@ type claudeAnalysis struct {
 func buildAnalysisPrompt(req *ai_executorpb.ProcessIncidentRequest, evidence []string, clusterHealth string) string {
 	var b strings.Builder
 
-	b.WriteString("You are the AI operations engine for a Globular cluster. ")
 	b.WriteString("Analyze this incident and provide a structured diagnosis.\n\n")
 
 	b.WriteString("## Incident\n")
@@ -149,74 +354,16 @@ func buildAnalysisPrompt(req *ai_executorpb.ProcessIncidentRequest, evidence []s
 }`)
 	b.WriteString("\n```\n")
 
-	b.WriteString("\nBe specific. Use the evidence. If confidence is low, recommend observe_and_record. ")
+	b.WriteString("\nUse your MCP tools to query cluster health and memory for additional context. ")
+	b.WriteString("Be specific. Use the evidence. If confidence is low, recommend observe_and_record. ")
 	b.WriteString("If risk is high, recommend notify_admin rather than auto-fix. ")
 	b.WriteString("Safety first — when uncertain, observe.")
 
 	return b.String()
 }
 
-// callAPI calls the Anthropic Messages API.
-func (c *claudeClient) callAPI(ctx context.Context, prompt string) (string, error) {
-	body := map[string]interface{}{
-		"model":      c.model,
-		"max_tokens": claudeMaxTokens,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
-		},
-	}
-
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return "", err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", claudeAPIURL, bytes.NewReader(jsonBody))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", c.apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API returned %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	// Parse the Messages API response.
-	var apiResp struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	}
-	if err := json.Unmarshal(respBody, &apiResp); err != nil {
-		return "", fmt.Errorf("parse response: %w", err)
-	}
-
-	for _, block := range apiResp.Content {
-		if block.Type == "text" {
-			return block.Text, nil
-		}
-	}
-
-	return "", fmt.Errorf("no text content in response")
-}
-
 // parseAnalysis extracts structured analysis from Claude's response.
 func parseAnalysis(response string) (*claudeAnalysis, error) {
-	// Strip markdown code fences if present.
 	text := response
 	if i := strings.Index(text, "{"); i >= 0 {
 		text = text[i:]
@@ -230,7 +377,6 @@ func parseAnalysis(response string) (*claudeAnalysis, error) {
 		return nil, fmt.Errorf("parse analysis JSON: %w", err)
 	}
 
-	// Validate.
 	if analysis.Confidence < 0 {
 		analysis.Confidence = 0
 	}
