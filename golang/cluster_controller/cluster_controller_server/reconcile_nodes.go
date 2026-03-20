@@ -69,7 +69,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		var readyEtcdNodes []memberNode
 		for _, mn := range desiredEtcdNodes {
 			for _, n := range nodes {
-				if n != nil && n.NodeID == mn.NodeID && nodeHasEtcdInstalled(n) {
+				if n != nil && n.NodeID == mn.NodeID && nodeHasEtcdRunning(n) {
 					readyEtcdNodes = append(readyEtcdNodes, mn)
 					break
 				}

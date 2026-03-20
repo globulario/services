@@ -10,16 +10,16 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-// nodeHasEtcdInstalled returns true if the node reports globular-etcd.service
-// in its unit list (meaning the package is installed and the unit file exists).
-// We must NOT call MemberAdd for nodes without etcd installed — doing so breaks
-// quorum because etcd counts unstarted members in its cluster size.
-func nodeHasEtcdInstalled(node *nodeState) bool {
+// nodeHasEtcdRunning returns true if the node reports globular-etcd.service
+// as "active" in its unit list. We must NOT call MemberAdd for nodes where
+// etcd is not actively running — doing so breaks quorum because etcd counts
+// the unstarted member in its cluster size calculation.
+func nodeHasEtcdRunning(node *nodeState) bool {
 	if node == nil {
 		return false
 	}
 	for _, u := range node.Units {
-		if u.Name == "globular-etcd.service" {
+		if u.Name == "globular-etcd.service" && u.State == "active" {
 			return true
 		}
 	}
