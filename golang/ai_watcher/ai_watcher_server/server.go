@@ -330,6 +330,8 @@ func (srv *server) resolveEventEndpoint() string {
 
 // handleEvent processes a single event from the event service.
 func (srv *server) handleEvent(evt *eventpb.Event) {
+	logger.Info("event received", "name", evt.GetName(), "data_len", len(evt.GetData()))
+
 	srv.statsMu.Lock()
 	srv.stats.EventsReceived++
 	srv.stats.LastEventAt = time.Now()
@@ -485,8 +487,8 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 		return
 	}
 
-	// Internal service call — use insecure credentials.
-	cc, err := grpc.Dial(addr, grpc.WithInsecure())
+	// Internal service call — use platform TLS credentials.
+	cc, err := grpc.Dial(addr, globular.InternalDialOption())
 	if err != nil {
 		logger.Error("connect to ai_executor failed", "err", err)
 		incident.Diagnosis = "Executor connection failed: " + err.Error()

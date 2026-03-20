@@ -10,7 +10,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ActionBackend executes a real remediation action and verifies the outcome.
@@ -189,7 +188,7 @@ func getClusterHealthForVerification(ctx context.Context) (*cluster_controllerpb
 	}
 
 	cc, err := grpc.Dial(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		globular.InternalDialOption(),
 		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {

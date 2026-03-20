@@ -11,8 +11,8 @@ import (
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // diagnoser gathers evidence from cluster services, then uses Claude
@@ -243,7 +243,7 @@ func (d *diagnoser) queryPastIncidents(ctx context.Context, ruleID, eventName st
 	}
 
 	cc, err := grpc.Dial(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		globular.InternalDialOption(),
 		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {
@@ -286,7 +286,7 @@ func (d *diagnoser) getClusterHealth(ctx context.Context) (*cluster_controllerpb
 	}
 
 	cc, err := grpc.Dial(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		globular.InternalDialOption(),
 		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {

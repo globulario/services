@@ -13,7 +13,6 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // remediator executes remediation actions via real backends and verifies outcomes.
@@ -148,7 +147,7 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 	}
 
 	cc, err := grpc.Dial(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		globular.InternalDialOption(),
 		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {

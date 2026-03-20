@@ -39,6 +39,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -517,6 +518,26 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 			return nil
 		},
 	}
+}
+
+// InternalDialOption returns a grpc.DialOption with TLS credentials for
+// service-to-service calls. Uses the node's service certificate and CA.
+// Falls back to insecure if certs are not available (e.g. during bootstrap).
+func InternalDialOption() grpc.DialOption {
+	cert := config.GetLocalServerCertificatePath()
+	key := config.GetLocalServerKeyPath()
+	ca := config.GetLocalCACertificate()
+	if cert == "" || key == "" || ca == "" {
+		slog.Debug("InternalDialOption: certs not found, falling back to insecure")
+		return grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+	tlsCfg := GetTLSConfig(key, cert, ca)
+	if tlsCfg == nil {
+		return grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+	// As a client we only need to verify the server's cert against our CA.
+	tlsCfg.ClientAuth = tls.NoClientCert
+	return grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
 }
 
 // Keepalive / concurrency parameters for gRPC servers.

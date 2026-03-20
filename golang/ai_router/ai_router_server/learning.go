@@ -8,8 +8,8 @@ import (
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	"github.com/globulario/services/golang/config"
+	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // learningStore records routing decisions in ai_memory and queries historical
@@ -37,7 +37,7 @@ func (ls *learningStore) connect() error {
 	ls.memoryAddr = addr
 
 	cc, err := grpc.Dial(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		globular.InternalDialOption(),
 		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {
