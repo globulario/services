@@ -288,10 +288,6 @@ func serviceProbeForUnit(unit string) *planpb.Probe {
 // registry entry for the service.
 func BuildServiceRemovePlan(nodeID string, svcCanonical string, desiredHash string) *planpb.NodePlan {
 	unit := serviceUnitForCanonical(svcCanonical)
-	marker := versionutil.MarkerPath(svcCanonical)
-	binaryPath := fmt.Sprintf("/usr/local/bin/%s", svcCanonical)
-	unitPath := fmt.Sprintf("/etc/systemd/system/%s", unit)
-	configDir := fmt.Sprintf("/etc/globular/%s", svcCanonical)
 
 	return &planpb.NodePlan{
 		ApiVersion:  "globular.io/plan/v1",
@@ -310,12 +306,9 @@ func BuildServiceRemovePlan(nodeID string, svcCanonical string, desiredHash stri
 				planStep("service.stop", map[string]interface{}{"unit": unit}),
 				planStep("service.disable", map[string]interface{}{"unit": unit}),
 				planStep("package.uninstall", map[string]interface{}{
-					"service":      svcCanonical,
+					"kind":         "SERVICE",
+					"name":         svcCanonical,
 					"unit":         unit,
-					"binary_path":  binaryPath,
-					"unit_path":    unitPath,
-					"config_dir":   configDir,
-					"marker_path":  marker,
 				}),
 				planStep("package.clear_state", map[string]interface{}{
 					"node_id": nodeID,
