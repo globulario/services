@@ -116,7 +116,24 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
 
+	// Clean up units that no longer exist (uninstalled).
+	activeUnits := make(map[string]bool, len(units))
 	for _, u := range units {
+		activeUnits[u.Name] = true
+	}
+	for name := range ep.lastStates {
+		if !activeUnits[name] {
+			delete(ep.lastStates, name)
+			delete(ep.badStatePublished, name)
+		}
+	}
+
+	for _, u := range units {
+		// Skip units whose file was removed (systemd ghost after reset-failed).
+		if u.ActiveState == "inactive" && u.SubState == "dead" && u.Result == "" {
+			continue
+		}
+
 		prev, existed := ep.lastStates[u.Name]
 		current := serviceState{
 			ActiveState: u.ActiveState, SubState: u.SubState, MainPID: u.MainPID,
