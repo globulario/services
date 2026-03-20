@@ -1003,21 +1003,30 @@ func StopService(s Service, srv *grpc.Server) error {
 var serviceEventClient *event_client.Event_Client
 
 // initServiceEvents connects to the event service and wires up hooks.
-// Runs in a background goroutine — failures are non-fatal (best-effort).
+// Runs in a background goroutine — retries until connected.
 func initServiceEvents(s Service) {
 	// Give event service time to start (it may boot after us).
 	time.Sleep(10 * time.Second)
 
-	addr := config.ResolveServiceAddr("event.EventService", "localhost:10010")
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
-	if err != nil {
-		slog.Debug("initServiceEvents: event service unavailable, events disabled", "err", err)
-		return
-	}
-	client, ok := c.(*event_client.Event_Client)
-	if !ok {
-		return
+
+	// Retry until we connect — event service may start well after us.
+	var client *event_client.Event_Client
+	for attempt := 1; ; attempt++ {
+		addr := config.ResolveServiceAddr("event.EventService", "localhost:10010")
+		c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
+		if err == nil {
+			if ec, ok := c.(*event_client.Event_Client); ok {
+				client = ec
+				break
+			}
+		}
+		backoff := time.Duration(attempt) * 10 * time.Second
+		if backoff > 60*time.Second {
+			backoff = 60 * time.Second
+		}
+		slog.Debug("initServiceEvents: event service unavailable, retrying", "err", err, "attempt", attempt, "backoff", backoff)
+		time.Sleep(backoff)
 	}
 	serviceEventClient = client
 
