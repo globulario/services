@@ -34,8 +34,11 @@ func (o *EtcdOperator) AdmitPlan(ctx context.Context, req AdmitRequest) (AdmitDe
 				st.IsUpgrading = true
 			}
 		}
-		// Treat nodes without applied desired hash as unhealthy for quorum safety.
-		if status != nil && status.GetState() != planpb.PlanState_PLAN_SUCCEEDED {
+		// Treat nodes as unhealthy only if the CURRENT plan's status is non-succeeded.
+		// A stale status from an old generation should not permanently block operations.
+		if status != nil && plan != nil &&
+			status.GetGeneration() == plan.GetGeneration() &&
+			status.GetState() != planpb.PlanState_PLAN_SUCCEEDED {
 			st.IsHealthy = false
 		}
 		states = append(states, st)

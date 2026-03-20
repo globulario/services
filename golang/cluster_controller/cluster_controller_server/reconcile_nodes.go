@@ -204,6 +204,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				}
 			}
 			fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
+			// Desired state changed since last failure — reset failure count so
+			// the new config gets a clean attempt without accumulated backoff.
+			if planHash != specHash && fails > 0 {
+				_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
+				fails = 0
+			}
 			if status != nil && planHash == specHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
 				srv.emitClusterEvent("plan_apply_failed", map[string]interface{}{
 					"severity":       "ERROR",
@@ -403,6 +409,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}
 		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
+		// Desired state changed since last failure — reset failure count.
+		if planHash != svcHash && failsSvc > 0 {
+			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
+			failsSvc = 0
+		}
 		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
 			srv.emitClusterEvent("service_apply_failed", map[string]interface{}{
 				"severity":       "ERROR",
