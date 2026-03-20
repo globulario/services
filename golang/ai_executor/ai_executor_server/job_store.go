@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
+	"github.com/globulario/services/golang/config"
 	Utility "github.com/globulario/utility"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -39,10 +40,7 @@ func newJobStore() *jobStore {
 func (js *jobStore) connectEtcd() {
 	// Retry etcd connection with backoff.
 	for attempt := 0; attempt < 10; attempt++ {
-		cli, err := clientv3.New(clientv3.Config{
-			Endpoints:   []string{"127.0.0.1:2379"},
-			DialTimeout: 5 * time.Second,
-		})
+		cli, err := config.NewEtcdClient()
 		if err == nil {
 			js.mu.Lock()
 			js.etcdClient = cli
@@ -53,6 +51,7 @@ func (js *jobStore) connectEtcd() {
 			js.loadFromEtcd()
 			return
 		}
+		logger.Debug("job_store: etcd connect attempt failed", "attempt", attempt, "err", err)
 		time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
 	}
 	logger.Warn("job_store: etcd unavailable, using in-memory only")
