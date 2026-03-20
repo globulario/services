@@ -499,7 +499,7 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 
 	client := ai_executorpb.NewAiExecutorServiceClient(cc)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	// Build event batch names.

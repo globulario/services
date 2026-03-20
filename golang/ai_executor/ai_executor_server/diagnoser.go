@@ -31,7 +31,7 @@ func newDiagnoser() *diagnoser {
 
 // diagnose gathers context and builds a diagnosis for an incident.
 func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessIncidentRequest) (*ai_executorpb.Diagnosis, error) {
-	callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
 	var evidence []string
