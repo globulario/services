@@ -89,14 +89,17 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 
 	// Publish outcome event.
 	go func() {
+		msg := fmt.Sprintf("%s %s → %s", action.GetType().String(), action.GetTarget(), action.GetStatus().String())
 		globular.PublishEvent("operation.remediation.completed", map[string]interface{}{
 			"severity":    statusSeverity(action.Status),
+			"message":     msg,
 			"incident_id": action.GetIncidentId(),
 			"action_type": action.GetType().String(),
 			"status":      action.GetStatus().String(),
 			"target":      action.GetTarget(),
 			"result":      action.GetDetail(),
 			"error":       action.GetError(),
+			"service":     "ai_executor",
 		})
 	}()
 

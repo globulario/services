@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -144,11 +143,13 @@ func (en *eventNotifier) Notify(_ context.Context, n *Notification) error {
 	payload := map[string]interface{}{
 		"severity":        n.Severity,
 		"incident_id":     n.IncidentID,
+		"message":         n.Summary, // dashboard displays this field
 		"summary":         n.Summary,
 		"root_cause":      n.RootCause,
 		"confidence":      n.Confidence,
-		"proposed_action":  n.ProposedAction,
+		"proposed_action": n.ProposedAction,
 		"rationale":       n.Rationale,
+		"service":         "ai_executor",
 	}
 
 	if n.Type == NotifyApprovalRequired {
@@ -158,11 +159,7 @@ func (en *eventNotifier) Notify(_ context.Context, n *Notification) error {
 		payload["severity"] = "ERROR" // approvals are urgent
 	}
 
-	data, _ := json.Marshal(payload)
-	globular.PublishEvent(eventName, nil)
-	// Re-publish with actual data.
 	globular.PublishEvent(eventName, payload)
-	_ = data // suppress unused if PublishEvent handles map directly
 
 	return nil
 }
