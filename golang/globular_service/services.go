@@ -524,19 +524,34 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 // service-to-service calls. Uses the node's service certificate and CA.
 // Falls back to insecure if certs are not available (e.g. during bootstrap).
 func InternalDialOption() grpc.DialOption {
-	cert := config.GetLocalServerCertificatePath()
-	key := config.GetLocalServerKeyPath()
-	ca := config.GetLocalCACertificate()
-	if cert == "" || key == "" || ca == "" {
+	certPath := config.GetLocalServerCertificatePath()
+	keyPath := config.GetLocalServerKeyPath()
+	caPath := config.GetLocalCACertificate()
+	if certPath == "" || keyPath == "" || caPath == "" {
 		slog.Debug("InternalDialOption: certs not found, falling back to insecure")
 		return grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
-	tlsCfg := GetTLSConfig(key, cert, ca)
-	if tlsCfg == nil {
+
+	tlsCert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		slog.Error("InternalDialOption: load keypair failed", "err", err)
 		return grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
-	// As a client we only need to verify the server's cert against our CA.
-	tlsCfg.ClientAuth = tls.NoClientCert
+
+	caBytes, err := os.ReadFile(caPath)
+	if err != nil {
+		slog.Error("InternalDialOption: read CA failed", "err", err)
+		return grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+	caPool := x509.NewCertPool()
+	caPool.AppendCertsFromPEM(caBytes)
+
+	hostname, _ := config.GetHostname()
+	tlsCfg := &tls.Config{
+		ServerName:   hostname,
+		Certificates: []tls.Certificate{tlsCert},
+		RootCAs:      caPool, // Verify server cert against cluster CA.
+	}
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
 }
 
