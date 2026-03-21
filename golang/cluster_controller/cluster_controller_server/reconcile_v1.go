@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -345,7 +346,7 @@ func resolveRepositoryInfo() repositoryInfo {
 	const fallback = "localhost:10101"
 	cfg, err := config.GetServiceConfigurationById("repository.PackageRepository")
 	if err != nil || cfg == nil {
-		return repositoryInfo{Address: fallback}
+		return repositoryInfo{Address: makeRoutable(fallback)}
 	}
 	port := Utility.ToInt(cfg["Port"])
 	host := strings.TrimSpace(Utility.ToString(cfg["Address"]))
@@ -375,7 +376,24 @@ func resolveRepositoryInfo() repositoryInfo {
 	if s, ok := cfg["CertAuthorityTrust"]; ok {
 		caPath = strings.TrimSpace(Utility.ToString(s))
 	}
-	return repositoryInfo{Address: addr, TLS: tlsEnabled, CAPath: caPath}
+	return repositoryInfo{Address: makeRoutable(addr), TLS: tlsEnabled, CAPath: caPath}
+}
+
+// makeRoutable replaces localhost/127.0.0.1 in an address with the node's
+// LAN IP so that plans sent to remote nodes contain a reachable address.
+// Services bind to localhost for security (Envoy handles external access),
+// but plans dispatched to other nodes need a cluster-routable address.
+func makeRoutable(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "" {
+		if lanIP, _ := config.GetAddress(); lanIP != "" {
+			return net.JoinHostPort(lanIP, port)
+		}
+	}
+	return addr
 }
 
 // resolveRepositoryAddress returns "host:port" for backward compat.
