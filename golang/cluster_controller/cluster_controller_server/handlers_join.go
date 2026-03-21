@@ -155,6 +155,8 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		Status:                "converging",
 		Metadata:              copyLabels(jr.Labels),
 		LastAppliedGeneration: 0, // New node hasn't applied any generation yet
+		BootstrapPhase:        BootstrapAdmitted,
+		BootstrapStartedAt:    time.Now(),
 	}
 	srv.state.Nodes[nodeID] = node
 

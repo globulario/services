@@ -77,6 +77,13 @@ func nodeIsPreparedForEtcdJoin(node *nodeState, existingPeerURLs map[string]bool
 	case EtcdJoinMemberAdded, EtcdJoinStarted:
 		return false
 	}
+	// Must be in the etcd_joining bootstrap phase (or workload_ready for
+	// backward compatibility with legacy/bootstrap nodes).
+	if node.BootstrapPhase != BootstrapNone &&
+		node.BootstrapPhase != BootstrapEtcdJoining &&
+		node.BootstrapPhase != BootstrapWorkloadReady {
+		return false
+	}
 	return true
 }
 

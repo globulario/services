@@ -46,6 +46,31 @@ type joinRequestRecord struct {
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 }
 
+// BootstrapPhase tracks where a node is in the phased bootstrap sequence.
+// A new node must join the cluster as a machine (trust), then as an
+// infrastructure participant (etcd, xDS, Envoy), and only then as a
+// host for workload services.
+type BootstrapPhase string
+
+const (
+	BootstrapNone           BootstrapPhase = ""                // legacy / bootstrap node (treated as workload_ready)
+	BootstrapAdmitted       BootstrapPhase = "admitted"        // Phase 0: trust established, node-agent running
+	BootstrapInfraPreparing BootstrapPhase = "infra_preparing" // Phase 1: infra packages installing
+	BootstrapEtcdJoining    BootstrapPhase = "etcd_joining"    // Phase 2: etcd join state machine active
+	BootstrapEtcdReady      BootstrapPhase = "etcd_ready"      // Phase 3: etcd verified, discovery live
+	BootstrapXdsReady       BootstrapPhase = "xds_ready"       // Phase 4: xDS connected to etcd
+	BootstrapEnvoyReady     BootstrapPhase = "envoy_ready"     // Phase 5: Envoy healthy
+	BootstrapWorkloadReady  BootstrapPhase = "workload_ready"  // Phase 6: normal service reconcile
+	BootstrapStorageJoining BootstrapPhase = "storage_joining" // Phase 7: optional storage join
+	BootstrapFailed         BootstrapPhase = "bootstrap_failed"
+)
+
+// bootstrapPhaseReady returns true if the node is ready for normal
+// workload service reconciliation.
+func bootstrapPhaseReady(phase BootstrapPhase) bool {
+	return phase == BootstrapNone || phase == BootstrapWorkloadReady || phase == BootstrapStorageJoining
+}
+
 // EtcdJoinPhase tracks where a node is in the etcd cluster join sequence.
 type EtcdJoinPhase string
 
@@ -85,6 +110,10 @@ type nodeState struct {
 	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
 	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
 	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"` // for rollback via MemberRemove
+	// Bootstrap phase state machine (phased node initialization)
+	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
+	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`
+	BootstrapError     string         `json:"bootstrap_error,omitempty"`
 	// DNS-first naming field (PR2)
 	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
 	// Structured blocked reason (Phase 7)
@@ -180,6 +209,13 @@ func loadControllerState(path string) (*controllerState, error) {
 	} else if state.ClusterNetworkSpec.ClusterDomain == "" {
 		state.ClusterNetworkSpec.ClusterDomain = netutil.DefaultClusterDomain()
 		state.NetworkingGeneration++
+	}
+	// Migrate existing nodes: empty BootstrapPhase means the node was
+	// created before phased bootstrap existed — treat as fully ready.
+	for _, node := range state.Nodes {
+		if node != nil && node.BootstrapPhase == BootstrapNone {
+			node.BootstrapPhase = BootstrapWorkloadReady
+		}
 	}
 	return state, nil
 }

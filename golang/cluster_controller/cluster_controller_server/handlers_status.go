@@ -52,14 +52,15 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		log.Printf("ReportNodeStatus: auto-registering unknown node %s (hostname=%s endpoint=%s)",
 			nodeID, newIdentity.Hostname, newEndpoint)
 		node = &nodeState{
-			NodeID:        nodeID,
-			Identity:      newIdentity,
-			AgentEndpoint: newEndpoint,
-			LastSeen:      reportedAt,
-			ReportedAt:    reportedAt,
-			Status:        "ready",
-			Profiles:      []string{"control-plane", "gateway"},
-			Metadata:      make(map[string]string),
+			NodeID:         nodeID,
+			Identity:       newIdentity,
+			AgentEndpoint:  newEndpoint,
+			LastSeen:       reportedAt,
+			ReportedAt:     reportedAt,
+			Status:         "ready",
+			Profiles:       []string{"control-plane", "gateway"},
+			Metadata:       make(map[string]string),
+			BootstrapPhase: BootstrapWorkloadReady, // already running, skip bootstrap
 		}
 		if srv.state.Nodes == nil {
 			srv.state.Nodes = make(map[string]*nodeState)

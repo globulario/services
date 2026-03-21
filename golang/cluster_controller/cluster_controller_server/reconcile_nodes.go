@@ -58,10 +58,15 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	srv.unlock()
 	now := time.Now()
 
-	// Pre-reconcile: drive the etcd join state machine.
-	// Nodes transition through: prepared → member_added → started → verified.
-	// MemberAdd is called only when the node is fully prepared (package installed,
-	// unit file present, routable IP). Rollback via MemberRemove on timeout.
+	// Pre-reconcile phase 1: drive bootstrap phase state machine.
+	// Nodes progress through: admitted → infra_preparing → etcd_joining →
+	// etcd_ready → xds_ready → envoy_ready → workload_ready.
+	if bootDirty := reconcileBootstrapPhases(nodes, srv); bootDirty {
+		stateDirty = true
+	}
+
+	// Pre-reconcile phase 2: drive the etcd join state machine.
+	// Only runs for nodes in etcd_joining or workload_ready phase.
 	if srv.etcdMembers != nil {
 		if joinDirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); joinDirty {
 			stateDirty = true
@@ -70,6 +75,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
+			continue
+		}
+		// Bootstrap phase gating: nodes not yet workload_ready get restricted
+		// reconciliation. During infra_preparing, only infrastructure unit
+		// plans are dispatched. During other pre-ready phases, no plans are
+		// dispatched — the bootstrap state machine drives progress via
+		// heartbeat observations.
+		if !bootstrapPhaseReady(node.BootstrapPhase) {
 			continue
 		}
 		// Validate profiles before any dispatch — unknown profiles block the node.

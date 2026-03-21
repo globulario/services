@@ -165,6 +165,48 @@ var unitPriority = map[string]int{
 	"globular-envoy.service":     10,
 }
 
+// ServiceTier classifies units for phased bootstrap.
+type ServiceTier int
+
+const (
+	TierBootstrap      ServiceTier = 0 // node-agent only (not managed here)
+	TierInfrastructure ServiceTier = 1 // must be running before workloads
+	TierWorkload       ServiceTier = 2 // normal application services
+)
+
+// unitTier maps systemd unit names to their service tier.
+// Units not listed default to TierWorkload.
+var unitTier = map[string]ServiceTier{
+	"globular-etcd.service":       TierInfrastructure,
+	"globular-dns.service":        TierInfrastructure,
+	"globular-discovery.service":  TierInfrastructure,
+	"globular-xds.service":        TierInfrastructure,
+	"globular-envoy.service":      TierInfrastructure,
+	"globular-minio.service":      TierInfrastructure,
+	"globular-gateway.service":    TierInfrastructure,
+	"globular-monitoring.service": TierInfrastructure,
+}
+
+// getUnitTier returns the tier for a unit, defaulting to TierWorkload.
+func getUnitTier(unit string) ServiceTier {
+	if t, ok := unitTier[strings.ToLower(unit)]; ok {
+		return t
+	}
+	return TierWorkload
+}
+
+// filterActionsByMaxTier returns only actions whose unit is at or below maxTier.
+// This lets the reconciler restrict plan dispatch to infrastructure-only during bootstrap.
+func filterActionsByMaxTier(actions []*cluster_controllerpb.UnitAction, maxTier ServiceTier) []*cluster_controllerpb.UnitAction {
+	var filtered []*cluster_controllerpb.UnitAction
+	for _, a := range actions {
+		if getUnitTier(a.UnitName) <= maxTier {
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
 // getUnitPriority returns the priority for a unit, defaulting to 1000 for unknown units.
 // Lower number = higher priority = starts first / stops last.
 // Unknown units get lowest priority (1000) so they don't accidentally jump the queue.
