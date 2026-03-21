@@ -206,11 +206,12 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	sb.WriteString(fmt.Sprintf("initial-cluster-token: %q\n", clusterToken))
 	sb.WriteString("\n")
 
-	// Client TLS (for etcdctl and service connections)
+	// Client TLS (for etcdctl and service connections).
+	// No trusted-ca-file here — that enables client cert auth which blocks
+	// etcdctl and services that connect without client certs.
 	sb.WriteString("client-transport-security:\n")
 	sb.WriteString(fmt.Sprintf("  cert-file: %s\n", etcdServerCert))
 	sb.WriteString(fmt.Sprintf("  key-file: %s\n", etcdServerKey))
-	sb.WriteString(fmt.Sprintf("  trusted-ca-file: %s\n", etcdCACert))
 	sb.WriteString("\n")
 
 	// Peer TLS (inter-node etcd replication)
