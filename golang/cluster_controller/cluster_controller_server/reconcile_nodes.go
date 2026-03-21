@@ -58,29 +58,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	srv.unlock()
 	now := time.Now()
 
-	// Pre-reconcile: ensure etcd cluster membership matches desired etcd nodes.
-	// IMPORTANT: Only add nodes that have etcd installed (unit file present).
-	// Adding a member before its etcd is ready to start breaks quorum because
-	// etcd counts the unstarted member in its cluster size calculation.
+	// Pre-reconcile: drive the etcd join state machine.
+	// Nodes transition through: prepared → member_added → started → verified.
+	// MemberAdd is called only when the node is fully prepared (package installed,
+	// unit file present, routable IP). Rollback via MemberRemove on timeout.
 	if srv.etcdMembers != nil {
-		membership := srv.snapshotClusterMembership()
-		desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
-		// Filter to only nodes that have globular-etcd.service installed.
-		var readyEtcdNodes []memberNode
-		for _, mn := range desiredEtcdNodes {
-			for _, n := range nodes {
-				if n != nil && n.NodeID == mn.NodeID && nodeHasEtcdRunning(n) {
-					readyEtcdNodes = append(readyEtcdNodes, mn)
-					break
-				}
-			}
-		}
-		if len(readyEtcdNodes) > 1 { // only expand when >1 ready node (single-node doesn't need member-add)
-			if added, err := srv.etcdMembers.reconcileMembers(ctx, readyEtcdNodes); err != nil {
-				log.Printf("reconcile: etcd member-add failed: %v", err)
-			} else if len(added) > 0 {
-				log.Printf("reconcile: registered %d new etcd members: %v", len(added), added)
-			}
+		if joinDirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); joinDirty {
+			stateDirty = true
 		}
 	}
 

@@ -9,7 +9,6 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/netutil"
-	"github.com/google/uuid"
 )
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
@@ -47,6 +46,18 @@ type joinRequestRecord struct {
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 }
 
+// EtcdJoinPhase tracks where a node is in the etcd cluster join sequence.
+type EtcdJoinPhase string
+
+const (
+	EtcdJoinNone       EtcdJoinPhase = ""            // not joining / not an etcd node
+	EtcdJoinPrepared   EtcdJoinPhase = "prepared"    // package installed, unit exists, ready for MemberAdd
+	EtcdJoinMemberAdded EtcdJoinPhase = "member_added" // MemberAdd called, config rendered, awaiting service start
+	EtcdJoinStarted    EtcdJoinPhase = "started"     // etcd service started, awaiting health verification
+	EtcdJoinVerified   EtcdJoinPhase = "verified"    // etcd member healthy and participating
+	EtcdJoinFailed     EtcdJoinPhase = "failed"      // join failed, rollback performed or needed
+)
+
 type nodeState struct {
 	NodeID                string             `json:"node_id"`
 	Identity              storedIdentity     `json:"identity"`
@@ -69,6 +80,11 @@ type nodeState struct {
 	LastRecoveryAttempt  time.Time `json:"last_recovery_attempt,omitempty"`
 	RecoveryAttempts     int       `json:"recovery_attempts,omitempty"`
 	MarkedUnhealthySince time.Time `json:"marked_unhealthy_since,omitempty"`
+	// etcd join state machine (Phase-based expansion)
+	EtcdJoinPhase     EtcdJoinPhase `json:"etcd_join_phase,omitempty"`
+	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
+	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
+	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"` // for rollback via MemberRemove
 	// DNS-first naming field (PR2)
 	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
 	// Structured blocked reason (Phase 7)
@@ -119,7 +135,7 @@ func newControllerState() *controllerState {
 		JoinTokens:   make(map[string]*joinTokenRecord),
 		JoinRequests: make(map[string]*joinRequestRecord),
 		Nodes:        make(map[string]*nodeState),
-		ClusterId:    uuid.NewString(),
+		ClusterId:    netutil.DefaultClusterDomain(),
 		CreatedAt:    time.Now(),
 		// Day-0 Security: Initialize with default internal domain
 		ClusterNetworkSpec: &cluster_controllerpb.ClusterNetworkSpec{
@@ -148,8 +164,11 @@ func loadControllerState(path string) (*controllerState, error) {
 	if state.CreatedAt.IsZero() {
 		state.CreatedAt = time.Now()
 	}
-	if state.ClusterId == "" {
-		state.ClusterId = uuid.NewString()
+	// Cluster ID must match what the node agent uses (the domain).
+	// Migrate any legacy UUID-based cluster IDs to the domain.
+	domain := netutil.DefaultClusterDomain()
+	if state.ClusterId == "" || !isDomainLike(state.ClusterId) {
+		state.ClusterId = domain
 	}
 	// Day-0 Security: Ensure internal domain is always set
 	if state.ClusterNetworkSpec == nil {
@@ -163,6 +182,17 @@ func loadControllerState(path string) (*controllerState, error) {
 		state.NetworkingGeneration++
 	}
 	return state, nil
+}
+
+// isDomainLike returns true if s looks like a domain (contains a dot),
+// as opposed to a bare UUID.
+func isDomainLike(s string) bool {
+	for _, c := range s {
+		if c == '.' {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *controllerState) save(path string) error {
