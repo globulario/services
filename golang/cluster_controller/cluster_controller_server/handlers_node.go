@@ -27,11 +27,20 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 	})
 	for _, node := range nodes {
 		meta := copyLabels(node.Metadata)
+		if meta == nil {
+			meta = make(map[string]string)
+		}
 		if node.LastError != "" {
-			if meta == nil {
-				meta = make(map[string]string)
-			}
 			meta["last_error"] = node.LastError
+		}
+		if node.BootstrapPhase != "" {
+			meta["bootstrap_phase"] = string(node.BootstrapPhase)
+		}
+		if node.BootstrapError != "" {
+			meta["bootstrap_error"] = node.BootstrapError
+		}
+		if node.EtcdJoinPhase != "" {
+			meta["etcd_join_phase"] = string(node.EtcdJoinPhase)
 		}
 		resp.Nodes = append(resp.Nodes, &cluster_controllerpb.NodeRecord{
 			NodeId:        node.NodeID,

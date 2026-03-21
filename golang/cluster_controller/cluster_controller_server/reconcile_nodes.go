@@ -77,13 +77,17 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node == nil || node.NodeID == "" {
 			continue
 		}
-		// Bootstrap phase gating: nodes not yet workload_ready get restricted
-		// reconciliation. During infra_preparing, only infrastructure unit
-		// plans are dispatched. During other pre-ready phases, no plans are
-		// dispatched — the bootstrap state machine drives progress via
-		// heartbeat observations.
+		// Bootstrap phase gating: nodes in early bootstrap phases (etcd_joining
+		// through envoy_ready) get no plan dispatch — the bootstrap state machine
+		// drives progress via heartbeat observations. Nodes in infra_preparing
+		// get infra-tier-only plans so infrastructure packages get installed.
+		infraOnly := false
 		if !bootstrapPhaseReady(node.BootstrapPhase) {
-			continue
+			if node.BootstrapPhase == BootstrapInfraPreparing {
+				infraOnly = true
+			} else {
+				continue
+			}
 		}
 		// Validate profiles before any dispatch — unknown profiles block the node.
 		actions, profileErr := buildPlanActions(node.Profiles)
@@ -112,6 +116,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				node.Status = "converging"
 			}
 			stateDirty = true
+		}
+
+		// Bootstrap infra-only filter: during infra_preparing, restrict to
+		// infrastructure-tier units only so workload units aren't started early.
+		if infraOnly {
+			actions = filterActionsByMaxTier(actions, TierInfrastructure)
 		}
 
 		// Phase 3: Capability gating — desired units must be installed on the node.
@@ -314,6 +324,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				})
 				continue
 			}
+		}
+
+		// During infra_preparing, skip services reconciliation — only the
+		// network plan (with rendered configs and infra unit actions) is needed.
+		if infraOnly {
+			continue
 		}
 
 		// Services reconciliation
