@@ -81,6 +81,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 	}
 
+	// Pre-reconcile phase 4: drive the MinIO pool join state machine.
+	// MinIO uses erasure coding — new nodes are appended to the ordered pool list.
+	if srv.minioPoolMgr != nil {
+		if minioDirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, srv.state); minioDirty {
+			stateDirty = true
+		}
+	}
+
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
 			continue
@@ -853,13 +861,21 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 		}
 	}
 
+	// Snapshot MinIO pool state under lock.
+	srv.lock("minio-pool-snapshot")
+	minioPoolNodes := append([]string(nil), srv.state.MinioPoolNodes...)
+	minioCreds := srv.state.MinioCredentials
+	srv.unlock()
+
 	ctx := &serviceConfigContext{
-		Membership:     membership,
-		CurrentNode:    currentMember,
-		ClusterID:      membership.ClusterID,
-		Domain:         domain,
-		ExternalDomain: externalDomain,
-		EtcdState:      etcdState,
+		Membership:       membership,
+		CurrentNode:      currentMember,
+		ClusterID:        membership.ClusterID,
+		Domain:           domain,
+		ExternalDomain:   externalDomain,
+		EtcdState:        etcdState,
+		MinioPoolNodes:   minioPoolNodes,
+		MinioCredentials: minioCreds,
 	}
 
 	serviceConfigs := renderServiceConfigs(ctx)
@@ -901,13 +917,20 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 			etcdState = st
 		}
 	}
+	srv.lock("minio-pool-snapshot-preview")
+	minioPool := append([]string(nil), srv.state.MinioPoolNodes...)
+	minioCr := srv.state.MinioCredentials
+	srv.unlock()
+
 	ctx := &serviceConfigContext{
-		Membership:     membership,
-		CurrentNode:    currentMember,
-		ClusterID:      membership.ClusterID,
-		Domain:         domain,
-		ExternalDomain: externalDomain,
-		EtcdState:      etcdState,
+		Membership:       membership,
+		CurrentNode:      currentMember,
+		ClusterID:        membership.ClusterID,
+		Domain:           domain,
+		ExternalDomain:   externalDomain,
+		EtcdState:        etcdState,
+		MinioPoolNodes:   minioPool,
+		MinioCredentials: minioCr,
 	}
 	return renderServiceConfigs(ctx)
 }

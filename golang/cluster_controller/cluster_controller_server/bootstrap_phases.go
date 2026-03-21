@@ -147,9 +147,9 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			var waiting string
 
 			if nodeHasMinioProfile(node) {
-				if !nodeHasUnitActive(node, "globular-minio.service") {
+				if node.MinioJoinPhase != MinioJoinVerified {
 					allReady = false
-					waiting = "globular-minio.service"
+					waiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
 				}
 			}
 			if nodeHasScyllaProfile(node) {

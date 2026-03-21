@@ -39,12 +39,14 @@ type etcdMemberState struct {
 
 // serviceConfigContext contains everything needed to render a service config for a specific node.
 type serviceConfigContext struct {
-	Membership     *clusterMembership
-	CurrentNode    *memberNode
-	ClusterID      string
-	Domain         string
-	ExternalDomain string // Public external domain (e.g., "globular.cloud") for ingress routing
-	EtcdState      *etcdMemberState
+	Membership       *clusterMembership
+	CurrentNode      *memberNode
+	ClusterID        string
+	Domain           string
+	ExternalDomain   string // Public external domain (e.g., "globular.cloud") for ingress routing
+	EtcdState        *etcdMemberState
+	MinioPoolNodes   []string          // ordered, append-only list of MinIO node IPs
+	MinioCredentials *minioCredentials // cluster-scoped MinIO root credentials
 }
 
 // profilesForEtcd lists the profiles that run etcd.
@@ -246,6 +248,12 @@ func renderEtcdEndpoints(ctx *serviceConfigContext) (string, bool) {
 
 // renderMinioConfig generates the MinIO environment configuration for a node.
 // File path: /var/lib/globular/minio/minio.env
+//
+// Pool-aware: uses the ordered MinioPoolNodes list (from controller state)
+// to preserve erasure set boundaries. New nodes are appended to the list,
+// never inserted. This ensures MinIO recognizes the original pool after expansion.
+//
+// Credentials: uses cluster-scoped generated credentials from MinioCredentials.
 func renderMinioConfig(ctx *serviceConfigContext) (string, bool) {
 	if ctx == nil || ctx.CurrentNode == nil {
 		return "", false
@@ -254,40 +262,45 @@ func renderMinioConfig(ctx *serviceConfigContext) (string, bool) {
 		return "", false
 	}
 
-	minioNodes := filterNodesByProfile(ctx.Membership, profilesForMinio)
-	if len(minioNodes) == 0 {
+	// Use the ordered pool list if available; fall back to dynamic membership.
+	poolIPs := ctx.MinioPoolNodes
+	if len(poolIPs) == 0 {
+		minioNodes := filterNodesByProfile(ctx.Membership, profilesForMinio)
+		for _, node := range minioNodes {
+			if node.IP != "" {
+				poolIPs = append(poolIPs, node.IP)
+			}
+		}
+	}
+	if len(poolIPs) == 0 {
 		return "", false
 	}
 
 	var sb strings.Builder
 
-	// Single node: local path only
-	if len(minioNodes) == 1 {
+	if len(poolIPs) == 1 {
+		// Single node: standalone mode (local path only).
 		sb.WriteString("MINIO_VOLUMES=/var/lib/globular/minio/data\n")
 	} else {
-		// Multi-node: distributed mode with all endpoints
+		// Distributed mode: ordered endpoints from pool list.
+		// URL order is stable (append-only list) to preserve erasure set boundaries.
 		var endpoints []string
-		for _, node := range minioNodes {
-			nodeIP := node.IP
-			if nodeIP == "" {
-				continue
-			}
-			endpoints = append(endpoints, fmt.Sprintf("http://%s:9000/var/lib/globular/minio/data", nodeIP))
+		for _, ip := range poolIPs {
+			endpoints = append(endpoints, fmt.Sprintf("http://%s:9000/var/lib/globular/minio/data", ip))
 		}
-		if len(endpoints) > 0 {
-			sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s\n", strings.Join(endpoints, " ")))
-		}
+		sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s\n", strings.Join(endpoints, " ")))
 	}
 
-	// Add default root credentials placeholder
-	sb.WriteString("MINIO_ROOT_USER=minioadmin\n")
-	sb.WriteString("MINIO_ROOT_PASSWORD=minioadmin\n")
-
-	result := sb.String()
-	if result == "" {
-		return "", false
+	// Cluster-scoped credentials (generated at bootstrap, stored in controller state).
+	if ctx.MinioCredentials != nil && ctx.MinioCredentials.RootUser != "" {
+		sb.WriteString(fmt.Sprintf("MINIO_ROOT_USER=%s\n", ctx.MinioCredentials.RootUser))
+		sb.WriteString(fmt.Sprintf("MINIO_ROOT_PASSWORD=%s\n", ctx.MinioCredentials.RootPassword))
+	} else {
+		sb.WriteString("MINIO_ROOT_USER=minioadmin\n")
+		sb.WriteString("MINIO_ROOT_PASSWORD=minioadmin\n")
 	}
-	return result, true
+
+	return sb.String(), true
 }
 
 // renderXDSConfig generates the XDS server configuration JSON for a node.

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -10,6 +12,18 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/netutil"
 )
+
+// generateMinioCredentials creates random MinIO root credentials.
+func generateMinioCredentials() *minioCredentials {
+	user := make([]byte, 10)
+	pass := make([]byte, 16)
+	rand.Read(user)
+	rand.Read(pass)
+	return &minioCredentials{
+		RootUser:     "globular-" + hex.EncodeToString(user),
+		RootPassword: hex.EncodeToString(pass),
+	}
+}
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
 
@@ -21,6 +35,18 @@ type controllerState struct {
 	CreatedAt            time.Time                               `json:"created_at"`
 	ClusterNetworkSpec   *cluster_controllerpb.ClusterNetworkSpec `json:"cluster_network_spec,omitempty"`
 	NetworkingGeneration uint64                                  `json:"networking_generation"`
+	// MinIO pool membership — ordered, append-only list of node IPs.
+	// New nodes are appended; existing entries never change order.
+	// This preserves erasure set boundaries across pool expansion.
+	MinioPoolNodes   []string          `json:"minio_pool_nodes,omitempty"`
+	MinioCredentials *minioCredentials `json:"minio_credentials,omitempty"`
+}
+
+// minioCredentials holds the MinIO root credentials for the cluster.
+// Generated at bootstrap, shared across all MinIO nodes.
+type minioCredentials struct {
+	RootUser     string `json:"root_user"`
+	RootPassword string `json:"root_password"`
 }
 
 type joinTokenRecord struct {
@@ -86,6 +112,20 @@ const (
 	ScyllaJoinFailed     ScyllaJoinPhase = "failed"      // join failed
 )
 
+// MinioJoinPhase tracks where a node is in the MinIO pool join sequence.
+// MinIO uses erasure coding sets that are fixed at creation — expansion
+// appends new nodes to the ordered pool list and restarts all nodes.
+type MinioJoinPhase string
+
+const (
+	MinioJoinNone        MinioJoinPhase = ""             // not a minio node
+	MinioJoinPrepared    MinioJoinPhase = "prepared"     // unit exists, ready to join pool
+	MinioJoinPoolUpdated MinioJoinPhase = "pool_updated" // IP appended to MinioPoolNodes, config re-rendered
+	MinioJoinStarted     MinioJoinPhase = "started"      // globular-minio.service active
+	MinioJoinVerified    MinioJoinPhase = "verified"     // healthy (TCP:9000 reachable)
+	MinioJoinFailed      MinioJoinPhase = "failed"       // join failed
+)
+
 // EtcdJoinPhase tracks where a node is in the etcd cluster join sequence.
 type EtcdJoinPhase string
 
@@ -125,6 +165,10 @@ type nodeState struct {
 	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
 	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
 	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"` // for rollback via MemberRemove
+	// MinIO pool join state machine (erasure-coded expansion)
+	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`
+	MinioJoinStartedAt time.Time      `json:"minio_join_started_at,omitempty"`
+	MinioJoinError     string         `json:"minio_join_error,omitempty"`
 	// ScyllaDB join state machine (gossip-based cluster expansion)
 	ScyllaJoinPhase     ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
 	ScyllaJoinStartedAt time.Time       `json:"scylla_join_started_at,omitempty"`
@@ -191,6 +235,7 @@ func newControllerState() *controllerState {
 			Protocol:      "https",
 		},
 		NetworkingGeneration: 1,
+		MinioCredentials:     generateMinioCredentials(),
 	}
 }
 
@@ -235,6 +280,10 @@ func loadControllerState(path string) (*controllerState, error) {
 		if node != nil && node.BootstrapPhase == BootstrapNone {
 			node.BootstrapPhase = BootstrapWorkloadReady
 		}
+	}
+	// Migrate: generate MinIO credentials if missing (pre-credential-management clusters).
+	if state.MinioCredentials == nil {
+		state.MinioCredentials = generateMinioCredentials()
 	}
 	return state, nil
 }

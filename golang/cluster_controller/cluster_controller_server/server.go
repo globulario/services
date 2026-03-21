@@ -184,6 +184,9 @@ type server struct {
 	// ScyllaDB cluster join manager (gossip-based expansion)
 	scyllaMembers *scyllaClusterManager
 
+	// MinIO pool expansion manager (erasure-coded pools)
+	minioPoolMgr *minioPoolManager
+
 	// event publishing (fire-and-forget, nil-safe)
 	eventClient *event_client.Event_Client
 

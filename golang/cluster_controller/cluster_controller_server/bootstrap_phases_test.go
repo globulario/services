@@ -120,8 +120,8 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
-	// storage_joining → workload_ready: MinIO active
-	node.Units = append(node.Units, unitStatusRecord{Name: "globular-minio.service", State: "active"})
+	// storage_joining → workload_ready: MinIO join verified
+	node.MinioJoinPhase = MinioJoinVerified
 	dirty = reconcileBootstrapPhases(nodes, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
@@ -341,14 +341,14 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
-	// storage_joining: MinIO not active yet → stays
+	// storage_joining: MinIO join not verified → stays
 	dirty := reconcileBootstrapPhases(nodes, emitter)
 	if dirty {
-		t.Fatal("expected no change — minio not active")
+		t.Fatal("expected no change — minio join not verified")
 	}
 
-	// storage_joining → workload_ready: MinIO active
-	node.Units = []unitStatusRecord{{Name: "globular-minio.service", State: "active"}}
+	// storage_joining → workload_ready: MinIO join verified
+	node.MinioJoinPhase = MinioJoinVerified
 	dirty = reconcileBootstrapPhases(nodes, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
@@ -374,11 +374,8 @@ func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
-	// MinIO active → workload_ready
-	node.Units = []unitStatusRecord{
-		{Name: "globular-envoy.service", State: "active"},
-		{Name: "globular-minio.service", State: "active"},
-	}
+	// MinIO join verified → workload_ready
+	node.MinioJoinPhase = MinioJoinVerified
 	reconcileBootstrapPhases(nodes, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)

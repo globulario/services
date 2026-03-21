@@ -223,6 +223,7 @@ func main() {
 		srv.etcdMembers = newEtcdMemberManager(etcdClient)
 	}
 	srv.scyllaMembers = newScyllaClusterManager()
+	srv.minioPoolMgr = newMinioPoolManager()
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.
 	// On fresh installs, the file doesn't exist yet — deploy the embedded copy.
