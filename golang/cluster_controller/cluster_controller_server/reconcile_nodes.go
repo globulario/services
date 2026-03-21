@@ -93,17 +93,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node == nil || node.NodeID == "" {
 			continue
 		}
-		// Bootstrap phase gating: nodes in early bootstrap phases (etcd_joining
-		// through envoy_ready) get no plan dispatch — the bootstrap state machine
-		// drives progress via heartbeat observations. Nodes in infra_preparing
-		// get infra-tier-only plans so infrastructure packages get installed.
+		// Bootstrap phase gating: nodes not yet workload_ready get infra-tier-only
+		// plans so infrastructure packages (etcd, xds, envoy, etc.) get installed.
+		// Workload service plans are blocked until the node reaches workload_ready.
 		infraOnly := false
 		if !bootstrapPhaseReady(node.BootstrapPhase) {
-			if node.BootstrapPhase == BootstrapInfraPreparing {
-				infraOnly = true
-			} else {
-				continue
-			}
+			infraOnly = true
 		}
 		// Validate profiles before any dispatch — unknown profiles block the node.
 		actions, profileErr := buildPlanActions(node.Profiles)

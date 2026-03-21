@@ -246,18 +246,25 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		switch node.EtcdJoinPhase {
 
 		case EtcdJoinNone, EtcdJoinFailed:
-			// Check if already a member (e.g. bootstrap node or previously joined).
-			// This must come before nodeIsPreparedForEtcdJoin which rejects
-			// nodes already in the member list.
-			ip := nodeRoutableIP(node)
-			if ip != "" {
-				peerURL := fmt.Sprintf("https://%s:2380", ip)
-				if existingURLs[peerURL] {
-					node.EtcdJoinPhase = EtcdJoinVerified
-					node.EtcdJoinError = ""
-					dirty = true
+			// Check if already a member (e.g. bootstrap node or script-joined).
+			// Must check ALL node IPs — nodes can have multiple IPs and the
+			// join script may have used a different one than nodeRoutableIP returns.
+			alreadyMember := false
+			for _, ip := range node.Identity.Ips {
+				if ip == "" || ip == "127.0.0.1" || ip == "::1" {
 					continue
 				}
+				peerURL := fmt.Sprintf("https://%s:2380", ip)
+				if existingURLs[peerURL] {
+					alreadyMember = true
+					break
+				}
+			}
+			if alreadyMember {
+				node.EtcdJoinPhase = EtcdJoinVerified
+				node.EtcdJoinError = ""
+				dirty = true
+				continue
 			}
 			// Check if node is ready to begin the join sequence.
 			if !nodeIsPreparedForEtcdJoin(node, existingURLs) {
@@ -271,8 +278,8 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				continue
 			}
 
-			// ip is guaranteed non-empty by nodeIsPreparedForEtcdJoin.
-			peerURL := fmt.Sprintf("https://%s:2380", ip)
+			// nodeRoutableIP is guaranteed non-empty by nodeIsPreparedForEtcdJoin.
+			peerURL := fmt.Sprintf("https://%s:2380", nodeRoutableIP(node))
 			log.Printf("etcd join: node %s (%s) is prepared, calling MemberAdd for %s", node.NodeID, node.Identity.Hostname, peerURL)
 			memberID, err := m.memberAdd(ctx, peerURL)
 			if err != nil {
