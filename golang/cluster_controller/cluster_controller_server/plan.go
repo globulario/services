@@ -38,6 +38,12 @@ var profileUnitMap = map[string][]string{
 	"dns": {
 		"globular-dns.service",
 	},
+	"scylla": {
+		"scylla-server.service",
+	},
+	"database": {
+		"scylla-server.service",
+	},
 }
 
 // allManagedUnits is the complete set of units the controller ever manages,
@@ -163,6 +169,7 @@ var unitPriority = map[string]int{
 	"globular-xds.service":       9,
 	"xds.service":                9,
 	"globular-envoy.service":     10,
+	"scylla-server.service":      6, // same priority as minio
 }
 
 // ServiceTier classifies units for phased bootstrap.
@@ -185,6 +192,7 @@ var unitTier = map[string]ServiceTier{
 	"globular-minio.service":      TierInfrastructure,
 	"globular-gateway.service":    TierInfrastructure,
 	"globular-monitoring.service": TierInfrastructure,
+	"scylla-server.service":       TierInfrastructure,
 }
 
 // getUnitTier returns the tier for a unit, defaulting to TierWorkload.

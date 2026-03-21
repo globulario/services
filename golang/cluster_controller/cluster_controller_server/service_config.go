@@ -59,6 +59,9 @@ var profilesForXDS = []string{"core", "compute", "control-plane", "gateway"}
 // profilesForDNS lists the profiles that run the DNS server.
 var profilesForDNS = []string{"core", "compute", "control-plane", "dns"}
 
+// profilesForScyllaDB lists the profiles that run ScyllaDB.
+var profilesForScyllaDB = []string{"scylla", "database"}
+
 // nodeHasProfile returns true if the node has at least one of the given profiles.
 func nodeHasProfile(node *memberNode, profiles []string) bool {
 	if node == nil || len(node.Profiles) == 0 {
@@ -441,6 +444,88 @@ func renderDNSConfig(ctx *serviceConfigContext) (string, bool) {
 	return result, true
 }
 
+// renderScyllaConfig generates the ScyllaDB configuration YAML for a node.
+// File path: /etc/scylla/scylla.yaml
+//
+// ScyllaDB uses gossip-based peer discovery via seed nodes. The seed list
+// is built from all nodes with scylla/database profiles in the cluster.
+// Unlike etcd, no explicit member-add is needed — ScyllaDB auto-joins
+// the ring when it starts with correct seeds.
+func renderScyllaConfig(ctx *serviceConfigContext) (string, bool) {
+	if ctx == nil || ctx.CurrentNode == nil {
+		return "", false
+	}
+	if !nodeHasProfile(ctx.CurrentNode, profilesForScyllaDB) {
+		return "", false
+	}
+
+	scyllaNodes := filterNodesByProfile(ctx.Membership, profilesForScyllaDB)
+	if len(scyllaNodes) == 0 {
+		return "", false
+	}
+
+	currentIP := ctx.CurrentNode.IP
+	if currentIP == "" {
+		return "", false // ScyllaDB cannot listen on 0.0.0.0
+	}
+
+	// Build seed list from all ScyllaDB nodes.
+	var seeds []string
+	for _, node := range scyllaNodes {
+		if node.IP != "" {
+			seeds = append(seeds, node.IP)
+		}
+	}
+	if len(seeds) == 0 {
+		seeds = []string{currentIP}
+	}
+
+	// Cluster name derived from cluster ID for consistency.
+	clusterName := ctx.ClusterID
+	if clusterName == "" {
+		clusterName = "globular"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# Managed by Globular cluster controller — do not edit manually.\n")
+	sb.WriteString(fmt.Sprintf("cluster_name: '%s'\n", clusterName))
+	sb.WriteString("\n")
+
+	// Listening addresses — must be the routable IP, never 0.0.0.0 or localhost.
+	sb.WriteString(fmt.Sprintf("listen_address: '%s'\n", currentIP))
+	sb.WriteString(fmt.Sprintf("rpc_address: '%s'\n", currentIP))
+	sb.WriteString(fmt.Sprintf("broadcast_address: '%s'\n", currentIP))
+	sb.WriteString(fmt.Sprintf("broadcast_rpc_address: '%s'\n", currentIP))
+	sb.WriteString("\n")
+
+	// Ports
+	sb.WriteString("native_transport_port: 9042\n")
+	sb.WriteString("\n")
+
+	// Seed provider — gossip-based peer discovery.
+	sb.WriteString("seed_provider:\n")
+	sb.WriteString("  - class_name: org.apache.cassandra.locator.SimpleSeedProvider\n")
+	sb.WriteString("    parameters:\n")
+	sb.WriteString(fmt.Sprintf("      - seeds: '%s'\n", strings.Join(seeds, ",")))
+	sb.WriteString("\n")
+
+	// Snitch — SimpleSnitch for single-DC clusters.
+	sb.WriteString("endpoint_snitch: SimpleSnitch\n")
+	sb.WriteString("\n")
+
+	// Data directories
+	sb.WriteString("data_file_directories:\n")
+	sb.WriteString("  - /var/lib/scylla/data\n")
+	sb.WriteString("commitlog_directory: /var/lib/scylla/commitlog\n")
+	sb.WriteString("\n")
+
+	// Compaction and memtable defaults (ScyllaDB optimized)
+	sb.WriteString("compaction_throughput_mb_per_sec: 0\n")
+	sb.WriteString("compaction_large_partition_warning_threshold_mb: 100\n")
+
+	return sb.String(), true
+}
+
 // generateSOASerial creates a serial number in YYYYMMDDNN format based on current time.
 func generateSOASerial() uint32 {
 	now := time.Now().UTC()
@@ -507,7 +592,7 @@ type rendererSpec struct {
 }
 
 // profilesForEtcdEndpoints — every profile needs to know where etcd is.
-var profilesForEtcdEndpoints = []string{"core", "compute", "control-plane", "gateway", "storage", "dns"}
+var profilesForEtcdEndpoints = []string{"core", "compute", "control-plane", "gateway", "storage", "dns", "scylla", "database"}
 
 // renderers is the authoritative list of all config renderers in the controller.
 // This registry is validated at startup by validateRenderers().
@@ -546,6 +631,13 @@ var renderers = []rendererSpec{
 		outputs:      []string{"/var/lib/globular/dns/dns_init.json"},
 		restartUnits: []string{"globular-dns.service"},
 		render:       renderDNSConfig,
+	},
+	{
+		name:         "scylla",
+		profiles:     profilesForScyllaDB,
+		outputs:      []string{"/etc/scylla/scylla.yaml"},
+		restartUnits: []string{"scylla-server.service"},
+		render:       renderScyllaConfig,
 	},
 }
 

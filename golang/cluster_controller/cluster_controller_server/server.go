@@ -181,6 +181,9 @@ type server struct {
 	// etcd cluster membership manager (for multi-node expansion)
 	etcdMembers *etcdMemberManager
 
+	// ScyllaDB cluster join manager (gossip-based expansion)
+	scyllaMembers *scyllaClusterManager
+
 	// event publishing (fire-and-forget, nil-safe)
 	eventClient *event_client.Event_Client
 

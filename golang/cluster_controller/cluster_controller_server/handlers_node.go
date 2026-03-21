@@ -42,6 +42,9 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		if node.EtcdJoinPhase != "" {
 			meta["etcd_join_phase"] = string(node.EtcdJoinPhase)
 		}
+		if node.ScyllaJoinPhase != "" {
+			meta["scylla_join_phase"] = string(node.ScyllaJoinPhase)
+		}
 		resp.Nodes = append(resp.Nodes, &cluster_controllerpb.NodeRecord{
 			NodeId:        node.NodeID,
 			Identity:      storedIdentityToProto(node.Identity),

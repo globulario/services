@@ -73,6 +73,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 	}
 
+	// Pre-reconcile phase 3: drive the ScyllaDB join state machine.
+	// ScyllaDB uses gossip — config is rendered with seeds, node auto-joins.
+	if srv.scyllaMembers != nil {
+		if scyllaDirty := srv.scyllaMembers.reconcileScyllaJoinPhases(nodes); scyllaDirty {
+			stateDirty = true
+		}
+	}
+
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
 			continue

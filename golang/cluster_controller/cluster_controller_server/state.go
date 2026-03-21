@@ -71,6 +71,21 @@ func bootstrapPhaseReady(phase BootstrapPhase) bool {
 	return phase == BootstrapNone || phase == BootstrapWorkloadReady || phase == BootstrapStorageJoining
 }
 
+// ScyllaJoinPhase tracks where a node is in the ScyllaDB cluster join sequence.
+// ScyllaDB uses gossip-based peer discovery — no explicit MemberAdd needed.
+// The controller renders scylla.yaml with correct seeds, starts the service,
+// and verifies the node joined the gossip ring.
+type ScyllaJoinPhase string
+
+const (
+	ScyllaJoinNone       ScyllaJoinPhase = ""            // not a scylla node
+	ScyllaJoinPrepared   ScyllaJoinPhase = "prepared"    // package installed, unit exists
+	ScyllaJoinConfigured ScyllaJoinPhase = "configured"  // scylla.yaml rendered with seeds
+	ScyllaJoinStarted    ScyllaJoinPhase = "started"     // scylla-server running
+	ScyllaJoinVerified   ScyllaJoinPhase = "verified"    // node in gossip ring
+	ScyllaJoinFailed     ScyllaJoinPhase = "failed"      // join failed
+)
+
 // EtcdJoinPhase tracks where a node is in the etcd cluster join sequence.
 type EtcdJoinPhase string
 
@@ -110,6 +125,10 @@ type nodeState struct {
 	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
 	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
 	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"` // for rollback via MemberRemove
+	// ScyllaDB join state machine (gossip-based cluster expansion)
+	ScyllaJoinPhase     ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
+	ScyllaJoinStartedAt time.Time       `json:"scylla_join_started_at,omitempty"`
+	ScyllaJoinError     string          `json:"scylla_join_error,omitempty"`
 	// Bootstrap phase state machine (phased node initialization)
 	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
 	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`

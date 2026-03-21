@@ -142,7 +142,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 		case BootstrapStorageJoining:
 			// Verify storage services are active and healthy.
 			// MinIO: globular-minio.service must be active.
-			// ScyllaDB: scylladb.service must be active (if node has scylla profile).
+			// ScyllaDB: ScyllaJoinPhase must be verified (gossip ring joined).
 			allReady := true
 			var waiting string
 
@@ -153,9 +153,9 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 				}
 			}
 			if nodeHasScyllaProfile(node) {
-				if !nodeHasUnitActive(node, "scylladb.service") {
+				if node.ScyllaJoinPhase != ScyllaJoinVerified {
 					allReady = false
-					waiting = "scylladb.service"
+					waiting = "scylla-server.service (join phase: " + string(node.ScyllaJoinPhase) + ")"
 				}
 			}
 

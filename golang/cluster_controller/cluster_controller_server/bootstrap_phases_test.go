@@ -408,14 +408,14 @@ func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
-	// ScyllaDB not active → stays
+	// ScyllaDB join not verified → stays in storage_joining
 	dirty := reconcileBootstrapPhases(nodes, emitter)
 	if dirty {
-		t.Fatal("expected no change — scylladb not active")
+		t.Fatal("expected no change — scylla join not verified")
 	}
 
-	// ScyllaDB active → workload_ready
-	node.Units = []unitStatusRecord{{Name: "scylladb.service", State: "active"}}
+	// ScyllaDB join verified → workload_ready
+	node.ScyllaJoinPhase = ScyllaJoinVerified
 	dirty = reconcileBootstrapPhases(nodes, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)

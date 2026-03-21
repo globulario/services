@@ -393,6 +393,7 @@ func isAllowedRenderTarget(target string) bool {
 		"/run/globular/",
 		"/etc/globular/",
 		"/etc/systemd/system/",
+		"/etc/scylla/",
 	}
 	for _, prefix := range allowed {
 		if clean == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(clean, prefix) {
