@@ -114,15 +114,22 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 		t.Fatalf("expected envoy_ready, got %s", node.BootstrapPhase)
 	}
 
-	// envoy_ready → workload_ready (immediate)
+	// envoy_ready → storage_joining (core profile includes MinIO)
+	dirty = reconcileBootstrapPhases(nodes, emitter)
+	if !dirty || node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
+	}
+
+	// storage_joining → workload_ready: MinIO active
+	node.Units = append(node.Units, unitStatusRecord{Name: "globular-minio.service", State: "active"})
 	dirty = reconcileBootstrapPhases(nodes, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
 
 	// Verify events were emitted for each transition.
-	if len(emitter.events) < 5 {
-		t.Fatalf("expected at least 5 events, got %d", len(emitter.events))
+	if len(emitter.events) < 6 {
+		t.Fatalf("expected at least 6 events, got %d", len(emitter.events))
 	}
 }
 
@@ -309,7 +316,7 @@ func TestBootstrap_FailedNodeStays(t *testing.T) {
 }
 
 // TestBootstrap_StorageOnlyNode tests a node with only storage profile
-// (no etcd, no xds, no envoy) → fast path to workload_ready.
+// (no etcd, no xds, no envoy) → skips to storage_joining, then workload_ready.
 func TestBootstrap_StorageOnlyNode(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
@@ -327,10 +334,157 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
-	// infra_preparing: no etcd, no xds, no envoy → skip all → workload_ready
+	// infra_preparing: no etcd, no xds, no envoy → skips to storage_joining
+	// (storage profile has MinIO, which needs join verification)
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
+	}
+
+	// storage_joining: MinIO not active yet → stays
+	dirty := reconcileBootstrapPhases(nodes, emitter)
+	if dirty {
+		t.Fatal("expected no change — minio not active")
+	}
+
+	// storage_joining → workload_ready: MinIO active
+	node.Units = []unitStatusRecord{{Name: "globular-minio.service", State: "active"}}
+	dirty = reconcileBootstrapPhases(nodes, emitter)
+	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
+		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
+	}
+}
+
+// TestBootstrap_StorageJoin_CoreNode tests that a core node (which has MinIO)
+// goes through storage_joining after envoy_ready.
+func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:         "n1",
+		Identity:       storedIdentity{Hostname: "core-node", Ips: []string{"10.0.0.5"}},
+		Profiles:       []string{"core", "gateway"},
+		BootstrapPhase: BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+	}
+	nodes := []*nodeState{node}
+
+	// envoy_ready → storage_joining (core has MinIO)
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
+	}
+
+	// MinIO active → workload_ready
+	node.Units = []unitStatusRecord{
+		{Name: "globular-envoy.service", State: "active"},
+		{Name: "globular-minio.service", State: "active"},
+	}
 	reconcileBootstrapPhases(nodes, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
-		t.Fatalf("expected workload_ready (all skipped), got %s", node.BootstrapPhase)
+		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
+	}
+}
+
+// TestBootstrap_StorageJoin_ScyllaNode tests that a node with scylla profile
+// waits for scylladb.service during storage_joining.
+func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:         "n1",
+		Identity:       storedIdentity{Hostname: "scylla-node"},
+		Profiles:       []string{"scylla"},
+		BootstrapPhase: BootstrapAdmitted,
+		BootstrapStartedAt: time.Now(),
+	}
+	nodes := []*nodeState{node}
+
+	// admitted → infra_preparing → storage_joining (no etcd/xds/envoy, but has scylla)
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapInfraPreparing {
+		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
+	}
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
+	}
+
+	// ScyllaDB not active → stays
+	dirty := reconcileBootstrapPhases(nodes, emitter)
+	if dirty {
+		t.Fatal("expected no change — scylladb not active")
+	}
+
+	// ScyllaDB active → workload_ready
+	node.Units = []unitStatusRecord{{Name: "scylladb.service", State: "active"}}
+	dirty = reconcileBootstrapPhases(nodes, emitter)
+	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
+		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
+	}
+}
+
+// TestBootstrap_StorageJoin_Timeout tests that storage_joining times out.
+func TestBootstrap_StorageJoin_Timeout(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:         "n1",
+		Identity:       storedIdentity{Hostname: "slow-storage"},
+		Profiles:       []string{"storage"},
+		BootstrapPhase: BootstrapStorageJoining,
+		BootstrapStartedAt: time.Now().Add(-bootstrapPhaseTimeout - time.Minute),
+	}
+	nodes := []*nodeState{node}
+
+	dirty := reconcileBootstrapPhases(nodes, emitter)
+	if !dirty {
+		t.Fatal("expected dirty after timeout")
+	}
+	if node.BootstrapPhase != BootstrapFailed {
+		t.Fatalf("expected bootstrap_failed, got %s", node.BootstrapPhase)
+	}
+	if node.BootstrapError == "" {
+		t.Fatal("expected error message")
+	}
+}
+
+// TestBootstrap_GatewayOnly_NoStorageJoin tests that a gateway-only node
+// (no storage profile) skips storage_joining.
+func TestBootstrap_GatewayOnly_NoStorageJoin(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:         "n1",
+		Identity:       storedIdentity{Hostname: "gw-only"},
+		Profiles:       []string{"gateway"},
+		BootstrapPhase: BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+	}
+	nodes := []*nodeState{node}
+
+	// envoy_ready → workload_ready (no storage profile, skip storage_joining)
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapWorkloadReady {
+		t.Fatalf("expected workload_ready (no storage), got %s", node.BootstrapPhase)
+	}
+}
+
+// TestBootstrap_DnsOnly_NoStorageJoin tests that a dns-only node
+// skips all optional phases and goes straight to workload_ready.
+func TestBootstrap_DnsOnly_NoStorageJoin(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:         "n1",
+		Identity:       storedIdentity{Hostname: "dns-only"},
+		Profiles:       []string{"dns"},
+		BootstrapPhase: BootstrapAdmitted,
+		BootstrapStartedAt: time.Now(),
+	}
+	nodes := []*nodeState{node}
+
+	// admitted → infra_preparing
+	reconcileBootstrapPhases(nodes, emitter)
+	// infra_preparing: no etcd, no xds, no envoy, no storage → workload_ready
+	reconcileBootstrapPhases(nodes, emitter)
+	if node.BootstrapPhase != BootstrapWorkloadReady {
+		t.Fatalf("expected workload_ready (dns-only, no storage), got %s", node.BootstrapPhase)
 	}
 }
 

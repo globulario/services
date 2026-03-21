@@ -35,8 +35,8 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 		if node == nil {
 			continue
 		}
-		// Skip nodes that are already ready or legacy (empty phase handled by migration).
-		if bootstrapPhaseReady(node.BootstrapPhase) {
+		// Skip nodes that are fully done or legacy.
+		if node.BootstrapPhase == BootstrapNone || node.BootstrapPhase == BootstrapWorkloadReady {
 			continue
 		}
 		// Skip failed nodes (require manual reset).
@@ -119,18 +119,55 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 					dirty = true
 				}
 			} else {
-				// No envoy/gateway profile — skip to workload_ready.
-				node.BootstrapPhase = BootstrapWorkloadReady
+				// No envoy/gateway profile — skip to storage or workload.
+				node.BootstrapPhase = advancePastEnvoy(node)
 				node.BootstrapStartedAt = now
 				dirty = true
 			}
 
 		case BootstrapEnvoyReady:
-			// Envoy is active — immediately promote to workload_ready.
-			node.BootstrapPhase = BootstrapWorkloadReady
-			node.BootstrapStartedAt = now
-			node.BootstrapError = ""
-			dirty = true
+			// Envoy is active — check if node hosts storage services.
+			if nodeNeedsStorageJoin(node) {
+				node.BootstrapPhase = BootstrapStorageJoining
+				node.BootstrapStartedAt = now
+				node.BootstrapError = ""
+				dirty = true
+			} else {
+				node.BootstrapPhase = BootstrapWorkloadReady
+				node.BootstrapStartedAt = now
+				node.BootstrapError = ""
+				dirty = true
+			}
+
+		case BootstrapStorageJoining:
+			// Verify storage services are active and healthy.
+			// MinIO: globular-minio.service must be active.
+			// ScyllaDB: scylladb.service must be active (if node has scylla profile).
+			allReady := true
+			var waiting string
+
+			if nodeHasMinioProfile(node) {
+				if !nodeHasUnitActive(node, "globular-minio.service") {
+					allReady = false
+					waiting = "globular-minio.service"
+				}
+			}
+			if nodeHasScyllaProfile(node) {
+				if !nodeHasUnitActive(node, "scylladb.service") {
+					allReady = false
+					waiting = "scylladb.service"
+				}
+			}
+
+			if allReady {
+				node.BootstrapPhase = BootstrapWorkloadReady
+				node.BootstrapStartedAt = now
+				node.BootstrapError = ""
+				dirty = true
+			} else if phaseTimedOut(node, now) {
+				failBootstrap(node, "timeout waiting for storage service: "+waiting)
+				dirty = true
+			}
 		}
 
 		// Emit event on phase transition.
@@ -181,6 +218,14 @@ func advancePastXds(node *nodeState, now time.Time) BootstrapPhase {
 	if nodeHasEnvoyProfile(node) {
 		return BootstrapXdsReady // will wait for envoy in next cycle
 	}
+	return advancePastEnvoy(node)
+}
+
+// advancePastEnvoy returns the next phase after skipping Envoy.
+func advancePastEnvoy(node *nodeState) BootstrapPhase {
+	if nodeNeedsStorageJoin(node) {
+		return BootstrapStorageJoining
+	}
 	return BootstrapWorkloadReady
 }
 
@@ -214,4 +259,27 @@ func nodeHasUnitActive(node *nodeState, unitName string) bool {
 		}
 	}
 	return false
+}
+
+// profilesForMinio lists the profiles that run MinIO.
+// Defined in service_config.go: core, compute, storage.
+var profilesForStorage = []string{"core", "compute", "storage"}
+
+// profilesForScylla lists the profiles that run ScyllaDB.
+var profilesForScylla = []string{"scylla", "database"}
+
+// nodeHasMinioProfile returns true if the node has a profile that runs MinIO.
+func nodeHasMinioProfile(node *nodeState) bool {
+	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForStorage)
+}
+
+// nodeHasScyllaProfile returns true if the node has a scylla or database profile.
+func nodeHasScyllaProfile(node *nodeState) bool {
+	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForScylla)
+}
+
+// nodeNeedsStorageJoin returns true if the node hosts storage services
+// (MinIO or ScyllaDB) that need explicit join verification.
+func nodeNeedsStorageJoin(node *nodeState) bool {
+	return nodeHasMinioProfile(node) || nodeHasScyllaProfile(node)
 }
