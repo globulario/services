@@ -188,11 +188,10 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 		clusterState = "new"
 	}
 
-	// Client listen URLs: always include loopback; multi-node also binds the node IP.
+	// Client listen URLs: always bind both loopback and routable IP.
+	// Even single-node clusters need the routable IP so joining nodes
+	// can reach etcd for member-add operations during expansion.
 	listenClientURLs := fmt.Sprintf("https://%s:2379,https://127.0.0.1:2379", currentIP)
-	if len(etcdNodes) == 1 && clusterState == "new" {
-		listenClientURLs = "https://127.0.0.1:2379"
-	}
 
 	// Build YAML with nested TLS sections (etcd native config format).
 	var sb strings.Builder
