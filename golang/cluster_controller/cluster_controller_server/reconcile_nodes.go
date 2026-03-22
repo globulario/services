@@ -337,18 +337,96 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}
 
-		// During infra_preparing, skip services reconciliation — only the
-		// network plan (with rendered configs and infra unit actions) is needed.
-		if infraOnly {
-			continue
+		// Day 1 intent resolution: resolve the node's desired component set
+		// from its profiles + catalog, then scope desired services accordingly.
+		intent, intentErr := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units)
+		if intentErr != nil {
+			log.Printf("reconcile: node %s intent resolution failed: %v", node.NodeID, intentErr)
+			node.Day1Phase = Day1PackageMetadataInvalid
+			node.Day1PhaseReason = intentErr.Error()
+			stateDirty = true
+			// Non-fatal: fall through with nil intent (backward compat — no filtering).
+		} else {
+			node.ResolvedIntent = intent
+			stateDirty = true
 		}
 
-		// Services reconciliation
+		// Compute Day 1 lifecycle phase from current state.
+		d1Phase, d1Reason := ComputeDay1Phase(node)
+		if node.Day1Phase != d1Phase || node.Day1PhaseReason != d1Reason {
+			node.Day1Phase = d1Phase
+			node.Day1PhaseReason = d1Reason
+			stateDirty = true
+		}
+
+		// Services reconciliation — load desired state then auto-materialize
+		// missing infra entries required by the node's resolved intent.
 		desiredCanon, desiredObjs, err := srv.loadDesiredServices(ctx)
 		if err != nil {
 			log.Printf("reconcile: load desired services failed: %v", err)
 			desiredCanon = map[string]string{}
 		}
+
+		// Day 1 infra materialization: if the node's resolved intent requires
+		// components not in desired state, create them now.
+		if intent != nil && srv.resources != nil {
+			mat := srv.materializeMissingInfraDesired(ctx, intent, desiredCanon)
+			if len(mat) > 0 {
+				names := make([]string, len(mat))
+				for i, m := range mat {
+					names[i] = fmt.Sprintf("%s@%s(%s)", m.Component, m.Version, m.Source)
+				}
+				log.Printf("reconcile: node %s: materialized %d missing desired entries: %s",
+					node.NodeID, len(mat), strings.Join(names, ", "))
+				intent.MaterializedDesired = mat
+				// Re-load desired services to include newly created entries.
+				desiredCanon, desiredObjs, err = srv.loadDesiredServices(ctx)
+				if err != nil {
+					log.Printf("reconcile: reload desired services failed: %v", err)
+					desiredCanon = map[string]string{}
+				}
+				stateDirty = true
+			}
+		}
+		// During bootstrap, restrict to infrastructure-tier services only
+		// so workload services aren't installed before the node is ready.
+		if infraOnly {
+			infraCanon := make(map[string]string)
+			for svc, ver := range desiredCanon {
+				unit := serviceUnitForCanonical(svc)
+				if getUnitTier(unit) <= TierInfrastructure {
+					infraCanon[svc] = ver
+				}
+			}
+			desiredCanon = infraCanon
+		}
+
+		// Scope desired services to this node's resolved intent (profile-driven).
+		desiredCanon = FilterDesiredByIntent(desiredCanon, intent)
+
+		// Gate workloads on runtime dependency health: block services whose
+		// local deps (e.g. scylladb for ai-memory) are not yet active.
+		var blockedWorkloads []BlockedWorkload
+		if !infraOnly {
+			desiredCanon, blockedWorkloads = GateDependencies(desiredCanon, node.Units)
+		}
+
+		// Update observability fields from dependency gating.
+		if len(blockedWorkloads) > 0 {
+			names := make([]string, len(blockedWorkloads))
+			for i, bw := range blockedWorkloads {
+				names[i] = fmt.Sprintf("%s(%s)", bw.Name, bw.Reason)
+			}
+			node.BlockedReason = "dependency_not_ready"
+			node.BlockedDetails = strings.Join(names, "; ")
+			stateDirty = true
+			log.Printf("reconcile: node %s: %d workloads gated on deps: %s", node.NodeID, len(blockedWorkloads), node.BlockedDetails)
+		} else if node.BlockedReason == "dependency_not_ready" {
+			node.BlockedReason = ""
+			node.BlockedDetails = ""
+			stateDirty = true
+		}
+
 		filtered, _ := computeServiceDelta(desiredCanon, node.Units)
 		// Removal now flows through the release pipeline (REMOVING → REMOVED).
 		// The ad-hoc removal block has been removed.
@@ -610,6 +688,130 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 		}()
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Day 1 infra materialization — auto-create missing desired-state entries
+// ---------------------------------------------------------------------------
+
+// MaterializedInfra records which infra desired-state entries were auto-created.
+type MaterializedInfra struct {
+	Component string `json:"component"`
+	Version   string `json:"version"`
+	Source    string `json:"source"` // "installed:<node_id>" | "bootstrap_default"
+}
+
+// materializeMissingInfraDesired checks if the node's resolved intent requires
+// infra components that have no desired-state entry, and creates them.
+//
+// Scope: only materializes INFRASTRUCTURE components and workload components
+// that are runtime-local-dependencies of already-desired services. Does NOT
+// auto-materialize all workloads in the profile — those come from operator
+// seed or explicit desired-state commands.
+func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *NodeIntent, desiredCanon map[string]string) []MaterializedInfra {
+	if intent == nil || srv.resources == nil {
+		return nil
+	}
+
+	// Build set of components that are runtime deps of already-desired services.
+	runtimeDepsOfDesired := make(map[string]bool)
+	for svc := range desiredCanon {
+		canon := normalizeComponentName(canonicalServiceName(svc))
+		comp := CatalogByName(canon)
+		if comp == nil {
+			continue
+		}
+		for _, dep := range comp.RuntimeLocalDependencies {
+			runtimeDepsOfDesired[dep] = true
+		}
+	}
+
+	var materialized []MaterializedInfra
+
+	for _, compName := range intent.ResolvedComponents {
+		comp := CatalogByName(compName)
+		if comp == nil {
+			continue
+		}
+
+		// Only materialize: (a) infrastructure components, or
+		// (b) workload components that are runtime deps of already-desired services.
+		if comp.Kind != KindInfrastructure && !runtimeDepsOfDesired[compName] {
+			continue
+		}
+
+		// Check if already in desired state.
+		if _, ok := desiredCanon[compName]; ok {
+			continue
+		}
+
+		// Resolve version: check installed versions across all nodes.
+		version, source := srv.resolveInfraVersion(compName)
+
+		if comp.Kind == KindInfrastructure {
+			// Create InfrastructureRelease.
+			relName := defaultPublisherID() + "/" + compName
+			existing, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", relName)
+			if existing != nil {
+				continue // already exists
+			}
+			obj := &cluster_controllerpb.InfrastructureRelease{
+				Meta: &cluster_controllerpb.ObjectMeta{Name: relName},
+				Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+					PublisherID: defaultPublisherID(),
+					Component:   compName,
+					Version:     version,
+				},
+				Status: &cluster_controllerpb.InfrastructureReleaseStatus{},
+			}
+			if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", obj); err != nil {
+				log.Printf("materialize-infra: failed to create InfrastructureRelease %s: %v", relName, err)
+				continue
+			}
+			log.Printf("materialize-infra: created InfrastructureRelease %s version=%s source=%s", relName, version, source)
+			materialized = append(materialized, MaterializedInfra{Component: compName, Version: version, Source: source})
+		} else {
+			// Create ServiceDesiredVersion for workload deps.
+			existing, _, _ := srv.resources.Get(ctx, "ServiceDesiredVersion", compName)
+			if existing != nil {
+				continue // already exists
+			}
+			obj := &cluster_controllerpb.ServiceDesiredVersion{
+				Meta: &cluster_controllerpb.ObjectMeta{Name: compName},
+				Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
+					ServiceName: compName,
+					Version:     version,
+				},
+			}
+			if _, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
+				log.Printf("materialize-infra: failed to create ServiceDesiredVersion %s: %v", compName, err)
+				continue
+			}
+			srv.ensureServiceRelease(ctx, compName, version, 0)
+			log.Printf("materialize-infra: created ServiceDesiredVersion %s version=%s source=%s", compName, version, source)
+			materialized = append(materialized, MaterializedInfra{Component: compName, Version: version, Source: source})
+		}
+	}
+	return materialized
+}
+
+// resolveInfraVersion determines the version to use for auto-materialized infra.
+// Priority: 1) installed on any cluster node, 2) bootstrap default "0.0.1".
+func (srv *server) resolveInfraVersion(componentName string) (version, source string) {
+	srv.lock("resolveInfraVersion")
+	defer srv.unlock()
+	for nodeID, node := range srv.state.Nodes {
+		if node == nil || len(node.InstalledVersions) == 0 {
+			continue
+		}
+		for k, v := range node.InstalledVersions {
+			canon := normalizeComponentName(canonicalServiceName(k))
+			if canon == componentName && v != "" {
+				return v, "installed:" + nodeID
+			}
+		}
+	}
+	return "0.0.1", "bootstrap_default"
 }
 
 func backoffDuration(fails int) time.Duration {

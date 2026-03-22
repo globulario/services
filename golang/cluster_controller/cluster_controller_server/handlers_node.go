@@ -48,6 +48,30 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		if node.MinioJoinPhase != "" {
 			meta["minio_join_phase"] = string(node.MinioJoinPhase)
 		}
+		if node.Day1Phase != "" {
+			meta["day1_phase"] = string(node.Day1Phase)
+		}
+		if node.Day1PhaseReason != "" {
+			meta["day1_phase_reason"] = node.Day1PhaseReason
+		}
+		if node.ResolvedIntent != nil {
+			meta["desired_infra"] = strings.Join(node.ResolvedIntent.DesiredInfraNames, ",")
+			meta["desired_workloads"] = strings.Join(node.ResolvedIntent.DesiredWorkloadNames, ",")
+			if len(node.ResolvedIntent.BlockedWorkloads) > 0 {
+				bw := make([]string, len(node.ResolvedIntent.BlockedWorkloads))
+				for i, b := range node.ResolvedIntent.BlockedWorkloads {
+					bw[i] = b.Name + ":" + b.Reason
+				}
+				meta["blocked_workloads"] = strings.Join(bw, "; ")
+			}
+			if len(node.ResolvedIntent.MaterializedDesired) > 0 {
+				md := make([]string, len(node.ResolvedIntent.MaterializedDesired))
+				for i, m := range node.ResolvedIntent.MaterializedDesired {
+					md[i] = m.Component + "@" + m.Version
+				}
+				meta["materialized_infra_desired"] = strings.Join(md, ",")
+			}
+		}
 		resp.Nodes = append(resp.Nodes, &cluster_controllerpb.NodeRecord{
 			NodeId:        node.NodeID,
 			Identity:      storedIdentityToProto(node.Identity),

@@ -97,6 +97,40 @@ func bootstrapPhaseReady(phase BootstrapPhase) bool {
 	return phase == BootstrapNone || phase == BootstrapWorkloadReady || phase == BootstrapStorageJoining
 }
 
+// ---------------------------------------------------------------------------
+// Day 1 lifecycle phases — full lifecycle tracking on top of BootstrapPhase.
+// ---------------------------------------------------------------------------
+
+// Day1Phase tracks the full Day 1 lifecycle of a node from join to ready.
+// It provides a single observable field that summarizes where the node is in
+// its initialization, combining bootstrap progress, intent resolution,
+// infra convergence, and workload convergence into one phase.
+type Day1Phase string
+
+const (
+	Day1Joined              Day1Phase = "joined"               // Node registered, trust established
+	Day1IdentityReady       Day1Phase = "identity_ready"       // Certs, hostname, domain configured
+	Day1ClusterConfigSynced Day1Phase = "cluster_config_synced" // etcd joined, cluster config available
+	Day1ProfileResolved     Day1Phase = "profile_resolved"     // Profiles resolved to capabilities/components
+	Day1InfraPlanned        Day1Phase = "infra_planned"        // Infra install plan generated
+	Day1InfraInstalled      Day1Phase = "infra_installed"      // All required infra packages installed
+	Day1InfraHealthy        Day1Phase = "infra_healthy"        // All required infra verified healthy
+	Day1WorkloadsPlanned    Day1Phase = "workloads_planned"    // Workload install plans generated
+	Day1WorkloadsInstalled  Day1Phase = "workloads_installed"  // All desired workloads installed
+	Day1Ready               Day1Phase = "ready"                // Node fully converged
+
+	// Degraded/blocking states
+	Day1InfraBlocked          Day1Phase = "infra_blocked"           // Infra install blocked (package missing, failed)
+	Day1WorkloadBlocked       Day1Phase = "workload_blocked"        // Workload blocked on unhealthy deps
+	Day1DependencyMissing     Day1Phase = "dependency_missing"      // Required dep not in catalog/specs
+	Day1PackageMetadataInvalid Day1Phase = "package_metadata_invalid" // Spec metadata incomplete/invalid
+)
+
+// day1PhaseReady returns true if the node has completed Day 1 initialization.
+func day1PhaseReady(phase Day1Phase) bool {
+	return phase == Day1Ready
+}
+
 // ScyllaJoinPhase tracks where a node is in the ScyllaDB cluster join sequence.
 // ScyllaDB uses gossip-based peer discovery — no explicit MemberAdd needed.
 // The controller renders scylla.yaml with correct seeds, starts the service,
@@ -182,6 +216,12 @@ type nodeState struct {
 	// Structured blocked reason (Phase 7)
 	BlockedReason  string `json:"blocked_reason,omitempty"`  // e.g. "unknown_profile" | "missing_units" | "apply_failed"
 	BlockedDetails string `json:"blocked_details,omitempty"` // human-readable details
+	// Day 1 lifecycle tracking
+	Day1Phase       Day1Phase  `json:"day1_phase,omitempty"`        // Current Day 1 lifecycle phase
+	Day1PhaseReason string     `json:"day1_phase_reason,omitempty"` // Human-readable reason for current phase
+	// Day 1 resolved intent (populated during reconcile from profile + catalog resolution).
+	ResolvedIntent *NodeIntent `json:"resolved_intent,omitempty"`
+
 	// Per-file content hashes of the last successfully applied rendered service configs (Phase 4b).
 	// Map key is the output file path; value is sha256 hex of the file content.
 	// Committed only after the node agent reports apply success (not just on dispatch).

@@ -237,8 +237,10 @@ func (srv *server) reconcileReleaseResolved(ctx context.Context, rel *cluster_co
 
 	srv.lock("release-reconcile:snapshot")
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
-	for id := range srv.state.Nodes {
+	nodeSnap := make(map[string]*nodeState, len(srv.state.Nodes))
+	for id, node := range srv.state.Nodes {
 		nodeIDs = append(nodeIDs, id)
+		nodeSnap[id] = node
 	}
 	clusterID := srv.state.ClusterId
 	srv.unlock()
@@ -255,6 +257,17 @@ func (srv *server) reconcileReleaseResolved(ctx context.Context, rel *cluster_co
 	targetLock := fmt.Sprintf("service:%s", canonicalServiceName(rel.Spec.ServiceName))
 
 	for _, nodeID := range nodeIDs {
+		// Profile-driven scoping: skip nodes whose resolved intent does not
+		// include this service. This prevents e.g. ai-memory from being
+		// dispatched to a gateway-only node.
+		if node := nodeSnap[nodeID]; node != nil {
+			if !NodeIntentIncludesService(node, rel.Spec.ServiceName) {
+				log.Printf("release %s: node %s: skipped (not in resolved intent for profiles %v)",
+					name, nodeID, node.Profiles)
+				continue
+			}
+		}
+
 		// Controller-side lock guard (Amendment 6): skip dispatch if an active plan on
 		// this node already holds the same service lock. This avoids issuing conflicting
 		// plans and producing noisy PLAN_PENDING states on the node-agent side.
