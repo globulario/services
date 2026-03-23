@@ -36,7 +36,7 @@ func (eh *eventHandler) run(ctx context.Context) {
 		}
 
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-		c, err := globular_client.GetClient(discoverEventServiceAddr(), "event.EventService", "NewEventService_Client")
+		c, err := globular_client.GetClient(discoverServiceAddr(10010), "event.EventService", "NewEventService_Client")
 		if err != nil {
 			log.Printf("event-handler: event service unavailable, retrying in 10s: %v", err)
 			time.Sleep(10 * time.Second)

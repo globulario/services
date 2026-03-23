@@ -68,7 +68,7 @@ func (srv *NodeAgentServer) checkAndRenewCertificate(ctx context.Context) {
 		"domain":       spec.GetClusterDomain(),
 		"admin_email":  spec.GetAdminEmail(),
 		"acme_enabled": spec.GetAcmeEnabled(),
-		"dns_addr":     config.ResolveDNSGrpcEndpoint("127.0.0.1:10033"),
+		"dns_addr":     config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006)),
 	}
 
 	argsStruct, err := structpb.NewStruct(args)
@@ -314,7 +314,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 			DNS:      strings.TrimSpace(os.Getenv("GLOBULAR_DNS_ADDR")),
 		}
 		if opts.ACME.DNS == "" {
-			opts.ACME.DNS = config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
+			opts.ACME.DNS = config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006))
 		}
 	}
 

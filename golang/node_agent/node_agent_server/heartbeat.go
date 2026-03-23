@@ -173,7 +173,7 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int64, platform string, synced *int) {
 	repoAddr := strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
 	if repoAddr == "" {
-		repoAddr = "localhost:10101"
+		repoAddr = discoverServiceAddr(10008) // repository.PackageRepository default port
 	}
 
 	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")

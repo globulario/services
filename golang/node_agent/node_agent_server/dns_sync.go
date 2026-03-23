@@ -255,7 +255,7 @@ func resolveDNSEndpoint(spec *cluster_controllerpb.ClusterNetworkSpec) string {
 		return v
 	}
 	// spec override can be added later
-	return config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
+	return config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006))
 }
 
 func normalizeDomain(s string) string {
