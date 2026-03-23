@@ -11,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/planpb"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/google/uuid"
 )
 
@@ -205,6 +206,24 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		}
 
 		installedVersion := lookupInstalledVersionForHandle(nodeID, h)
+
+		// Skip nodes where the desired version is already installed.
+		// This prevents Day 0 nodes from having their running services
+		// stopped and reinstalled when an InfrastructureRelease is
+		// re-created by seed or retry.
+		if installedVersion != "" && h.ResolvedVersion != "" &&
+			versionutil.Equal(installedVersion, h.ResolvedVersion) {
+			log.Printf("%s %s: node %s already has version %s installed, skipping",
+				h.ResourceType, h.Name, nodeID, installedVersion)
+			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
+				NodeID:           nodeID,
+				Phase:            cluster_controllerpb.ReleasePhaseAvailable,
+				InstalledVersion: installedVersion,
+				UpdatedUnixMs:    time.Now().UnixMilli(),
+			})
+			continue
+		}
+
 		plan, err := h.CompilePlan(nodeID, installedVersion, clusterID)
 		if err != nil {
 			log.Printf("%s %s: compile plan for node %s: %v", h.ResourceType, h.Name, nodeID, err)
