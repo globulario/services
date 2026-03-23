@@ -367,12 +367,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			desiredCanon = map[string]string{}
 		}
 
-		// Retry FAILED infra releases: if an InfrastructureRelease is stuck in
-		// FAILED (e.g. transient TLS error during repository lookup), reset it
-		// to PENDING so the release pipeline retries. Without this, infra
-		// releases fail once and never recover, blocking Day 1 bootstrap.
+		// Retry FAILED infra releases and re-enqueue AVAILABLE ones so the
+		// release pipeline re-checks for unserved nodes (Day 1 join).
 		if srv.resources != nil {
 			srv.retryFailedInfraReleases(ctx)
+			srv.enqueueInfraReleases()
 		}
 
 		// Day 1 infra materialization: if the node's resolved intent requires
@@ -895,6 +894,24 @@ func (srv *server) retryFailedInfraReleases(ctx context.Context) {
 			continue
 		}
 		log.Printf("retryFailedInfraReleases: reset %s from FAILED → PENDING (gen=%d)", rel.Meta.Name, rel.Meta.Generation)
+	}
+}
+
+// enqueueInfraReleases triggers re-processing of all InfrastructureRelease
+// objects so the release pipeline can detect new unserved nodes and dispatch
+// plans. Called from reconcileNodes when a node is in a pre-ready phase.
+func (srv *server) enqueueInfraReleases() {
+	if srv.resources == nil || srv.infraReleaseEnqueue == nil {
+		return
+	}
+	items, _, err := srv.resources.List(context.Background(), "InfrastructureRelease", "")
+	if err != nil {
+		return
+	}
+	for _, obj := range items {
+		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+			srv.infraReleaseEnqueue(rel.Meta.Name)
+		}
 	}
 }
 

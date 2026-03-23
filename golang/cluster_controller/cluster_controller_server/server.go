@@ -169,6 +169,9 @@ type server struct {
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
 	// trigger release re-evaluation when a node's AppliedServicesHash changes.
 	releaseEnqueue func(releaseName string)
+	// infraReleaseEnqueue re-triggers infra release reconciliation (used when
+	// new nodes join and need infra dispatched).
+	infraReleaseEnqueue func(releaseName string)
 	// enqueueReconcile is set by startControllerRuntime so that SetNodeProfiles
 	// can immediately trigger a reconcile cycle after saving profile changes.
 	enqueueReconcile func()

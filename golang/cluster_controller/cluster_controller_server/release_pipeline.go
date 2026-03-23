@@ -305,6 +305,10 @@ func (srv *server) reconcileApplying(ctx context.Context, h *releaseHandle) {
 // reconcileAvailable is the shared AVAILABLE/DEGRADED phase: detect spec
 // generation drift and re-enter PENDING if the spec changed. If the handle
 // carries a DriftDetector callback, it is also invoked for hash+health drift.
+//
+// For infrastructure releases, also detects nodes that joined after the
+// release was dispatched — if an eligible node is missing the package,
+// re-enter RESOLVED to dispatch plans for the new node.
 func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 	if h.Generation > h.ObservedGeneration {
 		h.PatchStatus(ctx, statusPatch{
@@ -314,9 +318,59 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 		})
 		return
 	}
+
+	// Check for new nodes that need this release but weren't in the original
+	// dispatch. This handles Day 1 join: a node joins after the release
+	// reached AVAILABLE on existing nodes.
+	if srv.hasUnservedNodes(h) {
+		log.Printf("%s %s: new unserved node(s) detected, re-entering PENDING to dispatch",
+			h.ResourceType, h.Name)
+		h.PatchStatus(ctx, statusPatch{
+			Phase:            cluster_controllerpb.ReleasePhasePending,
+			TransitionReason: "new_node_joined",
+			SetFields:        "phase",
+		})
+		return
+	}
+
 	if h.DriftDetector != nil {
 		h.DriftDetector(ctx, h)
 	}
+}
+
+// hasUnservedNodes checks if any eligible node is missing from the release's
+// node status list. This detects nodes that joined after the release was
+// dispatched. For workload releases, only workload-ready nodes are checked.
+func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
+	srv.lock("hasUnservedNodes")
+	defer srv.unlock()
+
+	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
+
+	// Build set of nodes already tracked by this release.
+	served := make(map[string]bool)
+	for _, nrs := range h.Nodes {
+		if nrs != nil {
+			served[nrs.NodeID] = true
+		}
+	}
+
+	for id, node := range srv.state.Nodes {
+		if served[id] {
+			continue
+		}
+		// Workload releases: only dispatch to ready nodes.
+		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
+			continue
+		}
+		// Skip nodes that are unhealthy/unreachable — they can't execute plans.
+		if node.Status == "unreachable" || node.Status == "removed" {
+			continue
+		}
+		// Found an eligible node not yet served by this release.
+		return true
+	}
+	return false
 }
 
 // stampAndDispatchPlan assigns an ID, generation, and issuer to a plan,

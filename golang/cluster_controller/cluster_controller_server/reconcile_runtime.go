@@ -76,6 +76,9 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		srv.releaseEnqueue = func(releaseName string) {
 			queue.Enqueue(releaseKeyPrefix + releaseName)
 		}
+		srv.infraReleaseEnqueue = func(releaseName string) {
+			queue.Enqueue(infraReleaseKeyPrefix + releaseName)
+		}
 	}
 	// Allow SetNodeProfiles to immediately trigger reconciliation.
 	srv.enqueueReconcile = func() {
