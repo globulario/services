@@ -338,19 +338,29 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 	}
 }
 
-// hasUnservedNodes checks if any eligible node is missing from the release's
-// node status list. This detects nodes that joined after the release was
-// dispatched. For workload releases, only workload-ready nodes are checked.
+// hasUnservedNodes checks if any eligible node has not successfully converged
+// for this release. A node counts as "served" only if its per-node release
+// status is AVAILABLE. Nodes that were attempted but FAILED, ROLLED_BACK, or
+// are still APPLYING from a stale attempt are treated as unserved — they need
+// a fresh plan dispatch.
+//
+// This is critical for Day 1 join: a node joins, gets dispatched, fails (e.g.
+// 503 during artifact fetch), and must be retried. Without this, the controller
+// treats "was attempted once" as "was successfully served" and never retries.
 func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 	srv.lock("hasUnservedNodes")
 	defer srv.unlock()
 
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 
-	// Build set of nodes already tracked by this release.
+	// Only genuinely converged nodes count as served.
 	served := make(map[string]bool)
 	for _, nrs := range h.Nodes {
-		if nrs != nil {
+		if nrs == nil {
+			continue
+		}
+		switch nrs.Phase {
+		case cluster_controllerpb.ReleasePhaseAvailable:
 			served[nrs.NodeID] = true
 		}
 	}
@@ -359,15 +369,12 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 		if served[id] {
 			continue
 		}
-		// Workload releases: only dispatch to ready nodes.
 		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
 			continue
 		}
-		// Skip nodes that are unhealthy/unreachable — they can't execute plans.
 		if node.Status == "unreachable" || node.Status == "removed" {
 			continue
 		}
-		// Found an eligible node not yet served by this release.
 		return true
 	}
 	return false
