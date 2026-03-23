@@ -553,11 +553,15 @@ func (srv *server) importInstalledReleasesToDesired(ctx context.Context, cfg rel
 			continue
 		}
 		if _, exists := entries[name]; !exists {
+			pubID := strings.TrimSpace(pkg.GetPublisherId())
+			if pubID == "" || pubID == "unknown" {
+				pubID = defaultPublisherID()
+			}
 			entries[name] = installedPkgInfo{
 				name:        name,
 				version:     pkg.GetVersion(),
 				buildNumber: pkg.GetBuildNumber(),
-				publisherID: pkg.GetPublisherId(),
+				publisherID: pubID,
 				platform:    pkg.GetPlatform(),
 			}
 		}
