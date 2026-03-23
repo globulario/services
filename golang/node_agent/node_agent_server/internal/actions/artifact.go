@@ -94,6 +94,11 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if repositoryAddr == "" {
 		repositoryAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
 	}
+	// Auto-discover repository via gateway: same host as the controller, port 8443.
+	// The gateway (Envoy) routes gRPC to the repository service transparently.
+	if repositoryAddr == "" {
+		repositoryAddr = discoverRepositoryViaGateway()
+	}
 	if repositoryAddr == "" {
 		return "", fmt.Errorf("artifact not found locally and REPOSITORY_ADDRESS is not set")
 	}
@@ -332,6 +337,42 @@ func (serviceWriteVersionMarkerAction) Apply(ctx context.Context, args *structpb
 	return "version marker written", nil
 }
 
+// discoverRepositoryViaGateway derives the repository address from the
+// controller endpoint. The gateway (Envoy) runs on the same host as the
+// controller, on port 8443, and routes gRPC to all backend services
+// including the repository. This avoids requiring a separate
+// REPOSITORY_ADDRESS configuration on joining nodes.
+func discoverRepositoryViaGateway() string {
+	// Try node-agent state file first.
+	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
+	if stateRoot == "" {
+		stateRoot = "/var/lib/globular"
+	}
+	statePath := filepath.Join(stateRoot, "nodeagent", "state.json")
+	if data, err := os.ReadFile(statePath); err == nil {
+		var state struct {
+			ControllerEndpoint string `json:"controller_endpoint"`
+		}
+		if json.Unmarshal(data, &state) == nil && state.ControllerEndpoint != "" {
+			host, _, err := net.SplitHostPort(state.ControllerEndpoint)
+			if err == nil && host != "" {
+				addr := net.JoinHostPort(host, "8443")
+				fmt.Printf("INFO artifact fetch: discovered repository via gateway %s (from controller %s)\n", addr, state.ControllerEndpoint)
+				return addr
+			}
+		}
+	}
+
+	// Fall back to NODE_AGENT_CONTROLLER_ENDPOINT env var.
+	if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
+		host, _, err := net.SplitHostPort(ep)
+		if err == nil && host != "" {
+			return net.JoinHostPort(host, "8443")
+		}
+	}
+	return ""
+}
+
 func resolveArtifactPath(service, version, platform string) string {
 	root := strings.TrimSpace(os.Getenv("GLOBULAR_ARTIFACT_REPO_ROOT"))
 	if root == "" {
@@ -364,6 +405,13 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 		}
 		if caPath == "" {
 			caPath = strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA"))
+		}
+		// Fall back to canonical CA location (always present on joined nodes).
+		if caPath == "" {
+			candidate := "/var/lib/globular/pki/ca.pem"
+			if _, err := os.Stat(candidate); err == nil {
+				caPath = candidate
+			}
 		}
 		tlsCfg := &tls.Config{}
 		if caPath != "" {

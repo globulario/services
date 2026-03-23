@@ -210,17 +210,12 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		state.NodeID = nodeID
 	}
 
-	// Ensure the node ID matches the hardware-derived stable ID.
-	// After a restore, state.json may contain a stale random UUID from the backup.
-	// Replace it with the deterministic stable ID so the node keeps its identity
-	// across restores without needing to re-register via the join flow.
-	if stableID, err := identity.StableNodeID(); err == nil {
-		if nodeID != "" && nodeID != stableID {
-			log.Printf("node-agent: stored node ID %s does not match stable ID %s (post-restore?); adopting stable ID", nodeID, stableID)
-			nodeID = stableID
-			state.NodeID = stableID
-			state.RequestID = ""
-		} else if nodeID == "" {
+	// If no node ID is stored, derive one from hardware (MAC-based stable ID).
+	// Do NOT override a controller-assigned ID — even if it differs from the
+	// stable ID. The controller may have derived the ID from hostname+IPs
+	// when the MAC wasn't available in the join request.
+	if nodeID == "" {
+		if stableID, err := identity.StableNodeID(); err == nil {
 			log.Printf("node-agent: no node ID stored; using stable ID %s", stableID)
 			nodeID = stableID
 			state.NodeID = stableID
@@ -623,18 +618,34 @@ func mergeNetworkIntoConfig(basePath, overlay string) error {
 	return nil
 }
 
+// isWiredInterface returns true for interface names that indicate a wired
+// (Ethernet) connection. Wired interfaces are preferred over WiFi for
+// cluster services (etcd, ScyllaDB, MinIO) because they have stable IPs.
+func isWiredInterface(name string) bool {
+	return strings.HasPrefix(name, "eth") ||
+		strings.HasPrefix(name, "eno") ||
+		strings.HasPrefix(name, "enp") ||
+		strings.HasPrefix(name, "ens") ||
+		strings.HasPrefix(name, "enx")
+}
+
 func gatherIPs() []string {
-	var ips []string
+	type ifaceIP struct {
+		ip    string
+		wired bool
+	}
+	var collected []ifaceIP
 	seen := make(map[string]struct{})
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return ips
+		return nil
 	}
 	for _, iface := range ifaces {
 		// Skip down or loopback interfaces
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
+		wired := isWiredInterface(iface.Name)
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
@@ -660,30 +671,33 @@ func gatherIPs() []string {
 				continue
 			}
 			seen[text] = struct{}{}
-			ips = append(ips, text)
+			collected = append(collected, ifaceIP{ip: text, wired: wired})
 		}
 	}
 
-	// Sort IPs: prefer private network addresses (10.x, 172.16-31.x, 192.168.x) first
-	sort.Slice(ips, func(i, j int) bool {
-		ipI := net.ParseIP(ips[i])
-		ipJ := net.ParseIP(ips[j])
-		if ipI == nil || ipJ == nil {
-			return ips[i] < ips[j]
+	// Sort: wired first, then private IPs first, then lexicographic.
+	sort.SliceStable(collected, func(i, j int) bool {
+		// Wired beats WiFi
+		if collected[i].wired != collected[j].wired {
+			return collected[i].wired
 		}
-
-		privateI := isPrivateIP(ipI)
-		privateJ := isPrivateIP(ipJ)
-
-		// Private IPs come first
-		if privateI != privateJ {
-			return privateI
+		// Private beats public
+		ipI := net.ParseIP(collected[i].ip)
+		ipJ := net.ParseIP(collected[j].ip)
+		if ipI != nil && ipJ != nil {
+			privI := isPrivateIP(ipI)
+			privJ := isPrivateIP(ipJ)
+			if privI != privJ {
+				return privI
+			}
 		}
-
-		// Otherwise, sort by IP string
-		return ips[i] < ips[j]
+		return collected[i].ip < collected[j].ip
 	})
 
+	ips := make([]string, len(collected))
+	for i, c := range collected {
+		ips[i] = c.ip
+	}
 	return ips
 }
 
