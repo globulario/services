@@ -62,6 +62,7 @@ type ToolGroupConfig struct {
 	CLI         bool `json:"cli"`         // default true
 	Governor    bool `json:"governor"`    // default true
 	Memory      bool `json:"memory"`      // default true (AI memory service)
+	Skills      bool `json:"skills"`      // default true (operational skill playbooks)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -110,6 +111,7 @@ func defaultConfig() *MCPConfig {
 			CLI:         true,
 			Governor:    true,
 			Memory:      true,
+			Skills:      true,
 			File:        true,
 			Persistence: false, // requires explicit allowlist
 			Storage:     false, // requires explicit allowlist
@@ -190,6 +192,7 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"cli":      &cfg.ToolGroups.CLI,
 		"governor": &cfg.ToolGroups.Governor,
 		"memory":   &cfg.ToolGroups.Memory,
+		"skills":   &cfg.ToolGroups.Skills,
 	}
 
 	updated := false

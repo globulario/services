@@ -50,6 +50,7 @@ enum MemoryType {
     PROJECT            = 7;  // Ongoing work, goals, initiatives
     REFERENCE          = 8;  // Pointers to external resources
     SCRATCH            = 9;  // Temporary analysis, auto-expires
+    SKILL              = 10; // Operational skill playbooks for AI agents
 }
 
 // ── Core message ────────────────────────────────────────────────────────────

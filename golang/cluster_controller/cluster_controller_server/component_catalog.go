@@ -58,6 +58,19 @@ type HealthCheckHintC struct {
 	Port int    // TCP port that must be listening (0 = skip)
 }
 
+// InstallMode constants describe how an infrastructure component is installed.
+const (
+	// InstallModeRepository means the component is installed from the
+	// artifact repository via the standard plan/artifact pipeline.
+	InstallModeRepository = "repository"
+
+	// InstallModeDay0Join means the component is installed by the Day 0
+	// installer or the Day 1 join state machine (e.g. etcd member-add).
+	// The controller should NOT create InfrastructureRelease objects for
+	// these — they are managed by dedicated bootstrap/join logic.
+	InstallModeDay0Join = "day0_join"
+)
+
 // Component is a single deployable unit in the cluster catalog.
 type Component struct {
 	// Name is the canonical kebab-case key (e.g. "etcd", "ai-memory").
@@ -90,6 +103,11 @@ type Component struct {
 	// This matches the old behavior where event/rbac/file were in
 	// profileUnitMap but not in unitTier as infrastructure.
 	ManagedUnit bool
+
+	// InstallMode describes how this component is installed on nodes.
+	// "repository" (default) = installed from artifact repository.
+	// "day0_join" = installed by Day 0 installer or Day 1 join logic.
+	InstallMode string
 
 	// HealthCheck describes how to verify this component is healthy.
 	HealthCheck *HealthCheckHintC
@@ -136,6 +154,7 @@ func buildCatalog() []*Component {
 			Priority:             1,
 			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapConfigStore},
+			InstallMode:          InstallModeDay0Join,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-etcd.service", Port: 2379},
 		},
 		{
@@ -192,6 +211,7 @@ func buildCatalog() []*Component {
 			Priority:             6,
 			Profiles:             []string{"scylla", "database"},
 			ProvidesCapabilities: []Capability{CapLocalDB},
+			InstallMode:          InstallModeDay0Join, // OS package (apt install), not a repo artifact
 			HealthCheck:          &HealthCheckHintC{Unit: "scylla-server.service", Port: 9042},
 		},
 		{

@@ -155,8 +155,10 @@ func (srv *server) run() {
 					}
 				}
 				if len(matchedUUIDs) == 0 {
+					srv.logger.Info("publish: no subscribers matched", "event", name, "channels", len(channels), "streams", len(streams))
 					continue
 				}
+				srv.logger.Info("publish: dispatching", "event", name, "matched", len(matchedUUIDs))
 				var toDelete []string
 				for _, uuid := range matchedUUIDs {
 					stream := streams[uuid]

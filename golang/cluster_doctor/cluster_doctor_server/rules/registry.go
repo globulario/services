@@ -29,6 +29,8 @@ func NewRegistry(cfg Config) *Registry {
 		staleNodeDetection{},
 		bootstrapPhaseStuck{},
 		nodeAgentCrash{},
+		// Network diagnostics (multi-IP, WiFi stability)
+		nodeMultiIP{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

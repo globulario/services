@@ -175,7 +175,7 @@ func (c *aiExecutorServiceClient) Stop(ctx context.Context, in *StopRequest, opt
 }
 
 // AiExecutorServiceServer is the server API for AiExecutorService service.
-// All implementations must embed UnimplementedAiExecutorServiceServer
+// All implementations should embed UnimplementedAiExecutorServiceServer
 // for forward compatibility.
 //
 // AiExecutorService receives incidents from the ai_watcher, diagnoses them
@@ -207,10 +207,9 @@ type AiExecutorServiceServer interface {
 	ListJobs(context.Context, *ListJobsRequest) (*ListJobsResponse, error)
 	// Stop gracefully shuts down the executor.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	mustEmbedUnimplementedAiExecutorServiceServer()
 }
 
-// UnimplementedAiExecutorServiceServer must be embedded to have
+// UnimplementedAiExecutorServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -247,8 +246,7 @@ func (UnimplementedAiExecutorServiceServer) ListJobs(context.Context, *ListJobsR
 func (UnimplementedAiExecutorServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
 }
-func (UnimplementedAiExecutorServiceServer) mustEmbedUnimplementedAiExecutorServiceServer() {}
-func (UnimplementedAiExecutorServiceServer) testEmbeddedByValue()                           {}
+func (UnimplementedAiExecutorServiceServer) testEmbeddedByValue() {}
 
 // UnsafeAiExecutorServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AiExecutorServiceServer will

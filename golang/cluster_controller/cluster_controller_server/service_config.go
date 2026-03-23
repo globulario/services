@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -149,8 +150,11 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	}
 
 	currentIP := ctx.CurrentNode.IP
-	if currentIP == "" {
-		currentIP = "127.0.0.1"
+	if currentIP == "" || currentIP == "127.0.0.1" || currentIP == "::1" {
+		// Never render etcd config with loopback-only — it makes multi-node
+		// clusters impossible. The node must have a routable IP.
+		log.Printf("renderEtcdConfig: node %s has no routable IP (got %q), skipping", ctx.CurrentNode.NodeID, ctx.CurrentNode.IP)
+		return "", false
 	}
 
 	nodeName := sanitizeEtcdName(ctx.CurrentNode.Hostname)
@@ -166,8 +170,9 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 			peerName = sanitizeEtcdName(node.NodeID)
 		}
 		peerIP := node.IP
-		if peerIP == "" {
-			peerIP = "127.0.0.1"
+		if peerIP == "" || peerIP == "127.0.0.1" || peerIP == "::1" {
+			log.Printf("renderEtcdConfig: peer node %s has no routable IP, skipping from initial-cluster", node.NodeID)
+			continue
 		}
 		initialClusterParts = append(initialClusterParts, fmt.Sprintf("%s=https://%s:2380", peerName, peerIP))
 	}
@@ -238,10 +243,13 @@ func renderEtcdEndpoints(ctx *serviceConfigContext) (string, bool) {
 	var endpoints []string
 	for _, node := range etcdNodes {
 		ip := node.IP
-		if ip == "" {
-			ip = "127.0.0.1"
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue // skip nodes without routable IPs
 		}
 		endpoints = append(endpoints, fmt.Sprintf("https://%s:2379", ip))
+	}
+	if len(endpoints) == 0 {
+		return "", false
 	}
 	return strings.Join(endpoints, "\n") + "\n", true
 }
@@ -321,15 +329,13 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 	var etcdEndpoints []string
 	for _, node := range etcdNodes {
 		nodeIP := node.IP
-		if nodeIP == "" {
-			nodeIP = "127.0.0.1"
+		if nodeIP == "" || nodeIP == "127.0.0.1" || nodeIP == "::1" {
+			continue
 		}
 		etcdEndpoints = append(etcdEndpoints, fmt.Sprintf("%s:2379", nodeIP))
 	}
-
-	// Fallback to localhost if no endpoints
 	if len(etcdEndpoints) == 0 {
-		etcdEndpoints = []string{"127.0.0.1:2379"}
+		return "", false
 	}
 
 	domain := ctx.Domain

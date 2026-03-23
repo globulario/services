@@ -30,3 +30,5 @@
 ./backup_manager/backup_manager_server | usr/local/bin/backup_manager_server
 ./ai_memory/ai_memory_server | usr/local/bin/ai_memory_server
 ./ai_watcher/ai_watcher_server | usr/local/bin/ai_watcher_server
+./ai_executor/ai_executor_server | usr/local/bin/ai_executor_server
+./ai_router/ai_router_server | usr/local/bin/ai_router_server

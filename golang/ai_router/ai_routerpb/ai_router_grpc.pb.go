@@ -110,7 +110,7 @@ func (c *aiRouterServiceClient) Stop(ctx context.Context, in *StopRequest, opts 
 }
 
 // AiRouterServiceServer is the server API for AiRouterService service.
-// All implementations must embed UnimplementedAiRouterServiceServer
+// All implementations should embed UnimplementedAiRouterServiceServer
 // for forward compatibility.
 //
 // AiRouterService is a control-plane routing policy engine that computes
@@ -132,10 +132,9 @@ type AiRouterServiceServer interface {
 	GetServiceClassifications(context.Context, *GetServiceClassificationsRequest) (*GetServiceClassificationsResponse, error)
 	// Stop gracefully shuts down the router.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	mustEmbedUnimplementedAiRouterServiceServer()
 }
 
-// UnimplementedAiRouterServiceServer must be embedded to have
+// UnimplementedAiRouterServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -157,8 +156,7 @@ func (UnimplementedAiRouterServiceServer) GetServiceClassifications(context.Cont
 func (UnimplementedAiRouterServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
 }
-func (UnimplementedAiRouterServiceServer) mustEmbedUnimplementedAiRouterServiceServer() {}
-func (UnimplementedAiRouterServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedAiRouterServiceServer) testEmbeddedByValue() {}
 
 // UnsafeAiRouterServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AiRouterServiceServer will

@@ -213,6 +213,9 @@ func (srv *server) expiryLoop() {
 }
 
 func (srv *server) StopService() error {
+	if srv.diagnoser != nil && srv.diagnoser.claude != nil {
+		srv.diagnoser.claude.shutdown()
+	}
 	return globular.StopService(srv, srv.grpcServer)
 }
 

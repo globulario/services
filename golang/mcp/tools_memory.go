@@ -36,6 +36,8 @@ func parseMemoryType(s string) ai_memorypb.MemoryType {
 		return ai_memorypb.MemoryType_REFERENCE
 	case "SCRATCH":
 		return ai_memorypb.MemoryType_SCRATCH
+	case "SKILL":
+		return ai_memorypb.MemoryType_SKILL
 	default:
 		return ai_memorypb.MemoryType_MEMORY_UNSPECIFIED
 	}
@@ -62,6 +64,8 @@ func memoryTypeString(t ai_memorypb.MemoryType) string {
 		return "reference"
 	case ai_memorypb.MemoryType_SCRATCH:
 		return "scratch"
+	case ai_memorypb.MemoryType_SKILL:
+		return "skill"
 	default:
 		return "unspecified"
 	}

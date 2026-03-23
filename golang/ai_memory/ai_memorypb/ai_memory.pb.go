@@ -25,30 +25,32 @@ type MemoryType int32
 
 const (
 	MemoryType_MEMORY_UNSPECIFIED MemoryType = 0
-	MemoryType_FEEDBACK           MemoryType = 1 // User corrections and confirmed approaches
-	MemoryType_ARCHITECTURE       MemoryType = 2 // System design knowledge
-	MemoryType_DECISION           MemoryType = 3 // Design decisions and their rationale
-	MemoryType_DEBUG              MemoryType = 4 // Debugging sessions and root causes
-	MemoryType_SESSION            MemoryType = 5 // Conversation session summaries
-	MemoryType_USER               MemoryType = 6 // User profile, preferences, role
-	MemoryType_PROJECT            MemoryType = 7 // Ongoing work, goals, initiatives
-	MemoryType_REFERENCE          MemoryType = 8 // Pointers to external resources
-	MemoryType_SCRATCH            MemoryType = 9 // Temporary analysis, auto-expires
+	MemoryType_FEEDBACK           MemoryType = 1  // User corrections and confirmed approaches
+	MemoryType_ARCHITECTURE       MemoryType = 2  // System design knowledge
+	MemoryType_DECISION           MemoryType = 3  // Design decisions and their rationale
+	MemoryType_DEBUG              MemoryType = 4  // Debugging sessions and root causes
+	MemoryType_SESSION            MemoryType = 5  // Conversation session summaries
+	MemoryType_USER               MemoryType = 6  // User profile, preferences, role
+	MemoryType_PROJECT            MemoryType = 7  // Ongoing work, goals, initiatives
+	MemoryType_REFERENCE          MemoryType = 8  // Pointers to external resources
+	MemoryType_SCRATCH            MemoryType = 9  // Temporary analysis, auto-expires
+	MemoryType_SKILL              MemoryType = 10 // Operational skill playbooks for AI agents
 )
 
 // Enum value maps for MemoryType.
 var (
 	MemoryType_name = map[int32]string{
-		0: "MEMORY_UNSPECIFIED",
-		1: "FEEDBACK",
-		2: "ARCHITECTURE",
-		3: "DECISION",
-		4: "DEBUG",
-		5: "SESSION",
-		6: "USER",
-		7: "PROJECT",
-		8: "REFERENCE",
-		9: "SCRATCH",
+		0:  "MEMORY_UNSPECIFIED",
+		1:  "FEEDBACK",
+		2:  "ARCHITECTURE",
+		3:  "DECISION",
+		4:  "DEBUG",
+		5:  "SESSION",
+		6:  "USER",
+		7:  "PROJECT",
+		8:  "REFERENCE",
+		9:  "SCRATCH",
+		10: "SKILL",
 	}
 	MemoryType_value = map[string]int32{
 		"MEMORY_UNSPECIFIED": 0,
@@ -61,6 +63,7 @@ var (
 		"PROJECT":            7,
 		"REFERENCE":          8,
 		"SCRATCH":            9,
+		"SKILL":              10,
 	}
 )
 
@@ -1457,7 +1460,7 @@ const file_ai_memory_proto_rawDesc = "" +
 	"\x10ResumeSessionRsp\x12.\n" +
 	"\bsessions\x18\x01 \x03(\v2\x12.ai_memory.SessionR\bsessions\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse*\x9d\x01\n" +
+	"\fStopResponse*\xa8\x01\n" +
 	"\n" +
 	"MemoryType\x12\x16\n" +
 	"\x12MEMORY_UNSPECIFIED\x10\x00\x12\f\n" +
@@ -1469,7 +1472,9 @@ const file_ai_memory_proto_rawDesc = "" +
 	"\x04USER\x10\x06\x12\v\n" +
 	"\aPROJECT\x10\a\x12\r\n" +
 	"\tREFERENCE\x10\b\x12\v\n" +
-	"\aSCRATCH\x10\t2\x91\x04\n" +
+	"\aSCRATCH\x10\t\x12\t\n" +
+	"\x05SKILL\x10\n" +
+	"2\x91\x04\n" +
 	"\x0fAiMemoryService\x122\n" +
 	"\x05Store\x12\x14.ai_memory.StoreRqst\x1a\x13.ai_memory.StoreRsp\x122\n" +
 	"\x05Query\x12\x14.ai_memory.QueryRqst\x1a\x13.ai_memory.QueryRsp\x12,\n" +

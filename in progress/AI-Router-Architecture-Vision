@@ -1,0 +1,324 @@
+# AI Router — Architecture Vision (Claude's Perspective)
+
+## The Reality of gRPC Through Envoy
+
+Before designing anything, the truth about gRPC load balancing:
+
+### Unary RPCs — per-request balancing works
+```
+Client → Envoy → picks endpoint per HTTP/2 stream → Service
+```
+Envoy sees each unary RPC as a separate HTTP/2 stream. Round-robin, weighted,
+least-request — all work naturally. The AI Router can shift weights and traffic
+follows immediately.
+
+### Server-Streaming RPCs — pinned once opened
+```
+Client → Envoy → picks endpoint ONCE → stream lives there forever
+```
+The OnEvent stream (ai_watcher's lifeline) is a server-streaming RPC. Once Envoy
+routes it to a backend, all messages flow through that one connection until it
+breaks. You cannot rebalance an existing stream. You can only influence where
+NEW streams go.
+
+### Bidirectional Streaming — same as above, but worse
+Long-lived bidirectional streams (chat, live data) are pinned for their entire
+lifetime. With `Timeout: 0` in the current Envoy routes, they can live forever.
+
+### The real implication
+The AI Router doesn't "route requests" — it **shapes the landscape** that
+future connections land on. It's gardening, not traffic control.
+
+---
+
+## Where the AI Router Fits
+
+Current stack:
+```
+xDS Watcher (5s poll) → builds snapshot → xDS Server → Envoy
+```
+
+The watcher builds xDS snapshots from etcd service configs + DNS resolution.
+It uses ROUND_ROBIN for all clusters. No weights. No health-awareness beyond
+"endpoint exists or doesn't."
+
+The AI Router injects intelligence into this pipeline:
+```
+xDS Watcher (5s poll)
+    ↓
+    queries AI Router for routing policy
+    ↓
+AI Router returns: {
+    endpoint weights,
+    circuit breaker overrides,
+    max connections per endpoint,
+    drain list (endpoints to remove gracefully)
+}
+    ↓
+Watcher merges policy into snapshot
+    ↓
+xDS Server → Envoy
+```
+
+The AI Router is NOT a separate proxy. It's an advisor that the xDS watcher
+consults. One function call, not a network hop.
+
+---
+
+## What the AI Router Controls
+
+### 1. Endpoint Weights (EDS)
+
+Current: all endpoints weight=1 (equal distribution).
+
+AI Router computes per-endpoint weights based on:
+- CPU/memory from Prometheus (via monitoring service)
+- Request latency trend (rising = reduce weight before it saturates)
+- Error rate from anomaly tracker (high errors = drain)
+- Anomaly score from ai_watcher (DoS source = isolate)
+- Historical reliability from ai_memory (this node crashed 3 times this week)
+
+Output: `map[endpoint]weight` — higher weight = more traffic.
+
+For gRPC streams, this means: new streams are more likely to land on
+healthy endpoints. Existing streams stay where they are.
+
+### 2. Circuit Breakers (CDS)
+
+Current: Envoy defaults (1024 max connections, 1024 max requests).
+
+AI Router adjusts per-cluster:
+- `max_connections`: reduce when node is stressed
+- `max_pending_requests`: reduce to shed load early
+- `max_requests`: cap concurrent RPCs to struggling endpoints
+- `max_retries`: reduce during cascade failures (retries amplify)
+
+This is how the router handles resource exhaustion attacks —
+not by blocking requests, but by limiting how much damage one
+overloaded endpoint can propagate.
+
+### 3. Outlier Detection (CDS)
+
+Envoy has built-in outlier detection — eject endpoints that fail too often.
+Currently not configured in Globular.
+
+AI Router enables and tunes:
+- `consecutive_5xx`: eject after N consecutive errors
+- `interval`: how often to check
+- `base_ejection_time`: how long to remove the endpoint
+- `max_ejection_percent`: never eject more than X% (safety)
+
+This handles the "silent killer" scenario — a node that's technically up
+but returning errors. Envoy auto-ejects it, AI Router decides when to
+bring it back (after checking health via ai_watcher signals).
+
+### 4. Retry Policy (RDS)
+
+Current: no retry policy configured.
+
+AI Router sets per-route:
+- `retry_on`: "5xx,reset,connect-failure,refused-stream"
+- `num_retries`: 1-3 depending on system stress
+- `retry_back_off`: progressive delays
+
+Critical for gRPC: retry only UNARY calls. Never retry streams
+(you'd create duplicate streams). Envoy supports this via
+`retriable_status_codes` — only retry on specific gRPC status codes.
+
+### 5. Rate Limiting (per-route)
+
+Current: no rate limiting at Envoy level.
+
+AI Router configures Envoy's local rate limiter:
+- Per-route token buckets
+- Adjusted dynamically: tighten during DoS, relax during normal operation
+- Different limits for authenticated vs anonymous traffic
+
+This is the Tier 2 response to `alert.dos.detected` — instead of just
+observing, the router tells Envoy to throttle the source.
+
+### 6. Drain List (endpoint removal)
+
+When the AI Router decides an endpoint must be removed:
+- Don't delete it immediately (existing streams would break)
+- Set weight to 0 (no new connections)
+- Wait for existing streams to close naturally
+- Then remove from endpoint list
+
+For gRPC streams, this is the only safe way to move traffic away
+from a compromised or failing node.
+
+---
+
+## The Decision Engine
+
+### Inputs (every 5 seconds, aligned with xDS watcher poll)
+
+```go
+type RoutingInput struct {
+    // From Prometheus (via monitoring service)
+    Metrics map[endpoint]EndpointMetrics  // CPU, memory, latency, RPS
+
+    // From ai_watcher (via event stream)
+    ActiveIncidents []Incident            // current anomalies
+    AnomalyScores   map[endpoint]float64  // per-endpoint risk
+
+    // From ai_memory
+    HistoricalReliability map[endpoint]float64  // past performance
+    PastDecisions         []RoutingDecision     // what worked before
+
+    // From cluster controller
+    ClusterHealth    HealthStatus
+    ActiveDeployment bool  // is a rollout in progress?
+}
+```
+
+### Scoring Model (Phase 1 — deterministic)
+
+```
+score(endpoint) =
+    0.3 * normalize(cpu_usage) +
+    0.2 * normalize(latency_p99) +
+    0.2 * normalize(error_rate_5m) +
+    0.2 * anomaly_score +
+    0.1 * (1 - historical_reliability)
+```
+
+Lower score = healthier = higher weight.
+
+Weight = `max(1, int(100 * (1 - score)))` — never zero unless explicitly drained.
+
+### Context Modifiers
+
+The score is adjusted by context:
+- **During deployment**: reduce weight of nodes being updated (they'll restart)
+- **During incident**: if DoS detected, weight=0 for source-facing endpoints
+- **After recovery**: gradually increase weight (don't slam traffic onto
+  a just-recovered node)
+- **Stream-heavy services**: prefer sticky routing (fewer stream migrations)
+
+### Safety Rules
+
+1. Never remove ALL endpoints — keep at least one with weight > 0
+2. Weight changes limited to ±20% per cycle (no sudden shifts)
+3. Manual override via CLI always wins
+4. Minimum 3 cycles of stable scores before acting (avoid flapping)
+5. All decisions logged to ai_memory with rationale
+
+---
+
+## Integration Points
+
+### With xDS Watcher (primary)
+
+The watcher calls `ai_router.GetRoutingPolicy(services)` during snapshot build.
+Returns endpoint weights and cluster overrides. The watcher merges these into
+the xDS snapshot it pushes to Envoy.
+
+No separate xDS server. No additional network hop. Just a function call
+inside the existing watcher loop.
+
+### With ai_watcher (input)
+
+Subscribe to: `alert.*`, `cluster.*`, `service.*`
+The router listens for anomaly signals and incorporates them into scoring.
+When `alert.dos.detected` fires, the router can immediately reduce weight
+for the affected endpoint.
+
+### With ai_memory (learning)
+
+After each routing decision:
+- Record: what was the state, what did we decide, what happened
+- Query: "last time this endpoint had rising latency, what worked?"
+- Build baseline: "normal weight distribution for Tuesday morning"
+
+### With Prometheus (metrics)
+
+Query service-level metrics:
+- `grpc_server_handling_seconds` (latency)
+- `grpc_server_handled_total` (RPS and error rate)
+- `process_resident_memory_bytes` (memory pressure)
+- `go_goroutines` (goroutine leak detection)
+
+---
+
+## gRPC Stream-Specific Strategies
+
+### Problem: Streams Pin to Endpoints
+A server-streaming RPC (like event.OnEvent) lives on one endpoint forever.
+If that endpoint degrades, the stream suffers but doesn't move.
+
+### Strategy 1: Weighted New Connections
+Shift weight away from degraded endpoints. New streams land elsewhere.
+Existing streams stay until natural close or timeout.
+
+### Strategy 2: Graceful Drain via GOAWAY
+Envoy can send HTTP/2 GOAWAY to a backend, causing it to stop accepting
+new streams and close existing ones gracefully. The AI Router triggers
+this when an endpoint needs to be evacuated.
+
+### Strategy 3: Stream-Aware Health Checking
+Track stream duration per endpoint. If one endpoint has streams that
+are abnormally long (10x median), it might be stuck. Flag for
+investigation rather than auto-action (streams are business logic).
+
+### Strategy 4: Max Concurrent Streams
+Set `max_concurrent_streams` per endpoint via circuit breakers.
+Prevents one endpoint from accumulating too many long-lived streams
+while others sit idle.
+
+---
+
+## What This Is NOT
+
+- NOT a service mesh sidecar (Envoy already does that)
+- NOT a request-path component (no latency added)
+- NOT a replacement for Envoy's built-in LB (it configures it)
+- NOT an ML model (Phase 1 is deterministic scoring)
+- NOT making decisions per-request (decisions are per-cycle, 5s cadence)
+
+---
+
+## Implementation Approach
+
+### Phase 0 — Wire into xDS watcher
+Add a `RoutingPolicy` interface that the watcher calls.
+Default implementation returns "no opinion" (current behavior preserved).
+AI Router implements this interface.
+
+### Phase 1 — Metrics-based weights
+Query Prometheus for CPU/latency/errors per endpoint.
+Compute scores. Push weights via EDS.
+Enable outlier detection with conservative thresholds.
+
+### Phase 2 — Security-aware routing
+Integrate ai_watcher anomaly signals.
+When DoS/Slowloris detected: drain affected endpoints, tighten rate limits.
+When error spike detected: reduce circuit breaker limits.
+
+### Phase 3 — Predictive routing
+Use ai_memory to learn patterns.
+"Every Tuesday at 2pm, this endpoint spikes — pre-reduce weight at 1:55pm."
+Latency slope detection: rising trend → reduce before it saturates.
+
+### Phase 4 — Intent-aware routing
+Integrate with cluster controller's plan execution.
+"A deployment is rolling out — route traffic away from nodes being updated."
+"A recovery is in progress — gradually reintroduce the recovered node."
+
+---
+
+## The Key Insight
+
+gRPC streams make load balancing a **planning problem**, not a **routing problem**.
+
+You can't move traffic that's already flowing. You can only decide where
+the next connection goes. That means:
+
+1. Decisions must be **proactive** (predict degradation before it happens)
+2. Draining must be **graceful** (let streams finish, don't kill them)
+3. Recovery must be **gradual** (don't flood a just-recovered node)
+4. Context matters more than metrics (a deployment looks like degradation
+   to a naive scorer — the AI Router must know the difference)
+
+This is why the AI Router is not a load balancer. It's a **traffic strategist**.

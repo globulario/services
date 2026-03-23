@@ -87,7 +87,10 @@ func nodeIsPreparedForEtcdJoin(node *nodeState, existingPeerURLs map[string]bool
 	return true
 }
 
-// nodeRoutableIP returns the first non-loopback IP for the node, or "".
+// nodeRoutableIP returns the preferred non-loopback IP for the node, or "".
+// It prefers wired interfaces (eth*, eno*, enp*, ens*, enx*) over WiFi
+// for stable cluster addressing. The node-agent already sorts IPs wired-first,
+// so this returns the first routable IP from the pre-sorted list.
 func nodeRoutableIP(node *nodeState) string {
 	if node == nil || len(node.Identity.Ips) == 0 {
 		return ""
@@ -98,6 +101,24 @@ func nodeRoutableIP(node *nodeState) string {
 		}
 	}
 	return ""
+}
+
+// nodeAnyIPIsEtcdMember checks if ANY of the node's IPs matches an existing
+// etcd member peer URL. This prevents phase oscillation on multi-IP nodes
+// where the etcd join used a different IP than nodeRoutableIP returns.
+func nodeAnyIPIsEtcdMember(node *nodeState, existingURLs map[string]bool) bool {
+	if node == nil {
+		return false
+	}
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		if existingURLs[fmt.Sprintf("https://%s:2380", ip)] {
+			return true
+		}
+	}
+	return false
 }
 
 // etcdMemberManager handles automatic etcd cluster membership changes.
@@ -229,9 +250,6 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		return false
 	}
 
-	// Count how many members are currently in the live cluster.
-	liveCount := len(existingURLs)
-
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -246,56 +264,20 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		switch node.EtcdJoinPhase {
 
 		case EtcdJoinNone, EtcdJoinFailed:
-			// Check if already a member (e.g. bootstrap node or script-joined).
-			// Must check ALL node IPs — nodes can have multiple IPs and the
-			// join script may have used a different one than nodeRoutableIP returns.
-			alreadyMember := false
-			for _, ip := range node.Identity.Ips {
-				if ip == "" || ip == "127.0.0.1" || ip == "::1" {
-					continue
-				}
-				peerURL := fmt.Sprintf("https://%s:2380", ip)
-				if existingURLs[peerURL] {
-					alreadyMember = true
-					break
-				}
-			}
-			if alreadyMember {
+			// Observe-only: the join script on the node handles MemberAdd directly.
+			// The controller just detects when a node has successfully joined the
+			// etcd cluster and marks it as verified. This avoids dangerous
+			// controller-initiated MemberAdd calls, especially during 1→2 expansion
+			// where quorum requires 2/2 members immediately.
+			if nodeAnyIPIsEtcdMember(node, existingURLs) {
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
+				log.Printf("etcd join: node %s (%s) detected as existing etcd member, marking verified", node.NodeID, node.Identity.Hostname)
 				continue
 			}
-			// Check if node is ready to begin the join sequence.
-			if !nodeIsPreparedForEtcdJoin(node, existingURLs) {
-				continue
-			}
-
-			// Gate: don't start a second join while another node is mid-join.
-			// Especially critical for 1→2 expansion where we can't afford two
-			// concurrent MemberAdd calls.
-			if m.anyNodeMidJoin(nodes, node.NodeID) {
-				continue
-			}
-
-			// nodeRoutableIP is guaranteed non-empty by nodeIsPreparedForEtcdJoin.
-			peerURL := fmt.Sprintf("https://%s:2380", nodeRoutableIP(node))
-			log.Printf("etcd join: node %s (%s) is prepared, calling MemberAdd for %s", node.NodeID, node.Identity.Hostname, peerURL)
-			memberID, err := m.memberAdd(ctx, peerURL)
-			if err != nil {
-				log.Printf("etcd join: MemberAdd failed for %s: %v", node.Identity.Hostname, err)
-				node.EtcdJoinPhase = EtcdJoinFailed
-				node.EtcdJoinError = err.Error()
-				dirty = true
-				continue
-			}
-
-			node.EtcdJoinPhase = EtcdJoinMemberAdded
-			node.EtcdJoinStartedAt = now
-			node.EtcdJoinError = ""
-			node.EtcdMemberID = memberID
-			dirty = true
-			log.Printf("etcd join: node %s transitioned to member_added (memberID=%d, liveCount was %d)", node.NodeID, memberID, liveCount)
+			// Node is not yet an etcd member — waiting for the join script to
+			// run MemberAdd + start etcd. Nothing to do here.
 
 		case EtcdJoinMemberAdded:
 			// Waiting for the node agent to start etcd with the rendered config.
@@ -313,11 +295,19 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			}
 
 		case EtcdJoinStarted:
-			// etcd is running — verify the member appears in the live list with a name
-			// (unnamed members are added but haven't completed their first raft join).
-			ip := nodeRoutableIP(node)
-			peerURL := fmt.Sprintf("https://%s:2380", ip)
-			if m.memberIsHealthy(ctx, peerURL) {
+			// etcd is running — verify the member appears in the live list with a name.
+			// Check ALL node IPs to handle multi-IP nodes (wired + WiFi).
+			healthy := false
+			for _, ip := range node.Identity.Ips {
+				if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+					continue
+				}
+				if m.memberIsHealthy(ctx, fmt.Sprintf("https://%s:2380", ip)) {
+					healthy = true
+					break
+				}
+			}
+			if healthy {
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				node.EtcdMemberID = 0 // no longer needed for rollback
@@ -334,17 +324,14 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 
 		case EtcdJoinVerified:
 			// Nothing to do — node is a healthy etcd member.
-			// Optionally detect if the member has disappeared (node removal).
-			ip := nodeRoutableIP(node)
-			if ip != "" {
-				peerURL := fmt.Sprintf("https://%s:2380", ip)
-				if !existingURLs[peerURL] && !nodeHasEtcdRunning(node) {
-					// Member disappeared — reset to allow re-join.
-					node.EtcdJoinPhase = EtcdJoinNone
-					node.EtcdJoinError = ""
-					dirty = true
-					log.Printf("etcd join: node %s member disappeared, resetting to none", node.NodeID)
-				}
+			// Detect if the member has disappeared (node removal).
+			// Must check ALL IPs to avoid false resets on multi-IP nodes.
+			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {
+				// Member disappeared — reset to allow re-join.
+				node.EtcdJoinPhase = EtcdJoinNone
+				node.EtcdJoinError = ""
+				dirty = true
+				log.Printf("etcd join: node %s member disappeared, resetting to none", node.NodeID)
 			}
 		}
 	}

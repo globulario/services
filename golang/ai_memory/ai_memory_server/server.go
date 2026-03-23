@@ -418,16 +418,16 @@ func (srv *server) Query(ctx context.Context, req *ai_memorypb.QueryRqst) (*ai_m
 	cql := "SELECT id, project, type, tags, title, content, created_at, updated_at, agent_id, conversation_id, cluster_id, metadata, related_ids, reference_count FROM memories WHERE " +
 		strings.Join(conditions, " AND ")
 
-	if needsFiltering || len(req.GetTags()) > 0 {
-		cql += " ALLOW FILTERING"
-	}
-
 	// Over-fetch if text search is needed.
 	fetchLimit := limit
 	if needsFiltering {
 		fetchLimit = limit * 5
 	}
 	cql += fmt.Sprintf(" LIMIT %d", fetchLimit)
+
+	if needsFiltering || len(req.GetTags()) > 0 {
+		cql += " ALLOW FILTERING"
+	}
 
 	iter := srv.session.Query(cql, args...).Iter()
 
@@ -665,10 +665,10 @@ func (srv *server) List(ctx context.Context, req *ai_memorypb.ListRqst) (*ai_mem
 	cql := "SELECT id, type, tags, title, created_at, updated_at, agent_id FROM memories WHERE " +
 		strings.Join(conditions, " AND ")
 
+	cql += fmt.Sprintf(" LIMIT %d", limit)
 	if len(req.GetTags()) > 0 {
 		cql += " ALLOW FILTERING"
 	}
-	cql += fmt.Sprintf(" LIMIT %d", limit)
 
 	iter := srv.session.Query(cql, args...).Iter()
 
@@ -835,6 +835,8 @@ func memoryTypeToString(t ai_memorypb.MemoryType) string {
 		return "reference"
 	case ai_memorypb.MemoryType_SCRATCH:
 		return "scratch"
+	case ai_memorypb.MemoryType_SKILL:
+		return "skill"
 	default:
 		return "unspecified"
 	}
@@ -860,6 +862,8 @@ func stringToMemoryType(s string) ai_memorypb.MemoryType {
 		return ai_memorypb.MemoryType_REFERENCE
 	case "scratch":
 		return ai_memorypb.MemoryType_SCRATCH
+	case "skill":
+		return ai_memorypb.MemoryType_SKILL
 	default:
 		return ai_memorypb.MemoryType_MEMORY_UNSPECIFIED
 	}

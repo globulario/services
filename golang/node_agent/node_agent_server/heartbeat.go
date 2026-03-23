@@ -88,7 +88,9 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	synced := 0
 
-	// Phase 1: Sync SERVICE packages from local discovery.
+	// Phase 1: Sync packages from local discovery.
+	// Day0/join infrastructure (e.g. etcd) is written as INFRASTRUCTURE;
+	// all other locally-discovered packages are written as SERVICE.
 	installed, _, err := ComputeInstalledServices(ctx)
 	if err != nil {
 		log.Printf("nodeagent: ComputeInstalledServices failed: %v", err)
@@ -99,7 +101,11 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			if name == "" {
 				continue
 			}
-			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
+			kind := "SERVICE"
+			if isDay0JoinInfra(name) {
+				kind = "INFRASTRUCTURE"
+			}
+			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 			if existing != nil {
 				continue
 			}
@@ -109,13 +115,13 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 				Version:       info.Version,
 				PublisherId:   info.PublisherID,
 				Platform:      platform,
-				Kind:          "SERVICE",
+				Kind:          kind,
 				InstalledUnix: now,
 				UpdatedUnix:   now,
 				Status:        "installed",
 			}
 			if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
-				log.Printf("nodeagent: sync installed-state SERVICE/%s: %v", name, err)
+				log.Printf("nodeagent: sync installed-state %s/%s: %v", kind, name, err)
 				continue
 			}
 			synced++

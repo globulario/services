@@ -297,19 +297,73 @@ func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 // Day 1 infra materialization tests
 // ---------------------------------------------------------------------------
 
-func TestMaterializeInfra_WorkloadRequiresMissingInfra(t *testing.T) {
-	// Scenario: ai-memory is desired, but scylladb has no desired-state entry.
-	// The controller should auto-create the scylladb InfrastructureRelease.
+func TestMaterializeInfra_RepositoryInfraAutoCreated(t *testing.T) {
+	// Scenario: a "storage" node needs minio (repository-mode infra).
+	// Bootstrap node (n0) has minio installed with a real version.
+	// Controller should auto-create the minio InfrastructureRelease.
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := &server{
+		cfg: &clusterControllerConfig{},
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n0": {
+				NodeID:            "n0",
+				Profiles:          []string{"core"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				InstalledVersions: map[string]string{"minio": "2024.11.7"},
+			},
+			"n1": {
+				NodeID:         "n1",
+				Profiles:       []string{"storage"},
+				BootstrapPhase: BootstrapWorkloadReady,
+				Capabilities:   &storedCapabilities{CanApplyPrivileged: true},
+				Units: []unitStatusRecord{
+					{Name: "globular-event.service", State: "active"},
+				},
+			},
+		}},
+		kv:              kv,
+		planStore:       ps,
+		resources:       resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
+	}
+
+	ctx := context.Background()
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{})
+	if err := srv.putNodeAppliedHash(ctx, "n1", mustHash(t, desiredNetworkForTests())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
+	}
+
+	srv.reconcileNodes(ctx)
+
+	// minio should be auto-materialized with the real version.
+	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/minio")
+	if obj == nil {
+		t.Fatal("expected minio InfrastructureRelease to be auto-created")
+	}
+	rel := obj.(*cluster_controllerpb.InfrastructureRelease)
+	if rel.Spec.Component != "minio" {
+		t.Errorf("expected component=minio, got %q", rel.Spec.Component)
+	}
+	if rel.Spec.Version != "2024.11.7" {
+		t.Errorf("expected version=2024.11.7, got %q", rel.Spec.Version)
+	}
+}
+
+func TestMaterializeInfra_Day0JoinInfraSkipped(t *testing.T) {
+	// Scenario: scylladb is day0_join (OS package). Even if a node has it
+	// installed, the controller should NOT create InfrastructureRelease for it.
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
 			"n1": {
-				NodeID:         "n1",
-				Profiles:       []string{"database"},
-				BootstrapPhase: BootstrapWorkloadReady,
-				Capabilities:   &storedCapabilities{CanApplyPrivileged: true},
+				NodeID:            "n1",
+				Profiles:          []string{"database"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				Capabilities:      &storedCapabilities{CanApplyPrivileged: true},
+				InstalledVersions: map[string]string{"scylladb": "5.4.8"},
 				Units: []unitStatusRecord{
 					{Name: "scylla-server.service", State: "active"},
 					{Name: "globular-event.service", State: "active"},
@@ -330,31 +384,48 @@ func TestMaterializeInfra_WorkloadRequiresMissingInfra(t *testing.T) {
 		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 
-	// Verify scylladb not in desired state before reconcile.
+	srv.reconcileNodes(ctx)
+
+	// scylladb should NOT be materialized (day0_join install mode — OS package).
 	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/scylladb")
 	if obj != nil {
-		t.Fatal("scylladb InfrastructureRelease should not exist before reconcile")
+		t.Fatal("scylladb InfrastructureRelease should NOT be created (install_mode=day0_join)")
+	}
+}
+
+func TestMaterializeInfra_UnresolvedVersionSkipped(t *testing.T) {
+	// Scenario: storage profile needs minio, but no node has it installed.
+	// Controller should NOT create InfrastructureRelease with a fake version.
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := &server{
+		cfg: &clusterControllerConfig{},
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n1": {
+				NodeID:         "n1",
+				Profiles:       []string{"storage"},
+				BootstrapPhase: BootstrapWorkloadReady,
+				Capabilities:   &storedCapabilities{CanApplyPrivileged: true},
+			},
+		}},
+		kv:              kv,
+		planStore:       ps,
+		resources:       resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
+	}
+
+	ctx := context.Background()
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{})
+	if err := srv.putNodeAppliedHash(ctx, "n1", mustHash(t, desiredNetworkForTests())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 
 	srv.reconcileNodes(ctx)
 
-	// After reconcile, scylladb should be auto-materialized.
-	obj, _, _ = srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/scylladb")
-	if obj == nil {
-		t.Fatal("expected scylladb InfrastructureRelease to be auto-created")
-	}
-	rel := obj.(*cluster_controllerpb.InfrastructureRelease)
-	if rel.Spec.Component != "scylladb" {
-		t.Errorf("expected component=scylladb, got %q", rel.Spec.Component)
-	}
-
-	// Check that the intent records the materialization.
-	node := srv.state.Nodes["n1"]
-	if node.ResolvedIntent == nil {
-		t.Fatal("expected resolved intent")
-	}
-	if len(node.ResolvedIntent.MaterializedDesired) == 0 {
-		t.Fatal("expected materialized desired entries")
+	// minio should NOT be materialized (no version to resolve from).
+	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/minio")
+	if obj != nil {
+		t.Fatal("minio InfrastructureRelease should NOT be created when version is unresolved")
 	}
 }
 
@@ -365,12 +436,13 @@ func TestMaterializeInfra_Idempotent(t *testing.T) {
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
 			"n1": {
-				NodeID:         "n1",
-				Profiles:       []string{"database"},
-				BootstrapPhase: BootstrapWorkloadReady,
-				Capabilities:   &storedCapabilities{CanApplyPrivileged: true},
+				NodeID:            "n1",
+				Profiles:          []string{"storage"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				Capabilities:      &storedCapabilities{CanApplyPrivileged: true},
+				InstalledVersions: map[string]string{"minio": "2024.11.7"},
 				Units: []unitStatusRecord{
-					{Name: "scylla-server.service", State: "active"},
+					{Name: "globular-minio.service", State: "active"},
 					{Name: "globular-event.service", State: "active"},
 				},
 			},
@@ -382,9 +454,7 @@ func TestMaterializeInfra_Idempotent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{
-		"globular-ai-memory.service": "0.0.1",
-	})
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{})
 	if err := srv.putNodeAppliedHash(ctx, "n1", mustHash(t, desiredNetworkForTests())); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
@@ -394,33 +464,40 @@ func TestMaterializeInfra_Idempotent(t *testing.T) {
 	srv.reconcileNodes(ctx)
 
 	items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
-	scyllaCount := 0
+	minioCount := 0
 	for _, obj := range items {
-		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Spec.Component == "scylladb" {
-			scyllaCount++
+		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Spec.Component == "minio" {
+			minioCount++
 		}
 	}
-	if scyllaCount != 1 {
-		t.Errorf("expected exactly 1 scylladb InfrastructureRelease, got %d", scyllaCount)
+	if minioCount != 1 {
+		t.Errorf("expected exactly 1 minio InfrastructureRelease, got %d", minioCount)
 	}
 }
 
 func TestMaterializeInfra_UsesInstalledVersion(t *testing.T) {
+	// Scenario: storage profile needs minio. Bootstrap node has it at 2024.11.7.
+	// Controller should use that version.
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
+			"n0": {
+				NodeID:            "n0",
+				Profiles:          []string{"core"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				InstalledVersions: map[string]string{"minio": "2024.11.7"},
+			},
 			"n1": {
 				NodeID:         "n1",
-				Profiles:       []string{"database"},
+				Profiles:       []string{"storage"},
 				BootstrapPhase: BootstrapWorkloadReady,
 				Capabilities:   &storedCapabilities{CanApplyPrivileged: true},
 				Units: []unitStatusRecord{
-					{Name: "scylla-server.service", State: "active"},
+					{Name: "globular-minio.service", State: "active"},
 					{Name: "globular-event.service", State: "active"},
 				},
-				InstalledVersions: map[string]string{"scylladb": "5.4.8"},
 			},
 		}},
 		kv:              kv,
@@ -430,22 +507,20 @@ func TestMaterializeInfra_UsesInstalledVersion(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{
-		"globular-ai-memory.service": "0.0.1",
-	})
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{})
 	if err := srv.putNodeAppliedHash(ctx, "n1", mustHash(t, desiredNetworkForTests())); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 
 	srv.reconcileNodes(ctx)
 
-	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/scylladb")
+	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/minio")
 	if obj == nil {
-		t.Fatal("expected scylladb to be materialized")
+		t.Fatal("expected minio to be materialized")
 	}
 	rel := obj.(*cluster_controllerpb.InfrastructureRelease)
-	if rel.Spec.Version != "5.4.8" {
-		t.Errorf("expected version 5.4.8 from installed, got %q", rel.Spec.Version)
+	if rel.Spec.Version != "2024.11.7" {
+		t.Errorf("expected version 2024.11.7 from installed, got %q", rel.Spec.Version)
 	}
 }
 
@@ -493,6 +568,12 @@ func TestMaterializeInfra_ProfileImpliesInfra(t *testing.T) {
 	srv := &server{
 		cfg: &clusterControllerConfig{},
 		state: &controllerState{Nodes: map[string]*nodeState{
+			"n0": {
+				NodeID:            "n0",
+				Profiles:          []string{"core"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				InstalledVersions: map[string]string{"minio": "2024.11.7"},
+			},
 			"n1": {
 				NodeID:         "n1",
 				Profiles:       []string{"storage"},
@@ -517,6 +598,47 @@ func TestMaterializeInfra_ProfileImpliesInfra(t *testing.T) {
 	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/minio")
 	if obj == nil {
 		t.Fatal("expected minio InfrastructureRelease to be auto-created for storage profile")
+	}
+	rel := obj.(*cluster_controllerpb.InfrastructureRelease)
+	if rel.Spec.Version != "2024.11.7" {
+		t.Errorf("expected version=2024.11.7, got %q", rel.Spec.Version)
+	}
+}
+
+func TestMaterializeInfra_Day0JoinSkipped(t *testing.T) {
+	// Scenario: etcd is resolved as required infra but has InstallMode=day0_join.
+	// The controller should NOT create an InfrastructureRelease for it.
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := &server{
+		cfg: &clusterControllerConfig{},
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n1": {
+				NodeID:            "n1",
+				Profiles:          []string{"core"},
+				BootstrapPhase:    BootstrapWorkloadReady,
+				Capabilities:      &storedCapabilities{CanApplyPrivileged: true},
+				InstalledVersions: map[string]string{"etcd": "3.5.14"},
+			},
+		}},
+		kv:              kv,
+		planStore:       ps,
+		resources:       resourcestore.NewMemStore(),
+		planSignerState: testPlanSigner(t),
+	}
+
+	ctx := context.Background()
+	applyDesiredForTests(t, srv, desiredNetworkForTests(), map[string]string{})
+	if err := srv.putNodeAppliedHash(ctx, "n1", mustHash(t, desiredNetworkForTests())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
+	}
+
+	srv.reconcileNodes(ctx)
+
+	// etcd should NOT be materialized (day0_join install mode).
+	obj, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/etcd")
+	if obj != nil {
+		t.Fatal("etcd InfrastructureRelease should NOT be created (install_mode=day0_join)")
 	}
 }
 

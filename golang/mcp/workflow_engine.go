@@ -245,6 +245,38 @@ func (ws *workflowStore) StartWorkflow(task string) (*WorkflowSession, error) {
 	return session, nil
 }
 
+// StartCustomWorkflow creates a workflow session from arbitrary steps (e.g. from a skill).
+// This allows skills to reuse the workflow engine's tracking, approval, and branching.
+func (ws *workflowStore) StartCustomWorkflow(name string, steps []WorkflowStepStatus, ctx map[string]string) (*WorkflowSession, error) {
+	if len(steps) == 0 {
+		return nil, fmt.Errorf("at least one step is required")
+	}
+
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	ws.counter++
+	id := fmt.Sprintf("wf-skill-%s-%d", name, ws.counter)
+
+	session := &WorkflowSession{
+		ID:          id,
+		Task:        name,
+		StartedAt:   time.Now().UTC().Format(time.RFC3339),
+		Status:      WorkflowInProgress,
+		CurrentStep: 1,
+		TotalSteps:  len(steps),
+		Steps:       steps,
+		Context:     ctx,
+	}
+
+	// Mark first step as in_progress.
+	session.Steps[0].Status = StepInProgress
+	session.Steps[0].StartedAt = time.Now().UTC().Format(time.RFC3339)
+
+	ws.sessions[id] = session
+	return session, nil
+}
+
 // GetSession returns a workflow session by ID.
 func (ws *workflowStore) GetSession(id string) (*WorkflowSession, bool) {
 	ws.mu.RLock()

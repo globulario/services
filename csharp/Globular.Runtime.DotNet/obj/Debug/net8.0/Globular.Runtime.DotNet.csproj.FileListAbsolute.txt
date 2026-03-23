@@ -1,0 +1,12 @@
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.csproj.AssemblyReference.cache
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.GeneratedMSBuildEditorConfig.editorconfig
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.AssemblyInfoInputs.cache
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.AssemblyInfo.cs
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.csproj.CoreCompileInputs.cache
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/bin/Debug/net8.0/Globular.Runtime.DotNet.deps.json
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/bin/Debug/net8.0/Globular.Runtime.DotNet.dll
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/bin/Debug/net8.0/Globular.Runtime.DotNet.pdb
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.dll
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/refint/Globular.Runtime.DotNet.dll
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/Globular.Runtime.DotNet.pdb
+/home/dave/Documents/github.com/globulario/services/csharp/Globular.Runtime.DotNet/obj/Debug/net8.0/ref/Globular.Runtime.DotNet.dll

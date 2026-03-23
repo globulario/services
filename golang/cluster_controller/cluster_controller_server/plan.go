@@ -8,62 +8,14 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
 
-var coreUnits = []string{
-	"globular-etcd.service",
-	"globular-dns.service",
-	"globular-discovery.service",
-	"globular-event.service",
-	"globular-rbac.service",
-	"globular-file.service",
-	"globular-minio.service",
-	"globular-monitoring.service",
-}
-
-var profileUnitMap = map[string][]string{
-	"core":    coreUnits,
-	"compute": coreUnits,
-	"control-plane": {
-		"globular-etcd.service",
-		"globular-dns.service",
-		"globular-discovery.service",
-	},
-	"gateway": {
-		"globular-gateway.service",
-		"globular-envoy.service",
-	},
-	"storage": {
-		"globular-minio.service",
-		"globular-file.service",
-	},
-	"dns": {
-		"globular-dns.service",
-	},
-	"scylla": {
-		"scylla-server.service",
-	},
-	"database": {
-		"scylla-server.service",
-	},
-}
+// profileUnitMap maps profile name → infrastructure systemd units.
+// Populated by component_catalog.go init() from the canonical catalog.
+var profileUnitMap map[string][]string
 
 // allManagedUnits is the complete set of units the controller ever manages,
 // computed from all profileUnitMap entries. Used to detect removed units.
+// Populated by component_catalog.go init().
 var allManagedUnits []string
-
-func init() {
-	seen := make(map[string]struct{})
-	for _, units := range profileUnitMap {
-		for _, u := range units {
-			seen[strings.ToLower(u)] = struct{}{}
-		}
-	}
-	result := make([]string, 0, len(seen))
-	for u := range seen {
-		result = append(result, u)
-	}
-	sort.Strings(result)
-	allManagedUnits = result
-}
 
 // buildPlanActions computes the ordered list of unit actions for the given profiles.
 // Returns an error if any profile is unknown.
@@ -148,29 +100,10 @@ func buildPlanActions(profiles []string) ([]*cluster_controllerpb.UnitAction, er
 	return actions, nil
 }
 
-var unitPriority = map[string]int{
-	"globular-etcd.service":      1,
-	"etcd.service":               1,
-	"globular-dns.service":       2,
-	"dns.service":                2,
-	"globular-discovery.service": 3,
-	"discovery.service":          3,
-	"globular-event.service":     4,
-	"event.service":              4,
-	"globular-rbac.service":      5,
-	"rbac.service":               5,
-	"globular-minio.service":     6,
-	"minio.service":              6,
-	"globular-file.service":      7,
-	"file.service":               7,
-	"globular-monitoring.service": 8,
-	"monitoring.service":          8,
-	"globular-gateway.service":   9,
-	"globular-xds.service":       9,
-	"xds.service":                9,
-	"globular-envoy.service":     10,
-	"scylla-server.service":      6, // same priority as minio
-}
+// unitPriority maps systemd unit names to their start priority.
+// Lower number = higher priority = starts first / stops last.
+// Populated by component_catalog.go init() from the canonical catalog.
+var unitPriority map[string]int
 
 // ServiceTier classifies units for phased bootstrap.
 type ServiceTier int
@@ -183,17 +116,8 @@ const (
 
 // unitTier maps systemd unit names to their service tier.
 // Units not listed default to TierWorkload.
-var unitTier = map[string]ServiceTier{
-	"globular-etcd.service":       TierInfrastructure,
-	"globular-dns.service":        TierInfrastructure,
-	"globular-discovery.service":  TierInfrastructure,
-	"globular-xds.service":        TierInfrastructure,
-	"globular-envoy.service":      TierInfrastructure,
-	"globular-minio.service":      TierInfrastructure,
-	"globular-gateway.service":    TierInfrastructure,
-	"globular-monitoring.service": TierInfrastructure,
-	"scylla-server.service":       TierInfrastructure,
-}
+// Populated by component_catalog.go init() from the canonical catalog.
+var unitTier map[string]ServiceTier
 
 // getUnitTier returns the tier for a unit, defaulting to TierWorkload.
 func getUnitTier(unit string) ServiceTier {

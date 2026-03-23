@@ -73,8 +73,8 @@ steps:
         content: |
           [Unit]
           Description=Globular media
-          After=network-online.target
-          Wants=network-online.target
+          After=network-online.target globular-authentication.service globular-event.service globular-rbac.service globular-resource.service globular-title.service
+          Wants=network-online.target globular-authentication.service globular-event.service globular-rbac.service globular-resource.service globular-title.service
 
           [Service]
           Type=simple
@@ -83,6 +83,7 @@ steps:
           WorkingDirectory={{.StateDir}}/media
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           Environment=GLOBULAR_BOOTSTRAP=1
+          ExecStartPre=/bin/sh -c 'mkdir -p {{.StateDir}}/media && chown globular:globular {{.StateDir}}/media'
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'
           ExecStart={{.Prefix}}/bin/media_server
           Restart=on-failure

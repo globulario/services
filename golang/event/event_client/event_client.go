@@ -3,6 +3,7 @@ package event_client
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -194,11 +195,14 @@ func (client *Event_Client) run() error {
 			/** Nothing to do here...**/
 
 		case evt := <-data_channel:
-			// So here I received an event, I will dispatch it to it function.
-			handlers_ := handlers[evt.Name]
-			for _, fct := range handlers_ {
-				// Call the handler.
-				fct(evt)
+			// Dispatch to matching handlers — supports exact match and
+			// wildcard patterns (e.g. "service.*" matches "service.started").
+			for pattern, patternHandlers := range handlers {
+				if pattern == evt.Name || matchesPattern(pattern, evt.Name) {
+					for _, fct := range patternHandlers {
+						fct(evt)
+					}
+				}
 			}
 		case action := <-client.actions:
 			if action["action"].(string) == "subscribe" {
@@ -584,4 +588,17 @@ func (client *Event_Client) UnSubscribeCtx(ctx context.Context, name, uuid strin
     action := map[string]interface{}{"action": "unsubscribe", "uuid": uuid, "name": name}
     client.actions <- action
     return nil
+}
+
+// matchesPattern returns true if pattern matches eventName.
+// Supports trailing wildcard: "service.*" matches "service.started".
+func matchesPattern(pattern, eventName string) bool {
+	if strings.HasSuffix(pattern, ".*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(eventName, prefix)
+	}
+	if pattern == "*" {
+		return true
+	}
+	return false
 }

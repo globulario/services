@@ -59,6 +59,10 @@ func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServ
 	// file could re-create the installed-state record on the next heartbeat.
 	// Version markers + systemd units are sufficient for local discovery.
 	loadSystemdUnits(ctx, byService, recordErr)
+	// Detect infrastructure installed via Day 0 / join logic (e.g. etcd).
+	// These are skipped by loadSystemdUnits but must be visible for
+	// version resolution and reconciliation gating.
+	loadDay0JoinInfra(ctx, byService, recordErr)
 
 	inst := make(map[ServiceKey]InstalledServiceInfo, len(byService))
 	for _, entry := range byService {
@@ -204,6 +208,90 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 			entry.Version = "0.0.1"
 		}
 	}
+}
+
+// loadDay0JoinInfra detects infrastructure packages installed via Day 0 / join
+// logic (not through the artifact pipeline) and adds them to the installed map.
+// These packages are skipped by loadSystemdUnits but must still be visible to
+// the controller for version resolution and reconciliation gating.
+func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServiceInfo, recordErr func(error)) {
+	// etcd: installed by Day 0 installer or Day 1 etcd join. Detect via
+	// systemctl and resolve version from etcdctl.
+	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "globular-etcd.service").Run(); err == nil {
+		if entry := byService["etcd"]; entry == nil || entry.Version == "" || entry.Version == "0.0.1" {
+			version := detectEtcdVersion(ctx)
+			if version == "" {
+				version = "unknown"
+			}
+			entry := ensureServiceEntry(byService, "etcd")
+			entry.ServiceName = "etcd"
+			entry.Version = version
+		}
+	}
+
+	// scylladb: OS package (apt install), not a bundled binary. Detect via
+	// systemctl and resolve version from scylla --version.
+	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "scylla-server.service").Run(); err == nil {
+		if entry := byService["scylladb"]; entry == nil || entry.Version == "" || entry.Version == "0.0.1" {
+			version := detectScyllaVersion(ctx)
+			if version == "" {
+				version = "unknown"
+			}
+			entry := ensureServiceEntry(byService, "scylladb")
+			entry.ServiceName = "scylladb"
+			entry.Version = version
+		}
+	}
+}
+
+// detectEtcdVersion runs "etcdctl version" and parses the etcd server version.
+// Returns empty string if detection fails.
+func detectEtcdVersion(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "etcdctl", "version").Output()
+	if err != nil {
+		return ""
+	}
+	// Output format: "etcdctl version: 3.5.14\nAPI version: 3.5\n"
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "etcdctl version:") {
+			ver := strings.TrimSpace(strings.TrimPrefix(line, "etcdctl version:"))
+			if ver != "" {
+				return ver
+			}
+		}
+	}
+	return ""
+}
+
+// detectScyllaVersion runs "scylla --version" and parses the version.
+// Returns empty string if detection fails.
+func detectScyllaVersion(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "scylla", "--version").Output()
+	if err != nil {
+		return ""
+	}
+	// Output format: "5.4.8-0.20241027..." or "2025.3.1-..."
+	ver := strings.TrimSpace(string(out))
+	// Strip build suffix after first hyphen-digit (e.g. "5.4.8-0.20241027" → "5.4.8")
+	if idx := strings.Index(ver, "-"); idx > 0 {
+		ver = ver[:idx]
+	}
+	return ver
+}
+
+// isDay0JoinInfra returns true for infrastructure packages installed via Day 0
+// installer or Day 1 join logic (not through the artifact repository).
+// These must be classified as INFRASTRUCTURE in etcd installed-state records.
+//
+// etcd: binary installed by Day 0 installer, joined via etcd member-add state machine
+// scylladb: OS package (apt install), joined via gossip/seed state machine
+func isDay0JoinInfra(name string) bool {
+	switch name {
+	case "etcd", "scylladb":
+		return true
+	}
+	return false
 }
 
 // computeAppliedServicesHash returns a SHA256 (lowercase hex) over the installed service set.

@@ -1,10 +1,9 @@
-curl -s -X POST http://127.0.0.1:10050/mcp -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' 2>/dev/null | python3 -c "import json,sys; [print(t['name']) for t in json.loads(sys.stdin.readline()).get('result',{}).get('tools',[]) if 'memory' in t['name'] or 'session' in t['name']]"
-                                                                                                                      
-memory_store
-memory_query
-memory_get
-memory_update
-memory_delete
-memory_list
-session_save
-session_resume
+━━━ ScyllaDB Database ━━━
+  • ScyllaDB not found — installing...
+  • Installing scylladb_2025.3.1...
+  •   CMD: /home/dave/Documents/github.com/globulario/globular-installer/bin/globular-installer install  --minio-data-dir /mnt/40F43F08F43EFFA8/minio /home/dave/Documents/github.com/globulario/globular-installer/internal/assets/packages/service.scylladb_2025.3.1_linux_amd64.tgz
+  ✓ scylladb_2025.3.1 installed
+  • ScyllaDB TLS/config already configured (by package post-install)
+  • Waiting for ScyllaDB to accept CQL connections (port 9042)...
+  • Warning: ScyllaDB started but not yet accepting connections after 90s
+  • Downstream services may fail on first attempt — re-run installer to retry

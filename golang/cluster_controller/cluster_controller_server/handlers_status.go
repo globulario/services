@@ -281,6 +281,15 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	if endpointToClose != "" {
 		srv.closeAgentClient(endpointToClose)
 	}
+
+	// Trigger reconcile for nodes in pre-ready bootstrap phases so the
+	// bootstrap state machine advances. Without this, newly admitted nodes
+	// would stay stuck because the reconciler is event-driven (watches
+	// ClusterNetwork/ServiceDesiredVersion) and heartbeats don't trigger it.
+	if !bootstrapPhaseReady(node.BootstrapPhase) && srv.enqueueReconcile != nil {
+		srv.enqueueReconcile()
+	}
+
 	return &cluster_controllerpb.ReportNodeStatusResponse{
 		Message: "status recorded",
 	}, nil

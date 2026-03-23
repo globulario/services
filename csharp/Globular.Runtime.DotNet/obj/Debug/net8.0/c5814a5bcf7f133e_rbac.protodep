@@ -1,0 +1,3 @@
+obj/Debug/net8.0/Rbac.cs \
+obj/Debug/net8.0/RbacGrpc.cs: /home/dave/.nuget/packages/grpc.tools/2.66.0/build/native/include/google/protobuf/struct.proto\
+ ../../proto/rbac.proto
