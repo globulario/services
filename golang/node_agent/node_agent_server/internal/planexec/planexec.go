@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -107,7 +108,7 @@ func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status
 	if spec == nil {
 		return errors.New("plan spec required")
 	}
-	for _, step := range spec.GetSteps() {
+	for idx, step := range spec.GetSteps() {
 		stepStatus := getOrCreateStepStatus(status, step.GetId())
 		stepStatus.State = planpb.StepState_STEP_RUNNING
 		stepStatus.StartedUnixMs = uint64(r.now().UnixMilli())
@@ -117,12 +118,17 @@ func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status
 		if phase := rolloutPhaseForAction(step.GetAction()); phase != "" {
 			r.addEvent(status, "info", fmt.Sprintf("phase: %s", phase), step.GetId())
 		}
+		log.Printf("plan-step[%d/%d] %s action=%s starting", idx+1, len(spec.GetSteps()), step.GetId(), step.GetAction())
 		r.addEvent(status, "info", fmt.Sprintf("step %s running", step.GetId()), step.GetId())
 		r.publish(ctx, status)
 
+		stepStart := r.now()
 		if err := r.runStepWithRetry(ctx, plan, step, stepStatus, status); err != nil {
+			log.Printf("plan-step[%d/%d] %s action=%s FAILED after %v: %v",
+				idx+1, len(spec.GetSteps()), step.GetId(), step.GetAction(), r.now().Sub(stepStart), err)
 			return err
 		}
+		log.Printf("plan-step[%d/%d] %s action=%s OK (%v)", idx+1, len(spec.GetSteps()), step.GetId(), step.GetAction(), r.now().Sub(stepStart))
 
 		stepStatus.State = planpb.StepState_STEP_OK
 		stepStatus.FinishedUnixMs = uint64(r.now().UnixMilli())
