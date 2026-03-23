@@ -161,8 +161,17 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 // to all target nodes, transition to APPLYING.
 func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	srv.lock("release-pipeline:snapshot")
+	// Collect eligible nodes. For service/application releases, skip nodes
+	// that haven't completed bootstrap (infra not ready). Infrastructure
+	// releases are always dispatched — they're what gets nodes TO ready.
+	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
-	for id := range srv.state.Nodes {
+	for id, node := range srv.state.Nodes {
+		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
+			log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not ready for workloads)",
+				h.ResourceType, h.Name, id, node.BootstrapPhase)
+			continue
+		}
 		nodeIDs = append(nodeIDs, id)
 	}
 	// Use the cluster domain (not the UUID cluster ID) — the node-agent
