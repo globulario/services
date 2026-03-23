@@ -31,6 +31,10 @@ func NewRegistry(cfg Config) *Registry {
 		nodeAgentCrash{},
 		// Network diagnostics (multi-IP, WiFi stability)
 		nodeMultiIP{},
+		// Day 1 join failure diagnostics
+		etcdStaleMember{},
+		serviceRegistrationGap{},
+		planStuckTerminal{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
