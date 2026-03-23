@@ -367,6 +367,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			desiredCanon = map[string]string{}
 		}
 
+		// Retry FAILED infra releases: if an InfrastructureRelease is stuck in
+		// FAILED (e.g. transient TLS error during repository lookup), reset it
+		// to PENDING so the release pipeline retries. Without this, infra
+		// releases fail once and never recover, blocking Day 1 bootstrap.
+		if srv.resources != nil {
+			srv.retryFailedInfraReleases(ctx)
+		}
+
 		// Day 1 infra materialization: if the node's resolved intent requires
 		// components not in desired state, create them now.
 		if intent != nil && srv.resources != nil {
@@ -813,23 +821,81 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 }
 
 // resolveInfraVersion determines the version to use for auto-materialized infra.
-// Returns the installed version from any cluster node, or ("", "unresolved") if
-// no node has the component installed. Never returns a fake fallback version.
+//
+// Resolution order:
+//  1. Installed-state registry on existing cluster nodes — prefer a version
+//     that is actually running in the cluster.
+//  2. Desired infra state / seeded InfrastructureRelease — if installed-state
+//     is missing, use the version from the desired release.
+//  3. Return ("", "unresolved") with structured reason.
+//
+// Note: 0.0.1 is a legitimate version for Day-0 built packages (minio, xds,
+// gateway, etc.) that don't carry an upstream version. It must not be rejected.
 func (srv *server) resolveInfraVersion(componentName string) (version, source string) {
+	// Step 1: Check installed-state across all cluster nodes.
 	srv.lock("resolveInfraVersion")
-	defer srv.unlock()
 	for nodeID, node := range srv.state.Nodes {
 		if node == nil || len(node.InstalledVersions) == 0 {
 			continue
 		}
 		for k, v := range node.InstalledVersions {
 			canon := normalizeComponentName(canonicalServiceName(k))
-			if canon == componentName && v != "" && v != "0.0.1" {
+			if canon == componentName && v != "" {
+				srv.unlock()
 				return v, "installed:" + nodeID
 			}
 		}
 	}
+	srv.unlock()
+
+	// Step 2: Check existing InfrastructureRelease desired state.
+	if srv.resources != nil {
+		// Try both key formats: bare name and publisher/name.
+		for _, relName := range []string{
+			componentName,
+			defaultPublisherID() + "/" + componentName,
+		} {
+			obj, _, err := srv.resources.Get(context.Background(), "InfrastructureRelease", relName)
+			if err != nil || obj == nil {
+				continue
+			}
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil && rel.Spec.Version != "" {
+				return rel.Spec.Version, "desired-release:" + relName
+			}
+		}
+	}
+
 	return "", "unresolved"
+}
+
+// retryFailedInfraReleases scans InfrastructureRelease objects and resets any
+// in FAILED status back to PENDING, bumping the generation so the release
+// pipeline retries resolution. This handles transient failures like TLS errors
+// during repository lookup that would otherwise leave infra stuck forever.
+func (srv *server) retryFailedInfraReleases(ctx context.Context) {
+	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return
+	}
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel.Status == nil || rel.Meta == nil {
+			continue
+		}
+		if rel.Status.Phase != cluster_controllerpb.ReleasePhaseFailed {
+			continue
+		}
+		// Bump generation to trigger FAILED → PENDING transition.
+		rel.Meta.Generation++
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		rel.Status.Message = "retrying after failure"
+		rel.Status.TransitionReason = "auto_retry"
+		if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", rel); err != nil {
+			log.Printf("retryFailedInfraReleases: failed to reset %s: %v", rel.Meta.Name, err)
+			continue
+		}
+		log.Printf("retryFailedInfraReleases: reset %s from FAILED → PENDING (gen=%d)", rel.Meta.Name, rel.Meta.Generation)
+	}
 }
 
 func backoffDuration(fails int) time.Duration {
