@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -11,7 +13,6 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
-	"os"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -19,6 +20,48 @@ import (
 	"google.golang.org/grpc/credentials"
 	grpcInsecure "google.golang.org/grpc/credentials/insecure"
 )
+
+// discoverEventServiceAddr returns the event service address.
+// If the event service is running locally (port 10010 reachable), use localhost.
+// Otherwise route through the gateway on the control-plane node (same discovery
+// as artifact.fetch uses for the repository).
+func discoverEventServiceAddr() string {
+	// Try local first — if event service runs on this node, use localhost.
+	conn, err := net.DialTimeout("tcp", "localhost:10010", 500*time.Millisecond)
+	if err == nil {
+		conn.Close()
+		return "localhost:10010"
+	}
+
+	// Not local — discover gateway from controller endpoint.
+	stateRoot := os.Getenv("GLOBULAR_STATE_DIR")
+	if stateRoot == "" {
+		stateRoot = "/var/lib/globular"
+	}
+	statePath := stateRoot + "/node_agent/state.json"
+	if data, err := os.ReadFile(statePath); err == nil {
+		var state struct {
+			ControllerEndpoint string `json:"controller_endpoint"`
+		}
+		if json.Unmarshal(data, &state) == nil && state.ControllerEndpoint != "" {
+			host, _, err := net.SplitHostPort(state.ControllerEndpoint)
+			if err == nil && host != "" {
+				return net.JoinHostPort(host, "8443")
+			}
+		}
+	}
+
+	// Fallback: env var.
+	if ep := os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT"); ep != "" {
+		host, _, err := net.SplitHostPort(ep)
+		if err == nil && host != "" {
+			return net.JoinHostPort(host, "8443")
+		}
+	}
+
+	// Last resort — localhost.
+	return "localhost:10010"
+}
 
 // serviceState tracks the last known state of a systemd service.
 type serviceState struct {
@@ -50,11 +93,11 @@ func newEventPublisher(nodeID string) *eventPublisher {
 	}
 }
 
-// connect establishes a direct gRPC connection to the event service.
+// connect establishes a gRPC connection to the event service.
+// On Day 1 nodes the event service is on the control-plane node, so we
+// route through the gateway (same host as controller, port 8443).
 func (ep *eventPublisher) connect() error {
-	// Always use localhost — the event service is on the same node,
-	// and loopback connections bypass bootstrap auth restrictions.
-	addr := "localhost:10010"
+	addr := discoverEventServiceAddr()
 
 	// Try TLS first (production), fall back to insecure (development).
 	var creds grpc.DialOption
