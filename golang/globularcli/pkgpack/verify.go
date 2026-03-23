@@ -21,6 +21,7 @@ type VerificationSummary struct {
 	Entrypoint   string
 	ConfigCount  int
 	SystemdCount int
+	ScriptsCount int
 	Description  string
 	Keywords     []string
 	License      string
@@ -47,7 +48,7 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 	files := make(map[string]struct{})
 	var binFiles []string
 	var specFiles []string
-	var configCount, systemdCount int
+	var configCount, systemdCount, scriptsCount int
 	var manifest Manifest
 
 	for {
@@ -75,6 +76,9 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		}
 		if strings.HasPrefix(name, "systemd/") && !strings.HasSuffix(name, "/") {
 			systemdCount++
+		}
+		if strings.HasPrefix(name, "scripts/") && !strings.HasSuffix(name, "/") {
+			scriptsCount++
 		}
 
 		if name == "package.json" {
@@ -146,6 +150,7 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		Entrypoint:   manifest.Entrypoint,
 		ConfigCount:  configCount,
 		SystemdCount: systemdCount,
+		ScriptsCount: scriptsCount,
 		Description:  manifest.Description,
 		Keywords:     manifest.Keywords,
 		License:      manifest.License,

@@ -275,16 +275,32 @@ func AllocatePortForService(id string) (int, error) {
 
 // GetLocalIP returns the local IPv4 for the primary interface, or 127.0.0.1 if it
 // cannot be determined.
+//
+// Deprecated: use GetRoutableIP() which returns an error instead of a loopback fallback.
 func GetLocalIP() string {
-	mac, err := GetMacAddress()
-	if err != nil {
-		return "127.0.0.1"
-	}
-	ip, err := Utility.MyLocalIP(mac)
+	ip, err := GetRoutableIP()
 	if err != nil {
 		return "127.0.0.1"
 	}
 	return ip
+}
+
+// GetRoutableIP returns the routable (non-loopback) IPv4 address for the primary
+// network interface. Unlike GetLocalIP, this returns an error if no routable IP
+// can be determined — it never returns 127.0.0.1.
+func GetRoutableIP() (string, error) {
+	mac, err := GetMacAddress()
+	if err != nil {
+		return "", fmt.Errorf("get MAC address: %w", err)
+	}
+	ip, err := Utility.MyLocalIP(mac)
+	if err != nil {
+		return "", fmt.Errorf("get local IP for MAC %s: %w", mac, err)
+	}
+	if ip == "127.0.0.1" || ip == "::1" || ip == "" {
+		return "", fmt.Errorf("only loopback IP detected (%s)", ip)
+	}
+	return ip, nil
 }
 
 // GetMacAddress returns the MAC address from local config when available.

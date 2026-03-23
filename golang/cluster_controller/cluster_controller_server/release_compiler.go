@@ -221,21 +221,22 @@ func buildSuccessProbes(unit, svcCanonical string) []*planpb.Probe {
 	}
 
 	// Add gRPC health probe for known gRPC services.
-	// These services implement the standard grpc.health.v1.Health/Check RPC.
-	grpcServices := map[string]int{
-		"authentication": 10101,
-		"event":          10102,
-		"file":           10103,
-		"rbac":           10104,
-		"resource":       10010,
-		"repository":     10007,
-		"dns":            10006,
+	// Uses probe.service_config_tcp which reads the service's config to find the
+	// actual listen address — no hardcoded IPs needed.
+	grpcServices := map[string]bool{
+		"authentication": true,
+		"event":          true,
+		"file":           true,
+		"rbac":           true,
+		"resource":       true,
+		"repository":     true,
+		"dns":            true,
 	}
-	if port, ok := grpcServices[svcCanonical]; ok {
+	if grpcServices[svcCanonical] {
 		probes = append(probes, &planpb.Probe{
-			Type: "probe.grpc_health",
+			Type: "probe.service_config_tcp",
 			Args: structpbFromMap(map[string]interface{}{
-				"address":    fmt.Sprintf("127.0.0.1:%d", port),
+				"service":    svcCanonical,
 				"timeout_ms": float64(5000),
 			}),
 		})

@@ -250,14 +250,14 @@ func InitService(s Service) error {
 	s.SetMac(mac)
 
 	// Address: for services, this is the listening address (IP only, not host:port).
-	// Priority: 1) ENV var, 2) Primary IP, 3) Fallback to 127.0.0.1
-	address := "127.0.0.1"
+	// Priority: 1) ENV var, 2) Primary IP, 3) Fallback to 0.0.0.0 (bind all interfaces).
+	// Never default to 127.0.0.1 — services must be reachable from other nodes.
+	address := "0.0.0.0"
 
 	// Check environment variable first (allows override)
 	if envAddr := os.Getenv("GLOBULAR_SERVICE_ADDRESS"); envAddr != "" {
 		address = envAddr
 	} else if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
-		// Use the local IP (services are accessible on the local network)
 		address = ip
 	}
 	s.SetAddress(address)

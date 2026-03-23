@@ -5,6 +5,7 @@ set -euo pipefail
 BIN_DIR="/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin"
 GEN_ROOT="$(pwd)/generated"
 OUT_DIR="$(pwd)/generated/packages"
+SCRIPTS_DIR=""
 VERSION="0.0.1"
 PUBLISHER="core@globular.io"
 PLATFORM="$(go env GOOS)_$(go env GOARCH)"
@@ -24,6 +25,7 @@ Common options:
   --globular <path>     Path to globular CLI binary (default: env GLOBULAR_BIN or 'globular')
   --bin-dir <path>      Directory containing *_server binaries
   --gen-root <path>     Directory containing generated/specs and generated/config
+  --scripts-dir <path>  Directory containing per-service post-install scripts
   --out <path>          Output packages directory
   --publisher <id>      Publisher (default: core@globular.io)
   --platform <goos_goarch> Platform (default: current go env)
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --globular) GLOBULAR_BIN="$2"; shift 2 ;;
     --bin-dir) BIN_DIR="$2"; shift 2 ;;
     --gen-root) GEN_ROOT="$2"; shift 2 ;;
+    --scripts-dir) SCRIPTS_DIR="$2"; shift 2 ;;
     --out) OUT_DIR="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --publisher) PUBLISHER="$2"; shift 2 ;;
@@ -106,9 +109,15 @@ build_one() {
   fi
 
   echo "==> pkg build ${svc} (${exe})"
+  local scripts_flag=""
+  if [[ -n "${SCRIPTS_DIR}" ]]; then
+    scripts_flag="--scripts-dir ${SCRIPTS_DIR}"
+  fi
+  # shellcheck disable=SC2086
   "${GLOBULAR_BIN}" pkg build \
     --spec "${root}/specs/${svc}_service.yaml" \
     --root "${root}" \
+    ${scripts_flag} \
     --version "${VERSION}" \
     --publisher "${PUBLISHER}" \
     --platform "${PLATFORM}" \

@@ -262,16 +262,34 @@ func etcdEndpointsFromEnv() []string {
 		scheme = "https"
 	}
 
-	// Always use 127.0.0.1 for local etcd connections to avoid IPv6 link-local resolution issues
-	// Only add the hostname endpoint if it's a proper FQDN (contains a dot)
-	eps := []string{
-		fmt.Sprintf("%s://127.0.0.1:2379", scheme),
-	}
+	// Use routable IP for etcd — never 127.0.0.1 (breaks multi-node clusters).
+	// Try: 1) hostname FQDN, 2) detected routable IP, 3) raw hostname.
+	var eps []string
 
-	// Only include hostname endpoint if it's a proper FQDN
-	// Bare hostnames may resolve to IPv6 link-local addresses causing connection failures
 	if host != "" && host != "0.0.0.0" && host != "::" && host != "[::]" && strings.Contains(host, ".") {
 		eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, host))
+	}
+
+	// Always include the routable IP as a direct fallback.
+	if routableIP, err := GetRoutableIP(); err == nil {
+		ep := fmt.Sprintf("%s://%s:2379", scheme, routableIP)
+		found := false
+		for _, existing := range eps {
+			if existing == ep {
+				found = true
+				break
+			}
+		}
+		if !found {
+			eps = append(eps, ep)
+		}
+	}
+
+	if len(eps) == 0 {
+		// Last resort: bare hostname without domain.
+		if host != "" && host != "0.0.0.0" {
+			eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, host))
+		}
 	}
 
 	return mapSanitized(eps)
@@ -404,11 +422,16 @@ func mapSanitized(in []string) []string {
 		}
 	}
 	if len(out) == 0 {
-		// If we truly have nothing, prefer https when TLS exists.
+		// Last resort: use routable IP, never 127.0.0.1.
+		scheme := "http"
 		if etcdServerTLSExists() {
-			out = []string{"https://127.0.0.1:2379"}
+			scheme = "https"
+		}
+		if routableIP, err := GetRoutableIP(); err == nil {
+			out = []string{fmt.Sprintf("%s://%s:2379", scheme, routableIP)}
 		} else {
-			out = []string{"http://127.0.0.1:2379"}
+			// Absolute fallback — only on truly isolated nodes.
+			out = []string{fmt.Sprintf("%s://%s:2379", scheme, GetLocalIP())}
 		}
 	}
 	return out

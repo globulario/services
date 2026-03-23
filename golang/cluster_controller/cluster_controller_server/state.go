@@ -262,6 +262,17 @@ type storedIdentity struct {
 	AgentVersion string   `json:"agent_version"`
 }
 
+// PrimaryIP returns the first routable (non-loopback) IP from the node's identity.
+// Returns "" if no routable IP is found.
+func (n *nodeState) PrimaryIP() string {
+	for _, ip := range n.Identity.Ips {
+		if ip != "" && ip != "127.0.0.1" && ip != "::1" {
+			return ip
+		}
+	}
+	return ""
+}
+
 func newControllerState() *controllerState {
 	return &controllerState{
 		JoinTokens:   make(map[string]*joinTokenRecord),

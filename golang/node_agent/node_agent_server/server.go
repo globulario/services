@@ -335,6 +335,14 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// nodeRoutableIP returns this node's best routable IP, or "127.0.0.1" as a last resort.
+func nodeRoutableIP() string {
+	if ip, err := identity.SelectAdvertiseIP(""); err == nil {
+		return ip
+	}
+	return "127.0.0.1"
+}
+
 func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthchecks.Check {
 	if spec == nil {
 		return nil
@@ -343,10 +351,15 @@ func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthch
 	httpsPort := spec.GetPortHttps()
 	domain := strings.TrimSpace(spec.GetClusterDomain())
 
+	// Use routable IP for health checks on services that bind to NodeIP.
+	// Envoy admin is intentionally local-only (127.0.0.1:9901).
+	// Gateway binds 0.0.0.0 so either IP works.
+	nodeIP := nodeRoutableIP()
+
 	checks := []healthchecks.Check{
 		{
 			Name:           "minio",
-			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_MINIO_URL")), "http://127.0.0.1:9000/minio/health/ready"),
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_MINIO_URL")), fmt.Sprintf("http://%s:9000/minio/health/ready", nodeIP)),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 		},
@@ -360,7 +373,7 @@ func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthch
 	if strings.EqualFold(spec.GetProtocol(), "https") {
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-https",
-			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("https://127.0.0.1:%d/health", httpsPort)),
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("https://%s:%d/health", nodeIP, httpsPort)),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			InsecureTLS:    true,
@@ -369,7 +382,7 @@ func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthch
 	} else {
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-http",
-			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("http://127.0.0.1:%d/health", httpPort)),
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("http://%s:%d/health", nodeIP, httpPort)),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			HostHeader:     domain,
@@ -421,9 +434,9 @@ func runSupplementalChecks(ctx context.Context, spec *cluster_controllerpb.Clust
 		name string
 		addr string
 	}{
-		{"etcd", firstNonEmpty(os.Getenv("GLOBULAR_ETCD_ADDR"), "127.0.0.1:2379")},
-		{"minio-tcp", firstNonEmpty(os.Getenv("GLOBULAR_MINIO_ADDR"), "127.0.0.1:9000")},
-		{"scylla", firstNonEmpty(os.Getenv("GLOBULAR_SCYLLA_ADDR"), "127.0.0.1:9042")},
+		{"etcd", firstNonEmpty(os.Getenv("GLOBULAR_ETCD_ADDR"), nodeRoutableIP()+":2379")},
+		{"minio-tcp", firstNonEmpty(os.Getenv("GLOBULAR_MINIO_ADDR"), nodeRoutableIP()+":9000")},
+		{"scylla", firstNonEmpty(os.Getenv("GLOBULAR_SCYLLA_ADDR"), nodeRoutableIP()+":9042")},
 	}
 	for _, a := range addrs {
 		d := net.Dialer{Timeout: 3 * time.Second}

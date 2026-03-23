@@ -25,6 +25,7 @@ type AdmitDecision struct {
 type MutateRequest struct {
 	Service         string
 	NodeID          string
+	NodeIP          string // routable IP of the target node (for probes)
 	Plan            *planpb.NodePlan
 	DesiredDomain   string
 	DesiredProtocol string

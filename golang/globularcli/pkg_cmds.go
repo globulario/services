@@ -114,6 +114,7 @@ var (
 	pkgAssetsDir          string
 	pkgBinDir             string
 	pkgConfigDir          string
+	pkgScriptsDir         string
 	pkgVersion            string
 	pkgPublisher          string
 	pkgPlatform           string
@@ -158,6 +159,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgAssetsDir, "assets", "", "assets directory (default resolved from installer-root)")
 	pkgBuildCmd.Flags().StringVar(&pkgBinDir, "bin-dir", "", "explicit path to bin directory")
 	pkgBuildCmd.Flags().StringVar(&pkgConfigDir, "config-dir", "", "explicit path to config directory")
+	pkgBuildCmd.Flags().StringVar(&pkgScriptsDir, "scripts-dir", "", "directory containing per-service post-install scripts")
 	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "", "package version (required)")
 	pkgBuildCmd.Flags().Int64Var(&pkgBuildNumber, "build-number", 0, "build iteration within version (0 = legacy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
@@ -225,6 +227,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		AssetsDir:          pkgAssetsDir,
 		BinDir:             pkgBinDir,
 		ConfigDir:          pkgConfigDir,
+		ScriptsDir:         pkgScriptsDir,
 		Version:            pkgVersion,
 		BuildNumber:        pkgBuildNumber,
 		Publisher:          pkgPublisher,

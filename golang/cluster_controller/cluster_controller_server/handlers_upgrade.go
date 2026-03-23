@@ -166,6 +166,7 @@ func buildUpgradePlan(planID, nodeID, clusterID string, generation uint64, expir
 		planStep("service.start", map[string]interface{}{
 			"unit": "globular.service",
 		}),
+		// Self-upgrade probe: gateway binds 0.0.0.0 — loopback OK for local health check.
 		planStep("probe.http", map[string]interface{}{
 			"url": fmt.Sprintf("http://127.0.0.1:%d/checksum", probePort),
 		}),

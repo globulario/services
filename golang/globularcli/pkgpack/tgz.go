@@ -88,7 +88,7 @@ func entryMode(tarRel string, isDir bool) int64 {
 	if isDir {
 		return 0755
 	}
-	if strings.HasPrefix(tarRel, "bin/") {
+	if strings.HasPrefix(tarRel, "bin/") || strings.HasPrefix(tarRel, "scripts/") {
 		return 0755
 	}
 	return 0644

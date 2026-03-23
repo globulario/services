@@ -22,8 +22,9 @@ type Manifest struct {
 
 // ManifestDefault provides default paths inside the package.
 type ManifestDefault struct {
-	ConfigDir string `json:"configDir"`
-	Spec      string `json:"spec"`
+	ConfigDir  string `json:"configDir"`
+	Spec       string `json:"spec"`
+	ScriptsDir string `json:"scriptsDir,omitempty"`
 }
 
 func WriteManifest(path string, manifest Manifest) error {

@@ -11,12 +11,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// HealthCheckHint describes how to verify a package is healthy on a node.
+type HealthCheckHint struct {
+	Unit string `yaml:"unit"` // systemd unit that must be active
+	Port int    `yaml:"port"` // TCP port that must be listening (0 = skip)
+}
+
 // SpecMetadata contains optional package metadata from the spec's metadata: section.
 type SpecMetadata struct {
 	Kind        string   // "service", "infrastructure", "application", "command"
 	Description string
 	Keywords    []string
 	License     string
+
+	// Day 1 orchestration fields — drive profile-aware, dependency-gated convergence.
+	ProvidesCapabilities     []string         // capabilities this package gives the node (e.g. "local-db", "object-store")
+	InstallDependencies      []string         // packages that must be installed before this one
+	RuntimeLocalDependencies []string         // packages that must be healthy on the same node before this starts
+	HealthCheck              *HealthCheckHint // how to verify this package is healthy
+}
+
+// ScriptFile describes a script to embed in a package.
+type ScriptFile struct {
+	Name       string // filename (e.g. "post-install.sh")
+	SourcePath string // absolute path on disk
 }
 
 // SpecInfo contains derived data from a spec.
@@ -28,6 +46,7 @@ type SpecInfo struct {
 	ExecPath    string
 	ConfigDirs  []string
 	Systemd     []SystemdFile
+	Scripts     []ScriptFile
 	Metadata    SpecMetadata
 }
 
@@ -38,8 +57,9 @@ type SystemdFile struct {
 }
 
 type AssetRoots struct {
-	BinRoot    string
-	ConfigRoot string
+	BinRoot     string
+	ConfigRoot  string
+	ScriptsRoot string
 }
 
 type ScanOptions struct {
@@ -78,6 +98,8 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 
 	meta := extractMetadata(doc, specPath)
 
+	scripts := discoverScripts(roots, serviceName)
+
 	return &SpecInfo{
 		SpecPath:    specPath,
 		SpecFile:    filepath.Base(specPath),
@@ -86,6 +108,7 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ExecPath:    execPath,
 		ConfigDirs:  configDirs,
 		Systemd:     systemdFiles,
+		Scripts:     scripts,
 		Metadata:    meta,
 	}, nil
 }
@@ -133,6 +156,29 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 					meta.Keywords = append(meta.Keywords, s)
 				}
 			}
+		}
+	}
+
+	// Day 1 orchestration fields
+	meta.ProvidesCapabilities = lookupStringList(m, "provides_capabilities")
+	meta.InstallDependencies = lookupStringList(m, "install_dependencies")
+	meta.RuntimeLocalDependencies = lookupStringList(m, "runtime_local_dependencies")
+
+	if hc := lookupMap(m, "health_check"); hc != nil {
+		hint := &HealthCheckHint{}
+		if u := lookupString(hc, "unit"); u != "" {
+			hint.Unit = u
+		}
+		if p, ok := hc["port"]; ok {
+			switch v := p.(type) {
+			case int:
+				hint.Port = v
+			case float64:
+				hint.Port = int(v)
+			}
+		}
+		if hint.Unit != "" || hint.Port != 0 {
+			meta.HealthCheck = hint
 		}
 	}
 
@@ -344,6 +390,37 @@ func lookupString(doc map[string]any, keys ...string) string {
 	return ""
 }
 
+// lookupStringList reads a YAML list of strings from a map key.
+func lookupStringList(m map[string]any, key string) []string {
+	val, ok := m[key]
+	if !ok {
+		return nil
+	}
+	switch v := val.(type) {
+	case []any:
+		var out []string
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+		return out
+	case string:
+		var out []string
+		for _, s := range strings.Split(v, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 func lookupMap(doc map[string]any, key string) map[string]any {
 	if val, ok := doc[key]; ok {
 		if m, ok := val.(map[string]any); ok {
@@ -494,6 +571,43 @@ func uniqueStrings(in []string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+// discoverScripts finds .sh files in ScriptsRoot/<serviceName>/.
+func discoverScripts(roots AssetRoots, serviceName string) []ScriptFile {
+	if roots.ScriptsRoot == "" {
+		return nil
+	}
+	candidates := []string{
+		filepath.Join(roots.ScriptsRoot, serviceName),
+		filepath.Join(roots.ScriptsRoot, strings.ReplaceAll(serviceName, "-", "_")),
+	}
+	seen := make(map[string]struct{})
+	var scripts []ScriptFile
+	for _, dir := range candidates {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".sh") {
+				continue
+			}
+			if _, ok := seen[e.Name()]; ok {
+				continue
+			}
+			seen[e.Name()] = struct{}{}
+			scripts = append(scripts, ScriptFile{
+				Name:       e.Name(),
+				SourcePath: filepath.Join(dir, e.Name()),
+			})
+		}
+	}
+	return scripts
 }
 
 func uniquePathsWithSystemd(paths []string) []string {

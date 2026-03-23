@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/rolling"
 	"github.com/globulario/services/golang/plan/planpb"
@@ -56,14 +57,18 @@ func (o *EtcdOperator) MutatePlan(ctx context.Context, req MutateRequest) (*plan
 		return plan, nil
 	}
 	addLock(plan, "service:etcd:rolling")
-	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:2379"})})
-	// Day-0 Security: Use https and CA cert for etcd health checks (NO HTTP FALLBACK)
-	// INV-PKI-1: Use canonical PKI paths only
+	probeAddr := req.NodeIP + ":2379"
+	if req.NodeIP == "" {
+		probeAddr = "127.0.0.1:2379" // fallback only if controller has no node IP
+	}
+	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": probeAddr})})
 	addProbe(plan, &planpb.Probe{
 		Type: "probe.exec",
 		Args: structpbFromMap(map[string]interface{}{
-			"cmd": "etcdctl endpoint health --endpoints=https://127.0.0.1:2379 --cacert=/var/lib/globular/pki/ca.pem || " +
-				"etcdctl endpoint health --endpoints=https://127.0.0.1:2379 --cacert=/var/lib/globular/pki/ca.crt",
+			"cmd": fmt.Sprintf(
+				"etcdctl endpoint health --endpoints=https://%s --cacert=/var/lib/globular/pki/ca.pem || "+
+					"etcdctl endpoint health --endpoints=https://%s --cacert=/var/lib/globular/pki/ca.crt",
+				probeAddr, probeAddr),
 		}),
 	})
 	return plan, nil

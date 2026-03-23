@@ -23,6 +23,7 @@ type BuildOptions struct {
 	Root               string
 	BinDir             string
 	ConfigDir          string
+	ScriptsDir         string
 	Version            string
 	BuildNumber        int64
 	Publisher          string
@@ -132,7 +133,15 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 	var hadErr bool
 	for _, spec := range specs {
 		res := BuildResult{SpecPath: spec}
-		roots := AssetRoots{BinRoot: binRoot, ConfigRoot: configRoot}
+		scriptsRoot := opts.ScriptsDir
+		if scriptsRoot == "" && opts.Root != "" {
+			// Auto-discover scripts from root/scripts/ if present.
+			candidate := filepath.Join(opts.Root, "scripts")
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				scriptsRoot = candidate
+			}
+		}
+		roots := AssetRoots{BinRoot: binRoot, ConfigRoot: configRoot, ScriptsRoot: scriptsRoot}
 		info, err := ScanSpec(spec, roots, ScanOptions{SkipMissingConfig: opts.SkipMissingConfig, SkipMissingSystemd: opts.SkipMissingSystemd})
 		if err != nil {
 			res.Err = err
@@ -154,8 +163,8 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		} else {
 			fmt.Fprintf(os.Stdout, "[OK] %s -> %s\n", info.ServiceName, outputPath)
 			if summary != nil {
-				fmt.Fprintf(os.Stdout, "  manifest: name=%s version=%s platform=%s entrypoint=%s configs=%d systemd=%d\n",
-					summary.Name, summary.Version, summary.Platform, summary.Entrypoint, summary.ConfigCount, summary.SystemdCount)
+				fmt.Fprintf(os.Stdout, "  manifest: name=%s version=%s platform=%s entrypoint=%s configs=%d systemd=%d scripts=%d\n",
+					summary.Name, summary.Version, summary.Platform, summary.Entrypoint, summary.ConfigCount, summary.SystemdCount, summary.ScriptsCount)
 			}
 		}
 		results = append(results, res)
@@ -235,6 +244,22 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 	}
 
+	if len(info.Scripts) > 0 {
+		scriptsRoot := filepath.Join(stagingDir, "scripts")
+		if err := os.MkdirAll(scriptsRoot, 0755); err != nil {
+			return nil, err
+		}
+		for _, script := range info.Scripts {
+			target := filepath.Join(scriptsRoot, script.Name)
+			if err := copyFile(script.SourcePath, target); err != nil {
+				return nil, err
+			}
+			if err := os.Chmod(target, 0755); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	pkgType := info.Metadata.Kind
 	if pkgType == "" {
 		pkgType = "service"
@@ -258,6 +283,9 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 	}
 	if copiedConfig > 0 {
 		manifest.Defaults.ConfigDir = path.Join("config", info.ServiceName)
+	}
+	if len(info.Scripts) > 0 {
+		manifest.Defaults.ScriptsDir = "scripts"
 	}
 	if err := WriteManifest(filepath.Join(stagingDir, "package.json"), manifest); err != nil {
 		return nil, err

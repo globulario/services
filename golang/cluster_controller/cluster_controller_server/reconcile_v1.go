@@ -95,6 +95,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		port = spec.GetPortHttps()
 	}
 	if port > 0 {
+		// Gateway binds to 0.0.0.0 — loopback probe is OK here (runs on target node).
 		probes = append(probes, &planpb.Probe{
 			Type: "probe.tcp",
 			Args: structpbFromMap(map[string]interface{}{
@@ -264,7 +265,12 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 }
 
 // serviceProbeForUnit returns a minimal probe for a given unit.
-func serviceProbeForUnit(unit string) *planpb.Probe {
+// nodeIP is the target node's routable IP for probe addressing.
+func serviceProbeForUnit(unit string, nodeIPs ...string) *planpb.Probe {
+	nodeIP := "127.0.0.1"
+	if len(nodeIPs) > 0 && nodeIPs[0] != "" {
+		nodeIP = nodeIPs[0]
+	}
 	u := strings.ToLower(unit)
 	switch {
 	case strings.Contains(u, "rbac"):
@@ -274,13 +280,15 @@ func serviceProbeForUnit(unit string) *planpb.Probe {
 	case strings.Contains(u, "repository"):
 		return &planpb.Probe{Type: "probe.service_config_tcp", Args: structpbFromMap(map[string]interface{}{"service": "repository", "timeout_ms": 1500})}
 	case strings.Contains(u, "gateway"):
-		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
+		// Gateway listens on 0.0.0.0:80 — probe via node IP.
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":80"})}
 	case strings.Contains(u, "xds"):
-		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:7443"})}
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":7443"})}
 	case strings.Contains(u, "envoy"):
+		// Envoy admin binds to 127.0.0.1:9901 intentionally (local-only admin interface).
 		return &planpb.Probe{Type: "probe.http", Args: structpbFromMap(map[string]interface{}{"url": "http://127.0.0.1:9901/ready"})}
 	default:
-		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":80"})}
 	}
 }
 

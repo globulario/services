@@ -633,7 +633,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, artifactDigest, desiredBuildNumber)
 		if plan != nil {
-			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
+			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, NodeIP: node.PrimaryIP(), Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
 			if err != nil {
 				log.Printf("reconcile: operator mutate %s on %s failed: %v", svcName, node.NodeID, err)
 				continue
@@ -740,6 +740,15 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 			continue
 		}
 
+		// Skip day0_join infrastructure — these are managed by dedicated
+		// bootstrap/join state machines (e.g. etcd member-add), not the
+		// artifact pipeline. Creating InfrastructureRelease for them would
+		// cause the node-agent to attempt an artifact-based install.
+		if comp.Kind == KindInfrastructure && comp.InstallMode == InstallModeDay0Join {
+			log.Printf("materialize-infra: skipping %s (install_mode=day0_join, managed by join logic)", compName)
+			continue
+		}
+
 		// Check if already in desired state.
 		if _, ok := desiredCanon[compName]; ok {
 			continue
@@ -749,6 +758,14 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		version, source := srv.resolveInfraVersion(compName)
 
 		if comp.Kind == KindInfrastructure {
+			// Version must be resolved — never create InfrastructureRelease
+			// with a fake version. If unresolved, the infra is not yet
+			// installed anywhere and cannot be materialized.
+			if version == "" {
+				log.Printf("materialize-infra: skipping %s — version unresolved (not installed on any node)", compName)
+				continue
+			}
+
 			// Create InfrastructureRelease.
 			relName := defaultPublisherID() + "/" + compName
 			existing, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", relName)
@@ -796,7 +813,8 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 }
 
 // resolveInfraVersion determines the version to use for auto-materialized infra.
-// Priority: 1) installed on any cluster node, 2) bootstrap default "0.0.1".
+// Returns the installed version from any cluster node, or ("", "unresolved") if
+// no node has the component installed. Never returns a fake fallback version.
 func (srv *server) resolveInfraVersion(componentName string) (version, source string) {
 	srv.lock("resolveInfraVersion")
 	defer srv.unlock()
@@ -806,12 +824,12 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 		}
 		for k, v := range node.InstalledVersions {
 			canon := normalizeComponentName(canonicalServiceName(k))
-			if canon == componentName && v != "" {
+			if canon == componentName && v != "" && v != "0.0.1" {
 				return v, "installed:" + nodeID
 			}
 		}
 	}
-	return "0.0.1", "bootstrap_default"
+	return "", "unresolved"
 }
 
 func backoffDuration(fails int) time.Duration {

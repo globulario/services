@@ -42,7 +42,11 @@ func (o *MinioOperator) MutatePlan(ctx context.Context, req MutateRequest) (*pla
 		return plan, nil
 	}
 	addLock(plan, "service:minio:rolling")
-	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:9000"})})
+	minioProbeAddr := req.NodeIP + ":9000"
+	if req.NodeIP == "" {
+		minioProbeAddr = "127.0.0.1:9000"
+	}
+	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": minioProbeAddr})})
 	// Enforce layout via existing action.
 	plan.Spec.Steps = append(plan.Spec.Steps, &planpb.PlanStep{
 		Action: "ensure_objectstore_layout",

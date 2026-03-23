@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
@@ -41,9 +42,12 @@ func (o *ScyllaOperator) MutatePlan(ctx context.Context, req MutateRequest) (*pl
 		return plan, nil
 	}
 	addLock(plan, "service:scylla:rolling")
-	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:9042"})})
-	// Prefer exec probe if available.
-	addProbe(plan, &planpb.Probe{Type: "probe.exec", Args: structpbFromMap(map[string]interface{}{"cmd": "cqlsh -e \"SELECT now() FROM system.local\" || nodetool status"})})
+	scyllaProbeAddr := req.NodeIP + ":9042"
+	if req.NodeIP == "" {
+		scyllaProbeAddr = "127.0.0.1:9042"
+	}
+	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": scyllaProbeAddr})})
+	addProbe(plan, &planpb.Probe{Type: "probe.exec", Args: structpbFromMap(map[string]interface{}{"cmd": fmt.Sprintf("cqlsh %s -e \"SELECT now() FROM system.local\" || nodetool status", req.NodeIP)})})
 	return plan, nil
 }
 

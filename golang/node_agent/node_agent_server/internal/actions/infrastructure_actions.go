@@ -25,9 +25,21 @@ import (
 //	bin/       → /usr/lib/globular/bin/ (or $GLOBULAR_INSTALL_BIN_DIR)
 //	systemd/   → /etc/systemd/system/  (or $GLOBULAR_INSTALL_SYSTEMD_DIR)
 //	config/    → /etc/globular/{component}/
+//	scripts/   → extracted to staging; pre-install.sh runs before install,
+//	             post-install.sh runs after install (like deb preinst/postinst)
 //
-// After extraction, creates any specified data directories and runs
-// systemctl daemon-reload if systemd units were written.
+// After extraction, creates any specified data directories, runs
+// systemctl daemon-reload if systemd units were written, and executes
+// scripts/post-install.sh if present in the archive (like a deb postinst).
+//
+// Lifecycle scripts receive these environment variables:
+//
+//	COMPONENT_NAME    — component name (e.g. "minio")
+//	COMPONENT_VERSION — version being installed
+//	STATE_DIR         — /var/lib/globular (or $GLOBULAR_STATE_DIR)
+//	PREFIX            — /usr/lib/globular (or $GLOBULAR_INSTALL_PREFIX)
+//	CONFIG_DIR        — /etc/globular (or $GLOBULAR_INSTALL_CONFIG_DIR)
+//	NODE_IP           — routable IP of this node (best-effort detection)
 //
 // Args:
 //
@@ -58,6 +70,13 @@ func (infrastructureInstallAction) Apply(ctx context.Context, args *structpb.Str
 	dataDirsStr := strings.TrimSpace(fields["data_dirs"].GetStringValue())
 
 	binDir, systemdDir, configDir, skipSystemd := installPaths()
+
+	// Create a temporary directory for scripts extracted from the archive.
+	scriptsDir, err := os.MkdirTemp("", "infra-scripts-*")
+	if err != nil {
+		return "", fmt.Errorf("infrastructure.install: create scripts dir: %w", err)
+	}
+	defer os.RemoveAll(scriptsDir)
 
 	f, err := os.Open(artifactPath)
 	if err != nil {
@@ -100,6 +119,9 @@ func (infrastructureInstallAction) Apply(ctx context.Context, args *structpb.Str
 			wroteUnit = true
 		case strings.HasPrefix(name, "config/"):
 			dest = filepath.Join(configDir, component, strings.TrimPrefix(name, "config/"))
+		case strings.HasPrefix(name, "scripts/"):
+			// Extract scripts to staging dir for post-install execution.
+			dest = filepath.Join(scriptsDir, strings.TrimPrefix(name, "scripts/"))
 		default:
 			continue
 		}
@@ -134,6 +156,24 @@ func (infrastructureInstallAction) Apply(ctx context.Context, args *structpb.Str
 		fileCount++
 	}
 
+	// Run pre-install script if present (like deb preinst).
+	// Runs after extraction but before daemon-reload / service start, so it can
+	// set up prerequisites: TLS certs, credentials, directories, permissions, etc.
+	preInstall := filepath.Join(scriptsDir, "pre-install.sh")
+	if _, err := os.Stat(preInstall); err == nil {
+		if err := runLifecycleScript(ctx, preInstall, component, version, configDir); err != nil {
+			return "", fmt.Errorf("infrastructure.install: pre-install script failed: %w", err)
+		}
+	}
+
+	// Also run pre-start.sh (legacy name for MinIO-style pre-start setup).
+	preStart := filepath.Join(scriptsDir, "pre-start.sh")
+	if _, err := os.Stat(preStart); err == nil {
+		if err := runLifecycleScript(ctx, preStart, component, version, configDir); err != nil {
+			return "", fmt.Errorf("infrastructure.install: pre-start script failed: %w", err)
+		}
+	}
+
 	// Reload systemd if units were written.
 	if wroteUnit && !skipSystemd {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -157,12 +197,87 @@ func (infrastructureInstallAction) Apply(ctx context.Context, args *structpb.Str
 		}
 	}
 
+	// Run post-install script if present in the archive (like deb postinst).
+	// The script receives environment variables describing the component,
+	// paths, and node IP so it can set up TLS, credentials, data dirs, etc.
+	postInstall := filepath.Join(scriptsDir, "post-install.sh")
+	if _, err := os.Stat(postInstall); err == nil {
+		if err := runLifecycleScript(ctx, postInstall, component, version, configDir); err != nil {
+			return "", fmt.Errorf("infrastructure.install: post-install script failed: %w", err)
+		}
+	}
+
 	return fmt.Sprintf("infrastructure %s@%s installed (%d files)", component, version, fileCount), nil
+}
+
+// runLifecycleScript executes a lifecycle script (pre-install.sh, pre-start.sh,
+// or post-install.sh) extracted from the package archive. The script runs with
+// environment variables describing the component, paths, and node IP.
+func runLifecycleScript(ctx context.Context, scriptPath, component, version, configDir string) error {
+	// Ensure script is executable.
+	if err := os.Chmod(scriptPath, 0o755); err != nil {
+		return fmt.Errorf("chmod %s: %w", filepath.Base(scriptPath), err)
+	}
+
+	stateDir := os.Getenv("GLOBULAR_STATE_DIR")
+	if stateDir == "" {
+		stateDir = "/var/lib/globular"
+	}
+	prefix := os.Getenv("GLOBULAR_INSTALL_PREFIX")
+	if prefix == "" {
+		prefix = "/usr/lib/globular"
+	}
+
+	scriptCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(scriptCtx, "/bin/bash", scriptPath)
+	cmd.Env = append(os.Environ(),
+		"COMPONENT_NAME="+component,
+		"COMPONENT_VERSION="+version,
+		"STATE_DIR="+stateDir,
+		"PREFIX="+prefix,
+		"CONFIG_DIR="+configDir,
+		"NODE_IP="+detectNodeIP(),
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s %s: %w", component, filepath.Base(scriptPath), err)
+	}
+	return nil
+}
+
+// detectNodeIP returns the routable IP of this node (best-effort).
+func detectNodeIP() string {
+	// Try the same method as setup-scylla-tls.sh: ip route get 8.8.8.8
+	out, err := exec.Command("ip", "route", "get", "8.8.8.8").Output()
+	if err == nil {
+		fields := strings.Fields(string(out))
+		for i, f := range fields {
+			if f == "src" && i+1 < len(fields) {
+				return fields[i+1]
+			}
+		}
+	}
+	// Fallback: hostname -I
+	out, err = exec.Command("hostname", "-I").Output()
+	if err == nil {
+		parts := strings.Fields(string(out))
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	}
+	return "127.0.0.1"
 }
 
 // ── infrastructure.uninstall ────────────────────────────────────────────────
 //
 // Stops and removes an infrastructure component.
+// If a pre-remove.sh script was installed with the component (in
+// /etc/globular/{component}/scripts/pre-remove.sh), it is executed
+// before removing files.
 //
 // Args:
 //
