@@ -42,7 +42,7 @@ func discoverServiceAddr(defaultLocalPort int) string {
 //
 // Discovery order:
 //  1. Cached value (gateway doesn't move during a session)
-//  2. Node-agent state file (controller_endpoint → same host, port 8443)
+//  2. Node-agent state file (controller_endpoint → same host, port 443)
 //  3. NODE_AGENT_CONTROLLER_ENDPOINT env var
 //  4. DNS: controller.<domain>:8443
 func discoverGatewayAddr() string {
@@ -82,7 +82,7 @@ func resolveGatewayAddr() string {
 			}
 			if json.Unmarshal(data, &state) == nil && state.ControllerEndpoint != "" {
 				if host := hostFromEndpoint(state.ControllerEndpoint); host != "" {
-					return net.JoinHostPort(host, "8443")
+					return net.JoinHostPort(host, "443")
 				}
 			}
 		}
@@ -91,7 +91,7 @@ func resolveGatewayAddr() string {
 	// 2. Env var
 	if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
 		if host := hostFromEndpoint(ep); host != "" {
-			return net.JoinHostPort(host, "8443")
+			return net.JoinHostPort(host, "443")
 		}
 	}
 
@@ -100,7 +100,7 @@ func resolveGatewayAddr() string {
 	if domain == "" {
 		domain = "globular.internal"
 	}
-	candidate := fmt.Sprintf("controller.%s:8443", domain)
+	candidate := fmt.Sprintf("controller.%s:443", domain)
 	if host := hostFromEndpoint(candidate); host != "" {
 		// Verify DNS resolves.
 		if addrs, err := net.LookupHost(host); err == nil && len(addrs) > 0 {

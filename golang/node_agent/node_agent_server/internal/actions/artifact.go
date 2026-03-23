@@ -94,7 +94,7 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if repositoryAddr == "" {
 		repositoryAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
 	}
-	// Auto-discover repository via gateway: same host as the controller, port 8443.
+	// Auto-discover repository via gateway: same host as the controller, port 443.
 	// The gateway (Envoy) routes gRPC to the repository service transparently.
 	if repositoryAddr == "" {
 		repositoryAddr = discoverRepositoryViaGateway()
@@ -339,7 +339,7 @@ func (serviceWriteVersionMarkerAction) Apply(ctx context.Context, args *structpb
 
 // discoverRepositoryViaGateway derives the repository address from the
 // controller endpoint. The gateway (Envoy) runs on the same host as the
-// controller, on port 8443, and routes gRPC to all backend services
+// controller, on port 443, and routes gRPC to all backend services
 // including the repository. This avoids requiring a separate
 // REPOSITORY_ADDRESS configuration on joining nodes.
 func discoverRepositoryViaGateway() string {
@@ -356,7 +356,7 @@ func discoverRepositoryViaGateway() string {
 		if json.Unmarshal(data, &state) == nil && state.ControllerEndpoint != "" {
 			host, _, err := net.SplitHostPort(state.ControllerEndpoint)
 			if err == nil && host != "" {
-				addr := net.JoinHostPort(host, "8443")
+				addr := net.JoinHostPort(host, "443")
 				fmt.Printf("INFO artifact fetch: discovered repository via gateway %s (from controller %s)\n", addr, state.ControllerEndpoint)
 				return addr
 			}
@@ -367,7 +367,7 @@ func discoverRepositoryViaGateway() string {
 	if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
 		host, _, err := net.SplitHostPort(ep)
 		if err == nil && host != "" {
-			return net.JoinHostPort(host, "8443")
+			return net.JoinHostPort(host, "443")
 		}
 	}
 	return ""

@@ -52,7 +52,7 @@ func newEventPublisher(nodeID string) *eventPublisher {
 
 // connect establishes a gRPC connection to the event service.
 // On Day 1 nodes the event service is on the control-plane node, so we
-// route through the gateway (same host as controller, port 8443).
+// route through the gateway (same host as controller, port 443).
 func (ep *eventPublisher) connect() error {
 	addr := discoverServiceAddr(10010) // event.EventService default port
 
