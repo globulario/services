@@ -479,10 +479,20 @@ func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
 	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
 		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
 	}
-	if cfg.CABundlePath != "" {
-		caCert, err := os.ReadFile(cfg.CABundlePath)
+	caPath := cfg.CABundlePath
+	if caPath == "" {
+		// Fallback: try the well-known cluster CA path. Without this,
+		// secure connections to MinIO fail with "certificate signed by
+		// unknown authority" when the etcd config doesn't include caBundlePath.
+		const defaultCAPath = "/var/lib/globular/pki/ca.pem"
+		if _, err := os.Stat(defaultCAPath); err == nil {
+			caPath = defaultCAPath
+		}
+	}
+	if caPath != "" {
+		caCert, err := os.ReadFile(caPath)
 		if err != nil {
-			return nil, fmt.Errorf("read CA bundle %q: %w", cfg.CABundlePath, err)
+			return nil, fmt.Errorf("read CA bundle %q: %w", caPath, err)
 		}
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caCert)
@@ -564,6 +574,9 @@ func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig 
 	}
 	if v, ok := m["secure"].(bool); ok {
 		cfg.Secure = v
+	}
+	if v, ok := m["caBundlePath"].(string); ok {
+		cfg.CABundlePath = v
 	}
 	if authRaw, ok := m["auth"].(map[string]interface{}); ok {
 		cfg.Auth = &config.MinioProxyAuth{}
