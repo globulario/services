@@ -193,6 +193,21 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	nodeStatuses := make([]*cluster_controllerpb.NodeReleaseStatus, 0, len(nodeIDs))
 
 	for _, nodeID := range nodeIDs {
+		// Guard 1: node plan slot is busy (any active plan, regardless of lock).
+		// The etcd model is one current plan per node — concurrent writes from
+		// different releases would overwrite each other.
+		if srv.hasAnyActivePlan(ctx, nodeID) {
+			log.Printf("%s %s: node %s has active current plan, will retry",
+				h.ResourceType, h.Name, nodeID)
+			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
+				NodeID:        nodeID,
+				Phase:         cluster_controllerpb.ReleasePhaseApplying,
+				ErrorMessage:  "waiting for active node plan to finish",
+				UpdatedUnixMs: time.Now().UnixMilli(),
+			})
+			continue
+		}
+		// Guard 2: same-lock conflict (narrower check, kept for future multi-slot).
 		if srv.hasActivePlanWithLock(ctx, nodeID, h.LockKey) {
 			log.Printf("%s %s: node %s: lock %q held by active plan, will retry",
 				h.ResourceType, h.Name, nodeID, h.LockKey)

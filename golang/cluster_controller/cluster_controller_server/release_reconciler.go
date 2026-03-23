@@ -651,6 +651,23 @@ func repositoryAddrForSpec(spec *cluster_controllerpb.ServiceReleaseSpec) string
 // hasActivePlanWithLock reports whether the node currently has a running or pending plan
 // that holds the given lock key. Used as a controller-side guard to avoid dispatching
 // conflicting plans (Amendment 6 primary enforcement).
+// hasAnyActivePlan returns true when the node's single plan slot is occupied
+// by a non-terminal plan (PENDING, RUNNING, or ROLLING_BACK), regardless of
+// lock key. This prevents multiple releases from overwriting each other in
+// the one-plan-per-node etcd slot.
+func (srv *server) hasAnyActivePlan(ctx context.Context, nodeID string) bool {
+	status, err := srv.planStore.GetStatus(ctx, nodeID)
+	if err != nil || status == nil {
+		return false
+	}
+	switch status.GetState() {
+	case planpb.PlanState_PLAN_RUNNING, planpb.PlanState_PLAN_PENDING, planpb.PlanState_PLAN_ROLLING_BACK:
+		return true
+	default:
+		return false
+	}
+}
+
 func (srv *server) hasActivePlanWithLock(ctx context.Context, nodeID, lock string) bool {
 	status, err := srv.planStore.GetStatus(ctx, nodeID)
 	if err != nil || status == nil {

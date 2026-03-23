@@ -584,3 +584,148 @@ func TestReconcile_ControllerRestart_ResumesFromStoredPhase(t *testing.T) {
 		t.Fatalf("expected AVAILABLE after restart+success, got %s", rel.Status.Phase)
 	}
 }
+
+// ── Phase 9: Plan slot serialization (single-slot model) ─────────────────────
+
+func TestHasAnyActivePlan_RunningBlocksDispatch(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_RUNNING,
+	}
+	srv := &server{planStore: ps}
+
+	if !srv.hasAnyActivePlan(context.Background(), "n1") {
+		t.Fatal("expected hasAnyActivePlan=true for RUNNING plan")
+	}
+}
+
+func TestHasAnyActivePlan_PendingBlocksDispatch(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_PENDING,
+	}
+	srv := &server{planStore: ps}
+
+	if !srv.hasAnyActivePlan(context.Background(), "n1") {
+		t.Fatal("expected hasAnyActivePlan=true for PENDING plan")
+	}
+}
+
+func TestHasAnyActivePlan_TerminalDoesNotBlock(t *testing.T) {
+	for _, state := range []planpb.PlanState{
+		planpb.PlanState_PLAN_SUCCEEDED,
+		planpb.PlanState_PLAN_FAILED,
+		planpb.PlanState_PLAN_ROLLED_BACK,
+	} {
+		ps := newMultiNodePlanStore()
+		ps.statuses["n1"] = &planpb.NodePlanStatus{
+			NodeId: "n1", PlanId: "p1", State: state,
+		}
+		srv := &server{planStore: ps}
+		if srv.hasAnyActivePlan(context.Background(), "n1") {
+			t.Fatalf("expected hasAnyActivePlan=false for terminal state %s", state)
+		}
+	}
+}
+
+func TestHasAnyActivePlan_NoStatusDoesNotBlock(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	srv := &server{planStore: ps}
+	if srv.hasAnyActivePlan(context.Background(), "n1") {
+		t.Fatal("expected hasAnyActivePlan=false when no status exists")
+	}
+}
+
+func TestDifferentLocksMustNotOverwriteBusyNodeSlot(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_RUNNING,
+	}
+	ps.plans["n1"] = &planpb.NodePlan{
+		NodeId: "n1", PlanId: "p1", Locks: []string{"infrastructure:minio"},
+	}
+	srv := &server{planStore: ps}
+
+	// hasActivePlanWithLock returns false for a different lock
+	if srv.hasActivePlanWithLock(context.Background(), "n1", "infrastructure:gateway") {
+		t.Fatal("lock-specific check should NOT match different lock key")
+	}
+	// But hasAnyActivePlan still blocks — this is the fix
+	if !srv.hasAnyActivePlan(context.Background(), "n1") {
+		t.Fatal("node slot is busy, must block regardless of lock key")
+	}
+}
+
+func TestHasUnservedNodes_FailedNodeIsUnserved(t *testing.T) {
+	srv := &server{
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n1": {NodeID: "n1"},
+			"n2": {NodeID: "n2"},
+		}},
+	}
+	h := &releaseHandle{
+		ResourceType: "InfrastructureRelease",
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
+			{NodeID: "n2", Phase: cluster_controllerpb.ReleasePhaseFailed},
+		},
+	}
+	if !srv.hasUnservedNodes(h) {
+		t.Fatal("expected hasUnservedNodes=true: n2 is FAILED")
+	}
+}
+
+func TestHasUnservedNodes_RolledBackIsUnserved(t *testing.T) {
+	srv := &server{
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n1": {NodeID: "n1"},
+		}},
+	}
+	h := &releaseHandle{
+		ResourceType: "InfrastructureRelease",
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseRolledBack},
+		},
+	}
+	if !srv.hasUnservedNodes(h) {
+		t.Fatal("expected hasUnservedNodes=true: n1 is ROLLED_BACK")
+	}
+}
+
+func TestHasUnservedNodes_AllAvailableIsServed(t *testing.T) {
+	srv := &server{
+		state: &controllerState{Nodes: map[string]*nodeState{
+			"n1": {NodeID: "n1"},
+		}},
+	}
+	h := &releaseHandle{
+		ResourceType: "InfrastructureRelease",
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
+		},
+	}
+	if srv.hasUnservedNodes(h) {
+		t.Fatal("expected hasUnservedNodes=false: all nodes AVAILABLE")
+	}
+}
+
+func TestMixedNodeRollout_OnlyFailedNodeRetried(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	// n1 succeeded, n2 failed (terminal) — slot is free for redispatch
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED,
+	}
+	ps.statuses["n2"] = &planpb.NodePlanStatus{
+		NodeId: "n2", PlanId: "p2", State: planpb.PlanState_PLAN_FAILED,
+	}
+	srv := &server{planStore: ps}
+
+	// n1 is terminal → not active
+	if srv.hasAnyActivePlan(context.Background(), "n1") {
+		t.Fatal("n1 succeeded, should not block")
+	}
+	// n2 is terminal → not active, can be redispatched
+	if srv.hasAnyActivePlan(context.Background(), "n2") {
+		t.Fatal("n2 failed, should not block redispatch")
+	}
+}
