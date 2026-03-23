@@ -484,6 +484,40 @@ func GetHostname() (string, error) {
 	return fmt.Sprintf("%s.%s", name, domain), nil
 }
 
+// GetRoutableIPv4 returns the routable IPv4 address for this node.
+// Suitable for service registry entries where Envoy needs a routable address.
+// Resolves hostname to IPv4, falling back to interface scanning.
+func GetRoutableIPv4() string {
+	host, _ := os.Hostname()
+	if host != "" {
+		if addrs, err := net.LookupIP(host); err == nil {
+			for _, a := range addrs {
+				if ip4 := a.To4(); ip4 != nil && !ip4.IsLoopback() {
+					return ip4.String()
+				}
+			}
+		}
+	}
+	// Fallback: scan interfaces for a non-loopback IPv4
+	if ifaces, err := net.Interfaces(); err == nil {
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			if addrs, err := iface.Addrs(); err == nil {
+				for _, addr := range addrs {
+					if ipnet, ok := addr.(*net.IPNet); ok {
+						if ip4 := ipnet.IP.To4(); ip4 != nil && !ip4.IsLoopback() {
+							return ip4.String()
+						}
+					}
+				}
+			}
+		}
+	}
+	return "127.0.0.1"
+}
+
 // ============================================================================
 // Canonical Path Functions (Migration - INV-PKI-1)
 // ============================================================================

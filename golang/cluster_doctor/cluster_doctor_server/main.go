@@ -138,7 +138,7 @@ func main() {
 	if err := config.SaveServiceConfiguration(map[string]interface{}{
 		"Id":       "cluster_doctor.ClusterDoctorService",
 		"Name":     "cluster_doctor.ClusterDoctorService",
-		"Address":  "localhost",
+		"Address":  config.GetRoutableIPv4(),
 		"Port":     cfg.Port,
 		"Protocol": "grpc",
 		"TLS":      true,
