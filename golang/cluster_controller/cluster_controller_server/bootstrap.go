@@ -24,6 +24,20 @@ func bootstrapLeadership(ctx context.Context, srv *server, etcdClient *clientv3.
 	go startLeaderElectionFn(ctx, etcdClient, srv, leaderAddr)
 }
 
+// registryHost extracts the host portion from a "host:port" leader address
+// for use in the Globular service registry. Falls back to os.Hostname().
+func registryHost(leaderAddr string) string {
+	host, _, err := net.SplitHostPort(leaderAddr)
+	if err == nil && host != "" {
+		return host
+	}
+	h, _ := os.Hostname()
+	if h != "" {
+		return h
+	}
+	return "localhost"
+}
+
 // resolveLeaderAddr turns a listen address into an advertise/leader address.
 func resolveLeaderAddr(listenAddr string) string {
 	addr := strings.TrimSpace(listenAddr)

@@ -284,7 +284,7 @@ func main() {
 	if err := config.SaveServiceConfiguration(map[string]interface{}{
 		"Id":       "cluster_controller.ClusterControllerService",
 		"Name":     "cluster_controller.ClusterControllerService",
-		"Address":  "localhost",
+		"Address":  registryHost(leaderAddr),
 		"Port":     cfg.Port,
 		"Protocol": "grpc",
 		"TLS":      true,
