@@ -65,9 +65,12 @@ func (at *anomalyTracker) record(remoteAddr, method string, duration time.Durati
 
 	// Strip port from IP.
 	ip := stripPort(remoteAddr)
-	if ip == "" || ip == "127.0.0.1" || ip == "::1" || ip == "localhost" {
+	if ip == "" {
 		return
 	}
+	// Loopback is NOT exempt: circular service-to-service calls on the same
+	// node must be tracked. The call-depth guard is the primary defense, but
+	// anomaly detection on loopback provides defense-in-depth.
 
 	// Track slow requests per IP.
 	if duration >= at.slowThreshold {

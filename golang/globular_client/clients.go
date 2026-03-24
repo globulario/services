@@ -948,9 +948,138 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
     return cfg, nil
 }
 
-// GetClientConnection dials a gRPC connection to the client's current endpoint,
-// wiring in the unary interceptor that performs quiet/backoff reconnects.
+// ---- mesh-first routing -----------------------------------------------------
+//
+// Service-to-service calls go through Envoy (localhost:443) when available.
+// Envoy already has routes for every gRPC service (e.g., /event.EventService/ → event_cluster)
+// and applies AI Router weights + health-based failover across nodes.
+// If Envoy is unreachable, fall back to a direct connection to the service.
+
+var (
+	meshMu       sync.RWMutex
+	meshConn     *grpc.ClientConn // cached connection to local Envoy
+	meshAvail    bool             // true if Envoy is reachable
+	meshChecked  time.Time        // when we last probed Envoy
+	meshCheckTTL = 10 * time.Second
+	meshTarget   = "127.0.0.1:443"
+)
+
+// meshEnabled returns true if the local Envoy proxy is reachable.
+// Result is cached for meshCheckTTL to avoid probing on every call.
+func meshEnabled() bool {
+	meshMu.RLock()
+	if !meshChecked.IsZero() && time.Since(meshChecked) < meshCheckTTL {
+		avail := meshAvail
+		meshMu.RUnlock()
+		return avail
+	}
+	meshMu.RUnlock()
+
+	// Probe: quick TCP connect to Envoy
+	meshMu.Lock()
+	defer meshMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if !meshChecked.IsZero() && time.Since(meshChecked) < meshCheckTTL {
+		return meshAvail
+	}
+
+	conn, err := net.DialTimeout("tcp", meshTarget, 500*time.Millisecond)
+	if err != nil {
+		if meshAvail {
+			slog.Warn("mesh: Envoy unreachable, falling back to direct connections", "target", meshTarget, "err", err)
+		}
+		meshAvail = false
+		meshChecked = time.Now()
+		return false
+	}
+	conn.Close()
+
+	if !meshAvail {
+		slog.Info("mesh: Envoy available, routing through mesh", "target", meshTarget)
+	}
+	meshAvail = true
+	meshChecked = time.Now()
+	return true
+}
+
+// getMeshConn returns a cached gRPC connection to the local Envoy proxy.
+func getMeshConn(client Client) (*grpc.ClientConn, error) {
+	meshMu.RLock()
+	if meshConn != nil {
+		cc := meshConn
+		meshMu.RUnlock()
+		return cc, nil
+	}
+	meshMu.RUnlock()
+
+	meshMu.Lock()
+	defer meshMu.Unlock()
+
+	// Double-check after lock
+	if meshConn != nil {
+		return meshConn, nil
+	}
+
+	// Build TLS config for Envoy. Use the same CA and client certs
+	// so mTLS works through the mesh.
+	var cc *grpc.ClientConn
+	var err error
+
+	if client.HasTLS() {
+		tcfg, tlsErr := GetClientTlsConfig(client)
+		if tlsErr != nil {
+			return nil, fmt.Errorf("mesh TLS config: %w", tlsErr)
+		}
+		// Override ServerName for Envoy's certificate
+		tcfg.ServerName = ""
+		tcfg.InsecureSkipVerify = true // Envoy is local, trust it
+		cc, err = grpc.Dial(meshTarget,
+			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
+			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
+		)
+	} else {
+		cc, err = grpc.Dial(meshTarget,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
+		)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("mesh dial %s: %w", meshTarget, err)
+	}
+
+	meshConn = cc
+	slog.Info("mesh: gRPC connection established", "target", meshTarget)
+	return cc, nil
+}
+
+// GetClientConnection dials a gRPC connection to the client's current endpoint.
+// Strategy: mesh-first (via local Envoy) with fallback to direct connection.
+//
+// Through Envoy, calls get:
+//   - AI Router weighted load balancing across all nodes
+//   - Automatic failover if the target service is down
+//   - Health checking and outlier detection
+//   - Prometheus metrics on both client and proxy side
+//
+// If Envoy is unavailable (crashed, not installed), falls back to direct dial.
 func GetClientConnection(client Client) (*grpc.ClientConn, error) {
+	// Try mesh first
+	if meshEnabled() {
+		cc, err := getMeshConn(client)
+		if err == nil {
+			return cc, nil
+		}
+		slog.Warn("mesh: connection failed, falling back to direct", "err", err)
+		// Reset mesh state so next check re-probes
+		meshMu.Lock()
+		meshConn = nil
+		meshAvail = false
+		meshChecked = time.Time{}
+		meshMu.Unlock()
+	}
+
+	// Fallback: direct connection to the service
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
@@ -979,7 +1108,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		slog.Error("GetClientConnection: dial failed", "target", target, "tls", client.HasTLS(), "err", err)
 		return nil, err
 	}
-	slog.Debug("GetClientConnection: connected", "target", target, "tls", client.HasTLS())
+	slog.Debug("GetClientConnection: connected (direct)", "target", target, "tls", client.HasTLS())
 	return cc, nil
 }
 

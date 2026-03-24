@@ -9,10 +9,12 @@ import (
 	"log/slog"
 	"math/rand"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // clientInterceptor adds:
@@ -21,6 +23,25 @@ import (
 //   • A re-Init on retriable errors to refresh desired/runtime endpoint.
 func clientInterceptor(client_ Client) func(ctx context.Context, method string, rqst interface{}, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	return func(ctx context.Context, method string, rqst interface{}, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		// Propagate call depth: read from incoming context, increment, set on outgoing.
+		depth := 0
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if vals := md.Get("x-call-depth"); len(vals) > 0 {
+				if d, err := strconv.Atoi(vals[0]); err == nil {
+					depth = d
+				}
+			}
+		}
+		// Also check outgoing context (for calls that already have outgoing metadata).
+		if md, ok := metadata.FromOutgoingContext(ctx); ok {
+			if vals := md.Get("x-call-depth"); len(vals) > 0 {
+				if d, err := strconv.Atoi(vals[0]); err == nil && d > depth {
+					depth = d
+				}
+			}
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, "x-call-depth", strconv.Itoa(depth+1))
+
 		err := invoker(ctx, method, rqst, reply, cc, opts...)
 		if client_ != nil && err != nil {
 			msg := err.Error()

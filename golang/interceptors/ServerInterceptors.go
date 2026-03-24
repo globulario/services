@@ -34,12 +34,54 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	"strconv"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
+
+// MaxCallDepth is the maximum allowed depth for chained service-to-service calls.
+// Requests exceeding this depth are rejected to prevent circular call loops
+// (e.g., A → B → C → A) from consuming all resources and crashing the node.
+const MaxCallDepth = 10
+
+// callDepthKey is the gRPC metadata key used to propagate call depth.
+const callDepthKey = "x-call-depth"
+
+// checkCallDepth reads x-call-depth from incoming metadata and rejects
+// requests that exceed MaxCallDepth. Returns the current depth for propagation.
+func checkCallDepth(ctx context.Context, method string) (int, error) {
+	depth := 0
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if vals := md.Get(callDepthKey); len(vals) > 0 {
+			if d, err := strconv.Atoi(vals[0]); err == nil {
+				depth = d
+			}
+		}
+	}
+	if depth >= MaxCallDepth {
+		// Fire security event so the watcher can observe circular call cycles.
+		if OnSecurityEvent != nil {
+			OnSecurityEvent(&AuditDecision{
+				Timestamp:     time.Now().UTC(),
+				Subject:       "",
+				PrincipalType: "service",
+				AuthMethod:    "none",
+				GRPCMethod:    method,
+				RemoteAddr:    extractRemoteAddr(ctx),
+				Allowed:       false,
+				Reason:        "call_depth_exceeded",
+				CallSource:    "loopback",
+			})
+		}
+		return depth, status.Errorf(codes.ResourceExhausted,
+			"call depth %d exceeds maximum %d — probable circular service call", depth, MaxCallDepth)
+	}
+	return depth, nil
+}
 
 // ---- lazy loader (no side-effects at import time) ---------------------------
 
@@ -631,6 +673,12 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 }
 
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Circuit breaker: reject calls that have bounced through too many services.
+	if _, err := checkCallDepth(ctx, info.FullMethod); err != nil {
+		slog.Error("call depth exceeded", "method", info.FullMethod, "err", err)
+		return nil, err
+	}
+
 	var (
 		token        string
 		application  string
@@ -764,13 +812,24 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			"authentication required: provide --token or configure client certificates")
 	}
 
+	// Superadmin bypass: "sa" is the built-in service account used for all
+	// inter-service communication. Without this, every service-to-service call
+	// goes through checkRoleBinding → RBAC gRPC → interceptor → checkRoleBinding,
+	// creating an infinite recursion that OOM-kills services.
+	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
+		LogAuthzDecisionSimple(authCtx, true, "superadmin")
+		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
+	}
+
 	// Role-binding check: applies to all authenticated gRPC methods post-cluster-init.
-	// Only skip GetRoleBinding itself to prevent circular RPC calls.
+	// Skip the entire RBAC service to prevent circular RPC calls:
+	// checkRoleBinding → GetRoleBinding → interceptor → getActionResourceInfos
+	// → GetActionResourceInfos → interceptor → checkRoleBinding → infinite loop.
 	// For explicitly role-mapped methods: deny if no matching role.
 	// For unmapped methods: allow if caller has a matching role (e.g. admin wildcard),
 	// otherwise fall through to the resource-mapping check below.
 	if clusterInitialized &&
-		method != "/rbac.RbacService/GetRoleBinding" &&
+		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
 		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
@@ -788,8 +847,11 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	// 3) Only consult RBAC if there are resource mappings for this action.
+	// Skip all RBAC service methods — calling getActionResourceInfos makes a gRPC
+	// call to the RBAC service, whose interceptor would call checkRoleBinding and
+	// getActionResourceInfos again, creating an infinite cycle.
 	needAuthz := false
-	if method != "/rbac.RbacService/GetActionResourceInfos" {
+	if !strings.HasPrefix(method, "/rbac.RbacService/") {
 		if infos, e := getActionResourceInfos(address, actionKey); e == nil && len(infos) > 0 {
 			needAuthz = true
 		}
@@ -933,9 +995,12 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	}
 
 	// 4) Only consult RBAC if there are resource mappings for this method.
+	// Skip RBAC service methods to prevent circular gRPC calls.
 	needAuthz := false
-	if infos, e := getActionResourceInfos(l.address, l.method); e == nil && len(infos) > 0 {
-		needAuthz = true
+	if !strings.HasPrefix(l.method, "/rbac.RbacService/") {
+		if infos, e := getActionResourceInfos(l.address, l.method); e == nil && len(infos) > 0 {
+			needAuthz = true
+		}
 	}
 	if !needAuthz {
 		// Phase 4: Conditional deny-by-default for unmapped methods (streaming)
@@ -1077,6 +1142,12 @@ func callStreamHandlerWithLogging(srv interface{}, stream grpc.ServerStream, han
 }
 
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// Circuit breaker: reject calls that have bounced through too many services.
+	if _, err := checkCallDepth(stream.Context(), info.FullMethod); err != nil {
+		slog.Error("call depth exceeded (stream)", "method", info.FullMethod, "err", err)
+		return err
+	}
+
 	var (
 		token       string
 		application string
@@ -1158,6 +1229,12 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
 		return status.Errorf(codes.Unauthenticated,
 			"authentication required: provide --token or configure client certificates")
+	}
+
+	// Superadmin bypass for streaming RPCs (mirrors unary interceptor).
+	if streamInitialized && authCtx != nil && authCtx.Subject == "sa" {
+		LogAuthzDecisionSimple(authCtx, true, "superadmin")
+		return callStreamHandlerWithLogging(srv, stream, handler, address, application, method)
 	}
 
 	// Role-binding check for streaming RPCs: mirrors the unary interceptor check.
