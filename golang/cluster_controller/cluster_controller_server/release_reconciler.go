@@ -48,15 +48,56 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 	if srv.resources == nil {
 		return
 	}
-	// Initial enqueue of all existing releases.
-	if items, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
+	// Enqueue order matters: infrastructure first, then foundational services
+	// (event, dns, rbac, file), then everything else. Without this, alphabetically-
+	// early services like ai-executor get dispatched before dns/event, and the
+	// one-plan-per-node guard blocks convergence.
+
+	// 1. Infrastructure releases first (etcd, dns, minio, monitoring, etc.)
+	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Meta != nil {
-				queue.Enqueue(releaseKeyPrefix + rel.Meta.Name)
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
 			}
 		}
 	}
-	// Watch for new and updated releases.
+	safeGo("watch-infrastructure-release", func() {
+		ch, err := srv.resources.Watch(ctx, "InfrastructureRelease", "", "")
+		if err != nil {
+			return
+		}
+		for evt := range ch {
+			if rel, ok := evt.Object.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
+			}
+		}
+	})
+
+	// 2. Foundational service releases (event, dns, rbac, file), then the rest.
+	if items, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
+		var foundational, rest []string
+		for _, obj := range items {
+			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Meta != nil {
+				key := releaseKeyPrefix + rel.Meta.Name
+				name := rel.Meta.Name
+				// Strip publisher prefix: "core@globular.io/event" → "event"
+				if idx := strings.LastIndex(name, "/"); idx >= 0 {
+					name = name[idx+1:]
+				}
+				if isFoundationalService(name) {
+					foundational = append(foundational, key)
+				} else {
+					rest = append(rest, key)
+				}
+			}
+		}
+		for _, k := range foundational {
+			queue.Enqueue(k)
+		}
+		for _, k := range rest {
+			queue.Enqueue(k)
+		}
+	}
 	safeGo("watch-service-release", func() {
 		ch, err := srv.resources.Watch(ctx, "ServiceRelease", "", "")
 		if err != nil {
@@ -77,7 +118,7 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 		log.Printf("watch-service-release: channel closed, exiting")
 	})
 
-	// Initial enqueue of ApplicationRelease objects.
+	// 3. Application releases last.
 	if items, _, err := srv.resources.List(ctx, "ApplicationRelease", ""); err == nil {
 		for _, obj := range items {
 			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
@@ -93,26 +134,6 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 		for evt := range ch {
 			if rel, ok := evt.Object.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
 				queue.Enqueue(appReleaseKeyPrefix + rel.Meta.Name)
-			}
-		}
-	})
-
-	// Initial enqueue of InfrastructureRelease objects.
-	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
-		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
-			}
-		}
-	}
-	safeGo("watch-infrastructure-release", func() {
-		ch, err := srv.resources.Watch(ctx, "InfrastructureRelease", "", "")
-		if err != nil {
-			return
-		}
-		for evt := range ch {
-			if rel, ok := evt.Object.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
 			}
 		}
 	})
@@ -666,6 +687,16 @@ func repositoryAddrForSpec(spec *cluster_controllerpb.ServiceReleaseSpec) string
 // by a non-terminal plan (PENDING, RUNNING, or ROLLING_BACK), regardless of
 // lock key. This prevents multiple releases from overwriting each other in
 // the one-plan-per-node etcd slot.
+// isFoundationalService returns true for services that most other services
+// depend on and should be installed first (event bus, dns, rbac, file).
+func isFoundationalService(name string) bool {
+	switch name {
+	case "event", "dns", "rbac", "file", "discovery", "monitoring", "repository", "resource", "authentication":
+		return true
+	}
+	return false
+}
+
 func (srv *server) hasAnyActivePlan(ctx context.Context, nodeID string) bool {
 	status, err := srv.planStore.GetStatus(ctx, nodeID)
 	if err != nil || status == nil {
@@ -826,6 +857,28 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 		srv.reconcileApplying(ctx, h)
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
+	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+		// Re-enter PENDING if generation advanced (explicit re-apply).
+		if h.Generation > h.ObservedGeneration {
+			log.Printf("infra-release %s: %s → PENDING (generation %d > observed %d)",
+				releaseName, h.Phase, h.Generation, h.ObservedGeneration)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "generation_changed",
+				SetFields:        "phase",
+			})
+			return
+		}
+		// Auto-retry: if there are unserved nodes, re-enter PENDING.
+		if srv.hasUnservedNodes(h) {
+			log.Printf("infra-release %s: %s → PENDING (auto-retry, unserved nodes remain)",
+				releaseName, h.Phase)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "auto_retry_unserved",
+				SetFields:        "phase",
+			})
+		}
 	case ReleasePhaseRemoving:
 		srv.reconcileRemoving(ctx, h)
 	case ReleasePhaseRemoved:

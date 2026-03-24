@@ -61,6 +61,18 @@ func IsActive(ctx context.Context, unit string) (bool, error) {
 	return false, err
 }
 
+// IsLoaded returns true when a unit file is loaded by systemd (regardless of active state).
+func IsLoaded(ctx context.Context, unit string) (bool, error) {
+	if unit == "" {
+		return false, errors.New("unit name is required")
+	}
+	out, err := exec.CommandContext(ctx, "systemctl", "show", "--property=LoadState", "--value", unit).Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) == "loaded", nil
+}
+
 // Enable marks the unit to start on boot.
 func Enable(ctx context.Context, unit string) error {
 	if unit == "" {

@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
 	"github.com/google/uuid"
@@ -196,6 +197,9 @@ type server struct {
 	// plan signing (Ed25519)
 	planSignerState *planSigner
 
+	// workflow trace recorder (fire-and-forget, nil-safe if unavailable)
+	workflowRec *workflow.Recorder
+
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
 	testDispatchReleasePlan   func(context.Context, *cluster_controllerpb.ServiceRelease, string) (*planpb.NodePlan, error)
@@ -246,6 +250,17 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	} else {
 		log.Printf("cluster-controller: event client unavailable: %v", err)
 	}
+
+	// Connect to WorkflowService for reconciliation workflow tracing.
+	workflowAddr := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR"))
+	if workflowAddr == "" {
+		workflowAddr = "localhost:10220"
+	}
+	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
+	if clusterID == "" {
+		clusterID = "globular.internal"
+	}
+	srv.workflowRec = workflow.NewRecorder(workflowAddr, clusterID)
 
 	srv.setLeader(false, "", "")
 

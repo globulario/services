@@ -137,7 +137,7 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 		}
 
 		// Remove binary.
-		binPath := filepath.Join(binDir, name+"_server")
+		binPath := filepath.Join(binDir, executableForService(name))
 		_ = os.Remove(binPath)
 
 		// Remove systemd unit file and reload.
@@ -212,7 +212,7 @@ func (packageVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	switch kind {
 	case "SERVICE", "":
 		binDir, _, _, _ := installPaths()
-		targetPath = filepath.Join(binDir, name+"_server")
+		targetPath = filepath.Join(binDir, executableForService(name))
 	case "APPLICATION":
 		targetPath = filepath.Join(appsDir(), name)
 	case "INFRASTRUCTURE":

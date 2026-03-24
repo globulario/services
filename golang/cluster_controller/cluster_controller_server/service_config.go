@@ -64,7 +64,12 @@ var profilesForXDS = []string{"control-plane", "gateway"}
 var profilesForDNS = []string{"core", "compute", "control-plane", "dns"}
 
 // profilesForScyllaDB lists the profiles that run ScyllaDB.
-var profilesForScyllaDB = []string{"scylla", "database"}
+// Includes "core" because the ScyllaDB infrastructure release installs on core
+// nodes (see scylladb_service.yaml profiles), so the controller must also render
+// config for those nodes. Without this, core nodes get ScyllaDB installed but
+// no controller-rendered scylla.yaml, forcing the post-install to generate a
+// self-only fallback that breaks cluster join.
+var profilesForScyllaDB = []string{"core", "compute", "control-plane", "scylla", "database"}
 
 // nodeHasProfile returns true if the node has at least one of the given profiles.
 func nodeHasProfile(node *memberNode, profiles []string) bool {
@@ -500,15 +505,31 @@ func renderScyllaConfig(ctx *serviceConfigContext) (string, bool) {
 		seeds = []string{currentIP}
 	}
 
-	// Cluster name derived from cluster ID for consistency.
-	clusterName := ctx.ClusterID
-	if clusterName == "" {
-		clusterName = "globular"
+	// Cluster name: for new clusters, use ctx.ClusterID. For existing clusters
+	// where the seed node may already have an empty cluster_name (pre-renderer
+	// Day-0 bootstrap), omit cluster_name entirely so ScyllaDB defaults to the
+	// same empty string. This prevents "Saved cluster name X != configured
+	// name Y" errors when joining new nodes to old clusters.
+	//
+	// Heuristic: if the current node is NOT a seed (i.e. it's joining an
+	// existing cluster), don't set cluster_name — let it inherit from gossip.
+	// If it IS a seed (first node / Day-0), set it from ClusterID.
+	isSeedNode := false
+	for _, s := range seeds {
+		if s == currentIP {
+			isSeedNode = true
+			break
+		}
 	}
+	onlySeeds := len(scyllaNodes) == 1 && isSeedNode // brand new single-node cluster
 
 	var sb strings.Builder
 	sb.WriteString("# Managed by Globular cluster controller — do not edit manually.\n")
-	sb.WriteString(fmt.Sprintf("cluster_name: '%s'\n", clusterName))
+	if onlySeeds && ctx.ClusterID != "" {
+		// New cluster — set cluster_name for all future nodes to inherit.
+		sb.WriteString(fmt.Sprintf("cluster_name: '%s'\n", ctx.ClusterID))
+	}
+	// For join nodes: omit cluster_name — ScyllaDB inherits from gossip.
 	sb.WriteString("\n")
 
 	// Listening addresses — must be the routable IP, never 0.0.0.0 or localhost.
@@ -542,6 +563,10 @@ func renderScyllaConfig(ctx *serviceConfigContext) (string, bool) {
 	// Compaction and memtable defaults (ScyllaDB optimized)
 	sb.WriteString("compaction_throughput_mb_per_sec: 0\n")
 	sb.WriteString("compaction_large_partition_warning_threshold_mb: 100\n")
+	sb.WriteString("\n")
+
+	// Developer mode — required for posix network stack without full scylla_setup.
+	sb.WriteString("developer_mode: true\n")
 
 	return sb.String(), true
 }

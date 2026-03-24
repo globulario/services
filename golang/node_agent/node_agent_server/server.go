@@ -18,6 +18,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
+	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
@@ -100,6 +101,10 @@ type NodeAgentServer struct {
 	signerCacheMu    sync.RWMutex
 	rejectionTracker *planRejectionTracker
 	lastSeenPlanID   string // for quarantine clearing
+
+	// Workflow tracing (nil-safe, fire-and-forget)
+	workflowRec *workflow.Recorder
+	clusterID   string
 }
 
 type lockablePlanStore interface {
@@ -765,6 +770,8 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		"globular-gateway.service",
 		"globular-xds.service",
 		"globular-envoy.service",
+		"scylla-server.service",
+		"globular-monitoring.service",
 	}
 	statuses := make([]*node_agentpb.UnitStatus, 0, len(known))
 	for _, unit := range known {

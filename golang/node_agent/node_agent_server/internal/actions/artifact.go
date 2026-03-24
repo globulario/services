@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
 	"github.com/globulario/services/golang/plan/versionutil"
@@ -597,11 +598,18 @@ func ensureServicePortConfig(ctx context.Context, service, binDir string) error 
 
 func executableForService(svc string) string {
 	name := normalizeServiceName(svc)
-	// Convention: replace hyphens with underscores and append _server.
-	// All Globular services follow this naming pattern.
 	if name == "" {
 		return ""
 	}
+	// Use the identity registry which knows the actual deployed binary name.
+	// This handles exceptions like xds, minio, gateway, envoy, etcd which
+	// don't follow the _server convention.
+	if key, ok := identity.NormalizeServiceKey(name); ok {
+		if id, ok := identity.IdentityByKey(key); ok && id.Binary != "" {
+			return id.Binary
+		}
+	}
+	// Fallback for unknown services: convention is name_server.
 	return strings.ReplaceAll(name, "-", "_") + "_server"
 }
 

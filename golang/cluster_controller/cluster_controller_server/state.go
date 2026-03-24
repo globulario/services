@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -303,7 +304,8 @@ func loadControllerState(path string) (*controllerState, error) {
 		return state, nil
 	}
 	if err := json.Unmarshal(b, state); err != nil {
-		return nil, err
+		log.Printf("WARNING: state file %s is corrupted (%v), starting with fresh state", path, err)
+		return newControllerState(), nil
 	}
 	if state.CreatedAt.IsZero() {
 		state.CreatedAt = time.Now()

@@ -13,15 +13,15 @@ func TestResolveIntent_CoreProfile(t *testing.T) {
 
 	// Core infra must include infrastructure-kind components.
 	infraNames := intent.DesiredInfraNames
-	for _, want := range []string{"etcd", "dns", "discovery", "minio", "monitoring", "xds"} {
+	for _, want := range []string{"etcd", "minio"} {
 		if !contains(infraNames, want) {
 			t.Errorf("core infra missing %q, got %v", want, infraNames)
 		}
 	}
 
-	// event, rbac, file are KindWorkload (ManagedUnit=true) — they appear in
-	// ResolvedComponents but NOT in DesiredInfraNames.
-	for _, wl := range []string{"event", "rbac", "file"} {
+	// dns, discovery, monitoring, event, rbac, file are KindWorkload (ManagedUnit=true)
+	// — they appear in ResolvedComponents but NOT in DesiredInfraNames.
+	for _, wl := range []string{"event", "rbac", "file", "dns", "discovery", "monitoring"} {
 		if contains(infraNames, wl) {
 			t.Errorf("%q should not be in infra (it's KindWorkload), got %v", wl, infraNames)
 		}
@@ -30,9 +30,9 @@ func TestResolveIntent_CoreProfile(t *testing.T) {
 		}
 	}
 
-	// Core must NOT include scylladb.
-	if contains(infraNames, "scylladb") {
-		t.Error("core profile should not include scylladb")
+	// Core now includes ScyllaDB (CapLocalDB) — all nodes running services need it.
+	if !contains(infraNames, "scylladb") {
+		t.Error("core infra should include scylladb")
 	}
 
 	// Workloads are blocked when units aren't reporting (no healthy units).
@@ -40,8 +40,8 @@ func TestResolveIntent_CoreProfile(t *testing.T) {
 	if !contains(intent.ResolvedComponents, "ai-router") {
 		t.Error("core should resolve ai-router")
 	}
-	if contains(intent.ResolvedComponents, "ai-memory") {
-		t.Error("core should NOT resolve ai-memory (it's database-only)")
+	if !contains(intent.ResolvedComponents, "ai-memory") {
+		t.Error("core should resolve ai-memory (core now includes ScyllaDB)")
 	}
 }
 
@@ -308,8 +308,8 @@ func TestResolveIntent_RequiredCapabilities(t *testing.T) {
 	}
 	sort.Strings(caps)
 
-	// Core profile requires: config-store, dns, event-bus, monitoring, object-store, service-discovery
-	want := []string{"config-store", "dns", "event-bus", "monitoring", "object-store", "service-discovery"}
+	// Core profile requires: config-store, dns, event-bus, local-db, monitoring, object-store, service-discovery
+	want := []string{"config-store", "dns", "event-bus", "local-db", "monitoring", "object-store", "service-discovery"}
 	if len(caps) != len(want) {
 		t.Fatalf("core caps: got %v want %v", caps, want)
 	}

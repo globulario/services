@@ -210,6 +210,7 @@ type NodePlan struct {
 	Spec          *PlanSpec              `protobuf:"bytes,13,opt,name=spec,proto3" json:"spec,omitempty"`
 	Signature     *PlanSignature         `protobuf:"bytes,14,opt,name=signature,proto3" json:"signature,omitempty"`
 	DesiredHash   string                 `protobuf:"bytes,15,opt,name=desired_hash,json=desiredHash,proto3" json:"desired_hash,omitempty"`
+	Annotations   map[string]string      `protobuf:"bytes,16,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -347,6 +348,13 @@ func (x *NodePlan) GetDesiredHash() string {
 		return x.DesiredHash
 	}
 	return ""
+}
+
+func (x *NodePlan) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
 }
 
 type PlanPolicy struct {
@@ -1278,7 +1286,7 @@ var File_plan_proto protoreflect.FileDescriptor
 const file_plan_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"plan.proto\x12\x10globular.plan.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x93\x04\n" +
+	"plan.proto\x12\x10globular.plan.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xa2\x05\n" +
 	"\bNodePlan\x12\x1f\n" +
 	"\vapi_version\x18\x01 \x01(\tR\n" +
 	"apiVersion\x12\x12\n" +
@@ -1299,7 +1307,11 @@ const file_plan_proto_rawDesc = "" +
 	"\x06policy\x18\f \x01(\v2\x1c.globular.plan.v1.PlanPolicyR\x06policy\x12.\n" +
 	"\x04spec\x18\r \x01(\v2\x1a.globular.plan.v1.PlanSpecR\x04spec\x12=\n" +
 	"\tsignature\x18\x0e \x01(\v2\x1f.globular.plan.v1.PlanSignatureR\tsignature\x12!\n" +
-	"\fdesired_hash\x18\x0f \x01(\tR\vdesiredHash\"\xe0\x01\n" +
+	"\fdesired_hash\x18\x0f \x01(\tR\vdesiredHash\x12M\n" +
+	"\vannotations\x18\x10 \x03(\v2+.globular.plan.v1.NodePlan.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe0\x01\n" +
 	"\n" +
 	"PlanPolicy\x12\x1f\n" +
 	"\vmax_retries\x18\x01 \x01(\rR\n" +
@@ -1417,7 +1429,7 @@ func file_plan_proto_rawDescGZIP() []byte {
 }
 
 var file_plan_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_plan_proto_goTypes = []any{
 	(FailureMode)(0),        // 0: globular.plan.v1.FailureMode
 	(PlanState)(0),          // 1: globular.plan.v1.PlanState
@@ -1436,35 +1448,37 @@ var file_plan_proto_goTypes = []any{
 	(*NodePlanStatus)(nil),  // 14: globular.plan.v1.NodePlanStatus
 	(*StepStatus)(nil),      // 15: globular.plan.v1.StepStatus
 	(*PlanEvent)(nil),       // 16: globular.plan.v1.PlanEvent
-	(*structpb.Struct)(nil), // 17: google.protobuf.Struct
+	nil,                     // 17: globular.plan.v1.NodePlan.AnnotationsEntry
+	(*structpb.Struct)(nil), // 18: google.protobuf.Struct
 }
 var file_plan_proto_depIdxs = []int32{
 	4,  // 0: globular.plan.v1.NodePlan.policy:type_name -> globular.plan.v1.PlanPolicy
 	6,  // 1: globular.plan.v1.NodePlan.spec:type_name -> globular.plan.v1.PlanSpec
 	5,  // 2: globular.plan.v1.NodePlan.signature:type_name -> globular.plan.v1.PlanSignature
-	0,  // 3: globular.plan.v1.PlanPolicy.failure_mode:type_name -> globular.plan.v1.FailureMode
-	7,  // 4: globular.plan.v1.PlanSpec.steps:type_name -> globular.plan.v1.PlanStep
-	7,  // 5: globular.plan.v1.PlanSpec.rollback:type_name -> globular.plan.v1.PlanStep
-	11, // 6: globular.plan.v1.PlanSpec.desired:type_name -> globular.plan.v1.DesiredState
-	10, // 7: globular.plan.v1.PlanSpec.success_probes:type_name -> globular.plan.v1.Probe
-	17, // 8: globular.plan.v1.PlanStep.args:type_name -> google.protobuf.Struct
-	9,  // 9: globular.plan.v1.PlanStep.pre:type_name -> globular.plan.v1.Condition
-	9,  // 10: globular.plan.v1.PlanStep.post:type_name -> globular.plan.v1.Condition
-	8,  // 11: globular.plan.v1.PlanStep.policy:type_name -> globular.plan.v1.StepPolicy
-	0,  // 12: globular.plan.v1.StepPolicy.on_fail:type_name -> globular.plan.v1.FailureMode
-	17, // 13: globular.plan.v1.Condition.args:type_name -> google.protobuf.Struct
-	17, // 14: globular.plan.v1.Probe.args:type_name -> google.protobuf.Struct
-	12, // 15: globular.plan.v1.DesiredState.services:type_name -> globular.plan.v1.DesiredService
-	13, // 16: globular.plan.v1.DesiredState.files:type_name -> globular.plan.v1.DesiredFile
-	1,  // 17: globular.plan.v1.NodePlanStatus.state:type_name -> globular.plan.v1.PlanState
-	15, // 18: globular.plan.v1.NodePlanStatus.steps:type_name -> globular.plan.v1.StepStatus
-	16, // 19: globular.plan.v1.NodePlanStatus.events:type_name -> globular.plan.v1.PlanEvent
-	2,  // 20: globular.plan.v1.StepStatus.state:type_name -> globular.plan.v1.StepState
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	17, // 3: globular.plan.v1.NodePlan.annotations:type_name -> globular.plan.v1.NodePlan.AnnotationsEntry
+	0,  // 4: globular.plan.v1.PlanPolicy.failure_mode:type_name -> globular.plan.v1.FailureMode
+	7,  // 5: globular.plan.v1.PlanSpec.steps:type_name -> globular.plan.v1.PlanStep
+	7,  // 6: globular.plan.v1.PlanSpec.rollback:type_name -> globular.plan.v1.PlanStep
+	11, // 7: globular.plan.v1.PlanSpec.desired:type_name -> globular.plan.v1.DesiredState
+	10, // 8: globular.plan.v1.PlanSpec.success_probes:type_name -> globular.plan.v1.Probe
+	18, // 9: globular.plan.v1.PlanStep.args:type_name -> google.protobuf.Struct
+	9,  // 10: globular.plan.v1.PlanStep.pre:type_name -> globular.plan.v1.Condition
+	9,  // 11: globular.plan.v1.PlanStep.post:type_name -> globular.plan.v1.Condition
+	8,  // 12: globular.plan.v1.PlanStep.policy:type_name -> globular.plan.v1.StepPolicy
+	0,  // 13: globular.plan.v1.StepPolicy.on_fail:type_name -> globular.plan.v1.FailureMode
+	18, // 14: globular.plan.v1.Condition.args:type_name -> google.protobuf.Struct
+	18, // 15: globular.plan.v1.Probe.args:type_name -> google.protobuf.Struct
+	12, // 16: globular.plan.v1.DesiredState.services:type_name -> globular.plan.v1.DesiredService
+	13, // 17: globular.plan.v1.DesiredState.files:type_name -> globular.plan.v1.DesiredFile
+	1,  // 18: globular.plan.v1.NodePlanStatus.state:type_name -> globular.plan.v1.PlanState
+	15, // 19: globular.plan.v1.NodePlanStatus.steps:type_name -> globular.plan.v1.StepStatus
+	16, // 20: globular.plan.v1.NodePlanStatus.events:type_name -> globular.plan.v1.PlanEvent
+	2,  // 21: globular.plan.v1.StepStatus.state:type_name -> globular.plan.v1.StepState
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_plan_proto_init() }
@@ -1478,7 +1492,7 @@ func file_plan_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_plan_proto_rawDesc), len(file_plan_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

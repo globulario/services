@@ -292,7 +292,7 @@ func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
 	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
 	t.Setenv("GLOBULAR_PORT_RANGE", "62001-62004")
 
-	binPath := filepath.Join(binDir, "xds_server")
+	binPath := filepath.Join(binDir, "xds")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"xds.XdsService\",\"Address\":\"localhost:62001\",\"Port\":62001}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write xds bin: %v", err)
@@ -340,7 +340,7 @@ func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
 	t.Setenv("GLOBULAR_PORT_RANGE", "63001-63002")
 
-	binPath := filepath.Join(binDir, "gateway_server")
+	binPath := filepath.Join(binDir, "gateway")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"gateway.GatewayService\",\"Address\":\"localhost:80\",\"Port\":80}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write gateway bin: %v", err)
@@ -377,12 +377,12 @@ func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 
 func TestExecutableForServiceIncludesXDSGateway(t *testing.T) {
 	cases := map[string]string{
-		"xds":                      "xds_server",
-		"globular-xds":             "xds_server",
-		"globular-xds.service":     "xds_server",
-		"gateway":                  "gateway_server",
-		"globular-gateway":         "gateway_server",
-		"globular-gateway.service": "gateway_server",
+		"xds":                      "xds",
+		"globular-xds":             "xds",
+		"globular-xds.service":     "xds",
+		"gateway":                  "gateway",
+		"globular-gateway":         "gateway",
+		"globular-gateway.service": "gateway",
 		"event":                    "event_server",
 		"file":                     "file_server",
 		"dns":                      "dns_server",

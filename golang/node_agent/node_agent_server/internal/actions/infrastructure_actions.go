@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -69,20 +70,60 @@ func (infrastructureInstallAction) Apply(ctx context.Context, args *structpb.Str
 }
 
 // hasInstallerSpec returns true if the staged package contains a spec that the
-// installer engine can use: either a package.json with a spec reference, or a
-// specs/ directory with YAML files.
+// installer engine can use: either a package.json with a non-empty defaults.spec
+// pointing to an existing file, or a specs/ directory with at least one .yaml/.yml file.
 func hasInstallerSpec(stagingDir string) bool {
-	// Check for package.json with spec reference.
-	pkgJSON := filepath.Join(stagingDir, "package.json")
-	if _, err := os.Stat(pkgJSON); err == nil {
-		return true
+	// Check for package.json with a valid spec reference.
+	if specPath, ok := loadManifestDefaults(stagingDir); ok {
+		info, err := os.Stat(specPath)
+		if err == nil && !info.IsDir() {
+			return true
+		}
+		return false
 	}
-	// Check for specs/ directory.
+	// Check for specs/ directory with at least one YAML file.
 	specsDir := filepath.Join(stagingDir, "specs")
-	if info, err := os.Stat(specsDir); err == nil && info.IsDir() {
-		return true
+	info, err := os.Stat(specsDir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	entries, err := os.ReadDir(specsDir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if ext == ".yaml" || ext == ".yml" {
+			return true
+		}
 	}
 	return false
+}
+
+// loadManifestDefaults reads package.json from stagingDir and returns the
+// resolved spec path if defaults.spec is non-empty.
+func loadManifestDefaults(stagingDir string) (specPath string, ok bool) {
+	pkgJSON := filepath.Join(stagingDir, "package.json")
+	data, err := os.ReadFile(pkgJSON)
+	if err != nil {
+		return "", false
+	}
+	var manifest struct {
+		Defaults struct {
+			Spec string `json:"spec"`
+		} `json:"defaults"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return "", false
+	}
+	spec := strings.TrimSpace(manifest.Defaults.Spec)
+	if spec == "" {
+		return "", false
+	}
+	return filepath.Join(stagingDir, spec), true
 }
 
 // installerEngineInstall delegates infra installation to the shared installer engine.

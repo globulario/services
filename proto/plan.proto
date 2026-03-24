@@ -22,6 +22,7 @@ message NodePlan {
   PlanSpec spec = 13;
   PlanSignature signature = 14;
   string desired_hash = 15;
+  map<string, string> annotations = 16;
 }
 
 message PlanPolicy {

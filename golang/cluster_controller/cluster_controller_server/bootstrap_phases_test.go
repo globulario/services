@@ -496,8 +496,8 @@ func TestFilterActionsByMaxTier(t *testing.T) {
 	}
 
 	infra := filterActionsByMaxTier(actions, TierInfrastructure)
-	if len(infra) != 3 { // etcd, dns, envoy are infra
-		t.Fatalf("expected 3 infra actions, got %d", len(infra))
+	if len(infra) != 2 { // etcd, envoy are infra; dns is now KindWorkload+ManagedUnit
+		t.Fatalf("expected 2 infra actions, got %d", len(infra))
 	}
 	for _, a := range infra {
 		if getUnitTier(a.UnitName) != TierInfrastructure {
