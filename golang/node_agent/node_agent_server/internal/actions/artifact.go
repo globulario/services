@@ -105,11 +105,23 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if service == "" || version == "" || platform == "" {
 		return "", fmt.Errorf("service, version, and platform are required for remote fetch")
 	}
+	// Determine artifact kind from plan args (default: SERVICE for backward compat).
+	artifactKind := repositorypb.ArtifactKind_SERVICE
+	if kindStr := strings.TrimSpace(fields["artifact_kind"].GetStringValue()); kindStr != "" {
+		switch strings.ToUpper(kindStr) {
+		case "INFRASTRUCTURE":
+			artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
+		case "APPLICATION":
+			artifactKind = repositorypb.ArtifactKind_APPLICATION
+		case "COMMAND":
+			artifactKind = repositorypb.ArtifactKind_COMMAND
+		}
+	}
 	ref := &repositorypb.ArtifactRef{
 		Name:     service,
 		Version:  version,
 		Platform: platform,
-		Kind:     repositorypb.ArtifactKind_SERVICE,
+		Kind:     artifactKind,
 	}
 	if publisherID != "" {
 		ref.PublisherId = publisherID

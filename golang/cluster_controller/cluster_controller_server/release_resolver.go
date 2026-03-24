@@ -20,6 +20,7 @@ import (
 type ReleaseResolver struct {
 	RepositoryAddr string // gRPC endpoint for repository service, e.g. "localhost:10101"
 	InstallPolicy  *cluster_controllerpb.InstallPolicySpec // optional consumer install policy
+	ArtifactKind   repositorypb.ArtifactKind // default SERVICE; set to INFRASTRUCTURE for infra releases
 }
 
 // ResolvedArtifact holds the full identity of a resolved artifact.
@@ -96,12 +97,16 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	}
 
 	// Fetch manifest to confirm existence and retrieve digest.
+	kind := r.ArtifactKind
+	if kind == repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+		kind = repositorypb.ArtifactKind_SERVICE
+	}
 	ref := &repositorypb.ArtifactRef{
 		PublisherId: spec.PublisherID,
 		Name:        spec.ServiceName,
 		Version:     version,
 		Platform:    platform,
-		Kind:        repositorypb.ArtifactKind_SERVICE,
+		Kind:        kind,
 	}
 	manifest, err := client.GetArtifactManifest(ref, buildNumber)
 	if err != nil {

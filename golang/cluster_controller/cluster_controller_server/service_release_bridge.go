@@ -115,28 +115,10 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 	}
 }
 
-// cleanupStaleInfraServiceReleases removes ServiceRelease and ServiceDesiredVersion
-// objects for infrastructure packages that were incorrectly created by earlier
-// versions of the bridge or auto-import. Called once at startup only.
-func (srv *server) cleanupStaleInfraServiceReleases(ctx context.Context) {
-	if srv.resources == nil {
-		return
-	}
-	infraManaged := make(map[string]bool)
-	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
-		for _, obj := range infraItems {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
-				infraManaged[canonicalServiceName(rel.Spec.Component)] = true
-			}
-		}
-	}
-	for canon := range infraManaged {
-		relKey := defaultPublisherID() + "/" + canon
-		if err := srv.resources.Delete(ctx, "ServiceRelease", relKey); err == nil {
-			log.Printf("cleanupStaleInfraServiceReleases: removed stale ServiceRelease for infra package %s", relKey)
-		}
-		if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
-			log.Printf("cleanupStaleInfraServiceReleases: removed stale ServiceDesiredVersion for infra package %s", canon)
-		}
-	}
+// cleanupStaleInfraServiceReleases was intended to remove ServiceRelease and
+// ServiceDesiredVersion objects for infra packages managed by InfrastructureRelease.
+// DISABLED: this global deletion breaks Day-1 convergence by removing desired state
+// that joining nodes still need. Safe to re-enable once node-aware checks are added.
+func (srv *server) cleanupStaleInfraServiceReleases(_ context.Context) {
+	log.Printf("cleanupStaleInfraServiceReleases: SKIPPED (disabled for Day-1 stability)")
 }

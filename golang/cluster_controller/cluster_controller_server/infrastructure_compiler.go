@@ -77,6 +77,7 @@ func CompileInfrastructurePlan(
 		"platform":        platform,
 		"artifact_path":   artPath,
 		"expected_sha256": status.ResolvedArtifactDigest,
+		"artifact_kind":   "INFRASTRUCTURE",
 	}
 	if strings.TrimSpace(spec.RepositoryID) != "" {
 		fetchArgs["repository_addr"] = spec.RepositoryID

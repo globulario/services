@@ -12,6 +12,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/google/uuid"
 )
 
@@ -126,7 +127,13 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
-	resolver := &ReleaseResolver{RepositoryAddr: h.RepositoryAddr}
+	artifactKind := repositorypb.ArtifactKind_SERVICE
+	if h.ResourceType == "InfrastructureRelease" {
+		artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	} else if h.ResourceType == "ApplicationRelease" {
+		artifactKind = repositorypb.ArtifactKind_APPLICATION
+	}
+	resolver := &ReleaseResolver{RepositoryAddr: h.RepositoryAddr, ArtifactKind: artifactKind}
 	resolved, err := resolver.Resolve(ctx, h.ResolverSpec)
 	if err != nil {
 		log.Printf("%s %s: resolve failed: %v", h.ResourceType, h.Name, err)
@@ -237,6 +244,49 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				UpdatedUnixMs:    time.Now().UnixMilli(),
 			})
 			continue
+		}
+
+		// Guard: scope InfrastructureRelease by node intent/profile.
+		// Infrastructure should only be dispatched to nodes whose profiles
+		// include the component (e.g. envoy → gateway profile only).
+		if h.ResourceType == "InfrastructureRelease" {
+			srv.lock("release-pipeline:intent-check")
+			node := srv.state.Nodes[nodeID]
+			srv.unlock()
+			componentName := h.InstalledStateName
+			if !NodeIntentIncludesService(node, componentName) {
+				log.Printf("%s %s: skip node %s, component %s not in node intent",
+					h.ResourceType, h.Name, nodeID, componentName)
+				nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
+					NodeID:        nodeID,
+					Phase:         cluster_controllerpb.ReleasePhaseAvailable,
+					ErrorMessage:  "component not in node intent",
+					UpdatedUnixMs: time.Now().UnixMilli(),
+				})
+				continue
+			}
+			// Guard: defer dispatch until local runtime dependencies are
+			// installed on the target node (e.g. envoy waits for xds).
+			if comp := CatalogByName(componentName); comp != nil {
+				depMissing := false
+				for _, dep := range comp.RuntimeLocalDependencies {
+					if !nodeHasInstalledComponent(node, dep) {
+						log.Printf("%s %s: defer node %s: waiting for local dependency %s",
+							h.ResourceType, h.Name, nodeID, dep)
+						nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
+							NodeID:        nodeID,
+							Phase:         cluster_controllerpb.ReleasePhaseApplying,
+							ErrorMessage:  fmt.Sprintf("waiting for local dependency %s", dep),
+							UpdatedUnixMs: time.Now().UnixMilli(),
+						})
+						depMissing = true
+						break
+					}
+				}
+				if depMissing {
+					continue
+				}
+			}
 		}
 
 		plan, err := h.CompilePlan(nodeID, installedVersion, clusterID)
@@ -433,9 +483,10 @@ func (srv *server) stampAndDispatchPlan(ctx context.Context, nodeID string, plan
 	// concurrent dispatches in the same reconcile cycle. Without this,
 	// all releases pass the empty-status check before the node-agent polls.
 	_ = srv.planStore.PutStatus(ctx, nodeID, &planpb.NodePlanStatus{
-		NodeId: nodeID,
-		PlanId: plan.PlanId,
-		State:  planpb.PlanState_PLAN_PENDING,
+		NodeId:     nodeID,
+		PlanId:     plan.PlanId,
+		State:      planpb.PlanState_PLAN_PENDING,
+		Generation: plan.Generation,
 	})
 	if appendable, ok := srv.planStore.(interface {
 		AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
@@ -464,6 +515,26 @@ func lookupInstalledVersionForHandle(nodeID string, h *releaseHandle) string {
 		}
 	}
 	return ""
+}
+
+// nodeHasInstalledComponent checks whether a node reports a component as installed
+// (any version). Uses the in-memory InstalledVersions map on the node state,
+// falling back to the installed-state etcd registry.
+func nodeHasInstalledComponent(node *nodeState, componentName string) bool {
+	if node == nil {
+		return false
+	}
+	canon := canonicalServiceName(componentName)
+	if v, ok := node.InstalledVersions[canon]; ok && v != "" {
+		return true
+	}
+	// Fallback: check etcd installed-state for both SERVICE and INFRASTRUCTURE kinds.
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+		if pkg, err := installed_state.GetInstalledPackage(context.Background(), node.NodeID, kind, canon); err == nil && pkg != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // ── Adapters: build releaseHandle from typed releases ────────────────────────
