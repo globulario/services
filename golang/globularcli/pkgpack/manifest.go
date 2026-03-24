@@ -18,6 +18,18 @@ type Manifest struct {
 	Description string          `json:"description,omitempty"`
 	Keywords    []string        `json:"keywords,omitempty"`
 	License     string          `json:"license,omitempty"`
+
+	// Catalog metadata — drives dynamic component catalog in the cluster controller.
+	Profiles                 []string `json:"profiles,omitempty"`
+	Priority                 int      `json:"priority,omitempty"`
+	InstallMode              string   `json:"install_mode,omitempty"`
+	ManagedUnit              bool     `json:"managed_unit,omitempty"`
+	SystemdUnit              string   `json:"systemd_unit,omitempty"`
+	ProvidesCapabilities     []string `json:"provides_capabilities,omitempty"`
+	InstallDependencies      []string `json:"install_dependencies,omitempty"`
+	RuntimeLocalDependencies []string `json:"runtime_local_dependencies,omitempty"`
+	HealthCheckUnit          string   `json:"health_check_unit,omitempty"`
+	HealthCheckPort          int      `json:"health_check_port,omitempty"`
 }
 
 // ManifestDefault provides default paths inside the package.

@@ -29,6 +29,13 @@ type SpecMetadata struct {
 	InstallDependencies      []string         // packages that must be installed before this one
 	RuntimeLocalDependencies []string         // packages that must be healthy on the same node before this starts
 	HealthCheck              *HealthCheckHint // how to verify this package is healthy
+
+	// Catalog fields — drive dynamic component catalog in the cluster controller.
+	Profiles    []string // profiles that include this component (e.g. "core", "compute")
+	Priority    int      // start order (lower = starts first, stops last); 0 = default (1000)
+	InstallMode string   // "repository" | "day0_join"
+	ManagedUnit bool     // included in profileUnitMap for unit actions
+	SystemdUnit string   // override systemd unit name (auto-derived from spec if empty)
 }
 
 // ScriptFile describes a script to embed in a package.
@@ -180,6 +187,17 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 		if hint.Unit != "" || hint.Port != 0 {
 			meta.HealthCheck = hint
 		}
+	}
+
+	// Catalog fields
+	meta.Profiles = lookupStringList(m, "profiles")
+	meta.Priority = lookupInt(m, "priority")
+	if im := lookupString(m, "install_mode"); im != "" {
+		meta.InstallMode = im
+	}
+	meta.ManagedUnit = lookupBool(m, "managed_unit")
+	if su := lookupString(m, "systemd_unit"); su != "" {
+		meta.SystemdUnit = su
 	}
 
 	return meta
@@ -419,6 +437,33 @@ func lookupStringList(m map[string]any, key string) []string {
 		return out
 	}
 	return nil
+}
+
+// lookupInt reads an integer value from a map key.
+func lookupInt(m map[string]any, key string) int {
+	val, ok := m[key]
+	if !ok {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+// lookupBool reads a boolean value from a map key.
+func lookupBool(m map[string]any, key string) bool {
+	val, ok := m[key]
+	if !ok {
+		return false
+	}
+	b, _ := val.(bool)
+	return b
 }
 
 func lookupMap(doc map[string]any, key string) map[string]any {

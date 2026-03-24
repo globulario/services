@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 func TestCatalogIntegrity(t *testing.T) {
@@ -115,15 +117,12 @@ func TestDerivedProfileUnitMap(t *testing.T) {
 // TestDerivedUnitTier verifies the catalog-derived unitTier matches old hardcoded version.
 func TestDerivedUnitTier(t *testing.T) {
 	oldTier := map[string]ServiceTier{
-		"globular-etcd.service":       TierInfrastructure,
-		"globular-dns.service":        TierInfrastructure,
-		"globular-discovery.service":  TierInfrastructure,
-		"globular-xds.service":        TierInfrastructure,
-		"globular-envoy.service":      TierInfrastructure,
-		"globular-minio.service":      TierInfrastructure,
-		"globular-gateway.service":    TierInfrastructure,
-		"globular-monitoring.service": TierInfrastructure,
-		"scylla-server.service":       TierInfrastructure,
+		"globular-etcd.service":    TierInfrastructure,
+		"globular-xds.service":     TierInfrastructure,
+		"globular-envoy.service":   TierInfrastructure,
+		"globular-minio.service":   TierInfrastructure,
+		"globular-gateway.service": TierInfrastructure,
+		"scylla-server.service":    TierInfrastructure,
 	}
 
 	for unit, oldT := range oldTier {
@@ -244,5 +243,151 @@ func TestXdsInGatewayProfile(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("gateway profile should include xds unit, got: %v", units)
+	}
+}
+
+// TestArtifactToComponent verifies conversion from ArtifactManifest to Component.
+func TestArtifactToComponent(t *testing.T) {
+	art := &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			Name: "test-service",
+			Kind: repopb.ArtifactKind_SERVICE,
+		},
+		Profiles:                 []string{"core", "compute"},
+		Priority:                 42,
+		InstallMode:              "repository",
+		ManagedUnit:              true,
+		SystemdUnit:              "globular-test-service.service",
+		Provides:                 []string{"test-cap"},
+		InstallDependencies:      []string{},
+		RuntimeLocalDependencies: []string{"event"},
+		HealthCheckUnit:          "globular-test-service.service",
+		HealthCheckPort:          9999,
+	}
+
+	c := artifactToComponent(art)
+	if c == nil {
+		t.Fatal("expected non-nil component")
+	}
+	if c.Name != "test-service" {
+		t.Errorf("name: got %q want %q", c.Name, "test-service")
+	}
+	if c.Kind != KindWorkload {
+		t.Error("SERVICE artifact should map to KindWorkload")
+	}
+	if c.Priority != 42 {
+		t.Errorf("priority: got %d want %d", c.Priority, 42)
+	}
+	if !c.ManagedUnit {
+		t.Error("managed_unit should be true")
+	}
+	if c.Unit != "globular-test-service.service" {
+		t.Errorf("unit: got %q want %q", c.Unit, "globular-test-service.service")
+	}
+	if len(c.ProvidesCapabilities) != 1 || c.ProvidesCapabilities[0] != "test-cap" {
+		t.Errorf("provides: got %v want [test-cap]", c.ProvidesCapabilities)
+	}
+	if len(c.RuntimeLocalDependencies) != 1 || c.RuntimeLocalDependencies[0] != "event" {
+		t.Errorf("runtime deps: got %v want [event]", c.RuntimeLocalDependencies)
+	}
+	if c.HealthCheck == nil {
+		t.Fatal("expected health check")
+	}
+	if c.HealthCheck.Port != 9999 {
+		t.Errorf("health port: got %d want %d", c.HealthCheck.Port, 9999)
+	}
+}
+
+// TestArtifactToComponent_Infrastructure verifies INFRASTRUCTURE kind mapping.
+func TestArtifactToComponent_Infrastructure(t *testing.T) {
+	art := &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			Name: "my-infra",
+			Kind: repopb.ArtifactKind_INFRASTRUCTURE,
+		},
+		Profiles: []string{"core"},
+		Priority: 5,
+	}
+	c := artifactToComponent(art)
+	if c == nil {
+		t.Fatal("expected non-nil")
+	}
+	if c.Kind != KindInfrastructure {
+		t.Error("INFRASTRUCTURE artifact should map to KindInfrastructure")
+	}
+	if c.Unit != "globular-my-infra.service" {
+		t.Errorf("auto-derived unit: got %q want %q", c.Unit, "globular-my-infra.service")
+	}
+}
+
+// TestArtifactToComponent_NilAndNoProfiles verifies nil/empty cases return nil.
+func TestArtifactToComponent_NilAndNoProfiles(t *testing.T) {
+	if artifactToComponent(nil) != nil {
+		t.Error("nil manifest should return nil")
+	}
+	// Manifest without profiles is not catalog-aware.
+	art := &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{Name: "foo", Kind: repopb.ArtifactKind_SERVICE},
+	}
+	if artifactToComponent(art) != nil {
+		t.Error("manifest without profiles should return nil")
+	}
+}
+
+// TestDerivedProfileCapabilities verifies that ProfileCapabilities is correctly
+// derived from the catalog components' ProvidesCapabilities fields.
+func TestDerivedProfileCapabilities(t *testing.T) {
+	// Rebuild to ensure current state.
+	rebuildProfileCapabilities()
+
+	// "core" profile should include config-store (from etcd), dns, service-discovery,
+	// event-bus, object-store, monitoring, local-db (from scylladb)
+	coreCaps := ProfileCapabilities["core"]
+	if coreCaps == nil {
+		t.Fatal("core profile missing from ProfileCapabilities")
+	}
+	required := []Capability{CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapLocalDB}
+	capSet := make(map[Capability]bool)
+	for _, c := range coreCaps {
+		capSet[c] = true
+	}
+	for _, r := range required {
+		if !capSet[r] {
+			t.Errorf("core profile missing capability %q (got %v)", r, coreCaps)
+		}
+	}
+
+	// "gateway" profile should have http-proxy, service-mesh, gateway.
+	gwCaps := ProfileCapabilities["gateway"]
+	if gwCaps == nil {
+		t.Fatal("gateway profile missing from ProfileCapabilities")
+	}
+	gwSet := make(map[Capability]bool)
+	for _, c := range gwCaps {
+		gwSet[c] = true
+	}
+	for _, r := range []Capability{CapHTTPProxy, CapServiceMesh, CapGateway} {
+		if !gwSet[r] {
+			t.Errorf("gateway profile missing capability %q (got %v)", r, gwCaps)
+		}
+	}
+}
+
+// TestNodeHasComponentProfile verifies catalog-driven profile checks.
+func TestNodeHasComponentProfile(t *testing.T) {
+	coreNode := &nodeState{Profiles: []string{"core", "compute"}}
+	gwNode := &nodeState{Profiles: []string{"gateway"}}
+
+	if !nodeHasEtcdProfile(coreNode) {
+		t.Error("core node should have etcd profile")
+	}
+	if nodeHasEtcdProfile(gwNode) {
+		t.Error("gateway node should NOT have etcd profile")
+	}
+	if !nodeHasEnvoyProfile(gwNode) {
+		t.Error("gateway node should have envoy profile")
+	}
+	if nodeHasEnvoyProfile(coreNode) {
+		t.Error("core node should NOT have envoy profile")
 	}
 }

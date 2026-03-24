@@ -79,6 +79,18 @@ message ArtifactManifest {
     InfrastructureDetail infrastructure_detail = 32;
   }
 
+  // Catalog metadata — drives dynamic component catalog in the cluster controller.
+  // These fields are populated from package.json during artifact upload.
+  repeated string profiles = 50;                     // profiles that include this component (e.g. "core", "compute")
+  int32 priority = 51;                               // start order (lower = starts first, stops last)
+  string install_mode = 52;                          // "repository" | "day0_join"
+  bool managed_unit = 53;                            // included in profileUnitMap for unit actions
+  string systemd_unit = 54;                          // systemd unit name (e.g. "globular-etcd.service")
+  repeated string runtime_local_dependencies = 55;   // packages healthy on same node before start
+  repeated string install_dependencies = 56;         // packages installed before this one
+  string health_check_unit = 57;                     // systemd unit for health check
+  int32 health_check_port = 58;                      // TCP port for health check (0 = skip)
+
   // Publish pipeline state — tracks artifact lifecycle from upload through promotion.
   PublishState publish_state = 40;
 

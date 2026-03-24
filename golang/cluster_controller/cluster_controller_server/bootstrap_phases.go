@@ -231,24 +231,30 @@ func advancePastEnvoy(node *nodeState) BootstrapPhase {
 
 // --- Profile and unit helpers ---
 
+// nodeHasComponentProfile returns true if the node has any profile that
+// includes the named component. This is catalog-driven: if the component
+// exists in the catalog, its Profiles list is used; otherwise returns false.
+func nodeHasComponentProfile(node *nodeState, componentName string) bool {
+	comp := CatalogByName(componentName)
+	if comp == nil {
+		return false
+	}
+	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, comp.Profiles)
+}
+
 // nodeHasEtcdProfile returns true if the node has a profile that runs etcd.
 func nodeHasEtcdProfile(node *nodeState) bool {
-	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForEtcd)
+	return nodeHasComponentProfile(node, "etcd")
 }
 
 // nodeHasXdsProfile returns true if the node has a profile that runs xDS.
 func nodeHasXdsProfile(node *nodeState) bool {
-	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForXDS)
+	return nodeHasComponentProfile(node, "xds")
 }
 
 // nodeHasEnvoyProfile returns true if the node has a gateway profile (runs Envoy).
 func nodeHasEnvoyProfile(node *nodeState) bool {
-	for _, p := range node.Profiles {
-		if p == "gateway" {
-			return true
-		}
-	}
-	return false
+	return nodeHasComponentProfile(node, "envoy")
 }
 
 // nodeHasUnitActive returns true if the node reports the given unit as "active".
@@ -261,21 +267,14 @@ func nodeHasUnitActive(node *nodeState, unitName string) bool {
 	return false
 }
 
-// profilesForMinio lists the profiles that run MinIO.
-// Defined in service_config.go: core, compute, storage.
-var profilesForStorage = []string{"core", "compute", "storage"}
-
-// profilesForScylla lists the profiles that run ScyllaDB.
-var profilesForScylla = []string{"scylla", "database"}
-
 // nodeHasMinioProfile returns true if the node has a profile that runs MinIO.
 func nodeHasMinioProfile(node *nodeState) bool {
-	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForStorage)
+	return nodeHasComponentProfile(node, "minio")
 }
 
 // nodeHasScyllaProfile returns true if the node has a scylla or database profile.
 func nodeHasScyllaProfile(node *nodeState) bool {
-	return nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForScylla)
+	return nodeHasComponentProfile(node, "scylladb")
 }
 
 // nodeNeedsStorageJoin returns true if the node hosts storage services

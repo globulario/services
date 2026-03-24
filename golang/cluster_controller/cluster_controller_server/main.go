@@ -265,6 +265,11 @@ func main() {
 	// Start pprof server (debug endpoint)
 	go startPprofServer()
 
+	// Try to load dynamic catalog from repository.
+	if err := LoadCatalogFromRepository(""); err != nil {
+		logger.Warn("using static fallback catalog", "err", err)
+	}
+
 	// Start background loops
 	logger.Info("starting background loops")
 	srv.startControllerRuntime(ctx, 4)

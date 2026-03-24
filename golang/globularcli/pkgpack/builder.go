@@ -265,6 +265,28 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		pkgType = "service"
 	}
 
+	// Auto-derive systemd unit name from the first .service file if not set in metadata.
+	systemdUnit := info.Metadata.SystemdUnit
+	if systemdUnit == "" && len(info.Systemd) > 0 {
+		for _, u := range info.Systemd {
+			if strings.HasSuffix(u.Name, ".service") {
+				systemdUnit = u.Name
+				break
+			}
+		}
+	}
+
+	// Auto-derive health check unit from systemd unit if health check has no unit set.
+	healthCheckUnit := ""
+	healthCheckPort := 0
+	if info.Metadata.HealthCheck != nil {
+		healthCheckUnit = info.Metadata.HealthCheck.Unit
+		healthCheckPort = info.Metadata.HealthCheck.Port
+	}
+	if healthCheckUnit == "" && systemdUnit != "" {
+		healthCheckUnit = systemdUnit
+	}
+
 	manifest := Manifest{
 		Type:        pkgType,
 		Name:        info.ServiceName,
@@ -280,6 +302,18 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		Description: info.Metadata.Description,
 		Keywords:    info.Metadata.Keywords,
 		License:     info.Metadata.License,
+
+		// Catalog metadata from spec.
+		Profiles:                 info.Metadata.Profiles,
+		Priority:                 info.Metadata.Priority,
+		InstallMode:              info.Metadata.InstallMode,
+		ManagedUnit:              info.Metadata.ManagedUnit,
+		SystemdUnit:              systemdUnit,
+		ProvidesCapabilities:     info.Metadata.ProvidesCapabilities,
+		InstallDependencies:      info.Metadata.InstallDependencies,
+		RuntimeLocalDependencies: info.Metadata.RuntimeLocalDependencies,
+		HealthCheckUnit:          healthCheckUnit,
+		HealthCheckPort:          healthCheckPort,
 	}
 	if copiedConfig > 0 {
 		manifest.Defaults.ConfigDir = path.Join("config", info.ServiceName)

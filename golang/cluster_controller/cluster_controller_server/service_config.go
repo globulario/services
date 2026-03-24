@@ -51,13 +51,14 @@ type serviceConfigContext struct {
 }
 
 // profilesForEtcd lists the profiles that run etcd.
+// Initialized from catalog in rebuildDerivedMaps(); fallback for tests.
 var profilesForEtcd = []string{"core", "compute", "control-plane"}
 
 // profilesForMinio lists the profiles that run MinIO.
 var profilesForMinio = []string{"core", "compute", "storage"}
 
 // profilesForXDS lists the profiles that run the XDS server.
-var profilesForXDS = []string{"core", "compute", "control-plane", "gateway"}
+var profilesForXDS = []string{"control-plane", "gateway"}
 
 // profilesForDNS lists the profiles that run the DNS server.
 var profilesForDNS = []string{"core", "compute", "control-plane", "dns"}

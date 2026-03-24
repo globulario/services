@@ -25,6 +25,18 @@ type VerificationSummary struct {
 	Description  string
 	Keywords     []string
 	License      string
+
+	// Catalog metadata
+	Profiles                 []string
+	Priority                 int
+	InstallMode              string
+	ManagedUnit              bool
+	SystemdUnit              string
+	ProvidesCapabilities     []string
+	InstallDependencies      []string
+	RuntimeLocalDependencies []string
+	HealthCheckUnit          string
+	HealthCheckPort          int
 }
 
 // VerifyTGZ validates package contents and returns a summary.
@@ -154,5 +166,16 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		Description:  manifest.Description,
 		Keywords:     manifest.Keywords,
 		License:      manifest.License,
+
+		Profiles:                 manifest.Profiles,
+		Priority:                 manifest.Priority,
+		InstallMode:              manifest.InstallMode,
+		ManagedUnit:              manifest.ManagedUnit,
+		SystemdUnit:              manifest.SystemdUnit,
+		ProvidesCapabilities:     manifest.ProvidesCapabilities,
+		InstallDependencies:      manifest.InstallDependencies,
+		RuntimeLocalDependencies: manifest.RuntimeLocalDependencies,
+		HealthCheckUnit:          manifest.HealthCheckUnit,
+		HealthCheckPort:          manifest.HealthCheckPort,
 	}, nil
 }

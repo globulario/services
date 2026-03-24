@@ -1032,7 +1032,7 @@ proto.repository.ArtifactRef.prototype.setKind = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.repository.ArtifactManifest.repeatedFields_ = [10,11,13,15];
+proto.repository.ArtifactManifest.repeatedFields_ = [10,11,13,15,50,55,56];
 
 /**
  * Oneof group definitions for this message. Each group defines the field
@@ -1115,6 +1115,15 @@ buildNotes: jspb.Message.getFieldWithDefault(msg, 24, ""),
 serviceDetail: (f = msg.getServiceDetail()) && proto.repository.ServiceDetail.toObject(includeInstance, f),
 applicationDetail: (f = msg.getApplicationDetail()) && proto.repository.ApplicationDetail.toObject(includeInstance, f),
 infrastructureDetail: (f = msg.getInfrastructureDetail()) && proto.repository.InfrastructureDetail.toObject(includeInstance, f),
+profilesList: (f = jspb.Message.getRepeatedField(msg, 50)) == null ? undefined : f,
+priority: jspb.Message.getFieldWithDefault(msg, 51, 0),
+installMode: jspb.Message.getFieldWithDefault(msg, 52, ""),
+managedUnit: jspb.Message.getBooleanFieldWithDefault(msg, 53, false),
+systemdUnit: jspb.Message.getFieldWithDefault(msg, 54, ""),
+runtimeLocalDependenciesList: (f = jspb.Message.getRepeatedField(msg, 55)) == null ? undefined : f,
+installDependenciesList: (f = jspb.Message.getRepeatedField(msg, 56)) == null ? undefined : f,
+healthCheckUnit: jspb.Message.getFieldWithDefault(msg, 57, ""),
+healthCheckPort: jspb.Message.getFieldWithDefault(msg, 58, 0),
 publishState: jspb.Message.getFieldWithDefault(msg, 40, 0),
 provenance: (f = msg.getProvenance()) && proto.repository.ProvenanceRecord.toObject(includeInstance, f)
   };
@@ -1250,6 +1259,42 @@ proto.repository.ArtifactManifest.deserializeBinaryFromReader = function(msg, re
       var value = new proto.repository.InfrastructureDetail;
       reader.readMessage(value,proto.repository.InfrastructureDetail.deserializeBinaryFromReader);
       msg.setInfrastructureDetail(value);
+      break;
+    case 50:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addProfiles(value);
+      break;
+    case 51:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setPriority(value);
+      break;
+    case 52:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setInstallMode(value);
+      break;
+    case 53:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setManagedUnit(value);
+      break;
+    case 54:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSystemdUnit(value);
+      break;
+    case 55:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addRuntimeLocalDependencies(value);
+      break;
+    case 56:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addInstallDependencies(value);
+      break;
+    case 57:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setHealthCheckUnit(value);
+      break;
+    case 58:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setHealthCheckPort(value);
       break;
     case 40:
       var value = /** @type {!proto.repository.PublishState} */ (reader.readEnum());
@@ -1449,6 +1494,69 @@ proto.repository.ArtifactManifest.serializeBinaryToWriter = function(message, wr
       32,
       f,
       proto.repository.InfrastructureDetail.serializeBinaryToWriter
+    );
+  }
+  f = message.getProfilesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      50,
+      f
+    );
+  }
+  f = message.getPriority();
+  if (f !== 0) {
+    writer.writeInt32(
+      51,
+      f
+    );
+  }
+  f = message.getInstallMode();
+  if (f.length > 0) {
+    writer.writeString(
+      52,
+      f
+    );
+  }
+  f = message.getManagedUnit();
+  if (f) {
+    writer.writeBool(
+      53,
+      f
+    );
+  }
+  f = message.getSystemdUnit();
+  if (f.length > 0) {
+    writer.writeString(
+      54,
+      f
+    );
+  }
+  f = message.getRuntimeLocalDependenciesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      55,
+      f
+    );
+  }
+  f = message.getInstallDependenciesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      56,
+      f
+    );
+  }
+  f = message.getHealthCheckUnit();
+  if (f.length > 0) {
+    writer.writeString(
+      57,
+      f
+    );
+  }
+  f = message.getHealthCheckPort();
+  if (f !== 0) {
+    writer.writeInt32(
+      58,
+      f
     );
   }
   f = message.getPublishState();
@@ -2037,6 +2145,225 @@ proto.repository.ArtifactManifest.prototype.clearInfrastructureDetail = function
  */
 proto.repository.ArtifactManifest.prototype.hasInfrastructureDetail = function() {
   return jspb.Message.getField(this, 32) != null;
+};
+
+
+/**
+ * repeated string profiles = 50;
+ * @return {!Array<string>}
+ */
+proto.repository.ArtifactManifest.prototype.getProfilesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 50));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setProfilesList = function(value) {
+  return jspb.Message.setField(this, 50, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.addProfiles = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 50, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.clearProfilesList = function() {
+  return this.setProfilesList([]);
+};
+
+
+/**
+ * optional int32 priority = 51;
+ * @return {number}
+ */
+proto.repository.ArtifactManifest.prototype.getPriority = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 51, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setPriority = function(value) {
+  return jspb.Message.setProto3IntField(this, 51, value);
+};
+
+
+/**
+ * optional string install_mode = 52;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getInstallMode = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 52, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setInstallMode = function(value) {
+  return jspb.Message.setProto3StringField(this, 52, value);
+};
+
+
+/**
+ * optional bool managed_unit = 53;
+ * @return {boolean}
+ */
+proto.repository.ArtifactManifest.prototype.getManagedUnit = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 53, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setManagedUnit = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 53, value);
+};
+
+
+/**
+ * optional string systemd_unit = 54;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getSystemdUnit = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 54, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setSystemdUnit = function(value) {
+  return jspb.Message.setProto3StringField(this, 54, value);
+};
+
+
+/**
+ * repeated string runtime_local_dependencies = 55;
+ * @return {!Array<string>}
+ */
+proto.repository.ArtifactManifest.prototype.getRuntimeLocalDependenciesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 55));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setRuntimeLocalDependenciesList = function(value) {
+  return jspb.Message.setField(this, 55, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.addRuntimeLocalDependencies = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 55, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.clearRuntimeLocalDependenciesList = function() {
+  return this.setRuntimeLocalDependenciesList([]);
+};
+
+
+/**
+ * repeated string install_dependencies = 56;
+ * @return {!Array<string>}
+ */
+proto.repository.ArtifactManifest.prototype.getInstallDependenciesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 56));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setInstallDependenciesList = function(value) {
+  return jspb.Message.setField(this, 56, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.addInstallDependencies = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 56, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.clearInstallDependenciesList = function() {
+  return this.setInstallDependenciesList([]);
+};
+
+
+/**
+ * optional string health_check_unit = 57;
+ * @return {string}
+ */
+proto.repository.ArtifactManifest.prototype.getHealthCheckUnit = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 57, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setHealthCheckUnit = function(value) {
+  return jspb.Message.setProto3StringField(this, 57, value);
+};
+
+
+/**
+ * optional int32 health_check_port = 58;
+ * @return {number}
+ */
+proto.repository.ArtifactManifest.prototype.getHealthCheckPort = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 58, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.repository.ArtifactManifest} returns this
+ */
+proto.repository.ArtifactManifest.prototype.setHealthCheckPort = function(value) {
+  return jspb.Message.setProto3IntField(this, 58, value);
 };
 
 

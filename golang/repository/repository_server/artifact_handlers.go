@@ -14,12 +14,16 @@ package main
 // format without the trailing %0 segment. The read path tries both.
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -206,6 +210,102 @@ func sortManifestsByVersionDesc(ms []*repopb.ArtifactManifest) {
 	})
 }
 
+// ── package.json extraction ───────────────────────────────────────────────
+
+// packageManifest mirrors the pkgpack.Manifest fields relevant to catalog metadata.
+// Defined here to avoid a build-time dependency on the CLI package.
+type packageManifest struct {
+	Type                     string   `json:"type"`
+	Name                     string   `json:"name"`
+	Profiles                 []string `json:"profiles,omitempty"`
+	Priority                 int      `json:"priority,omitempty"`
+	InstallMode              string   `json:"install_mode,omitempty"`
+	ManagedUnit              bool     `json:"managed_unit,omitempty"`
+	SystemdUnit              string   `json:"systemd_unit,omitempty"`
+	ProvidesCapabilities     []string `json:"provides_capabilities,omitempty"`
+	InstallDependencies      []string `json:"install_dependencies,omitempty"`
+	RuntimeLocalDependencies []string `json:"runtime_local_dependencies,omitempty"`
+	HealthCheckUnit          string   `json:"health_check_unit,omitempty"`
+	HealthCheckPort          int      `json:"health_check_port,omitempty"`
+	Description              string   `json:"description,omitempty"`
+	Keywords                 []string `json:"keywords,omitempty"`
+	License                  string   `json:"license,omitempty"`
+}
+
+// extractPackageManifest reads package.json from a .tgz archive.
+// Returns nil (no error) if the archive is not a valid tgz or has no package.json.
+func extractPackageManifest(data []byte) *packageManifest {
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return nil
+		}
+		name := path.Clean(hdr.Name)
+		if name == "package.json" {
+			raw, err := io.ReadAll(tr)
+			if err != nil {
+				return nil
+			}
+			var m packageManifest
+			if err := json.Unmarshal(raw, &m); err != nil {
+				return nil
+			}
+			return &m
+		}
+	}
+}
+
+// enrichManifestFromPackageJSON populates ArtifactManifest catalog fields from
+// the extracted package.json. Only non-empty fields are applied.
+func enrichManifestFromPackageJSON(manifest *repopb.ArtifactManifest, pkg *packageManifest) {
+	if pkg == nil || manifest == nil {
+		return
+	}
+	if len(pkg.Profiles) > 0 {
+		manifest.Profiles = pkg.Profiles
+	}
+	if pkg.Priority > 0 {
+		manifest.Priority = int32(pkg.Priority)
+	}
+	if pkg.InstallMode != "" {
+		manifest.InstallMode = pkg.InstallMode
+	}
+	manifest.ManagedUnit = pkg.ManagedUnit
+	if pkg.SystemdUnit != "" {
+		manifest.SystemdUnit = pkg.SystemdUnit
+	}
+	if len(pkg.ProvidesCapabilities) > 0 {
+		manifest.Provides = pkg.ProvidesCapabilities
+	}
+	if len(pkg.InstallDependencies) > 0 {
+		manifest.InstallDependencies = pkg.InstallDependencies
+	}
+	if len(pkg.RuntimeLocalDependencies) > 0 {
+		manifest.RuntimeLocalDependencies = pkg.RuntimeLocalDependencies
+	}
+	if pkg.HealthCheckUnit != "" {
+		manifest.HealthCheckUnit = pkg.HealthCheckUnit
+	}
+	if pkg.HealthCheckPort > 0 {
+		manifest.HealthCheckPort = int32(pkg.HealthCheckPort)
+	}
+	if pkg.Description != "" && manifest.Description == "" {
+		manifest.Description = pkg.Description
+	}
+	if len(pkg.Keywords) > 0 && len(manifest.Keywords) == 0 {
+		manifest.Keywords = pkg.Keywords
+	}
+	if pkg.License != "" && manifest.License == "" {
+		manifest.License = pkg.License
+	}
+}
+
 // ── stream helpers ────────────────────────────────────────────────────────
 
 // recvArtifactStream accumulates all chunks from an UploadArtifact stream.
@@ -279,6 +379,12 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 	if cv, err := versionutil.Canonical(canonVer); err == nil {
 		canonVer = cv
 		ref.Version = cv
+	}
+
+	// Default platform to linux_amd64 when unspecified — artifacts are always
+	// published with a platform, so an empty platform produces a key mismatch.
+	if strings.TrimSpace(ref.GetPlatform()) == "" {
+		ref.Platform = "linux_amd64"
 	}
 
 	// Build number from the request; 0 means legacy/unspecified.
@@ -385,6 +491,11 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		Checksum:     newChecksum,
 		SizeBytes:    int64(len(data)),
 		ModifiedUnix: time.Now().Unix(),
+	}
+
+	// Enrich manifest with catalog metadata from package.json inside the tgz.
+	if pkg := extractPackageManifest(data); pkg != nil {
+		enrichManifestFromPackageJSON(manifest, pkg)
 	}
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)
 	if err != nil {

@@ -2,8 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/globulario/services/golang/repository/repository_client"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // ---------------------------------------------------------------------------
@@ -29,9 +34,13 @@ const (
 // ProfileCapabilities maps each profile to the capabilities it requires.
 // A capability triggers installation of the infra component(s) that provide it.
 var ProfileCapabilities = map[string][]Capability{
-	"core":          {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
-	"compute":       {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
-	"control-plane": {CapConfigStore, CapDNS, CapServiceDiscovery},
+	// core is the base profile — every node that runs services needs all
+	// foundational infra including ScyllaDB (for resource, persistence, etc.).
+	"core":          {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB},
+	"compute":       {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB},
+	// control-plane includes everything core has — a control-plane node IS a
+	// core node that also runs the controller, doctor, etc.
+	"control-plane": {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB},
 	"gateway":       {CapHTTPProxy, CapServiceMesh, CapGateway},
 	"storage":       {CapObjectStore},
 	"dns":           {CapDNS},
@@ -160,19 +169,21 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "dns",
 			Unit:                 "globular-dns.service",
-			Kind:                 KindInfrastructure,
+			Kind:                 KindWorkload,
 			Priority:             2,
 			Profiles:             []string{"core", "compute", "control-plane", "dns"},
 			ProvidesCapabilities: []Capability{CapDNS},
+			ManagedUnit:          true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-dns.service", Port: 10006},
 		},
 		{
 			Name:                 "discovery",
 			Unit:                 "globular-discovery.service",
-			Kind:                 KindInfrastructure,
+			Kind:                 KindWorkload,
 			Priority:             3,
 			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapServiceDiscovery},
+			ManagedUnit:          true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-discovery.service"},
 		},
 		{
@@ -209,7 +220,7 @@ func buildCatalog() []*Component {
 			Unit:                 "scylla-server.service",
 			Kind:                 KindInfrastructure,
 			Priority:             6,
-			Profiles:             []string{"scylla", "database"},
+			Profiles:             []string{"core", "compute", "control-plane", "scylla", "database"},
 			ProvidesCapabilities: []Capability{CapLocalDB},
 			InstallMode:          InstallModeDay0Join, // OS package (apt install), not a repo artifact
 			HealthCheck:          &HealthCheckHintC{Unit: "scylla-server.service", Port: 9042},
@@ -227,10 +238,11 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "monitoring",
 			Unit:                 "globular-monitoring.service",
-			Kind:                 KindInfrastructure,
+			Kind:                 KindWorkload,
 			Priority:             8,
-			Profiles:             []string{"core", "compute"},
+			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapMonitoring},
+			ManagedUnit:          true,
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-monitoring.service"},
 		},
 		{
@@ -238,7 +250,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-xds.service",
 			Kind:                 KindInfrastructure,
 			Priority:             9,
-			Profiles:             []string{"core", "compute", "control-plane", "gateway"},
+			Profiles:             []string{"control-plane", "gateway"},
 			ProvidesCapabilities: []Capability{CapServiceMesh},
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-xds.service"},
 		},
@@ -431,7 +443,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-ai-memory.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"scylla", "database"},
+			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-ai-memory.service", Port: 10200},
 		},
@@ -440,7 +452,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-ai-executor.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"scylla", "database"},
+			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-memory", "event"},
 		},
 		{
@@ -456,7 +468,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-ai-watcher.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"scylla", "database"},
+			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-executor", "event"},
 		},
 		{
@@ -521,6 +533,32 @@ func rebuildDerivedMaps() {
 	}
 	sort.Strings(result)
 	allManagedUnits = result
+
+	// Derive profile vars from catalog for service_config.go renderers.
+	deriveProfileVarsFromCatalog()
+}
+
+// deriveProfileVarsFromCatalog updates the profilesFor* vars in service_config.go
+// from catalog entries. If a component is not in the catalog, the existing
+// hardcoded defaults remain.
+func deriveProfileVarsFromCatalog() {
+	type profileBinding struct {
+		name     string
+		target   *[]string
+	}
+	bindings := []profileBinding{
+		{"etcd", &profilesForEtcd},
+		{"minio", &profilesForMinio},
+		{"xds", &profilesForXDS},
+		{"dns", &profilesForDNS},
+		{"scylladb", &profilesForScyllaDB},
+	}
+	for _, b := range bindings {
+		c := CatalogByName(b.name)
+		if c != nil && len(c.Profiles) > 0 {
+			*b.target = append([]string(nil), c.Profiles...)
+		}
+	}
 }
 
 func appendUniqueStr(slice []string, s string) []string {
@@ -665,4 +703,186 @@ func checkCycle(name string, path []string) error {
 		}
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic catalog loading from repository
+// ---------------------------------------------------------------------------
+
+// LoadCatalogFromRepository fetches all artifact manifests from the repository
+// and builds a dynamic component catalog. Components missing from the repo
+// fall back to static entries from buildCatalog().
+func LoadCatalogFromRepository(repoAddr string) error {
+	if repoAddr == "" {
+		repoAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
+		if repoAddr == "" {
+			repoAddr = "localhost:10101"
+		}
+	}
+
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository at %s: %w", repoAddr, err)
+	}
+	defer client.Close()
+
+	artifacts, err := client.ListArtifacts()
+	if err != nil {
+		return fmt.Errorf("list artifacts: %w", err)
+	}
+
+	// Build dynamic catalog from repository artifacts.
+	dynamic := make(map[string]*Component)
+	for _, art := range artifacts {
+		c := artifactToComponent(art)
+		if c == nil {
+			continue
+		}
+		// Deduplicate by name — latest version wins (ListArtifacts returns
+		// sorted by version descending, so first occurrence is newest).
+		if _, exists := dynamic[c.Name]; !exists {
+			dynamic[c.Name] = c
+		}
+	}
+
+	// Merge: dynamic entries take priority, static entries fill gaps.
+	staticCatalog := buildCatalog()
+	var merged []*Component
+	seen := make(map[string]bool)
+
+	// Add all dynamic entries first.
+	for _, c := range dynamic {
+		merged = append(merged, c)
+		seen[c.Name] = true
+	}
+
+	// Fill in static entries not present in repository.
+	for _, c := range staticCatalog {
+		if !seen[c.Name] {
+			merged = append(merged, c)
+			seen[c.Name] = true
+		}
+	}
+
+	// Sort by priority then name for deterministic ordering.
+	sort.Slice(merged, func(i, j int) bool {
+		if merged[i].Priority != merged[j].Priority {
+			return merged[i].Priority < merged[j].Priority
+		}
+		return merged[i].Name < merged[j].Name
+	})
+
+	// Validate before swapping.
+	oldCatalog := catalog
+	oldIndex := catalogIndex
+	oldByUnit := catalogByUnit
+	catalog = merged
+	catalogIndex = make(map[string]*Component, len(merged))
+	catalogByUnit = make(map[string]*Component, len(merged))
+	for _, c := range merged {
+		catalogIndex[c.Name] = c
+		catalogByUnit[strings.ToLower(c.Unit)] = c
+	}
+
+	if err := ValidateCatalog(); err != nil {
+		// Roll back on validation failure.
+		catalog = oldCatalog
+		catalogIndex = oldIndex
+		catalogByUnit = oldByUnit
+		return fmt.Errorf("dynamic catalog validation failed: %w", err)
+	}
+
+	// Rebuild derived maps and profile capabilities.
+	rebuildDerivedMaps()
+	rebuildProfileCapabilities()
+
+	log.Printf("loaded dynamic catalog from repository (%d components, %d from repo, %d static fallback)",
+		len(merged), len(dynamic), len(merged)-len(dynamic))
+	return nil
+}
+
+// artifactToComponent converts an ArtifactManifest to a Component.
+// Returns nil if the manifest lacks the catalog metadata fields needed.
+func artifactToComponent(art *repopb.ArtifactManifest) *Component {
+	if art == nil || art.GetRef() == nil {
+		return nil
+	}
+	ref := art.GetRef()
+	name := ref.GetName()
+	if name == "" {
+		return nil
+	}
+
+	// Skip artifacts without catalog metadata (no profiles = not catalog-aware).
+	profiles := art.GetProfiles()
+	if len(profiles) == 0 {
+		return nil
+	}
+
+	kind := KindWorkload
+	switch ref.GetKind() {
+	case repopb.ArtifactKind_INFRASTRUCTURE:
+		kind = KindInfrastructure
+	}
+
+	priority := int(art.GetPriority())
+	if priority == 0 {
+		priority = 1000 // default workload priority
+	}
+
+	systemdUnit := art.GetSystemdUnit()
+	if systemdUnit == "" {
+		systemdUnit = "globular-" + name + ".service"
+	}
+
+	var capabilities []Capability
+	for _, cap := range art.GetProvides() {
+		capabilities = append(capabilities, Capability(cap))
+	}
+
+	var healthCheck *HealthCheckHintC
+	if art.GetHealthCheckUnit() != "" || art.GetHealthCheckPort() > 0 {
+		healthCheck = &HealthCheckHintC{
+			Unit: art.GetHealthCheckUnit(),
+			Port: int(art.GetHealthCheckPort()),
+		}
+	}
+
+	return &Component{
+		Name:                     name,
+		Unit:                     systemdUnit,
+		Kind:                     kind,
+		Priority:                 priority,
+		Profiles:                 profiles,
+		ProvidesCapabilities:     capabilities,
+		InstallDependencies:      art.GetInstallDependencies(),
+		RuntimeLocalDependencies: art.GetRuntimeLocalDependencies(),
+		ManagedUnit:              art.GetManagedUnit(),
+		InstallMode:              art.GetInstallMode(),
+		HealthCheck:              healthCheck,
+	}
+}
+
+// rebuildProfileCapabilities derives ProfileCapabilities from the catalog.
+// For each profile, collects ProvidesCapabilities from all components listing that profile.
+func rebuildProfileCapabilities() {
+	derived := make(map[string][]Capability)
+	for _, c := range catalog {
+		for _, p := range c.Profiles {
+			for _, cap := range c.ProvidesCapabilities {
+				// Append unique.
+				found := false
+				for _, existing := range derived[p] {
+					if existing == cap {
+						found = true
+						break
+					}
+				}
+				if !found {
+					derived[p] = append(derived[p], cap)
+				}
+			}
+		}
+	}
+	ProfileCapabilities = derived
 }

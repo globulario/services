@@ -269,6 +269,17 @@ type ArtifactManifest struct {
 	//	*ArtifactManifest_ApplicationDetail
 	//	*ArtifactManifest_InfrastructureDetail
 	TypeDetail isArtifactManifest_TypeDetail `protobuf_oneof:"type_detail"`
+	// Catalog metadata — drives dynamic component catalog in the cluster controller.
+	// These fields are populated from package.json during artifact upload.
+	Profiles                 []string `protobuf:"bytes,50,rep,name=profiles,proto3" json:"profiles,omitempty"`                                                                   // profiles that include this component (e.g. "core", "compute")
+	Priority                 int32    `protobuf:"varint,51,opt,name=priority,proto3" json:"priority,omitempty"`                                                                  // start order (lower = starts first, stops last)
+	InstallMode              string   `protobuf:"bytes,52,opt,name=install_mode,json=installMode,proto3" json:"install_mode,omitempty"`                                          // "repository" | "day0_join"
+	ManagedUnit              bool     `protobuf:"varint,53,opt,name=managed_unit,json=managedUnit,proto3" json:"managed_unit,omitempty"`                                         // included in profileUnitMap for unit actions
+	SystemdUnit              string   `protobuf:"bytes,54,opt,name=systemd_unit,json=systemdUnit,proto3" json:"systemd_unit,omitempty"`                                          // systemd unit name (e.g. "globular-etcd.service")
+	RuntimeLocalDependencies []string `protobuf:"bytes,55,rep,name=runtime_local_dependencies,json=runtimeLocalDependencies,proto3" json:"runtime_local_dependencies,omitempty"` // packages healthy on same node before start
+	InstallDependencies      []string `protobuf:"bytes,56,rep,name=install_dependencies,json=installDependencies,proto3" json:"install_dependencies,omitempty"`                  // packages installed before this one
+	HealthCheckUnit          string   `protobuf:"bytes,57,opt,name=health_check_unit,json=healthCheckUnit,proto3" json:"health_check_unit,omitempty"`                            // systemd unit for health check
+	HealthCheckPort          int32    `protobuf:"varint,58,opt,name=health_check_port,json=healthCheckPort,proto3" json:"health_check_port,omitempty"`                           // TCP port for health check (0 = skip)
 	// Publish pipeline state — tracks artifact lifecycle from upload through promotion.
 	PublishState PublishState `protobuf:"varint,40,opt,name=publish_state,json=publishState,proto3,enum=repository.PublishState" json:"publish_state,omitempty"`
 	// Provenance record — immutable record of who published this artifact.
@@ -479,6 +490,69 @@ func (x *ArtifactManifest) GetInfrastructureDetail() *InfrastructureDetail {
 		}
 	}
 	return nil
+}
+
+func (x *ArtifactManifest) GetProfiles() []string {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *ArtifactManifest) GetInstallMode() string {
+	if x != nil {
+		return x.InstallMode
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetManagedUnit() bool {
+	if x != nil {
+		return x.ManagedUnit
+	}
+	return false
+}
+
+func (x *ArtifactManifest) GetSystemdUnit() string {
+	if x != nil {
+		return x.SystemdUnit
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetRuntimeLocalDependencies() []string {
+	if x != nil {
+		return x.RuntimeLocalDependencies
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetInstallDependencies() []string {
+	if x != nil {
+		return x.InstallDependencies
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetHealthCheckUnit() string {
+	if x != nil {
+		return x.HealthCheckUnit
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetHealthCheckPort() int32 {
+	if x != nil {
+		return x.HealthCheckPort
+	}
+	return 0
 }
 
 func (x *ArtifactManifest) GetPublishState() PublishState {
@@ -2446,7 +2520,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12,\n" +
-	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\x8c\t\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\xf6\v\n" +
 	"\x10ArtifactManifest\x12)\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
@@ -2473,7 +2547,16 @@ const file_repository_proto_rawDesc = "" +
 	"buildNotes\x12B\n" +
 	"\x0eservice_detail\x18\x1e \x01(\v2\x19.repository.ServiceDetailH\x00R\rserviceDetail\x12N\n" +
 	"\x12application_detail\x18\x1f \x01(\v2\x1d.repository.ApplicationDetailH\x00R\x11applicationDetail\x12W\n" +
-	"\x15infrastructure_detail\x18  \x01(\v2 .repository.InfrastructureDetailH\x00R\x14infrastructureDetail\x12=\n" +
+	"\x15infrastructure_detail\x18  \x01(\v2 .repository.InfrastructureDetailH\x00R\x14infrastructureDetail\x12\x1a\n" +
+	"\bprofiles\x182 \x03(\tR\bprofiles\x12\x1a\n" +
+	"\bpriority\x183 \x01(\x05R\bpriority\x12!\n" +
+	"\finstall_mode\x184 \x01(\tR\vinstallMode\x12!\n" +
+	"\fmanaged_unit\x185 \x01(\bR\vmanagedUnit\x12!\n" +
+	"\fsystemd_unit\x186 \x01(\tR\vsystemdUnit\x12<\n" +
+	"\x1aruntime_local_dependencies\x187 \x03(\tR\x18runtimeLocalDependencies\x121\n" +
+	"\x14install_dependencies\x188 \x03(\tR\x13installDependencies\x12*\n" +
+	"\x11health_check_unit\x189 \x01(\tR\x0fhealthCheckUnit\x12*\n" +
+	"\x11health_check_port\x18: \x01(\x05R\x0fhealthCheckPort\x12=\n" +
 	"\rpublish_state\x18( \x01(\x0e2\x18.repository.PublishStateR\fpublishState\x12<\n" +
 	"\n" +
 	"provenance\x18) \x01(\v2\x1c.repository.ProvenanceRecordR\n" +
