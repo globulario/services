@@ -221,28 +221,48 @@ func (srv *server) connectScylla() error {
 	cluster.Consistency = gocql.LocalOne
 	cluster.Timeout = 15 * time.Second
 	cluster.ConnectTimeout = 15 * time.Second
+	cluster.ProtoVersion = 4
+	cluster.DisableInitialHostLookup = true
 
+	// Try connecting directly to the keyspace first (fast path for existing installs).
+	cluster.Keyspace = workflowKeyspace
 	session, err := cluster.CreateSession()
 	if err != nil {
-		return fmt.Errorf("scylla connect: %w", err)
-	}
-
-	cql := fmt.Sprintf(createWorkflowKeyspaceCQL, rf)
-	if err := session.Query(cql).Exec(); err != nil {
-		session.Close()
-		return fmt.Errorf("create keyspace: %w", err)
-	}
-
-	for _, stmt := range schemaCQLStatements {
-		if err := session.Query(stmt).Exec(); err != nil {
+		// Keyspace may not exist yet — connect without keyspace and create it.
+		cluster.Keyspace = ""
+		session, err = cluster.CreateSession()
+		if err != nil {
+			return fmt.Errorf("scylla connect: %w", err)
+		}
+		cql := fmt.Sprintf(createWorkflowKeyspaceCQL, rf)
+		if err := session.Query(cql).Exec(); err != nil {
 			session.Close()
-			return fmt.Errorf("schema init: %w", err)
+			return fmt.Errorf("create keyspace: %w", err)
+		}
+		session.Close()
+		// Reconnect with keyspace.
+		cluster.Keyspace = workflowKeyspace
+		session, err = cluster.CreateSession()
+		if err != nil {
+			return fmt.Errorf("scylla reconnect with keyspace: %w", err)
 		}
 	}
-	session.Close()
 
-	cluster.Keyspace = workflowKeyspace
-	srv.session, err = cluster.CreateSession()
+	// Check if tables already exist before running DDL (DDL can timeout on ScyllaDB 2025.3+).
+	var tableCount int
+	if err := session.Query(`SELECT count(*) FROM system_schema.tables WHERE keyspace_name = ?`, workflowKeyspace).Scan(&tableCount); err != nil {
+		tableCount = 0
+	}
+	if tableCount == 0 {
+		for _, stmt := range schemaCQLStatements {
+			if err := session.Query(stmt).Exec(); err != nil {
+				session.Close()
+				return fmt.Errorf("schema init: %w", err)
+			}
+		}
+	}
+
+	srv.session = session
 	if err != nil {
 		return fmt.Errorf("scylla connect (keyspace): %w", err)
 	}
