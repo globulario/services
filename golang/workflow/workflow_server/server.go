@@ -361,6 +361,12 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 		"run_id", run.Id, "component", ctx.ComponentName,
 		"node", ctx.NodeId, "trigger", run.TriggerReason.String())
 
+	publishWorkflowEvent("workflow.run.started", map[string]interface{}{
+		"run_id": run.Id, "component": ctx.ComponentName, "node_id": ctx.NodeId,
+		"node_hostname": ctx.NodeHostname, "version": ctx.ComponentVersion,
+		"status": run.Status.String(), "trigger": run.TriggerReason.String(),
+	})
+
 	return run, nil
 }
 
@@ -387,7 +393,7 @@ func (srv *server) UpdateRun(_ context.Context, req *workflowpb.UpdateRunRequest
 
 func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest) (*emptypb.Empty, error) {
 	now := time.Now()
-	return &emptypb.Empty{}, srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
+	err := srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
 		return srv.session.Query(`
 			UPDATE workflow_runs SET status=?, failure_class=?, summary=?, error_message=?, updated_at=?, finished_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
@@ -395,6 +401,18 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 			req.ClusterId, startedAt, req.Id,
 		).Exec()
 	})
+	if err == nil {
+		topic := "workflow.run.finished"
+		if req.Status == workflowpb.RunStatus_RUN_STATUS_FAILED {
+			topic = "workflow.run.failed"
+		}
+		publishWorkflowEvent(topic, map[string]interface{}{
+			"run_id": req.Id, "status": req.Status.String(),
+			"failure_class": req.FailureClass.String(), "summary": req.Summary,
+			"error": req.ErrorMessage,
+		})
+	}
+	return &emptypb.Empty{}, err
 }
 
 func (srv *server) RecordStep(_ context.Context, req *workflowpb.RecordStepRequest) (*workflowpb.WorkflowStep, error) {
@@ -451,6 +469,13 @@ func (srv *server) FailStep(_ context.Context, req *workflowpb.FailStepRequest) 
 	).Exec(); err != nil {
 		return nil, fmt.Errorf("fail step: %w", err)
 	}
+
+	publishWorkflowEvent("workflow.step.failed", map[string]interface{}{
+		"run_id": req.RunId, "seq": req.Seq, "error_code": req.ErrorCode,
+		"error": req.ErrorMessage, "hint": req.ActionHint,
+		"retryable": req.Retryable, "failure_class": req.FailureClass.String(),
+	})
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -1191,6 +1216,14 @@ func (srv *server) fanoutEvent(ev *workflowpb.WorkflowEvent) {
 // ---------------------------------------------------------------------------
 // Utility
 // ---------------------------------------------------------------------------
+
+// publishWorkflowEvent emits a workflow event to the Event service.
+// Fire-and-forget — never blocks the RPC pipeline.
+func publishWorkflowEvent(topic string, payload map[string]interface{}) {
+	go func() {
+		globular.PublishEvent(topic, payload)
+	}()
+}
 
 func tsToTime(ts *timestamppb.Timestamp) time.Time {
 	if ts == nil {

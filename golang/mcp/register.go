@@ -52,5 +52,8 @@ func registerAllTools(s *server) {
 	if g.Skills {
 		registerSkillsTools(s)
 	}
+	if g.Workflow {
+		registerWorkflowTools(s)
+	}
 	// Auth and DNS deferred to phase 2.
 }
