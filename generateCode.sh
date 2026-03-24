@@ -75,6 +75,7 @@ TS_TARGETS=(
 "plan"
 "cluster_doctor"
 "backup_manager"
+"workflow"
 )
 
 protoc_generate_go() {
