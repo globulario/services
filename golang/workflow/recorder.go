@@ -13,14 +13,17 @@ package workflow
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -102,7 +105,14 @@ type Recorder struct {
 	seqMap    map[string]int32 // run_id → next seq number
 }
 
-// NewRecorder connects to the workflow service and returns a recorder.
+// Default certificate paths for Globular service mTLS.
+var (
+	DefaultCertFile = "/var/lib/globular/pki/issued/services/service.crt"
+	DefaultKeyFile  = "/var/lib/globular/pki/issued/services/service.key"
+	DefaultCAFile   = "/var/lib/globular/pki/ca.crt"
+)
+
+// NewRecorder connects to the workflow service over mTLS and returns a recorder.
 // If the connection fails, it returns a no-op recorder that silently drops events.
 func NewRecorder(addr, clusterID string) *Recorder {
 	r := &Recorder{
@@ -110,11 +120,17 @@ func NewRecorder(addr, clusterID string) *Recorder {
 		seqMap:    make(map[string]int32),
 	}
 
+	creds, err := loadRecorderTLS()
+	if err != nil {
+		log.Printf("workflow recorder: TLS setup failed (recording disabled): %v", err)
+		return r
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	conn, err := grpc.DialContext(ctx, addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithBlock(),
 	)
 	if err != nil {
@@ -123,8 +139,31 @@ func NewRecorder(addr, clusterID string) *Recorder {
 	}
 	r.conn = conn
 	r.client = workflowpb.NewWorkflowServiceClient(conn)
-	log.Printf("workflow recorder: connected to %s", addr)
+	log.Printf("workflow recorder: connected to %s (mTLS)", addr)
 	return r
+}
+
+// loadRecorderTLS loads the node's service certificates for mTLS.
+func loadRecorderTLS() (credentials.TransportCredentials, error) {
+	cert, err := tls.LoadX509KeyPair(DefaultCertFile, DefaultKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load client cert: %w", err)
+	}
+
+	caCert, err := os.ReadFile(DefaultCAFile)
+	if err != nil {
+		return nil, fmt.Errorf("read CA: %w", err)
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to parse CA cert")
+	}
+
+	return credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}), nil
 }
 
 // Close releases the gRPC connection.
