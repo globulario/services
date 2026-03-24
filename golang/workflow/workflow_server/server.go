@@ -1335,10 +1335,9 @@ func main() {
 	}
 
 	args := flag.Args()
-	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
-		logger.Error("port allocation failed", "error", err)
-		os.Exit(1)
-	}
+	// Workflow is a well-known service with fixed port (10220) — skip dynamic
+	// allocation so controller and node-agent recorders can connect by convention.
+	// Same pattern as DNS (fixed port 10006).
 	globular.ParsePositionalArgs(srv, args)
 	globular.LoadRuntimeConfig(srv)
 
