@@ -278,7 +278,7 @@ func installBinDir() string {
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_INSTALL_BIN_DIR")); v != "" {
 		return v
 	}
-	return "/usr/local/bin"
+	return "/usr/lib/globular/bin"
 }
 
 func stateRoot() string {

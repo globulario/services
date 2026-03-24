@@ -185,19 +185,11 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			})
 			return
 		}
-		// Auto-retry: if there are still unserved nodes, re-enter PENDING
-		// after a 30-second cooldown to avoid tight retry loops.
-		const retryBackoff = 30 * time.Second
-		var lastUpdatedMs int64
-		for _, nrs := range h.Nodes {
-			if nrs != nil && nrs.UpdatedUnixMs > lastUpdatedMs {
-				lastUpdatedMs = nrs.UpdatedUnixMs
-			}
-		}
-		sinceFailure := time.Since(time.UnixMilli(lastUpdatedMs))
-		if lastUpdatedMs > 0 && sinceFailure >= retryBackoff && srv.hasUnservedNodes(h) {
-			log.Printf("release %s: %s → PENDING (auto-retry after %s, unserved nodes remain)",
-				releaseName, h.Phase, sinceFailure.Truncate(time.Second))
+		// Auto-retry: if there are still unserved nodes, re-enter PENDING.
+		// The reconcile loop interval provides natural backoff between retries.
+		if srv.hasUnservedNodes(h) {
+			log.Printf("release %s: %s → PENDING (auto-retry, unserved nodes remain)",
+				releaseName, h.Phase)
 			h.PatchStatus(ctx, statusPatch{
 				Phase:            cluster_controllerpb.ReleasePhasePending,
 				TransitionReason: "auto_retry",
