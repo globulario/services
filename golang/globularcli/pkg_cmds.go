@@ -131,6 +131,7 @@ var (
 	pkgPublishRepository string
 	pkgPublishPublisher  string
 	pkgPublishDryRun     bool
+	pkgPublishForce      bool
 	pkgPublishOutput     string // "table" | "json" | "yaml"
 
 	// Register command flags (subset)
@@ -184,6 +185,7 @@ func init() {
 	pkgPublishCmd.Flags().StringVar(&pkgPublishRepository, "repository", "", "repository service address (required)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishPublisher, "publisher", "", "override publisher from package manifest")
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishDryRun, "dry-run", false, "validate packages without uploading")
+	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite existing artifact even if checksum differs")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
 }
 
@@ -586,12 +588,26 @@ func publishOne(file, token string) pkgPublishOne {
 	r.sizeBytes = int64(len(archiveData))
 
 	if err := client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber); err != nil {
-		r.err = fmt.Errorf("upload artifact failed: %w", err)
-		if isAuthErr(err) {
-			r.authErr = true
+		// --force: if artifact exists with different content, delete and re-upload.
+		if pkgPublishForce && status.Code(err) == codes.AlreadyExists {
+			if delErr := client.DeleteArtifact(ref); delErr != nil {
+				r.err = fmt.Errorf("force delete failed: %w (original: %v)", delErr, err)
+				r.duration = time.Since(start)
+				return r
+			}
+			if err2 := client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber); err2 != nil {
+				r.err = fmt.Errorf("force re-upload failed: %w", err2)
+				r.duration = time.Since(start)
+				return r
+			}
+		} else {
+			r.err = fmt.Errorf("upload artifact failed: %w", err)
+			if isAuthErr(err) {
+				r.authErr = true
+			}
+			r.duration = time.Since(start)
+			return r
 		}
-		r.duration = time.Since(start)
-		return r
 	}
 
 	// Step 4: verify manifest was stored correctly by reading it back.
