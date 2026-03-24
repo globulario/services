@@ -429,6 +429,14 @@ func (srv *server) stampAndDispatchPlan(ctx context.Context, nodeID string, plan
 	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
 		return err
 	}
+	// Write PLAN_PENDING status immediately so hasAnyActivePlan() blocks
+	// concurrent dispatches in the same reconcile cycle. Without this,
+	// all releases pass the empty-status check before the node-agent polls.
+	_ = srv.planStore.PutStatus(ctx, nodeID, &planpb.NodePlanStatus{
+		NodeId: nodeID,
+		PlanId: plan.PlanId,
+		State:  planpb.PlanState_PLAN_PENDING,
+	})
 	if appendable, ok := srv.planStore.(interface {
 		AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
 	}); ok {
