@@ -584,20 +584,13 @@ func ensureServicePortConfig(ctx context.Context, service, binDir string) error 
 }
 
 func executableForService(svc string) string {
-	switch normalizeServiceName(svc) {
-	case "rbac":
-		return "rbac_server"
-	case "resource":
-		return "resource_server"
-	case "repository":
-		return "repository_server"
-	case "xds":
-		return "xds_server"
-	case "gateway":
-		return "gateway_server"
-	default:
+	name := normalizeServiceName(svc)
+	// Convention: replace hyphens with underscores and append _server.
+	// All Globular services follow this naming pattern.
+	if name == "" {
 		return ""
 	}
+	return strings.ReplaceAll(name, "-", "_") + "_server"
 }
 
 func normalizeServiceName(svc string) string {

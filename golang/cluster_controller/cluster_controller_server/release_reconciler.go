@@ -174,14 +174,33 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			log.Printf("release %s: garbage-collected (REMOVED)", releaseName)
 		}
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
-		// Re-enter PENDING if the spec generation advanced (explicit re-apply)
-		// or if the service is still desired but not installed on any node.
+		// Re-enter PENDING if the spec generation advanced (explicit re-apply).
 		if h.Generation > h.ObservedGeneration {
 			log.Printf("release %s: %s → PENDING (generation %d > observed %d)",
 				releaseName, h.Phase, h.Generation, h.ObservedGeneration)
 			h.PatchStatus(ctx, statusPatch{
 				Phase:            cluster_controllerpb.ReleasePhasePending,
 				TransitionReason: "generation_changed",
+				SetFields:        "phase",
+			})
+			return
+		}
+		// Auto-retry: if there are still unserved nodes, re-enter PENDING
+		// after a 30-second cooldown to avoid tight retry loops.
+		const retryBackoff = 30 * time.Second
+		var lastUpdatedMs int64
+		for _, nrs := range h.Nodes {
+			if nrs != nil && nrs.UpdatedUnixMs > lastUpdatedMs {
+				lastUpdatedMs = nrs.UpdatedUnixMs
+			}
+		}
+		sinceFailure := time.Since(time.UnixMilli(lastUpdatedMs))
+		if lastUpdatedMs > 0 && sinceFailure >= retryBackoff && srv.hasUnservedNodes(h) {
+			log.Printf("release %s: %s → PENDING (auto-retry after %s, unserved nodes remain)",
+				releaseName, h.Phase, sinceFailure.Truncate(time.Second))
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "auto_retry",
 				SetFields:        "phase",
 			})
 		}

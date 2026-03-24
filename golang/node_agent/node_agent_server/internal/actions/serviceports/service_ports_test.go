@@ -383,6 +383,15 @@ func TestExecutableForServiceIncludesXDSGateway(t *testing.T) {
 		"gateway":                  "gateway_server",
 		"globular-gateway":         "gateway_server",
 		"globular-gateway.service": "gateway_server",
+		"event":                    "event_server",
+		"file":                     "file_server",
+		"dns":                      "dns_server",
+		"authentication":           "authentication_server",
+		"ai-memory":                "ai_memory_server",
+		"globular-ai-memory.service": "ai_memory_server",
+		"rbac":                     "rbac_server",
+		"resource":                 "resource_server",
+		"repository":               "repository_server",
 	}
 	for input, want := range cases {
 		if got := executableForService(input); got != want {

@@ -81,6 +81,11 @@ var bootstrapAllowedMethods = map[string]bool{
 	// Configuration (required for initial config)
 	"/admin.AdminService/GetConfig": true,
 	"/admin.AdminService/SetConfig": true,
+
+	// Event service (required for internal event propagation during bootstrap;
+	// services publish lifecycle events on startup)
+	"/event.EventService/Publish":   true,
+	"/event.EventService/Subscribe": true,
 }
 
 // BootstrapGate enforces 4-level security for Day-0 bootstrap mode:
