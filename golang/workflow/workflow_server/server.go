@@ -280,6 +280,20 @@ func (srv *server) Init() error {
 		fmt.Sscanf(p, "%d", &srv.ScyllaPort)
 	}
 
+	// ScyllaDB binds to the routable IP, not 127.0.0.1. If still on default,
+	// fall back to this service's advertised address (which is the node IP).
+	if len(srv.ScyllaHosts) == 0 || (len(srv.ScyllaHosts) == 1 && srv.ScyllaHosts[0] == "127.0.0.1") {
+		if srv.Address != "" {
+			host := srv.Address
+			if h, _, ok := strings.Cut(host, ":"); ok && h != "" {
+				host = h
+			}
+			if host != "" && host != "127.0.0.1" && host != "localhost" {
+				srv.ScyllaHosts = []string{host}
+			}
+		}
+	}
+
 	if err := srv.connectScylla(); err != nil {
 		return fmt.Errorf("scylla init: %w", err)
 	}
