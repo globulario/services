@@ -218,9 +218,9 @@ func (srv *server) connectScylla() error {
 
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Port = port
-	cluster.Consistency = gocql.Quorum
-	cluster.Timeout = 10 * time.Second
-	cluster.ConnectTimeout = 10 * time.Second
+	cluster.Consistency = gocql.LocalOne
+	cluster.Timeout = 15 * time.Second
+	cluster.ConnectTimeout = 15 * time.Second
 
 	session, err := cluster.CreateSession()
 	if err != nil {
