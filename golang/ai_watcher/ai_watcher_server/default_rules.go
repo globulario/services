@@ -15,6 +15,7 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 			"node.*",      // Node agent status changes
 			"alert.*",     // Monitoring alerts
 			"operation.*", // Plan execution phase changes
+			"workflow.*",  // Reconciliation workflow run/step events
 		},
 
 		// Event rules — what triggers investigation.
@@ -60,6 +61,28 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
 				CooldownSeconds:     300,
 				BatchWindowSeconds:  30,
+				SeverityMin:         "error",
+				RepeatThreshold:     1,
+			},
+			{
+				Id:                  "workflow-run-failed",
+				EventPattern:        "workflow.run.failed",
+				Description:         "Reconciliation workflow run failed — service install/upgrade did not converge",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     120,
+				BatchWindowSeconds:  15,
+				SeverityMin:         "error",
+				RepeatThreshold:     1,
+			},
+			{
+				Id:                  "workflow-step-failed",
+				EventPattern:        "workflow.step.failed",
+				Description:         "A specific workflow step failed — fetch, install, configure, or start error",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_OBSERVE,
+				CooldownSeconds:     60,
+				BatchWindowSeconds:  10,
 				SeverityMin:         "error",
 				RepeatThreshold:     1,
 			},
