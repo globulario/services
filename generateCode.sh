@@ -42,6 +42,7 @@ GO_TARGETS=(
   "ai_watcher:golang/ai_watcher/ai_watcherpb"
   "ai_router:golang/ai_router/ai_routerpb"
   "ai_executor:golang/ai_executor/ai_executorpb"
+  "workflow:golang/workflow/workflowpb"
 )
 
 TS_TARGETS=(

@@ -17,7 +17,7 @@ needs_scylla() {
   # ScyllaDB is used for resource, rbac, and ai_memory services
   # NOTE: ScyllaDB must be installed and configured with TLS before these services start
   case "${svc}" in
-    resource|rbac|ai_memory) return 0 ;;
+    resource|rbac|ai_memory|workflow) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -56,6 +56,7 @@ service_deps() {
     ai_memory)          deps="resource" ;;
     ai_router)          deps="resource" ;;
     ai_watcher)         deps="ai_executor event resource" ;;
+    workflow)           deps="event" ;;
     backup_manager)     deps="resource" ;;
     blog)               deps="event resource" ;;
     catalog)            deps="event persistence resource" ;;
@@ -248,7 +249,8 @@ EOF
   tls_wait='ExecStartPre=/bin/sh -c '"'"'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'"'"''
 
   # Ensure working directory exists before starting (node agent doesn't run ensure_dirs).
-  ensure_workdir="ExecStartPre=/bin/sh -c 'mkdir -p {{.StateDir}}/${svc} && chown ${run_user}:${run_group} {{.StateDir}}/${svc}'"
+  # The + prefix runs ExecStartPre as root (needed for chown when User= is set).
+  ensure_workdir="ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/${svc} && chown ${run_user}:${run_group} {{.StateDir}}/${svc}'"
 
   # Build systemd dependency lists dynamically from the service dependency graph.
   svc_units="$(service_deps "${svc}")"
