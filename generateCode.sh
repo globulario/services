@@ -125,6 +125,28 @@ for proto in "${TS_TARGETS[@]}"; do
 done
 rm -rf "$_auth_tmp"
 
+# ── Fix Vite CJS compatibility ──────────────────────────────────────────────
+# The globular_auth_pb import adds `goog.object.extend(proto, globular_auth_pb)`
+# to every generated _pb.js. This poisons the local `proto` namespace when Vite
+# splits CJS modules into separate chunks, breaking serializeBinary() closures.
+# The auth annotations are Go-side metadata only — TS stubs never use the types.
+# Strip the import and extend to keep Vite's bundling working.
+echo "=> Stripping globular_auth_pb from TypeScript _pb.js files (Vite compat)"
+for proto in "${TS_TARGETS[@]}"; do
+  svc_dir="$TS_ROOT/$proto"
+  for pbjs in "$svc_dir"/*_pb.js; do
+    [ -f "$pbjs" ] || continue
+    # Skip globular_auth_pb itself
+    [[ "$(basename "$pbjs")" == globular_auth_pb* ]] && continue
+    if grep -q 'globular_auth_pb' "$pbjs"; then
+      sed -i \
+        -e '/var globular_auth_pb = require.*globular_auth_pb/d' \
+        -e '/goog\.object\.extend(proto, globular_auth_pb)/d' \
+        "$pbjs"
+    fi
+  done
+done
+
 # ── authzgen: extract permissions and roles from proto AuthzRule annotations ──
 echo "=> Generating combined proto descriptor set"
 ALL_PROTOS=()
