@@ -298,6 +298,9 @@ func (srv *server) Init() error {
 		return fmt.Errorf("scylla init: %w", err)
 	}
 
+	// Import Day-0 install trace if the JSON log exists (idempotent).
+	srv.importDay0Trace()
+
 	return nil
 }
 
