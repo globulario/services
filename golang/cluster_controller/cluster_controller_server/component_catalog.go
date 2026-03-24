@@ -472,6 +472,15 @@ func buildCatalog() []*Component {
 			RuntimeLocalDependencies: []string{"ai-executor", "event"},
 		},
 		{
+			Name:                     "workflow",
+			Unit:                     "globular-workflow.service",
+			Kind:                     KindWorkload,
+			Priority:                 900, // before other AI services that may record to it
+			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
+			RuntimeLocalDependencies: []string{"scylladb", "event"},
+			HealthCheck:              &HealthCheckHintC{Unit: "globular-workflow.service", Port: 10220},
+		},
+		{
 			Name:                     "mcp",
 			Unit:                     "globular-mcp.service",
 			Kind:                     KindWorkload,

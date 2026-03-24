@@ -22,6 +22,7 @@ import (
 	globular_service "github.com/globulario/services/golang/globular_service"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	planstore "github.com/globulario/services/golang/plan/store"
+	"github.com/globulario/services/golang/workflow"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -113,6 +114,18 @@ func main() {
 		log.Fatalf("TLS certificate files not found (cert=%s key=%s ca=%s) — refusing to start insecure", certFile, keyFile, caFile)
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
+	// Connect to WorkflowService for plan execution tracing.
+	wfAddr := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR"))
+	if wfAddr == "" {
+		wfAddr = "localhost:10220"
+	}
+	wfClusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
+	if wfClusterID == "" {
+		wfClusterID = "globular.internal"
+	}
+	srv.workflowRec = workflow.NewRecorder(wfAddr, wfClusterID)
+	srv.clusterID = wfClusterID
+
 	srv.StartHeartbeat(ctx)
 	srv.StartPlanRunner(ctx)
 	srv.StartACMERenewal(ctx)

@@ -13,6 +13,8 @@ import (
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 )
 
@@ -174,11 +176,31 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// releases are always dispatched — they're what gets nodes TO ready.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
+	// Look up catalog entry to check profile compatibility.
+	// Extract service name from release name: "core@globular.io/dns" → "dns"
+	serviceName := h.Name
+	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
+		serviceName = serviceName[idx+1:]
+	}
+	catalogEntry := CatalogByName(serviceName)
 	for id, node := range srv.state.Nodes {
 		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
 			log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not ready for workloads)",
 				h.ResourceType, h.Name, id, node.BootstrapPhase)
 			continue
+		}
+		// Profile filter: only dispatch to nodes whose profiles match the
+		// catalog entry. Without this, services like ai-memory (scylla profile)
+		// get installed on core nodes that don't have ScyllaDB.
+		// Use normalized profiles so inherited profiles (e.g. control-plane → core)
+		// are included in the comparison.
+		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
+			expandedProfiles := normalizeProfiles(node.Profiles)
+			if !profilesOverlap(catalogEntry.Profiles, expandedProfiles) {
+				log.Printf("%s %s: skip node %s, profiles %v don't match catalog %v",
+					h.ResourceType, h.Name, id, expandedProfiles, catalogEntry.Profiles)
+				continue
+			}
 		}
 		nodeIDs = append(nodeIDs, id)
 	}
@@ -289,9 +311,43 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			}
 		}
 
+		// --- Workflow trace: start a run for this node/component ---
+		compKind := workflow.KindService
+		if h.ResourceType == "InfrastructureRelease" {
+			compKind = workflow.KindInfra
+		}
+		var nodeHostname string
+		srv.lock("workflow-trace:hostname")
+		if n := srv.state.Nodes[nodeID]; n != nil {
+			nodeHostname = n.Identity.Hostname
+		}
+		srv.unlock()
+		wfRunID := srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+			NodeID:           nodeID,
+			NodeHostname:     nodeHostname,
+			ComponentName:    h.InstalledStateName,
+			ComponentKind:    compKind,
+			ComponentVersion: h.ResolvedVersion,
+			ReleaseKind:      h.ResourceType,
+			ReleaseObjectID:  h.Name,
+			TriggerReason:    workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT,
+			CorrelationID:    workflow.CorrelationID(h.ResourceType, h.InstalledStateName, nodeID),
+		})
+
+		// Step: plan_generated
+		planStepSeq := srv.workflowRec.RecordStep(ctx, wfRunID, &workflow.StepParams{
+			StepKey: "plan_generated",
+			Title:   fmt.Sprintf("Compile %s plan for %s", h.ResourceType, h.InstalledStateName),
+			Actor:   workflow.ActorController,
+			Phase:   workflow.PhasePlan,
+			Status:  workflow.StepRunning,
+		})
+
 		plan, err := h.CompilePlan(nodeID, installedVersion, clusterID)
 		if err != nil {
 			log.Printf("%s %s: compile plan for node %s: %v", h.ResourceType, h.Name, nodeID, err)
+			srv.workflowRec.FailStep(ctx, wfRunID, planStepSeq, "controller.plan_compile_failed", err.Error(), "Check release spec and artifact digest", workflowpb.FailureClass_FAILURE_CLASS_CONFIG, true)
+			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Failed, fmt.Sprintf("compile plan failed: %v", err), err.Error(), workflowpb.FailureClass_FAILURE_CLASS_CONFIG)
 			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
 				NodeID:        nodeID,
 				Phase:         cluster_controllerpb.ReleasePhaseFailed,
@@ -300,9 +356,30 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			})
 			continue
 		}
+		srv.workflowRec.CompleteStep(ctx, wfRunID, planStepSeq, fmt.Sprintf("plan_id=%s", plan.PlanId), 0)
+
+		// Pass workflow run ID to node-agent via plan annotations.
+		if wfRunID != "" {
+			if plan.Annotations == nil {
+				plan.Annotations = make(map[string]string)
+			}
+			plan.Annotations["workflow_run_id"] = wfRunID
+		}
+
+		// Step: plan_persisted
+		dispatchStepSeq := srv.workflowRec.RecordStep(ctx, wfRunID, &workflow.StepParams{
+			StepKey:     "plan_persisted",
+			Title:       fmt.Sprintf("Dispatch plan to node %s", nodeID),
+			Actor:       workflow.ActorController,
+			Phase:       workflow.PhaseDispatch,
+			Status:      workflow.StepRunning,
+			TargetActor: workflow.ActorNodeAgent,
+		})
 
 		if err := srv.stampAndDispatchPlan(ctx, nodeID, plan); err != nil {
 			log.Printf("%s %s: persist plan for node %s: %v", h.ResourceType, h.Name, nodeID, err)
+			srv.workflowRec.FailStep(ctx, wfRunID, dispatchStepSeq, "controller.plan_dispatch_failed", err.Error(), "Plan slot may be occupied by another plan", workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY, true)
+			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Failed, fmt.Sprintf("dispatch failed: %v", err), err.Error(), workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY)
 			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
 				NodeID:        nodeID,
 				Phase:         cluster_controllerpb.ReleasePhaseFailed,
@@ -311,6 +388,15 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			})
 			continue
 		}
+		srv.workflowRec.CompleteStep(ctx, wfRunID, dispatchStepSeq, fmt.Sprintf("plan_id=%s dispatched", plan.PlanId), 0)
+		srv.workflowRec.UpdateRunStatus(ctx, wfRunID, workflow.Dispatched,
+			fmt.Sprintf("Plan dispatched to %s", nodeID), workflow.ActorNodeAgent)
+
+		// Artifact refs
+		srv.workflowRec.AddArtifact(ctx, wfRunID, planStepSeq,
+			workflowpb.ArtifactKind_ARTIFACT_KIND_PLAN, plan.PlanId, h.ResolvedVersion, "")
+		srv.workflowRec.AddArtifact(ctx, wfRunID, -1,
+			workflowpb.ArtifactKind_ARTIFACT_KIND_RELEASE, h.Name, h.ResolvedVersion, "")
 
 		log.Printf("%s %s: wrote plan node=%s plan_id=%s",
 			h.ResourceType, h.Name, nodeID, plan.PlanId)

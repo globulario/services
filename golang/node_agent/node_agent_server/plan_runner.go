@@ -213,6 +213,8 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
 	runner := planexec.NewRunner(srv.nodeID, srv.publishPlanStatus)
+	runner.WorkflowRec = srv.workflowRec
+	runner.ClusterID = srv.clusterID
 	updated, recErr := runner.ReconcilePlan(ctx, plan, status)
 	if recErr != nil {
 		log.Printf("plan-runner: plan %s gen=%d FAILED: %v", plan.GetPlanId(), plan.GetGeneration(), recErr)

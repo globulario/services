@@ -1,0 +1,473 @@
+syntax = "proto3";
+package workflow;
+
+option go_package = "github.com/globulario/services/golang/workflow/workflowpb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+// WorkflowActor identifies the system component that owns a step.
+enum WorkflowActor {
+  ACTOR_UNKNOWN            = 0;
+  ACTOR_CLUSTER_CONTROLLER = 1;
+  ACTOR_REPOSITORY         = 2;
+  ACTOR_NODE_AGENT         = 3;
+  ACTOR_INSTALLER          = 4;
+  ACTOR_RUNTIME            = 5;
+  ACTOR_OPERATOR           = 6;
+  ACTOR_AI_DIAGNOSER       = 7;
+  ACTOR_AI_EXECUTOR        = 8;
+}
+
+// WorkflowPhaseKind is the coarse execution phase a step belongs to.
+// Typed enum prevents free-string drift. UI maps these to display labels.
+enum WorkflowPhaseKind {
+  PHASE_UNKNOWN   = 0;
+  PHASE_DECISION  = 1;   // release evaluated, profile checked
+  PHASE_PLAN      = 2;   // plan generated, persisted
+  PHASE_DISPATCH  = 3;   // plan written to node slot, handoff to agent
+  PHASE_FETCH     = 4;   // artifact download, checksum verify
+  PHASE_INSTALL   = 5;   // package extract, OS install, spec steps
+  PHASE_CONFIGURE = 6;   // config render, env patch, post-install script
+  PHASE_START     = 7;   // systemd enable/start/restart
+  PHASE_VERIFY    = 8;   // readiness check, cluster join sanity
+  PHASE_PUBLISH   = 9;   // installed-state write, release update
+  PHASE_COMPLETE  = 10;  // terminal success
+}
+
+// RunStatus is the lifecycle state of a workflow run.
+enum RunStatus {
+  RUN_STATUS_UNKNOWN          = 0;
+  RUN_STATUS_PENDING          = 1;  // created, not yet started
+  RUN_STATUS_PLANNING         = 2;  // controller generating plan
+  RUN_STATUS_WAITING_FOR_SLOT = 3;  // plan ready but slot occupied
+  RUN_STATUS_DISPATCHED       = 4;  // plan written to node current plan slot
+  RUN_STATUS_EXECUTING        = 5;  // node-agent is running plan steps
+  RUN_STATUS_BLOCKED          = 6;  // waiting on dependency / operator
+  RUN_STATUS_RETRYING         = 7;  // auto-retry in progress
+  RUN_STATUS_SUCCEEDED        = 8;
+  RUN_STATUS_FAILED           = 9;
+  RUN_STATUS_CANCELED         = 10;
+  RUN_STATUS_ROLLED_BACK      = 11;
+}
+
+// StepStatus is the lifecycle state of a workflow step.
+enum StepStatus {
+  STEP_STATUS_UNKNOWN   = 0;
+  STEP_STATUS_PENDING   = 1;
+  STEP_STATUS_RUNNING   = 2;
+  STEP_STATUS_SUCCEEDED = 3;
+  STEP_STATUS_FAILED    = 4;
+  STEP_STATUS_SKIPPED   = 5;
+  STEP_STATUS_BLOCKED   = 6;
+}
+
+// FailureClass categorizes why a step or run failed.
+enum FailureClass {
+  FAILURE_CLASS_UNKNOWN    = 0;
+  FAILURE_CLASS_CONFIG     = 1;  // config mismatch, missing field, overwritten
+  FAILURE_CLASS_PACKAGE    = 2;  // GPG key, dpkg prompt, missing package
+  FAILURE_CLASS_DEPENDENCY = 3;  // waiting for upstream component
+  FAILURE_CLASS_NETWORK    = 4;  // connectivity, DNS, TLS
+  FAILURE_CLASS_REPOSITORY = 5;  // artifact not found, checksum mismatch
+  FAILURE_CLASS_SYSTEMD    = 6;  // unit missing, restart failure
+  FAILURE_CLASS_VALIDATION = 7;  // readiness check failed
+}
+
+// ComponentKind distinguishes infrastructure from services.
+enum ComponentKind {
+  COMPONENT_KIND_UNKNOWN        = 0;
+  COMPONENT_KIND_INFRASTRUCTURE = 1;
+  COMPONENT_KIND_SERVICE        = 2;
+  COMPONENT_KIND_CONFIG_ONLY    = 3;
+}
+
+// TriggerReason explains why this run was initiated.
+enum TriggerReason {
+  TRIGGER_REASON_UNKNOWN              = 0;
+  TRIGGER_REASON_DESIRED_DRIFT        = 1;  // desired != installed
+  TRIGGER_REASON_BOOTSTRAP            = 2;  // Day-0 or Day-1 bootstrap
+  TRIGGER_REASON_RETRY                = 3;  // auto-retry after failure
+  TRIGGER_REASON_MANUAL               = 4;  // operator action
+  TRIGGER_REASON_DEPENDENCY_UNBLOCKED = 5;  // upstream finished
+  TRIGGER_REASON_UPGRADE              = 6;  // version bump
+}
+
+// ArtifactKind describes what kind of object an artifact reference points to.
+enum ArtifactKind {
+  ARTIFACT_KIND_UNKNOWN     = 0;
+  ARTIFACT_KIND_RELEASE     = 1;
+  ARTIFACT_KIND_PLAN        = 2;
+  ARTIFACT_KIND_PACKAGE     = 3;
+  ARTIFACT_KIND_MANIFEST    = 4;
+  ARTIFACT_KIND_SPEC        = 5;
+  ARTIFACT_KIND_SCRIPT      = 6;
+  ARTIFACT_KIND_UNIT        = 7;
+  ARTIFACT_KIND_CONFIG_FILE = 8;
+  ARTIFACT_KIND_ETCD_KEY    = 9;
+  ARTIFACT_KIND_LOG         = 10;
+}
+
+// ─── Domain messages ─────────────────────────────────────────────────────────
+
+// WorkflowContext groups the reconciliation identity fields shared across
+// runs, events, and stream envelopes. Avoids repeating the same set of
+// fields on every message and makes reuse in future APIs cleaner.
+message WorkflowContext {
+  string cluster_id         = 1;
+  string node_id            = 2;
+  string node_hostname      = 3;
+  string component_name     = 4;
+  ComponentKind component_kind = 5;
+  string component_version  = 6;
+  string release_kind       = 7;   // InfrastructureRelease, ServiceRelease
+  string release_object_id  = 8;
+  string desired_object_id  = 9;
+  string plan_id            = 10;
+  int32  plan_generation    = 11;
+}
+
+// WorkflowRun represents one reconciliation attempt for a component on a node.
+//
+// Identity:
+//   - id:             unique per execution attempt (this exact run)
+//   - correlation_id: stable lineage across retries for the same operator story
+//                     e.g. "{release_kind}/{component}/{node_id}"
+//   - parent_run_id:  links a retry to the original failed run
+message WorkflowRun {
+  string id              = 1;   // UUID — unique per execution attempt
+  string correlation_id  = 2;   // stable lineage across retries
+  string parent_run_id   = 3;   // links retries to original run
+
+  // Reconciliation context
+  WorkflowContext context = 4;
+
+  // Lifecycle
+  TriggerReason trigger_reason = 5;
+  RunStatus     status         = 6;
+  WorkflowActor current_actor  = 7;   // who currently owns the workflow
+  FailureClass  failure_class  = 8;
+  string        summary        = 9;
+  string        error_message  = 10;
+  int32         retry_count    = 11;
+
+  // Acknowledgment (operator saw and accepted the failure)
+  bool   acknowledged    = 12;
+  string acknowledged_by = 13;
+  google.protobuf.Timestamp acknowledged_at = 14;
+
+  // Timing
+  google.protobuf.Timestamp started_at  = 15;
+  google.protobuf.Timestamp updated_at  = 16;
+  google.protobuf.Timestamp finished_at = 17;
+}
+
+// WorkflowStep represents a single action or transition within a run.
+message WorkflowStep {
+  string run_id    = 1;
+  int32  seq       = 2;    // ordering within the run
+  string step_key  = 3;    // e.g. "release_evaluated", "system_package_install"
+  string title     = 4;    // human-readable: "Install OS packages: scylla, scylla-server"
+
+  WorkflowActor     actor = 5;
+  WorkflowPhaseKind phase = 6;   // typed phase enum
+  StepStatus        status = 7;
+  int32             attempt = 8; // retry attempt within this step (1-based)
+
+  google.protobuf.Timestamp created_at  = 9;   // when the step record was created
+  google.protobuf.Timestamp started_at  = 10;
+  google.protobuf.Timestamp finished_at = 11;
+  int64 duration_ms = 12;
+
+  string message       = 13;
+  string error_code    = 14;  // e.g. "repository.gpg_key_missing"
+  string error_message = 15;
+
+  bool   retryable                = 16;
+  bool   operator_action_required = 17;
+  string action_hint              = 18;  // "Package spec likely incomplete"
+
+  // Handoff tracking: which actor produced this step's input,
+  // which actor consumes its output. Enables swimlane edge rendering.
+  WorkflowActor source_actor = 19;  // who handed off to this step
+  WorkflowActor target_actor = 20;  // who this step hands off to next
+
+  // Supplemental raw context (command output, config diff, etc.).
+  // Rule: anything important for filtering, alerting, or UI logic
+  // MUST be in typed fields above. details_json is for drill-down only.
+  string details_json = 21;
+}
+
+// WorkflowArtifactRef links a step or run to a concrete object.
+message WorkflowArtifactRef {
+  string id       = 1;   // UUID
+  string run_id   = 2;
+  int32  step_seq = 3;   // -1 = run-level
+
+  ArtifactKind kind = 4;
+
+  // Common fields
+  string name    = 5;
+  string version = 6;
+  string digest  = 7;
+  string node_id = 8;
+
+  // Typed locators — use these instead of stuffing everything into metadata_json.
+  // Only the relevant field is populated per artifact kind.
+  string path            = 9;   // generic filesystem path
+  string etcd_key        = 10;  // for ARTIFACT_KIND_ETCD_KEY
+  string unit_name       = 11;  // for ARTIFACT_KIND_UNIT
+  string config_path     = 12;  // for ARTIFACT_KIND_CONFIG_FILE
+  string package_name    = 13;  // for ARTIFACT_KIND_PACKAGE
+  string package_version = 14;  // for ARTIFACT_KIND_PACKAGE
+  string spec_path       = 15;  // for ARTIFACT_KIND_SPEC
+  string script_path     = 16;  // for ARTIFACT_KIND_SCRIPT
+
+  // Supplemental metadata (drill-down only, same rule as details_json).
+  string metadata_json = 17;
+
+  google.protobuf.Timestamp created_at = 18;
+}
+
+// WorkflowEvent is an append-only status transition record.
+message WorkflowEvent {
+  string run_id     = 1;
+  string event_id   = 2;  // UUID
+  int32  step_seq   = 3;  // -1 = run-level
+  string event_type = 4;  // status_changed, step_started, step_completed, error, artifact_resolved, handoff
+  WorkflowActor actor = 5;
+  string old_value  = 6;
+  string new_value  = 7;
+  string message    = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// WorkflowPhase is a coarse grouping of steps for graph rendering.
+message WorkflowPhase {
+  WorkflowPhaseKind kind = 1;
+  string display_name    = 2;   // "Decision", "Install", etc.
+  StepStatus status      = 3;   // derived from child steps
+  repeated WorkflowStep steps = 4;
+}
+
+// WorkflowActorLane groups steps by actor for swimlane rendering.
+message WorkflowActorLane {
+  WorkflowActor actor = 1;
+  repeated WorkflowStep steps = 2;
+}
+
+// WorkflowGraph is the pre-assembled rendering model returned by GetWorkflowGraph.
+message WorkflowGraph {
+  WorkflowRun run = 1;
+  repeated WorkflowPhase phases     = 2;  // ordered by execution flow
+  repeated WorkflowActorLane lanes  = 3;  // grouped by actor
+  repeated WorkflowArtifactRef artifacts = 4;
+  int32 current_step_seq  = 5;            // which step is active now
+  WorkflowActor current_actor = 6;        // who currently owns the workflow
+  string blocked_reason   = 7;            // if status is BLOCKED
+}
+
+// WorkflowRunDetail bundles a run with its steps and artifacts.
+message WorkflowRunDetail {
+  WorkflowRun run = 1;
+  repeated WorkflowStep steps = 2;
+  repeated WorkflowArtifactRef artifacts = 3;
+}
+
+// ─── Request / Response ──────────────────────────────────────────────────────
+
+// Write path
+
+message StartRunRequest {
+  WorkflowRun run = 1;
+}
+
+message UpdateRunRequest {
+  string id         = 1;
+  string cluster_id = 2;
+  RunStatus status  = 3;
+  string summary    = 4;
+  string plan_id    = 5;
+  int32  plan_generation = 6;
+  WorkflowActor current_actor = 7;
+}
+
+message FinishRunRequest {
+  string id            = 1;
+  string cluster_id    = 2;
+  RunStatus status     = 3;
+  FailureClass failure_class = 4;
+  string summary       = 5;
+  string error_message = 6;
+}
+
+message RecordStepRequest {
+  string cluster_id = 1;
+  WorkflowStep step = 2;
+}
+
+message UpdateStepRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+  int32  seq        = 3;
+  StepStatus status = 4;
+  string message    = 5;
+  int64  duration_ms = 6;
+}
+
+message FailStepRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+  int32  seq        = 3;
+  string error_code    = 4;
+  string error_message = 5;
+  string action_hint   = 6;
+  bool   retryable     = 7;
+  bool   operator_action_required = 8;
+  FailureClass failure_class = 9;
+}
+
+message AddArtifactRefRequest {
+  string cluster_id = 1;
+  WorkflowArtifactRef artifact = 2;
+}
+
+message AppendEventRequest {
+  string cluster_id = 1;
+  WorkflowEvent event = 2;
+}
+
+// Read path
+
+message GetRunRequest {
+  string cluster_id = 1;
+  string id         = 2;
+}
+
+message ListRunsRequest {
+  string cluster_id     = 1;
+  string node_id        = 2;   // optional filter
+  string component_name = 3;   // optional filter
+  RunStatus status      = 4;   // optional filter (0 = all)
+  ComponentKind kind    = 5;   // optional filter (0 = all)
+  bool active_only      = 6;
+  bool failed_only      = 7;
+  int32 limit           = 8;   // default 50
+  string page_token     = 9;   // opaque pagination cursor
+}
+
+message ListRunsResponse {
+  repeated WorkflowRun runs = 1;
+  int32 total               = 2;
+  string next_page_token    = 3;  // empty = no more pages
+}
+
+message GetRunEventsRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+message GetRunEventsResponse {
+  repeated WorkflowEvent events = 1;
+}
+
+message GetCurrentRunsForNodeRequest {
+  string cluster_id = 1;
+  string node_id    = 2;
+}
+
+message GetComponentHistoryRequest {
+  string cluster_id     = 1;
+  string component_name = 2;
+  int32 limit           = 3;
+  string page_token     = 4;
+}
+
+message GetWorkflowGraphRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+// Streaming
+
+message WatchRunRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+message WatchNodeRunsRequest {
+  string cluster_id = 1;
+  string node_id    = 2;
+}
+
+// WorkflowEventEnvelope wraps events for streaming, including run context.
+message WorkflowEventEnvelope {
+  string run_id         = 1;
+  WorkflowContext context = 2;   // full reconciliation context
+  WorkflowEvent event   = 3;
+  RunStatus run_status  = 4;
+}
+
+// ─── Action requests ─────────────────────────────────────────────────────────
+
+message RetryRunRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+message CancelRunRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+message AcknowledgeRunRequest {
+  string cluster_id    = 1;
+  string run_id        = 2;
+  string acknowledged_by = 3;  // operator identity
+}
+
+message DiagnoseRunRequest {
+  string cluster_id = 1;
+  string run_id     = 2;
+}
+
+message DiagnoseRunResponse {
+  string diagnosis       = 1;
+  string confidence      = 2;   // high, medium, low
+  repeated string related_run_ids = 3;
+  string suggested_action = 4;
+}
+
+// ─── gRPC Service ────────────────────────────────────────────────────────────
+
+service WorkflowService {
+  // Write path — internal producers (controller, node-agent, installer)
+  rpc StartRun(StartRunRequest)             returns (WorkflowRun);
+  rpc UpdateRun(UpdateRunRequest)           returns (google.protobuf.Empty);
+  rpc FinishRun(FinishRunRequest)           returns (google.protobuf.Empty);
+  rpc RecordStep(RecordStepRequest)         returns (WorkflowStep);
+  rpc UpdateStep(UpdateStepRequest)         returns (google.protobuf.Empty);
+  rpc FailStep(FailStepRequest)             returns (google.protobuf.Empty);
+  rpc AddArtifactRef(AddArtifactRefRequest) returns (google.protobuf.Empty);
+  rpc AppendEvent(AppendEventRequest)       returns (google.protobuf.Empty);
+
+  // Read path — admin UI and AI
+  rpc GetRun(GetRunRequest)                                   returns (WorkflowRunDetail);
+  rpc ListRuns(ListRunsRequest)                               returns (ListRunsResponse);
+  rpc GetRunEvents(GetRunEventsRequest)                       returns (GetRunEventsResponse);
+  rpc GetCurrentRunsForNode(GetCurrentRunsForNodeRequest)     returns (ListRunsResponse);
+  rpc GetComponentHistory(GetComponentHistoryRequest)         returns (ListRunsResponse);
+  rpc GetWorkflowGraph(GetWorkflowGraphRequest)               returns (WorkflowGraph);
+
+  // Streaming — live workflow monitor
+  rpc WatchRun(WatchRunRequest)             returns (stream WorkflowEventEnvelope);
+  rpc WatchNodeRuns(WatchNodeRunsRequest)   returns (stream WorkflowEventEnvelope);
+
+  // Actions — operator controls
+  rpc RetryRun(RetryRunRequest)             returns (WorkflowRun);
+  rpc CancelRun(CancelRunRequest)           returns (google.protobuf.Empty);
+  rpc AcknowledgeRun(AcknowledgeRunRequest) returns (google.protobuf.Empty);
+  rpc DiagnoseRun(DiagnoseRunRequest)       returns (DiagnoseRunResponse);
+}

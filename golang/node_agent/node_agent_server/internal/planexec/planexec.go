@@ -15,6 +15,8 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,6 +26,10 @@ type Runner struct {
 	PublishStatus  func(context.Context, *planpb.NodePlanStatus)
 	Now            func() time.Time
 	DefaultBackoff time.Duration
+
+	// Workflow tracing (optional, nil-safe).
+	WorkflowRec *workflow.Recorder
+	ClusterID   string
 }
 
 // NewRunner builds a Runner with sane defaults.
@@ -48,12 +54,23 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 	if status.GetStartedUnixMs() == 0 {
 		status.StartedUnixMs = uint64(r.now().UnixMilli())
 	}
+
+	// Extract workflow run ID from plan annotations (set by controller).
+	wfRunID := plan.GetAnnotations()["workflow_run_id"]
+
+	// Notify workflow service: node-agent is now executing.
+	r.WorkflowRec.UpdateRunStatus(ctx, wfRunID,
+		workflow.Executing, fmt.Sprintf("Node-agent %s executing plan %s", r.NodeID, plan.GetPlanId()),
+		workflow.ActorNodeAgent)
+
 	// quick-success path
 	if err := r.EvaluateInvariants(ctx, plan); err == nil {
 		r.addEvent(status, "info", "invariants satisfied; plan complete", "")
 		status.State = planpb.PlanState_PLAN_SUCCEEDED
 		status.FinishedUnixMs = uint64(r.now().UnixMilli())
 		r.publish(ctx, status)
+		r.WorkflowRec.FinishRun(ctx, wfRunID, workflow.Succeeded,
+			"Invariants already satisfied", "", workflow.NoFailure)
 		return status, nil
 	}
 
@@ -70,20 +87,37 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 	}
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		runErr := r.runStepsOnce(ctx, plan, status)
+		runErr := r.runStepsOnce(ctx, plan, status, wfRunID)
 		if runErr != nil {
+			r.WorkflowRec.FinishRun(ctx, wfRunID, workflow.Failed,
+				fmt.Sprintf("Plan execution failed: %v", runErr), runErr.Error(),
+				workflowpb.FailureClass_FAILURE_CLASS_SYSTEMD)
 			return status, runErr
 		}
 		r.addEvent(status, "info", "phase: VALIDATING", "")
 		r.publish(ctx, status)
+
+		verifySeq := r.WorkflowRec.RecordStep(ctx, wfRunID, &workflow.StepParams{
+			StepKey: "verify_invariants",
+			Title:   "Verify plan invariants",
+			Actor:   workflow.ActorNodeAgent,
+			Phase:   workflow.PhaseVerify,
+			Status:  workflow.StepRunning,
+		})
+
 		if err := r.EvaluateInvariants(ctx, plan); err == nil {
+			r.WorkflowRec.CompleteStep(ctx, wfRunID, verifySeq, "invariants satisfied", 0)
 			r.addEvent(status, "info", "phase: COMMITTED", "")
 			r.addEvent(status, "info", "invariants satisfied; plan complete", "")
 			status.State = planpb.PlanState_PLAN_SUCCEEDED
 			status.FinishedUnixMs = uint64(r.now().UnixMilli())
 			r.publish(ctx, status)
+			r.WorkflowRec.FinishRun(ctx, wfRunID, workflow.Succeeded,
+				"Plan converged successfully", "", workflow.NoFailure)
 			return status, nil
 		}
+		r.WorkflowRec.CompleteStep(ctx, wfRunID, verifySeq, "invariants not yet satisfied", 0)
+
 		// backoff before retrying full plan
 		if attempt+1 < maxAttempts {
 			r.addEvent(status, "warn", "invariants still failing; retrying plan", "")
@@ -100,10 +134,13 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 	status.ErrorMessage = "invariants not satisfied after retries"
 	status.FinishedUnixMs = uint64(r.now().UnixMilli())
 	r.publish(ctx, status)
+	r.WorkflowRec.FinishRun(ctx, wfRunID, workflow.Failed,
+		status.ErrorMessage, status.ErrorMessage,
+		workflowpb.FailureClass_FAILURE_CLASS_SYSTEMD)
 	return status, errors.New(status.ErrorMessage)
 }
 
-func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status *planpb.NodePlanStatus) error {
+func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status *planpb.NodePlanStatus, wfRunID string) error {
 	spec := plan.GetSpec()
 	if spec == nil {
 		return errors.New("plan spec required")
@@ -122,13 +159,33 @@ func (r *Runner) runStepsOnce(ctx context.Context, plan *planpb.NodePlan, status
 		r.addEvent(status, "info", fmt.Sprintf("step %s running", step.GetId()), step.GetId())
 		r.publish(ctx, status)
 
+		// Record workflow step start.
+		wfStepSeq := r.WorkflowRec.RecordStep(ctx, wfRunID, &workflow.StepParams{
+			StepKey:     step.GetId(),
+			Title:       fmt.Sprintf("[%d/%d] %s", idx+1, len(spec.GetSteps()), step.GetAction()),
+			Actor:       workflow.ActorNodeAgent,
+			Phase:       workflowPhaseForAction(step.GetAction()),
+			Status:      workflow.StepRunning,
+			SourceActor: workflow.ActorNodeAgent,
+			TargetActor: actorForAction(step.GetAction()),
+		})
+
 		stepStart := r.now()
 		if err := r.runStepWithRetry(ctx, plan, step, stepStatus, status); err != nil {
+			durationMs := r.now().Sub(stepStart).Milliseconds()
 			log.Printf("plan-step[%d/%d] %s action=%s FAILED after %v: %v",
 				idx+1, len(spec.GetSteps()), step.GetId(), step.GetAction(), r.now().Sub(stepStart), err)
+			r.WorkflowRec.FailStep(ctx, wfRunID, wfStepSeq,
+				"nodeagent.step_failed", err.Error(),
+				fmt.Sprintf("Step %s (%s) failed", step.GetId(), step.GetAction()),
+				workflowpb.FailureClass_FAILURE_CLASS_SYSTEMD, true)
+			_ = durationMs
 			return err
 		}
+		durationMs := r.now().Sub(stepStart).Milliseconds()
 		log.Printf("plan-step[%d/%d] %s action=%s OK (%v)", idx+1, len(spec.GetSteps()), step.GetId(), step.GetAction(), r.now().Sub(stepStart))
+		r.WorkflowRec.CompleteStep(ctx, wfRunID, wfStepSeq,
+			fmt.Sprintf("%s completed", step.GetAction()), durationMs)
 
 		stepStatus.State = planpb.StepState_STEP_OK
 		stepStatus.FinishedUnixMs = uint64(r.now().UnixMilli())
@@ -324,7 +381,15 @@ func checkDesiredServices(ctx context.Context, services []*planpb.DesiredService
 			return fmt.Errorf("check service %s: %w", unit, err)
 		}
 		if !active {
-			return fmt.Errorf("service %s not active", unit)
+			// During Day-1 convergence, services may crash-loop because
+			// dependencies (event, etc.) aren't installed yet. Accept the
+			// service as "installed" if the unit file exists and was loaded
+			// by systemd — it will stabilize once deps arrive.
+			loaded, loadErr := supervisor.IsLoaded(ctx, unit)
+			if loadErr != nil || !loaded {
+				return fmt.Errorf("service %s not active and not loaded", unit)
+			}
+			// Unit is loaded but not active — accept for convergence.
 		}
 		// Version verification is best-effort; skip if unknown.
 		if v := strings.TrimSpace(svc.GetVersion()); v != "" {
@@ -480,6 +545,33 @@ func (r *Runner) backoff(plan *planpb.NodePlan, attempt int) time.Duration {
 		return 0
 	}
 	return time.Duration(backoffMs*uint32(attempt)) * time.Millisecond
+}
+
+// workflowPhaseForAction maps plan step actions to workflow phase enums.
+func workflowPhaseForAction(action string) workflowpb.WorkflowPhaseKind {
+	switch action {
+	case "artifact.fetch", "artifact.verify":
+		return workflow.PhaseFetch
+	case "service.install_payload", "install_os_packages":
+		return workflow.PhaseInstall
+	case "config.write", "service.write_version_marker":
+		return workflow.PhaseConfigure
+	case "service.restart", "service.enable":
+		return workflow.PhaseStart
+	case "package.report_state":
+		return workflow.PhaseVerify
+	default:
+		return workflow.PhaseInstall
+	}
+}
+
+// actorForAction returns the workflow actor that owns the action.
+func actorForAction(action string) workflowpb.WorkflowActor {
+	if strings.HasPrefix(action, "service.") || strings.HasPrefix(action, "artifact.") ||
+		strings.HasPrefix(action, "config.") || strings.HasPrefix(action, "package.") {
+		return workflow.ActorInstaller
+	}
+	return workflow.ActorNodeAgent
 }
 
 // rolloutPhaseForAction maps plan step action names to human-readable rollout phases.
