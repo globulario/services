@@ -1,9 +1,68 @@
-━━━ ScyllaDB Database ━━━
-  • ScyllaDB not found — installing...
-  • Installing scylladb_2025.3.1...
-  •   CMD: /home/dave/Documents/github.com/globulario/globular-installer/bin/globular-installer install  --minio-data-dir /mnt/40F43F08F43EFFA8/minio /home/dave/Documents/github.com/globulario/globular-installer/internal/assets/packages/service.scylladb_2025.3.1_linux_amd64.tgz
-  ✓ scylladb_2025.3.1 installed
-  • ScyllaDB TLS/config already configured (by package post-install)
-  • Waiting for ScyllaDB to accept CQL connections (port 9042)...
-  • Warning: ScyllaDB started but not yet accepting connections after 90s
-  • Downstream services may fail on first attempt — re-run installer to retry
+# Package System — Status After Refactoring (2026-03-25)
+
+## Completed Steps
+
+### Step 1: Multi-binary e2e ✓ (commit 551ea0d6)
+- Built node-agent package with `extra_binaries: [globular-upgrader]`
+- Published 0.0.5 to repository (47.9 MB, both binaries)
+- Artifact download works through Envoy gateway (cluster_id metadata + allowlist)
+- `service.install_payload` extracts both binaries to `/usr/lib/globular/bin/`
+- Self-upgrade path verified: `isSelfUpgradePlan` → `delegateToUpgrader` → `/usr/lib/globular/bin/globular-upgrader`
+
+### Step 2: Spec schema ✓ (commit 551ea0d6)
+- `PackageSpec` struct in `pkgpack/packagespec.go` — canonical spec definition
+- `ParseSpec()` / `ValidateSpec()` with kind-specific rules, duplicate step detection
+- Wired into `ScanSpec()` (warnings) and CLI (`globular pkg validate --spec`)
+- All 54 specs (32 service + 22 infra) pass validation
+
+### Step 3: build.sh cleanup ✓ (commit 551ea0d6)
+- `metadata.entrypoint` and `metadata.install_bins` fields in `SpecMetadata`
+- `ScanSpec` honors entrypoint override chain: metadata → top-level → discovery
+- `entrypoint: noop` + `install_bins: false` for scylladb, keepalived
+- `build.sh` reduced from 46-line if/elif chain to zero special cases
+- All 22 infra specs now have explicit `metadata.name`
+
+### Step 4: Installer spec sync ✓ (installer commit 17d4f36)
+- `make sync-specs` copies from both `packages/specs/` and `services/generated/specs/`
+- 20 missing service specs added, 25 stale specs refreshed (45 total)
+- `make check-specs` CI gate — lists every stale/missing spec, fails with actionable message
+- Installer builds clean with all specs
+
+### Step 5: Unified build (covered)
+- `build.sh` is now a trivial metadata-driven loop
+- `build-all-packages.sh` orchestrates both infra + service builds
+- `make sync-specs` keeps installer in sync
+
+---
+
+## Auth fixes that fell out of e2e testing
+
+### Artifact download auth (commit 551ea0d6)
+- `auth_context.go`: read `cluster_id` from gRPC metadata as fallback (Envoy strips mTLS)
+- `artifact.go`: inject `cluster_id` metadata + mTLS client certs into download requests
+- `repository/server.go`: `DownloadArtifact` added to unauthenticated allowlist (read-only, cluster_id-protected)
+
+### Invariant probe fixes (commits 04478750, 0cf3d183, e8dc1162)
+- Log invariant failure reason on each retry attempt (was silent before)
+- TCP probe skips gracefully on missing/incomplete service configs (was hard failure)
+- Probe retry with 3s settle delay after service restart (3x3s = 9s window)
+
+---
+
+## Remaining items (not blocking)
+
+### Archive naming convention
+`service.etcd_3.5.14_linux_amd64.tgz` — the `service.` prefix is wrong for infrastructure and commands.
+Should be `<name>_<version>_<platform>.tgz`. Low priority, backward-compatible change.
+Needs: update `buildArchiveName()` in `builder.go` + installer expectations.
+
+### Installer package embedding
+`internal/assets/packages/` has 57 pre-built .tgz files, manually synced.
+Future: add `make embed-packages` target that builds from source and verifies checksums.
+This is a CI/build automation task, not a code change.
+
+### Port config drift
+Some service configs have stale port assignments (e.g. ai-watcher config said 10210,
+service bound to 10211). The TCP probe now handles this gracefully but the root cause
+is `ensureServicePortConfig` creating stubs that diverge from runtime.
+Future: reconcile service configs against actual listening ports on startup.
