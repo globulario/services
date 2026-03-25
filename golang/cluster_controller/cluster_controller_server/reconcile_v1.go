@@ -356,25 +356,41 @@ type repositoryInfo struct {
 	CAPath  string
 }
 
-// resolveRepositoryInfo looks up the repository service in the Globular
-// service registry and returns connection details. Falls back to "localhost:10101".
+// resolveRepositoryInfo returns the repository address for plan steps.
+// Plans are dispatched to remote nodes, so the address must be reachable
+// cluster-wide. We prefer the gateway (Envoy :443) which routes gRPC to
+// the repository service transparently, avoiding direct-port issues.
+// Falls back to direct service address if gateway cannot be determined.
 func resolveRepositoryInfo() repositoryInfo {
-	const fallback = "localhost:10101"
+	// Prefer gateway: same host as this controller, port 443.
+	// Envoy routes repository.PackageRepository gRPC to the backend.
+	if lanAddr, _ := config.GetAddress(); lanAddr != "" {
+		host := lanAddr
+		if h, _, err := net.SplitHostPort(lanAddr); err == nil {
+			host = h
+		}
+		return repositoryInfo{
+			Address: net.JoinHostPort(host, "443"),
+			TLS:     true,
+			CAPath:  "/var/lib/globular/pki/ca.pem",
+		}
+	}
+
+	// Fallback: direct service lookup.
 	cfg, err := config.GetServiceConfigurationById("repository.PackageRepository")
 	if err != nil || cfg == nil {
-		return repositoryInfo{Address: makeRoutable(fallback)}
+		return repositoryInfo{Address: makeRoutable("localhost:10008")}
 	}
 	port := Utility.ToInt(cfg["Port"])
 	host := strings.TrimSpace(Utility.ToString(cfg["Address"]))
 	if host == "" {
 		host = "localhost"
 	}
-	// If the Address already contains a colon (host:port), use it as-is.
 	var addr string
 	if strings.Contains(host, ":") {
 		addr = host
 	} else if port <= 0 {
-		addr = fallback
+		addr = makeRoutable("localhost:10008")
 	} else {
 		addr = fmt.Sprintf("%s:%d", host, port)
 	}
