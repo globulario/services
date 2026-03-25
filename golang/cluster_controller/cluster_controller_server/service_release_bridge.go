@@ -113,6 +113,34 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 	if created > 0 {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
+
+	// Re-enqueue RESOLVED releases that may be stuck waiting for a node plan
+	// slot. These releases returned from reconcileResolved without patching
+	// (slot busy), so no watch event fires. This periodic re-reconcile is the
+	// only way they get retried.
+	srv.retryResolvedReleases(ctx)
+}
+
+// retryResolvedReleases finds ServiceRelease objects stuck in RESOLVED and
+// re-triggers reconciliation. This handles the case where reconcileResolved
+// returned without patching because the node plan slot was busy.
+func (srv *server) retryResolvedReleases(ctx context.Context) {
+	if srv.resources == nil {
+		return
+	}
+	releases, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+	if err != nil {
+		return
+	}
+	for _, obj := range releases {
+		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+		if !ok || rel.Status == nil || rel.Meta == nil {
+			continue
+		}
+		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
+			srv.reconcileRelease(ctx, rel.Meta.Name)
+		}
+	}
 }
 
 // cleanupStaleInfraServiceReleases was intended to remove ServiceRelease and
