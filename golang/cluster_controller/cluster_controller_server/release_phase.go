@@ -32,9 +32,10 @@ var validPhaseTransitions = map[string]map[string]bool{
 		ReleasePhaseRemoving:                      true,
 	},
 	cluster_controllerpb.ReleasePhaseResolved: {
-		cluster_controllerpb.ReleasePhaseApplying: true,
-		cluster_controllerpb.ReleasePhaseFailed:   true,
-		ReleasePhaseRemoving:                      true,
+		cluster_controllerpb.ReleasePhaseApplying:  true,
+		cluster_controllerpb.ReleasePhaseAvailable: true, // all nodes already converged
+		cluster_controllerpb.ReleasePhaseFailed:    true,
+		ReleasePhaseRemoving:                       true,
 	},
 	cluster_controllerpb.ReleasePhaseApplying: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true,
