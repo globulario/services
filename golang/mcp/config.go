@@ -64,6 +64,10 @@ type ToolGroupConfig struct {
 	Memory      bool `json:"memory"`      // default true (AI memory service)
 	Skills      bool `json:"skills"`      // default true (operational skill playbooks)
 	Workflow    bool `json:"workflow"`    // default true (reconciliation workflow tracing)
+	Etcd        bool `json:"etcd"`        // default true (direct etcd access)
+	Title       bool `json:"title"`       // default true (search index tools)
+	Frontend    bool `json:"frontend"`    // default true (gRPC service map, web probe)
+	Proto       bool `json:"proto"`       // default true (gRPC reflection describe)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -117,6 +121,10 @@ func defaultConfig() *MCPConfig {
 			File:        true,
 			Persistence: false, // requires explicit allowlist
 			Storage:     false, // requires explicit allowlist
+			Etcd:        true,
+			Title:       true,
+			Frontend:    true,
+			Proto:       true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 		},
@@ -196,6 +204,7 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"memory":   &cfg.ToolGroups.Memory,
 		"skills":   &cfg.ToolGroups.Skills,
 		"workflow": &cfg.ToolGroups.Workflow,
+		"etcd":     &cfg.ToolGroups.Etcd,
 	}
 
 	updated := false

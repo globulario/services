@@ -11,6 +11,7 @@ func registerAllTools(s *server) {
 	}
 	if g.NodeAgent {
 		registerNodeAgentTools(s)
+		registerServiceConfigTools(s)
 	}
 	if g.Repository {
 		registerRepositoryTools(s)
@@ -55,5 +56,21 @@ func registerAllTools(s *server) {
 	if g.Workflow {
 		registerWorkflowTools(s)
 	}
+	if g.Etcd {
+		registerEtcdTools(s)
+	}
+	if g.Title {
+		registerTitleTools(s)
+	}
+	if g.Frontend {
+		registerFrontendTools(s)
+	}
+	if g.Proto {
+		registerProtoTools(s)
+	}
+	// Log ring tools are always available (in-process ring buffer).
+	registerLogRingTools(s)
+	// Package lifecycle tools are always available.
+	registerPackageTools(s)
 	// Auth and DNS deferred to phase 2.
 }
