@@ -39,6 +39,10 @@ type SpecMetadata struct {
 
 	// Extra binaries to include alongside the main exec (e.g. helper tools).
 	ExtraBinaries []string
+
+	// Build hints — control how the builder treats this package.
+	Entrypoint  string // Override exec name (e.g. "noop" for OS-managed packages, "globularcli" for renamed binaries).
+	InstallBins *bool  // Override: false to skip bin/ extraction (OS-managed packages like scylladb).
 }
 
 // ScriptFile describes a script to embed in a package.
@@ -85,10 +89,23 @@ type ScanOptions struct {
 }
 
 // ScanSpec reads a spec file and derives service metadata, executable, config, and systemd assets.
+// It first parses and validates the spec against the PackageSpec schema, catching structural
+// errors early before attempting asset discovery.
 func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, error) {
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Parse into typed struct and validate schema.
+	parsed, parseErr := ParseSpecBytes(data, specPath)
+	if parseErr == nil {
+		if errs := ValidateSpec(parsed, specPath); len(errs) > 0 {
+			// Log warnings but don't fail — existing specs may have minor issues.
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "WARN %v\n", e)
+			}
+		}
 	}
 
 	var doc map[string]any
@@ -97,9 +114,31 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 	}
 
 	serviceName := deriveServiceName(specPath, doc)
-	execName, err := deriveExecName(doc, roots, serviceName)
-	if err != nil {
-		return nil, fmt.Errorf("spec %s: %w", specPath, err)
+
+	// Check for top-level entrypoint field (e.g. "bin/mc", "bin/globularcli").
+	topEntrypoint := lookupString(doc, "entrypoint")
+
+	// Check for metadata.entrypoint (e.g. "noop" for OS-managed packages).
+	metaEntrypoint := lookupString(doc, "metadata", "entrypoint")
+
+	var execName string
+	switch {
+	case metaEntrypoint == "noop":
+		// OS-managed package — use noop binary from bin root.
+		execName = "noop"
+	case metaEntrypoint != "":
+		// Metadata entrypoint override (bare name or bin/name).
+		execName = strings.TrimPrefix(metaEntrypoint, "bin/")
+	case topEntrypoint != "":
+		// Top-level entrypoint field (e.g. "bin/yt-dlp").
+		execName = strings.TrimPrefix(topEntrypoint, "bin/")
+	default:
+		// Standard exec discovery from spec content.
+		var discoverErr error
+		execName, discoverErr = deriveExecName(doc, roots, serviceName)
+		if discoverErr != nil {
+			return nil, fmt.Errorf("spec %s: %w", specPath, discoverErr)
+		}
 	}
 	execPath := filepath.Join(roots.BinRoot, execName)
 
@@ -222,6 +261,16 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 		meta.SystemdUnit = su
 	}
 	meta.ExtraBinaries = lookupStringList(m, "extra_binaries")
+
+	// Build hint fields
+	if ep := lookupString(m, "entrypoint"); ep != "" {
+		meta.Entrypoint = ep
+	}
+	if ib, ok := m["install_bins"]; ok {
+		if b, ok := ib.(bool); ok {
+			meta.InstallBins = &b
+		}
+	}
 
 	return meta
 }

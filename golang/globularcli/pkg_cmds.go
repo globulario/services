@@ -51,12 +51,17 @@ var (
 	pkgValidateCmd = &cobra.Command{
 		Use:   "validate",
 		Short: "Validate package structure and manifest locally (no network)",
-		Long: `Validate a package .tgz file locally without contacting any service.
+		Long: `Validate a package .tgz file or a raw spec YAML file locally.
 
-Checks:
+With --file (package .tgz):
   • manifest.json present and schema valid
   • entrypoint exists inside the archive
   • platform field matches file name convention
+
+With --spec (raw YAML):
+  • version, metadata.name, kind, steps validated
+  • duplicate step IDs detected
+  • kind-specific rules enforced (e.g. service requires install_package_payload)
 
 Exit code 0 on success, 2 on validation error.`,
 		RunE: runPkgValidate,
@@ -124,6 +129,7 @@ var (
 	pkgSkipMissingSystemd bool
 
 	pkgVerifyFile string
+	pkgVerifySpec string // --spec flag for validating a raw spec YAML
 
 	// Publish / register command flags
 	pkgPublishFile       string
@@ -171,6 +177,7 @@ func init() {
 
 	pkgVerifyCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
 	pkgValidateCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
+	pkgValidateCmd.Flags().StringVar(&pkgVerifySpec, "spec", "", "path to a spec YAML file (validates schema without building)")
 
 	pkgDescribeCmd.Flags().StringVar(&pkgDescribeFile, "file", "", "path to a package tgz (required)")
 
@@ -264,8 +271,35 @@ func printPkgBuildSummary(results []pkgpack.BuildResult) {
 // ── Validate / Verify ──────────────────────────────────────────────────────
 
 func runPkgValidate(cmd *cobra.Command, args []string) error {
+	// --spec: validate a raw spec YAML against the PackageSpec schema.
+	if pkgVerifySpec != "" {
+		spec, err := pkgpack.ParseSpec(pkgVerifySpec)
+		if err != nil {
+			return err
+		}
+		errs := pkgpack.ValidateSpec(spec, pkgVerifySpec)
+		if len(errs) > 0 {
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "  ERROR: %v\n", e)
+			}
+			return fmt.Errorf("%d validation error(s) in %s", len(errs), pkgVerifySpec)
+		}
+		name := spec.Metadata.Name
+		if name == "" && spec.Service != nil {
+			name = spec.Service.Name
+		}
+		kind := spec.Metadata.Kind
+		if kind == "" {
+			kind = "service"
+		}
+		fmt.Printf("valid: name=%s kind=%s steps=%d spec=%s\n",
+			name, kind, len(spec.Steps), pkgVerifySpec)
+		return nil
+	}
+
+	// --file: validate a built .tgz package.
 	if pkgVerifyFile == "" {
-		return errors.New("--file is required")
+		return errors.New("--file or --spec is required")
 	}
 	summary, err := pkgpack.VerifyTGZ(pkgVerifyFile)
 	if err != nil {

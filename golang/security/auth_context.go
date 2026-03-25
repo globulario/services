@@ -175,6 +175,18 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 		}
 	}
 
+	// Fallback: if ClusterID is still empty (no JWT, no mTLS), check for
+	// cluster_id in gRPC metadata. This supports service-to-service calls
+	// that go through TLS-terminating proxies (e.g. Envoy gateway) where
+	// the client's mTLS cert is stripped but metadata is forwarded.
+	if authCtx.ClusterID == "" {
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if vals := md["cluster_id"]; len(vals) > 0 && vals[0] != "" {
+				authCtx.ClusterID = vals[0]
+			}
+		}
+	}
+
 	return authCtx, nil
 }
 

@@ -25,8 +25,10 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -438,6 +440,16 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 			}
 			tlsCfg.RootCAs = pool
 		}
+		// Load client certificate for mTLS authentication. The server-side
+		// interceptor skips cluster_id enforcement for mTLS-authenticated
+		// calls (TLS trust chain already prevents cross-cluster access).
+		clientCert := "/var/lib/globular/pki/issued/services/service.crt"
+		clientKey := "/var/lib/globular/pki/issued/services/service.key"
+		if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		} else {
+			fmt.Printf("WARN artifact fetch: no client certs (%v), download may fail cluster_id check\n", err)
+		}
 		if host, _, err := net.SplitHostPort(addr); err == nil {
 			tlsCfg.ServerName = host
 		}
@@ -450,6 +462,15 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 		return fmt.Errorf("dial repository %s: %w", addr, err)
 	}
 	defer conn.Close()
+
+	// Inject cluster_id into outgoing gRPC metadata so the server-side
+	// interceptor accepts the call. When going through the Envoy gateway,
+	// mTLS client certs are stripped (TLS termination), so the interceptor
+	// only sees metadata for cluster identity verification.
+	if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 
 	client := repositorypb.NewPackageRepositoryClient(conn)
 	stream, err := client.DownloadArtifact(ctx, &repositorypb.DownloadArtifactRequest{Ref: ref, BuildNumber: buildNumber})

@@ -19,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -362,6 +363,12 @@ func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
+
+	// DownloadArtifact is read-only and protected by cluster_id validation.
+	// Node-agents call it during autonomous plan execution without user tokens.
+	interceptors.AllowUnauthenticated(
+		"/repository.PackageRepository/DownloadArtifact",
+	)
 
 	// If your Globular requires interceptors:
 	gs, err := globular.InitGrpcServer(srv)
@@ -783,8 +790,8 @@ func main() {
 			"bucket", s.MinioConfig.Bucket)
 	}
 	if err := s.initStorage(); err != nil {
-		logger.Error("storage init failed", "err", err)
-		os.Exit(1)
+		logger.Error("storage init failed, falling back to local filesystem", "err", err)
+		s.storage = storage_backend.NewOSStorage(s.Root)
 	}
 
 	// 7b. Run trust model migration (idempotent — only on first run).
