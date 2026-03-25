@@ -12,6 +12,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/planexec"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -212,6 +213,25 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
+	// Self-upgrade guard: if this plan restarts our own unit, delegate to
+	// the external upgrader binary. The upgrader runs as a detached process
+	// that survives our shutdown: stop us → swap binary → report success → start us.
+	if isSelfUpgradePlan(plan) {
+		log.Printf("plan-runner: plan %s is a self-upgrade, delegating to globular-upgrader", plan.GetPlanId())
+		if err := srv.delegateToUpgrader(plan); err != nil {
+			log.Printf("plan-runner: self-upgrade delegation failed: %v", err)
+			st := srv.newPlanStatus(plan)
+			st.State = planpb.PlanState_PLAN_FAILED
+			st.ErrorMessage = fmt.Sprintf("self-upgrade delegation: %v", err)
+			st.FinishedUnixMs = uint64(time.Now().UnixMilli())
+			srv.publishPlanStatus(ctx, st)
+			op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_FAILED, err.Error(), 90, true, err.Error()))
+		} else {
+			op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_SUCCEEDED, "delegated to upgrader", 100, true, ""))
+		}
+		return
+	}
+
 	runner := planexec.NewRunner(srv.nodeID, srv.publishPlanStatus)
 	runner.WorkflowRec = srv.workflowRec
 	runner.ClusterID = srv.clusterID
@@ -374,4 +394,92 @@ func (srv *NodeAgentServer) publishPlanStatus(ctx context.Context, status *planp
 	if err := srv.planStore.PutStatus(ctx, srv.nodeID, status); err != nil {
 		log.Printf("failed to publish plan status: %v", err)
 	}
+}
+
+// isSelfUpgradePlan returns true if the plan contains a service.restart step
+// targeting the node-agent's own systemd unit.
+func isSelfUpgradePlan(plan *planpb.NodePlan) bool {
+	if plan == nil || plan.GetSpec() == nil {
+		return false
+	}
+	for _, step := range plan.GetSpec().GetSteps() {
+		if step.GetAction() == "service.restart" {
+			unit := step.GetArgs().GetFields()["unit"].GetStringValue()
+			if unit == "globular-node-agent.service" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// delegateToUpgrader extracts the plan parameters and launches the external
+// globular-upgrader binary as a detached process that survives our shutdown.
+func (srv *NodeAgentServer) delegateToUpgrader(plan *planpb.NodePlan) error {
+	var artifactPath, service, version, unit string
+	for _, step := range plan.GetSpec().GetSteps() {
+		fields := step.GetArgs().GetFields()
+		switch step.GetAction() {
+		case "artifact.fetch":
+			artifactPath = fields["artifact_path"].GetStringValue()
+			service = fields["service"].GetStringValue()
+			version = fields["version"].GetStringValue()
+		case "service.restart":
+			unit = fields["unit"].GetStringValue()
+		}
+	}
+	if artifactPath == "" || service == "" || unit == "" {
+		return fmt.Errorf("missing required plan fields: artifact=%q service=%q unit=%q", artifactPath, service, unit)
+	}
+
+	// First, run artifact.fetch and artifact.verify ourselves (before we get killed).
+	// The upgrader only handles stop → install → report → start.
+	fetchCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for _, step := range plan.GetSpec().GetSteps() {
+		action := step.GetAction()
+		if action != "artifact.fetch" && action != "artifact.verify" {
+			continue
+		}
+		handler := actions.Get(action)
+		if handler == nil {
+			return fmt.Errorf("action %s not registered", action)
+		}
+		if _, err := handler.Apply(fetchCtx, step.GetArgs()); err != nil {
+			return fmt.Errorf("%s failed: %w", action, err)
+		}
+		log.Printf("plan-runner: self-upgrade: %s completed", action)
+	}
+
+	// TLS paths for etcd (canonical locations).
+	etcdCert := "/var/lib/globular/pki/issued/services/service.crt"
+	etcdKey := "/var/lib/globular/pki/issued/services/service.key"
+	etcdCA := "/var/lib/globular/pki/ca.crt"
+
+	// Determine etcd endpoint from the plan store's client config.
+	etcdEndpoint := "https://localhost:2379"
+	if eps, ok := srv.planStore.(interface{ Client() *clientv3.Client }); ok {
+		if c := eps.Client(); c != nil {
+			if endpoints := c.Endpoints(); len(endpoints) > 0 {
+				etcdEndpoint = strings.Join(endpoints, ",")
+			}
+		}
+	}
+
+	args := []string{
+		"--node-id", srv.nodeID,
+		"--plan-id", plan.GetPlanId(),
+		"--plan-generation", fmt.Sprintf("%d", plan.GetGeneration()),
+		"--artifact", artifactPath,
+		"--service", service,
+		"--version", version,
+		"--unit", unit,
+		"--etcd-endpoints", etcdEndpoint,
+		"--etcd-cert", etcdCert,
+		"--etcd-key", etcdKey,
+		"--etcd-ca", etcdCA,
+	}
+
+	log.Printf("plan-runner: launching globular-upgrader %v", args)
+	return supervisor.LaunchUpgrader(args)
 }

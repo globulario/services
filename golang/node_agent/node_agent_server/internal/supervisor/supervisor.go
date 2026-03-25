@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -163,6 +164,20 @@ func ReadJournalctl(ctx context.Context, unit string, lines int, priority string
 	cmd := exec.CommandContext(ctx, "journalctl", args...)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// LaunchUpgrader starts the globular-upgrader binary as a detached process
+// that survives the node-agent's shutdown. The upgrader handles stop → swap
+// binary → report plan success → start for services that cannot upgrade
+// themselves (e.g. node-agent).
+func LaunchUpgrader(args []string) error {
+	binary := "/usr/lib/globular/bin/globular-upgrader"
+	cmd := exec.Command(binary, args...)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	// SysProcAttr with Setsid detaches from parent — survives our shutdown.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return cmd.Start()
 }
 
 // WaitActive blocks until unit becomes active or timeout expires.
