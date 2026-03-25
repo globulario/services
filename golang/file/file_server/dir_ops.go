@@ -380,11 +380,13 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 	if p == "" {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid empty path")))
 	}
-	// Public dirs are real OS paths (may be external mounts like /mnt/...).
-	// Use os.Stat directly because the path is not yet in srv.Public, so
-	// storageForPath would incorrectly resolve it relative to srv.Root.
-	if _, err := os.Stat(p); err != nil {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
+	// Check existence via storageForPath which handles both local FS and MinIO.
+	if !srv.pathExists(ctx, p) {
+		// Fallback: try os.Stat for external mounts (e.g. /mnt/...) not routed
+		// through storageForPath.
+		if _, err := os.Stat(p); err != nil {
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
+		}
 	}
 	if srv.publicContains(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s already exist in public paths", p)))

@@ -512,7 +512,7 @@ func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
-		if minioRaw, ok := cfg["MinioConfig"]; ok {
+		if minioRaw, ok := cfg["MinioConfig"]; ok && minioRaw != nil {
 			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
 				c := parseMinioConfigFromMap(minioMap)
 				if c.Endpoint != "" && c.Bucket != "" {
@@ -554,6 +554,65 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 					}
 				}
 			}
+		}
+	}
+
+	// Fall back to the shared objectstore contract file used by the gateway.
+	// This is the standard location for MinIO credentials configured during
+	// cluster setup (backup manager settings panel).
+	contractPath := filepath.Join(config.GetStateRootDir(), "objectstore", "minio.json")
+	if data, err := os.ReadFile(contractPath); err == nil {
+		var contract struct {
+			Endpoint     string `json:"endpoint"`
+			Bucket       string `json:"bucket"`
+			Prefix       string `json:"prefix"`
+			Secure       bool   `json:"secure"`
+			CaBundlePath string `json:"caBundlePath"`
+			Auth         struct {
+				Mode     string `json:"mode"`
+				CredFile string `json:"credFile"`
+			} `json:"auth"`
+		}
+		if err := json.Unmarshal(data, &contract); err == nil && contract.Endpoint != "" && contract.Bucket != "" {
+			c := &config.MinioProxyConfig{
+				Endpoint:     contract.Endpoint,
+				Bucket:       contract.Bucket,
+				Prefix:       contract.Prefix,
+				Secure:       contract.Secure,
+				CABundlePath: contract.CaBundlePath,
+			}
+			// Load credentials from the file referenced in the contract.
+			// Format: "accessKey:secretKey" (colon-separated, single line)
+			if contract.Auth.CredFile != "" {
+				if credData, err := os.ReadFile(contract.Auth.CredFile); err == nil {
+					parts := strings.SplitN(strings.TrimSpace(string(credData)), ":", 2)
+					if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+						c.Auth = &config.MinioProxyAuth{
+							Mode:      config.MinioProxyAuthModeAccessKey,
+							AccessKey: parts[0],
+							SecretKey: parts[1],
+						}
+					}
+				}
+			}
+			if c.Auth == nil {
+				// Try env vars as last resort
+				ak := os.Getenv("MINIO_ACCESS_KEY")
+				sk := os.Getenv("MINIO_SECRET_KEY")
+				if ak != "" && sk != "" {
+					c.Auth = &config.MinioProxyAuth{
+						Mode:      config.MinioProxyAuthModeAccessKey,
+						AccessKey: ak,
+						SecretKey: sk,
+					}
+				}
+			}
+			logger.Info("minio config loaded from objectstore contract",
+				"path", contractPath,
+				"endpoint", c.Endpoint,
+				"bucket", c.Bucket,
+				"secure", c.Secure)
+			return c
 		}
 	}
 
