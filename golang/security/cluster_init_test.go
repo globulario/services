@@ -140,16 +140,14 @@ func TestIsClusterInitialized_BootstrapActive(t *testing.T) {
 func TestBootstrapGate_IsActive(t *testing.T) {
 	// No flag file, no env var → not active.
 	gate := NewBootstrapGateWithPath("/tmp/nonexistent-bootstrap-flag-for-test")
-	os.Unsetenv("GLOBULAR_BOOTSTRAP")
 	if gate.IsActive() {
 		t.Error("IsActive() = true, want false when bootstrap not enabled")
 	}
 
-	// Env var enabled → active.
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
-	if !gate.IsActive() {
-		t.Error("IsActive() = false, want true with GLOBULAR_BOOTSTRAP=1")
+	// Flag file enabled → active.
+	gate2 := createTestBootstrapFlag(t)
+	if !gate2.IsActive() {
+		t.Error("IsActive() = false, want true with valid flag file")
 	}
 }
 

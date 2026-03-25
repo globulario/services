@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -24,10 +23,9 @@ const (
 	// This prevents forgotten flag files from leaving the system permanently insecure.
 	bootstrapMaxDuration = 30 * time.Minute
 
-	// bootstrapEnvVar is the environment variable alternative to the flag file.
-	// Set GLOBULAR_BOOTSTRAP=1 to enable bootstrap mode without a file.
-	// Used for testing and containerized deployments.
-	bootstrapEnvVar = "GLOBULAR_BOOTSTRAP"
+	// bootstrapEnvVar is kept for documentation — env var activation was removed
+	// because it bypassed time-bounded expiry. Use the flag file exclusively.
+	bootstrapEnvVar = "GLOBULAR_BOOTSTRAP" //nolint:unused
 )
 
 // BootstrapState represents the bootstrap mode state stored in the flag file.
@@ -193,17 +191,15 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 	return true, "bootstrap_allowed"
 }
 
-// isEnabled checks if bootstrap mode is explicitly enabled via flag file or env var.
+// isEnabled checks if bootstrap mode is explicitly enabled via flag file.
 // Returns (enabled bool, reason string).
+//
+// NOTE: Environment variable support (GLOBULAR_BOOTSTRAP=1) was removed because
+// it bypassed the time-bounded expiry, leading to permanently insecure clusters
+// when baked into systemd units. Use the flag file exclusively — it has JSON
+// timestamps, 30-minute expiry, ownership checks, and auto-cleanup.
 func (g *BootstrapGate) isEnabled() (bool, string) {
-	// Check environment variable first (higher priority for testing/containers)
-	if envVal := strings.TrimSpace(os.Getenv(bootstrapEnvVar)); envVal != "" {
-		if envVal == "1" || strings.EqualFold(envVal, "true") || strings.EqualFold(envVal, "yes") {
-			return true, "env_var"
-		}
-	}
-
-	// Check flag file
+	// Check flag file — the only supported activation mechanism.
 	if _, err := os.Stat(g.flagFilePath); err == nil {
 		return true, "flag_file"
 	}
@@ -219,13 +215,6 @@ func (g *BootstrapGate) isEnabled() (bool, string) {
 // - Enabled via env var (no time limit for env-based bootstrap)
 // - Flag file exists, has correct permissions, and current time < expires_at
 func (g *BootstrapGate) isWithinTimeWindow() bool {
-	// If enabled via env var, no time limit (for testing/development)
-	if envVal := strings.TrimSpace(os.Getenv(bootstrapEnvVar)); envVal != "" {
-		if envVal == "1" || strings.EqualFold(envVal, "true") || strings.EqualFold(envVal, "yes") {
-			return true
-		}
-	}
-
 	// Read and validate bootstrap state file
 	state, err := g.readBootstrapState()
 	if err != nil {

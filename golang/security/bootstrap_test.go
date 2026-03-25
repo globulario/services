@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,12 +35,12 @@ func TestBootstrapGate_Disabled(t *testing.T) {
 	}
 }
 
-// TestBootstrapGate_EnvVar verifies bootstrap works with env var
-func TestBootstrapGate_EnvVar(t *testing.T) {
+// TestBootstrapGate_EnvVar_NoLongerWorks verifies env var no longer enables bootstrap
+func TestBootstrapGate_EnvVar_NoLongerWorks(t *testing.T) {
 	gate := NewBootstrapGate()
 	gate.flagFilePath = "/tmp/nonexistent-bootstrap-flag"
 
-	// Enable via env var
+	// Env var should NOT enable bootstrap (removed to prevent permanent insecurity)
 	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
 	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
@@ -48,13 +49,37 @@ func TestBootstrapGate_EnvVar(t *testing.T) {
 		IsLoopback: true,
 	}
 
-	allowed, reason := gate.ShouldAllow(authCtx)
-	if !allowed {
-		t.Errorf("ShouldAllow() = false, want true with env var enabled (reason: %s)", reason)
+	allowed, _ := gate.ShouldAllow(authCtx)
+	if allowed {
+		t.Error("ShouldAllow() = true, want false — env var should no longer enable bootstrap")
 	}
-	if reason != "bootstrap_allowed" {
-		t.Errorf("reason = %q, want \"bootstrap_allowed\"", reason)
+}
+
+// createTestBootstrapFlag creates a valid flag file for test use and returns
+// a gate configured to use it.
+func createTestBootstrapFlag(t *testing.T) *BootstrapGate {
+	t.Helper()
+	tmpDir := t.TempDir()
+	flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+	now := time.Now().Unix()
+	state := BootstrapState{
+		EnabledAt: now,
+		ExpiresAt: now + 1800,
+		Nonce:     "test-nonce",
+		CreatedBy: "test",
+		Version:   "1.0",
 	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("marshal bootstrap state: %v", err)
+	}
+	if err := os.WriteFile(flagFile, data, 0600); err != nil {
+		t.Fatalf("write bootstrap flag: %v", err)
+	}
+	gate := NewBootstrapGate()
+	gate.flagFilePath = flagFile
+	gate.skipOwnershipCheck = true
+	return gate
 }
 
 // TestBootstrapGate_FlagFile verifies bootstrap works with flag file
@@ -151,11 +176,7 @@ func TestBootstrapGate_Expired(t *testing.T) {
 
 // TestBootstrapGate_NonLoopback verifies loopback-only enforcement
 func TestBootstrapGate_NonLoopback(t *testing.T) {
-	gate := NewBootstrapGate()
-
-	// Enable via env var
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
+	gate := createTestBootstrapFlag(t)
 
 	authCtx := &AuthContext{
 		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
@@ -173,11 +194,7 @@ func TestBootstrapGate_NonLoopback(t *testing.T) {
 
 // TestBootstrapGate_MethodNotAllowed verifies method allowlist enforcement
 func TestBootstrapGate_MethodNotAllowed(t *testing.T) {
-	gate := NewBootstrapGate()
-
-	// Enable via env var
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
+	gate := createTestBootstrapFlag(t)
 
 	// Try to access a non-allowlisted method
 	authCtx := &AuthContext{
@@ -196,11 +213,7 @@ func TestBootstrapGate_MethodNotAllowed(t *testing.T) {
 
 // TestBootstrapGate_AllowedMethods verifies that all allowlisted methods work
 func TestBootstrapGate_AllowedMethods(t *testing.T) {
-	gate := NewBootstrapGate()
-
-	// Enable via env var
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
+	gate := createTestBootstrapFlag(t)
 
 	allowedMethods := []string{
 		"/grpc.health.v1.Health/Check",
@@ -275,14 +288,19 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 			description: "Should fail at gate 2 (time window)",
 		},
 		{
-			name:      "Gate 3 fails - remote",
-			setupGate: func(g *BootstrapGate) {},
-			setupEnv: func() {
-				os.Setenv("GLOBULAR_BOOTSTRAP", "1")
+			name: "Gate 3 fails - remote",
+			setupGate: func(g *BootstrapGate) {
+				// Valid flag file, but request is remote
+				tmpDir, _ := os.MkdirTemp("", "bootstrap-test-*")
+				flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+				now := time.Now().Unix()
+				data, _ := json.Marshal(BootstrapState{EnabledAt: now, ExpiresAt: now + 1800, CreatedBy: "test", Version: "1.0"})
+				os.WriteFile(flagFile, data, 0600)
+				g.flagFilePath = flagFile
+				g.skipOwnershipCheck = true
 			},
-			cleanupEnv: func() {
-				os.Unsetenv("GLOBULAR_BOOTSTRAP")
-			},
+			setupEnv:   func() {},
+			cleanupEnv: func() {},
 			authCtx: &AuthContext{
 				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: false, // Remote!
@@ -292,14 +310,18 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 			description: "Should fail at gate 3 (loopback-only)",
 		},
 		{
-			name:      "Gate 4 fails - method blocked",
-			setupGate: func(g *BootstrapGate) {},
-			setupEnv: func() {
-				os.Setenv("GLOBULAR_BOOTSTRAP", "1")
+			name: "Gate 4 fails - method blocked",
+			setupGate: func(g *BootstrapGate) {
+				tmpDir, _ := os.MkdirTemp("", "bootstrap-test-*")
+				flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+				now := time.Now().Unix()
+				data, _ := json.Marshal(BootstrapState{EnabledAt: now, ExpiresAt: now + 1800, CreatedBy: "test", Version: "1.0"})
+				os.WriteFile(flagFile, data, 0600)
+				g.flagFilePath = flagFile
+				g.skipOwnershipCheck = true
 			},
-			cleanupEnv: func() {
-				os.Unsetenv("GLOBULAR_BOOTSTRAP")
-			},
+			setupEnv:   func() {},
+			cleanupEnv: func() {},
 			authCtx: &AuthContext{
 				GRPCMethod: "/file.FileService/DeleteFile", // Not allowed!
 				IsLoopback: true,
@@ -309,14 +331,18 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 			description: "Should fail at gate 4 (method allowlist)",
 		},
 		{
-			name:      "All gates pass",
-			setupGate: func(g *BootstrapGate) {},
-			setupEnv: func() {
-				os.Setenv("GLOBULAR_BOOTSTRAP", "1")
+			name: "All gates pass",
+			setupGate: func(g *BootstrapGate) {
+				tmpDir, _ := os.MkdirTemp("", "bootstrap-test-*")
+				flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+				now := time.Now().Unix()
+				data, _ := json.Marshal(BootstrapState{EnabledAt: now, ExpiresAt: now + 1800, CreatedBy: "test", Version: "1.0"})
+				os.WriteFile(flagFile, data, 0600)
+				g.flagFilePath = flagFile
+				g.skipOwnershipCheck = true
 			},
-			cleanupEnv: func() {
-				os.Unsetenv("GLOBULAR_BOOTSTRAP")
-			},
+			setupEnv:   func() {},
+			cleanupEnv: func() {},
 			authCtx: &AuthContext{
 				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: true,
@@ -352,26 +378,23 @@ func TestBootstrapGate_GetBootstrapStatus(t *testing.T) {
 	gate.flagFilePath = "/tmp/nonexistent"
 
 	// Disabled
-	os.Unsetenv("GLOBULAR_BOOTSTRAP")
 	status := gate.GetBootstrapStatus()
 	if status != "disabled" {
 		t.Errorf("GetBootstrapStatus() = %q, want \"disabled\"", status)
 	}
 
-	// Enabled via env var
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
-	status = gate.GetBootstrapStatus()
-	if status != "enabled (env_var)" {
-		t.Errorf("GetBootstrapStatus() = %q, want \"enabled (env_var)\"", status)
+	// Enabled via flag file
+	gate2 := createTestBootstrapFlag(t)
+	status = gate2.GetBootstrapStatus()
+	if !strings.HasPrefix(status, "enabled (flag_file)") {
+		t.Errorf("GetBootstrapStatus() = %q, want prefix \"enabled (flag_file)\"", status)
 	}
 }
 
 // TestBootstrapGate_IntegrationWithAuthContext verifies end-to-end flow
 func TestBootstrapGate_IntegrationWithAuthContext(t *testing.T) {
-	// Enable bootstrap mode
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
+	// Enable bootstrap mode via flag file
+	gate := createTestBootstrapFlag(t)
 
 	// Create loopback peer context
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
@@ -389,7 +412,6 @@ func TestBootstrapGate_IntegrationWithAuthContext(t *testing.T) {
 	}
 
 	// Check bootstrap gate
-	gate := DefaultBootstrapGate
 	allowed, reason := gate.ShouldAllow(authCtx)
 	if !allowed {
 		t.Errorf("ShouldAllow() = false, want true (reason: %s)", reason)

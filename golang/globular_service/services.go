@@ -27,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	globular_client "github.com/globulario/services/golang/globular_client"
@@ -44,11 +45,12 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// IsBootstrapMode reports whether the process is running in bootstrap mode
-// (GLOBULAR_BOOTSTRAP=1/true/yes).
+// IsBootstrapMode reports whether the process is running in bootstrap mode.
+// Bootstrap is activated exclusively by the flag file /var/lib/globular/bootstrap.enabled
+// which contains JSON state with expiry timestamps. Environment variable support
+// was removed to prevent permanently insecure clusters.
 func IsBootstrapMode() bool {
-	v := strings.TrimSpace(os.Getenv("GLOBULAR_BOOTSTRAP"))
-	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+	return security.DefaultBootstrapGate.IsActive()
 }
 
 // Service describes the minimal contract a Globular service must implement.
