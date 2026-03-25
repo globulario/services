@@ -160,7 +160,7 @@ func TestRolledBack_AllNodes(t *testing.T) {
 		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK, ErrorMessage: "probe failed"},
 	}
 
-	updated, succeeded, failed, rolledBack, running := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	updated, succeeded, failed, rolledBack, running, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
 	if succeeded != 0 || failed != 0 || rolledBack != 2 || running != 0 {
 		t.Fatalf("expected 0/0/2/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
 	}
@@ -193,7 +193,7 @@ func TestRolledBack_Mixed(t *testing.T) {
 		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
 		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK},
 	}
-	_, succeeded, failed, rolledBack, running := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	_, succeeded, failed, rolledBack, running, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
 	if succeeded != 1 || failed != 0 || rolledBack != 1 || running != 0 {
 		t.Fatalf("expected 1/0/1/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
 	}
@@ -213,7 +213,7 @@ func TestFailedStepPropagation(t *testing.T) {
 	ps.statuses = map[string]*planpb.NodePlanStatus{
 		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_FAILED, ErrorStepId: "artifact.fetch", ErrorMessage: "download timeout"},
 	}
-	updated, _, _, _, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	updated, _, _, _, _, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
 	if len(updated) != 1 {
 		t.Fatalf("expected 1 node status")
 	}
@@ -253,6 +253,7 @@ func TestAdvancePhase_ValidTransition_NoError(t *testing.T) {
 		{cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseResolved},
 		{cluster_controllerpb.ReleasePhaseResolved, cluster_controllerpb.ReleasePhaseApplying},
 		{cluster_controllerpb.ReleasePhaseApplying, cluster_controllerpb.ReleasePhaseAvailable},
+		{cluster_controllerpb.ReleasePhaseApplying, cluster_controllerpb.ReleasePhaseResolved},
 		{cluster_controllerpb.ReleasePhaseApplying, cluster_controllerpb.ReleasePhaseRolledBack},
 		{cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhasePending},
 		{cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded},
@@ -727,5 +728,86 @@ func TestMixedNodeRollout_OnlyFailedNodeRetried(t *testing.T) {
 	// n2 is terminal → not active, can be redispatched
 	if srv.hasAnyActivePlan(context.Background(), "n2") {
 		t.Fatal("n2 failed, should not block redispatch")
+	}
+}
+
+// ── Phase 10: Plan ownership enforcement ─────────────────────────────────────
+
+func TestCheckNodePlanStatuses_EmptyPlanID(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
+	nodes := []*cluster_controllerpb.NodeReleaseStatus{
+		{NodeID: "n1", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
+	}
+	_, succeeded, failed, rolledBack, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	if needsRedispatch != 1 {
+		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
+	}
+	if succeeded != 0 || failed != 0 || rolledBack != 0 || running != 0 {
+		t.Fatalf("expected 0/0/0/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
+	}
+}
+
+func TestCheckNodePlanStatuses_MismatchTerminal(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		PlanId: "p2", State: planpb.PlanState_PLAN_FAILED, ErrorMessage: "other plan failed",
+	}
+	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
+	nodes := []*cluster_controllerpb.NodeReleaseStatus{
+		{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying},
+	}
+	_, succeeded, _, _, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	if needsRedispatch != 1 {
+		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
+	}
+	if succeeded != 0 || running != 0 {
+		t.Fatalf("expected s=0 r=0, got s=%d r=%d", succeeded, running)
+	}
+}
+
+func TestCheckNodePlanStatuses_MismatchRunning(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	ps.statuses["n1"] = &planpb.NodePlanStatus{
+		PlanId: "p2", State: planpb.PlanState_PLAN_RUNNING,
+	}
+	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
+	nodes := []*cluster_controllerpb.NodeReleaseStatus{
+		{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying},
+	}
+	_, _, _, _, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
+	if needsRedispatch != 1 {
+		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
+	}
+	if running != 0 {
+		t.Fatalf("expected running=0, got %d", running)
+	}
+}
+
+func TestReconcileApplying_AllLostPlans_BackToResolved(t *testing.T) {
+	ps := newMultiNodePlanStore()
+	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
+	patched := false
+	h := &releaseHandle{
+		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
+		ResolvedVersion: "1.0.0",
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
+			{NodeID: "n2", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
+		},
+		PatchStatus: func(ctx context.Context, p statusPatch) error {
+			patched = true
+			if p.Phase != cluster_controllerpb.ReleasePhaseResolved {
+				t.Fatalf("expected RESOLVED, got %s", p.Phase)
+			}
+			if p.TransitionReason != "all_plans_lost" {
+				t.Fatalf("expected reason=all_plans_lost, got %s", p.TransitionReason)
+			}
+			return nil
+		},
+	}
+	srv.reconcileApplying(context.Background(), h)
+	if !patched {
+		t.Fatal("expected PatchStatus to be called")
 	}
 }

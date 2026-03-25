@@ -224,28 +224,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	for _, nodeID := range nodeIDs {
 		// Guard 1: node plan slot is busy (any active plan, regardless of lock).
 		// The etcd model is one current plan per node — concurrent writes from
-		// different releases would overwrite each other.
+		// different releases would overwrite each other. Skip this node entirely;
+		// it stays "unserved" and will be picked up on the next reconcile pass.
 		if srv.hasAnyActivePlan(ctx, nodeID) {
-			log.Printf("%s %s: node %s has active current plan, will retry",
+			log.Printf("%s %s: node %s has active current plan, skipping (will retry next cycle)",
 				h.ResourceType, h.Name, nodeID)
-			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
-				NodeID:        nodeID,
-				Phase:         cluster_controllerpb.ReleasePhaseApplying,
-				ErrorMessage:  "waiting for active node plan to finish",
-				UpdatedUnixMs: time.Now().UnixMilli(),
-			})
 			continue
 		}
 		// Guard 2: same-lock conflict (narrower check, kept for future multi-slot).
 		if srv.hasActivePlanWithLock(ctx, nodeID, h.LockKey) {
-			log.Printf("%s %s: node %s: lock %q held by active plan, will retry",
+			log.Printf("%s %s: node %s: lock %q held by active plan, skipping (will retry next cycle)",
 				h.ResourceType, h.Name, nodeID, h.LockKey)
-			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
-				NodeID:        nodeID,
-				Phase:         cluster_controllerpb.ReleasePhaseApplying,
-				ErrorMessage:  fmt.Sprintf("waiting for lock %s", h.LockKey),
-				UpdatedUnixMs: time.Now().UnixMilli(),
-			})
 			continue
 		}
 
@@ -293,14 +282,8 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				depMissing := false
 				for _, dep := range comp.RuntimeLocalDependencies {
 					if !nodeHasInstalledComponent(node, dep) {
-						log.Printf("%s %s: defer node %s: waiting for local dependency %s",
+						log.Printf("%s %s: defer node %s: waiting for local dependency %s, skipping (will retry next cycle)",
 							h.ResourceType, h.Name, nodeID, dep)
-						nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
-							NodeID:        nodeID,
-							Phase:         cluster_controllerpb.ReleasePhaseApplying,
-							ErrorMessage:  fmt.Sprintf("waiting for local dependency %s", dep),
-							UpdatedUnixMs: time.Now().UnixMilli(),
-						})
 						depMissing = true
 						break
 					}
@@ -408,6 +391,36 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		})
 	}
 
+	// Dispatch guard: only enter APPLYING if at least one plan was dispatched
+	// or one node is already converged. If all nodes were blocked (busy slot,
+	// missing deps), stay in RESOLVED for the next tick.
+	dispatched := 0
+	alreadyDone := 0
+	for _, ns := range nodeStatuses {
+		if ns.PlanID != "" {
+			dispatched++
+		}
+		if ns.Phase == cluster_controllerpb.ReleasePhaseAvailable {
+			alreadyDone++
+		}
+	}
+	if dispatched == 0 && alreadyDone == 0 {
+		log.Printf("%s %s: no plans dispatched, staying RESOLVED (will retry next cycle)",
+			h.ResourceType, h.Name)
+		return
+	}
+	if dispatched == 0 && alreadyDone == len(nodeStatuses) {
+		// All target nodes already have the desired version — go straight to AVAILABLE.
+		h.PatchStatus(ctx, statusPatch{
+			Phase:                cluster_controllerpb.ReleasePhaseAvailable,
+			Nodes:                nodeStatuses,
+			LastTransitionUnixMs: time.Now().UnixMilli(),
+			TransitionReason:     "all_nodes_already_converged",
+			SetFields:            "nodes",
+		})
+		return
+	}
+
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                cluster_controllerpb.ReleasePhaseApplying,
 		Nodes:                nodeStatuses,
@@ -430,7 +443,24 @@ func (srv *server) reconcileApplying(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
-	updatedNodes, succeeded, failed, rolledBack, running := srv.checkNodePlanStatuses(ctx, h.Nodes, h.ResolvedVersion)
+	updatedNodes, succeeded, failed, rolledBack, running, needsRedispatch := srv.checkNodePlanStatuses(ctx, h.Nodes, h.ResolvedVersion)
+
+	// All plans lost: no node has a running, succeeded, failed, or rolled-back
+	// plan — they all need redispatch. Return to RESOLVED so the next tick
+	// recompiles and dispatches fresh plans.
+	if needsRedispatch > 0 && running == 0 && succeeded == 0 && failed == 0 && rolledBack == 0 {
+		log.Printf("%s %s: all %d node(s) need redispatch, returning to RESOLVED",
+			h.ResourceType, h.Name, needsRedispatch)
+		h.PatchStatus(ctx, statusPatch{
+			Phase:                cluster_controllerpb.ReleasePhaseResolved,
+			Nodes:                updatedNodes,
+			LastTransitionUnixMs: time.Now().UnixMilli(),
+			TransitionReason:     "all_plans_lost",
+			SetFields:            "nodes",
+		})
+		return
+	}
+
 	total := len(updatedNodes)
 	newPhase := cluster_controllerpb.ReleasePhaseApplying
 	reason := ""
@@ -969,7 +999,7 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 		}
 	}
 	if hasDispatchedPlans {
-		updatedNodes, succeeded, failed, _, running := srv.checkNodePlanStatuses(ctx, h.Nodes, "")
+		updatedNodes, succeeded, failed, _, running, _ := srv.checkNodePlanStatuses(ctx, h.Nodes, "")
 		total := len(updatedNodes)
 		if running > 0 {
 			// Still in progress — update node statuses only.

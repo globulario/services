@@ -41,6 +41,7 @@ var validPhaseTransitions = map[string]map[string]bool{
 		cluster_controllerpb.ReleasePhaseDegraded:   true,
 		cluster_controllerpb.ReleasePhaseFailed:     true,
 		cluster_controllerpb.ReleasePhaseRolledBack: true,
+		cluster_controllerpb.ReleasePhaseResolved:   true, // all plans lost → redispatch
 		ReleasePhaseRemoving:                        true,
 	},
 	cluster_controllerpb.ReleasePhaseAvailable: {

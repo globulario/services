@@ -417,7 +417,7 @@ func (srv *server) reconcileReleaseApplying(ctx context.Context, rel *cluster_co
 		})
 	}
 
-	updatedNodes, succeeded, failed, rolledBack, running := srv.checkNodePlanStatuses(ctx, rel.Status.Nodes, rel.Status.ResolvedVersion)
+	updatedNodes, succeeded, failed, rolledBack, running, _ := srv.checkNodePlanStatuses(ctx, rel.Status.Nodes, rel.Status.ResolvedVersion)
 
 	total := len(updatedNodes)
 	newPhase := cluster_controllerpb.ReleasePhaseApplying
@@ -923,16 +923,29 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 }
 
 // checkNodePlanStatuses inspects the plan store for each node in the list and
-// returns updated statuses plus counts of succeeded, failed, rolledBack, and running nodes.
+// returns updated statuses plus counts of succeeded, failed, rolledBack, running,
+// and needsRedispatch nodes. needsRedispatch counts nodes whose plan was never
+// dispatched (empty PlanID) or was evicted by another release.
 // When resolvedVersion is non-empty and a plan succeeds, InstalledVersion is set.
 // PLAN_ROLLED_BACK is counted separately from failures so the caller can
 // distinguish full rollback (ROLLED_BACK) from mixed outcomes (DEGRADED).
-func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, rolledBack, running int) {
+func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, rolledBack, running, needsRedispatch int) {
 	for _, nrs := range nodes {
 		if nrs == nil {
 			continue
 		}
 		u := *nrs
+
+		// Empty plan_id: this node was recorded in APPLYING but never had a
+		// plan dispatched (e.g. slot was busy). It needs a fresh dispatch.
+		if nrs.PlanID == "" {
+			needsRedispatch++
+			u.ErrorMessage = "no plan dispatched"
+			u.UpdatedUnixMs = time.Now().UnixMilli()
+			updated = append(updated, &u)
+			continue
+		}
+
 		ps, err := srv.planStore.GetStatus(ctx, nrs.NodeID)
 
 		// Plan not found: treat as externally completed (the plan store was
@@ -952,7 +965,8 @@ func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_c
 		// Plan ID mismatch: another release's plan overwrote ours in the
 		// single-plan-per-node store. If the current plan succeeded, the
 		// node is converged — treat this release as succeeded too.
-		if nrs.PlanID != "" && ps.GetPlanId() != nrs.PlanID {
+		// Otherwise, our plan was evicted — needs redispatch.
+		if ps.GetPlanId() != nrs.PlanID {
 			if ps.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
 				succeeded++
 				u.Phase = cluster_controllerpb.ReleasePhaseAvailable
@@ -960,7 +974,9 @@ func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_c
 				u.ErrorMessage = ""
 				u.UpdatedUnixMs = time.Now().UnixMilli()
 			} else {
-				running++
+				needsRedispatch++
+				u.ErrorMessage = "plan evicted by another release"
+				u.UpdatedUnixMs = time.Now().UnixMilli()
 			}
 			updated = append(updated, &u)
 			continue
