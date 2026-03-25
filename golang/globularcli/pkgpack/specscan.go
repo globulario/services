@@ -36,6 +36,9 @@ type SpecMetadata struct {
 	InstallMode string   // "repository" | "day0_join"
 	ManagedUnit bool     // included in profileUnitMap for unit actions
 	SystemdUnit string   // override systemd unit name (auto-derived from spec if empty)
+
+	// Extra binaries to include alongside the main exec (e.g. helper tools).
+	ExtraBinaries []string
 }
 
 // ScriptFile describes a script to embed in a package.
@@ -44,17 +47,24 @@ type ScriptFile struct {
 	SourcePath string // absolute path on disk
 }
 
+// ExtraBinary describes an additional binary to include in the package.
+type ExtraBinary struct {
+	Name string // binary name (e.g. "globular-upgrader")
+	Path string // absolute path on disk
+}
+
 // SpecInfo contains derived data from a spec.
 type SpecInfo struct {
-	SpecPath    string
-	SpecFile    string
-	ServiceName string
-	ExecName    string
-	ExecPath    string
-	ConfigDirs  []string
-	Systemd     []SystemdFile
-	Scripts     []ScriptFile
-	Metadata    SpecMetadata
+	SpecPath      string
+	SpecFile      string
+	ServiceName   string
+	ExecName      string
+	ExecPath      string
+	ExtraBinaries []ExtraBinary
+	ConfigDirs    []string
+	Systemd       []SystemdFile
+	Scripts       []ScriptFile
+	Metadata      SpecMetadata
 }
 
 type SystemdFile struct {
@@ -107,16 +117,28 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 
 	scripts := discoverScripts(roots, serviceName)
 
+	// Discover extra binaries from metadata.
+	var extraBins []ExtraBinary
+	for _, name := range meta.ExtraBinaries {
+		binPath := filepath.Join(roots.BinRoot, name)
+		if _, err := os.Stat(binPath); err == nil {
+			extraBins = append(extraBins, ExtraBinary{Name: name, Path: binPath})
+		} else {
+			return nil, fmt.Errorf("spec %s: extra binary %q not found in %s", specPath, name, roots.BinRoot)
+		}
+	}
+
 	return &SpecInfo{
-		SpecPath:    specPath,
-		SpecFile:    filepath.Base(specPath),
-		ServiceName: serviceName,
-		ExecName:    execName,
-		ExecPath:    execPath,
-		ConfigDirs:  configDirs,
-		Systemd:     systemdFiles,
-		Scripts:     scripts,
-		Metadata:    meta,
+		SpecPath:      specPath,
+		SpecFile:      filepath.Base(specPath),
+		ServiceName:   serviceName,
+		ExecName:      execName,
+		ExecPath:      execPath,
+		ExtraBinaries: extraBins,
+		ConfigDirs:    configDirs,
+		Systemd:       systemdFiles,
+		Scripts:        scripts,
+		Metadata:      meta,
 	}, nil
 }
 
@@ -199,6 +221,7 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 	if su := lookupString(m, "systemd_unit"); su != "" {
 		meta.SystemdUnit = su
 	}
+	meta.ExtraBinaries = lookupStringList(m, "extra_binaries")
 
 	return meta
 }

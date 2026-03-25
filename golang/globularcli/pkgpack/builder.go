@@ -198,6 +198,17 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		return nil, err
 	}
 
+	// Copy extra binaries (e.g. helper tools bundled with the package).
+	for _, extra := range info.ExtraBinaries {
+		dest := filepath.Join(stagingDir, "bin", extra.Name)
+		if err := copyFile(extra.Path, dest); err != nil {
+			return nil, fmt.Errorf("extra binary %s: %w", extra.Name, err)
+		}
+		if err := os.Chmod(dest, 0755); err != nil {
+			return nil, err
+		}
+	}
+
 	copiedConfig := 0
 	if len(info.ConfigDirs) > 0 {
 		configRoot := filepath.Join(stagingDir, "config", info.ServiceName)
