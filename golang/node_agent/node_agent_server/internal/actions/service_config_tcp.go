@@ -50,12 +50,15 @@ func (serviceConfigTCPProbe) Apply(ctx context.Context, args *structpb.Struct) (
 	cfgPath := filepath.Join(state, "services", desc.Id+".json")
 	cfg, err := readServiceConfig(cfgPath)
 	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
+		// Config file missing or unreadable — skip probe with warning.
+		fmt.Printf("WARN probe.service_config_tcp: config %s unreadable for %s: %v\n", cfgPath, svc, err)
+		return fmt.Sprintf("skipped: config unreadable for %s (%v)", svc, err), nil
 	}
 
 	port := firstPort(cfg.Port, portFromAddress(cfg.Address), desc.Port)
 	if port <= 0 {
-		return "", fmt.Errorf("missing port in config %s", cfgPath)
+		fmt.Printf("WARN probe.service_config_tcp: no port in config %s for %s (incomplete config?)\n", cfgPath, svc)
+		return fmt.Sprintf("skipped: no port in config for %s", svc), nil
 	}
 
 	timeout := 5 * time.Second
