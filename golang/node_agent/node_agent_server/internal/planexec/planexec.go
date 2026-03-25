@@ -347,15 +347,31 @@ func EvaluateCondition(ctx context.Context, cond *planpb.Condition) error {
 }
 
 // EvaluateInvariants checks success probes and desired state.
+// Probes are retried up to 3 times with a 3-second delay to allow
+// services to finish starting after a restart step.
 func (r *Runner) EvaluateInvariants(ctx context.Context, plan *planpb.NodePlan) error {
 	spec := plan.GetSpec()
 	if spec == nil {
 		return errors.New("plan spec required")
 	}
+	const probeRetries = 3
 	for _, probe := range spec.GetSuccessProbes() {
 		cond := &planpb.Condition{Type: probe.GetType(), Args: probe.GetArgs()}
-		if err := EvaluateCondition(ctx, cond); err != nil {
-			return fmt.Errorf("success probe %s failed: %w", probe.GetType(), err)
+		var probeErr error
+		for try := 0; try < probeRetries; try++ {
+			if probeErr = EvaluateCondition(ctx, cond); probeErr == nil {
+				break
+			}
+			if try+1 < probeRetries {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(3 * time.Second):
+				}
+			}
+		}
+		if probeErr != nil {
+			return fmt.Errorf("success probe %s failed: %w", probe.GetType(), probeErr)
 		}
 	}
 	if desired := spec.GetDesired(); desired != nil {
