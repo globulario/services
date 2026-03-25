@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
@@ -330,4 +331,89 @@ func portFree(port int) bool {
 
 func preflightStrict() bool {
 	return strings.TrimSpace(os.Getenv("GLOBULAR_PORT_PREFLIGHT_STRICT")) == "1"
+}
+
+// ReconcilePortAfterRestart detects the service's actual listening port and
+// updates the config file if it drifted. Services load their port from etcd
+// on startup, which may differ from what EnsureServicePortConfig wrote.
+// Best-effort: logs warnings on failure but never returns an error.
+func ReconcilePortAfterRestart(ctx context.Context, service string) {
+	exe := executableForService(service)
+	if exe == "" {
+		return
+	}
+	binDir := installBinDir()
+	desc, err := runDescribe(ctx, filepath.Join(binDir, exe))
+	if err != nil || desc.Id == "" {
+		return
+	}
+
+	state := stateRoot()
+	cfgPath := filepath.Join(state, "services", desc.Id+".json")
+	cfg, err := readServiceConfig(cfgPath)
+	if err != nil {
+		return
+	}
+
+	// Scan for the actual listening port by checking which port in the
+	// service range the process binary is bound to.
+	unit := "globular-" + strings.ReplaceAll(service, "_", "-") + ".service"
+	actualPort := probeListeningPort(ctx, exe, unit)
+	if actualPort <= 0 {
+		return
+	}
+
+	cfgPort := firstPort(cfg.Port, portFromAddress(cfg.Address))
+	if cfgPort == actualPort {
+		return // already in sync
+	}
+
+	cfg.Port = actualPort
+	cfg.Address = fmt.Sprintf("localhost:%d", actualPort)
+	if err := writeServiceConfig(cfgPath, cfg); err != nil {
+		fmt.Printf("WARN reconcile-port: failed to update config %s: %v\n", cfgPath, err)
+		return
+	}
+	fmt.Printf("INFO reconcile-port: %s port updated %d->%d in %s\n", service, cfgPort, actualPort, cfgPath)
+}
+
+// probeListeningPort finds the TCP port the service is actually listening on
+// by running `ss -tlnp` and matching the process name. Returns 0 if not found.
+func probeListeningPort(ctx context.Context, binary, unit string) int {
+	// Wait briefly for the service to bind its port after restart.
+	select {
+	case <-ctx.Done():
+		return 0
+	case <-time.After(2 * time.Second):
+	}
+
+	cmd := exec.CommandContext(ctx, "ss", "-tlnp")
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	// Match lines like: LISTEN ... :10101 ... users:(("authentication_server",pid=123,fd=8))
+	// Extract ports where the process name matches our binary.
+	alloc, err := ports.NewFromEnv()
+	if err != nil {
+		return 0
+	}
+	start, end := alloc.Range()
+
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(line, binary) {
+			continue
+		}
+		// Extract port from address field (e.g. "0.0.0.0:10101" or "*:10101")
+		fields := strings.Fields(line)
+		for _, f := range fields {
+			if idx := strings.LastIndex(f, ":"); idx >= 0 {
+				if p, err := strconv.Atoi(f[idx+1:]); err == nil && p >= start && p <= end {
+					return p
+				}
+			}
+		}
+	}
+	return 0
 }

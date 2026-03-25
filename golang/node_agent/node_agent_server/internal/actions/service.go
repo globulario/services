@@ -67,6 +67,15 @@ func (a *serviceAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 	if err := a.op(ctx, unit); err != nil {
 		return "", err
 	}
+
+	// After restart, reconcile the config file port with the service's actual
+	// listening port. Services load their port from etcd (not the JSON file),
+	// so the JSON can drift. The probe reads the JSON, so keeping it in sync
+	// prevents false invariant failures.
+	if a.name == "service.restart" && svc != "" {
+		serviceports.ReconcilePortAfterRestart(ctx, svc)
+	}
+
 	return fmt.Sprintf("%s completed", a.name), nil
 }
 
