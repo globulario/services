@@ -188,6 +188,23 @@ func (srv *server) readBinaryWithFallback(ctx context.Context, ref *repopb.Artif
 	return nil, err
 }
 
+// openBinaryWithFallback returns a streaming reader for the artifact binary,
+// trying the current key format first, then the legacy format.
+func (srv *server) openBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (io.ReadCloser, error) {
+	key := artifactKeyWithBuild(ref, buildNumber)
+	rc, err := srv.Storage().Open(ctx, binaryStorageKey(key))
+	if err == nil {
+		return rc, nil
+	}
+	if buildNumber == 0 {
+		legacyKey := artifactKeyLegacy(ref)
+		if lrc, lerr := srv.Storage().Open(ctx, binaryStorageKey(legacyKey)); lerr == nil {
+			return lrc, nil
+		}
+	}
+	return nil, err
+}
+
 // ── sorting helpers ──────────────────────────────────────────────────────
 
 // sortManifestsByVersionDesc sorts manifests by semver descending, then
@@ -1056,12 +1073,13 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	}
 
 	// Try new 5-field key, then legacy 4-field key.
-	data, err := srv.readBinaryWithFallback(stream.Context(), ref, buildNumber)
+	// Stream directly from storage to avoid buffering the entire artifact in memory.
+	reader, err := srv.openBinaryWithFallback(stream.Context(), ref, buildNumber)
 	if err != nil {
 		// Fallback: try v-prefixed key for backward compat with existing storage.
 		ref.Version = "v" + canonVer
-		if fdata, ferr := srv.readBinaryWithFallback(stream.Context(), ref, buildNumber); ferr == nil {
-			data = fdata
+		if fr, ferr := srv.openBinaryWithFallback(stream.Context(), ref, buildNumber); ferr == nil {
+			reader = fr
 			err = nil
 		}
 		ref.Version = canonVer // restore
@@ -1070,15 +1088,21 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		key := artifactKeyWithBuild(ref, buildNumber)
 		return status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
 	}
+	defer reader.Close()
 
-	const chunk = 32 * 1024
-	for off := 0; off < len(data); off += chunk {
-		end := off + chunk
-		if end > len(data) {
-			end = len(data)
+	buf := make([]byte, 256*1024) // 256KB chunks (larger = fewer round-trips)
+	for {
+		n, readErr := reader.Read(buf)
+		if n > 0 {
+			if err := stream.Send(&repopb.DownloadArtifactResponse{Data: buf[:n]}); err != nil {
+				return fmt.Errorf("send artifact chunk: %w", err)
+			}
 		}
-		if err := stream.Send(&repopb.DownloadArtifactResponse{Data: data[off:end]}); err != nil {
-			return fmt.Errorf("send artifact chunk: %w", err)
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return fmt.Errorf("read artifact: %w", readErr)
 		}
 	}
 	return nil
