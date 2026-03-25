@@ -140,3 +140,61 @@ groups:
         annotations:
           summary: "Node memory above 90%"
           description: "Sustained high memory usage. Check for goroutine leaks or unbounded caches."
+
+  # ---- Gateway HTTP Surface ----
+  # Detect storms, errors, and latency on the gateway's HTTP handlers
+  # (file uploads, admin API, media, config endpoints).
+
+  - name: globular_gateway_http
+    rules:
+      # HTTP request storm: >200 req/s sustained on a single path.
+      - alert: GatewayHTTPStorm
+        expr: sum(rate(gateway_http_requests_total[1m])) by (method, path) > 200
+        for: 30s
+        labels:
+          severity: critical
+          layer: resource
+        annotations:
+          summary: "Gateway HTTP {{ $labels.method }} {{ $labels.path }} at {{ $value | printf \"%.0f\" }} req/s"
+          description: "Sustained >200 req/s on a single HTTP path. Possible abuse or misconfigured client."
+
+      # HTTP error rate: >30% of requests returning 4xx/5xx.
+      - alert: GatewayHTTPErrorRate
+        expr: |
+          (
+            sum(rate(gateway_http_requests_total{code=~"[45].."}[5m])) by (path)
+            /
+            sum(rate(gateway_http_requests_total[5m])) by (path)
+          ) > 0.3
+        for: 2m
+        labels:
+          severity: warning
+          layer: convergence
+        annotations:
+          summary: "Gateway HTTP {{ $labels.path }} error rate {{ $value | printf \"%.0f%%\" }}"
+          description: "More than 30% of HTTP requests to this path are failing."
+
+      # HTTP latency explosion: p99 > 10s on any path.
+      - alert: GatewayHTTPLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(gateway_http_request_duration_seconds_bucket[5m])) by (path, le)
+          ) > 10
+        for: 2m
+        labels:
+          severity: warning
+          layer: convergence
+        annotations:
+          summary: "Gateway HTTP {{ $labels.path }} p99 latency {{ $value | printf \"%.1fs\" }}"
+          description: "HTTP p99 latency above 10 seconds. Handler may be stuck or backend service unresponsive."
+
+      # Too many concurrent requests: gateway is saturated.
+      - alert: GatewayHTTPSaturation
+        expr: gateway_http_requests_in_flight > 500
+        for: 1m
+        labels:
+          severity: critical
+          layer: resource
+        annotations:
+          summary: "Gateway has {{ $value | printf \"%.0f\" }} HTTP requests in flight"
+          description: "More than 500 concurrent HTTP requests. Gateway may be overwhelmed or handlers are blocking."
