@@ -105,7 +105,7 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 			Status:  workflow.StepRunning,
 		})
 
-		if err := r.EvaluateInvariants(ctx, plan); err == nil {
+		if invErr := r.EvaluateInvariants(ctx, plan); invErr == nil {
 			r.WorkflowRec.CompleteStep(ctx, wfRunID, verifySeq, "invariants satisfied", 0)
 			r.addEvent(status, "info", "phase: COMMITTED", "")
 			r.addEvent(status, "info", "invariants satisfied; plan complete", "")
@@ -115,6 +115,8 @@ func (r *Runner) ReconcilePlan(ctx context.Context, plan *planpb.NodePlan, curre
 			r.WorkflowRec.FinishRun(ctx, wfRunID, workflow.Succeeded,
 				"Plan converged successfully", "", workflow.NoFailure)
 			return status, nil
+		} else {
+			log.Printf("plan-runner: invariant check failed (attempt %d/%d): %v", attempt+1, maxAttempts, invErr)
 		}
 		r.WorkflowRec.CompleteStep(ctx, wfRunID, verifySeq, "invariants not yet satisfied", 0)
 
