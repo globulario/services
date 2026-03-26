@@ -29,6 +29,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -123,9 +124,9 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 		proto = "http"
 	}
 	httpPort := asStr("PortHTTP")
-	if httpPort == "" { httpPort = "80" }
+	if httpPort == "" || httpPort == "0" { httpPort = "80" }
 	httpsPort := asStr("PortHTTPS")
-	if httpsPort == "" { httpsPort = "443" }
+	if httpsPort == "" || httpsPort == "0" { httpsPort = "443" }
 	defPort := httpPort
 	if proto == "https" {
 		defPort = httpsPort
@@ -961,10 +962,18 @@ var (
 	meshAvail    bool             // true if Envoy is reachable
 	meshChecked  time.Time        // when we last probed Envoy
 	meshCheckTTL = 10 * time.Second
-	meshTarget   = "127.0.0.1:443"
 )
 
-// meshEnabled returns true if the local Envoy proxy is reachable.
+// getMeshTarget returns the Envoy gateway address (hostname.domain:443).
+// Envoy binds to the node's real IP, not 127.0.0.1.
+func getMeshTarget() string {
+	if h, err := config.GetHostname(); err == nil && h != "" {
+		return h + ":443"
+	}
+	return ""
+}
+
+// meshEnabled returns true if the Envoy gateway is reachable via TLS.
 // Result is cached for meshCheckTTL to avoid probing on every call.
 func meshEnabled() bool {
 	meshMu.RLock()
@@ -975,7 +984,6 @@ func meshEnabled() bool {
 	}
 	meshMu.RUnlock()
 
-	// Probe: quick TCP connect to Envoy
 	meshMu.Lock()
 	defer meshMu.Unlock()
 
@@ -984,10 +992,22 @@ func meshEnabled() bool {
 		return meshAvail
 	}
 
-	conn, err := net.DialTimeout("tcp", meshTarget, 500*time.Millisecond)
+	target := getMeshTarget()
+	if target == "" {
+		meshAvail = false
+		meshChecked = time.Now()
+		return false
+	}
+
+	// TLS handshake probe — Envoy listens with TLS on :443
+	conn, err := tls.DialWithDialer(
+		&net.Dialer{Timeout: 500 * time.Millisecond},
+		"tcp", target,
+		&tls.Config{InsecureSkipVerify: true}, //nolint:gosec // probe only, real conn uses proper certs
+	)
 	if err != nil {
 		if meshAvail {
-			slog.Warn("mesh: Envoy unreachable, falling back to direct connections", "target", meshTarget, "err", err)
+			slog.Warn("mesh: Envoy unreachable, falling back to direct connections", "target", target, "err", err)
 		}
 		meshAvail = false
 		meshChecked = time.Now()
@@ -996,22 +1016,37 @@ func meshEnabled() bool {
 	conn.Close()
 
 	if !meshAvail {
-		slog.Info("mesh: Envoy available, routing through mesh", "target", meshTarget)
+		slog.Info("mesh: Envoy available, routing through mesh", "target", target)
 	}
 	meshAvail = true
 	meshChecked = time.Now()
 	return true
 }
 
-// getMeshConn returns a cached gRPC connection to the local Envoy proxy.
+// getMeshConn returns a cached gRPC connection to the Envoy gateway.
+// If the cached connection is unhealthy (e.g. after Envoy restart),
+// it is closed and a fresh connection is established.
 func getMeshConn(client Client) (*grpc.ClientConn, error) {
 	meshMu.RLock()
 	if meshConn != nil {
 		cc := meshConn
+		state := cc.GetState()
 		meshMu.RUnlock()
-		return cc, nil
+		// Connection is healthy — reuse it.
+		if state != connectivity.Shutdown && state != connectivity.TransientFailure {
+			return cc, nil
+		}
+		// Connection is dead — invalidate and reconnect below.
+		meshMu.Lock()
+		if meshConn == cc { // still the same conn we checked
+			meshConn.Close()
+			meshConn = nil
+			slog.Warn("mesh: cached connection unhealthy, reconnecting", "state", state.String())
+		}
+		meshMu.Unlock()
+	} else {
+		meshMu.RUnlock()
 	}
-	meshMu.RUnlock()
 
 	meshMu.Lock()
 	defer meshMu.Unlock()
@@ -1019,6 +1054,11 @@ func getMeshConn(client Client) (*grpc.ClientConn, error) {
 	// Double-check after lock
 	if meshConn != nil {
 		return meshConn, nil
+	}
+
+	target := getMeshTarget()
+	if target == "" {
+		return nil, fmt.Errorf("mesh: cannot resolve gateway address")
 	}
 
 	// Build TLS config for Envoy. Use the same CA and client certs
@@ -1031,25 +1071,24 @@ func getMeshConn(client Client) (*grpc.ClientConn, error) {
 		if tlsErr != nil {
 			return nil, fmt.Errorf("mesh TLS config: %w", tlsErr)
 		}
-		// Override ServerName for Envoy's certificate
 		tcfg.ServerName = ""
-		tcfg.InsecureSkipVerify = true // Envoy is local, trust it
-		cc, err = grpc.Dial(meshTarget,
+		tcfg.InsecureSkipVerify = true // Envoy cert may not match hostname
+		cc, err = grpc.Dial(target,
 			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
 			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
 		)
 	} else {
-		cc, err = grpc.Dial(meshTarget,
+		cc, err = grpc.Dial(target,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
 		)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("mesh dial %s: %w", meshTarget, err)
+		return nil, fmt.Errorf("mesh dial %s: %w", target, err)
 	}
 
 	meshConn = cc
-	slog.Info("mesh: gRPC connection established", "target", meshTarget)
+	slog.Info("mesh: gRPC connection established", "target", target)
 	return cc, nil
 }
 

@@ -430,7 +430,29 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 
 func (srv *server) accountExist(id string) (bool, string) {
 	acc, err := srv.getAccount(id)
-	if err != nil || acc == nil {
+	if err != nil {
+		// The built-in superadmin account "sa" always exists even when the
+		// resource service is temporarily unreachable (e.g. during startup
+		// or when inter-service routing is not yet configured).
+		plainID := id
+		if strings.Contains(id, "@") {
+			plainID = strings.Split(id, "@")[0]
+		}
+		if strings.EqualFold(plainID, "sa") {
+			return true, "sa"
+		}
+		slog.Warn("accountExist: getAccount failed", "id", id, "err", err)
+		return false, ""
+	}
+	if acc == nil {
+		plainID := id
+		if strings.Contains(id, "@") {
+			plainID = strings.Split(id, "@")[0]
+		}
+		if strings.EqualFold(plainID, "sa") {
+			return true, "sa"
+		}
+		slog.Warn("accountExist: getAccount returned nil", "id", id)
 		return false, ""
 	}
 	return true, acc.Id

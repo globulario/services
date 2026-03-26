@@ -134,10 +134,26 @@ func (srv *server) storageExists(path string) bool {
 		key := srv.minioKeyFromPath(path)
 		ctx := context.Background()
 		if key == "" {
-			return false
+			// Empty key means the path IS the prefix root (e.g. "/users") — always exists.
+			return true
 		}
+		// Try StatObject first (works for files).
 		_, err := srv.minioClient.StatObject(ctx, srv.MinioConfig.Bucket, key, minio.StatObjectOptions{})
-		return err == nil
+		if err == nil {
+			return true
+		}
+		// For directories: list objects with this prefix — if any exist, the path is valid.
+		prefix := strings.TrimSuffix(key, "/") + "/"
+		objCh := srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, minio.ListObjectsOptions{
+			Prefix:  prefix,
+			MaxKeys: 1,
+		})
+		for obj := range objCh {
+			if obj.Err == nil {
+				return true
+			}
+		}
+		return false
 	}
 	return false
 }

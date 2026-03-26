@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"text/tabwriter"
 
@@ -19,10 +20,13 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
 // Default RBAC service port (matches rbac_server default).
 const defaultRbacPort = 10000
+
+// defaultResourcePort is declared in pkg_cmds.go (10011).
 
 // resolveRbacAddr discovers the RBAC service endpoint.
 // Uses the same multi-strategy discovery as resolveAuthAddr (etcd → local files → fallback).
@@ -31,6 +35,13 @@ func resolveRbacAddr() string {
 	return config.ResolveServiceAddr(
 		"rbac.RbacService",
 		fmt.Sprintf("localhost:%d", defaultRbacPort),
+	)
+}
+
+func resolveResourceAddr() string {
+	return config.ResolveServiceAddr(
+		"resource.ResourceService",
+		fmt.Sprintf("localhost:%d", defaultResourcePort),
 	)
 }
 
@@ -220,14 +231,28 @@ Flags:
 				{"globular-gateway", []string{"globular-admin"}},
 			}
 
-			addr := resolveRbacAddr()
-			cc, err := dialGRPC(addr)
+			// Connect to RBAC service
+			rbacAddr := resolveRbacAddr()
+			rbacCC, err := dialGRPC(rbacAddr)
 			if err != nil {
-				return err
+				return fmt.Errorf("connect to RBAC service at %s: %w", rbacAddr, err)
 			}
-			defer cc.Close()
+			defer rbacCC.Close()
+			rbacClient := rbacpb.NewRbacServiceClient(rbacCC)
 
-			client := rbacpb.NewRbacServiceClient(cc)
+			// Connect to Resource service (for admin UI role entities)
+			var resClient resourcepb.ResourceServiceClient
+			resAddr := resolveResourceAddr()
+			resCC, err := dialGRPC(resAddr)
+			if err != nil {
+				slog.Warn("rbac seed: cannot connect to resource service — roles will be seeded in RBAC only (not visible in admin UI)",
+					"addr", resAddr, "error", err)
+			} else {
+				defer resCC.Close()
+				resClient = resourcepb.NewResourceServiceClient(resCC)
+			}
+
+			store := &rbacClientStore{rbac: rbacClient, resource: resClient}
 
 			// 1. Seed SA role bindings
 			fmt.Println("=== Service Account Bindings ===")
@@ -236,7 +261,7 @@ Flags:
 					fmt.Printf("[dry-run] would seed %q → %v\n", s.subject, s.roles)
 					continue
 				}
-				_, err := client.SetRoleBinding(ctxWithTimeout(), &rbacpb.SetRoleBindingRqst{
+				_, err := rbacClient.SetRoleBinding(ctxWithTimeout(), &rbacpb.SetRoleBindingRqst{
 					Binding: &rbacpb.RoleBinding{Subject: s.subject, Roles: s.roles},
 				})
 				if err != nil {
@@ -251,7 +276,6 @@ Flags:
 			if !fromFile {
 				fmt.Println("(no cluster-roles.json found, skipping)")
 			} else {
-				store := &rbacClientStore{client: client}
 				if rbacSeedDryRun {
 					for roleName, actions := range clusterRoles {
 						fmt.Printf("[dry-run] would seed cluster role %q (%d actions)\n", roleName, len(actions))
@@ -272,7 +296,6 @@ Flags:
 			if len(serviceNames) == 0 {
 				fmt.Println("(no installed services discovered, skipping)")
 			} else {
-				store := &rbacClientStore{client: client}
 				total := &policy.SeedResult{}
 				for _, svc := range serviceNames {
 					if rbacSeedDryRun {
@@ -303,18 +326,37 @@ Flags:
 	}
 )
 
-// rbacClientStore adapts the gRPC RBAC client to the policy.RoleStore interface.
+// rbacClientStore adapts gRPC clients to the policy.RoleStore interface.
+// It writes to both the RBAC service (role bindings for authorization) and
+// the Resource service (role entities for the admin UI).
 type rbacClientStore struct {
-	client rbacpb.RbacServiceClient
+	rbac     rbacpb.RbacServiceClient
+	resource resourcepb.ResourceServiceClient
 }
 
 func (s *rbacClientStore) RoleExists(ctx context.Context, roleName string) (bool, error) {
-	// Check if a role binding exists for the role name as a subject — this is a proxy check.
-	// In practice, cluster roles are stored as role bindings where subject == role name.
-	// We use GetRoleBinding to check existence. If not found, the role doesn't exist.
-	resp, err := s.client.GetRoleBinding(ctx, &rbacpb.GetRoleBindingRqst{Subject: roleName})
+	// Check the resource service first — this is the canonical role store
+	// that the admin UI reads from.
+	if s.resource != nil {
+		stream, err := s.resource.GetRoles(ctx, &resourcepb.GetRolesRqst{
+			Query: fmt.Sprintf(`{"$or":[{"_id":"%s"},{"id":"%s"}]}`, roleName, roleName),
+		})
+		if err == nil {
+			for {
+				rsp, err := stream.Recv()
+				if err != nil {
+					break
+				}
+				if len(rsp.GetRoles()) > 0 {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	// Fallback: check RBAC role binding
+	resp, err := s.rbac.GetRoleBinding(ctx, &rbacpb.GetRoleBindingRqst{Subject: roleName})
 	if err != nil {
-		// gRPC "not found" means role doesn't exist
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "NotFound") {
 			return false, nil
 		}
@@ -323,11 +365,36 @@ func (s *rbacClientStore) RoleExists(ctx context.Context, roleName string) (bool
 	return len(resp.GetBinding().GetRoles()) > 0, nil
 }
 
-func (s *rbacClientStore) CreateRole(ctx context.Context, roleName string, actions []string, _ map[string]string) error {
-	_, err := s.client.SetRoleBinding(ctx, &rbacpb.SetRoleBindingRqst{
+func (s *rbacClientStore) CreateRole(ctx context.Context, roleName string, actions []string, metadata map[string]string) error {
+	// 1. Create the role binding in RBAC service (for authorization checks)
+	_, err := s.rbac.SetRoleBinding(ctx, &rbacpb.SetRoleBindingRqst{
 		Binding: &rbacpb.RoleBinding{Subject: roleName, Roles: actions},
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("set role binding: %w", err)
+	}
+
+	// 2. Create the role entity in Resource service (for admin UI visibility)
+	if s.resource != nil {
+		desc := metadata["source"]
+		if desc == "" {
+			desc = "seeded"
+		}
+		role := &resourcepb.Role{
+			Id:          roleName,
+			Name:        roleName,
+			Description: fmt.Sprintf("Cluster role (%s)", desc),
+			Actions:     actions,
+		}
+		_, err := s.resource.CreateRole(ctx, &resourcepb.CreateRoleRqst{Role: role})
+		if err != nil {
+			// Log but don't fail — the RBAC binding (authorization) is the critical part.
+			slog.Warn("rbac seed: created role binding but failed to create resource role",
+				"role", roleName, "error", err)
+		}
+	}
+
+	return nil
 }
 
 // discoverInstalledServices returns service names found in the generated policy directory.
