@@ -68,6 +68,7 @@ type ToolGroupConfig struct {
 	Title       bool `json:"title"`       // default true (search index tools)
 	Frontend    bool `json:"frontend"`    // default true (gRPC service map, web probe)
 	Proto       bool `json:"proto"`       // default true (gRPC reflection describe)
+	HTTPDiag    bool `json:"http_diag"`   // default true (HTTP latency diagnostics)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -125,6 +126,7 @@ func defaultConfig() *MCPConfig {
 			Title:       true,
 			Frontend:    true,
 			Proto:       true,
+			HTTPDiag:    true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 		},

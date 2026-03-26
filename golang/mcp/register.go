@@ -69,6 +69,9 @@ func registerAllTools(s *server) {
 		registerProtoTools(s)
 		registerGrpcCallTools(s)
 	}
+	if g.HTTPDiag {
+		registerHTTPDiagTools(s)
+	}
 	// Log ring tools are always available (in-process ring buffer).
 	registerLogRingTools(s)
 	// Package lifecycle tools are always available.
