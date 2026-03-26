@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/policy"
 	"google.golang.org/grpc"
 )
 
@@ -69,6 +71,23 @@ func (lm *LifecycleManager) Start() error {
 			"err", err,
 		)
 		return fmt.Errorf("start service failed: %w", err)
+	}
+
+	// Load externalized permission mappings (action → method) so the
+	// authz interceptor can enforce RBAC instead of falling through
+	// with "no_rbac_mapping_warning".
+	svcName := lm.srv.GetName()
+	if idx := strings.Index(svcName, "."); idx > 0 {
+		svcName = svcName[:idx] // "file.FileService" → "file"
+	}
+	if perms, _ := policy.LoadAndRegisterPermissions(svcName); perms != nil {
+		if svc, ok := lm.srv.(interface{ SetPermissions([]interface{}) }); ok {
+			svc.SetPermissions(perms)
+			lm.logger.Info("loaded external permission mappings",
+				"service", svcName,
+				"count", len(perms),
+			)
+		}
 	}
 
 	// Mark as running
