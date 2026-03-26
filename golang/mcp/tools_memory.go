@@ -4,15 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 )
 
 // memoryEndpoint returns the AI memory service endpoint.
 func memoryEndpoint() string {
-	return gatewayEndpoint()
+	if ep := os.Getenv("GLOBULAR_MEMORY_ENDPOINT"); ep != "" {
+		return ep
+	}
+	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", gatewayEndpoint())
+	return addr
 }
 
 // parseMemoryType converts a string to the proto enum.

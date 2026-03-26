@@ -86,17 +86,18 @@ func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 }
 
 func buildTLSConfig() *tls.Config {
-	certFile := config.GetLocalServerCertificatePath()
-	keyFile := config.GetLocalServerKeyPath()
-	caFile := config.GetLocalCACertificate()
-	if certFile == "" || keyFile == "" || caFile == "" {
-		return nil
-	}
-
+	// Use GetEtcdTLS which reads from canonical PKI paths
+	// (/var/lib/globular/pki/ca.crt + service certs).
+	// Don't rely on config.json fields which may be empty.
 	tlsCfg, err := config.GetEtcdTLS()
 	if err != nil {
+		log.Printf("mcp: buildTLSConfig: %v (falling back to insecure)", err)
 		return nil
 	}
+	// The local Envoy gateway may serve a Let's Encrypt cert (for external
+	// domains) on its default filter chain instead of the internal PKI cert.
+	// Since the MCP server connects locally, skip hostname verification.
+	tlsCfg.InsecureSkipVerify = true
 	return tlsCfg
 }
 
