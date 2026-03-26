@@ -111,35 +111,24 @@ for proto in "${TS_TARGETS[@]}"; do
   protoc_generate_ts "$proto"
 done
 
-# Generate globular_auth_pb into a temp dir and copy into every TS service
-# directory that imports it. The proto extends MethodOptions/FieldOptions and
-# is imported by most service protos, so the generated .d.ts/.js files must
-# exist alongside each service's generated code.
-echo "=> Distributing globular_auth_pb to TypeScript service directories"
-_auth_tmp="$(mktemp -d)"
-protoc --js_out=import_style=commonjs:"$_auth_tmp" -I "$PROTO_DIR" "$PROTO_DIR/globular_auth.proto"
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:"$_auth_tmp" -I "$PROTO_DIR" "$PROTO_DIR/globular_auth.proto"
+# ── Vite CJS compatibility: clean globular_auth_pb ──────────────────────────
+# protoc generates `require('./globular_auth_pb.js')` + `goog.object.extend(proto, ...)`
+# in every _pb.js that imports globular_auth.proto. This breaks Vite: it chunks
+# globular_auth_pb separately, creating split `proto` namespaces that make
+# serializeBinary() fail with "Cannot read properties of undefined".
+#
+# The auth annotations are Go-side metadata only — TS code never uses them.
+# Fix: strip the require/extend lines from all _pb.js, delete the globular_auth_pb
+# files entirely, then sync cleaned source to dist/.
+echo "=> Cleaning globular_auth_pb from TypeScript proto files (Vite compat)"
 for proto in "${TS_TARGETS[@]}"; do
   svc_dir="$TS_ROOT/$proto"
-  if [ -d "$svc_dir" ]; then
-    cp -f "$_auth_tmp"/globular_auth_pb.* "$svc_dir/" 2>/dev/null || true
-  fi
-done
-rm -rf "$_auth_tmp"
-
-# ── Fix Vite CJS compatibility ──────────────────────────────────────────────
-# The globular_auth_pb import adds `goog.object.extend(proto, globular_auth_pb)`
-# to every generated _pb.js. This poisons the local `proto` namespace when Vite
-# splits CJS modules into separate chunks, breaking serializeBinary() closures.
-# The auth annotations are Go-side metadata only — TS stubs never use the types.
-# Strip the import and extend to keep Vite's bundling working.
-echo "=> Stripping globular_auth_pb from TypeScript _pb.js files (Vite compat)"
-for proto in "${TS_TARGETS[@]}"; do
-  svc_dir="$TS_ROOT/$proto"
+  [ -d "$svc_dir" ] || continue
+  # Remove the file itself — Vite chunks it even without explicit imports
+  rm -f "$svc_dir"/globular_auth_pb.*
+  # Strip require/extend lines from all generated _pb.js
   for pbjs in "$svc_dir"/*_pb.js; do
     [ -f "$pbjs" ] || continue
-    # Skip globular_auth_pb itself
-    [[ "$(basename "$pbjs")" == globular_auth_pb* ]] && continue
     if grep -q 'globular_auth_pb' "$pbjs"; then
       sed -i \
         -e '/var globular_auth_pb = require.*globular_auth_pb/d' \
@@ -147,6 +136,11 @@ for proto in "${TS_TARGETS[@]}"; do
         "$pbjs"
     fi
   done
+  # Sync cleaned source to dist/
+  if [ -d "$TS_ROOT/dist" ]; then
+    mkdir -p "$TS_ROOT/dist/$proto"
+    cp -f "$svc_dir"/* "$TS_ROOT/dist/$proto/" 2>/dev/null || true
+  fi
 done
 
 # ── authzgen: extract permissions and roles from proto AuthzRule annotations ──
@@ -182,10 +176,35 @@ echo "=> Building MCP server"
   cd "$GO_ROOT"
   GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o tools/stage/linux-amd64/usr/local/bin/mcp ./mcp
 )
-# Also copy to packages/bin so build-all-packages.sh finds it
+
+STAGE_BIN="$GO_ROOT/tools/stage/linux-amd64/usr/local/bin"
 PACKAGES_BIN="$(cd "$REPO_ROOT/../packages/bin" 2>/dev/null && pwd)" || true
+GLOBULAR_ROOT="$(cd "$REPO_ROOT/../Globular" 2>/dev/null && pwd)" || true
+
+# Build gateway and xds from the Globular repo (different Go module).
+# Output goes to the same stage directory as other services.
+if [[ -d "$GLOBULAR_ROOT" ]]; then
+  echo "=> Building gateway (from Globular repo)"
+  (
+    cd "$GLOBULAR_ROOT"
+    GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o "$STAGE_BIN/gateway" ./cmd/gateway
+  )
+  echo "=> Building xds (from Globular repo)"
+  (
+    cd "$GLOBULAR_ROOT"
+    GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o "$STAGE_BIN/xds" ./cmd/xds
+  )
+else
+  echo "=> WARN: Globular repo not found at $REPO_ROOT/../Globular — skipping gateway/xds build"
+fi
+
+# Copy binaries to packages/bin so build-all-packages.sh finds them
 if [[ -d "$PACKAGES_BIN" ]]; then
-  cp "$GO_ROOT/tools/stage/linux-amd64/usr/local/bin/mcp" "$PACKAGES_BIN/mcp"
-  chmod +x "$PACKAGES_BIN/mcp"
-  echo "   copied to $PACKAGES_BIN/mcp"
+  for bin in mcp gateway xds; do
+    if [[ -f "$STAGE_BIN/$bin" ]]; then
+      cp "$STAGE_BIN/$bin" "$PACKAGES_BIN/$bin"
+      chmod +x "$PACKAGES_BIN/$bin"
+      echo "   copied $bin to $PACKAGES_BIN/"
+    fi
+  done
 fi
