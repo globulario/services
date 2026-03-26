@@ -84,6 +84,21 @@ var bootstrapAllowedMethods = map[string]bool{
 	"/dns.DnsService/GetDomains":   true,
 	"/dns.DnsService/GetA":         true,
 
+	// Repository service (required for publishing bootstrap artifacts)
+	"/repository.PackageRepository/UploadArtifact":      true,
+	"/repository.PackageRepository/GetArtifactManifest": true,
+	"/repository.PackageRepository/ListArtifacts":       true,
+	"/repository.PackageRepository/UploadBundle":        true,
+
+	// Resource service (required for service registration during bootstrap)
+	"/resource.ResourceService/SetPackageDescriptor":  true,
+	"/resource.ResourceService/GetPackageDescriptor":  true,
+	"/resource.ResourceService/GetPackagesDescriptor": true,
+	"/resource.ResourceService/RegisterAccount":       true,
+	"/resource.ResourceService/GetAccount":            true,
+	"/resource.ResourceService/GetAccounts":           true,
+	"/resource.ResourceService/SetAccountPassword":    true,
+
 	// Configuration (required for initial config)
 	"/admin.AdminService/GetConfig": true,
 	"/admin.AdminService/SetConfig": true,
