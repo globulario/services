@@ -67,6 +67,7 @@ func registerAllTools(s *server) {
 	}
 	if g.Proto {
 		registerProtoTools(s)
+		registerGrpcCallTools(s)
 	}
 	// Log ring tools are always available (in-process ring buffer).
 	registerLogRingTools(s)
