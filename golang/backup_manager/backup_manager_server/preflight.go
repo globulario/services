@@ -360,8 +360,8 @@ func detectNativeScyllaDB() (host, clusterName string) {
 		}
 	}
 
-	// Try Globular's configured port first, then ScyllaDB default
-	ports := []int{56093, 10000}
+	// ScyllaDB REST API port (default 10000)
+	ports := []int{10000}
 
 	for _, port := range ports {
 		for _, addr := range candidates {
@@ -788,7 +788,7 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 			if strings.Contains(outLower, "nocredentialproviders") || strings.Contains(outLower, "credential") {
 				fail("storage_location",
 					"S3 credentials not configured in scylla-manager-agent",
-					"Add S3 credentials to the agent config:\nsudo nano /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml\n\ns3:\n  access_key_id: <KEY>\n  secret_access_key: <SECRET>\n  provider: Minio\n  endpoint: https://127.0.0.1:9000\n\nThen restart:\nsudo systemctl restart globular-scylla-manager-agent.service")
+					"Add S3 credentials to the agent config:\nsudo nano /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml\n\ns3:\n  access_key_id: <KEY>\n  secret_access_key: <SECRET>\n  provider: Minio\n  endpoint: https://<MINIO_IP>:9000\n\nThen restart:\nsudo systemctl restart globular-scylla-manager-agent.service")
 			} else if strings.Contains(outLower, "nosuchbucket") || strings.Contains(outLower, "bucket") && strings.Contains(outLower, "not found") {
 				fail("storage_location",
 					fmt.Sprintf("S3 bucket not found: %s", location),
