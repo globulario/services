@@ -71,10 +71,18 @@ var bootstrapAllowedMethods = map[string]bool{
 	"/resource.ResourceService/CreatePeer": true,
 	"/resource.ResourceService/GetPeers":   true,
 
-	// DNS service (required for initial zone setup)
+	// DNS service (required for initial zone and record setup)
 	"/dns.DnsService/CreateZone":   true,
 	"/dns.DnsService/GetZone":      true,
 	"/dns.DnsService/CreateRecord": true,
+	"/dns.DnsService/SetDomains":   true,
+	"/dns.DnsService/SetA":         true,
+	"/dns.DnsService/SetAAAA":      true,
+	"/dns.DnsService/SetSoa":       true,
+	"/dns.DnsService/SetNs":        true,
+	"/dns.DnsService/SetTXT":       true,
+	"/dns.DnsService/GetDomains":   true,
+	"/dns.DnsService/GetA":         true,
 
 	// Configuration (required for initial config)
 	"/admin.AdminService/GetConfig": true,
