@@ -224,7 +224,24 @@ func GetClient(address, name, fct string) (Client, error) {
 	}
 	idKey := Utility.GenerateUUID(name + ":" + address)
 	if existing, ok := clients.Load(idKey); ok {
-		return existing.(Client), nil
+		c := existing.(Client)
+		// Health check: if the cached client's connection is dead, try to
+		// reconnect. If reconnection fails, evict it and fall through to
+		// create a fresh client. This handles the boot race where a client
+		// was created while the target service wasn't ready yet.
+		if !isClientConnectionHealthy(c) {
+			if err := c.Reconnect(); err != nil {
+				c.Close()
+				clients.Delete(idKey)
+				slog.Warn("GetClient: evicted stale client",
+					"service", name, "address", address, "err", err)
+				// Fall through to create a new client below.
+			} else {
+				return c, nil
+			}
+		} else {
+			return c, nil
+		}
 	}
 
 	// Build the client via the provided constructor (fct must be "<pkg>.<Ctor>").
@@ -245,6 +262,44 @@ func GetClient(address, name, fct string) (Client, error) {
 	clients.Store(idKey, client)
 	slog.Debug("GetClient: client created", "service", name, "address", address)
 	return client, nil
+}
+
+// connExposer is an optional interface that clients can implement to expose
+// their underlying gRPC connection for health checking.
+type connExposer interface {
+	GetClientConn() *grpc.ClientConn
+}
+
+// isClientConnectionHealthy returns false if the client's gRPC connection is
+// in a terminal or broken state (Shutdown or TransientFailure). If the client
+// doesn't expose its connection, we assume healthy and let the interceptor
+// handle errors on the next RPC call.
+func isClientConnectionHealthy(c Client) bool {
+	ce, ok := c.(connExposer)
+	if !ok {
+		// Client doesn't expose connection — check via reflect as fallback.
+		// All generated clients have a `cc *grpc.ClientConn` field.
+		v := reflect.ValueOf(c)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+		ccField := v.FieldByName("cc")
+		if !ccField.IsValid() || ccField.IsNil() {
+			return false // no connection at all
+		}
+		cc, ok := ccField.Interface().(*grpc.ClientConn)
+		if !ok || cc == nil {
+			return false
+		}
+		state := cc.GetState()
+		return state != connectivity.Shutdown && state != connectivity.TransientFailure
+	}
+	cc := ce.GetClientConn()
+	if cc == nil {
+		return false
+	}
+	state := cc.GetState()
+	return state != connectivity.Shutdown && state != connectivity.TransientFailure
 }
 
 /* ===================== Initialization ===================== */
@@ -1090,6 +1145,21 @@ func getMeshConn(client Client) (*grpc.ClientConn, error) {
 	meshConn = cc
 	slog.Info("mesh: gRPC connection established", "target", target)
 	return cc, nil
+}
+
+// invalidateMeshConn closes and clears the cached mesh connection so the next
+// call re-dials. Called by the client interceptor when it detects a stale
+// connection error (e.g. "connection is closing", "transport is closing").
+func invalidateMeshConn() {
+	meshMu.Lock()
+	defer meshMu.Unlock()
+	if meshConn != nil {
+		meshConn.Close()
+		meshConn = nil
+		slog.Warn("mesh: invalidated stale connection (triggered by RPC error)")
+	}
+	meshAvail = false
+	meshChecked = time.Time{}
 }
 
 // GetClientConnection dials a gRPC connection to the client's current endpoint.
