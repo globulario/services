@@ -16,6 +16,7 @@ package interceptors
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
@@ -254,6 +255,8 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 // ---- resource info memoization ----------------------------------------------
 
 // getActionResourceInfos loads and caches ResourceInfos for a given method.
+// The RBAC call uses a timeout to prevent indefinite blocking if the RBAC
+// service is unresponsive (e.g. during startup or after a stale connection).
 func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
 	// Never consult RBAC for allowlisted methods.
 	if isUnauthenticated(method) {
@@ -270,7 +273,24 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 		return nil, err
 	}
 
-	infos, err := rbacClient.GetActionResourceInfos(method)
+	type result struct {
+		infos []*rbacpb.ResourceInfos
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		infos, err := rbacClient.GetActionResourceInfos(method)
+		ch <- result{infos, err}
+	}()
+
+	var infos []*rbacpb.ResourceInfos
+	select {
+	case r := <-ch:
+		infos, err = r.infos, r.err
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("getActionResourceInfos: RBAC call timed out for %s", method)
+	}
+
 	if err != nil {
 		// Treat "not found" as "no mapping" (permissive by default).
 		msg := strings.ToLower(err.Error())
@@ -665,6 +685,9 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 	remoteAddr := extractRemoteAddr(ctx)
 	getAnomalyTracker().record(remoteAddr, method, duration, hErr != nil)
 
+	// Emit to interceptor ring buffer for AI-queryable structured logs.
+	EmitRequestLog(method, "", remoteAddr, duration, hErr)
+
 	if hErr != nil {
 		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, hErr
@@ -673,6 +696,8 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 }
 
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	reqStart := time.Now()
+
 	// Circuit breaker: reject calls that have bounced through too many services.
 	if _, err := checkCallDepth(ctx, info.FullMethod); err != nil {
 		slog.Error("call depth exceeded", "method", info.FullMethod, "err", err)
@@ -762,8 +787,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Skip cluster_id enforcement for:
 	// - Bootstrap mode (Day-0)
 	// - mTLS-authenticated calls (TLS trust chain already prevents cross-cluster)
+	// - Loopback calls (inter-service on same host — trusted by network isolation)
 	// - Unauthenticated/public endpoints (login, health)
-	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !isUnauthenticated(method) {
+	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !authCtx.IsLoopback && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster_id)
 		localClusterID, err := security.GetLocalClusterID()
 		if err == nil && localClusterID != "" {
@@ -850,8 +876,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Skip all RBAC service methods — calling getActionResourceInfos makes a gRPC
 	// call to the RBAC service, whose interceptor would call checkRoleBinding and
 	// getActionResourceInfos again, creating an infinite cycle.
+	// Also skip during bootstrap — RBAC may not be responsive yet and the call
+	// would block the handler indefinitely (no RBAC enforcement pre-Day-0 anyway).
 	needAuthz := false
-	if !strings.HasPrefix(method, "/rbac.RbacService/") {
+	if clusterInitialized && !strings.HasPrefix(method, "/rbac.RbacService/") {
 		if infos, e := getActionResourceInfos(address, actionKey); e == nil && len(infos) > 0 {
 			needAuthz = true
 		}
@@ -917,6 +945,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			"permission denied: method=%s user=%s address=%s application=%s",
 			method, clientId, address, application,
 		)
+		EmitRequestLog(method, clientId, extractRemoteAddr(ctx), time.Since(reqStart), st)
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), st.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, st
 	}
@@ -931,6 +960,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Call the actual handler
 	res, hErr := handler(ctx, rqst)
+	EmitRequestLog(method, clientId, extractRemoteAddr(ctx), time.Since(reqStart), hErr)
 	if hErr != nil {
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, hErr
@@ -996,8 +1026,11 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 
 	// 4) Only consult RBAC if there are resource mappings for this method.
 	// Skip RBAC service methods to prevent circular gRPC calls.
+	// Also skip during bootstrap — RBAC may not be responsive yet and the call
+	// would block the handler indefinitely (no RBAC enforcement pre-Day-0 anyway).
+	isBootstrap := l.authCtx != nil && l.authCtx.IsBootstrap
 	needAuthz := false
-	if !strings.HasPrefix(l.method, "/rbac.RbacService/") {
+	if !isBootstrap && !strings.HasPrefix(l.method, "/rbac.RbacService/") {
 		if infos, e := getActionResourceInfos(l.address, l.method); e == nil && len(infos) > 0 {
 			needAuthz = true
 		}
@@ -1202,9 +1235,9 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	// Security Fix #9: Cluster ID enforcement for streaming RPCs
-	// Skip for bootstrap, mTLS (TLS trust chain sufficient), and public methods.
+	// Skip for bootstrap, mTLS, loopback (inter-service), and public methods.
 	streamInitialized := false
-	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !isUnauthenticated(method) {
+	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !authCtx.IsLoopback && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster ID)
 		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
 			streamInitialized = true
