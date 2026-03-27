@@ -236,6 +236,18 @@ type nodeState struct {
 	InventoryComplete bool `json:"inventory_complete,omitempty"`
 	// Capabilities holds the hardware stats last reported by this node's agent.
 	Capabilities *storedCapabilities `json:"capabilities,omitempty"`
+	// RestartAttempts tracks lightweight restart attempts per service (in-memory only).
+	// Keyed by canonical service name. Resets on controller restart.
+	RestartAttempts map[string]*restartAttempt `json:"-"`
+}
+
+// restartAttempt tracks lightweight restart attempts for a single service.
+// Lives in-memory only — resets on controller restart (acceptable for v1).
+type restartAttempt struct {
+	Count        int       `json:"-"` // not persisted
+	LastAt       time.Time `json:"-"`
+	LastError    string    `json:"-"`
+	BackoffUntil time.Time `json:"-"`
 }
 
 // storedCapabilities is the JSON-serializable form of NodeCapabilities.

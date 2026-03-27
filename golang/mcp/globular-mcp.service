@@ -8,8 +8,10 @@ Type=simple
 WorkingDirectory=/var/lib/globular/mcp
 Environment=GLOBULAR_MCP_CONFIG=/var/lib/globular/mcp/config.json
 ExecStart=/usr/lib/globular/bin/globular-mcp-server
-Restart=on-failure
+Restart=always
 RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=10
 LimitNOFILE=524288
 StandardInput=null
 StandardOutput=journal

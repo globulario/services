@@ -21,7 +21,6 @@ import (
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
-	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/pki"
@@ -759,7 +758,10 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	known := []string{
+
+	// Must-check baseline — infrastructure units that may not have the
+	// globular-* prefix (e.g. scylla-server).
+	baseline := []string{
 		"globular-etcd.service",
 		"globular-dns.service",
 		"globular-discovery.service",
@@ -773,36 +775,74 @@ func detectUnits(ctx context.Context) []*node_agentpb.UnitStatus {
 		"scylla-server.service",
 		"globular-monitoring.service",
 	}
-	statuses := make([]*node_agentpb.UnitStatus, 0, len(known))
-	for _, unit := range known {
-		state := "unknown"
-		details := ""
-		unitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		active, err := supervisor.IsActive(unitCtx, unit)
-		cancel()
-		if err != nil {
-			details = err.Error()
-		} else {
-			if active {
-				state = "active"
-			} else {
-				state = "inactive"
+
+	// Dynamic discovery: find all installed globular-*.service unit files.
+	discovered := make(map[string]bool)
+	for _, u := range baseline {
+		discovered[u] = true
+	}
+	discoverCtx, discoverCancel := context.WithTimeout(ctx, 3*time.Second)
+	if out, err := exec.CommandContext(discoverCtx, "systemctl", "list-unit-files",
+		"globular-*.service", "--no-legend", "--no-pager").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			fields := strings.Fields(strings.TrimSpace(line))
+			if len(fields) >= 1 && strings.HasSuffix(fields[0], ".service") {
+				discovered[fields[0]] = true
 			}
-			statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
-			if out, err := supervisor.Status(statusCtx, unit); err == nil {
-				details = out
-			} else if details == "" {
-				details = err.Error()
-			}
-			statusCancel()
+		}
+	}
+	discoverCancel()
+
+	// Build sorted unit list for deterministic output.
+	unitList := make([]string, 0, len(discovered))
+	for u := range discovered {
+		unitList = append(unitList, u)
+	}
+	sort.Strings(unitList)
+
+	// Query rich state for each unit.
+	statuses := make([]*node_agentpb.UnitStatus, 0, len(unitList))
+	for _, unit := range unitList {
+		activeState, subState, loadState := queryUnitState(ctx, unit)
+		details := subState
+		if loadState != "" {
+			details += " (load=" + loadState + ")"
 		}
 		statuses = append(statuses, &node_agentpb.UnitStatus{
 			Name:    unit,
-			State:   state,
+			State:   activeState,
 			Details: details,
 		})
 	}
 	return statuses
+}
+
+// queryUnitState returns the ActiveState, SubState, and LoadState of a systemd unit.
+func queryUnitState(ctx context.Context, unit string) (activeState, subState, loadState string) {
+	unitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(unitCtx, "systemctl", "show",
+		"--property=ActiveState,SubState,LoadState", unit).Output()
+	if err != nil {
+		return "unknown", "", ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if k, v, ok := strings.Cut(line, "="); ok {
+			switch k {
+			case "ActiveState":
+				activeState = v
+			case "SubState":
+				subState = v
+			case "LoadState":
+				loadState = v
+			}
+		}
+	}
+	if activeState == "" {
+		activeState = "unknown"
+	}
+	return
 }
 
 func buildBootstrapPlan(services []string) *cluster_controllerpb.NodePlan {

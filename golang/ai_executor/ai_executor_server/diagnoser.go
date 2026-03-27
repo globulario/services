@@ -196,6 +196,12 @@ func (d *diagnoser) analyzeEventPattern(eventName string, payload map[string]int
 	case eventName == "operation.stalled":
 		return "plan_execution_stuck", 0.5
 
+	case eventName == "service.restart_failed":
+		unit, _ := payload["unit"].(string)
+		attempts, _ := payload["attempts"].(float64) // JSON numbers are float64
+		lastErr, _ := payload["last_error"].(string)
+		return fmt.Sprintf("service_restart_exhausted: %s (%d attempts, last_error=%s)", unit, int(attempts), lastErr), 0.7
+
 	default:
 		return "unknown_anomaly", 0.2
 	}
@@ -234,6 +240,35 @@ func (d *diagnoser) proposeAction(ruleID, rootCause string, payload map[string]i
 	case "convergence-stalled":
 		return "redispatch_plan + investigate_node",
 			"Plan stuck — redispatch and investigate blocking condition"
+
+	case "service-restart-exhausted":
+		unit, _ := payload["unit"].(string)
+		svc, _ := payload["service"].(string)
+		lastErr, _ := payload["last_error"].(string)
+		// Diagnostic chain: check logs, certs, config, deps
+		actions := []string{
+			fmt.Sprintf("check_service_logs:%s", unit),
+			"check_certificate_status",
+		}
+		if svc != "" {
+			actions = append(actions, fmt.Sprintf("check_service_config:%s", svc))
+		}
+		actions = append(actions, "check_cluster_health")
+		// Classify the error for targeted remediation
+		switch {
+		case strings.Contains(lastErr, "exit-code") || strings.Contains(lastErr, "203") || strings.Contains(lastErr, "126"):
+			actions = append(actions, "escalate:requires_approval")
+			return strings.Join(actions, " + "),
+				"Service restart exhausted with permission/exec error — needs manual investigation"
+		case strings.Contains(lastErr, "timeout"):
+			actions = append(actions, "check_dependencies + retry_after_delay")
+			return strings.Join(actions, " + "),
+				"Service restart exhausted with timeout — likely dependency issue"
+		default:
+			actions = append(actions, "investigate_and_escalate")
+			return strings.Join(actions, " + "),
+				"Service restart exhausted — diagnose root cause via logs and config"
+		}
 
 	default:
 		return "observe_and_record",

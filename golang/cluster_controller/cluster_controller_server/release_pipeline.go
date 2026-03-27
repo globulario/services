@@ -938,13 +938,34 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 			nCopy.Phase = cluster_controllerpb.ReleasePhaseAvailable
 		} else {
 			issues++
-			if srv.planStore != nil && !srv.hasActivePlanWithLockFn(ctx, nodeID, targetLock) {
-				if plan, err := srv.dispatchReleasePlanFn(ctx, rel, nodeID); err == nil && plan != nil {
-					nCopy.PlanID = plan.GetPlanId()
-					nCopy.Phase = cluster_controllerpb.ReleasePhaseApplying
-					nCopy.UpdatedUnixMs = time.Now().UnixMilli()
-				} else if err != nil {
-					log.Printf("release %s: node %s drift plan compile failed: %v", h.Name, nodeID, err)
+
+			// Lightweight restart path: if the service's version matches desired
+			// but the unit is failed/inactive, attempt a restart before dispatching
+			// a heavyweight reinstall plan.
+			restarted := false
+			if node != nil && hashMatch && !serviceHealthy {
+				canon := canonicalServiceName(rel.Spec.ServiceName)
+				unitName := serviceUnitForCanonical(canon)
+				unitState, unitSubState := srv.findUnitState(node, unitName)
+
+				restartable := (unitState == "failed" ||
+					(unitState == "inactive" && unitSubState == "dead"))
+
+				if restartable {
+					restarted = srv.tryLightweightRestart(ctx, node, nodeID, canon, unitName, h.Name)
+				}
+			}
+
+			if !restarted {
+				// Fall through to full plan dispatch.
+				if srv.planStore != nil && !srv.hasActivePlanWithLockFn(ctx, nodeID, targetLock) {
+					if plan, err := srv.dispatchReleasePlanFn(ctx, rel, nodeID); err == nil && plan != nil {
+						nCopy.PlanID = plan.GetPlanId()
+						nCopy.Phase = cluster_controllerpb.ReleasePhaseApplying
+						nCopy.UpdatedUnixMs = time.Now().UnixMilli()
+					} else if err != nil {
+						log.Printf("release %s: node %s drift plan compile failed: %v", h.Name, nodeID, err)
+					}
 				}
 			}
 			if nCopy.Phase == "" {
@@ -1106,4 +1127,120 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 		StartedAtUnixMs:      time.Now().UnixMilli(),
 		SetFields:            "nodes",
 	})
+}
+
+const (
+	restartMaxAttempts  = 3
+	restartBaseBackoff  = 5 * time.Second
+	restartMaxBackoff   = 2 * time.Minute
+	restartBudgetWindow = 10 * time.Minute
+)
+
+// findUnitState returns the ActiveState and SubState for a unit from the node's cached unit list.
+func (srv *server) findUnitState(node *nodeState, unitName string) (activeState, subState string) {
+	for _, u := range node.Units {
+		if strings.EqualFold(u.Name, unitName) {
+			activeState = strings.ToLower(u.State)
+			// Details format from enhanced detectUnits: "substate (load=loadstate)"
+			details := u.Details
+			if idx := strings.Index(details, " (load="); idx >= 0 {
+				subState = details[:idx]
+			} else {
+				subState = details
+			}
+			return
+		}
+	}
+	return "", ""
+}
+
+// tryLightweightRestart attempts a restart of a failed service via the node agent.
+// Returns true if a restart was attempted (regardless of outcome), false if skipped.
+func (srv *server) tryLightweightRestart(ctx context.Context, node *nodeState, nodeID, serviceName, unitName, releaseName string) bool {
+	// Initialize restart tracking map if needed.
+	if node.RestartAttempts == nil {
+		node.RestartAttempts = make(map[string]*restartAttempt)
+	}
+	attempt := node.RestartAttempts[serviceName]
+	if attempt == nil {
+		attempt = &restartAttempt{}
+		node.RestartAttempts[serviceName] = attempt
+	}
+
+	// Check backoff.
+	if time.Now().Before(attempt.BackoffUntil) {
+		return false
+	}
+
+	// Check budget: 3 attempts within 10 minutes → escalate.
+	if attempt.Count >= restartMaxAttempts && time.Since(attempt.LastAt) < restartBudgetWindow {
+		// Budget exhausted — emit event and escalate.
+		srv.emitClusterEvent("service.restart_failed", map[string]interface{}{
+			"severity":       "ERROR",
+			"node_id":        nodeID,
+			"unit":           unitName,
+			"service":        serviceName,
+			"attempts":       attempt.Count,
+			"last_error":     attempt.LastError,
+			"agent_endpoint": node.AgentEndpoint,
+		})
+		log.Printf("release %s: node %s service %s restart budget exhausted (%d attempts) — escalating to full plan",
+			releaseName, nodeID, serviceName, attempt.Count)
+		return false
+	}
+
+	// Reset counter if budget window has elapsed.
+	if attempt.Count >= restartMaxAttempts && time.Since(attempt.LastAt) >= restartBudgetWindow {
+		attempt.Count = 0
+	}
+
+	// Attempt restart via agent.
+	if node.AgentEndpoint == "" {
+		log.Printf("release %s: node %s has no agent endpoint — cannot restart %s", releaseName, nodeID, serviceName)
+		return false
+	}
+	agent, err := srv.getAgentClient(ctx, node.AgentEndpoint)
+	if err != nil {
+		log.Printf("release %s: node %s agent unreachable for restart of %s: %v", releaseName, nodeID, serviceName, err)
+		// Agent unreachable — do NOT count as restart attempt.
+		return false
+	}
+
+	resp, err := agent.ControlService(ctx, unitName, "restart")
+	if err != nil {
+		// RPC error (agent unreachable) — do NOT consume budget.
+		log.Printf("release %s: node %s restart RPC failed for %s: %v", releaseName, nodeID, serviceName, err)
+		return false
+	}
+
+	attempt.Count++
+	attempt.LastAt = time.Now()
+	// Exponential backoff: 5s, 10s, 20s, capped at 2min.
+	backoff := restartBaseBackoff * time.Duration(1<<uint(attempt.Count-1))
+	if backoff > restartMaxBackoff {
+		backoff = restartMaxBackoff
+	}
+	attempt.BackoffUntil = attempt.LastAt.Add(backoff)
+
+	if !resp.GetOk() {
+		attempt.LastError = resp.GetMessage()
+		log.Printf("release %s: node %s restart %s attempt %d failed: %s",
+			releaseName, nodeID, serviceName, attempt.Count, resp.GetMessage())
+	} else {
+		log.Printf("release %s: node %s restart %s attempt %d succeeded (state=%s)",
+			releaseName, nodeID, serviceName, attempt.Count, resp.GetState())
+	}
+
+	srv.emitClusterEvent("service.restart_attempted", map[string]interface{}{
+		"severity":       "INFO",
+		"node_id":        nodeID,
+		"unit":           unitName,
+		"service":        serviceName,
+		"attempt":        attempt.Count,
+		"ok":             resp.GetOk(),
+		"state":          resp.GetState(),
+		"correlation_id": "node:" + nodeID + ":unit:" + unitName,
+	})
+
+	return true
 }

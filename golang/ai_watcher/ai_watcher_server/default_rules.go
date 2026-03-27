@@ -32,6 +32,17 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				RepeatThreshold:     1,
 			},
 			{
+				Id:                  "service-restart-exhausted",
+				EventPattern:        "service.restart_failed",
+				Description:         "Service restart attempts exhausted — lightweight restarts failed, needs diagnosis",
+				Enabled:             true,
+				Tier:                ai_watcherpb.PermissionTier_AUTO_REMEDIATE,
+				CooldownSeconds:     120,
+				BatchWindowSeconds:  15,
+				SeverityMin:         "error",
+				RepeatThreshold:     1,
+			},
+			{
 				Id:                  "health-check-fail",
 				EventPattern:        "cluster.health.degraded",
 				Description:         "Cluster health check reports degraded state",
@@ -173,6 +184,14 @@ func defaultWatcherConfig() *ai_watcherpb.WatcherConfig {
 				Description:    "Restart a service that crashed and isn't self-healing",
 				Enabled:        true, // Enabled for V1 validation
 				MaxRetries:     3,
+				TargetServices: []string{"*"},
+			},
+			{
+				Id:             "diagnose-restart-failure",
+				Action:         "diagnose_and_heal",
+				Description:    "Diagnose why a service keeps failing after restarts and attempt targeted fix",
+				Enabled:        true,
+				MaxRetries:     2,
 				TargetServices: []string{"*"},
 			},
 			{

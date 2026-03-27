@@ -107,6 +107,21 @@ func (a *agentClient) GetInventory(ctx context.Context) (*node_agentpb.GetInvent
 	return resp, nil
 }
 
+// ControlService sends a restart/stop/start/status command to the node agent.
+func (a *agentClient) ControlService(ctx context.Context, unit, action string) (*node_agentpb.ControlServiceResponse, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, err := a.client.ControlService(reqCtx, &node_agentpb.ControlServiceRequest{
+		Unit:   unit,
+		Action: action,
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.touch()
+	return resp, nil
+}
+
 func (a *agentClient) touch() {
 	a.mu.Lock()
 	a.lastUsed = time.Now()

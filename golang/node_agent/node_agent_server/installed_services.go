@@ -147,14 +147,14 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 }
 
 
-// loadSystemdUnits discovers active globular-*.service systemd units and adds
+// loadSystemdUnits discovers loaded globular-*.service systemd units and adds
 // them as installed services when they were not already found by markers or
 // config files. This ensures services installed by the installer (which does
 // not write version markers) are still reported to the controller.
 func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServiceInfo, recordErr func(error)) {
 	// List active globular-* units via systemctl.
 	out, err := exec.CommandContext(ctx, "systemctl", "list-units",
-		"--type=service", "--state=active", "--no-legend", "--no-pager",
+		"--type=service", "--state=loaded", "--no-legend", "--no-pager",
 		"globular-*.service").Output()
 	if err != nil {
 		// systemctl not available or failed — not fatal.

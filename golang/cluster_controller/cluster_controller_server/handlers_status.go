@@ -126,6 +126,27 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 				})
 			}
 		}
+		// Detect units that recovered (non-active → active) and reset restart tracking.
+		for _, u := range units {
+			newState := strings.ToLower(u.State)
+			if newState != "active" {
+				continue
+			}
+			oldState := oldStates[strings.ToLower(u.Name)]
+			if oldState != "" && oldState != "active" {
+				// Unit recovered — reset restart attempts.
+				svcName := canonicalServiceName(u.Name)
+				if svcName != "" && node.RestartAttempts != nil {
+					if ra, exists := node.RestartAttempts[svcName]; exists {
+						prevCount := ra.Count
+						delete(node.RestartAttempts, svcName)
+						if prevCount > 0 {
+							log.Printf("node %s: service %s recovered after %d restart attempts", nodeID, svcName, prevCount)
+						}
+					}
+				}
+			}
+		}
 		node.Units = units
 		changed = true
 	}

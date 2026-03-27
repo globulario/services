@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc"
@@ -132,8 +134,9 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	srv.syncRepoArtifactsToEtcd(ctx, now, platform, &synced)
 
 	// Phase 3: Clean up stale SERVICE records for packages not actually
-	// installed on this node. Previous versions of Phase 2 blindly wrote
-	// records for every repo artifact; this removes the orphaned entries.
+	// installed on this node. Only remove records where the unit file is
+	// gone AND no version marker exists — failed/inactive services with
+	// unit files or markers are genuinely installed, just not running.
 	if srv.nodeID != "" {
 		localNames := make(map[string]bool, len(installed))
 		for key := range installed {
@@ -145,12 +148,21 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 				if localNames[name] {
 					continue // genuinely installed locally
 				}
-				// Not discovered locally — check if systemd unit is running.
+				// Not discovered by loadSystemdUnits/loadMarkers — check if
+				// the unit file or version marker still exists on disk.
 				unitName := "globular-" + name + ".service"
-				if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
-					// Not running — remove stale record.
+				unitFileExists := false
+				if out, err := exec.CommandContext(ctx, "systemctl", "list-unit-files", unitName, "--no-legend", "--no-pager").Output(); err == nil {
+					unitFileExists = strings.TrimSpace(string(out)) != ""
+				}
+				markerPath := filepath.Join(versionutil.BaseDir(), name, "version")
+				_, markerErr := os.Stat(markerPath)
+				markerExists := markerErr == nil
+
+				if !unitFileExists && !markerExists {
+					// Truly uninstalled — remove stale record.
 					_ = installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
-					log.Printf("nodeagent: removed stale installed-state SERVICE/%s (not running)", name)
+					log.Printf("nodeagent: removed stale installed-state SERVICE/%s (no unit file, no version marker)", name)
 				}
 			}
 		}
