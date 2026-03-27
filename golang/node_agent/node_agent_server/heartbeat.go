@@ -247,11 +247,19 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				// If not found, it's not installed on this node — skip.
 				continue
 			}
-			// INFRASTRUCTURE/COMMAND: check if a systemd unit is actually running.
-			unitName := "globular-" + name + ".service"
-			if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
-				// Not running — not installed on this node.
-				continue
+			if kind == "COMMAND" {
+				// COMMAND packages are standalone binaries — check if the
+				// binary exists on disk rather than looking for a systemd unit.
+				if !commandBinaryExists(name) {
+					continue
+				}
+			} else {
+				// INFRASTRUCTURE: check if a systemd unit is actually running.
+				unitName := "globular-" + name + ".service"
+				if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
+					// Not running — not installed on this node.
+					continue
+				}
 			}
 		}
 
@@ -287,6 +295,23 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		}
 		*synced++
 	}
+}
+
+// commandBinaryExists checks whether a COMMAND package's binary is installed
+// on disk. It strips the "-cmd" suffix (used in artifact names) and probes
+// the standard binary locations.
+func commandBinaryExists(name string) bool {
+	bin := strings.TrimSuffix(name, "-cmd")
+	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
+		if _, err := os.Stat(filepath.Join(dir, bin)); err == nil {
+			return true
+		}
+	}
+	// Also check PATH as a fallback
+	if _, err := exec.LookPath(bin); err == nil {
+		return true
+	}
+	return false
 }
 
 func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {

@@ -24,6 +24,8 @@ import (
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // cachedProvider wraps a DNS provider with cache metadata to detect staleness.
@@ -200,16 +202,30 @@ func (r *Reconciler) reconcileAll(ctx context.Context) {
 		return
 	}
 
-	// Reconcile each domain
+	// Reconcile each domain (retry transient gRPC errors up to 3 times)
 	for _, spec := range specs {
-		if err := r.reconcileDomain(ctx, spec); err != nil {
-			r.logger.Error("failed to reconcile domain",
-				"fqdn", spec.FQDN,
-				"error", err)
-
-			// Update status to error
-			_ = r.setStatusError(ctx, spec.FQDN, err)
+		var lastErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			if err := r.reconcileDomain(ctx, spec); err != nil {
+				lastErr = err
+				if isTransientGRPCError(err) && attempt < 2 {
+					r.logger.Warn("transient error reconciling domain, retrying",
+						"fqdn", spec.FQDN,
+						"attempt", attempt+1,
+						"error", err)
+					time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
+					continue
+				}
+				r.logger.Error("failed to reconcile domain",
+					"fqdn", spec.FQDN,
+					"error", err)
+				_ = r.setStatusError(ctx, spec.FQDN, err)
+			} else {
+				lastErr = nil
+			}
+			break
 		}
+		_ = lastErr // used in loop
 	}
 
 	r.logger.Debug("reconciliation pass complete", "domains", len(specs))
@@ -227,10 +243,14 @@ func (r *Reconciler) reconcileDomain(ctx context.Context, spec *ExternalDomainSp
 		return fmt.Errorf("invalid spec: %w", err)
 	}
 
-	// Load DNS provider
-	provider, err := r.getProvider(ctx, spec.ProviderRef, spec.Zone)
-	if err != nil {
-		return fmt.Errorf("failed to load provider: %w", err)
+	// Load DNS provider (optional when using manual cert management)
+	var provider dnsprovider.Provider
+	if spec.ProviderRef != "" {
+		var err error
+		provider, err = r.getProvider(ctx, spec.ProviderRef, spec.Zone)
+		if err != nil {
+			return fmt.Errorf("failed to load provider: %w", err)
+		}
 	}
 
 	// Step 1: Ensure DNS A/AAAA record exists (only if PublishExternal=true)
@@ -343,6 +363,38 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 	} else {
 		if err := provider.UpsertA(ctx, spec.Zone, relativeName, targetIP, spec.TTL); err != nil {
 			return fmt.Errorf("failed to upsert A record: %w", err)
+		}
+	}
+
+	// When using a wildcard certificate, also create a wildcard A/AAAA record
+	// so that all subdomains (e.g. globule-ryzen.globular.cloud) resolve.
+	if spec.UseWildcardCert {
+		wildcardName := "*"
+		r.logger.Info("updating wildcard DNS record",
+			"zone", spec.Zone,
+			"type", recordType,
+			"ip", targetIP,
+			"ttl", spec.TTL)
+		if isV6 {
+			if err := provider.UpsertAAAA(ctx, spec.Zone, wildcardName, targetIP, spec.TTL); err != nil {
+				return fmt.Errorf("failed to upsert wildcard AAAA record: %w", err)
+			}
+		} else {
+			if err := provider.UpsertA(ctx, spec.Zone, wildcardName, targetIP, spec.TTL); err != nil {
+				return fmt.Errorf("failed to upsert wildcard A record: %w", err)
+			}
+		}
+	}
+
+	// Create standard service records: api.<zone> and <node_id>.<zone>
+	for _, sub := range []string{"api", spec.NodeID} {
+		if sub == "" {
+			continue
+		}
+		if isV6 {
+			_ = provider.UpsertAAAA(ctx, spec.Zone, sub, targetIP, spec.TTL)
+		} else {
+			_ = provider.UpsertA(ctx, spec.Zone, sub, targetIP, spec.TTL)
 		}
 	}
 
@@ -462,10 +514,40 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 
 	certificates, err := client.Certificate.Obtain(request)
 	if err != nil {
-		r.logger.Error("ACME obtain failed — old certificate remains active",
-			"fqdn", spec.FQDN,
-			"error", err)
-		return fmt.Errorf("failed to obtain certificate: %w", err)
+		// If the ACME account no longer exists on the CA (stale from a previous install),
+		// delete the local account, re-register, and retry once.
+		if strings.Contains(err.Error(), "accountDoesNotExist") {
+			r.logger.Warn("ACME account stale — re-registering", "fqdn", spec.FQDN)
+			os.Remove(filepath.Join(domainDir, "account.json"))
+
+			user, err = r.loadOrCreateAccount(ctx, spec.ACME.Email, domainDir)
+			if err != nil {
+				return fmt.Errorf("failed to recreate account after stale detect: %w", err)
+			}
+			config = lego.NewConfig(user)
+			config.Certificate.KeyType = certcrypto.EC256
+			client, err = lego.NewClient(config)
+			if err != nil {
+				return fmt.Errorf("failed to recreate ACME client: %w", err)
+			}
+			if err := r.ensureRegistration(ctx, client, user, domainDir); err != nil {
+				return fmt.Errorf("failed to re-register ACME account: %w", err)
+			}
+			if err := client.Challenge.SetDNS01Provider(NewLegoProvider(provider, spec.Zone)); err != nil {
+				return fmt.Errorf("failed to set DNS-01 provider on retry: %w", err)
+			}
+			certificates, err = client.Certificate.Obtain(request)
+			if err != nil {
+				r.logger.Error("ACME obtain failed on retry — old certificate remains active",
+					"fqdn", spec.FQDN, "error", err)
+				return fmt.Errorf("failed to obtain certificate: %w", err)
+			}
+		} else {
+			r.logger.Error("ACME obtain failed — old certificate remains active",
+				"fqdn", spec.FQDN,
+				"error", err)
+			return fmt.Errorf("failed to obtain certificate: %w", err)
+		}
 	}
 
 	// Stage new certificate into a temporary directory, validate, then swap.
@@ -789,6 +871,26 @@ func (r *Reconciler) readCertExpiry(fqdn string) *time.Time {
 		return nil
 	}
 	return &cert.NotAfter
+}
+
+// isTransientGRPCError returns true for gRPC errors that are likely transient
+// and worth retrying (e.g. connection closing during service restart).
+func isTransientGRPCError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s, ok := status.FromError(err)
+	if !ok {
+		// Not a gRPC status — check for wrapped gRPC errors
+		return strings.Contains(err.Error(), "connection is closing") ||
+			strings.Contains(err.Error(), "connection refused") ||
+			strings.Contains(err.Error(), "transport is closing")
+	}
+	switch s.Code() {
+	case codes.Unavailable, codes.Canceled, codes.Aborted, codes.DeadlineExceeded:
+		return true
+	}
+	return false
 }
 
 // resolvePublicIP returns the current public IP, or empty string on failure.

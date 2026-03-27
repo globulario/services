@@ -284,7 +284,10 @@ func isClientConnectionHealthy(c Client) bool {
 			v = v.Elem()
 		}
 		ccField := v.FieldByName("cc")
-		if !ccField.IsValid() || ccField.IsNil() {
+		if !ccField.IsValid() || !ccField.CanInterface() {
+			return true // unexported or missing — assume healthy, let RPC fail naturally
+		}
+		if ccField.IsNil() {
 			return false // no connection at all
 		}
 		cc, ok := ccField.Interface().(*grpc.ClientConn)
