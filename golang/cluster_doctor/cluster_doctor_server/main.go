@@ -135,7 +135,8 @@ func main() {
 	// Register in Globular service registry so the xDS watcher creates an Envoy cluster.
 	// This makes the service reachable via serviceSubdomainUrl('clusterdoctor.ClusterDoctorService')
 	// in the TypeScript frontend.
-	if err := config.SaveServiceConfiguration(map[string]interface{}{
+	// Retry in background if etcd isn't ready yet (boot-order race).
+	regCfg := map[string]interface{}{
 		"Id":       "cluster_doctor.ClusterDoctorService",
 		"Name":     "cluster_doctor.ClusterDoctorService",
 		"Address":  config.GetRoutableIPv4(),
@@ -145,8 +146,19 @@ func main() {
 		"State":    "running",
 		"Process":  os.Getpid(),
 		"Version":  Version,
-	}); err != nil {
-		logger.Warn("failed to register in Globular service registry; xDS routing may be unavailable", "err", err)
+	}
+	if err := config.SaveServiceConfiguration(regCfg); err != nil {
+		logger.Warn("service registry registration failed, retrying in background", "err", err)
+		go func() {
+			for i := 0; i < 12; i++ {
+				time.Sleep(10 * time.Second)
+				if err := config.SaveServiceConfiguration(regCfg); err == nil {
+					logger.Info("service registry registration succeeded (background retry)")
+					return
+				}
+			}
+			logger.Error("service registry registration failed after all retries; xDS routing unavailable")
+		}()
 	}
 
 	go startPprofServer()
