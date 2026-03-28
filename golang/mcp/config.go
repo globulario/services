@@ -69,6 +69,8 @@ type ToolGroupConfig struct {
 	Frontend    bool `json:"frontend"`    // default true (gRPC service map, web probe)
 	Proto       bool `json:"proto"`       // default true (gRPC reflection describe)
 	HTTPDiag    bool `json:"http_diag"`   // default true (HTTP latency diagnostics)
+	Monitoring  bool `json:"monitoring"`  // default true (Prometheus metrics)
+	Browser     bool `json:"browser"`     // default true (Chrome DevTools Protocol bridge)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -127,6 +129,8 @@ func defaultConfig() *MCPConfig {
 			Frontend:    true,
 			Proto:       true,
 			HTTPDiag:    true,
+			Monitoring:  true,
+			Browser:     true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 		},
@@ -201,12 +205,13 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 
 	// These tool groups default to true when absent from config.
 	defaultTrue := map[string]*bool{
-		"cli":      &cfg.ToolGroups.CLI,
-		"governor": &cfg.ToolGroups.Governor,
-		"memory":   &cfg.ToolGroups.Memory,
-		"skills":   &cfg.ToolGroups.Skills,
-		"workflow": &cfg.ToolGroups.Workflow,
-		"etcd":     &cfg.ToolGroups.Etcd,
+		"cli":        &cfg.ToolGroups.CLI,
+		"governor":   &cfg.ToolGroups.Governor,
+		"memory":     &cfg.ToolGroups.Memory,
+		"skills":     &cfg.ToolGroups.Skills,
+		"workflow":   &cfg.ToolGroups.Workflow,
+		"etcd":       &cfg.ToolGroups.Etcd,
+		"monitoring": &cfg.ToolGroups.Monitoring,
 	}
 
 	updated := false

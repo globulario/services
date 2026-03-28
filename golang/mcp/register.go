@@ -72,6 +72,12 @@ func registerAllTools(s *server) {
 	if g.HTTPDiag {
 		registerHTTPDiagTools(s)
 	}
+	if g.Monitoring {
+		registerMonitoringTools(s)
+	}
+	if g.Browser {
+		registerBrowserTools(s)
+	}
 	// Log ring tools are always available (in-process ring buffer).
 	registerLogRingTools(s)
 	// Package lifecycle tools are always available.
