@@ -79,6 +79,7 @@ func init() {
 	rootCmd.PersistentFlags().DurationVar(&rootCfg.timeout, "timeout", rootCfg.timeout, "Request timeout")
 	rootCmd.PersistentFlags().StringVar(&rootCfg.output, "output", rootCfg.output, "Output format (table|json|yaml)")
 
+	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(generateCmd)
