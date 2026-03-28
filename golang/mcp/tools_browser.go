@@ -98,12 +98,20 @@ func (c *cdpClient) connect(ctx context.Context, port int) error {
 		return fmt.Errorf("parse Chrome targets: %w", err)
 	}
 
-	// Find the first "page" target.
+	// Find the best page target — prefer localhost app pages, skip devtools:// URLs.
 	var wsURL string
 	for _, t := range targets {
-		if t.Type == "page" {
+		if t.Type == "page" && !strings.HasPrefix(t.URL, "devtools://") && !strings.HasPrefix(t.URL, "chrome://") {
 			wsURL = t.WebSocketDebuggerURL
 			break
+		}
+	}
+	if wsURL == "" {
+		for _, t := range targets {
+			if t.Type == "page" {
+				wsURL = t.WebSocketDebuggerURL
+				break
+			}
 		}
 	}
 	if wsURL == "" && len(targets) > 0 {
