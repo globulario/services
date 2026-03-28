@@ -474,6 +474,35 @@ func getCDP() *cdpClient {
 
 // ── MCP tool registration ───────────────────────────────────────────────────
 
+// evaluate runs JavaScript in the browser and returns the result.
+func (c *cdpClient) evaluate(ctx context.Context, expression string) (interface{}, error) {
+	result, err := c.sendCommand(ctx, "Runtime.evaluate", map[string]interface{}{
+		"expression":    expression,
+		"returnByValue": true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Result struct {
+			Type  string      `json:"type"`
+			Value interface{} `json:"value"`
+			Desc  string      `json:"description"`
+		} `json:"result"`
+		ExceptionDetails *struct {
+			Text string `json:"text"`
+		} `json:"exceptionDetails"`
+	}
+	json.Unmarshal(result, &resp)
+	if resp.ExceptionDetails != nil {
+		return nil, fmt.Errorf("JS error: %s", resp.ExceptionDetails.Text)
+	}
+	if resp.Result.Value != nil {
+		return resp.Result.Value, nil
+	}
+	return resp.Result.Desc, nil
+}
+
 func registerBrowserTools(s *server) {
 
 	s.register(toolDef{
@@ -561,6 +590,48 @@ Requires Chrome started with --remote-debugging-port=9222.`,
 
 		return map[string]interface{}{
 			"metrics": metrics,
+		}, nil
+	})
+
+	s.register(toolDef{
+		Name: "browser_evaluate",
+		Description: `Execute JavaScript in the browser page context and return the result.
+Can read DOM state, call functions, inspect variables, or write to the console.
+Requires Chrome started with --remote-debugging-port=9222.
+
+Examples:
+  "document.title" → page title
+  "document.querySelectorAll('.error').length" → count error elements
+  "window.location.hash" → current route
+  "console.log('hello from Claude')" → write to browser console`,
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"expression": {Type: "string", Description: "JavaScript expression to evaluate"},
+				"port":       {Type: "integer", Description: "Chrome debugging port (default: 9222)"},
+			},
+			Required: []string{"expression"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		expr := getStr(args, "expression")
+		port := getInt(args, "port", 9222)
+
+		if expr == "" {
+			return nil, fmt.Errorf("expression is required")
+		}
+
+		cdp := getCDP()
+		if err := cdp.connect(ctx, port); err != nil {
+			return nil, err
+		}
+
+		result, err := cdp.evaluate(ctx, expr)
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]interface{}{
+			"result": result,
 		}, nil
 	})
 }
