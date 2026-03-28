@@ -14,6 +14,8 @@
   - [Network Configuration](#network-configuration)
   - [Node Plans](#node-plans)
   - [Package Management](#package-management)
+  - [Namespace Management](#namespace-management)
+  - [Application Deployment](#application-deployment)
   - [Debug Tools](#debug-tools)
   - [Node Management](#node-management)
   - [Logs](#logs)
@@ -35,6 +37,8 @@ The Globular CLI is a Go-based tool that communicates directly with the Globular
 - **Network configuration**: Manage HTTPS, certificates, and ACME automation
 - **Node operations**: Monitor health, apply plans, and debug issues
 - **Package operations**: Build, verify, and publish service packages
+- **Namespace management**: Claim publisher namespaces, manage collaborator access with RBAC roles
+- **Application deployment**: Deploy, undeploy, and monitor web applications via the declarative desired-state model
 - **Backup management**: Create, list, and restore cluster backups with provider-level control
 - **Day-1 operations**: Health checks, diagnostics collection, log access, and reconciliation
 - **Operational readiness**: Single commands for cluster health verification and troubleshooting
@@ -81,8 +85,10 @@ globular --help
 - **Join**: Process for adding additional nodes to an existing cluster
 - **Plans**: Declarative specifications describing desired node state (services, config, network)
 - **Profiles**: Named sets of services that define a node's role (e.g., "worker", "storage", "gateway")
+- **Namespaces**: Publisher identities (e.g., `dave@globular.io`, `acme-corp@globular.io`) backed by RBAC, controlling who can publish artifacts
 - **Managed Domains**: DNS domains under Globular's control for service discovery and TXT record management
 - **Reconciliation**: Continuous process ensuring actual state matches desired state
+- **4-Layer State Model**: Artifact (repository) → Desired (controller) → Installed (node agent) → Runtime (health) — applies to services, infrastructure, and applications
 
 ---
 
@@ -1338,6 +1344,210 @@ globular pkg publish \
 
 ---
 
+### Namespace Management
+
+Namespaces are publisher identities that control who can publish artifacts to the repository. Each namespace is backed by RBAC and can be owned by a user or an organization.
+
+#### `globular namespace claim <name>`
+
+**Purpose**: Claim a publisher namespace. The caller becomes the owner with `namespace:admin` role.
+
+```bash
+# Claim a personal namespace
+globular namespace claim dave@globular.io
+
+# Claim an org namespace — all org members can publish
+globular namespace claim acme-corp@globular.io --org acme-corp
+```
+
+**Flags**:
+- `--org`: Organization that co-owns the namespace (optional). Org members inherit publish access transitively via RBAC.
+
+**Notes**:
+- Reserved prefixes (`globular`, `system`, `core`, `internal`, `admin`) can only be managed by administrators.
+- Namespaces are lowercase, max 128 characters, ASCII only.
+- Claiming is idempotent — if already claimed, shows current owner.
+
+#### `globular namespace grant <name>`
+
+**Purpose**: Grant a role on a namespace to a user.
+
+```bash
+# Grant publish access
+globular namespace grant dave@globular.io --to alice --role namespace:publisher
+
+# Grant read-only access
+globular namespace grant dave@globular.io --to bob --role namespace:viewer
+
+# Grant full admin access
+globular namespace grant dave@globular.io --to charlie --role namespace:admin
+```
+
+**Flags**:
+- `--to`: User to grant access to (required)
+- `--role`: Role to grant (default: `namespace:publisher`)
+
+**Available roles**:
+
+| Role | Permissions |
+|------|------------|
+| `namespace:viewer` | Browse and search artifacts in the namespace |
+| `namespace:publisher` | Viewer + upload, promote, and publish artifacts |
+| `namespace:admin` | Publisher + delete artifacts, manage lifecycle states (deprecate, yank, quarantine) |
+
+#### `globular namespace revoke <name>`
+
+**Purpose**: Revoke a user's access to a namespace.
+
+```bash
+globular namespace revoke dave@globular.io --from alice
+```
+
+**Flags**:
+- `--from`: User to revoke access from (required)
+
+#### `globular namespace list`
+
+**Purpose**: List all known namespaces with ownership status.
+
+```bash
+globular namespace list
+```
+
+**Output**:
+```
+NAMESPACE                       STATUS    OWNERS
+──────────────────────────────  ────────  ────────────────────
+core@globular.io                claimed   sa
+dave@globular.io                claimed   dave
+acme-corp@globular.io           claimed   dave, acme-corp
+legacy-publisher                unclaim   —
+```
+
+Shows namespaces from two sources:
+- **Claimed**: registered in RBAC with owners
+- **Unclaimed**: inferred from existing artifacts but not yet claimed
+
+#### `globular namespace info <name>`
+
+**Purpose**: Show detailed ownership, collaborators, and artifact count for a namespace.
+
+```bash
+globular namespace info dave@globular.io
+```
+
+**Output**:
+```
+Namespace: dave@globular.io
+  Owners: dave
+  Collaborators:
+    alice                           namespace:publisher
+    bob                             namespace:viewer
+  Artifacts: 12
+```
+
+---
+
+### Application Deployment
+
+Application commands manage the lifecycle of web applications using the same declarative desired-state model as services. The controller reconciles application state across cluster nodes.
+
+**Lifecycle**: `Artifact (repository) → Desired (app deploy) → Installed (node agent) → Runtime (served by gateway)`
+
+#### `globular app deploy <name>`
+
+**Purpose**: Deploy a web application to the cluster by creating an ApplicationRelease in the desired state.
+
+```bash
+globular app deploy my-dashboard \
+  --namespace dave@globular.io \
+  --version 1.2.0 \
+  --route /apps/dashboard
+
+# Minimal deploy (no route, default index.html)
+globular app deploy my-app \
+  --namespace dave@globular.io \
+  --version 1.0.0
+```
+
+**Flags**:
+- `--namespace`: Publisher namespace (required)
+- `--version`: Application version (required)
+- `--route`: URL route path (optional, e.g., `/apps/myapp`)
+- `--index-file`: Entry HTML file (default: `index.html`)
+- `--platform`: Target platform (default: `linux_amd64`)
+
+**What happens**:
+1. An `ApplicationRelease` object is created in the controller's desired state
+2. The controller resolves the artifact from the repository
+3. A plan is compiled and dispatched to target nodes
+4. The node agent downloads and extracts the application to `/var/lib/globular/applications/<name>/`
+5. Application metadata is written to etcd for gateway route discovery
+
+#### `globular app undeploy <name>`
+
+**Purpose**: Remove an application from the cluster.
+
+```bash
+globular app undeploy my-dashboard --namespace dave@globular.io
+```
+
+**What happens**:
+1. The `ApplicationRelease` is deleted from desired state
+2. Controller compiles an uninstall plan
+3. Node agent removes the application directory and clears etcd metadata
+
+#### `globular app status <name>`
+
+**Purpose**: Show the deployment status of an application including per-node progress.
+
+```bash
+globular app status my-dashboard --namespace dave@globular.io
+```
+
+**Output**:
+```
+Application: dave@globular.io/my-dashboard
+  Desired Version:  1.2.0
+  Route:            /apps/dashboard
+  Phase:            AVAILABLE
+  Resolved Version: 1.2.0
+  Nodes:
+    globule-ryzen         AVAILABLE
+    worker-01             APPLYING
+```
+
+**Phase values**:
+
+| Phase | Meaning |
+|-------|---------|
+| `PENDING` | Release created, not yet resolved |
+| `RESOLVED` | Artifact found in repository |
+| `PLANNED` | Install plan compiled |
+| `APPLYING` | Plan dispatched to nodes |
+| `AVAILABLE` | All nodes converged |
+| `DEGRADED` | Some nodes failed |
+| `FAILED` | All nodes failed |
+| `ROLLED_BACK` | Rolled back to previous version |
+
+#### `globular app list`
+
+**Purpose**: List all deployed applications with their current status.
+
+```bash
+globular app list
+```
+
+**Output**:
+```
+APPLICATION                     VERSION    RESOLVED      PHASE       ROUTE
+──────────────────────────────  ──────────  ────────────  ──────────  ───────────────
+dave@globular.io/my-dashboard   1.2.0      1.2.0         AVAILABLE   /apps/dashboard
+dave@globular.io/landing-page   2.0.0      2.0.0         APPLYING    /
+```
+
+---
+
 ### Debug Tools
 
 Debug commands provide low-level access to cluster components for troubleshooting.
@@ -1822,23 +2032,62 @@ sudo openssl x509 -in /etc/globular/tls/fullchain.pem -noout -text
 ### 4. Deploy a Service
 
 ```bash
-# Step 1: Build package
+# Step 1: Claim your namespace (one-time)
+globular namespace claim mycompany@globular.io
+
+# Step 2: Build package
 globular pkg build \
   --spec ./myservice/spec.yaml \
   --version 1.0.0 \
-  --out ./dist
+  --out ./dist \
+  --publisher mycompany@globular.io
 
-# Step 2: Publish to repository
+# Step 3: Publish to repository (single command — handles upload + verification + registration)
 globular pkg publish \
   --file ./dist/service.myservice_1.0.0_linux_amd64.tgz \
   --repository repo.cluster.local:10003
 
-# Step 3: Add service profile to node
-globular cluster nodes profiles set node_abc123 \
-  --profile myservice
+# Step 4: Set desired state
+globular services desired set myservice 1.0.0
 
-# Step 4: Monitor deployment
-globular cluster watch --node-id node_abc123
+# Step 5: Monitor deployment
+globular release watch myservice
+```
+
+---
+
+### 4b. Publish and Deploy a Web Application
+
+```bash
+# Step 1: Claim namespace (one-time)
+globular namespace claim dave@globular.io
+
+# Step 2: Build application package
+globular pkg build \
+  --spec ./my-app/spec.yaml \
+  --version 1.0.0 \
+  --out ./dist \
+  --publisher dave@globular.io
+
+# Step 3: Publish (single command — upload + verify + register + promote to PUBLISHED)
+globular pkg publish \
+  --file ./dist/application.my-app_1.0.0_linux_amd64.tgz \
+  --repository localhost:10000
+
+# Step 4: Deploy to cluster
+globular app deploy my-app \
+  --namespace dave@globular.io \
+  --version 1.0.0 \
+  --route /apps/my-app
+
+# Step 5: Check status
+globular app status my-app --namespace dave@globular.io
+
+# Step 6: List all deployed apps
+globular app list
+
+# Step 7: Undeploy when done
+globular app undeploy my-app --namespace dave@globular.io
 ```
 
 ---
