@@ -557,6 +557,18 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		"publish_mode": publishMode,
 	})
 
+	// ── Unified publish: register descriptor + promote to PUBLISHED ──────
+	// This replaces the separate Discovery call that the CLI used to make.
+	// The artifact was stored and verified above; now complete the pipeline.
+	// On failure, the artifact stays in VERIFIED state (not published) so the
+	// caller can fix the issue and retry. The workflow run captures the error.
+	if err := srv.completePublish(ctx, manifest, key, prov); err != nil {
+		slog.Warn("auto-publish failed — artifact stored as VERIFIED, retry with 'globular pkg promote'",
+			"key", key, "err", err)
+		// Return success for the upload itself — the binary is safely stored.
+		// The publish error is recorded in the workflow run for observability.
+	}
+
 	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
 }
 

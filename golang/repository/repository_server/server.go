@@ -26,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage_backend"
+	"github.com/globulario/services/golang/workflow"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	Utility "github.com/globulario/utility"
@@ -115,6 +116,9 @@ type server struct {
 	MinioConfig *config.MinioProxyConfig  // nil → use local filesystem
 	minioClient *minio.Client
 	storage     storage_backend.Storage
+
+	// --- Workflow tracing ---
+	workflowRec *workflow.Recorder
 }
 
 // SetPermissions implements globular_service.Service.
@@ -480,11 +484,11 @@ func (srv *server) ensureMinioClient() error {
 // For loopback endpoints with no CA bundle, InsecureSkipVerify is used
 // (acceptable because traffic is local-only).
 func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
-	// Loopback endpoints always skip verification — traffic is local-only and
-	// after a backup restore the CA may not match MinIO's current cert.
+	// Loopback or same-host endpoints skip verification — MinIO is always
+	// co-located on the same node, traffic never leaves the machine.
 	host, _, _ := net.SplitHostPort(cfg.Endpoint)
-	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
-		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // loopback only
+	if host == "127.0.0.1" || host == "::1" || host == "localhost" || isLocalIP(host) {
+		return &tls.Config{InsecureSkipVerify: true}, nil //nolint:gosec // local only
 	}
 	caPath := cfg.CABundlePath
 	if caPath == "" {
@@ -506,6 +510,20 @@ func buildMinioTLSConfig(cfg *config.MinioProxyConfig) (*tls.Config, error) {
 		return &tls.Config{RootCAs: pool}, nil
 	}
 	return nil, nil
+}
+
+// isLocalIP checks if the given IP belongs to this machine's network interfaces.
+func isLocalIP(ip string) bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, a := range addrs {
+		if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.String() == ip {
+			return true
+		}
+	}
+	return false
 }
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
@@ -700,6 +718,17 @@ func initializeServerDefaults() *server {
 	s.AllowedOrigins = allowedOriginsStr
 	s.KeepAlive = true
 	s.KeepUpToDate = true
+
+	// Workflow recorder for publish tracing (fire-and-forget, never blocks uploads).
+	workflowAddr := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR"))
+	if workflowAddr == "" {
+		workflowAddr = "localhost:10220"
+	}
+	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
+	if clusterID == "" {
+		clusterID = "globular.internal"
+	}
+	s.workflowRec = workflow.NewRecorder(workflowAddr, clusterID)
 
 	return s
 }

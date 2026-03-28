@@ -226,6 +226,14 @@ func (srv *server) validatePublisherAccess(ctx context.Context, publisherID stri
 		return nil
 	}
 
+	// Reserved namespaces (core@globular.io, system.*, etc.) can only be
+	// written by sa or globular-admin role holders.
+	if isReservedNamespace(publisherID) {
+		return status.Errorf(codes.PermissionDenied,
+			"namespace %q is reserved — only administrators can publish to reserved namespaces",
+			publisherID)
+	}
+
 	rbacClient, err := srv.getRbacClient()
 	if err != nil {
 		return status.Errorf(codes.Internal, "RBAC service unavailable: %v", err)
@@ -236,21 +244,133 @@ func (srv *server) validatePublisherAccess(ctx context.Context, publisherID stri
 	// Use the authenticated principal type for authorization (recommendation #3).
 	subjectType := principalToSubjectType(authCtx.PrincipalType)
 
+	// Check 1: Resource-level permission (existing path, backward compatible).
 	hasAccess, accessDenied, err := rbacClient.ValidateAccess(authCtx.Subject, subjectType, "write", path)
+	if err == nil && hasAccess && !accessDenied {
+		return nil // allowed via resource permission
+	}
+
+	// Check 2: Role-binding — subject has namespace:publisher or namespace:admin
+	// AND is associated with this specific namespace (has any permission on it).
+	binding, rbErr := rbacClient.GetRoleBinding(authCtx.Subject)
+	if rbErr == nil && binding != nil {
+		hasPublishRole := false
+		for _, role := range binding.GetRoles() {
+			if role == "namespace:publisher" || role == "namespace:admin" {
+				hasPublishRole = true
+				break
+			}
+		}
+		if hasPublishRole {
+			// Verify the subject is associated with THIS namespace
+			// (directly or via group/org membership).
+			perms, permErr := rbacClient.GetResourcePermissions(path)
+			if permErr == nil && perms != nil && srv.subjectInNamespacePermissions(authCtx.Subject, perms) {
+				return nil // allowed via role + namespace association
+			}
+		}
+	}
+
+	return status.Errorf(codes.PermissionDenied,
+		"namespace %q not found or access denied for %q — claim it with 'globular namespace claim %s'",
+		publisherID, authCtx.Subject, publisherID)
+}
+
+// subjectInNamespacePermissions checks if a subject appears directly as owner,
+// collaborator, or member of an owning group/organization.  For group/org
+// entries we ask the Resource service whether the subject belongs to that
+// group or org, so that org-owned namespaces work transitively.
+func (srv *server) subjectInNamespacePermissions(subject string, perms *rbacpb.Permissions) bool {
+	// Direct account/application match.
+	if matchSubjectInPermission(subject, perms.Owners) {
+		return true
+	}
+	for _, perm := range perms.Allowed {
+		if matchSubjectInPermission(subject, perm) {
+			return true
+		}
+	}
+
+	// Group/organization ownership — check if the subject is a member.
+	if perms.Owners != nil {
+		for _, g := range perms.Owners.Groups {
+			if srv.isSubjectInGroup(subject, g) {
+				return true
+			}
+		}
+		for _, o := range perms.Owners.Organizations {
+			if srv.isSubjectInOrg(subject, o) {
+				return true
+			}
+		}
+	}
+	for _, perm := range perms.Allowed {
+		for _, g := range perm.Groups {
+			if srv.isSubjectInGroup(subject, g) {
+				return true
+			}
+		}
+		for _, o := range perm.Organizations {
+			if srv.isSubjectInOrg(subject, o) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchSubjectInPermission checks if a subject is directly listed in a Permission.
+func matchSubjectInPermission(subject string, perm *rbacpb.Permission) bool {
+	if perm == nil {
+		return false
+	}
+	for _, a := range perm.Accounts {
+		if a == subject {
+			return true
+		}
+	}
+	for _, a := range perm.Applications {
+		if a == subject {
+			return true
+		}
+	}
+	return false
+}
+
+// isSubjectInGroup asks the Resource service whether the subject belongs to a group.
+func (srv *server) isSubjectInGroup(subject, groupID string) bool {
+	resClient, err := srv.getResourceClient()
 	if err != nil {
-		slog.Debug("namespace access check failed", "namespace", publisherID, "subject", authCtx.Subject, "err", err)
-		return status.Errorf(codes.PermissionDenied,
-			"namespace %q not found or access denied for %q — claim the namespace first with 'globular namespace claim %s'",
-			publisherID, authCtx.Subject, publisherID)
+		return false
 	}
-
-	if accessDenied || !hasAccess {
-		return status.Errorf(codes.PermissionDenied,
-			"subject %q does not have write access to namespace %q",
-			authCtx.Subject, publisherID)
+	// GetGroups streams all groups matching a query. Use the group ID as query.
+	groups, err := resClient.GetGroups(groupID)
+	if err != nil {
+		return false
 	}
+	for _, g := range groups {
+		if g.GetId() == groupID || g.GetName() == groupID {
+			for _, a := range g.GetAccounts() {
+				if a == subject {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
-	return nil
+// isSubjectInOrg asks the Resource service whether the subject belongs to an organization.
+func (srv *server) isSubjectInOrg(subject, orgID string) bool {
+	resClient, err := srv.getResourceClient()
+	if err != nil {
+		return false
+	}
+	isMember, err := resClient.IsOrganizationMemeber(subject, orgID)
+	if err != nil {
+		return false
+	}
+	return isMember
 }
 
 // principalToSubjectType maps an AuthContext.PrincipalType to the RBAC SubjectType.

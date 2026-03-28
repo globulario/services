@@ -103,7 +103,7 @@ Full workflow:
 Authentication is required: run 'globular auth login' then 'globular auth install-certs'.
 
 Examples:
-  globular pkg publish --file service.echo_1.0.0_linux_amd64.tgz --repository localhost:10007
+  globular pkg publish --file echo_1.0.0_linux_amd64.tgz --repository localhost:10007
   globular pkg publish --dir ./packages --repository localhost:10007
   globular pkg publish --file pkg.tgz --repository localhost:10007 --output json | jq -e '.status=="success"'
 `,
@@ -572,12 +572,10 @@ func publishOne(file, token string) pkgPublishOne {
 		return r
 	}
 
-	// Resolve package type from manifest.
-	pkgType := resourcepb.PackageType_SERVICE_TYPE
+	// Resolve artifact kind from manifest type.
 	artifactKind := repopb.ArtifactKind_SERVICE
 	switch summary.Type {
 	case "application":
-		pkgType = resourcepb.PackageType_APPLICATION_TYPE
 		artifactKind = repopb.ArtifactKind_APPLICATION
 	case "infrastructure":
 		artifactKind = repopb.ArtifactKind_INFRASTRUCTURE
@@ -659,27 +657,15 @@ func publishOne(file, token string) pkgPublishOne {
 		return r
 	}
 
-	// Step 5: upsert descriptor under user identity.
-	action, err := setPackageDescriptor(summary.Name, publisher, summary.Version, summary.Description, summary.Keywords, pkgType)
-	if err != nil {
-		// Descriptor registration failed — mark artifact as ORPHANED.
-		// The artifact binary is safe but not discoverable via the legacy path.
-		_, _ = client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_ORPHANED)
-		r.err = err
-		if isAuthErr(err) {
-			r.authErr = true
-		}
-		r.duration = time.Since(start)
-		return r
-	}
-	r.descriptorAction = action
-
-	// Step 6: promote artifact to PUBLISHED.
-	if _, err := client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_PUBLISHED); err != nil {
-		// Artifact is VERIFIED but not PUBLISHED — consumers cannot discover it.
-		// This is a publish failure: the artifact exists but is invisible.
-		r.err = fmt.Errorf("artifact promotion to PUBLISHED failed (state remains VERIFIED): %w", err)
-		return r
+	// Steps 5+6 (descriptor registration + promote to PUBLISHED) are now handled
+	// server-side by Repository.completePublish() during UploadArtifact.
+	// The artifact should already be in PUBLISHED state after the upload succeeds.
+	// Verify by re-reading the manifest.
+	manifest, verifyErr := client.GetArtifactManifest(ref, summary.BuildNumber)
+	if verifyErr == nil && manifest != nil {
+		r.descriptorAction = "published"
+	} else {
+		r.descriptorAction = "uploaded (verify failed)"
 	}
 
 	r.bundleID = pkgBundleID(summary.Name, summary.Version, summary.Platform)

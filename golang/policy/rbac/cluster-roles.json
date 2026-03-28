@@ -1,7 +1,43 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "roles": {
     "globular-admin": ["/*"],
+    "namespace:viewer": [
+      "/repository.PackageRepository/GetArtifactManifest",
+      "/repository.PackageRepository/ListArtifacts",
+      "/repository.PackageRepository/SearchArtifacts",
+      "/repository.PackageRepository/GetArtifactVersions",
+      "/repository.PackageRepository/GetNamespace",
+      "/discovery.PackageDiscovery/GetPackageDescriptor"
+    ],
+    "namespace:publisher": [
+      "/repository.PackageRepository/GetArtifactManifest",
+      "/repository.PackageRepository/ListArtifacts",
+      "/repository.PackageRepository/SearchArtifacts",
+      "/repository.PackageRepository/GetArtifactVersions",
+      "/repository.PackageRepository/GetNamespace",
+      "/repository.PackageRepository/UploadArtifact",
+      "/repository.PackageRepository/UploadBundle",
+      "/repository.PackageRepository/PromoteArtifact",
+      "/discovery.PackageDiscovery/PublishService",
+      "/discovery.PackageDiscovery/PublishApplication",
+      "/discovery.PackageDiscovery/GetPackageDescriptor"
+    ],
+    "namespace:admin": [
+      "/repository.PackageRepository/GetArtifactManifest",
+      "/repository.PackageRepository/ListArtifacts",
+      "/repository.PackageRepository/SearchArtifacts",
+      "/repository.PackageRepository/GetArtifactVersions",
+      "/repository.PackageRepository/GetNamespace",
+      "/repository.PackageRepository/UploadArtifact",
+      "/repository.PackageRepository/UploadBundle",
+      "/repository.PackageRepository/PromoteArtifact",
+      "/repository.PackageRepository/DeleteArtifact",
+      "/repository.PackageRepository/SetArtifactState",
+      "/discovery.PackageDiscovery/PublishService",
+      "/discovery.PackageDiscovery/PublishApplication",
+      "/discovery.PackageDiscovery/GetPackageDescriptor"
+    ],
     "globular-publisher": [
       "/discovery.PackageDiscovery/PublishService",
       "/discovery.PackageDiscovery/PublishApplication",
