@@ -212,6 +212,7 @@ type nodeState struct {
 	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
 	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`
 	BootstrapError     string         `json:"bootstrap_error,omitempty"`
+	BootstrapRunID     string         `json:"bootstrap_run_id,omitempty"`
 	// DNS-first naming field (PR2)
 	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
 	// Structured blocked reason (Phase 7)

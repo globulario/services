@@ -93,6 +93,7 @@ enum TriggerReason {
   TRIGGER_REASON_MANUAL               = 4;  // operator action
   TRIGGER_REASON_DEPENDENCY_UNBLOCKED = 5;  // upstream finished
   TRIGGER_REASON_UPGRADE              = 6;  // version bump
+  TRIGGER_REASON_REPAIR               = 7;  // stale state cleanup on node removal/re-add
 }
 
 // ArtifactKind describes what kind of object an artifact reference points to.

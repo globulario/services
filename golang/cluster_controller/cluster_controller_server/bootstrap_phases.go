@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"time"
+
+	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
 // bootstrapPhaseTimeout is the maximum time a node may spend in any single
@@ -12,6 +17,7 @@ const bootstrapPhaseTimeout = 5 * time.Minute
 // eventEmitter is the subset of server used by the bootstrap state machine.
 type eventEmitter interface {
 	emitClusterEvent(eventType string, data map[string]interface{})
+	getWorkflowRecorder() *workflow.Recorder
 }
 
 // reconcileBootstrapPhases drives the bootstrap state machine for all nodes
@@ -39,9 +45,16 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 		if node.BootstrapPhase == BootstrapNone || node.BootstrapPhase == BootstrapWorkloadReady {
 			continue
 		}
-		// Skip failed nodes (require manual reset).
+		// Auto-retry failed nodes: reset to admitted so the phase machine
+		// re-evaluates. The conditions that caused the failure (e.g. missing
+		// profile, DNS) may have been fixed since the failure.
 		if node.BootstrapPhase == BootstrapFailed {
-			continue
+			log.Printf("bootstrap: node %s (%s) auto-retrying from bootstrap_failed",
+				node.NodeID, node.Identity.Hostname)
+			node.BootstrapPhase = BootstrapAdmitted
+			node.BootstrapError = ""
+			node.BootstrapStartedAt = now
+			dirty = true
 		}
 
 		oldPhase := node.BootstrapPhase
@@ -170,7 +183,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			}
 		}
 
-		// Emit event on phase transition.
+		// Emit event + workflow step on phase transition.
 		if node.BootstrapPhase != oldPhase && emitter != nil {
 			log.Printf("bootstrap: node %s (%s) phase %s → %s",
 				node.NodeID, node.Identity.Hostname, oldPhase, node.BootstrapPhase)
@@ -182,6 +195,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 				"to_phase":       string(node.BootstrapPhase),
 				"correlation_id": "bootstrap:" + node.NodeID,
 			})
+			recordBootstrapTransition(emitter, node, oldPhase)
 		}
 	}
 
@@ -281,4 +295,74 @@ func nodeHasScyllaProfile(node *nodeState) bool {
 // (MinIO or ScyllaDB) that need explicit join verification.
 func nodeNeedsStorageJoin(node *nodeState) bool {
 	return nodeHasMinioProfile(node) || nodeHasScyllaProfile(node)
+}
+
+// recordBootstrapTransition records the phase transition in a BOOTSTRAP
+// workflow run. Creates the run on first transition (admitted → infra_preparing),
+// records a step for each subsequent transition, and finishes the run on
+// terminal states (workload_ready or bootstrap_failed).
+func recordBootstrapTransition(emitter eventEmitter, node *nodeState, fromPhase BootstrapPhase) {
+	rec := emitter.getWorkflowRecorder()
+	if rec == nil {
+		return
+	}
+	ctx := context.Background()
+
+	// Start a new BOOTSTRAP run on the first transition.
+	if node.BootstrapRunID == "" {
+		node.BootstrapRunID = rec.StartRun(ctx, &workflow.RunParams{
+			NodeID:        node.NodeID,
+			NodeHostname:  node.Identity.Hostname,
+			ReleaseKind:   "Bootstrap",
+			TriggerReason: workflowpb.TriggerReason_TRIGGER_REASON_BOOTSTRAP,
+			CorrelationID: fmt.Sprintf("bootstrap/%s", node.NodeID),
+		})
+		if node.BootstrapRunID == "" {
+			return
+		}
+	}
+
+	runID := node.BootstrapRunID
+	toPhase := node.BootstrapPhase
+
+	// Record the phase transition as a workflow step.
+	stepKey := fmt.Sprintf("bootstrap_%s", toPhase)
+	title := fmt.Sprintf("Bootstrap: %s → %s", fromPhase, toPhase)
+	stepStatus := workflow.StepSucceeded
+	msg := fmt.Sprintf("node %s (%s)", node.NodeID, node.Identity.Hostname)
+
+	if toPhase == BootstrapFailed {
+		stepStatus = workflow.StepFailed
+		msg = node.BootstrapError
+	}
+
+	stepSeq := rec.RecordStep(ctx, runID, &workflow.StepParams{
+		StepKey: stepKey,
+		Title:   title,
+		Actor:   workflow.ActorController,
+		Phase:   workflow.PhaseVerify,
+		Status:  stepStatus,
+		Message: msg,
+	})
+
+	// For non-terminal phases, mark step as completed immediately.
+	if toPhase != BootstrapFailed && toPhase != BootstrapWorkloadReady {
+		rec.CompleteStep(ctx, runID, stepSeq, msg, 0)
+		return
+	}
+
+	// Terminal states: finish the run.
+	if toPhase == BootstrapWorkloadReady {
+		rec.FinishRun(ctx, runID, workflow.Succeeded,
+			fmt.Sprintf("node %s (%s) bootstrap complete", node.NodeID, node.Identity.Hostname),
+			"", workflow.NoFailure)
+		node.BootstrapRunID = "" // clear for potential future re-bootstrap
+	} else if toPhase == BootstrapFailed {
+		rec.FailStep(ctx, runID, stepSeq, "bootstrap.failed", node.BootstrapError,
+			"Check node connectivity, DNS, and service health", workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY, true)
+		rec.FinishRun(ctx, runID, workflow.Failed,
+			fmt.Sprintf("node %s (%s) bootstrap failed: %s", node.NodeID, node.Identity.Hostname, node.BootstrapError),
+			node.BootstrapError, workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY)
+		node.BootstrapRunID = "" // clear for auto-retry
+	}
 }

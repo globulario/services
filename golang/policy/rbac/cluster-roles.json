@@ -1,43 +1,7 @@
 {
-  "version": "1.1",
+  "version": "1.0",
   "roles": {
     "globular-admin": ["/*"],
-    "namespace:viewer": [
-      "/repository.PackageRepository/GetArtifactManifest",
-      "/repository.PackageRepository/ListArtifacts",
-      "/repository.PackageRepository/SearchArtifacts",
-      "/repository.PackageRepository/GetArtifactVersions",
-      "/repository.PackageRepository/GetNamespace",
-      "/discovery.PackageDiscovery/GetPackageDescriptor"
-    ],
-    "namespace:publisher": [
-      "/repository.PackageRepository/GetArtifactManifest",
-      "/repository.PackageRepository/ListArtifacts",
-      "/repository.PackageRepository/SearchArtifacts",
-      "/repository.PackageRepository/GetArtifactVersions",
-      "/repository.PackageRepository/GetNamespace",
-      "/repository.PackageRepository/UploadArtifact",
-      "/repository.PackageRepository/UploadBundle",
-      "/repository.PackageRepository/PromoteArtifact",
-      "/discovery.PackageDiscovery/PublishService",
-      "/discovery.PackageDiscovery/PublishApplication",
-      "/discovery.PackageDiscovery/GetPackageDescriptor"
-    ],
-    "namespace:admin": [
-      "/repository.PackageRepository/GetArtifactManifest",
-      "/repository.PackageRepository/ListArtifacts",
-      "/repository.PackageRepository/SearchArtifacts",
-      "/repository.PackageRepository/GetArtifactVersions",
-      "/repository.PackageRepository/GetNamespace",
-      "/repository.PackageRepository/UploadArtifact",
-      "/repository.PackageRepository/UploadBundle",
-      "/repository.PackageRepository/PromoteArtifact",
-      "/repository.PackageRepository/DeleteArtifact",
-      "/repository.PackageRepository/SetArtifactState",
-      "/discovery.PackageDiscovery/PublishService",
-      "/discovery.PackageDiscovery/PublishApplication",
-      "/discovery.PackageDiscovery/GetPackageDescriptor"
-    ],
     "globular-publisher": [
       "/discovery.PackageDiscovery/PublishService",
       "/discovery.PackageDiscovery/PublishApplication",
@@ -78,7 +42,9 @@
       "/clustercontroller.ClusterControllerService/CompleteOperation",
       "/clustercontroller.ResourcesService/GetClusterNetwork",
       "/clustercontroller.ClusterControllerService/GetClusterHealth",
-      "/clustercontroller.ClusterControllerService/GetClusterInfo"
+      "/clustercontroller.ClusterControllerService/GetClusterInfo",
+      "/workflow.WorkflowService/*",
+      "/dns.DnsService/*"
     ],
     "globular-node-executor": [
       "/clustercontroller.ClusterControllerService/ReportNodeStatus",
@@ -98,14 +64,8 @@
       "/clustercontroller.ClusterControllerService/CompleteOperation",
       "/clustercontroller.ClusterControllerService/GetClusterInfo",
       "/clustercontroller.ResourcesService/GetClusterNetwork",
-      "/dns.DnsService/SetDomains",
-      "/dns.DnsService/SetA",
-      "/dns.DnsService/SetAAAA",
-      "/dns.DnsService/SetSoa",
-      "/dns.DnsService/SetNs",
-      "/dns.DnsService/SetTXT",
-      "/dns.DnsService/RemoveTXT",
-      "/dns.DnsService/GetTXT",
+      "/dns.DnsService/*",
+      "/workflow.WorkflowService/*",
       "/nodeagent.NodeAgentService/RunBackupProvider",
       "/nodeagent.NodeAgentService/GetBackupTaskResult",
       "/nodeagent.NodeAgentService/RunRestoreProvider",
@@ -120,7 +80,9 @@
       "/nodeagent.NodeAgentService/GetInventory",
       "/nodeagent.NodeAgentService/BootstrapFirstNode",
       "/clustercontroller.ClusterControllerService/GetClusterInfo",
-      "/clustercontroller.ResourcesService/GetClusterNetwork"
+      "/clustercontroller.ResourcesService/GetClusterNetwork",
+      "/workflow.WorkflowService/*",
+      "/dns.DnsService/*"
     ]
   }
 }

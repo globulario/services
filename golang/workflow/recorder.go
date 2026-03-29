@@ -64,6 +64,9 @@ var (
 
 	KindInfra   = workflowpb.ComponentKind_COMPONENT_KIND_INFRASTRUCTURE
 	KindService = workflowpb.ComponentKind_COMPONENT_KIND_SERVICE
+
+	TriggerRepair    = workflowpb.TriggerReason_TRIGGER_REASON_REPAIR
+	TriggerBootstrap = workflowpb.TriggerReason_TRIGGER_REASON_BOOTSTRAP
 )
 
 // RunParams holds the parameters for starting a workflow run.

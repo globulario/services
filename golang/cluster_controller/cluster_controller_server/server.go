@@ -318,6 +318,10 @@ func (srv *server) emitClusterEvent(name string, payload map[string]interface{})
 	}()
 }
 
+func (srv *server) getWorkflowRecorder() *workflow.Recorder {
+	return srv.workflowRec
+}
+
 func (srv *server) lock(tag string) {
 	srv.mu.Lock()
 	srv.muHeldBy.Store(tag)

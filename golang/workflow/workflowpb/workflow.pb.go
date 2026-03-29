@@ -434,6 +434,7 @@ const (
 	TriggerReason_TRIGGER_REASON_MANUAL               TriggerReason = 4 // operator action
 	TriggerReason_TRIGGER_REASON_DEPENDENCY_UNBLOCKED TriggerReason = 5 // upstream finished
 	TriggerReason_TRIGGER_REASON_UPGRADE              TriggerReason = 6 // version bump
+	TriggerReason_TRIGGER_REASON_REPAIR               TriggerReason = 7 // stale state cleanup on node removal/re-add
 )
 
 // Enum value maps for TriggerReason.
@@ -446,6 +447,7 @@ var (
 		4: "TRIGGER_REASON_MANUAL",
 		5: "TRIGGER_REASON_DEPENDENCY_UNBLOCKED",
 		6: "TRIGGER_REASON_UPGRADE",
+		7: "TRIGGER_REASON_REPAIR",
 	}
 	TriggerReason_value = map[string]int32{
 		"TRIGGER_REASON_UNKNOWN":              0,
@@ -455,6 +457,7 @@ var (
 		"TRIGGER_REASON_MANUAL":               4,
 		"TRIGGER_REASON_DEPENDENCY_UNBLOCKED": 5,
 		"TRIGGER_REASON_UPGRADE":              6,
+		"TRIGGER_REASON_REPAIR":               7,
 	}
 )
 
@@ -3482,7 +3485,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\x16COMPONENT_KIND_UNKNOWN\x10\x00\x12!\n" +
 	"\x1dCOMPONENT_KIND_INFRASTRUCTURE\x10\x01\x12\x1a\n" +
 	"\x16COMPONENT_KIND_SERVICE\x10\x02\x12\x1e\n" +
-	"\x1aCOMPONENT_KIND_CONFIG_ONLY\x10\x03*\xe5\x01\n" +
+	"\x1aCOMPONENT_KIND_CONFIG_ONLY\x10\x03*\x80\x02\n" +
 	"\rTriggerReason\x12\x1a\n" +
 	"\x16TRIGGER_REASON_UNKNOWN\x10\x00\x12 \n" +
 	"\x1cTRIGGER_REASON_DESIRED_DRIFT\x10\x01\x12\x1c\n" +
@@ -3490,7 +3493,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\x14TRIGGER_REASON_RETRY\x10\x03\x12\x19\n" +
 	"\x15TRIGGER_REASON_MANUAL\x10\x04\x12'\n" +
 	"#TRIGGER_REASON_DEPENDENCY_UNBLOCKED\x10\x05\x12\x1a\n" +
-	"\x16TRIGGER_REASON_UPGRADE\x10\x06*\xaf\x02\n" +
+	"\x16TRIGGER_REASON_UPGRADE\x10\x06\x12\x19\n" +
+	"\x15TRIGGER_REASON_REPAIR\x10\a*\xaf\x02\n" +
 	"\fArtifactKind\x12\x19\n" +
 	"\x15ARTIFACT_KIND_UNKNOWN\x10\x00\x12\x19\n" +
 	"\x15ARTIFACT_KIND_RELEASE\x10\x01\x12\x16\n" +

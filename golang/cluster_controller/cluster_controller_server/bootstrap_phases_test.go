@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/workflow"
 )
 
 // mockEmitter captures emitted events for test assertions.
@@ -15,6 +16,10 @@ type mockEmitter struct {
 func (m *mockEmitter) emitClusterEvent(eventType string, data map[string]interface{}) {
 	data["_type"] = eventType
 	m.events = append(m.events, data)
+}
+
+func (m *mockEmitter) getWorkflowRecorder() *workflow.Recorder {
+	return nil
 }
 
 func TestBootstrapPhaseReady(t *testing.T) {
