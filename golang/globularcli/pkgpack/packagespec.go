@@ -31,6 +31,7 @@ type PackageMetadata struct {
 	ExtraBinaries []string `yaml:"extra_binaries"` // Additional binaries to bundle alongside the main exec.
 	Entrypoint    string   `yaml:"entrypoint"`     // Override: exec name when it differs from convention. "noop" for OS-managed packages.
 	InstallBins   *bool    `yaml:"install_bins"`   // Override: false to skip bin/ extraction (OS-managed packages like scylladb).
+	BundleDebs    []string `yaml:"bundle_debs"`    // OS package names to download and bundle as .deb files at build time. Installed via dpkg at install time (no internet needed).
 
 	// Catalog — drives the cluster controller's dynamic component catalog.
 	Profiles    []string `yaml:"profiles"`     // Deployment profiles that include this package (e.g. "core", "compute").

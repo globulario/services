@@ -41,8 +41,9 @@ type SpecMetadata struct {
 	ExtraBinaries []string
 
 	// Build hints — control how the builder treats this package.
-	Entrypoint  string // Override exec name (e.g. "noop" for OS-managed packages, "globularcli" for renamed binaries).
-	InstallBins *bool  // Override: false to skip bin/ extraction (OS-managed packages like scylladb).
+	Entrypoint  string   // Override exec name (e.g. "noop" for OS-managed packages, "globularcli" for renamed binaries).
+	InstallBins *bool    // Override: false to skip bin/ extraction (OS-managed packages like scylladb).
+	BundleDebs  []string // OS package names to download as .deb at build time for offline install.
 }
 
 // ScriptFile describes a script to embed in a package.
@@ -68,6 +69,7 @@ type SpecInfo struct {
 	ConfigDirs    []string
 	Systemd       []SystemdFile
 	Scripts       []ScriptFile
+	DebPaths      []string // .deb files to bundle in debs/ directory
 	Metadata      SpecMetadata
 }
 
@@ -271,6 +273,7 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 			meta.InstallBins = &b
 		}
 	}
+	meta.BundleDebs = lookupStringList(m, "bundle_debs")
 
 	return meta
 }

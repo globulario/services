@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -152,6 +153,28 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		}
 		res.Service = info.ServiceName
 
+		// Download .deb packages if bundle_debs is set in the spec metadata.
+		if len(info.Metadata.BundleDebs) > 0 {
+			debDir, err := os.MkdirTemp("", "pkg-debs-")
+			if err != nil {
+				res.Err = fmt.Errorf("create debs temp dir: %w", err)
+				results = append(results, res)
+				hadErr = true
+				continue
+			}
+			debPaths, err := DownloadDebs(info.Metadata.BundleDebs, debDir)
+			if err != nil {
+				os.RemoveAll(debDir)
+				res.Err = fmt.Errorf("download debs: %w", err)
+				results = append(results, res)
+				fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
+				hadErr = true
+				continue
+			}
+			info.DebPaths = debPaths
+			defer os.RemoveAll(debDir)
+		}
+
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
 		outputPath := filepath.Join(opts.OutDir, archiveName)
 		summary, err := BuildPackage(info, opts, outputPath, goos, goarch)
@@ -269,6 +292,21 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 				return nil, err
 			}
 		}
+	}
+
+	// Bundle .deb files for offline installation.
+	if len(info.DebPaths) > 0 {
+		debsRoot := filepath.Join(stagingDir, "debs")
+		if err := os.MkdirAll(debsRoot, 0755); err != nil {
+			return nil, err
+		}
+		for _, debPath := range info.DebPaths {
+			target := filepath.Join(debsRoot, filepath.Base(debPath))
+			if err := copyFile(debPath, target); err != nil {
+				return nil, fmt.Errorf("bundle deb %s: %w", debPath, err)
+			}
+		}
+		log.Printf("  bundled %d .deb files in debs/", len(info.DebPaths))
 	}
 
 	pkgType := info.Metadata.Kind
@@ -489,7 +527,7 @@ func resolvePlatform(platform string) (string, string, error) {
 }
 
 func buildArchiveName(serviceName, version, goos, goarch string) string {
-	return fmt.Sprintf("service.%s_%s_%s_%s.tgz", serviceName, version, goos, goarch)
+	return fmt.Sprintf("%s_%s_%s_%s.tgz", serviceName, version, goos, goarch)
 }
 
 func copyConfigDirs(dirs []string, destRoot string) (int, error) {
