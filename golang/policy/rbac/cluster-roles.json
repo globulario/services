@@ -44,7 +44,9 @@
       "/clustercontroller.ClusterControllerService/GetClusterHealth",
       "/clustercontroller.ClusterControllerService/GetClusterInfo",
       "/workflow.WorkflowService/*",
-      "/dns.DnsService/*"
+      "/dns.DnsService/*",
+      "/event.EventService/*",
+      "/repository.PackageRepository/*"
     ],
     "globular-node-executor": [
       "/clustercontroller.ClusterControllerService/ReportNodeStatus",
@@ -59,13 +61,13 @@
       "/nodeagent.NodeAgentService/GetInventory",
       "/nodeagent.NodeAgentService/ListInstalledPackages",
       "/nodeagent.NodeAgentService/GetInstalledPackage",
-      "/repository.PackageRepository/DownloadArtifact",
-      "/repository.PackageRepository/GetArtifactManifest",
+      "/repository.PackageRepository/*",
       "/clustercontroller.ClusterControllerService/CompleteOperation",
       "/clustercontroller.ClusterControllerService/GetClusterInfo",
       "/clustercontroller.ResourcesService/GetClusterNetwork",
       "/dns.DnsService/*",
       "/workflow.WorkflowService/*",
+      "/event.EventService/*",
       "/nodeagent.NodeAgentService/RunBackupProvider",
       "/nodeagent.NodeAgentService/GetBackupTaskResult",
       "/nodeagent.NodeAgentService/RunRestoreProvider",
@@ -82,7 +84,9 @@
       "/clustercontroller.ClusterControllerService/GetClusterInfo",
       "/clustercontroller.ResourcesService/GetClusterNetwork",
       "/workflow.WorkflowService/*",
-      "/dns.DnsService/*"
+      "/dns.DnsService/*",
+      "/event.EventService/*",
+      "/repository.PackageRepository/*"
     ]
   }
 }
