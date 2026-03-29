@@ -514,22 +514,13 @@ func renderScyllaConfig(ctx *serviceConfigContext) (string, bool) {
 	// Heuristic: if the current node is NOT a seed (i.e. it's joining an
 	// existing cluster), don't set cluster_name — let it inherit from gossip.
 	// If it IS a seed (first node / Day-0), set it from ClusterID.
-	isSeedNode := false
-	for _, s := range seeds {
-		if s == currentIP {
-			isSeedNode = true
-			break
-		}
-	}
-	onlySeeds := len(scyllaNodes) == 1 && isSeedNode // brand new single-node cluster
-
 	var sb strings.Builder
 	sb.WriteString("# Managed by Globular cluster controller — do not edit manually.\n")
-	if onlySeeds && ctx.ClusterID != "" {
-		// New cluster — set cluster_name for all future nodes to inherit.
+	if ctx.ClusterID != "" {
+		// Always set cluster_name — ScyllaDB 2025.3+ Raft topology requires it
+		// on all nodes. The old gossip inheritance model doesn't work with Raft.
 		sb.WriteString(fmt.Sprintf("cluster_name: '%s'\n", ctx.ClusterID))
 	}
-	// For join nodes: omit cluster_name — ScyllaDB inherits from gossip.
 	sb.WriteString("\n")
 
 	// Listening addresses — must be the routable IP, never 0.0.0.0 or localhost.
