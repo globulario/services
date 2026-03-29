@@ -18,12 +18,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -110,13 +112,16 @@ type Recorder struct {
 
 // Default certificate paths for Globular service mTLS.
 var (
-	DefaultCertFile = "/var/lib/globular/pki/issued/services/service.crt"
-	DefaultKeyFile  = "/var/lib/globular/pki/issued/services/service.key"
-	DefaultCAFile   = "/var/lib/globular/pki/ca.crt"
+	DefaultCertFile  = "/var/lib/globular/pki/issued/services/service.crt"
+	DefaultKeyFile   = "/var/lib/globular/pki/issued/services/service.key"
+	DefaultCAFile    = "/var/lib/globular/pki/ca.crt"
+	DefaultTokenFile = "/var/lib/globular/tokens/node_token"
 )
 
 // NewRecorder connects to the workflow service over mTLS and returns a recorder.
-// If the connection fails, it returns a no-op recorder that silently drops events.
+// If mTLS fails (e.g. envoy strips client certs), falls back to token-based auth
+// using the node token from /var/lib/globular/tokens/node_token.
+// If all auth fails, returns a no-op recorder that silently drops events.
 func NewRecorder(addr, clusterID string) *Recorder {
 	r := &Recorder{
 		clusterID: clusterID,
@@ -129,21 +134,62 @@ func NewRecorder(addr, clusterID string) *Recorder {
 		return r
 	}
 
+	// Load node token for auth when going through envoy (mTLS identity is stripped).
+	token := loadNodeToken()
+
+	dialOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+		grpc.WithBlock(),
+	}
+	if token != "" {
+		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(tokenInjector(token, clusterID)))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, addr,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithBlock(),
-	)
+	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
 	if err != nil {
 		log.Printf("workflow recorder: connect to %s failed (recording disabled): %v", addr, err)
 		return r // no-op mode
 	}
 	r.conn = conn
 	r.client = workflowpb.NewWorkflowServiceClient(conn)
-	log.Printf("workflow recorder: connected to %s (mTLS)", addr)
+	authMethod := "mTLS"
+	if token != "" {
+		authMethod = "mTLS+token"
+	}
+	log.Printf("workflow recorder: connected to %s (%s)", addr, authMethod)
 	return r
+}
+
+// loadNodeToken reads the node's identity token (JWT) from the local token file.
+// Returns empty string if the file doesn't exist (e.g. Day-0 node or pre-join).
+func loadNodeToken() string {
+	data, err := os.ReadFile(DefaultTokenFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// tokenInjector returns a gRPC unary interceptor that attaches the token
+// and cluster_id as metadata on every outgoing call.
+func tokenInjector(token, clusterID string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{},
+		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if !ok {
+			md = metadata.New(nil)
+		} else {
+			md = md.Copy()
+		}
+		md.Set("token", token)
+		if clusterID != "" {
+			md.Set("cluster_id", clusterID)
+		}
+		return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
+	}
 }
 
 // loadRecorderTLS loads the node's service certificates for mTLS.
@@ -164,8 +210,9 @@ func loadRecorderTLS() (credentials.TransportCredentials, error) {
 	}
 
 	return credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            pool,
+		InsecureSkipVerify: true, // needed when routing through envoy gateway
 	}), nil
 }
 

@@ -117,7 +117,7 @@ func main() {
 	// Connect to WorkflowService for plan execution tracing.
 	wfAddr := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR"))
 	if wfAddr == "" {
-		wfAddr = "localhost:10220"
+		wfAddr = discoverServiceAddr(10220)
 	}
 	wfClusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
 	if wfClusterID == "" {
