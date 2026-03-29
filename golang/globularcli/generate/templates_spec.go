@@ -91,8 +91,8 @@ steps:
         content: |
           [Unit]
           Description=Globular {{.PackageName}}
-          After=network-online.target
-          Wants=network-online.target
+          After=network-online.target globular-etcd.service
+          Wants=network-online.target globular-etcd.service
 
           [Service]
           Type=simple
@@ -100,7 +100,6 @@ steps:
           Group=globular
           WorkingDirectory={{stateDir}}/{{.PackageName}}
           Environment=GLOBULAR_SERVICES_DIR={{stateDir}}/services
-          Environment=GLOBULAR_BOOTSTRAP=1
           ExecStart={{prefix}}/bin/{{.PackageName}}_server
           Restart=on-failure
           RestartSec=2
