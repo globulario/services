@@ -162,6 +162,24 @@ echo "=> Running authzgen to generate permissions and roles"
 )
 echo "=> authzgen complete"
 
+echo "=> Updating globular-installer module dependency"
+(
+  cd "$GO_ROOT"
+  GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go get github.com/globulario/globular-installer@latest 2>&1 || true
+  go mod tidy 2>&1 || true
+)
+
+# Build the installer binary (used by Day-0 install script).
+INSTALLER_ROOT="$(cd "$REPO_ROOT/../globular-installer" 2>/dev/null && pwd)" || true
+if [[ -d "$INSTALLER_ROOT" ]]; then
+  echo "=> Building globular-installer"
+  (
+    cd "$INSTALLER_ROOT"
+    GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o "$INSTALLER_ROOT/bin/globular-installer" ./cmd/installer 2>&1 || \
+      echo "   WARN: installer build failed (may not have cmd/installer)"
+  )
+fi
+
 echo "=> Building Go services"
 bash "$REPO_ROOT/golang/build/build-services.sh"
 
