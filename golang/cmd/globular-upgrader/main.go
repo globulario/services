@@ -84,8 +84,9 @@ func main() {
 	}
 
 	// Step 3: Write version marker.
+	// Must match versionutil.MarkerPath: /var/lib/globular/services/{service}/version
 	if *version != "" {
-		markerPath := fmt.Sprintf("/var/lib/globular/%s/version", *service)
+		markerPath := fmt.Sprintf("/var/lib/globular/services/%s/version", *service)
 		if err := os.MkdirAll(filepath.Dir(markerPath), 0o755); err == nil {
 			_ = os.WriteFile(markerPath, []byte(*version+"\n"), 0o644)
 		}

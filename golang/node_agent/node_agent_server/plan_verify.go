@@ -87,10 +87,32 @@ func (srv *NodeAgentServer) verifyPlan(plan *planpb.NodePlan) error {
 	}
 
 	// d. Generation (replay protection)
+	//
+	// If the controller re-created a release (e.g. after being stuck in
+	// APPLYING), new plans may have a low generation. The plan store's
+	// status is authoritative: if the status was cleared or belongs to a
+	// different plan, the controller is starting fresh. Accept the plan
+	// and reset the local generation file so future plans continue
+	// working.
 	lastGen := loadLastAppliedGeneration()
 	if plan.GetGeneration() > 0 && lastGen > 0 && plan.GetGeneration() <= lastGen {
-		return fmt.Errorf("generation %d <= last applied %d (replay)",
-			plan.GetGeneration(), lastGen)
+		// Check if the plan store confirms this is a stale replay or
+		// if the controller legitimately restarted the generation
+		// sequence (status missing or for a different plan).
+		statusCtx, statusCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer statusCancel()
+		storeStatus, _ := srv.planStore.GetStatus(statusCtx, srv.nodeID)
+		storeStale := storeStatus == nil ||
+			storeStatus.GetPlanId() != plan.GetPlanId() ||
+			storeStatus.GetGeneration() < plan.GetGeneration()
+		if storeStale {
+			log.Printf("verifyPlan: generation %d <= last %d but plan store is stale/cleared — accepting (controller restarted sequence)",
+				plan.GetGeneration(), lastGen)
+			_ = saveLastAppliedGeneration(0) // reset so future plans work
+		} else {
+			return fmt.Errorf("generation %d <= last applied %d (replay)",
+				plan.GetGeneration(), lastGen)
+		}
 	}
 
 	// e-g. Signature verification
