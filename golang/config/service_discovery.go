@@ -545,6 +545,7 @@ func ResolveServiceAddrs(serviceName string) []string {
 			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(s), port))
 		}
 		if len(addrs) > 0 {
+			addrs = meshRouteAddrs(addrs)
 			slog.Debug("service discovery: resolved via etcd", "service", serviceName, "addrs", addrs)
 			return addrs
 		}
@@ -553,12 +554,54 @@ func ResolveServiceAddrs(serviceName string) []string {
 	// 2. Fall back to gateway config endpoint — useful when etcd is unreachable
 	// (e.g. non-root CLI user without etcd certs).
 	if addrs := tryGatewayConfig(serviceName); len(addrs) > 0 {
+		addrs = meshRouteAddrs(addrs)
 		slog.Debug("service discovery: resolved via gateway", "service", serviceName, "addrs", addrs)
 		return addrs
 	}
 
 	slog.Debug("service discovery: no endpoint found", "service", serviceName)
 	return nil
+}
+
+// meshRouteAddrs rewrites resolved addresses so that gRPC traffic goes through
+// the Envoy service mesh on port 443 instead of hitting direct service ports.
+// Envoy uses gRPC path-based routing (e.g. /authentication.AuthenticationService/*)
+// so any instance on any node can serve the request. This gives us:
+//   - HA failover: if one node's service dies, Envoy routes to another
+//   - Load balancing: Envoy distributes across healthy upstream instances
+//   - Unified TLS: Envoy terminates/originates TLS, services don't need to
+//
+// The addresses are deduplicated because multiple services on the same host
+// all resolve to host:443.
+func meshRouteAddrs(addrs []string) []string {
+	seen := make(map[string]bool, len(addrs))
+	var mesh []string
+	for _, addr := range addrs {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			// Can't parse — keep as-is.
+			if !seen[addr] {
+				seen[addr] = true
+				mesh = append(mesh, addr)
+			}
+			continue
+		}
+		// localhost / loopback means "this node, direct port" — never rewrite.
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			direct := net.JoinHostPort(host, port)
+			if !seen[direct] {
+				seen[direct] = true
+				mesh = append(mesh, direct)
+			}
+			continue
+		}
+		meshAddr := net.JoinHostPort(host, "443")
+		if !seen[meshAddr] {
+			seen[meshAddr] = true
+			mesh = append(mesh, meshAddr)
+		}
+	}
+	return mesh
 }
 
 // ResolveServiceAddr resolves a single endpoint for the named service.

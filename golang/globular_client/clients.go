@@ -125,11 +125,11 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 	}
 	httpPort := asStr("PortHTTP")
 	if httpPort == "" || httpPort == "0" { httpPort = "80" }
-	httpsPort := asStr("PortHTTPS")
-	if httpsPort == "" || httpsPort == "0" { httpsPort = "443" }
+	// gRPC clients must route through the Envoy service mesh (:443),
+	// not the HTTP gateway (PortHTTPS / :8443) which cannot serve gRPC.
 	defPort := httpPort
 	if proto == "https" {
-		defPort = httpsPort
+		defPort = "443"
 	}
 	domain := asStr("Domain")
 	dnsHost := asStr("DNS")
@@ -141,9 +141,10 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 		}
 	}
 
-	// If it's an IP matching our local IP or "localhost", use localAddr as-is.
-	if address == "localhost" {
-		return localAddr
+	// "localhost" means localhost — never rewrite to a mesh address.
+	// Append default port so the result is always "host:port".
+	if address == "localhost" || address == "127.0.0.1" || address == "::1" {
+		return net.JoinHostPort(address, defPort)
 	}
 	if ip := net.ParseIP(address); ip != nil {
 		if lip, _ := Utility.GetIpv4(localAddr); ip.String() == lip {
@@ -170,25 +171,13 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 				}
 				host := Utility.ToString(p["Hostname"])
 				if host == "" {
-					host = "localhost"
+					host = Utility.ToString(p["Address"])
 				}
-				if pDomain != "" && pDomain != "localhost" && !strings.Contains(host, ".") {
+				if pDomain != "" && !strings.Contains(host, ".") {
 					host = host + "." + pDomain
 				}
-				// pick the right control port for the peer
-				port := Utility.ToString(p["Port"])
-				if proto == "https" {
-					if v := Utility.ToString(p["PortHTTPS"]); v != "" && v != "0" {
-						port = v
-					}
-				} else {
-					if v := Utility.ToString(p["PortHTTP"]); v != "" && v != "0" {
-						port = v
-					}
-				}
-				if port == "" || port == "0" {
-					port = defPort
-				}
+				// gRPC routes through Envoy mesh (:443) on every node.
+				port := defPort
 				return net.JoinHostPort(host, port)
 			}
 		}
@@ -211,8 +200,8 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 //   - IP or "localhost"        (mapped appropriately)
 //   - peer domain alias        (matches a peer in cfg.Peers, builds "hostname.domain:port")
 func GetClient(address, name, fct string) (Client, error) {
-	// Load local control address and config (best-effort; nil-safe below).
-	localAddr, _ := config.GetAddress()
+	// Load local mesh address (Envoy :443) for gRPC routing.
+	localAddr, _ := config.GetMeshAddress()
 	localCfg, _ := config.GetLocalConfig(true)
 
 	// Always normalize to "host:port" before doing anything else.
