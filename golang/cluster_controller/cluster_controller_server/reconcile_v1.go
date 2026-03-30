@@ -287,6 +287,20 @@ func serviceProbeForUnit(unit string, nodeIPs ...string) *planpb.Probe {
 	case strings.Contains(u, "envoy"):
 		// Envoy admin binds to 127.0.0.1:9901 intentionally (local-only admin interface).
 		return &planpb.Probe{Type: "probe.http", Args: structpbFromMap(map[string]interface{}{"url": "http://127.0.0.1:9901/ready"})}
+	case strings.Contains(u, "prometheus"):
+		// Prometheus is a third-party binary (no _server suffix, no describe).
+		return &planpb.Probe{Type: "probe.http", Args: structpbFromMap(map[string]interface{}{"url": "http://" + nodeIP + ":9090/-/ready"})}
+	case strings.Contains(u, "node-exporter"):
+		// node-exporter is a third-party binary.
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":9100"})}
+	case strings.Contains(u, "minio"):
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":9000"})}
+	case strings.Contains(u, "sidekick"):
+		// Sidekick is a MinIO sidecar — probe MinIO's health endpoint.
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":9000"})}
+	case strings.Contains(u, "scylla"):
+		// ScyllaDB native transport port.
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": nodeIP + ":9042"})}
 	default:
 		// For all other Globular services, use config-based TCP probe.
 		// Extract the canonical service name from the unit name

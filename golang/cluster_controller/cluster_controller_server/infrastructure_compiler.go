@@ -95,14 +95,22 @@ func CompileInfrastructurePlan(
 		installArgs["data_dirs"] = spec.DataDirs
 	}
 
+	// Fetch + verify BEFORE stopping the service.  This avoids a
+	// chicken-and-egg when upgrading Envoy: the artifact download goes
+	// through the Envoy mesh, so we must not kill Envoy first.
 	steps := []*planpb.PlanStep{
-		planStep("service.stop", map[string]interface{}{"unit": unit}),
 		planStep("artifact.fetch", fetchArgs),
 		planStep("artifact.verify", map[string]interface{}{
 			"artifact_path":   artPath,
 			"expected_sha256": status.ResolvedArtifactDigest,
 		}),
+		planStep("service.stop", map[string]interface{}{"unit": unit}),
 		planStep("infrastructure.install", installArgs),
+		planStep("service.write_version_marker", map[string]interface{}{
+			"service": component,
+			"version": resolvedVersion,
+			"path":    versionutil.MarkerPath(component),
+		}),
 		planStep("package.report_state", map[string]interface{}{
 			"node_id":       nodeID,
 			"name":          component,

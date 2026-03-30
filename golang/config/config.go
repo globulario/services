@@ -488,8 +488,51 @@ func GetGatewayEndpoint() (string, string, error) {
 		return "", "", fmt.Errorf("gateway endpoint: invalid port %d (protocol=%s)", port, protocol)
 	}
 
-	url := fmt.Sprintf("%s://%s:%d", protocol, hostname, port)
-	return url, protocol, nil
+	localURL := fmt.Sprintf("%s://%s:%d", protocol, hostname, port)
+
+	// On joining nodes the local gateway may not be running yet.
+	// Quick-probe the local endpoint; if unreachable, fall back to the
+	// controller node's gateway (derived from node-agent state.json).
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", hostname, port), 2*time.Second)
+	if err == nil {
+		conn.Close()
+		return localURL, protocol, nil
+	}
+
+	// Local gateway unreachable — try controller's gateway.
+	controllerHost := controllerGatewayHost()
+	if controllerHost != "" {
+		fallbackURL := fmt.Sprintf("%s://%s:%d", protocol, controllerHost, port)
+		return fallbackURL, protocol, nil
+	}
+
+	// No fallback available; return the local URL anyway (caller will see the error).
+	return localURL, protocol, nil
+}
+
+// controllerGatewayHost reads the controller endpoint from the node-agent
+// state file and returns the host portion (e.g. "10.0.0.63"). Returns ""
+// if the state file is missing or unparseable.
+func controllerGatewayHost() string {
+	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
+	if stateRoot == "" {
+		stateRoot = "/var/lib/globular"
+	}
+	data, err := os.ReadFile(filepath.Join(stateRoot, "nodeagent", "state.json"))
+	if err != nil {
+		return ""
+	}
+	var state struct {
+		ControllerEndpoint string `json:"controller_endpoint"`
+	}
+	if json.Unmarshal(data, &state) != nil || state.ControllerEndpoint == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(state.ControllerEndpoint)
+	if err != nil || host == "" {
+		return ""
+	}
+	return host
 }
 
 func GetHostname() (string, error) {
