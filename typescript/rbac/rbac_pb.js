@@ -23,8 +23,6 @@ var global =
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
 goog.object.extend(proto, google_protobuf_struct_pb);
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.rbac.AddResourceOwnerRqst', null, global);
 goog.exportSymbol('proto.rbac.AddResourceOwnerRsp', null, global);
 goog.exportSymbol('proto.rbac.DeleteAllAccessRqst', null, global);

@@ -110,6 +110,11 @@ type server struct {
 	Domains           []string
 	ReplicationFactor int
 
+	// ScyllaDB storage (shared across all DNS instances in the cluster)
+	ScyllaHosts              []string `json:"ScyllaHosts"`
+	ScyllaPort               int      `json:"ScyllaPort"`
+	ScyllaReplicationFactor  int      `json:"ScyllaReplicationFactor"`
+
 	// storage
 	store              storage_store.Store
 	connection_is_open bool
@@ -377,16 +382,63 @@ func (srv *server) openConnection() error {
 	if srv.connection_is_open {
 		return nil
 	}
-	srv.store = storage_store.NewBadger_store()
-	if err := srv.store.Open(`{"path":"` + srv.Root + `","name":"dns","syncWrites":true}`); err != nil {
-		return err
+
+	// Use ScyllaDB for shared cluster-wide DNS storage.
+	// ScyllaDB binds to the node's routable IP, not localhost.
+	hosts := srv.ScyllaHosts
+	if len(hosts) == 0 {
+		if ip := detectLocalIP(); ip != "" {
+			hosts = []string{ip}
+		} else {
+			hosts = []string{"127.0.0.1"}
+		}
+	}
+	port := srv.ScyllaPort
+	if port == 0 {
+		port = 9042
+	}
+	rf := srv.ScyllaReplicationFactor
+	if rf <= 0 {
+		rf = 1
+	}
+
+	opts := fmt.Sprintf(`{"hosts":%s,"port":%d,"keyspace":"dns","table":"records","replication_factor":%d,"consistency":"one"}`,
+		mustJSON(hosts), port, rf)
+
+	srv.store = storage_store.NewScylla_store("", "", rf)
+	if err := srv.store.Open(opts); err != nil {
+		return fmt.Errorf("scylla dns store: %w", err)
 	}
 	srv.connection_is_open = true
-
 	return nil
 }
 
+// detectLocalIP returns the node's outbound IP (same technique used by ScyllaDB
+// post-install and the node-agent). Returns "" if detection fails.
+func detectLocalIP() string {
+	conn, err := net.DialTimeout("udp", "8.8.8.8:80", time.Second)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
+// mustJSON marshals v to a JSON string, panics on error (only used for static data).
+func mustJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
 func (srv *server) isManaged(domain string) bool {
+	// Normalize: ensure trailing dot for comparison (domains are stored with trailing dot).
+	domain = strings.ToLower(domain)
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
 	srv.mu.RLock()
 	defer srv.mu.RUnlock()
 	for _, d := range srv.Domains {
@@ -490,11 +542,14 @@ func initializeServerDefaults() *server {
 		KeepAlive:         cfg.KeepAlive,
 		Process:           cfg.Process,
 		ProxyProcess:      cfg.ProxyProcess,
-		DnsPort:           cfg.DnsPort,
-		Domains:           globular.CloneStringSlice(cfg.Domains),
-		ReplicationFactor: cfg.ReplicationFactor,
-		Root:              cfg.Root,
-		Dependencies:      globular.CloneStringSlice(cfg.Dependencies),
+		DnsPort:                 cfg.DnsPort,
+		Domains:                 globular.CloneStringSlice(cfg.Domains),
+		ReplicationFactor:       cfg.ReplicationFactor,
+		Root:                    cfg.Root,
+		ScyllaHosts:             cfg.ScyllaHosts,
+		ScyllaPort:              cfg.ScyllaPort,
+		ScyllaReplicationFactor: cfg.ScyllaReplicationFactor,
+		Dependencies:            globular.CloneStringSlice(cfg.Dependencies),
 		Permissions: make([]any, 0),
 	}
 

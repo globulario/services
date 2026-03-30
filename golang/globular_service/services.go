@@ -1265,6 +1265,12 @@ func applyDesiredToService(s Service, m map[string]any) {
 	}
 	if m["Domain"] != nil {
 		if v := Utility.ToString(m["Domain"]); v != "" {
+			// Never apply "localhost" as domain — use the cluster domain instead.
+			if v == "localhost" {
+				if clusterDomain, err := config.GetDomain(); err == nil && clusterDomain != "" && clusterDomain != "localhost" {
+					v = clusterDomain
+				}
+			}
 			s.SetDomain(v)
 		}
 	}

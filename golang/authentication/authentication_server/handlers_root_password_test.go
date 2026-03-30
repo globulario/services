@@ -2,67 +2,55 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/metadata"
 )
 
-func writeConfig(t *testing.T, path, rootPassword string) {
+// seedRootCreds writes root credentials to etcd for testing.
+// Returns a cleanup function that removes the key.
+func seedRootCreds(t *testing.T, password, email string) {
 	t.Helper()
-	cfg := map[string]any{
-		"AdminEmail":   "root@example.com",
-		"RootPassword": rootPassword,
-		"Mac":          "00:11:22:33:44:55",
-		"Address":      "127.0.0.1:10004",
-		"Domain":       "example.com",
+	creds := &config.RootCredentials{
+		RootPassword: password,
+		AdminEmail:   email,
 	}
-	b, _ := json.Marshal(cfg)
-	if err := os.WriteFile(path, b, 0600); err != nil {
-		t.Fatalf("write config: %v", err)
+	if err := config.SetRootCredentials(creds); err != nil {
+		t.Skipf("etcd unavailable, skipping: %v", err)
 	}
+	t.Cleanup(func() {
+		// Reset to empty so tests don't leak state.
+		_ = config.SetRootCredentials(&config.RootCredentials{})
+	})
+}
+
+func readRootPassword(t *testing.T) string {
+	t.Helper()
+	creds, err := config.GetRootCredentials()
+	if err != nil {
+		t.Fatalf("read root credentials: %v", err)
+	}
+	return creds.RootPassword
 }
 
 func newTestServer(t *testing.T, rootPassword string) *server {
 	t.Helper()
 	tmp := t.TempDir()
-	if err := os.Setenv("GLOBULAR_STATE_DIR", tmp); err != nil {
-		t.Fatalf("set env: %v", err)
-	}
-	oldDataPath, oldConfigPath := dataPath, configPath
+	oldDataPath := dataPath
 	dataPath = tmp
-	configPath = filepath.Join(tmp, "config.json")
 	t.Cleanup(func() {
 		dataPath = oldDataPath
-		configPath = oldConfigPath
-		_ = os.Unsetenv("GLOBULAR_STATE_DIR")
 	})
-	writeConfig(t, configPath, rootPassword)
+	seedRootCreds(t, rootPassword, "root@example.com")
 	return &server{
 		Domain:         "example.com",
 		SessionTimeout: 60,
 		Address:        "",
 	}
-}
-
-func readRootPassword(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("read config: %v", err)
-	}
-	cfg := map[string]any{}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("parse config: %v", err)
-	}
-	pw, _ := cfg["RootPassword"].(string)
-	return pw
 }
 
 func TestAuthenticateUpgradesDefaultPasswordToBcrypt(t *testing.T) {
@@ -96,11 +84,6 @@ func TestAuthenticateKeepsExistingBcrypt(t *testing.T) {
 	stored := readRootPassword(t)
 	if stored != string(hash) {
 		t.Fatalf("bcrypt hash should remain unchanged")
-	}
-	// Critical: raw password must never appear in the config file after login.
-	raw, _ := os.ReadFile(configPath)
-	if strings.Contains(string(raw), "secret") {
-		t.Fatalf("raw password found in config file after bcrypt login")
 	}
 }
 

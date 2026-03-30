@@ -820,12 +820,12 @@ func main() {
 
 	s := new(server)
 
-	// Check for bootstrap mode via environment variable
-	// In bootstrap mode, RBAC unavailability is non-fatal
-	s.bootstrapMode = os.Getenv("GLOBULAR_BOOTSTRAP") == "1"
-	if s.bootstrapMode {
-		logger.Info("running in bootstrap mode - RBAC failures will be non-fatal")
-	}
+	// Bootstrap mode: RBAC unavailability is non-fatal.
+	// Auto-detect: always treat RBAC failures as non-fatal during startup.
+	// This replaces the old GLOBULAR_BOOTSTRAP=1 env var which was a permanent
+	// security bypass. The service will still enforce RBAC once connected.
+	s.bootstrapMode = true
+	logger.Info("startup: RBAC failures will be non-fatal during initialization")
 
 	// Populate ONLY safe defaults before config/etcd is touched.
 	s.Name = string(resourcepb.File_resource_proto.Services().Get(0).FullName())

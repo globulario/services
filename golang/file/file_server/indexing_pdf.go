@@ -16,8 +16,9 @@ import (
 )
 
 // indexPdfFile indexes the content of a PDF file into a search engine.
-func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
-	slog.Info("index pdf", "path", path)
+// When force is true, existing index and thumbnail directories are removed before re-indexing.
+func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo, force bool) error {
+	slog.Info("index pdf", "path", path, "force", force)
 	if fileInfos.Mime != "application/pdf" {
 		return fmt.Errorf("file is not a PDF: %s", path)
 	}
@@ -27,10 +28,16 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 	hidden := filepath.Join(dir, ".hidden", base)
 	thumbDir := filepath.Join(hidden, "__thumbnail__")
 	indexDir := filepath.Join(hidden, "__index_db__")
+
+	if force {
+		_ = os.RemoveAll(thumbDir)
+		_ = os.RemoveAll(indexDir)
+	}
+
 	_ = srv.storageMkdirAll(context.Background(), thumbDir, 0o755)
 	_ = srv.storageMkdirAll(context.Background(), indexDir, 0o755)
 
-	if srv.storageForPath(filepath.Join(thumbDir, "data_url.txt")).Exists(context.Background(), filepath.Join(thumbDir, "data_url.txt")) {
+	if !force && srv.storageForPath(filepath.Join(thumbDir, "data_url.txt")).Exists(context.Background(), filepath.Join(thumbDir, "data_url.txt")) {
 		return fmt.Errorf("indexing info already exists")
 	}
 

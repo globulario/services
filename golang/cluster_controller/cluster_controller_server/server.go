@@ -241,9 +241,14 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 
 	// Connect to EventService for reconciliation event publishing.
+	// Route through the Envoy gateway so it works on any node.
 	eventAddr := strings.TrimSpace(os.Getenv("CLUSTER_EVENT_SERVICE_ADDR"))
 	if eventAddr == "" {
-		eventAddr = "localhost:10050"
+		if addr, err := config.GetMeshAddress(); err == nil {
+			eventAddr = addr // routes through Envoy service mesh (:443)
+		} else {
+			eventAddr = "localhost:10050"
+		}
 	}
 	if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
 		srv.eventClient = ec
@@ -252,15 +257,20 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 
 	// Connect to WorkflowService for reconciliation workflow tracing.
-	workflowAddr := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR"))
-	if workflowAddr == "" {
-		workflowAddr = "localhost:10220"
-	}
+	// Route through the Envoy gateway so it works on any node.
 	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
-	srv.workflowRec = workflow.NewRecorder(workflowAddr, clusterID)
+	srv.workflowRec = workflow.NewRecorderWithResolver(func() string {
+		if env := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR")); env != "" {
+			return env
+		}
+		if addr, err := config.GetMeshAddress(); err == nil {
+			return addr // routes through Envoy service mesh (:443)
+		}
+		return ""
+	}, clusterID)
 
 	srv.setLeader(false, "", "")
 

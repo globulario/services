@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -39,6 +40,8 @@ func newClaudeClient() *claudeClient {
 
 	if binary != "" {
 		logger.Info("claude: CLI configured", "binary", binary)
+		// Ensure CLI credentials exist for the service user by syncing from etcd.
+		syncCLICredentialsFromEtcd()
 	} else {
 		logger.Info("claude: CLI not found, using deterministic fallback")
 	}
@@ -46,6 +49,36 @@ func newClaudeClient() *claudeClient {
 	return &claudeClient{
 		cliBinary: binary,
 	}
+}
+
+// syncCLICredentialsFromEtcd reads OAuth credentials from etcd and writes them
+// to ~/.claude/.credentials.json so the Claude CLI can authenticate.
+// The service runs as the "globular" user whose home is /var/lib/globular,
+// so without this the CLI has no credentials.
+func syncCLICredentialsFromEtcd() {
+	val, err := etcdGet(etcdCredentialsKey)
+	if err != nil || val == "" {
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "/var/lib/globular"
+	}
+
+	dir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		logger.Warn("claude: failed to create credentials dir", "path", dir, "err", err)
+		return
+	}
+
+	credPath := filepath.Join(dir, ".credentials.json")
+	if err := os.WriteFile(credPath, []byte(val), 0600); err != nil {
+		logger.Warn("claude: failed to write credentials file", "path", credPath, "err", err)
+		return
+	}
+
+	logger.Info("claude: synced credentials from etcd", "path", credPath)
 }
 
 // isAvailable returns true if the Claude CLI is found.
@@ -120,7 +153,37 @@ func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, e
 		return "", fmt.Errorf("claude returned error: %s", result.Result)
 	}
 
+	// After a successful CLI call, the CLI may have refreshed the OAuth token.
+	// Re-read the credentials file and sync to etcd so other nodes get the fresh token.
+	go syncRefreshedCredentialsToEtcd()
+
 	return result.Result, nil
+}
+
+// syncRefreshedCredentialsToEtcd re-reads the local credentials file and
+// pushes to etcd if the token has changed (e.g., after CLI auto-refresh).
+func syncRefreshedCredentialsToEtcd() {
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "/var/lib/globular"
+	}
+	credPath := filepath.Join(home, ".claude", ".credentials.json")
+	data, err := os.ReadFile(credPath)
+	if err != nil {
+		return
+	}
+
+	// Check if etcd already has the same content.
+	existing, _ := etcdGet(etcdCredentialsKey)
+	if existing == string(data) {
+		return // No change
+	}
+
+	if err := etcdPut(etcdCredentialsKey, string(data)); err != nil {
+		logger.Warn("claude: failed to sync refreshed credentials to etcd", "err", err)
+	} else {
+		logger.Info("claude: synced refreshed credentials to etcd")
+	}
 }
 
 // shutdown is a no-op — each invocation is a fresh subprocess.

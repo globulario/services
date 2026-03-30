@@ -741,9 +741,9 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 			continue
 		}
 
-		// Only materialize: (a) infrastructure components, or
-		// (b) workload components that are runtime deps of already-desired services.
-		if comp.Kind != KindInfrastructure && !runtimeDepsOfDesired[compName] {
+		// Only materialize: (a) infrastructure components, (b) command packages, or
+		// (c) workload components that are runtime deps of already-desired services.
+		if comp.Kind != KindInfrastructure && comp.Kind != KindCommand && !runtimeDepsOfDesired[compName] {
 			continue
 		}
 
@@ -764,16 +764,16 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		// Resolve version: check installed versions across all nodes.
 		version, source := srv.resolveInfraVersion(compName)
 
-		if comp.Kind == KindInfrastructure {
+		if comp.Kind == KindInfrastructure || comp.Kind == KindCommand {
 			// Version must be resolved — never create InfrastructureRelease
-			// with a fake version. If unresolved, the infra is not yet
+			// with a fake version. If unresolved, the infra/command is not yet
 			// installed anywhere and cannot be materialized.
 			if version == "" {
 				log.Printf("materialize-infra: skipping %s — version unresolved (not installed on any node)", compName)
 				continue
 			}
 
-			// Create InfrastructureRelease.
+			// Create InfrastructureRelease (used for both infra and command packages).
 			relName := defaultPublisherID() + "/" + compName
 			existing, _, _ := srv.resources.Get(ctx, "InfrastructureRelease", relName)
 			if existing != nil {

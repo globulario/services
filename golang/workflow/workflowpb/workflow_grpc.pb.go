@@ -299,7 +299,7 @@ func (c *workflowServiceClient) DiagnoseRun(ctx context.Context, in *DiagnoseRun
 }
 
 // WorkflowServiceServer is the server API for WorkflowService service.
-// All implementations must embed UnimplementedWorkflowServiceServer
+// All implementations should embed UnimplementedWorkflowServiceServer
 // for forward compatibility.
 type WorkflowServiceServer interface {
 	// Write path — internal producers (controller, node-agent, installer)
@@ -326,10 +326,9 @@ type WorkflowServiceServer interface {
 	CancelRun(context.Context, *CancelRunRequest) (*emptypb.Empty, error)
 	AcknowledgeRun(context.Context, *AcknowledgeRunRequest) (*emptypb.Empty, error)
 	DiagnoseRun(context.Context, *DiagnoseRunRequest) (*DiagnoseRunResponse, error)
-	mustEmbedUnimplementedWorkflowServiceServer()
 }
 
-// UnimplementedWorkflowServiceServer must be embedded to have
+// UnimplementedWorkflowServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -396,8 +395,7 @@ func (UnimplementedWorkflowServiceServer) AcknowledgeRun(context.Context, *Ackno
 func (UnimplementedWorkflowServiceServer) DiagnoseRun(context.Context, *DiagnoseRunRequest) (*DiagnoseRunResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DiagnoseRun not implemented")
 }
-func (UnimplementedWorkflowServiceServer) mustEmbedUnimplementedWorkflowServiceServer() {}
-func (UnimplementedWorkflowServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedWorkflowServiceServer) testEmbeddedByValue() {}
 
 // UnsafeWorkflowServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to WorkflowServiceServer will

@@ -85,7 +85,7 @@ type server struct {
 	grpcServer *grpc.Server
 	actions    chan map[string]interface{}
 	exit       chan bool
-	ring       *eventRingBuffer
+	bus        *scyllaBus
 
 	logger *slog.Logger
 }
@@ -186,9 +186,6 @@ func (srv *server) ensureRuntimeChannels() {
 	if srv.exit == nil {
 		srv.exit = make(chan bool)
 	}
-	if srv.ring == nil {
-		srv.ring = newEventRingBuffer(defaultRingCapacity)
-	}
 }
 
 func (srv *server) Init() error {
@@ -210,6 +207,14 @@ func (srv *server) Save() error { return globular.SaveService(srv) }
 
 func (srv *server) StartService() error {
 	srv.ensureRuntimeChannels()
+
+	// Connect to ScyllaDB for cluster-wide event bus.
+	srv.bus = newScyllaBus(srv.logger)
+	if err := srv.bus.connect(); err != nil {
+		srv.logger.Warn("ScyllaDB event bus unavailable, events will be local-only", "err", err)
+		srv.bus = nil
+	}
+
 	go srv.run()
 	return globular.StartService(srv, srv.grpcServer)
 }
@@ -219,6 +224,9 @@ func (srv *server) StopService() error {
 	select {
 	case srv.exit <- true:
 	default:
+	}
+	if srv.bus != nil {
+		srv.bus.close()
 	}
 	return globular.StopService(srv, srv.grpcServer)
 }
@@ -374,7 +382,7 @@ func main() {
 			srv.Address = "localhost:" + Utility.ToString(srv.Port)
 		}
 		if srv.Id == "" {
-			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		}
 		b, err := globular.DescribeJSON(srv)
 		if err != nil {

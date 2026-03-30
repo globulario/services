@@ -15,9 +15,13 @@ import (
     "github.com/globulario/services/golang/blog/blog_client"
     "github.com/globulario/services/golang/blog/blogpb"
     "github.com/globulario/services/golang/event/eventpb"
+    "context"
+
+    "github.com/globulario/services/golang/config"
     "github.com/globulario/services/golang/policy"
     globular "github.com/globulario/services/golang/globular_service"
     "github.com/globulario/services/golang/resource/resourcepb"
+    "github.com/globulario/services/golang/shared_index"
     "github.com/globulario/services/golang/storage/storage_store"
     Utility "github.com/globulario/utility"
     "google.golang.org/grpc"
@@ -98,8 +102,9 @@ type server struct {
     store      storage_store.Store // persistent KV store
 
     // Cached/active resources.
-    blogs  *sync.Map
-    indexs map[string]bleve.Index
+    blogs       *sync.Map
+    indexs      map[string]bleve.Index
+    sharedIndex *shared_index.SharedIndex
 
     // Test hooks / dependency injection.
     eventClientFactory eventClientFactory
@@ -214,7 +219,7 @@ func (srv *server) Init() error {
 
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
-// StartService prepares storage, subscriptions, and starts the gRPC server.
+// StartService prepares storage, subscriptions, shared index, and starts the gRPC server.
 func (srv *server) StartService() error {
     if srv.store == nil {
         srv.store = storage_store.NewBadger_store()
@@ -232,15 +237,40 @@ func (srv *server) StartService() error {
         return err
     }
 
+    // Start shared index for mesh-ready search.
+    scyllaHosts := []string{"127.0.0.1"}
+    if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
+        scyllaHosts = strings.Split(h, ",")
+    }
+
+    si := shared_index.New(shared_index.Config{
+        Group:         "blog",
+        ScyllaHosts:   scyllaHosts,
+        LocalIndexDir: config.GetDataDir(),
+        PollInterval:  500 * time.Millisecond,
+        SyncInterval:  5 * time.Second,
+    }, logger)
+
+    if err := si.Start(context.Background()); err != nil {
+        logger.Warn("shared index unavailable, running in standalone mode", "err", err)
+    } else {
+        srv.sharedIndex = si
+        logger.Info("shared index started (mesh-ready)")
+    }
+
     // Subscribe to account deletion events.
     go srv.startDeleteAccountSubscription()
 
     return globular.StartService(srv, srv.grpcServer)
 }
 
-// StopService stops gRPC server and cleans resources.
+// StopService stops gRPC server, shared index, and cleans resources.
 func (srv *server) StopService() error {
     var firstErr error
+
+    if srv.sharedIndex != nil {
+        srv.sharedIndex.Stop()
+    }
 
     if srv.indexs != nil {
         for path, idx := range srv.indexs {

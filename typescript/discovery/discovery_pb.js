@@ -25,8 +25,6 @@ var repository_pb = require('./repository_pb.js');
 goog.object.extend(proto, repository_pb);
 var resource_pb = require('./resource_pb.js');
 goog.object.extend(proto, resource_pb);
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.discovery.InstallPlan', null, global);
 goog.exportSymbol('proto.discovery.InstallStep', null, global);
 goog.exportSymbol('proto.discovery.InstallStep.Action', null, global);

@@ -34,8 +34,11 @@ const (
 	NodeAgentService_GetRestoreTaskResult_FullMethodName  = "/node_agent.NodeAgentService/GetRestoreTaskResult"
 	NodeAgentService_ListInstalledPackages_FullMethodName = "/node_agent.NodeAgentService/ListInstalledPackages"
 	NodeAgentService_GetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/GetInstalledPackage"
+	NodeAgentService_SetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/SetInstalledPackage"
 	NodeAgentService_RotateNodeToken_FullMethodName       = "/node_agent.NodeAgentService/RotateNodeToken"
 	NodeAgentService_GetServiceLogs_FullMethodName        = "/node_agent.NodeAgentService/GetServiceLogs"
+	NodeAgentService_ControlService_FullMethodName        = "/node_agent.NodeAgentService/ControlService"
+	NodeAgentService_SearchServiceLogs_FullMethodName     = "/node_agent.NodeAgentService/SearchServiceLogs"
 	NodeAgentService_GetCertificateStatus_FullMethodName  = "/node_agent.NodeAgentService/GetCertificateStatus"
 )
 
@@ -60,10 +63,15 @@ type NodeAgentServiceClient interface {
 	// Installed-state registry — canonical package inventory on this node.
 	ListInstalledPackages(ctx context.Context, in *ListInstalledPackagesRequest, opts ...grpc.CallOption) (*ListInstalledPackagesResponse, error)
 	GetInstalledPackage(ctx context.Context, in *GetInstalledPackageRequest, opts ...grpc.CallOption) (*GetInstalledPackageResponse, error)
+	SetInstalledPackage(ctx context.Context, in *SetInstalledPackageRequest, opts ...grpc.CallOption) (*SetInstalledPackageResponse, error)
 	// Node identity token rotation (Phase 2)
 	RotateNodeToken(ctx context.Context, in *RotateNodeTokenRequest, opts ...grpc.CallOption) (*RotateNodeTokenResponse, error)
 	// Observability: read service journal logs
 	GetServiceLogs(ctx context.Context, in *GetServiceLogsRequest, opts ...grpc.CallOption) (*GetServiceLogsResponse, error)
+	// Systemd service control (restart/stop/start/status)
+	ControlService(ctx context.Context, in *ControlServiceRequest, opts ...grpc.CallOption) (*ControlServiceResponse, error)
+	// Observability: search service logs by time range, pattern, severity
+	SearchServiceLogs(ctx context.Context, in *SearchServiceLogsRequest, opts ...grpc.CallOption) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(ctx context.Context, in *GetCertificateStatusRequest, opts ...grpc.CallOption) (*GetCertificateStatusResponse, error)
 }
@@ -234,6 +242,16 @@ func (c *nodeAgentServiceClient) GetInstalledPackage(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) SetInstalledPackage(ctx context.Context, in *SetInstalledPackageRequest, opts ...grpc.CallOption) (*SetInstalledPackageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetInstalledPackageResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_SetInstalledPackage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeAgentServiceClient) RotateNodeToken(ctx context.Context, in *RotateNodeTokenRequest, opts ...grpc.CallOption) (*RotateNodeTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RotateNodeTokenResponse)
@@ -248,6 +266,26 @@ func (c *nodeAgentServiceClient) GetServiceLogs(ctx context.Context, in *GetServ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetServiceLogsResponse)
 	err := c.cc.Invoke(ctx, NodeAgentService_GetServiceLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) ControlService(ctx context.Context, in *ControlServiceRequest, opts ...grpc.CallOption) (*ControlServiceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ControlServiceResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_ControlService_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) SearchServiceLogs(ctx context.Context, in *SearchServiceLogsRequest, opts ...grpc.CallOption) (*SearchServiceLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchServiceLogsResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_SearchServiceLogs_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -285,10 +323,15 @@ type NodeAgentServiceServer interface {
 	// Installed-state registry — canonical package inventory on this node.
 	ListInstalledPackages(context.Context, *ListInstalledPackagesRequest) (*ListInstalledPackagesResponse, error)
 	GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error)
+	SetInstalledPackage(context.Context, *SetInstalledPackageRequest) (*SetInstalledPackageResponse, error)
 	// Node identity token rotation (Phase 2)
 	RotateNodeToken(context.Context, *RotateNodeTokenRequest) (*RotateNodeTokenResponse, error)
 	// Observability: read service journal logs
 	GetServiceLogs(context.Context, *GetServiceLogsRequest) (*GetServiceLogsResponse, error)
+	// Systemd service control (restart/stop/start/status)
+	ControlService(context.Context, *ControlServiceRequest) (*ControlServiceResponse, error)
+	// Observability: search service logs by time range, pattern, severity
+	SearchServiceLogs(context.Context, *SearchServiceLogsRequest) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error)
 }
@@ -342,11 +385,20 @@ func (UnimplementedNodeAgentServiceServer) ListInstalledPackages(context.Context
 func (UnimplementedNodeAgentServiceServer) GetInstalledPackage(context.Context, *GetInstalledPackageRequest) (*GetInstalledPackageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetInstalledPackage not implemented")
 }
+func (UnimplementedNodeAgentServiceServer) SetInstalledPackage(context.Context, *SetInstalledPackageRequest) (*SetInstalledPackageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetInstalledPackage not implemented")
+}
 func (UnimplementedNodeAgentServiceServer) RotateNodeToken(context.Context, *RotateNodeTokenRequest) (*RotateNodeTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RotateNodeToken not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) GetServiceLogs(context.Context, *GetServiceLogsRequest) (*GetServiceLogsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetServiceLogs not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) ControlService(context.Context, *ControlServiceRequest) (*ControlServiceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ControlService not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) SearchServiceLogs(context.Context, *SearchServiceLogsRequest) (*SearchServiceLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchServiceLogs not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCertificateStatus not implemented")
@@ -609,6 +661,24 @@ func _NodeAgentService_GetInstalledPackage_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_SetInstalledPackage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetInstalledPackageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).SetInstalledPackage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_SetInstalledPackage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).SetInstalledPackage(ctx, req.(*SetInstalledPackageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeAgentService_RotateNodeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RotateNodeTokenRequest)
 	if err := dec(in); err != nil {
@@ -641,6 +711,42 @@ func _NodeAgentService_GetServiceLogs_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeAgentServiceServer).GetServiceLogs(ctx, req.(*GetServiceLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_ControlService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ControlServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).ControlService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_ControlService_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).ControlService(ctx, req.(*ControlServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_SearchServiceLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchServiceLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).SearchServiceLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_SearchServiceLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).SearchServiceLogs(ctx, req.(*SearchServiceLogsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -719,12 +825,24 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeAgentService_GetInstalledPackage_Handler,
 		},
 		{
+			MethodName: "SetInstalledPackage",
+			Handler:    _NodeAgentService_SetInstalledPackage_Handler,
+		},
+		{
 			MethodName: "RotateNodeToken",
 			Handler:    _NodeAgentService_RotateNodeToken_Handler,
 		},
 		{
 			MethodName: "GetServiceLogs",
 			Handler:    _NodeAgentService_GetServiceLogs_Handler,
+		},
+		{
+			MethodName: "ControlService",
+			Handler:    _NodeAgentService_ControlService_Handler,
+		},
+		{
+			MethodName: "SearchServiceLogs",
+			Handler:    _NodeAgentService_SearchServiceLogs_Handler,
 		},
 		{
 			MethodName: "GetCertificateStatus",

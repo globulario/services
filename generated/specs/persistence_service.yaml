@@ -2,6 +2,8 @@ version: 1
 
 metadata:
   name: persistence
+  profiles: [core, compute]
+  priority: 1000
 
 service:
   name: persistence
@@ -73,8 +75,8 @@ steps:
         content: |
           [Unit]
           Description=Globular persistence
-          After=network-online.target globular-etcd.service
-          Wants=network-online.target globular-etcd.service
+          After=network-online.target
+          Wants=network-online.target
 
           [Service]
           Type=simple

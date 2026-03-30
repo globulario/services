@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
 )
@@ -48,13 +49,18 @@ func EnsureServicePortConfig(ctx context.Context, service, binDir string) error 
 
 	cfgPath := filepath.Join(servicesDir, desc.Id+".json")
 
+	// Prefer etcd (source of truth) for the port. Services read their port
+	// from etcd on startup, so using the etcd value prevents drift between
+	// the config file and what the service actually binds to.
+	etcdPort := etcdPortForService(desc.Id)
+
 	cfg, _ := readServiceConfig(cfgPath)
 	hasFile := cfg != nil
 	if cfg == nil {
 		cfg = desc
 	}
 
-	currentPort := firstPort(cfg.Port, portFromAddress(cfg.Address), desc.Port)
+	currentPort := firstPort(etcdPort, cfg.Port, portFromAddress(cfg.Address), desc.Port)
 	start, end := alloc.Range()
 
 	// Allocate (may return same port if in-range, free, and owned by same Id).
@@ -168,6 +174,26 @@ func seedReservationsExcept(alloc *ports.Allocator, servicesDir, skipId string) 
 		port := firstPort(cfg.Port, portFromAddress(cfg.Address))
 		alloc.Mark(id, port)
 	}
+}
+
+// etcdPortForService does a best-effort lookup of the service's configured port
+// in etcd. Returns 0 if etcd is unreachable or the service has no config yet.
+func etcdPortForService(serviceId string) int {
+	cfg, err := config.GetServiceConfigurationByExactId(serviceId)
+	if err != nil || cfg == nil {
+		return 0
+	}
+	if p, ok := cfg["Port"]; ok {
+		switch v := p.(type) {
+		case float64:
+			return int(v)
+		case json.Number:
+			if n, err := v.Int64(); err == nil {
+				return int(n)
+			}
+		}
+	}
+	return portFromAddress(fmt.Sprintf("%v", cfg["Address"]))
 }
 
 func executableForService(svc string) string {
@@ -333,9 +359,9 @@ func preflightStrict() bool {
 	return strings.TrimSpace(os.Getenv("GLOBULAR_PORT_PREFLIGHT_STRICT")) == "1"
 }
 
-// ReconcilePortAfterRestart detects the service's actual listening port and
-// updates the config file if it drifted. Services load their port from etcd
-// on startup, which may differ from what EnsureServicePortConfig wrote.
+// ReconcilePortAfterRestart synchronizes the config file port with the
+// service's actual port. Prefers etcd (source of truth); falls back to
+// probing the listening port via ss(8).
 // Best-effort: logs warnings on failure but never returns an error.
 func ReconcilePortAfterRestart(ctx context.Context, service string) {
 	exe := executableForService(service)
@@ -355,10 +381,12 @@ func ReconcilePortAfterRestart(ctx context.Context, service string) {
 		return
 	}
 
-	// Scan for the actual listening port by checking which port in the
-	// service range the process binary is bound to.
-	unit := "globular-" + strings.ReplaceAll(service, "_", "-") + ".service"
-	actualPort := probeListeningPort(ctx, exe, unit)
+	// Prefer etcd (source of truth), fall back to probing the listening port.
+	actualPort := etcdPortForService(desc.Id)
+	if actualPort <= 0 {
+		unit := "globular-" + strings.ReplaceAll(service, "_", "-") + ".service"
+		actualPort = probeListeningPort(ctx, exe, unit)
+	}
 	if actualPort <= 0 {
 		return
 	}

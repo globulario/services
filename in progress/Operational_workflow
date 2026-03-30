@@ -1,0 +1,721 @@
+Claude task: implement reconciliation workflow tracing as a first-class gRPC domain service
+Goal
+
+Create a new Globular service dedicated to reconciliation workflow tracing.
+
+This service must model, persist, and serve the full reconciliation workflow as structured messages, not just logs.
+
+The workflow view in globular-admin must show reconciliation as a living process with:
+
+actors
+phases
+ordered steps
+current active step
+artifact references
+status transitions
+failures
+retry history
+operator hints
+historical runs
+
+The system must make it easy to answer:
+
+What is the cluster-controller doing for this node right now?
+Did a plan get generated?
+Did the node-agent pick it up?
+Which package/spec/script/unit is involved?
+Which exact step failed?
+What happened before this failure?
+What should the operator do next?
+What happened on previous attempts for this same component?
+
+This is especially important for Day-1 workflows like ScyllaDB join/install where the failure may happen across multiple actors and multiple layers. The operator must be able to see the story from controller decision to node-agent execution to installer step failure in one view.
+
+Core design principle
+
+Treat reconciliation as a workflow execution graph, not a loose pile of controller state, node-agent state, logs, and etcd entries.
+
+The workflow trace must be a real domain object.
+
+That means:
+
+define it in .proto
+persist it durably
+stream updates through gRPC
+render it in admin as a timeline / workflow graph
+Architecture choice
+New service
+
+Introduce a new service, for example:
+
+workflow
+or reconciliation_trace
+or operations_trace
+
+Recommended name:
+
+workflow
+
+Why:
+
+broader than reconciliation
+can later trace backup, upgrades, AI remediation, restore, etc.
+
+But for now the first use case is reconciliation.
+
+What the service owns
+
+The new service owns the canonical model for:
+
+1. Workflow runs
+
+One persisted execution record for a reconciliation attempt.
+
+Examples:
+
+install scylladb on globule-nuc
+upgrade minio on globule-ryzen
+apply config-only render for etcd
+retry failed resource rollout
+2. Workflow steps
+
+Ordered steps within the run, with actor, phase, state, error, timing.
+
+3. Workflow artifacts
+
+References to concrete things used by the workflow:
+
+release
+plan
+package
+manifest
+spec
+script
+config file
+systemd unit
+etcd key
+installed-state key
+log snippet
+4. Workflow events
+
+Append-only state transitions for history and AI later.
+
+Main conceptual model
+WorkflowRun
+
+Represents one reconciliation attempt.
+
+A run should feel like:
+
+“The controller tried to get scylladb version 2025.3.8 installed on node globule-nuc, generated plan generation 12, dispatched it, the node-agent fetched the package, installer reached install_os_packages, and failed due to missing repo GPG key.”
+
+That is the operator story.
+
+WorkflowStep
+
+Represents a meaningful transition or action in the run.
+
+Examples:
+
+release_evaluated
+profile_match_checked
+config_rendered
+artifact_resolved
+plan_generated
+plan_persisted
+node_agent_acknowledged
+artifact_download_started
+artifact_verified
+package_extracted
+installer_spec_detected
+spec_step_run
+system_package_install
+script_run
+service_enable
+service_start
+readiness_check
+installed_state_published
+release_marked_applied
+WorkflowArtifactRef
+
+Links a step or run to real objects.
+
+Examples:
+
+plan generation 12
+package service.scylladb_2025.3.8_linux_amd64.tgz
+spec specs/scylladb_service.yaml
+script scripts/post-install.sh
+unit scylla-server.service
+config /etc/scylla/scylla.yaml
+WorkflowActor
+
+Very important.
+
+We want the workflow view to emphasize the participating actors.
+
+Actors should be explicit in the model, for example:
+
+CLUSTER_CONTROLLER
+NODE_AGENT
+REPOSITORY
+INSTALLER
+RUNTIME
+OPERATOR
+later: AI_DIAGNOSER, AI_EXECUTOR
+
+This is the heart of the representation.
+
+The admin UI should make it visually obvious which actor owns which step.
+
+Proto-first design
+Create a new proto package
+
+Suggested:
+
+proto/workflow.proto
+
+This proto should define the full workflow domain model and gRPC service.
+
+Required messages
+WorkflowRun
+
+Fields should include:
+
+id
+cluster_id
+correlation_id
+parent_run_id
+node_id
+node_hostname
+component_name
+component_kind
+component_version
+release_kind
+release_object_id
+desired_object_id
+plan_id
+plan_generation
+trigger_reason
+status
+failure_class
+summary
+error_message
+retry_count
+started_at
+updated_at
+finished_at
+WorkflowStep
+
+Fields should include:
+
+run_id
+seq
+step_key
+title
+actor
+phase
+status
+started_at
+finished_at
+duration_ms
+message
+error_code
+error_message
+retryable
+operator_action_required
+action_hint
+details_json
+WorkflowArtifactRef
+
+Fields should include:
+
+id
+run_id
+step_seq
+kind
+name
+version
+path
+digest
+node_id
+metadata_json
+WorkflowEvent
+
+Fields should include:
+
+run_id
+event_id
+step_seq
+event_type
+actor
+old_value
+new_value
+message
+created_at
+WorkflowGraph
+
+Optional but recommended.
+A derived structure returned by the service for UI rendering:
+
+major phases
+ordered steps
+actor lanes
+current node in graph
+blocked edges / failure edge
+
+This lets the backend shape the workflow representation instead of forcing the frontend to invent it.
+
+gRPC service design
+Service name
+
+Suggested:
+
+WorkflowService
+Main RPCs
+Write path
+
+These are for internal producers like cluster-controller, node-agent, and installer integration.
+
+StartRun(StartRunRequest) returns (WorkflowRun)
+UpdateRun(UpdateRunRequest) returns (google.protobuf.Empty)
+FinishRun(FinishRunRequest) returns (google.protobuf.Empty)
+RecordStep(RecordStepRequest) returns (WorkflowStep)
+UpdateStep(UpdateStepRequest) returns (google.protobuf.Empty)
+FailStep(FailStepRequest) returns (google.protobuf.Empty)
+AddArtifactRef(AddArtifactRefRequest) returns (google.protobuf.Empty)
+AppendEvent(AppendEventRequest) returns (google.protobuf.Empty)
+Read path
+
+These are for admin and AI.
+
+GetRun(GetRunRequest) returns (WorkflowRunDetail)
+ListRuns(ListRunsRequest) returns (ListRunsResponse)
+GetRunEvents(GetRunEventsRequest) returns (GetRunEventsResponse)
+GetCurrentRunsForNode(GetCurrentRunsForNodeRequest) returns (ListRunsResponse)
+GetComponentHistory(GetComponentHistoryRequest) returns (ListRunsResponse)
+GetWorkflowGraph(GetWorkflowGraphRequest) returns (WorkflowGraph)
+Streaming path
+
+Strongly recommended for admin live view.
+
+WatchRun(WatchRunRequest) returns (stream WorkflowEventEnvelope)
+WatchNodeRuns(WatchNodeRunsRequest) returns (stream WorkflowEventEnvelope)
+
+This gives you a live reconciliation screen without polling madness.
+
+Persistence model
+
+Use ScyllaDB through the persistence service, but the workflow service is the owner of the domain.
+
+Important distinction:
+
+proto messages are canonical
+Scylla tables are storage representation
+admin reads via gRPC
+nobody should directly reason about raw workflow tables except the workflow service
+Tables
+
+You can reuse Claude’s earlier table direction, but shape them around the proto model.
+
+At minimum persist:
+
+runs
+runs_by_node
+runs_by_component
+steps
+artifacts
+events
+
+The storage must support:
+
+latest runs by node
+latest runs by component
+active runs
+failed runs
+history by correlation id
+ordered steps for a run
+ordered events for a run
+Actor-centered workflow representation
+
+This is the most important part of the UI model.
+
+We do not just want a flat step list.
+
+We want the reconciliation process represented as a workflow with actor lanes, similar in spirit to a swimlane diagram:
+
+cluster-controller
+repository
+node-agent
+installer
+runtime
+
+That means each step should clearly indicate:
+
+which actor owns it
+which actor it hands off to next
+whether the run is waiting, executing, blocked, failed, or completed at that handoff
+Example: Scylla join/install workflow
+Lane 1: cluster-controller
+desired state detected
+release evaluated
+profile applicability checked
+config rendered
+package/version resolved
+plan generated
+plan written to node current plan slot
+Lane 2: repository
+artifact manifest selected
+package resolved
+checksum available
+Lane 3: node-agent
+plan observed
+plan accepted
+artifact download started
+checksum verified
+package extracted
+installer selected
+Lane 4: installer
+spec detected
+ensure dirs
+install GPG key
+install repo file
+install OS packages
+run post-install script
+patch env/defaults
+preserve controller config
+readiness validation
+Lane 5: runtime
+systemd enable
+systemd start/restart
+port readiness
+cluster join sanity
+installed state publish
+Back to cluster-controller
+node state observed
+release marked applied
+workflow completed
+
+That is the picture the admin should see.
+
+Backend implementation plan
+Phase 1: define workflow domain and proto service
+
+Implement:
+
+proto/workflow.proto
+generated Go code
+golang/workflow/ service skeleton
+domain mapping between proto messages and persistence model
+
+Deliverable:
+
+a compilable WorkflowService with in-memory or minimal persistence-backed implementation
+Phase 2: persistence-backed workflow service
+
+Implement:
+
+Scylla-backed storage for runs, steps, artifacts, and events
+query methods
+watch/stream support if possible using event append + fanout
+
+Deliverable:
+
+WorkflowService persists and retrieves workflow runs reliably
+Phase 3: instrument cluster-controller
+
+Add recording at the actual reconciliation points.
+
+Priority files:
+
+release pipeline / release dispatch loop
+infrastructure compiler
+service release compiler
+config rendering
+plan persistence
+bootstrap phase changes
+
+For each run:
+
+start run when controller begins a reconciliation attempt
+record actor=CLUSTER_CONTROLLER
+attach release and plan artifacts
+handoff to node-agent when plan is persisted
+
+Deliverable:
+
+controller-originated workflow runs exist even before node-agent begins execution
+Phase 4: instrument node-agent
+
+Priority files:
+
+plan polling / execution
+artifact fetch/verify
+infrastructure install path
+service restart path
+installed-state publish
+
+Add:
+
+node-agent acknowledgment step
+per-step execution updates
+artifact refs for package/spec/script/unit
+failure classification
+
+Deliverable:
+
+node-agent steps appear in same run, not in a disconnected record
+Phase 5: instrument installer
+
+This is crucial for real operator value.
+
+Add recorder injection into installer context.
+
+Every installer step should emit:
+
+step started
+step succeeded/failed
+step-specific details
+referenced script/file/package list
+
+Examples:
+
+ensure_dirs
+install_files
+install_os_packages
+run_script
+
+This is where the Scylla GPG failure, dpkg prompt failure, env file clobbering, or config preservation issue becomes visible as first-class workflow state.
+
+Deliverable:
+
+installer substeps appear under actor=INSTALLER in the same workflow run
+Phase 6: admin read service integration
+
+Have globular-admin consume the new gRPC service through gateway/backend.
+
+Do not make the frontend reconstruct workflow from many APIs.
+
+Create backend methods that return:
+
+run summaries
+full run detail
+workflow graph
+live stream updates
+
+Deliverable:
+
+admin can render workflow runs from one coherent service
+Frontend implementation plan
+Reconciliation page becomes workflow-first
+
+The current reconciliation page should evolve into a workflow monitor.
+
+Main layout
+
+Top summary:
+
+active workflows
+blocked workflows
+failed workflows
+retrying workflows
+average duration
+
+Left pane:
+
+filterable run list
+
+Right pane:
+
+workflow detail view
+Run list should show
+node
+component
+component kind
+status
+current step
+owning actor
+duration
+retry count
+failure class
+Workflow detail should emphasize actor lanes
+
+For the selected run, show a workflow diagram or swimlane-like timeline:
+
+Controller lane
+
+show planning and dispatch steps
+
+Repository lane
+
+show artifact resolution/fetch steps
+
+Node-agent lane
+
+show plan pickup and package execution steps
+
+Installer lane
+
+show spec/script/package steps
+
+Runtime lane
+
+show enable/start/restart/readiness/install-state publication
+
+Each step should show
+title
+state
+duration
+actor
+error summary
+expandable details
+related artifacts
+Artifact panel
+
+For the selected step or run:
+
+plan id/generation
+package version
+manifest digest
+spec path
+script path
+unit name
+config file path
+
+This is a huge operator win because it ties execution to actual package content.
+
+Live mode
+
+Use WatchRun / WatchNodeRuns stream for live updates so the operator sees movement in real time.
+
+Failure classification and operator hints
+
+Add centralized classification logic in the workflow service or shared library.
+
+When a step fails, classify it into:
+
+package
+config
+repository
+dependency
+network
+runtime
+validation
+unknown
+
+Then emit:
+
+error_code
+failure_class
+action_hint
+
+Examples from the Scylla case:
+
+missing GPG key
+dpkg interactive prompt
+env file incomplete
+cluster name mismatch
+wrong restart path for infra package
+
+Those become structured, queryable, and visible in admin instead of being buried in logs.
+
+Correlation rules
+
+This must be very strict.
+
+Each workflow run needs a stable correlation id shared across:
+
+controller release handling
+plan generation
+node-agent execution
+installer substeps
+final installed-state publication
+
+Without that, you will end up with fragments instead of a workflow.
+
+Recommended correlation seed:
+
+{release_kind}/{component_name}/{node_id}/{plan_generation}
+or a generated workflow id written into plan metadata and reused by node-agent
+
+Best option:
+
+controller creates workflow run id
+includes run id / correlation id in plan metadata
+node-agent reuses it
+installer receives it through context
+
+That gives you one continuous story.
+
+Important design rules
+1. Workflow service is the canonical source
+
+Do not let admin scrape state from many services directly for this feature.
+
+2. Use gRPC and proto messages as the contract
+
+The workflow model should be shared cleanly across backend components.
+
+3. Store structured state, not just raw logs
+
+Logs are supplemental evidence, not the workflow model itself.
+
+4. Emphasize actor handoff
+
+The workflow representation must make it obvious where responsibility moved from controller to node-agent to installer to runtime.
+
+5. Keep history
+
+The whole point is to stop losing the story after the current failure is over.
+
+Suggested deliverables from Claude
+
+Please provide:
+
+1. Proto design
+workflow.proto
+enums, messages, RPCs
+2. Service architecture
+new service placement in repo
+dependencies on persistence
+how writers publish updates
+3. Persistence mapping
+how proto messages map to Scylla tables
+partition keys and query patterns
+4. Instrumentation plan
+exact controller files
+exact node-agent files
+exact installer injection points
+5. Admin integration plan
+how backend/gateway exposes workflow gRPC data to the admin frontend
+live stream strategy
+workflow graph response shape
+6. Phased rollout
+phase 1 proto + service
+phase 2 controller instrumentation
+phase 3 node-agent + installer instrumentation
+phase 4 admin workflow graph and history
+Definition of done
+
+This feature is done when an operator can open the Reconciliation view and see a real workflow representation of reconciliation with:
+
+explicit actors (cluster-controller, node-agent, repository, installer, runtime)
+current step
+ordered past steps
+artifact references
+live updates
+failure reason
+suggested actions
+historical runs for the same component/node
+
+And when a Day-1 failure like Scylla install happens, the operator can see exactly:
+
+where the workflow is
+which actor failed
+which package/spec/script was involved
+which step failed
+and what to do next
+
+without SSH, manual etcd inspection, or piecing together logs.
+
+If you want, I can also turn this into a more concrete proto sketch with actual message names and enum values.

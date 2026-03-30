@@ -21,8 +21,6 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.conversation.AcceptInvitationRequest', null, global);
 goog.exportSymbol('proto.conversation.AcceptInvitationResponse', null, global);
 goog.exportSymbol('proto.conversation.ConnectRequest', null, global);

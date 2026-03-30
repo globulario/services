@@ -160,9 +160,8 @@ func (s *ExternalDomainSpec) Validate() error {
 		}
 	}
 
-	if s.ProviderRef == "" {
-		return fmt.Errorf("provider_ref is required")
-	}
+	// provider_ref is optional when using manual cert management
+	// (e.g., self-hosted DNS with certbot)
 
 	// Validate ACME config
 	if s.ACME.Enabled {

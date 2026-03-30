@@ -99,15 +99,25 @@ type StepParams struct {
 	DetailsJSON string
 }
 
+// AddrResolver is a function that returns the gRPC address for the workflow
+// service. It is called lazily on each connect attempt so the address can
+// change at runtime (e.g. local port becomes available after install, or
+// gateway is discovered after bootstrap).
+type AddrResolver func() string
+
 // Recorder is a fire-and-forget client for the WorkflowService.
 // All methods log errors but never return them — the workflow trace
 // must never block the reconciliation pipeline.
+//
+// The recorder connects lazily on first use and reconnects automatically
+// if the connection is lost, following the same pattern as eventPublisher.
 type Recorder struct {
-	clusterID string
-	client    workflowpb.WorkflowServiceClient
-	conn      *grpc.ClientConn
-	mu        sync.Mutex
-	seqMap    map[string]int32 // run_id → next seq number
+	clusterID    string
+	addrResolver AddrResolver
+	client       workflowpb.WorkflowServiceClient
+	conn         *grpc.ClientConn
+	mu           sync.Mutex
+	seqMap       map[string]int32 // run_id → next seq number
 }
 
 // Default certificate paths for Globular service mTLS.
@@ -118,23 +128,50 @@ var (
 	DefaultTokenFile = "/var/lib/globular/tokens/node_token"
 )
 
-// NewRecorder connects to the workflow service over mTLS and returns a recorder.
-// If mTLS fails (e.g. envoy strips client certs), falls back to token-based auth
-// using the node token from /var/lib/globular/tokens/node_token.
-// If all auth fails, returns a no-op recorder that silently drops events.
+// NewRecorder creates a lazy recorder that connects on first use.
+// The addr parameter is used as a static address. For dynamic discovery
+// (e.g. routing through Envoy gateway), use NewRecorderWithResolver instead.
 func NewRecorder(addr, clusterID string) *Recorder {
-	r := &Recorder{
-		clusterID: clusterID,
-		seqMap:    make(map[string]int32),
+	return NewRecorderWithResolver(func() string { return addr }, clusterID)
+}
+
+// NewRecorderWithResolver creates a lazy recorder that calls resolver()
+// to obtain the workflow service address on each connection attempt.
+// This allows the address to change at runtime — for example, the service
+// may start locally after install, or be discovered via the gateway.
+func NewRecorderWithResolver(resolver AddrResolver, clusterID string) *Recorder {
+	return &Recorder{
+		clusterID:    clusterID,
+		addrResolver: resolver,
+		seqMap:       make(map[string]int32),
+	}
+}
+
+// ensureConnected lazily dials the workflow service. Returns true if a
+// live client is available. On failure it logs and returns false — the
+// caller should silently drop the event (fire-and-forget).
+func (r *Recorder) ensureConnected() bool {
+	if r == nil {
+		return false
+	}
+	if r.client != nil {
+		return true
+	}
+
+	addr := ""
+	if r.addrResolver != nil {
+		addr = r.addrResolver()
+	}
+	if addr == "" {
+		return false
 	}
 
 	creds, err := loadRecorderTLS()
 	if err != nil {
-		log.Printf("workflow recorder: TLS setup failed (recording disabled): %v", err)
-		return r
+		// TLS not ready yet (certs may not be installed) — try again later.
+		return false
 	}
 
-	// Load node token for auth when going through envoy (mTLS identity is stripped).
 	token := loadNodeToken()
 
 	dialOpts := []grpc.DialOption{
@@ -142,7 +179,7 @@ func NewRecorder(addr, clusterID string) *Recorder {
 		grpc.WithBlock(),
 	}
 	if token != "" {
-		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(tokenInjector(token, clusterID)))
+		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(tokenInjector(token, r.clusterID)))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -150,8 +187,8 @@ func NewRecorder(addr, clusterID string) *Recorder {
 
 	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
 	if err != nil {
-		log.Printf("workflow recorder: connect to %s failed (recording disabled): %v", addr, err)
-		return r // no-op mode
+		log.Printf("workflow recorder: connect to %s failed: %v", addr, err)
+		return false
 	}
 	r.conn = conn
 	r.client = workflowpb.NewWorkflowServiceClient(conn)
@@ -160,17 +197,54 @@ func NewRecorder(addr, clusterID string) *Recorder {
 		authMethod = "mTLS+token"
 	}
 	log.Printf("workflow recorder: connected to %s (%s)", addr, authMethod)
-	return r
+	return true
 }
 
-// loadNodeToken reads the node's identity token (JWT) from the local token file.
-// Returns empty string if the file doesn't exist (e.g. Day-0 node or pre-join).
+// disconnect tears down the connection so ensureConnected will re-dial
+// on the next call. Used after RPC failures.
+func (r *Recorder) disconnect() {
+	if r == nil {
+		return
+	}
+	if r.conn != nil {
+		r.conn.Close()
+	}
+	r.conn = nil
+	r.client = nil
+}
+
+// loadNodeToken reads the node's identity token (JWT).
+// Checks the explicit node_token first, then scans the tokens directory
+// for any available token (e.g. MAC-based token on Day-0 nodes).
+// Returns empty string if no token is found.
 func loadNodeToken() string {
-	data, err := os.ReadFile(DefaultTokenFile)
+	// Preferred: explicit node token (Day-1 nodes).
+	if data, err := os.ReadFile(DefaultTokenFile); err == nil {
+		if t := strings.TrimSpace(string(data)); t != "" {
+			return t
+		}
+	}
+
+	// Fallback: scan tokens directory for any JWT (Day-0 nodes have a MAC-based token).
+	dir := "/var/lib/globular/tokens"
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(data))
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(e.Name(), "_token") {
+			data, err := os.ReadFile(dir + "/" + e.Name())
+			if err == nil {
+				if t := strings.TrimSpace(string(data)); t != "" {
+					return t
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // tokenInjector returns a gRPC unary interceptor that attaches the token
@@ -223,14 +297,14 @@ func (r *Recorder) Close() {
 	}
 }
 
-// Available returns true if the recorder has a live connection.
+// Available returns true if the recorder can connect to the workflow service.
 func (r *Recorder) Available() bool {
-	return r != nil && r.client != nil
+	return r != nil && r.ensureConnected()
 }
 
 // StartRun begins a new workflow run. Returns the run ID (even on failure, returns "").
 func (r *Recorder) StartRun(ctx context.Context, p *RunParams) string {
-	if r == nil || r.client == nil {
+	if !r.ensureConnected() {
 		return ""
 	}
 
@@ -265,7 +339,7 @@ func (r *Recorder) StartRun(ctx context.Context, p *RunParams) string {
 
 // RecordStep records a step in a workflow run. Returns the step seq.
 func (r *Recorder) RecordStep(ctx context.Context, runID string, p *StepParams) int32 {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return 0
 	}
 
@@ -302,7 +376,7 @@ func (r *Recorder) RecordStep(ctx context.Context, runID string, p *StepParams) 
 
 // CompleteStep marks a step as succeeded.
 func (r *Recorder) CompleteStep(ctx context.Context, runID string, seq int32, msg string, durationMs int64) {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return
 	}
 	if _, err := r.client.UpdateStep(ctx, &workflowpb.UpdateStepRequest{
@@ -319,7 +393,7 @@ func (r *Recorder) CompleteStep(ctx context.Context, runID string, seq int32, ms
 
 // FailStep marks a step as failed with classification.
 func (r *Recorder) FailStep(ctx context.Context, runID string, seq int32, errorCode, errorMsg, actionHint string, failClass workflowpb.FailureClass, retryable bool) {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return
 	}
 	if _, err := r.client.FailStep(ctx, &workflowpb.FailStepRequest{
@@ -339,7 +413,7 @@ func (r *Recorder) FailStep(ctx context.Context, runID string, seq int32, errorC
 
 // UpdateRunStatus updates the run status and summary.
 func (r *Recorder) UpdateRunStatus(ctx context.Context, runID string, status workflowpb.RunStatus, summary string, actor workflowpb.WorkflowActor) {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return
 	}
 	if _, err := r.client.UpdateRun(ctx, &workflowpb.UpdateRunRequest{
@@ -355,7 +429,7 @@ func (r *Recorder) UpdateRunStatus(ctx context.Context, runID string, status wor
 
 // FinishRun completes a workflow run.
 func (r *Recorder) FinishRun(ctx context.Context, runID string, status workflowpb.RunStatus, summary, errorMsg string, failClass workflowpb.FailureClass) {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return
 	}
 	if _, err := r.client.FinishRun(ctx, &workflowpb.FinishRunRequest{
@@ -377,7 +451,7 @@ func (r *Recorder) FinishRun(ctx context.Context, runID string, status workflowp
 
 // AddArtifact attaches an artifact reference to a run/step.
 func (r *Recorder) AddArtifact(ctx context.Context, runID string, stepSeq int32, kind workflowpb.ArtifactKind, name, version, path string) {
-	if r == nil || r.client == nil || runID == "" {
+	if runID == "" || !r.ensureConnected() {
 		return
 	}
 	if _, err := r.client.AddArtifactRef(ctx, &workflowpb.AddArtifactRefRequest{

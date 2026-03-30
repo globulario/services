@@ -23,8 +23,6 @@ var global =
 
 var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 goog.object.extend(proto, google_protobuf_empty_pb);
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.authentication.AuthenticateRqst', null, global);
 goog.exportSymbol('proto.authentication.AuthenticateRsp', null, global);
 goog.exportSymbol('proto.authentication.GeneratePeerTokenRequest', null, global);

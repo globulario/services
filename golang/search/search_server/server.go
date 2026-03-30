@@ -11,6 +11,7 @@ import (
 
 	"github.com/globulario/services/golang/backup_hook"
 	globular "github.com/globulario/services/golang/globular_service"
+	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/search/searchpb"
 	"google.golang.org/grpc/reflection"
@@ -167,6 +168,10 @@ func main() {
 	})
 
 	if *showDescribe {
+		// Ensure Id is set before describe — node-agent requires a non-empty Id.
+		if srv.GetId() == "" {
+			srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetVersion() + ":" + srv.GetMac()))
+		}
 		data, _ := json.MarshalIndent(srv, "", "  ")
 		fmt.Println(string(data))
 		return

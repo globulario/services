@@ -14,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/dnsprovider"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
+	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"

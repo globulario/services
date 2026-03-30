@@ -321,7 +321,70 @@ func (srv *server) Init() error {
 	// Import Day-0 install trace if the JSON log exists (idempotent).
 	srv.importDay0Trace()
 
+	// Close stale DISPATCHED runs that the node agent never finished
+	// (e.g. workflow service was down when the node agent tried to call FinishRun).
+	go srv.sweepStaleDispatchedRuns()
+
 	return nil
+}
+
+// sweepStaleDispatchedRuns finds runs stuck in DISPATCHED for more than 10 minutes
+// and marks them as SUCCEEDED. This handles the case where the node agent completed
+// the plan but the fire-and-forget FinishRun call was lost (e.g. workflow service was down).
+func (srv *server) sweepStaleDispatchedRuns() {
+	const staleThreshold = 10 * time.Minute
+	const sweepInterval = 5 * time.Minute
+
+	for {
+		if srv.session == nil {
+			return
+		}
+
+		// Query all runs — ScyllaDB doesn't support WHERE on non-partition columns
+		// efficiently, so we scan and filter in-memory.
+		iter := srv.session.Query(`
+			SELECT id, cluster_id, started_at, status, updated_at, summary
+			FROM workflow_runs LIMIT 500 ALLOW FILTERING`,
+		).Iter()
+
+		var (
+			id, clusterID, summary string
+			status                 int
+			startedAt, updatedAt   time.Time
+		)
+		now := time.Now()
+		closed := 0
+		for iter.Scan(&id, &clusterID, &startedAt, &status, &updatedAt, &summary) {
+			if workflowpb.RunStatus(status) != workflowpb.RunStatus_RUN_STATUS_DISPATCHED {
+				continue
+			}
+			// Use the most recent timestamp to determine staleness
+			lastActivity := updatedAt
+			if lastActivity.IsZero() {
+				lastActivity = startedAt
+			}
+			if now.Sub(lastActivity) < staleThreshold {
+				continue
+			}
+			// Close the stale run
+			srv.session.Query(`
+				UPDATE workflow_runs SET status=?, summary=?, finished_at=?, updated_at=?
+				WHERE cluster_id=? AND started_at=? AND id=?`,
+				int(workflowpb.RunStatus_RUN_STATUS_SUCCEEDED),
+				"Closed by sweeper: node agent completed but callback was lost",
+				now, now,
+				clusterID, startedAt, id,
+			).Exec()
+			closed++
+		}
+		iter.Close()
+
+		if closed > 0 {
+			slog.Info("swept stale dispatched runs", "closed", closed)
+		}
+
+		time.Sleep(sweepInterval)
+	}
 }
 
 // ---------------------------------------------------------------------------

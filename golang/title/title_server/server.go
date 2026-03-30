@@ -15,14 +15,17 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
+	"context"
+
 	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
-	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/shared_index"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -105,6 +108,7 @@ type server struct {
 	CacheType              string
 	indexs                 map[string]bleve.Index
 	associations           *sync.Map
+	sharedIndex            *shared_index.SharedIndex
 	indexPathsBeforeBackup []string // saved before backup close
 }
 
@@ -395,11 +399,41 @@ func loadCustomConfigFromEtcd(id string) (tmdbKey, cacheAddr, cacheType string, 
 	return
 }
 
-// StartService begins serving gRPC (and proxy if configured).
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+// StartService begins serving gRPC and starts the shared index for mesh-ready search.
+func (srv *server) StartService() error {
+	scyllaHosts := []string{"127.0.0.1"}
+	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
+		scyllaHosts = strings.Split(h, ",")
+	}
+	if srv.CacheAddress != "" {
+		scyllaHosts = strings.Split(srv.CacheAddress, ",")
+	}
 
-// StopService gracefully stops the running gRPC server.
-func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+	si := shared_index.New(shared_index.Config{
+		Group:         "title",
+		ScyllaHosts:   scyllaHosts,
+		LocalIndexDir: config.GetDataDir(),
+		PollInterval:  500 * time.Millisecond,
+		SyncInterval:  5 * time.Second,
+	}, logger)
+
+	if err := si.Start(context.Background()); err != nil {
+		logger.Warn("shared index unavailable, running in standalone mode", "err", err)
+	} else {
+		srv.sharedIndex = si
+		logger.Info("shared index started (mesh-ready)")
+	}
+
+	return globular.StartService(srv, srv.grpcServer)
+}
+
+// StopService gracefully stops the running gRPC server and shared index.
+func (srv *server) StopService() error {
+	if srv.sharedIndex != nil {
+		srv.sharedIndex.Stop()
+	}
+	return globular.StopService(srv, srv.grpcServer)
+}
 
 // ---------------- Helper clients & events ----------------
 
@@ -894,7 +928,7 @@ func main() {
 	// ---- Positional arguments (service ID and config path) ----
 	args := flag.Args()
 	if len(args) == 0 {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)

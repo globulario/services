@@ -2153,6 +2153,242 @@ func (x *UploadFileResponse) GetInfo() string {
 	return ""
 }
 
+// Request to discover all search index paths (__index_db__) under a directory.
+type FindIndexesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`            // Root directory to search from.
+	Recursive     bool                   `protobuf:"varint,2,opt,name=recursive,proto3" json:"recursive,omitempty"` // If true, search subdirectories too.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindIndexesRequest) Reset() {
+	*x = FindIndexesRequest{}
+	mi := &file_file_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindIndexesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindIndexesRequest) ProtoMessage() {}
+
+func (x *FindIndexesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindIndexesRequest.ProtoReflect.Descriptor instead.
+func (*FindIndexesRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *FindIndexesRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FindIndexesRequest) GetRecursive() bool {
+	if x != nil {
+		return x.Recursive
+	}
+	return false
+}
+
+// Response containing discovered index paths.
+type FindIndexesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Paths         []string               `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"` // All __index_db__ paths found.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindIndexesResponse) Reset() {
+	*x = FindIndexesResponse{}
+	mi := &file_file_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindIndexesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindIndexesResponse) ProtoMessage() {}
+
+func (x *FindIndexesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindIndexesResponse.ProtoReflect.Descriptor instead.
+func (*FindIndexesResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *FindIndexesResponse) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+// Request to index files for full-text search.
+type IndexFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`            // The path of the file or directory to index.
+	Recursive     bool                   `protobuf:"varint,2,opt,name=recursive,proto3" json:"recursive,omitempty"` // Whether to index files recursively (when path is a directory).
+	Force         bool                   `protobuf:"varint,3,opt,name=force,proto3" json:"force,omitempty"`         // If true, re-index even if already indexed.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexFileRequest) Reset() {
+	*x = IndexFileRequest{}
+	mi := &file_file_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexFileRequest) ProtoMessage() {}
+
+func (x *IndexFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexFileRequest.ProtoReflect.Descriptor instead.
+func (*IndexFileRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *IndexFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *IndexFileRequest) GetRecursive() bool {
+	if x != nil {
+		return x.Recursive
+	}
+	return false
+}
+
+func (x *IndexFileRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+// Response containing the indexing status for a file.
+type IndexFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`        // The path of the indexed file.
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`    // Status: "indexed", "skipped", or "error".
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`  // Additional information about the indexing result.
+	Indexed       int32                  `protobuf:"varint,4,opt,name=indexed,proto3" json:"indexed,omitempty"` // Running count of successfully indexed files.
+	Total         int32                  `protobuf:"varint,5,opt,name=total,proto3" json:"total,omitempty"`     // Running count of total files processed.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexFileResponse) Reset() {
+	*x = IndexFileResponse{}
+	mi := &file_file_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexFileResponse) ProtoMessage() {}
+
+func (x *IndexFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexFileResponse.ProtoReflect.Descriptor instead.
+func (*IndexFileResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *IndexFileResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *IndexFileResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *IndexFileResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *IndexFileResponse) GetIndexed() int32 {
+	if x != nil {
+		return x.Indexed
+	}
+	return 0
+}
+
+func (x *IndexFileResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 // StopRequest is the request message to stop the server.
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2162,7 +2398,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_file_proto_msgTypes[42]
+	mi := &file_file_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2174,7 +2410,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[42]
+	mi := &file_file_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2187,7 +2423,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{42}
+	return file_file_proto_rawDescGZIP(), []int{46}
 }
 
 // StopResponse is the response message when the server is stopped.
@@ -2199,7 +2435,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_file_proto_msgTypes[43]
+	mi := &file_file_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2211,7 +2447,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[43]
+	mi := &file_file_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2224,7 +2460,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{43}
+	return file_file_proto_rawDescGZIP(), []int{47}
 }
 
 var File_file_proto protoreflect.FileDescriptor
@@ -2365,9 +2601,24 @@ const file_file_proto_rawDesc = "" +
 	"\x12UploadFileResponse\x12\x1a\n" +
 	"\buploaded\x18\x01 \x01(\x03R\buploaded\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +
-	"\x04info\x18\x03 \x01(\tR\x04info\"\r\n" +
+	"\x04info\x18\x03 \x01(\tR\x04info\"F\n" +
+	"\x12FindIndexesRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\trecursive\x18\x02 \x01(\bR\trecursive\"+\n" +
+	"\x13FindIndexesResponse\x12\x14\n" +
+	"\x05paths\x18\x01 \x03(\tR\x05paths\"Z\n" +
+	"\x10IndexFileRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\trecursive\x18\x02 \x01(\bR\trecursive\x12\x14\n" +
+	"\x05force\x18\x03 \x01(\bR\x05force\"\x89\x01\n" +
+	"\x11IndexFileResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x18\n" +
+	"\aindexed\x18\x04 \x01(\x05R\aindexed\x12\x14\n" +
+	"\x05total\x18\x05 \x01(\x05R\x05total\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xf3\x12\n" +
+	"\fStopResponse2\xd1\x14\n" +
 	"\vFileService\x12T\n" +
 	"\x04Stop\x12\x11.file.StopRequest\x1a\x12.file.StopResponse\"%\x82\xb5\x18!\n" +
 	"\n" +
@@ -2423,6 +2674,11 @@ const file_file_proto_rawDesc = "" +
 	"\n" +
 	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor\x12_\n" +
 	"\tHtmlToPdf\x12\x13.file.HtmlToPdfRqst\x1a\x17.file.HtmlToPdfResponse\"$\x82\xb5\x18 \n" +
+	"\tfile.read\x12\x04read\"\x05/file*\x06viewer\x12r\n" +
+	"\tIndexFile\x12\x16.file.IndexFileRequest\x1a\x17.file.IndexFileResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"file.write\x12\x05write\x1a\x11/file/path/{path}*\x06editor0\x01\x12h\n" +
+	"\vFindIndexes\x12\x18.file.FindIndexesRequest\x1a\x19.file.FindIndexesResponse\"$\x82\xb5\x18 \n" +
 	"\tfile.read\x12\x04read\"\x05/file*\x06viewerB3Z1github.com/globulario/services/golang/file/filepbb\x06proto3"
 
 var (
@@ -2437,7 +2693,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_file_proto_goTypes = []any{
 	(*Empty)(nil),                   // 0: file.Empty
 	(*FileInfo)(nil),                // 1: file.FileInfo
@@ -2481,17 +2737,21 @@ var file_file_proto_goTypes = []any{
 	(*HtmlToPdfResponse)(nil),       // 39: file.HtmlToPdfResponse
 	(*UploadFileRequest)(nil),       // 40: file.UploadFileRequest
 	(*UploadFileResponse)(nil),      // 41: file.UploadFileResponse
-	(*StopRequest)(nil),             // 42: file.StopRequest
-	(*StopResponse)(nil),            // 43: file.StopResponse
-	(*structpb.Struct)(nil),         // 44: google.protobuf.Struct
+	(*FindIndexesRequest)(nil),      // 42: file.FindIndexesRequest
+	(*FindIndexesResponse)(nil),     // 43: file.FindIndexesResponse
+	(*IndexFileRequest)(nil),        // 44: file.IndexFileRequest
+	(*IndexFileResponse)(nil),       // 45: file.IndexFileResponse
+	(*StopRequest)(nil),             // 46: file.StopRequest
+	(*StopResponse)(nil),            // 47: file.StopResponse
+	(*structpb.Struct)(nil),         // 48: google.protobuf.Struct
 }
 var file_file_proto_depIdxs = []int32{
-	44, // 0: file.FileInfo.metadata:type_name -> google.protobuf.Struct
+	48, // 0: file.FileInfo.metadata:type_name -> google.protobuf.Struct
 	1,  // 1: file.FileInfo.files:type_name -> file.FileInfo
 	1,  // 2: file.ReadDirResponse.info:type_name -> file.FileInfo
 	1,  // 3: file.GetFileInfoResponse.info:type_name -> file.FileInfo
-	44, // 4: file.GetFileMetadataResponse.result:type_name -> google.protobuf.Struct
-	42, // 5: file.FileService.Stop:input_type -> file.StopRequest
+	48, // 4: file.GetFileMetadataResponse.result:type_name -> google.protobuf.Struct
+	46, // 5: file.FileService.Stop:input_type -> file.StopRequest
 	30, // 6: file.FileService.AddPublicDir:input_type -> file.AddPublicDirRequest
 	32, // 7: file.FileService.RemovePublicDir:input_type -> file.RemovePublicDirRequest
 	34, // 8: file.FileService.GetPublicDirs:input_type -> file.GetPublicDirsRequest
@@ -2512,29 +2772,33 @@ var file_file_proto_depIdxs = []int32{
 	40, // 23: file.FileService.UploadFile:input_type -> file.UploadFileRequest
 	36, // 24: file.FileService.WriteExcelFile:input_type -> file.WriteExcelFileRequest
 	38, // 25: file.FileService.HtmlToPdf:input_type -> file.HtmlToPdfRqst
-	43, // 26: file.FileService.Stop:output_type -> file.StopResponse
-	31, // 27: file.FileService.AddPublicDir:output_type -> file.AddPublicDirResponse
-	33, // 28: file.FileService.RemovePublicDir:output_type -> file.RemovePublicDirResponse
-	35, // 29: file.FileService.GetPublicDirs:output_type -> file.GetPublicDirsResponse
-	3,  // 30: file.FileService.ReadDir:output_type -> file.ReadDirResponse
-	5,  // 31: file.FileService.CreateDir:output_type -> file.CreateDirResponse
-	29, // 32: file.FileService.CreateLnk:output_type -> file.CreateLnkResponse
-	7,  // 33: file.FileService.DeleteDir:output_type -> file.DeleteDirResponse
-	9,  // 34: file.FileService.Rename:output_type -> file.RenameResponse
-	13, // 35: file.FileService.Move:output_type -> file.MoveResponse
-	11, // 36: file.FileService.Copy:output_type -> file.CopyResponse
-	27, // 37: file.FileService.CreateArchive:output_type -> file.CreateArchiveResponse
-	15, // 38: file.FileService.GetFileInfo:output_type -> file.GetFileInfoResponse
-	17, // 39: file.FileService.GetFileMetadata:output_type -> file.GetFileMetadataResponse
-	19, // 40: file.FileService.ReadFile:output_type -> file.ReadFileResponse
-	21, // 41: file.FileService.SaveFile:output_type -> file.SaveFileResponse
-	23, // 42: file.FileService.DeleteFile:output_type -> file.DeleteFileResponse
-	25, // 43: file.FileService.GetThumbnails:output_type -> file.GetThumbnailsResponse
-	41, // 44: file.FileService.UploadFile:output_type -> file.UploadFileResponse
-	37, // 45: file.FileService.WriteExcelFile:output_type -> file.WriteExcelFileResponse
-	39, // 46: file.FileService.HtmlToPdf:output_type -> file.HtmlToPdfResponse
-	26, // [26:47] is the sub-list for method output_type
-	5,  // [5:26] is the sub-list for method input_type
+	44, // 26: file.FileService.IndexFile:input_type -> file.IndexFileRequest
+	42, // 27: file.FileService.FindIndexes:input_type -> file.FindIndexesRequest
+	47, // 28: file.FileService.Stop:output_type -> file.StopResponse
+	31, // 29: file.FileService.AddPublicDir:output_type -> file.AddPublicDirResponse
+	33, // 30: file.FileService.RemovePublicDir:output_type -> file.RemovePublicDirResponse
+	35, // 31: file.FileService.GetPublicDirs:output_type -> file.GetPublicDirsResponse
+	3,  // 32: file.FileService.ReadDir:output_type -> file.ReadDirResponse
+	5,  // 33: file.FileService.CreateDir:output_type -> file.CreateDirResponse
+	29, // 34: file.FileService.CreateLnk:output_type -> file.CreateLnkResponse
+	7,  // 35: file.FileService.DeleteDir:output_type -> file.DeleteDirResponse
+	9,  // 36: file.FileService.Rename:output_type -> file.RenameResponse
+	13, // 37: file.FileService.Move:output_type -> file.MoveResponse
+	11, // 38: file.FileService.Copy:output_type -> file.CopyResponse
+	27, // 39: file.FileService.CreateArchive:output_type -> file.CreateArchiveResponse
+	15, // 40: file.FileService.GetFileInfo:output_type -> file.GetFileInfoResponse
+	17, // 41: file.FileService.GetFileMetadata:output_type -> file.GetFileMetadataResponse
+	19, // 42: file.FileService.ReadFile:output_type -> file.ReadFileResponse
+	21, // 43: file.FileService.SaveFile:output_type -> file.SaveFileResponse
+	23, // 44: file.FileService.DeleteFile:output_type -> file.DeleteFileResponse
+	25, // 45: file.FileService.GetThumbnails:output_type -> file.GetThumbnailsResponse
+	41, // 46: file.FileService.UploadFile:output_type -> file.UploadFileResponse
+	37, // 47: file.FileService.WriteExcelFile:output_type -> file.WriteExcelFileResponse
+	39, // 48: file.FileService.HtmlToPdf:output_type -> file.HtmlToPdfResponse
+	45, // 49: file.FileService.IndexFile:output_type -> file.IndexFileResponse
+	43, // 50: file.FileService.FindIndexes:output_type -> file.FindIndexesResponse
+	28, // [28:51] is the sub-list for method output_type
+	5,  // [5:28] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -2555,7 +2819,7 @@ func file_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   44,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

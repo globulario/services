@@ -85,6 +85,15 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 	switch subjectType {
 	case rbacpb.SubjectType_ACCOUNT:
 		exist, a := srv.accountExist(subject)
+		if !exist {
+			// The built-in superadmin account "sa" always exists even when the
+			// resource service is temporarily unreachable (e.g. during startup
+			// or when inter-service routing is not yet configured).
+			if strings.EqualFold(subject, "sa") {
+				exist = true
+				a = "sa"
+			}
+		}
 		if exist {
 			if !Utility.Contains(owners.Accounts, a) {
 				owners.Accounts = append(owners.Accounts, a)

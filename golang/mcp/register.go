@@ -78,9 +78,12 @@ func registerAllTools(s *server) {
 	if g.Browser {
 		registerBrowserTools(s)
 	}
-	// Log ring tools are always available (in-process ring buffer).
+	if g.AIExecutor {
+		registerAIExecutorTools(s)
+	}
+	// Always-available tools.
 	registerLogRingTools(s)
-	// Package lifecycle tools are always available.
 	registerPackageTools(s)
+	registerClusterConfigTools(s)
 	// Auth and DNS deferred to phase 2.
 }

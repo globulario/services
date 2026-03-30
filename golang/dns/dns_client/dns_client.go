@@ -116,6 +116,13 @@ func (client *Dns_Client) GetCtx() context.Context {
 	return client.ctx
 }
 
+// SetTokenCtx sets the client context with an externally provided token.
+// Use this when the caller has its own token (e.g., cluster-controller using sa token).
+func (client *Dns_Client) SetTokenCtx(token string) {
+	md := metadata.New(map[string]string{"token": token, "domain": client.domain})
+	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+}
+
 // Return the domain
 func (client *Dns_Client) GetDomain() string {
 	return client.domain
@@ -466,6 +473,64 @@ func (client *Dns_Client) RemoveText(token, id string) error {
 		return err
 	}
 	return nil
+}
+
+// SetTXT creates or appends a TXT record for the given domain.
+func (client *Dns_Client) SetTXT(token, domain, txt string, ttl uint32) (string, error) {
+	rqst := &dnspb.SetTXTRequest{
+		Domain: domain,
+		Txt:    txt,
+		Ttl:    ttl,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := client.c.SetTXT(ctx, rqst)
+	if err != nil {
+		return "", err
+	}
+	return rsp.Message, nil
+}
+
+// GetTXT retrieves all TXT record values for the given domain.
+func (client *Dns_Client) GetTXT(domain string) ([]string, error) {
+	rqst := &dnspb.GetTXTRequest{
+		Domain: domain,
+	}
+
+	rsp, err := client.c.GetTXT(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.GetTxt(), nil
+}
+
+// RemoveTXT removes TXT record(s) for the given domain.
+// If txt is empty, all TXT records for the domain are removed.
+func (client *Dns_Client) RemoveTXT(token, domain, txt string) error {
+	rqst := &dnspb.RemoveTXTRequest{
+		Domain: domain,
+		Txt:    txt,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.RemoveTXT(ctx, rqst)
+	return err
 }
 
 func (client *Dns_Client) GetNs(id string) ([]string, error) {

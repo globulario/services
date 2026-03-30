@@ -43,6 +43,7 @@ var (
 
 const (
 	etcdSystemConfigKey = "/globular/system/config"
+	etcdRootCredKey     = "/globular/auth/root"
 )
 
 // ============================================================================
@@ -382,6 +383,25 @@ func GetAddress() (string, error) {
 		address += ":" + Utility.ToString(localConfig["PortHTTP"])
 	}
 	return strings.ToLower(address), nil
+}
+
+// GetMeshAddress returns the Envoy service mesh address (<IP>:443).
+// All gRPC service-to-service calls should route through Envoy so the mesh
+// handles load balancing, TLS termination, and service discovery.
+func GetMeshAddress() (string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err != nil {
+		return "", err
+	}
+	addr := strings.TrimSpace(Utility.ToString(localConfig["Address"]))
+	if addr == "" {
+		return "", fmt.Errorf("Address not set in config")
+	}
+	// Strip any existing port.
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		addr = h
+	}
+	return net.JoinHostPort(addr, "443"), nil
 }
 
 // GetName returns the server name from local config, or falls back to hostname.
@@ -1483,4 +1503,56 @@ func GetServiceMethods(name string, PublisherID string, version string) ([]strin
 		}),
 	)
 	return methods, nil
+}
+
+// ============================================================================
+// Root credentials (cluster-scoped, stored in etcd)
+// ============================================================================
+
+// RootCredentials holds the root (sa) account's password hash and admin email.
+// Stored in etcd at /globular/auth/root so every authentication instance in
+// the cluster shares the same credentials.
+type RootCredentials struct {
+	RootPassword string `json:"RootPassword"`
+	AdminEmail   string `json:"AdminEmail"`
+}
+
+// GetRootCredentials reads the root credentials from etcd.
+// Returns a zero-value struct (empty password/email) if the key doesn't exist yet.
+func GetRootCredentials() (*RootCredentials, error) {
+	c, err := etcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd unavailable: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	res, err := c.Get(ctx, etcdRootCredKey)
+	if err != nil {
+		return nil, fmt.Errorf("etcd get %s: %w", etcdRootCredKey, err)
+	}
+	creds := &RootCredentials{}
+	if len(res.Kvs) == 0 {
+		return creds, nil // Not set yet — caller uses defaults.
+	}
+	if err := json.Unmarshal(res.Kvs[0].Value, creds); err != nil {
+		return nil, fmt.Errorf("unmarshal root credentials: %w", err)
+	}
+	return creds, nil
+}
+
+// SetRootCredentials writes the root credentials to etcd.
+func SetRootCredentials(creds *RootCredentials) error {
+	c, err := etcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd unavailable: %w", err)
+	}
+	data, err := json.Marshal(creds)
+	if err != nil {
+		return fmt.Errorf("marshal root credentials: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err = c.Put(ctx, etcdRootCredKey, string(data))
+	return err
 }

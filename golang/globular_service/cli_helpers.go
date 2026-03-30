@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/netutil"
 	Utility "github.com/globulario/utility"
 )
 
@@ -114,7 +115,7 @@ func ParsePositionalArgs(srv Service, args []string) {
 // Generates a UUID for the service ID and allocates the next available port.
 func AllocatePortIfNeeded(srv Service, args []string) error {
 	if len(args) == 0 {
-		srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetAddress()))
+		srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetVersion() + ":" + srv.GetMac()))
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			return fmt.Errorf("port allocator creation failed: %w", err)
@@ -135,7 +136,7 @@ func LoadRuntimeConfig(srv Service) {
 	if d, err := config.GetDomain(); err == nil {
 		srv.SetDomain(d)
 	} else {
-		srv.SetDomain("localhost")
+		srv.SetDomain(netutil.DefaultClusterDomain())
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		srv.SetAddress(a)

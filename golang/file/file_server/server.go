@@ -357,18 +357,46 @@ func (srv *server) startRemoveTempFiles() {
 	}()
 }
 
-// Indexing by MIME
-func (srv *server) indexFile(path string) error {
+// Indexing by MIME type and file extension.
+func (srv *server) indexFile(path string, force bool) error {
 	fileInfos, err := getFileInfo(srv, path, -1, -1)
 	if err != nil {
 		return err
 	}
-	if fileInfos.Mime == "application/pdf" {
-		return srv.indexPdfFile(path, fileInfos)
-	} else if strings.HasPrefix(fileInfos.Mime, "text") {
-		return srv.indexTextFile(path, fileInfos)
+
+	mime := strings.ToLower(fileInfos.Mime)
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// PDF
+	if mime == "application/pdf" {
+		return srv.indexPdfFile(path, fileInfos, force)
 	}
-	return errors.New("no indexer for file type " + fileInfos.Mime)
+
+	// Document formats handled by indexing_docs.go (extension-based,
+	// because Go's mime package doesn't recognize many of these).
+	switch ext {
+	case ".docx", ".xlsx", ".odt", ".ods", ".odp",
+		".epub", ".rtf", ".csv", ".tsv",
+		".md", ".markdown":
+		return srv.indexDocumentFile(path, fileInfos, force)
+	}
+
+	// HTML (may come as text/html or via extension)
+	if mime == "text/html" || ext == ".html" || ext == ".htm" || ext == ".xhtml" {
+		return srv.indexDocumentFile(path, fileInfos, force)
+	}
+
+	// RTF can also be detected by MIME
+	if mime == "application/rtf" || mime == "text/rtf" {
+		return srv.indexDocumentFile(path, fileInfos, force)
+	}
+
+	// Plain text and any text/* MIME
+	if strings.HasPrefix(mime, "text") {
+		return srv.indexTextFile(path, fileInfos, force)
+	}
+
+	return errors.New("no indexer for file type " + mime + " (" + ext + ")")
 }
 
 // -------------------- CLI UX --------------------
@@ -828,7 +856,7 @@ func main() {
 			s.Address = "localhost:" + Utility.ToString(s.Port)
 		}
 		if s.Id == "" {
-			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
 		}
 		b, err := globular.DescribeJSON(s)
 		if err != nil {
@@ -860,7 +888,7 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		// No args: auto-generate ID and allocate port
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)
@@ -997,7 +1025,7 @@ func main() {
 		go func() {
 			for path := range channel1 {
 				pp := path
-				if err := s.indexFile(pp); err != nil {
+				if err := s.indexFile(pp, false); err != nil {
 					logger.Error("index file failed", "path", pp, "err", err)
 				} else {
 					logger.Info("indexed file", "path", pp)

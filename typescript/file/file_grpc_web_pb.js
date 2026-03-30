@@ -22,7 +22,6 @@ grpc.web = require('grpc-web');
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
 
-var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.file = require('./file_pb.js');
 
@@ -1275,6 +1274,123 @@ proto.file.FileServicePromiseClient.prototype.htmlToPdf =
       request,
       metadata || {},
       methodDescriptor_FileService_HtmlToPdf);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.IndexFileRequest,
+ *   !proto.file.IndexFileResponse>}
+ */
+const methodDescriptor_FileService_IndexFile = new grpc.web.MethodDescriptor(
+  '/file.FileService/IndexFile',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.file.IndexFileRequest,
+  proto.file.IndexFileResponse,
+  /**
+   * @param {!proto.file.IndexFileRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.IndexFileResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.IndexFileRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.IndexFileResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.indexFile =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/IndexFile',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_IndexFile);
+};
+
+
+/**
+ * @param {!proto.file.IndexFileRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.IndexFileResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServicePromiseClient.prototype.indexFile =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/IndexFile',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_IndexFile);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.FindIndexesRequest,
+ *   !proto.file.FindIndexesResponse>}
+ */
+const methodDescriptor_FileService_FindIndexes = new grpc.web.MethodDescriptor(
+  '/file.FileService/FindIndexes',
+  grpc.web.MethodType.UNARY,
+  proto.file.FindIndexesRequest,
+  proto.file.FindIndexesResponse,
+  /**
+   * @param {!proto.file.FindIndexesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.FindIndexesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.FindIndexesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.FindIndexesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.FindIndexesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.findIndexes =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/FindIndexes',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_FindIndexes,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.FindIndexesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.FindIndexesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.findIndexes =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/FindIndexes',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_FindIndexes);
 };
 
 

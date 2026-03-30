@@ -303,22 +303,39 @@ func resolveDependencies(ctx context.Context, refClient grpc_reflection_v1alpha.
 }
 
 // resolveServiceEndpoint looks up a service's direct address:port from etcd config.
+// Tries exact name first, then fuzzy prefix match (e.g. "title" matches "title.TitleService").
 func resolveServiceEndpoint(serviceName string) (string, error) {
-	svcs, err := config.GetServicesConfigurationsByName(serviceName)
+	all, err := config.GetServicesConfigurations()
 	if err != nil {
 		return "", err
 	}
-	for _, svc := range svcs {
-		port, _ := svc["Port"].(float64)
-		addr, _ := svc["Address"].(string)
-		if port > 0 {
-			if addr == "" {
-				addr = "localhost"
-			}
-			return fmt.Sprintf("%s:%d", addr, int(port)), nil
+	// Exact match first, then prefix match
+	for _, svc := range all {
+		name, _ := svc["Name"].(string)
+		if strings.EqualFold(name, serviceName) {
+			return endpointFromConfig(svc), nil
+		}
+	}
+	lower := strings.ToLower(serviceName)
+	for _, svc := range all {
+		name, _ := svc["Name"].(string)
+		if strings.HasPrefix(strings.ToLower(name), lower+".") || strings.HasPrefix(strings.ToLower(name), lower) {
+			return endpointFromConfig(svc), nil
 		}
 	}
 	return "", fmt.Errorf("service %q not found in etcd", serviceName)
+}
+
+func endpointFromConfig(svc map[string]interface{}) string {
+	port, _ := svc["Port"].(float64)
+	addr, _ := svc["Address"].(string)
+	if addr == "" {
+		addr = "localhost"
+	}
+	if port > 0 {
+		return fmt.Sprintf("%s:%d", addr, int(port))
+	}
+	return ""
 }
 
 // Ensure imports are used

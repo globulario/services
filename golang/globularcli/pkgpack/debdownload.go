@@ -83,7 +83,7 @@ func resolveDebDependencies(packages []string) ([]string, error) {
 			if len(parts) >= 2 {
 				dep := parts[1]
 				// Skip virtual packages (those with angle brackets).
-				if !strings.HasPrefix(dep, "<") {
+				if !strings.HasPrefix(dep, "<") && !isBaseOSPackage(dep) {
 					seen[dep] = true
 				}
 			}
@@ -95,4 +95,37 @@ func resolveDebDependencies(packages []string) ([]string, error) {
 		result = append(result, pkg)
 	}
 	return result, nil
+}
+
+// isBaseOSPackage returns true for packages that are part of the base Ubuntu/Debian
+// installation and should NOT be bundled. Reinstalling these via dpkg -i can break
+// the running system (e.g. libgcrypt20 post-install script fails, cascading to
+// libsystemd0 → procps → scylla-server dependency chain).
+func isBaseOSPackage(pkg string) bool {
+	// Exact matches for critical system packages.
+	switch pkg {
+	case "libc6", "libc-bin", "libc-dev-bin", "libc6-dev", "libc6-i386", "libc6-dbg",
+		"libgcrypt20", "libgpg-error0", "libsystemd0", "libsystemd-shared",
+		"libudev1", "systemd", "systemd-sysv", "systemd-dev", "systemd-resolved",
+		"systemd-timesyncd", "systemd-coredump",
+		"init-system-helpers", "procps", "udev",
+		"libcap2", "liblz4-1", "liblzma5", "libzstd1",
+		"libtinfo6", "libncursesw6", "libproc2-0",
+		"libgcc-s1", "gcc-14-base", "libstdc++6",
+		"libatomic1", "libasan8", "libtsan2", "libubsan1", "liblsan0",
+		"libgomp1", "libhwasan0", "libitm1", "libquadmath0",
+		"libcc1-0", "libgfortran5", "libobjc4",
+		"lib32gcc-s1", "lib32stdc++6",
+		"libnss-systemd", "libpam-systemd":
+		return true
+	}
+	// Prefix matches for library families that are always part of the base OS.
+	for _, prefix := range []string{
+		"libc6-", "libgcc-", "libstdc++-",
+	} {
+		if strings.HasPrefix(pkg, prefix) {
+			return true
+		}
+	}
+	return false
 }

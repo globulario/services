@@ -18,6 +18,8 @@ import (
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/internal/recovery"
 	"github.com/globulario/services/golang/config"
 	globular_service "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/netutil"
+	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -232,18 +234,26 @@ func printVersion() {
 }
 
 func printDescribe() {
+	// Use the same deterministic ID generation as all Globular services:
+	// UUID5 from "Name:Version:MAC". Each node gets a unique Id (different MAC),
+	// and upgrading produces a new Id (different Version).
+	serviceName := "cluster_doctor.ClusterDoctorService"
+	address := config.GetRoutableIPv4()
+	mac, _ := config.GetMacAddress()
+	id := Utility.GenerateUUID(serviceName + ":" + Version + ":" + mac)
+
 	metadata := map[string]interface{}{
-		"name":        "cluster-doctor",
-		"version":     Version,
-		"description": "Globular cluster doctor — deterministic, read-only operational intelligence for a Globular cluster",
-		"grpc_port":   12100,
-		"pprof_port":  pprofPort,
-		"capabilities": []string{
-			"health-analysis",
-			"drift-detection",
-			"plan-explanation",
-			"remediation-proposals",
-		},
+		"Id":          id,
+		"Name":        serviceName,
+		"Address":     address,
+		"Port":        12100,
+		"Proxy":       12101,
+		"Protocol":    "grpc",
+		"TLS":         true,
+		"Version":     Version,
+		"Domain":      netutil.DefaultClusterDomain(),
+		"Description": "Globular cluster doctor — deterministic, read-only operational intelligence for a Globular cluster",
+		"Keywords":    []string{"doctor", "health", "diagnostics", "drift", "remediation"},
 		"build_info": map[string]string{
 			"version":    Version,
 			"build_time": BuildTime,

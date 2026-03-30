@@ -475,18 +475,21 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	key := artifactKeyWithBuild(ref, buildNumber)
 
 	// ── Uniqueness check ──────────────────────────────────────────────────
-	// If an artifact with this exact identity already exists, enforce the
-	// content-addressable invariant: same identity + same checksum = idempotent,
-	// same identity + different checksum = rejected.
+	// If an artifact with this exact identity already exists:
+	//   - same checksum = idempotent (skip)
+	//   - different checksum = overwrite (rebuild at same version)
 	if existing, err := srv.readManifestByKey(ctx, key); err == nil {
 		if existing.GetChecksum() == newChecksum {
 			// Idempotent re-upload — return success without overwriting.
 			slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
 			return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
 		}
-		return status.Errorf(codes.AlreadyExists,
-			"artifact %s@%s build %d already exists with different content (existing checksum %s, new %s) — bump build_number to publish a new build",
-			ref.GetName(), ref.GetVersion(), buildNumber, existing.GetChecksum(), newChecksum)
+		// Different content at same version — overwrite. This happens when
+		// the binary is rebuilt without a version bump (bug fixes, Day-0 rebuilds).
+		slog.Warn("artifact overwrite (same version, different content)",
+			"key", key,
+			"old_checksum", existing.GetChecksum(),
+			"new_checksum", newChecksum)
 	}
 
 	// Ensure artifacts directory exists.

@@ -51,6 +51,11 @@ type Config struct {
 	ReplicationFactor int      `json:"ReplicationFactor"`
 	Root              string   `json:"Root"`
 
+	// ScyllaDB storage (shared across all DNS instances)
+	ScyllaHosts             []string `json:"ScyllaHosts"`
+	ScyllaPort              int      `json:"ScyllaPort"`
+	ScyllaReplicationFactor int      `json:"ScyllaReplicationFactor"`
+
 	Permissions []any `json:"Permissions"`
 }
 
@@ -76,11 +81,14 @@ func DefaultConfig() *Config {
 		KeepAlive:         true,
 		Process:           -1,
 		ProxyProcess:      -1,
-		DnsPort:           53,
-		Domains:           []string{},
-		ReplicationFactor: 0,
-		Root:              "",
-		Permissions:       nil,
+		DnsPort:                 53,
+		Domains:                 []string{},
+		ReplicationFactor:       0,
+		Root:                    "",
+		ScyllaHosts:             []string{},
+		ScyllaPort:              9042,
+		ScyllaReplicationFactor: 1,
+		Permissions:             nil,
 	}
 
 	cfg.Root = config.GetDataDir()

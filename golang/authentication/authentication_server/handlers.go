@@ -15,7 +15,6 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,8 +38,7 @@ import (
 )
 
 var (
-	dataPath   = config.GetDataDir()
-	configPath = filepath.Join(config.GetConfigDir(), "config.json")
+	dataPath = config.GetDataDir()
 )
 
 func normalizeAccountId(id string) string {
@@ -201,6 +199,7 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 }
 
 // SetRootPassword changes the root ("sa") account password.
+// Credentials are stored in etcd so all cluster instances see the change immediately.
 func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -211,22 +210,12 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, logInternal("SetRootPassword:permission", errors.New("only 'sa' can change root password"))
 	}
 
-	if !Utility.Exists(configPath) {
-		return nil, logInternal("SetRootPassword:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
-	}
-
-	data, err := os.ReadFile(configPath)
+	creds, err := config.GetRootCredentials()
 	if err != nil {
-		return nil, logInternal("SetRootPassword:readConfig", err)
+		return nil, logInternal("SetRootPassword:etcd", err)
 	}
 
-	srvConfig := make(map[string]any)
-	if err = json.Unmarshal(data, &srvConfig); err != nil {
-		return nil, logInternal("SetRootPassword:parseConfig", err)
-	}
-
-	password, _ := srvConfig["RootPassword"].(string)
-
+	password := creds.RootPassword
 	effective := password
 	if effective == "" {
 		effective = "adminadmin"
@@ -257,13 +246,9 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 	if err != nil {
 		return nil, logInternal("SetRootPassword:hash", err)
 	}
-	srvConfig["RootPassword"] = string(hash)
-	jsonStr, err := Utility.ToJson(srvConfig)
-	if err != nil {
-		return nil, logInternal("SetRootPassword:marshalConfig", err)
-	}
-	if err = os.WriteFile(configPath, []byte(jsonStr), 0600); err != nil {
-		return nil, logInternal("SetRootPassword:writeConfig", err)
+	creds.RootPassword = string(hash)
+	if err = config.SetRootCredentials(creds); err != nil {
+		return nil, logInternal("SetRootPassword:etcdWrite", err)
 	}
 
 	macAddress, err := config.GetMacAddress()
@@ -271,8 +256,7 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, err
 	}
 
-	adminEmail, _ := srvConfig["AdminEmail"].(string)
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", creds.AdminEmail)
 	if err != nil {
 		return nil, logInternal("SetRootPassword:generateToken", err)
 	}
@@ -281,34 +265,21 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 	return &authenticationpb.SetRootPasswordResponse{Token: tokenString}, nil
 }
 
-// SetRootEmail updates the root administrator email in the server configuration.
+// SetRootEmail updates the root administrator email.
+// Stored in etcd so all cluster instances see the change immediately.
 func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
-	if !Utility.Exists(configPath) {
-		return nil, logInternal("SetRootEmail:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
-	}
-
-	data, err := os.ReadFile(configPath)
+	creds, err := config.GetRootCredentials()
 	if err != nil {
-		return nil, logInternal("SetRootEmail:readConfig", err)
+		return nil, logInternal("SetRootEmail:etcd", err)
 	}
 
-	cfg := make(map[string]any)
-	if err = json.Unmarshal(data, &cfg); err != nil {
-		return nil, logInternal("SetRootEmail:parseConfig", err)
-	}
-
-	email, _ := cfg["AdminEmail"].(string)
-	if email != rqst.OldEmail {
+	if creds.AdminEmail != rqst.OldEmail {
 		return nil, logInternal("SetRootEmail:mismatch", errors.New("the given email doesn't match the existing one"))
 	}
 
-	cfg["AdminEmail"] = rqst.NewEmail
-	jsonStr, err := Utility.ToJson(cfg)
-	if err != nil {
-		return nil, logInternal("SetRootEmail:marshalConfig", err)
-	}
-	if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
-		return nil, logInternal("SetRootEmail:writeConfig", err)
+	creds.AdminEmail = rqst.NewEmail
+	if err = config.SetRootCredentials(creds); err != nil {
+		return nil, logInternal("SetRootEmail:etcdWrite", err)
 	}
 
 	slog.Info("SetRootEmail:ok", "newEmail", rqst.NewEmail)
@@ -362,24 +333,14 @@ func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
 
 // authenticate authenticates either root (sa) via config or a regular account (password / LDAP / OAuth).
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
-	// Root path
+	// Root path — credentials stored in etcd so any cluster instance can authenticate sa.
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
-		if !Utility.Exists(configPath) {
-			return "", logInternal("authenticate:root:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
-		}
-
-		data, err := os.ReadFile(configPath)
+		creds, err := config.GetRootCredentials()
 		if err != nil {
-			return "", logInternal("authenticate:root:readConfig", err)
+			return "", logInternal("authenticate:root:etcd", err)
 		}
 
-		cfg := make(map[string]any)
-		if err = json.Unmarshal(data, &cfg); err != nil {
-			return "", logInternal("authenticate:root:parseConfig", err)
-		}
-
-		password, _ := cfg["RootPassword"].(string)
-
+		password := creds.RootPassword
 		effective := password
 		if effective == "" {
 			effective = "adminadmin"
@@ -407,15 +368,12 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			}
 			// Upgrade legacy plaintext to bcrypt once authentication succeeds.
 			if hash, herr := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost); herr == nil {
-				cfg["RootPassword"] = string(hash)
-				if jsonStr, merr := Utility.ToJson(cfg); merr == nil {
-					_ = os.WriteFile(configPath, []byte(jsonStr), 0600)
-				}
+				creds.RootPassword = string(hash)
+				_ = config.SetRootCredentials(creds)
 			}
 		}
 
-		adminEmail, _ := cfg["AdminEmail"].(string)
-		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", adminEmail)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", creds.AdminEmail)
 		if err != nil {
 			return "", logInternal("authenticate:root:generate", err)
 		}

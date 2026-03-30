@@ -17,8 +17,62 @@ needs_scylla() {
   # ScyllaDB is used for resource, rbac, and ai_memory services
   # NOTE: ScyllaDB must be installed and configured with TLS before these services start
   case "${svc}" in
-    resource|rbac|ai_memory|workflow) return 0 ;;
+    resource|rbac|ai_memory|workflow|dns) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# Return catalog metadata for a service: profiles, priority, kind.
+# This drives the controller's dynamic catalog when built into package.json.
+# Format: "profiles=core,compute priority=1000 kind=service"
+catalog_profiles() {
+  local svc="$1"
+  case "${svc}" in
+    # Infrastructure
+    etcd)                   echo "core,compute,control-plane" ;;
+    scylladb)               echo "core,compute,control-plane,scylla,database" ;;
+    minio)                  echo "core,compute,storage" ;;
+    xds|gateway|envoy)      echo "core,compute,control-plane,gateway" ;;
+    prometheus|node_exporter) echo "core,compute,control-plane" ;;
+    scylla_manager|scylla_manager_agent) echo "core,compute,control-plane" ;;
+    sidekick)               echo "core,compute,storage" ;;
+    # Core services
+    dns|discovery)          echo "core,compute,control-plane" ;;
+    event|rbac)             echo "core,compute" ;;
+    monitoring)             echo "core,compute,control-plane" ;;
+    file)                   echo "core,compute,storage" ;;
+    # Control-plane only
+    cluster_controller|cluster_doctor) echo "control-plane" ;;
+    # Backup + storage
+    backup_manager)         echo "core,compute,storage" ;;
+    # Commands
+    rclone|restic|mc)       echo "core,compute,storage" ;;
+    sctool)                 echo "core,compute,control-plane" ;;
+    ffmpeg)                 echo "core,compute" ;;
+    # Default: all compute nodes
+    *)                      echo "core,compute" ;;
+  esac
+}
+
+catalog_priority() {
+  local svc="$1"
+  case "${svc}" in
+    etcd)          echo 1 ;;
+    dns)           echo 2 ;;
+    discovery)     echo 3 ;;
+    event)         echo 4 ;;
+    rbac)          echo 5 ;;
+    minio)         echo 6 ;;
+    scylladb)      echo 6 ;;
+    file)          echo 7 ;;
+    monitoring)    echo 8 ;;
+    xds)           echo 9 ;;
+    gateway)       echo 9 ;;
+    envoy)         echo 10 ;;
+    prometheus|node_exporter|sidekick) echo 11 ;;
+    scylla_manager|scylla_manager_agent) echo 12 ;;
+    workflow)      echo 900 ;;
+    *)             echo 1000 ;;
   esac
 }
 
@@ -163,12 +217,21 @@ for exe_path in "${BIN_DIR}"/*_server; do
     run_group="globular"
   fi
 
+  # Catalog metadata for dynamic discovery by the controller.
+  profiles="$(catalog_profiles "${svc}")"
+  priority="$(catalog_priority "${svc}")"
+
+  # Format profiles as YAML list: [core, compute]
+  profiles_yaml="[$(echo "${profiles}" | sed 's/,/, /g')]"
+
   # Write spec - services store their own config as <uuid>.json in services directory
   cat > "${spec}" <<EOF
 version: 1
 
 metadata:
   name: ${svc}
+  profiles: ${profiles_yaml}
+  priority: ${priority}
 
 service:
   name: ${svc}
@@ -275,10 +338,27 @@ EOF
           Group=${run_group}
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
-          Environment=GLOBULAR_BOOTSTRAP=1
+
           ${ensure_workdir}
           ${tls_wait}
           ExecStartPre=/bin/sh -c 'for i in \$(seq 1 90); do ss -lnt | grep -q ":9042 " && exit 0; sleep 1; done; echo "scylla 9042 not ready"; exit 1'
+EOF
+
+    # DNS needs CAP_NET_BIND_SERVICE for port 53 (also in scylla branch)
+    if [[ "${svc}" == "dns" ]]; then
+      cat >> "${spec}" <<EOF
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+EOF
+    fi
+
+    # Backup manager needs extra PATH (also in scylla branch)
+    if [[ "${svc}" == "backup_manager" ]]; then
+      cat >> "${spec}" <<EOF
+          Environment=PATH={{.Prefix}}/bin:/usr/local/bin:/usr/bin:/bin
+EOF
+    fi
+
+    cat >> "${spec}" <<EOF
           ExecStart={{.Prefix}}/bin/${exe}
           Restart=on-failure
           RestartSec=2
@@ -298,7 +378,7 @@ EOF
           Group=${run_group}
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
-          Environment=GLOBULAR_BOOTSTRAP=1
+
           ${ensure_workdir}
           ${tls_wait}
 EOF
@@ -310,7 +390,7 @@ EOF
 EOF
     fi
 
-    # Backup manager needs etcdctl and restic on PATH for provider execution
+    # Backup manager needs etcdctl and restic on PATH for provider execution.
     if [[ "${svc}" == "backup_manager" ]]; then
       cat >> "${spec}" <<EOF
           Environment=PATH={{.Prefix}}/bin:/usr/local/bin:/usr/bin:/bin

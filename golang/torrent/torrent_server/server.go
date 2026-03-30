@@ -82,7 +82,7 @@ func main() {
 
 	if len(args) == 0 {
 		if srv.Id == "" {
-			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		}
 		if allocator, err := config.NewDefaultPortAllocator(); err == nil {
 			if p, err := allocator.Next(srv.Id); err == nil {
@@ -123,7 +123,7 @@ func main() {
 		srv.Domain, srv.Address = globular.GetDefaultDomainAddress(srv.Port)
 	}
 	if srv.Id == "" {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 	}
 
 	Utility.RegisterFunction("NewTorrentService_Client", torrent_client.NewTorrentService_Client)

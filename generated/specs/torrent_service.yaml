@@ -2,6 +2,8 @@ version: 1
 
 metadata:
   name: torrent
+  profiles: [core, compute]
+  priority: 1000
 
 service:
   name: torrent
@@ -82,8 +84,8 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/torrent
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
-          Environment=GLOBULAR_BOOTSTRAP=1
-          ExecStartPre=/bin/sh -c 'mkdir -p {{.StateDir}}/torrent && chown globular:globular {{.StateDir}}/torrent'
+
+          ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/torrent && chown globular:globular {{.StateDir}}/torrent'
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'
           ExecStart={{.Prefix}}/bin/torrent_server
           Restart=on-failure

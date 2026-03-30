@@ -20,7 +20,6 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 
-var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.catalog = require('./catalog_pb.js');
 

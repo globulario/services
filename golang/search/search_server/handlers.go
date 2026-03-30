@@ -7,11 +7,16 @@ package main
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strings"
+	"time"
 
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/search/searchpb"
+	"github.com/globulario/services/golang/shared_index"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -67,6 +72,7 @@ type server struct {
 
 	// Search engine implementation
 	search_engine          search_engine.SearchEngine
+	sharedIndex            *shared_index.SharedIndex
 	logger                 *slog.Logger
 	indexPathsBeforeBackup []string // saved before backup close
 }
@@ -190,11 +196,40 @@ func (srv *server) Init() error {
 func (srv *server) Save() error                 { return globular.SaveService(srv) }
 func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
-// StartService begins serving gRPC (and proxy if configured).
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+// StartService begins serving gRPC, and starts the shared index if ScyllaDB is available.
+func (srv *server) StartService() error {
+	// Start shared index for mesh-ready search.
+	scyllaHosts := []string{"127.0.0.1"}
+	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
+		scyllaHosts = strings.Split(h, ",")
+	}
+	dataDir := config.GetDataDir()
 
-// StopService gracefully stops the running gRPC server.
-func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+	si := shared_index.New(shared_index.Config{
+		Group:         "search",
+		ScyllaHosts:   scyllaHosts,
+		LocalIndexDir: dataDir,
+		PollInterval:  500 * time.Millisecond,
+		SyncInterval:  5 * time.Second,
+	}, srv.logger)
+
+	if err := si.Start(context.Background()); err != nil {
+		srv.logger.Warn("shared index unavailable, running in standalone mode", "err", err)
+	} else {
+		srv.sharedIndex = si
+		srv.logger.Info("shared index started (mesh-ready)")
+	}
+
+	return globular.StartService(srv, srv.grpcServer)
+}
+
+// StopService gracefully stops the running gRPC server and shared index.
+func (srv *server) StopService() error {
+	if srv.sharedIndex != nil {
+		srv.sharedIndex.Stop()
+	}
+	return globular.StopService(srv, srv.grpcServer)
+}
 
 // -----------------------------------------------------------------------------
 // Search API (public prototypes preserved)
@@ -211,7 +246,15 @@ func (srv *server) GetEngineVersion(ctx context.Context, rqst *searchpb.GetEngin
 }
 
 // DeleteDocument removes a document from the index.
+// When the shared index is active, the delete is enqueued. Otherwise local-only.
 func (srv *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
+	if srv.sharedIndex != nil {
+		if err := srv.sharedIndex.EnqueueDelete(rqst.Path, rqst.Id); err != nil {
+			return nil, status.Errorf(codes.Internal, "enqueue delete: %v", err)
+		}
+		return &searchpb.DeleteDocumentResponse{}, nil
+	}
+	// Fallback: local-only delete (standalone mode).
 	if err := srv.search_engine.DeleteDocument(rqst.Path, rqst.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -233,7 +276,16 @@ func (srv *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream
 }
 
 // IndexJsonObject indexes a JSON object/array of objects.
+// When the shared index is active, the operation is enqueued to ScyllaDB
+// and processed by the writer instance. Otherwise falls back to local indexing.
 func (srv *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJsonObjectRequest) (*searchpb.IndexJsonObjectResponse, error) {
+	if srv.sharedIndex != nil {
+		if err := srv.sharedIndex.Enqueue(rqst.Path, rqst.Id, rqst.JsonStr, rqst.Data, rqst.Id, rqst.Indexs); err != nil {
+			return nil, status.Errorf(codes.Internal, "enqueue index: %v", err)
+		}
+		return &searchpb.IndexJsonObjectResponse{}, nil
+	}
+	// Fallback: local-only indexing (standalone mode).
 	if err := srv.search_engine.IndexJsonObject(rqst.Path, rqst.JsonStr, rqst.Language, rqst.Id, rqst.Indexs, rqst.Data); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}

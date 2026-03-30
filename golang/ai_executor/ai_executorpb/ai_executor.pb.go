@@ -210,6 +210,119 @@ func (JobState) EnumDescriptor() ([]byte, []int) {
 	return file_ai_executor_proto_rawDescGZIP(), []int{2}
 }
 
+type PeerVote int32
+
+const (
+	PeerVote_VOTE_ABSTAIN  PeerVote = 0 // can't decide / not enough info
+	PeerVote_VOTE_APPROVE  PeerVote = 1 // agree with proposed action
+	PeerVote_VOTE_REJECT   PeerVote = 2 // disagree — too risky or wrong diagnosis
+	PeerVote_VOTE_ESCALATE PeerVote = 3 // agree something is wrong but want human approval
+)
+
+// Enum value maps for PeerVote.
+var (
+	PeerVote_name = map[int32]string{
+		0: "VOTE_ABSTAIN",
+		1: "VOTE_APPROVE",
+		2: "VOTE_REJECT",
+		3: "VOTE_ESCALATE",
+	}
+	PeerVote_value = map[string]int32{
+		"VOTE_ABSTAIN":  0,
+		"VOTE_APPROVE":  1,
+		"VOTE_REJECT":   2,
+		"VOTE_ESCALATE": 3,
+	}
+)
+
+func (x PeerVote) Enum() *PeerVote {
+	p := new(PeerVote)
+	*p = x
+	return p
+}
+
+func (x PeerVote) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PeerVote) Descriptor() protoreflect.EnumDescriptor {
+	return file_ai_executor_proto_enumTypes[3].Descriptor()
+}
+
+func (PeerVote) Type() protoreflect.EnumType {
+	return &file_ai_executor_proto_enumTypes[3]
+}
+
+func (x PeerVote) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PeerVote.Descriptor instead.
+func (PeerVote) EnumDescriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{3}
+}
+
+type ConversationStatus int32
+
+const (
+	ConversationStatus_CONV_STATUS_UNKNOWN           ConversationStatus = 0
+	ConversationStatus_CONV_STATUS_THINKING          ConversationStatus = 1
+	ConversationStatus_CONV_STATUS_USING_TOOL        ConversationStatus = 2
+	ConversationStatus_CONV_STATUS_STREAMING         ConversationStatus = 3
+	ConversationStatus_CONV_STATUS_COMPLETE          ConversationStatus = 4
+	ConversationStatus_CONV_STATUS_ERROR             ConversationStatus = 5
+	ConversationStatus_CONV_STATUS_WAITING_FOR_HUMAN ConversationStatus = 6
+)
+
+// Enum value maps for ConversationStatus.
+var (
+	ConversationStatus_name = map[int32]string{
+		0: "CONV_STATUS_UNKNOWN",
+		1: "CONV_STATUS_THINKING",
+		2: "CONV_STATUS_USING_TOOL",
+		3: "CONV_STATUS_STREAMING",
+		4: "CONV_STATUS_COMPLETE",
+		5: "CONV_STATUS_ERROR",
+		6: "CONV_STATUS_WAITING_FOR_HUMAN",
+	}
+	ConversationStatus_value = map[string]int32{
+		"CONV_STATUS_UNKNOWN":           0,
+		"CONV_STATUS_THINKING":          1,
+		"CONV_STATUS_USING_TOOL":        2,
+		"CONV_STATUS_STREAMING":         3,
+		"CONV_STATUS_COMPLETE":          4,
+		"CONV_STATUS_ERROR":             5,
+		"CONV_STATUS_WAITING_FOR_HUMAN": 6,
+	}
+)
+
+func (x ConversationStatus) Enum() *ConversationStatus {
+	p := new(ConversationStatus)
+	*p = x
+	return p
+}
+
+func (x ConversationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConversationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_ai_executor_proto_enumTypes[4].Descriptor()
+}
+
+func (ConversationStatus) Type() protoreflect.EnumType {
+	return &file_ai_executor_proto_enumTypes[4]
+}
+
+func (x ConversationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConversationStatus.Descriptor instead.
+func (ConversationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{4}
+}
+
 type Diagnosis struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IncidentId     string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
@@ -1606,6 +1719,1337 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_ai_executor_proto_rawDescGZIP(), []int{22}
 }
 
+type PeerPingRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SenderNodeId   string                 `protobuf:"bytes,1,opt,name=sender_node_id,json=senderNodeId,proto3" json:"sender_node_id,omitempty"`
+	SenderHostname string                 `protobuf:"bytes,2,opt,name=sender_hostname,json=senderHostname,proto3" json:"sender_hostname,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PeerPingRequest) Reset() {
+	*x = PeerPingRequest{}
+	mi := &file_ai_executor_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerPingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerPingRequest) ProtoMessage() {}
+
+func (x *PeerPingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerPingRequest.ProtoReflect.Descriptor instead.
+func (*PeerPingRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *PeerPingRequest) GetSenderNodeId() string {
+	if x != nil {
+		return x.SenderNodeId
+	}
+	return ""
+}
+
+func (x *PeerPingRequest) GetSenderHostname() string {
+	if x != nil {
+		return x.SenderHostname
+	}
+	return ""
+}
+
+type PeerPingResponse struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	NodeId             string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Hostname           string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	AiAvailable        bool                   `protobuf:"varint,3,opt,name=ai_available,json=aiAvailable,proto3" json:"ai_available,omitempty"` // has a working Claude connection
+	Profiles           []string               `protobuf:"bytes,4,rep,name=profiles,proto3" json:"profiles,omitempty"`                           // node profiles (control-plane, core, etc.)
+	UptimeSeconds      int64                  `protobuf:"varint,5,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	IncidentsProcessed int64                  `protobuf:"varint,6,opt,name=incidents_processed,json=incidentsProcessed,proto3" json:"incidents_processed,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *PeerPingResponse) Reset() {
+	*x = PeerPingResponse{}
+	mi := &file_ai_executor_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerPingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerPingResponse) ProtoMessage() {}
+
+func (x *PeerPingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerPingResponse.ProtoReflect.Descriptor instead.
+func (*PeerPingResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PeerPingResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PeerPingResponse) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *PeerPingResponse) GetAiAvailable() bool {
+	if x != nil {
+		return x.AiAvailable
+	}
+	return false
+}
+
+func (x *PeerPingResponse) GetProfiles() []string {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *PeerPingResponse) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
+func (x *PeerPingResponse) GetIncidentsProcessed() int64 {
+	if x != nil {
+		return x.IncidentsProcessed
+	}
+	return 0
+}
+
+// Observation: "I see X on my node, do you see it too?"
+type PeerObservationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ObservationId  string                 `protobuf:"bytes,1,opt,name=observation_id,json=observationId,proto3" json:"observation_id,omitempty"` // unique ID for dedup
+	SenderNodeId   string                 `protobuf:"bytes,2,opt,name=sender_node_id,json=senderNodeId,proto3" json:"sender_node_id,omitempty"`
+	SenderHostname string                 `protobuf:"bytes,3,opt,name=sender_hostname,json=senderHostname,proto3" json:"sender_hostname,omitempty"`
+	Category       string                 `protobuf:"bytes,4,opt,name=category,proto3" json:"category,omitempty"`                                                                           // service_crash, high_latency, disk_full, etc.
+	Subject        string                 `protobuf:"bytes,5,opt,name=subject,proto3" json:"subject,omitempty"`                                                                             // what's affected (service name, unit, path)
+	Detail         string                 `protobuf:"bytes,6,opt,name=detail,proto3" json:"detail,omitempty"`                                                                               // human-readable description
+	Evidence       map[string]string      `protobuf:"bytes,7,rep,name=evidence,proto3" json:"evidence,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // key-value evidence from sender
+	ObservedAtMs   int64                  `protobuf:"varint,8,opt,name=observed_at_ms,json=observedAtMs,proto3" json:"observed_at_ms,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PeerObservationRequest) Reset() {
+	*x = PeerObservationRequest{}
+	mi := &file_ai_executor_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerObservationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerObservationRequest) ProtoMessage() {}
+
+func (x *PeerObservationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerObservationRequest.ProtoReflect.Descriptor instead.
+func (*PeerObservationRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *PeerObservationRequest) GetObservationId() string {
+	if x != nil {
+		return x.ObservationId
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetSenderNodeId() string {
+	if x != nil {
+		return x.SenderNodeId
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetSenderHostname() string {
+	if x != nil {
+		return x.SenderHostname
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *PeerObservationRequest) GetEvidence() map[string]string {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *PeerObservationRequest) GetObservedAtMs() int64 {
+	if x != nil {
+		return x.ObservedAtMs
+	}
+	return 0
+}
+
+type PeerObservationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Confirmed     bool                   `protobuf:"varint,2,opt,name=confirmed,proto3" json:"confirmed,omitempty"`                             // "yes I see the same thing"
+	LocalEvidence string                 `protobuf:"bytes,3,opt,name=local_evidence,json=localEvidence,proto3" json:"local_evidence,omitempty"` // what this node sees
+	Confidence    float32                `protobuf:"fixed32,4,opt,name=confidence,proto3" json:"confidence,omitempty"`                          // 0-1 how sure
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerObservationResponse) Reset() {
+	*x = PeerObservationResponse{}
+	mi := &file_ai_executor_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerObservationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerObservationResponse) ProtoMessage() {}
+
+func (x *PeerObservationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerObservationResponse.ProtoReflect.Descriptor instead.
+func (*PeerObservationResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *PeerObservationResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PeerObservationResponse) GetConfirmed() bool {
+	if x != nil {
+		return x.Confirmed
+	}
+	return false
+}
+
+func (x *PeerObservationResponse) GetLocalEvidence() string {
+	if x != nil {
+		return x.LocalEvidence
+	}
+	return ""
+}
+
+func (x *PeerObservationResponse) GetConfidence() float32 {
+	if x != nil {
+		return x.Confidence
+	}
+	return 0
+}
+
+// Proposal: "I want to do X, do you agree?"
+type PeerProposalRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ProposalId     string                 `protobuf:"bytes,1,opt,name=proposal_id,json=proposalId,proto3" json:"proposal_id,omitempty"` // unique ID
+	IncidentId     string                 `protobuf:"bytes,2,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	SenderNodeId   string                 `protobuf:"bytes,3,opt,name=sender_node_id,json=senderNodeId,proto3" json:"sender_node_id,omitempty"`
+	ProposedAction ActionType             `protobuf:"varint,4,opt,name=proposed_action,json=proposedAction,proto3,enum=ai_executor.ActionType" json:"proposed_action,omitempty"`
+	Target         string                 `protobuf:"bytes,5,opt,name=target,proto3" json:"target,omitempty"`
+	Rationale      string                 `protobuf:"bytes,6,opt,name=rationale,proto3" json:"rationale,omitempty"`
+	Diagnosis      *Diagnosis             `protobuf:"bytes,7,opt,name=diagnosis,proto3" json:"diagnosis,omitempty"` // share the diagnosis for context
+	Tier           int32                  `protobuf:"varint,8,opt,name=tier,proto3" json:"tier,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PeerProposalRequest) Reset() {
+	*x = PeerProposalRequest{}
+	mi := &file_ai_executor_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerProposalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerProposalRequest) ProtoMessage() {}
+
+func (x *PeerProposalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerProposalRequest.ProtoReflect.Descriptor instead.
+func (*PeerProposalRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *PeerProposalRequest) GetProposalId() string {
+	if x != nil {
+		return x.ProposalId
+	}
+	return ""
+}
+
+func (x *PeerProposalRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *PeerProposalRequest) GetSenderNodeId() string {
+	if x != nil {
+		return x.SenderNodeId
+	}
+	return ""
+}
+
+func (x *PeerProposalRequest) GetProposedAction() ActionType {
+	if x != nil {
+		return x.ProposedAction
+	}
+	return ActionType_ACTION_NONE
+}
+
+func (x *PeerProposalRequest) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *PeerProposalRequest) GetRationale() string {
+	if x != nil {
+		return x.Rationale
+	}
+	return ""
+}
+
+func (x *PeerProposalRequest) GetDiagnosis() *Diagnosis {
+	if x != nil {
+		return x.Diagnosis
+	}
+	return nil
+}
+
+func (x *PeerProposalRequest) GetTier() int32 {
+	if x != nil {
+		return x.Tier
+	}
+	return 0
+}
+
+type PeerProposalResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	NodeId          string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Vote            PeerVote               `protobuf:"varint,2,opt,name=vote,proto3,enum=ai_executor.PeerVote" json:"vote,omitempty"`
+	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                          // why this vote
+	CounterProposal string                 `protobuf:"bytes,4,opt,name=counter_proposal,json=counterProposal,proto3" json:"counter_proposal,omitempty"` // alternative action if rejecting
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PeerProposalResponse) Reset() {
+	*x = PeerProposalResponse{}
+	mi := &file_ai_executor_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerProposalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerProposalResponse) ProtoMessage() {}
+
+func (x *PeerProposalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerProposalResponse.ProtoReflect.Descriptor instead.
+func (*PeerProposalResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *PeerProposalResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PeerProposalResponse) GetVote() PeerVote {
+	if x != nil {
+		return x.Vote
+	}
+	return PeerVote_VOTE_ABSTAIN
+}
+
+func (x *PeerProposalResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PeerProposalResponse) GetCounterProposal() string {
+	if x != nil {
+		return x.CounterProposal
+	}
+	return ""
+}
+
+// Notification: "I did X, update your state"
+type PeerActionNotification struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	SenderNodeId  string                 `protobuf:"bytes,2,opt,name=sender_node_id,json=senderNodeId,proto3" json:"sender_node_id,omitempty"`
+	Action        ActionType             `protobuf:"varint,3,opt,name=action,proto3,enum=ai_executor.ActionType" json:"action,omitempty"`
+	Target        string                 `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
+	Status        ActionStatus           `protobuf:"varint,5,opt,name=status,proto3,enum=ai_executor.ActionStatus" json:"status,omitempty"`
+	Result        string                 `protobuf:"bytes,6,opt,name=result,proto3" json:"result,omitempty"`
+	ExecutedAtMs  int64                  `protobuf:"varint,7,opt,name=executed_at_ms,json=executedAtMs,proto3" json:"executed_at_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerActionNotification) Reset() {
+	*x = PeerActionNotification{}
+	mi := &file_ai_executor_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerActionNotification) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerActionNotification) ProtoMessage() {}
+
+func (x *PeerActionNotification) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerActionNotification.ProtoReflect.Descriptor instead.
+func (*PeerActionNotification) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *PeerActionNotification) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *PeerActionNotification) GetSenderNodeId() string {
+	if x != nil {
+		return x.SenderNodeId
+	}
+	return ""
+}
+
+func (x *PeerActionNotification) GetAction() ActionType {
+	if x != nil {
+		return x.Action
+	}
+	return ActionType_ACTION_NONE
+}
+
+func (x *PeerActionNotification) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *PeerActionNotification) GetStatus() ActionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ActionStatus_ACTION_PENDING
+}
+
+func (x *PeerActionNotification) GetResult() string {
+	if x != nil {
+		return x.Result
+	}
+	return ""
+}
+
+func (x *PeerActionNotification) GetExecutedAtMs() int64 {
+	if x != nil {
+		return x.ExecutedAtMs
+	}
+	return 0
+}
+
+type PeerActionAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Acknowledged  bool                   `protobuf:"varint,2,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerActionAck) Reset() {
+	*x = PeerActionAck{}
+	mi := &file_ai_executor_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerActionAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerActionAck) ProtoMessage() {}
+
+func (x *PeerActionAck) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerActionAck.ProtoReflect.Descriptor instead.
+func (*PeerActionAck) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *PeerActionAck) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PeerActionAck) GetAcknowledged() bool {
+	if x != nil {
+		return x.Acknowledged
+	}
+	return false
+}
+
+type SendPromptRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Prompt               string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`                                                                               // User's message text
+	ConversationId       string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`                                         // Empty = new conversation, set = continue
+	TargetNode           string                 `protobuf:"bytes,3,opt,name=target_node,json=targetNode,proto3" json:"target_node,omitempty"`                                                     // Optional: route to specific peer by hostname
+	UserId               string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                                                                 // Who is sending (extracted from auth if empty)
+	SystemPromptOverride string                 `protobuf:"bytes,5,opt,name=system_prompt_override,json=systemPromptOverride,proto3" json:"system_prompt_override,omitempty"`                     // Optional: override system prompt
+	Metadata             map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Extra context
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SendPromptRequest) Reset() {
+	*x = SendPromptRequest{}
+	mi := &file_ai_executor_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendPromptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendPromptRequest) ProtoMessage() {}
+
+func (x *SendPromptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendPromptRequest.ProtoReflect.Descriptor instead.
+func (*SendPromptRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SendPromptRequest) GetPrompt() string {
+	if x != nil {
+		return x.Prompt
+	}
+	return ""
+}
+
+func (x *SendPromptRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *SendPromptRequest) GetTargetNode() string {
+	if x != nil {
+		return x.TargetNode
+	}
+	return ""
+}
+
+func (x *SendPromptRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SendPromptRequest) GetSystemPromptOverride() string {
+	if x != nil {
+		return x.SystemPromptOverride
+	}
+	return ""
+}
+
+func (x *SendPromptRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type SendPromptResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId   string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	MessageId        string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	TextChunk        string                 `protobuf:"bytes,3,opt,name=text_chunk,json=textChunk,proto3" json:"text_chunk,omitempty"` // Partial text (streaming)
+	FullText         string                 `protobuf:"bytes,4,opt,name=full_text,json=fullText,proto3" json:"full_text,omitempty"`    // Complete response (when done)
+	Status           ConversationStatus     `protobuf:"varint,5,opt,name=status,proto3,enum=ai_executor.ConversationStatus" json:"status,omitempty"`
+	Done             bool                   `protobuf:"varint,6,opt,name=done,proto3" json:"done,omitempty"`                                                  // True on final message
+	NeedsHumanReply  bool                   `protobuf:"varint,7,opt,name=needs_human_reply,json=needsHumanReply,proto3" json:"needs_human_reply,omitempty"`   // AI is asking the human a question
+	QuestionForHuman string                 `protobuf:"bytes,8,opt,name=question_for_human,json=questionForHuman,proto3" json:"question_for_human,omitempty"` // The question text
+	InputTokens      int32                  `protobuf:"varint,10,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	OutputTokens     int32                  `protobuf:"varint,11,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	RespondingNode   string                 `protobuf:"bytes,12,opt,name=responding_node,json=respondingNode,proto3" json:"responding_node,omitempty"` // Which node answered
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SendPromptResponse) Reset() {
+	*x = SendPromptResponse{}
+	mi := &file_ai_executor_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendPromptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendPromptResponse) ProtoMessage() {}
+
+func (x *SendPromptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendPromptResponse.ProtoReflect.Descriptor instead.
+func (*SendPromptResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SendPromptResponse) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *SendPromptResponse) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
+	}
+	return ""
+}
+
+func (x *SendPromptResponse) GetTextChunk() string {
+	if x != nil {
+		return x.TextChunk
+	}
+	return ""
+}
+
+func (x *SendPromptResponse) GetFullText() string {
+	if x != nil {
+		return x.FullText
+	}
+	return ""
+}
+
+func (x *SendPromptResponse) GetStatus() ConversationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ConversationStatus_CONV_STATUS_UNKNOWN
+}
+
+func (x *SendPromptResponse) GetDone() bool {
+	if x != nil {
+		return x.Done
+	}
+	return false
+}
+
+func (x *SendPromptResponse) GetNeedsHumanReply() bool {
+	if x != nil {
+		return x.NeedsHumanReply
+	}
+	return false
+}
+
+func (x *SendPromptResponse) GetQuestionForHuman() string {
+	if x != nil {
+		return x.QuestionForHuman
+	}
+	return ""
+}
+
+func (x *SendPromptResponse) GetInputTokens() int32 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *SendPromptResponse) GetOutputTokens() int32 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *SendPromptResponse) GetRespondingNode() string {
+	if x != nil {
+		return x.RespondingNode
+	}
+	return ""
+}
+
+type ConversationMessage struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	Role           string                 `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"` // "user" or "assistant"
+	Content        string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	CreatedAtMs    int64                  `protobuf:"varint,5,opt,name=created_at_ms,json=createdAtMs,proto3" json:"created_at_ms,omitempty"`
+	NodeId         string                 `protobuf:"bytes,6,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeHostname   string                 `protobuf:"bytes,7,opt,name=node_hostname,json=nodeHostname,proto3" json:"node_hostname,omitempty"`
+	InputTokens    int32                  `protobuf:"varint,8,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	OutputTokens   int32                  `protobuf:"varint,9,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	Metadata       map[string]string      `protobuf:"bytes,10,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ConversationMessage) Reset() {
+	*x = ConversationMessage{}
+	mi := &file_ai_executor_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationMessage) ProtoMessage() {}
+
+func (x *ConversationMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationMessage.ProtoReflect.Descriptor instead.
+func (*ConversationMessage) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ConversationMessage) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetCreatedAtMs() int64 {
+	if x != nil {
+		return x.CreatedAtMs
+	}
+	return 0
+}
+
+func (x *ConversationMessage) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetNodeHostname() string {
+	if x != nil {
+		return x.NodeHostname
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetInputTokens() int32 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *ConversationMessage) GetOutputTokens() int32 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *ConversationMessage) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type ConversationSummary struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title              string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	UserId             string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CreatedAtMs        int64                  `protobuf:"varint,4,opt,name=created_at_ms,json=createdAtMs,proto3" json:"created_at_ms,omitempty"`
+	UpdatedAtMs        int64                  `protobuf:"varint,5,opt,name=updated_at_ms,json=updatedAtMs,proto3" json:"updated_at_ms,omitempty"`
+	MessageCount       int32                  `protobuf:"varint,6,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
+	LastMessagePreview string                 `protobuf:"bytes,7,opt,name=last_message_preview,json=lastMessagePreview,proto3" json:"last_message_preview,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ConversationSummary) Reset() {
+	*x = ConversationSummary{}
+	mi := &file_ai_executor_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationSummary) ProtoMessage() {}
+
+func (x *ConversationSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationSummary.ProtoReflect.Descriptor instead.
+func (*ConversationSummary) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ConversationSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ConversationSummary) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ConversationSummary) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConversationSummary) GetCreatedAtMs() int64 {
+	if x != nil {
+		return x.CreatedAtMs
+	}
+	return 0
+}
+
+func (x *ConversationSummary) GetUpdatedAtMs() int64 {
+	if x != nil {
+		return x.UpdatedAtMs
+	}
+	return 0
+}
+
+func (x *ConversationSummary) GetMessageCount() int32 {
+	if x != nil {
+		return x.MessageCount
+	}
+	return 0
+}
+
+func (x *ConversationSummary) GetLastMessagePreview() string {
+	if x != nil {
+		return x.LastMessagePreview
+	}
+	return ""
+}
+
+type GetConversationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	Limit          int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                       // Max messages (0 = all)
+	BeforeMs       int64                  `protobuf:"varint,3,opt,name=before_ms,json=beforeMs,proto3" json:"before_ms,omitempty"` // Pagination cursor
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetConversationRequest) Reset() {
+	*x = GetConversationRequest{}
+	mi := &file_ai_executor_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConversationRequest) ProtoMessage() {}
+
+func (x *GetConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConversationRequest.ProtoReflect.Descriptor instead.
+func (*GetConversationRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetConversationRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *GetConversationRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetConversationRequest) GetBeforeMs() int64 {
+	if x != nil {
+		return x.BeforeMs
+	}
+	return 0
+}
+
+type GetConversationResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Messages       []*ConversationMessage `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	Title          string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetConversationResponse) Reset() {
+	*x = GetConversationResponse{}
+	mi := &file_ai_executor_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConversationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConversationResponse) ProtoMessage() {}
+
+func (x *GetConversationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConversationResponse.ProtoReflect.Descriptor instead.
+func (*GetConversationResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *GetConversationResponse) GetMessages() []*ConversationMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *GetConversationResponse) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *GetConversationResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type ListConversationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationsRequest) Reset() {
+	*x = ListConversationsRequest{}
+	mi := &file_ai_executor_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationsRequest) ProtoMessage() {}
+
+func (x *ListConversationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationsRequest.ProtoReflect.Descriptor instead.
+func (*ListConversationsRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListConversationsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListConversationsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListConversationsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Conversations []*ConversationSummary `protobuf:"bytes,1,rep,name=conversations,proto3" json:"conversations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationsResponse) Reset() {
+	*x = ListConversationsResponse{}
+	mi := &file_ai_executor_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationsResponse) ProtoMessage() {}
+
+func (x *ListConversationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationsResponse.ProtoReflect.Descriptor instead.
+func (*ListConversationsResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ListConversationsResponse) GetConversations() []*ConversationSummary {
+	if x != nil {
+		return x.Conversations
+	}
+	return nil
+}
+
+type DeleteConversationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DeleteConversationRequest) Reset() {
+	*x = DeleteConversationRequest{}
+	mi := &file_ai_executor_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationRequest) ProtoMessage() {}
+
+func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationRequest.ProtoReflect.Descriptor instead.
+func (*DeleteConversationRequest) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *DeleteConversationRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+type DeleteConversationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteConversationResponse) Reset() {
+	*x = DeleteConversationResponse{}
+	mi := &file_ai_executor_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationResponse) ProtoMessage() {}
+
+func (x *DeleteConversationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_executor_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationResponse.ProtoReflect.Descriptor instead.
+func (*DeleteConversationResponse) Descriptor() ([]byte, []int) {
+	return file_ai_executor_proto_rawDescGZIP(), []int{40}
+}
+
 var File_ai_executor_proto protoreflect.FileDescriptor
 
 const file_ai_executor_proto_rawDesc = "" +
@@ -1723,7 +3167,129 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\x10ListJobsResponse\x12$\n" +
 	"\x04jobs\x18\x01 \x03(\v2\x10.ai_executor.JobR\x04jobs\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse*\xb3\x01\n" +
+	"\fStopResponse\"`\n" +
+	"\x0fPeerPingRequest\x12$\n" +
+	"\x0esender_node_id\x18\x01 \x01(\tR\fsenderNodeId\x12'\n" +
+	"\x0fsender_hostname\x18\x02 \x01(\tR\x0esenderHostname\"\xde\x01\n" +
+	"\x10PeerPingResponse\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\x12!\n" +
+	"\fai_available\x18\x03 \x01(\bR\vaiAvailable\x12\x1a\n" +
+	"\bprofiles\x18\x04 \x03(\tR\bprofiles\x12%\n" +
+	"\x0euptime_seconds\x18\x05 \x01(\x03R\ruptimeSeconds\x12/\n" +
+	"\x13incidents_processed\x18\x06 \x01(\x03R\x12incidentsProcessed\"\x8e\x03\n" +
+	"\x16PeerObservationRequest\x12%\n" +
+	"\x0eobservation_id\x18\x01 \x01(\tR\robservationId\x12$\n" +
+	"\x0esender_node_id\x18\x02 \x01(\tR\fsenderNodeId\x12'\n" +
+	"\x0fsender_hostname\x18\x03 \x01(\tR\x0esenderHostname\x12\x1a\n" +
+	"\bcategory\x18\x04 \x01(\tR\bcategory\x12\x18\n" +
+	"\asubject\x18\x05 \x01(\tR\asubject\x12\x16\n" +
+	"\x06detail\x18\x06 \x01(\tR\x06detail\x12M\n" +
+	"\bevidence\x18\a \x03(\v21.ai_executor.PeerObservationRequest.EvidenceEntryR\bevidence\x12$\n" +
+	"\x0eobserved_at_ms\x18\b \x01(\x03R\fobservedAtMs\x1a;\n" +
+	"\rEvidenceEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x97\x01\n" +
+	"\x17PeerObservationResponse\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1c\n" +
+	"\tconfirmed\x18\x02 \x01(\bR\tconfirmed\x12%\n" +
+	"\x0elocal_evidence\x18\x03 \x01(\tR\rlocalEvidence\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\x04 \x01(\x02R\n" +
+	"confidence\"\xbf\x02\n" +
+	"\x13PeerProposalRequest\x12\x1f\n" +
+	"\vproposal_id\x18\x01 \x01(\tR\n" +
+	"proposalId\x12\x1f\n" +
+	"\vincident_id\x18\x02 \x01(\tR\n" +
+	"incidentId\x12$\n" +
+	"\x0esender_node_id\x18\x03 \x01(\tR\fsenderNodeId\x12@\n" +
+	"\x0fproposed_action\x18\x04 \x01(\x0e2\x17.ai_executor.ActionTypeR\x0eproposedAction\x12\x16\n" +
+	"\x06target\x18\x05 \x01(\tR\x06target\x12\x1c\n" +
+	"\trationale\x18\x06 \x01(\tR\trationale\x124\n" +
+	"\tdiagnosis\x18\a \x01(\v2\x16.ai_executor.DiagnosisR\tdiagnosis\x12\x12\n" +
+	"\x04tier\x18\b \x01(\x05R\x04tier\"\x9d\x01\n" +
+	"\x14PeerProposalResponse\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12)\n" +
+	"\x04vote\x18\x02 \x01(\x0e2\x15.ai_executor.PeerVoteR\x04vote\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12)\n" +
+	"\x10counter_proposal\x18\x04 \x01(\tR\x0fcounterProposal\"\x99\x02\n" +
+	"\x16PeerActionNotification\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\x12$\n" +
+	"\x0esender_node_id\x18\x02 \x01(\tR\fsenderNodeId\x12/\n" +
+	"\x06action\x18\x03 \x01(\x0e2\x17.ai_executor.ActionTypeR\x06action\x12\x16\n" +
+	"\x06target\x18\x04 \x01(\tR\x06target\x121\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x19.ai_executor.ActionStatusR\x06status\x12\x16\n" +
+	"\x06result\x18\x06 \x01(\tR\x06result\x12$\n" +
+	"\x0eexecuted_at_ms\x18\a \x01(\x03R\fexecutedAtMs\"L\n" +
+	"\rPeerActionAck\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\"\n" +
+	"\facknowledged\x18\x02 \x01(\bR\facknowledged\"\xcb\x02\n" +
+	"\x11SendPromptRequest\x12\x16\n" +
+	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1f\n" +
+	"\vtarget_node\x18\x03 \x01(\tR\n" +
+	"targetNode\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\x124\n" +
+	"\x16system_prompt_override\x18\x05 \x01(\tR\x14systemPromptOverride\x12H\n" +
+	"\bmetadata\x18\x06 \x03(\v2,.ai_executor.SendPromptRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb0\x03\n" +
+	"\x12SendPromptResponse\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x1d\n" +
+	"\n" +
+	"text_chunk\x18\x03 \x01(\tR\ttextChunk\x12\x1b\n" +
+	"\tfull_text\x18\x04 \x01(\tR\bfullText\x127\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x1f.ai_executor.ConversationStatusR\x06status\x12\x12\n" +
+	"\x04done\x18\x06 \x01(\bR\x04done\x12*\n" +
+	"\x11needs_human_reply\x18\a \x01(\bR\x0fneedsHumanReply\x12,\n" +
+	"\x12question_for_human\x18\b \x01(\tR\x10questionForHuman\x12!\n" +
+	"\finput_tokens\x18\n" +
+	" \x01(\x05R\vinputTokens\x12#\n" +
+	"\routput_tokens\x18\v \x01(\x05R\foutputTokens\x12'\n" +
+	"\x0fresponding_node\x18\f \x01(\tR\x0erespondingNode\"\xaf\x03\n" +
+	"\x13ConversationMessage\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x12\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x04 \x01(\tR\acontent\x12\"\n" +
+	"\rcreated_at_ms\x18\x05 \x01(\x03R\vcreatedAtMs\x12\x17\n" +
+	"\anode_id\x18\x06 \x01(\tR\x06nodeId\x12#\n" +
+	"\rnode_hostname\x18\a \x01(\tR\fnodeHostname\x12!\n" +
+	"\finput_tokens\x18\b \x01(\x05R\vinputTokens\x12#\n" +
+	"\routput_tokens\x18\t \x01(\x05R\foutputTokens\x12J\n" +
+	"\bmetadata\x18\n" +
+	" \x03(\v2..ai_executor.ConversationMessage.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf3\x01\n" +
+	"\x13ConversationSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\"\n" +
+	"\rcreated_at_ms\x18\x04 \x01(\x03R\vcreatedAtMs\x12\"\n" +
+	"\rupdated_at_ms\x18\x05 \x01(\x03R\vupdatedAtMs\x12#\n" +
+	"\rmessage_count\x18\x06 \x01(\x05R\fmessageCount\x120\n" +
+	"\x14last_message_preview\x18\a \x01(\tR\x12lastMessagePreview\"t\n" +
+	"\x16GetConversationRequest\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\tbefore_ms\x18\x03 \x01(\x03R\bbeforeMs\"\x96\x01\n" +
+	"\x17GetConversationResponse\x12<\n" +
+	"\bmessages\x18\x01 \x03(\v2 .ai_executor.ConversationMessageR\bmessages\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\"I\n" +
+	"\x18ListConversationsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"c\n" +
+	"\x19ListConversationsResponse\x12F\n" +
+	"\rconversations\x18\x01 \x03(\v2 .ai_executor.ConversationSummaryR\rconversations\"D\n" +
+	"\x19DeleteConversationRequest\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\"\x1c\n" +
+	"\x1aDeleteConversationResponse*\xb3\x01\n" +
 	"\n" +
 	"ActionType\x12\x0f\n" +
 	"\vACTION_NONE\x10\x00\x12\x1a\n" +
@@ -1754,7 +3320,20 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\vJOB_EXPIRED\x10\t\x12\x0e\n" +
 	"\n" +
 	"JOB_CLOSED\x10\n" +
-	"2\xa6\x06\n" +
+	"*R\n" +
+	"\bPeerVote\x12\x10\n" +
+	"\fVOTE_ABSTAIN\x10\x00\x12\x10\n" +
+	"\fVOTE_APPROVE\x10\x01\x12\x0f\n" +
+	"\vVOTE_REJECT\x10\x02\x12\x11\n" +
+	"\rVOTE_ESCALATE\x10\x03*\xd2\x01\n" +
+	"\x12ConversationStatus\x12\x17\n" +
+	"\x13CONV_STATUS_UNKNOWN\x10\x00\x12\x18\n" +
+	"\x14CONV_STATUS_THINKING\x10\x01\x12\x1a\n" +
+	"\x16CONV_STATUS_USING_TOOL\x10\x02\x12\x19\n" +
+	"\x15CONV_STATUS_STREAMING\x10\x03\x12\x18\n" +
+	"\x14CONV_STATUS_COMPLETE\x10\x04\x12\x15\n" +
+	"\x11CONV_STATUS_ERROR\x10\x05\x12!\n" +
+	"\x1dCONV_STATUS_WAITING_FOR_HUMAN\x10\x062\xf0\v\n" +
 	"\x11AiExecutorService\x12\\\n" +
 	"\x0fProcessIncident\x12#.ai_executor.ProcessIncidentRequest\x1a$.ai_executor.ProcessIncidentResponse\x12S\n" +
 	"\fGetDiagnosis\x12 .ai_executor.GetDiagnosisRequest\x1a!.ai_executor.GetDiagnosisResponse\x12J\n" +
@@ -1766,7 +3345,16 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\vRetryAction\x12\x1f.ai_executor.RetryActionRequest\x1a .ai_executor.RetryActionResponse\x12A\n" +
 	"\x06GetJob\x12\x1a.ai_executor.GetJobRequest\x1a\x1b.ai_executor.GetJobResponse\x12G\n" +
 	"\bListJobs\x12\x1c.ai_executor.ListJobsRequest\x1a\x1d.ai_executor.ListJobsResponse\x12;\n" +
-	"\x04Stop\x12\x18.ai_executor.StopRequest\x1a\x19.ai_executor.StopResponseBAZ?github.com/globulario/services/golang/ai_executor/ai_executorpbb\x06proto3"
+	"\x04Stop\x12\x18.ai_executor.StopRequest\x1a\x19.ai_executor.StopResponse\x12O\n" +
+	"\n" +
+	"SendPrompt\x12\x1e.ai_executor.SendPromptRequest\x1a\x1f.ai_executor.SendPromptResponse0\x01\x12\\\n" +
+	"\x0fGetConversation\x12#.ai_executor.GetConversationRequest\x1a$.ai_executor.GetConversationResponse\x12b\n" +
+	"\x11ListConversations\x12%.ai_executor.ListConversationsRequest\x1a&.ai_executor.ListConversationsResponse\x12e\n" +
+	"\x12DeleteConversation\x12&.ai_executor.DeleteConversationRequest\x1a'.ai_executor.DeleteConversationResponse\x12C\n" +
+	"\x04Ping\x12\x1c.ai_executor.PeerPingRequest\x1a\x1d.ai_executor.PeerPingResponse\x12]\n" +
+	"\x10ShareObservation\x12#.ai_executor.PeerObservationRequest\x1a$.ai_executor.PeerObservationResponse\x12T\n" +
+	"\rProposeAction\x12 .ai_executor.PeerProposalRequest\x1a!.ai_executor.PeerProposalResponse\x12T\n" +
+	"\x11NotifyActionTaken\x12#.ai_executor.PeerActionNotification\x1a\x1a.ai_executor.PeerActionAckBAZ?github.com/globulario/services/golang/ai_executor/ai_executorpbb\x06proto3"
 
 var (
 	file_ai_executor_proto_rawDescOnce sync.Once
@@ -1780,79 +3368,129 @@ func file_ai_executor_proto_rawDescGZIP() []byte {
 	return file_ai_executor_proto_rawDescData
 }
 
-var file_ai_executor_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_ai_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_ai_executor_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_ai_executor_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_ai_executor_proto_goTypes = []any{
-	(ActionType)(0),                 // 0: ai_executor.ActionType
-	(ActionStatus)(0),               // 1: ai_executor.ActionStatus
-	(JobState)(0),                   // 2: ai_executor.JobState
-	(*Diagnosis)(nil),               // 3: ai_executor.Diagnosis
-	(*RemediationAction)(nil),       // 4: ai_executor.RemediationAction
-	(*ProcessIncidentRequest)(nil),  // 5: ai_executor.ProcessIncidentRequest
-	(*ProcessIncidentResponse)(nil), // 6: ai_executor.ProcessIncidentResponse
-	(*GetDiagnosisRequest)(nil),     // 7: ai_executor.GetDiagnosisRequest
-	(*GetDiagnosisResponse)(nil),    // 8: ai_executor.GetDiagnosisResponse
-	(*GetStatusRequest)(nil),        // 9: ai_executor.GetStatusRequest
-	(*GetStatusResponse)(nil),       // 10: ai_executor.GetStatusResponse
-	(*ListActionsRequest)(nil),      // 11: ai_executor.ListActionsRequest
-	(*ListActionsResponse)(nil),     // 12: ai_executor.ListActionsResponse
-	(*Job)(nil),                     // 13: ai_executor.Job
-	(*ApproveActionRequest)(nil),    // 14: ai_executor.ApproveActionRequest
-	(*ApproveActionResponse)(nil),   // 15: ai_executor.ApproveActionResponse
-	(*DenyActionRequest)(nil),       // 16: ai_executor.DenyActionRequest
-	(*DenyActionResponse)(nil),      // 17: ai_executor.DenyActionResponse
-	(*RetryActionRequest)(nil),      // 18: ai_executor.RetryActionRequest
-	(*RetryActionResponse)(nil),     // 19: ai_executor.RetryActionResponse
-	(*GetJobRequest)(nil),           // 20: ai_executor.GetJobRequest
-	(*GetJobResponse)(nil),          // 21: ai_executor.GetJobResponse
-	(*ListJobsRequest)(nil),         // 22: ai_executor.ListJobsRequest
-	(*ListJobsResponse)(nil),        // 23: ai_executor.ListJobsResponse
-	(*StopRequest)(nil),             // 24: ai_executor.StopRequest
-	(*StopResponse)(nil),            // 25: ai_executor.StopResponse
-	nil,                             // 26: ai_executor.ProcessIncidentRequest.MetadataEntry
+	(ActionType)(0),                    // 0: ai_executor.ActionType
+	(ActionStatus)(0),                  // 1: ai_executor.ActionStatus
+	(JobState)(0),                      // 2: ai_executor.JobState
+	(PeerVote)(0),                      // 3: ai_executor.PeerVote
+	(ConversationStatus)(0),            // 4: ai_executor.ConversationStatus
+	(*Diagnosis)(nil),                  // 5: ai_executor.Diagnosis
+	(*RemediationAction)(nil),          // 6: ai_executor.RemediationAction
+	(*ProcessIncidentRequest)(nil),     // 7: ai_executor.ProcessIncidentRequest
+	(*ProcessIncidentResponse)(nil),    // 8: ai_executor.ProcessIncidentResponse
+	(*GetDiagnosisRequest)(nil),        // 9: ai_executor.GetDiagnosisRequest
+	(*GetDiagnosisResponse)(nil),       // 10: ai_executor.GetDiagnosisResponse
+	(*GetStatusRequest)(nil),           // 11: ai_executor.GetStatusRequest
+	(*GetStatusResponse)(nil),          // 12: ai_executor.GetStatusResponse
+	(*ListActionsRequest)(nil),         // 13: ai_executor.ListActionsRequest
+	(*ListActionsResponse)(nil),        // 14: ai_executor.ListActionsResponse
+	(*Job)(nil),                        // 15: ai_executor.Job
+	(*ApproveActionRequest)(nil),       // 16: ai_executor.ApproveActionRequest
+	(*ApproveActionResponse)(nil),      // 17: ai_executor.ApproveActionResponse
+	(*DenyActionRequest)(nil),          // 18: ai_executor.DenyActionRequest
+	(*DenyActionResponse)(nil),         // 19: ai_executor.DenyActionResponse
+	(*RetryActionRequest)(nil),         // 20: ai_executor.RetryActionRequest
+	(*RetryActionResponse)(nil),        // 21: ai_executor.RetryActionResponse
+	(*GetJobRequest)(nil),              // 22: ai_executor.GetJobRequest
+	(*GetJobResponse)(nil),             // 23: ai_executor.GetJobResponse
+	(*ListJobsRequest)(nil),            // 24: ai_executor.ListJobsRequest
+	(*ListJobsResponse)(nil),           // 25: ai_executor.ListJobsResponse
+	(*StopRequest)(nil),                // 26: ai_executor.StopRequest
+	(*StopResponse)(nil),               // 27: ai_executor.StopResponse
+	(*PeerPingRequest)(nil),            // 28: ai_executor.PeerPingRequest
+	(*PeerPingResponse)(nil),           // 29: ai_executor.PeerPingResponse
+	(*PeerObservationRequest)(nil),     // 30: ai_executor.PeerObservationRequest
+	(*PeerObservationResponse)(nil),    // 31: ai_executor.PeerObservationResponse
+	(*PeerProposalRequest)(nil),        // 32: ai_executor.PeerProposalRequest
+	(*PeerProposalResponse)(nil),       // 33: ai_executor.PeerProposalResponse
+	(*PeerActionNotification)(nil),     // 34: ai_executor.PeerActionNotification
+	(*PeerActionAck)(nil),              // 35: ai_executor.PeerActionAck
+	(*SendPromptRequest)(nil),          // 36: ai_executor.SendPromptRequest
+	(*SendPromptResponse)(nil),         // 37: ai_executor.SendPromptResponse
+	(*ConversationMessage)(nil),        // 38: ai_executor.ConversationMessage
+	(*ConversationSummary)(nil),        // 39: ai_executor.ConversationSummary
+	(*GetConversationRequest)(nil),     // 40: ai_executor.GetConversationRequest
+	(*GetConversationResponse)(nil),    // 41: ai_executor.GetConversationResponse
+	(*ListConversationsRequest)(nil),   // 42: ai_executor.ListConversationsRequest
+	(*ListConversationsResponse)(nil),  // 43: ai_executor.ListConversationsResponse
+	(*DeleteConversationRequest)(nil),  // 44: ai_executor.DeleteConversationRequest
+	(*DeleteConversationResponse)(nil), // 45: ai_executor.DeleteConversationResponse
+	nil,                                // 46: ai_executor.ProcessIncidentRequest.MetadataEntry
+	nil,                                // 47: ai_executor.PeerObservationRequest.EvidenceEntry
+	nil,                                // 48: ai_executor.SendPromptRequest.MetadataEntry
+	nil,                                // 49: ai_executor.ConversationMessage.MetadataEntry
 }
 var file_ai_executor_proto_depIdxs = []int32{
 	0,  // 0: ai_executor.RemediationAction.type:type_name -> ai_executor.ActionType
 	1,  // 1: ai_executor.RemediationAction.status:type_name -> ai_executor.ActionStatus
-	26, // 2: ai_executor.ProcessIncidentRequest.metadata:type_name -> ai_executor.ProcessIncidentRequest.MetadataEntry
-	3,  // 3: ai_executor.ProcessIncidentResponse.diagnosis:type_name -> ai_executor.Diagnosis
-	4,  // 4: ai_executor.ProcessIncidentResponse.action:type_name -> ai_executor.RemediationAction
-	3,  // 5: ai_executor.GetDiagnosisResponse.diagnosis:type_name -> ai_executor.Diagnosis
-	4,  // 6: ai_executor.ListActionsResponse.actions:type_name -> ai_executor.RemediationAction
+	46, // 2: ai_executor.ProcessIncidentRequest.metadata:type_name -> ai_executor.ProcessIncidentRequest.MetadataEntry
+	5,  // 3: ai_executor.ProcessIncidentResponse.diagnosis:type_name -> ai_executor.Diagnosis
+	6,  // 4: ai_executor.ProcessIncidentResponse.action:type_name -> ai_executor.RemediationAction
+	5,  // 5: ai_executor.GetDiagnosisResponse.diagnosis:type_name -> ai_executor.Diagnosis
+	6,  // 6: ai_executor.ListActionsResponse.actions:type_name -> ai_executor.RemediationAction
 	2,  // 7: ai_executor.Job.state:type_name -> ai_executor.JobState
 	0,  // 8: ai_executor.Job.action_type:type_name -> ai_executor.ActionType
-	3,  // 9: ai_executor.Job.diagnosis:type_name -> ai_executor.Diagnosis
-	13, // 10: ai_executor.ApproveActionResponse.job:type_name -> ai_executor.Job
-	13, // 11: ai_executor.DenyActionResponse.job:type_name -> ai_executor.Job
-	13, // 12: ai_executor.RetryActionResponse.job:type_name -> ai_executor.Job
-	13, // 13: ai_executor.GetJobResponse.job:type_name -> ai_executor.Job
+	5,  // 9: ai_executor.Job.diagnosis:type_name -> ai_executor.Diagnosis
+	15, // 10: ai_executor.ApproveActionResponse.job:type_name -> ai_executor.Job
+	15, // 11: ai_executor.DenyActionResponse.job:type_name -> ai_executor.Job
+	15, // 12: ai_executor.RetryActionResponse.job:type_name -> ai_executor.Job
+	15, // 13: ai_executor.GetJobResponse.job:type_name -> ai_executor.Job
 	2,  // 14: ai_executor.ListJobsRequest.state_filter:type_name -> ai_executor.JobState
-	13, // 15: ai_executor.ListJobsResponse.jobs:type_name -> ai_executor.Job
-	5,  // 16: ai_executor.AiExecutorService.ProcessIncident:input_type -> ai_executor.ProcessIncidentRequest
-	7,  // 17: ai_executor.AiExecutorService.GetDiagnosis:input_type -> ai_executor.GetDiagnosisRequest
-	9,  // 18: ai_executor.AiExecutorService.GetStatus:input_type -> ai_executor.GetStatusRequest
-	11, // 19: ai_executor.AiExecutorService.ListActions:input_type -> ai_executor.ListActionsRequest
-	14, // 20: ai_executor.AiExecutorService.ApproveAction:input_type -> ai_executor.ApproveActionRequest
-	16, // 21: ai_executor.AiExecutorService.DenyAction:input_type -> ai_executor.DenyActionRequest
-	18, // 22: ai_executor.AiExecutorService.RetryAction:input_type -> ai_executor.RetryActionRequest
-	20, // 23: ai_executor.AiExecutorService.GetJob:input_type -> ai_executor.GetJobRequest
-	22, // 24: ai_executor.AiExecutorService.ListJobs:input_type -> ai_executor.ListJobsRequest
-	24, // 25: ai_executor.AiExecutorService.Stop:input_type -> ai_executor.StopRequest
-	6,  // 26: ai_executor.AiExecutorService.ProcessIncident:output_type -> ai_executor.ProcessIncidentResponse
-	8,  // 27: ai_executor.AiExecutorService.GetDiagnosis:output_type -> ai_executor.GetDiagnosisResponse
-	10, // 28: ai_executor.AiExecutorService.GetStatus:output_type -> ai_executor.GetStatusResponse
-	12, // 29: ai_executor.AiExecutorService.ListActions:output_type -> ai_executor.ListActionsResponse
-	15, // 30: ai_executor.AiExecutorService.ApproveAction:output_type -> ai_executor.ApproveActionResponse
-	17, // 31: ai_executor.AiExecutorService.DenyAction:output_type -> ai_executor.DenyActionResponse
-	19, // 32: ai_executor.AiExecutorService.RetryAction:output_type -> ai_executor.RetryActionResponse
-	21, // 33: ai_executor.AiExecutorService.GetJob:output_type -> ai_executor.GetJobResponse
-	23, // 34: ai_executor.AiExecutorService.ListJobs:output_type -> ai_executor.ListJobsResponse
-	25, // 35: ai_executor.AiExecutorService.Stop:output_type -> ai_executor.StopResponse
-	26, // [26:36] is the sub-list for method output_type
-	16, // [16:26] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	15, // 15: ai_executor.ListJobsResponse.jobs:type_name -> ai_executor.Job
+	47, // 16: ai_executor.PeerObservationRequest.evidence:type_name -> ai_executor.PeerObservationRequest.EvidenceEntry
+	0,  // 17: ai_executor.PeerProposalRequest.proposed_action:type_name -> ai_executor.ActionType
+	5,  // 18: ai_executor.PeerProposalRequest.diagnosis:type_name -> ai_executor.Diagnosis
+	3,  // 19: ai_executor.PeerProposalResponse.vote:type_name -> ai_executor.PeerVote
+	0,  // 20: ai_executor.PeerActionNotification.action:type_name -> ai_executor.ActionType
+	1,  // 21: ai_executor.PeerActionNotification.status:type_name -> ai_executor.ActionStatus
+	48, // 22: ai_executor.SendPromptRequest.metadata:type_name -> ai_executor.SendPromptRequest.MetadataEntry
+	4,  // 23: ai_executor.SendPromptResponse.status:type_name -> ai_executor.ConversationStatus
+	49, // 24: ai_executor.ConversationMessage.metadata:type_name -> ai_executor.ConversationMessage.MetadataEntry
+	38, // 25: ai_executor.GetConversationResponse.messages:type_name -> ai_executor.ConversationMessage
+	39, // 26: ai_executor.ListConversationsResponse.conversations:type_name -> ai_executor.ConversationSummary
+	7,  // 27: ai_executor.AiExecutorService.ProcessIncident:input_type -> ai_executor.ProcessIncidentRequest
+	9,  // 28: ai_executor.AiExecutorService.GetDiagnosis:input_type -> ai_executor.GetDiagnosisRequest
+	11, // 29: ai_executor.AiExecutorService.GetStatus:input_type -> ai_executor.GetStatusRequest
+	13, // 30: ai_executor.AiExecutorService.ListActions:input_type -> ai_executor.ListActionsRequest
+	16, // 31: ai_executor.AiExecutorService.ApproveAction:input_type -> ai_executor.ApproveActionRequest
+	18, // 32: ai_executor.AiExecutorService.DenyAction:input_type -> ai_executor.DenyActionRequest
+	20, // 33: ai_executor.AiExecutorService.RetryAction:input_type -> ai_executor.RetryActionRequest
+	22, // 34: ai_executor.AiExecutorService.GetJob:input_type -> ai_executor.GetJobRequest
+	24, // 35: ai_executor.AiExecutorService.ListJobs:input_type -> ai_executor.ListJobsRequest
+	26, // 36: ai_executor.AiExecutorService.Stop:input_type -> ai_executor.StopRequest
+	36, // 37: ai_executor.AiExecutorService.SendPrompt:input_type -> ai_executor.SendPromptRequest
+	40, // 38: ai_executor.AiExecutorService.GetConversation:input_type -> ai_executor.GetConversationRequest
+	42, // 39: ai_executor.AiExecutorService.ListConversations:input_type -> ai_executor.ListConversationsRequest
+	44, // 40: ai_executor.AiExecutorService.DeleteConversation:input_type -> ai_executor.DeleteConversationRequest
+	28, // 41: ai_executor.AiExecutorService.Ping:input_type -> ai_executor.PeerPingRequest
+	30, // 42: ai_executor.AiExecutorService.ShareObservation:input_type -> ai_executor.PeerObservationRequest
+	32, // 43: ai_executor.AiExecutorService.ProposeAction:input_type -> ai_executor.PeerProposalRequest
+	34, // 44: ai_executor.AiExecutorService.NotifyActionTaken:input_type -> ai_executor.PeerActionNotification
+	8,  // 45: ai_executor.AiExecutorService.ProcessIncident:output_type -> ai_executor.ProcessIncidentResponse
+	10, // 46: ai_executor.AiExecutorService.GetDiagnosis:output_type -> ai_executor.GetDiagnosisResponse
+	12, // 47: ai_executor.AiExecutorService.GetStatus:output_type -> ai_executor.GetStatusResponse
+	14, // 48: ai_executor.AiExecutorService.ListActions:output_type -> ai_executor.ListActionsResponse
+	17, // 49: ai_executor.AiExecutorService.ApproveAction:output_type -> ai_executor.ApproveActionResponse
+	19, // 50: ai_executor.AiExecutorService.DenyAction:output_type -> ai_executor.DenyActionResponse
+	21, // 51: ai_executor.AiExecutorService.RetryAction:output_type -> ai_executor.RetryActionResponse
+	23, // 52: ai_executor.AiExecutorService.GetJob:output_type -> ai_executor.GetJobResponse
+	25, // 53: ai_executor.AiExecutorService.ListJobs:output_type -> ai_executor.ListJobsResponse
+	27, // 54: ai_executor.AiExecutorService.Stop:output_type -> ai_executor.StopResponse
+	37, // 55: ai_executor.AiExecutorService.SendPrompt:output_type -> ai_executor.SendPromptResponse
+	41, // 56: ai_executor.AiExecutorService.GetConversation:output_type -> ai_executor.GetConversationResponse
+	43, // 57: ai_executor.AiExecutorService.ListConversations:output_type -> ai_executor.ListConversationsResponse
+	45, // 58: ai_executor.AiExecutorService.DeleteConversation:output_type -> ai_executor.DeleteConversationResponse
+	29, // 59: ai_executor.AiExecutorService.Ping:output_type -> ai_executor.PeerPingResponse
+	31, // 60: ai_executor.AiExecutorService.ShareObservation:output_type -> ai_executor.PeerObservationResponse
+	33, // 61: ai_executor.AiExecutorService.ProposeAction:output_type -> ai_executor.PeerProposalResponse
+	35, // 62: ai_executor.AiExecutorService.NotifyActionTaken:output_type -> ai_executor.PeerActionAck
+	45, // [45:63] is the sub-list for method output_type
+	27, // [27:45] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_ai_executor_proto_init() }
@@ -1865,8 +3503,8 @@ func file_ai_executor_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_executor_proto_rawDesc), len(file_ai_executor_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   24,
+			NumEnums:      5,
+			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

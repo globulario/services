@@ -222,6 +222,11 @@ func (srv *server) StartService() error {
 	}
 	srv.removeExpiredSessions()
 
+	// Migrate root credentials from local config.json to etcd (one-time).
+	// This ensures that clusters upgrading from file-based auth get their
+	// root password and admin email into the shared store.
+	srv.migrateRootCredsToEtcd()
+
 	macAddress, err := config.GetMacAddress()
 	if err != nil {
 		close(srv.exitCh)
@@ -236,6 +241,49 @@ func (srv *server) StartService() error {
 	}
 
 	return globular.StartService(srv, srv.grpcServer)
+}
+
+// migrateRootCredsToEtcd seeds etcd with root credentials from the local
+// config.json if the etcd key is empty. This is a one-time migration for
+// clusters upgrading from file-based to etcd-based root authentication.
+func (srv *server) migrateRootCredsToEtcd() {
+	creds, err := config.GetRootCredentials()
+	if err != nil {
+		logger.Warn("migrateRootCreds: etcd unavailable, skipping migration", "err", err)
+		return
+	}
+	// If etcd already has credentials, nothing to migrate.
+	if creds.RootPassword != "" {
+		return
+	}
+
+	// Try reading from the legacy config.json file.
+	configFile := filepath.Join(config.GetConfigDir(), "config.json")
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		// No legacy file — seed with defaults so etcd has the key.
+		logger.Info("migrateRootCreds: no legacy config.json, seeding etcd with defaults")
+		_ = config.SetRootCredentials(&config.RootCredentials{})
+		return
+	}
+
+	var legacy map[string]any
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		logger.Warn("migrateRootCreds: cannot parse legacy config.json", "err", err)
+		return
+	}
+
+	rootPw, _ := legacy["RootPassword"].(string)
+	adminEmail, _ := legacy["AdminEmail"].(string)
+
+	if err := config.SetRootCredentials(&config.RootCredentials{
+		RootPassword: rootPw,
+		AdminEmail:   adminEmail,
+	}); err != nil {
+		logger.Error("migrateRootCreds: failed to write to etcd", "err", err)
+		return
+	}
+	logger.Info("migrateRootCreds: migrated root credentials from config.json to etcd")
 }
 
 func (srv *server) StopService() error {
@@ -443,7 +491,7 @@ func main() {
 			s.Address = "localhost:" + Utility.ToString(s.Port)
 		}
 		if s.Id == "" {
-			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
 		}
 		b, err := globular.DescribeJSON(s)
 		if err != nil {

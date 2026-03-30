@@ -387,7 +387,8 @@ locksList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
 policy: (f = msg.getPolicy()) && proto.globular.plan.v1.PlanPolicy.toObject(includeInstance, f),
 spec: (f = msg.getSpec()) && proto.globular.plan.v1.PlanSpec.toObject(includeInstance, f),
 signature: (f = msg.getSignature()) && proto.globular.plan.v1.PlanSignature.toObject(includeInstance, f),
-desiredHash: jspb.Message.getFieldWithDefault(msg, 15, "")
+desiredHash: jspb.Message.getFieldWithDefault(msg, 15, ""),
+annotationsMap: (f = msg.getAnnotationsMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -486,6 +487,12 @@ proto.globular.plan.v1.NodePlan.deserializeBinaryFromReader = function(msg, read
     case 15:
       var value = /** @type {string} */ (reader.readString());
       msg.setDesiredHash(value);
+      break;
+    case 16:
+      var value = msg.getAnnotationsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
       break;
     default:
       reader.skipField();
@@ -623,6 +630,10 @@ proto.globular.plan.v1.NodePlan.serializeBinaryToWriter = function(message, writ
       15,
       f
     );
+  }
+  f = message.getAnnotationsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(16, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -970,6 +981,29 @@ proto.globular.plan.v1.NodePlan.prototype.getDesiredHash = function() {
  */
 proto.globular.plan.v1.NodePlan.prototype.setDesiredHash = function(value) {
   return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * map<string, string> annotations = 16;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.globular.plan.v1.NodePlan.prototype.getAnnotationsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 16, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.globular.plan.v1.NodePlan} returns this
+ */
+proto.globular.plan.v1.NodePlan.prototype.clearAnnotationsMap = function() {
+  this.getAnnotationsMap().clear();
+  return this;
 };
 
 

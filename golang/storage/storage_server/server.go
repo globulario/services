@@ -169,6 +169,10 @@ func main() {
 	}
 
 	if *showDescribe {
+		// Ensure Id is set before describe — node-agent requires a non-empty Id.
+		if srv.GetId() == "" {
+			srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetVersion() + ":" + srv.GetMac()))
+		}
 		data, _ := json.MarshalIndent(srv, "", "  ")
 		fmt.Println(string(data))
 		return
@@ -190,7 +194,7 @@ func main() {
 
 	if len(args) == 0 {
 		if srv.Id == "" {
-			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		}
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
@@ -217,7 +221,7 @@ func main() {
 	globular.LoadRuntimeConfig(srv)
 
 	if srv.Id == "" {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 	}
 
 	if srv.Domain == "" || srv.Address == "" {

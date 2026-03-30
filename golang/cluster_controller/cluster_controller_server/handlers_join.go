@@ -146,6 +146,19 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
 	jr.AssignedNodeID = nodeID
 
+	// Compute the node's advertised FQDN for DNS registration.
+	// Format: <hostname>.<cluster-domain> (e.g. globule-dell.globular.internal)
+	advertiseFqdn := ""
+	if hostname := strings.TrimSpace(jr.Identity.Hostname); hostname != "" {
+		domain := ""
+		if srv.state.ClusterNetworkSpec != nil {
+			domain = strings.TrimSuffix(strings.TrimSpace(srv.state.ClusterNetworkSpec.GetClusterDomain()), ".")
+		}
+		if domain != "" {
+			advertiseFqdn = hostname + "." + domain
+		}
+	}
+
 	// Create new node with current network generation
 	node := &nodeState{
 		NodeID:                nodeID,
@@ -157,6 +170,7 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		LastAppliedGeneration: 0, // New node hasn't applied any generation yet
 		BootstrapPhase:        BootstrapAdmitted,
 		BootstrapStartedAt:    time.Now(),
+		AdvertiseFqdn:         advertiseFqdn,
 	}
 	srv.state.Nodes[nodeID] = node
 

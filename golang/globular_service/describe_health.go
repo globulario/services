@@ -86,25 +86,19 @@ func DescribeJSON(s Service) ([]byte, error) {
 	return json.MarshalIndent(m, "", "  ")
 }
 
-// ensureDescribeID assigns a deterministic ID before emitting --describe output.
+// ensureDescribeID assigns a deterministic, cluster-unique ID before emitting
+// --describe output. The seed is Name:Version:MAC so that:
+//   - each service on a given node gets a stable, reproducible ID
+//   - the same service on different nodes gets different IDs (different MAC)
+//   - upgrading a service version produces a new ID (different Version)
 func ensureDescribeID(s Service) {
 	if s.GetId() != "" {
 		return
 	}
 	name := strings.TrimSpace(s.GetName())
-	addr := strings.ToLower(strings.TrimSpace(s.GetAddress()))
-	if addr == "" {
-		host := strings.ToLower(strings.TrimSpace(s.GetDomain()))
-		if host == "" {
-			host = "localhost"
-		}
-		if port := s.GetPort(); port > 0 {
-			addr = fmt.Sprintf("%s:%d", host, port)
-		} else {
-			addr = host
-		}
-	}
-	seed := fmt.Sprintf("%s:%s", name, addr)
+	version := strings.TrimSpace(s.GetVersion())
+	mac := strings.TrimSpace(s.GetMac())
+	seed := fmt.Sprintf("%s:%s:%s", name, version, mac)
 	s.SetId(Utility.GenerateUUID(seed))
 }
 

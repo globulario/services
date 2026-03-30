@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
+	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
 	planstore "github.com/globulario/services/golang/plan/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -269,6 +270,23 @@ func main() {
 	if err := LoadCatalogFromRepository(""); err != nil {
 		logger.Warn("using static fallback catalog", "err", err)
 	}
+
+	// Periodically reload catalog from repository so new packages are
+	// discovered without restarting the controller.
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := LoadCatalogFromRepository(""); err != nil {
+					logger.Debug("catalog reload from repository failed (will retry)", "err", err)
+				}
+			}
+		}
+	}()
 
 	// Start background loops
 	logger.Info("starting background loops")

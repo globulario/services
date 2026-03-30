@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/globulario/services/golang/netutil"
 	"google.golang.org/grpc/credentials"
@@ -229,49 +230,68 @@ func isBootstrapMode() bool {
 	return enabled
 }
 
-// isLoopbackRequest determines if a gRPC request originated from localhost.
-// This is used as a security property for bootstrap mode and emergency access.
+// isLoopbackRequest determines if a gRPC request originated from the same machine.
+// This is used as a security property for inter-service communication trust.
 //
-// High-Risk Fix: Fails CLOSED if source cannot be determined (security-critical).
-//
-// Returns true ONLY if:
-// - Peer address is 127.0.0.1 or ::1 (verified loopback)
+// Returns true if:
+// - Peer address is 127.0.0.1 or ::1 (loopback)
+// - Peer address matches any local network interface IP (same host)
 // - Connection is via Unix socket (network == "unix")
-// - Hostname is exactly "localhost" (resolved loopback)
+// - Hostname is exactly "localhost"
 //
 // Returns false (DENY) if:
 // - No peer info available (cannot verify locality)
 // - Address unparseable (cannot verify locality)
-// - Any other ambiguous case (fail closed for security)
+// - Peer IP is not a local address (remote caller)
 func isLoopbackRequest(ctx context.Context) bool {
-	// Extract peer address from context
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		// High-Risk Fix: No peer info = FAIL CLOSED (cannot verify locality)
-		// Previous behavior was "fail open" (return true) which was dangerous
 		return false
 	}
 
-	// Check if Unix socket (local connection)
 	if p.Addr.Network() == "unix" {
-		return true // Unix sockets are always local
+		return true
 	}
 
-	// Parse TCP/IP address
 	addr := p.Addr.String()
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		// High-Risk Fix: Unparseable address = FAIL CLOSED (cannot verify locality)
-		// Previous behavior was "fail open" (return true) which was dangerous
 		return false
 	}
 
-	// Check if loopback IP
 	ip := net.ParseIP(host)
 	if ip == nil {
-		// Hostname instead of IP - check if exactly "localhost"
 		return host == "localhost"
 	}
 
-	return ip.IsLoopback()
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check if the peer IP is one of this machine's own addresses.
+	// This handles inter-service calls that connect via the LAN IP
+	// (e.g., 10.0.0.63) instead of 127.0.0.1.
+	return isLocalIP(ip)
+}
+
+// localIPs is lazily populated on first call.
+var (
+	localIPsOnce sync.Once
+	localIPSet   map[string]bool
+)
+
+func isLocalIP(ip net.IP) bool {
+	localIPsOnce.Do(func() {
+		localIPSet = make(map[string]bool)
+		addrs, err := net.InterfaceAddrs()
+		if err != nil {
+			return
+		}
+		for _, a := range addrs {
+			if ipnet, ok := a.(*net.IPNet); ok {
+				localIPSet[ipnet.IP.String()] = true
+			}
+		}
+	})
+	return localIPSet[ip.String()]
 }

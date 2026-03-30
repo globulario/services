@@ -58,6 +58,7 @@ type ComponentKind int
 const (
 	KindInfrastructure ComponentKind = iota
 	KindWorkload
+	KindCommand // CLI tools (rclone, restic, sctool, etc.) — no systemd unit
 )
 
 // HealthCheckHintC describes how to verify a component is healthy on a node.
@@ -420,7 +421,7 @@ func buildCatalog() []*Component {
 			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "storage"},
-			RuntimeLocalDependencies: []string{"event"},
+			RuntimeLocalDependencies: []string{"event", "rclone", "restic", "sctool"},
 		},
 		{
 			Name:                     "cluster-controller",
@@ -487,6 +488,88 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
+		},
+
+		// ---------------------------------------------------------------
+		// Command packages — CLI tools dispatched as dependencies
+		// ---------------------------------------------------------------
+		{
+			Name:     "rclone",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute", "storage"},
+		},
+		{
+			Name:     "restic",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute", "storage"},
+		},
+		{
+			Name:                     "sctool",
+			Kind:                     KindCommand,
+			Priority:                 900,
+			Profiles:                 []string{"core", "compute", "control-plane"},
+			RuntimeLocalDependencies: []string{"scylla-manager"},
+		},
+		{
+			Name:     "mc",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute", "storage"},
+		},
+		{
+			Name:     "ffmpeg",
+			Kind:     KindCommand,
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
+
+		// ---------------------------------------------------------------
+		// Infrastructure components — monitoring & database management
+		// ---------------------------------------------------------------
+		{
+			Name:        "prometheus",
+			Unit:        "globular-prometheus.service",
+			Kind:        KindInfrastructure,
+			Priority:    11,
+			Profiles:    []string{"core", "compute", "control-plane"},
+			HealthCheck: &HealthCheckHintC{Unit: "globular-prometheus.service", Port: 9090},
+		},
+		{
+			Name:        "node-exporter",
+			Unit:        "globular-node-exporter.service",
+			Kind:        KindInfrastructure,
+			Priority:    11,
+			Profiles:    []string{"core", "compute", "control-plane"},
+			HealthCheck: &HealthCheckHintC{Unit: "globular-node-exporter.service", Port: 9100},
+		},
+		{
+			Name:                     "scylla-manager",
+			Unit:                     "globular-scylla-manager.service",
+			Kind:                     KindInfrastructure,
+			Priority:                 12,
+			Profiles:                 []string{"core", "compute", "control-plane"},
+			RuntimeLocalDependencies: []string{"scylladb"},
+			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
+		},
+		{
+			Name:                     "scylla-manager-agent",
+			Unit:                     "globular-scylla-manager-agent.service",
+			Kind:                     KindInfrastructure,
+			Priority:                 12,
+			Profiles:                 []string{"core", "compute", "control-plane"},
+			RuntimeLocalDependencies: []string{"scylladb"},
+			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager-agent.service", Port: 10001},
+		},
+		{
+			Name:                     "sidekick",
+			Unit:                     "globular-sidekick.service",
+			Kind:                     KindInfrastructure,
+			Priority:                 11,
+			Profiles:                 []string{"core", "compute", "storage"},
+			RuntimeLocalDependencies: []string{"minio"},
+			HealthCheck:              &HealthCheckHintC{Unit: "globular-sidekick.service"},
 		},
 	}
 }
@@ -832,6 +915,8 @@ func artifactToComponent(art *repopb.ArtifactManifest) *Component {
 	switch ref.GetKind() {
 	case repopb.ArtifactKind_INFRASTRUCTURE:
 		kind = KindInfrastructure
+	case repopb.ArtifactKind_COMMAND:
+		kind = KindCommand
 	}
 
 	priority := int(art.GetPriority())

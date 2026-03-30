@@ -172,21 +172,47 @@ func ComputeDesiredStateWithLeader(domain string, nodes []NodeInfo, services []S
 
 	// Add gateway A/AAAA (points to all gateway nodes)
 	gatewayFQDN := fmt.Sprintf("gateway.%s", domain)
+	wildcardFQDN := fmt.Sprintf("*.%s", domain)
+	apiFQDN := fmt.Sprintf("api.%s", domain)
 	for _, node := range nodes {
 		if node.HasProfile("gateway") && node.IPv4 != "" {
+			// gateway.<domain> — load-balanced across all gateway nodes
 			state.Records = append(state.Records, DNSRecord{
-				Name:  gatewayFQDN,
-				Type:  RecordTypeA,
-				Value: node.IPv4,
-				TTL:   60,
+				Name: gatewayFQDN, Type: RecordTypeA, Value: node.IPv4, TTL: 60,
+			})
+			// *.<domain> — wildcard routes all unknown names through gateway (Envoy)
+			state.Records = append(state.Records, DNSRecord{
+				Name: wildcardFQDN, Type: RecordTypeA, Value: node.IPv4, TTL: 60,
+			})
+			// api.<domain> — alias for gateway
+			state.Records = append(state.Records, DNSRecord{
+				Name: apiFQDN, Type: RecordTypeA, Value: node.IPv4, TTL: 60,
 			})
 		}
 		if node.HasProfile("gateway") && node.IPv6 != "" {
 			state.Records = append(state.Records, DNSRecord{
-				Name:  gatewayFQDN,
-				Type:  RecordTypeAAAA,
-				Value: node.IPv6,
-				TTL:   60,
+				Name: gatewayFQDN, Type: RecordTypeAAAA, Value: node.IPv6, TTL: 60,
+			})
+			state.Records = append(state.Records, DNSRecord{
+				Name: wildcardFQDN, Type: RecordTypeAAAA, Value: node.IPv6, TTL: 60,
+			})
+			state.Records = append(state.Records, DNSRecord{
+				Name: apiFQDN, Type: RecordTypeAAAA, Value: node.IPv6, TTL: 60,
+			})
+		}
+	}
+
+	// Add dns.<domain> — multi-A pointing to all nodes running DNS (core profile)
+	dnsFQDN := fmt.Sprintf("dns.%s", domain)
+	for _, node := range nodes {
+		if node.IPv4 != "" {
+			state.Records = append(state.Records, DNSRecord{
+				Name: dnsFQDN, Type: RecordTypeA, Value: node.IPv4, TTL: 60,
+			})
+		}
+		if node.IPv6 != "" {
+			state.Records = append(state.Records, DNSRecord{
+				Name: dnsFQDN, Type: RecordTypeAAAA, Value: node.IPv6, TTL: 60,
 			})
 		}
 	}

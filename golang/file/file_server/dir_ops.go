@@ -116,7 +116,7 @@ func (srv *server) uploadFile(token, urlStr, dest, name string, stream filepb.Fi
 			processVideos(srv, token, []string{dest})
 		case strings.HasSuffix(info.Name, ".pdf"):
 			_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Index text information..."})
-			if err := srv.indexPdfFile(outPath, info); err != nil {
+			if err := srv.indexPdfFile(outPath, info, false); err != nil {
 				slog.Warn("upload: pdf indexing failed", "path", outPath, "err", err)
 			}
 		}

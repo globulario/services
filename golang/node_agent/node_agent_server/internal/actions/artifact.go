@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
-	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
@@ -227,6 +227,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	tr := tar.NewReader(gz)
 
 	binDir, systemdDir, configDir, skipSystemd := installPaths()
+	scriptsDir := filepath.Join(stagingRoot, "scripts")
 	var wroteUnit bool
 
 	for {
@@ -253,6 +254,8 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			wroteUnit = true
 		case strings.HasPrefix(name, "config/"):
 			dest = filepath.Join(configDir, service, strings.TrimPrefix(name, "config/"))
+		case strings.HasPrefix(name, "scripts/"):
+			dest = filepath.Join(scriptsDir, filepath.Base(name))
 		default:
 			// ignore unsupported paths
 			continue
@@ -320,7 +323,40 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		return "", err
 	}
 
+	// Run post-install script if bundled in the artifact.
+	// Infrastructure packages (scylladb, etc.) use this to generate config
+	// files that depend on runtime state (node IP, seed discovery, etc.).
+	if err := runPostInstallScript(ctx, scriptsDir, stateRoot); err != nil {
+		return "", fmt.Errorf("post-install script: %w", err)
+	}
+
 	return fmt.Sprintf("service payload installed version=%s", version), nil
+}
+
+// runPostInstallScript executes scripts/post-install.sh from the extracted
+// artifact if it exists. The script runs with STATE_DIR set to the globular
+// state directory so it can discover etcd endpoints, node IP, etc.
+// After execution the scripts staging dir is cleaned up.
+func runPostInstallScript(ctx context.Context, scriptsDir, stateRoot string) error {
+	script := filepath.Join(scriptsDir, "post-install.sh")
+	if _, err := os.Stat(script); err != nil {
+		return nil // no post-install script bundled — nothing to do
+	}
+
+	log.Printf("install_payload: running post-install script %s", script)
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(cctx, "/bin/bash", script)
+	cmd.Env = append(os.Environ(), "STATE_DIR="+stateRoot)
+	out, err := cmd.CombinedOutput()
+	// Clean up extracted scripts regardless of outcome.
+	os.RemoveAll(scriptsDir)
+	if err != nil {
+		return fmt.Errorf("exit %v: %s", err, string(out))
+	}
+	log.Printf("install_payload: post-install script completed:\n%s", string(out))
+	return nil
 }
 
 type serviceWriteVersionMarkerAction struct{}
@@ -552,71 +588,6 @@ func copyFileAtomic(dest string, r io.Reader) error {
 	return nil
 }
 
-// ensureServicePortConfig guarantees that a service runtime config exists with a port
-// inside the configured range. It is best-effort: unknown services are skipped.
-func ensureServicePortConfig(ctx context.Context, service, binDir string) error {
-	exe := executableForService(service)
-	if exe == "" {
-		return nil
-	}
-	binPath := filepath.Join(binDir, exe)
-
-	alloc, err := ports.NewFromEnv()
-	if err != nil {
-		return err
-	}
-
-	desc, err := runDescribe(ctx, binPath)
-	if err != nil {
-		return err
-	}
-	if desc.Id == "" {
-		return fmt.Errorf("describe %s returned empty Id", binPath)
-	}
-
-	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
-	if stateRoot == "" {
-		stateRoot = "/var/lib/globular"
-	}
-	cfgPath := filepath.Join(stateRoot, "services", desc.Id+".json")
-
-	cfg, _ := readServiceConfig(cfgPath)
-	if cfg == nil {
-		cfg = desc
-	}
-
-	currentPort := portFromAddress(cfg.Address)
-	if currentPort == 0 {
-		currentPort = desc.Port
-	}
-
-	needsRewrite := cfgPathMissing(cfgPath)
-	start, end := alloc.Range()
-	if currentPort < start || currentPort > end {
-		needsRewrite = true
-	}
-
-	if !needsRewrite {
-		return nil
-	}
-
-	newPort, err := alloc.Reserve(service, currentPort)
-	if err != nil {
-		return err
-	}
-
-	cfg.Port = newPort
-	cfg.Address = fmt.Sprintf("localhost:%d", newPort)
-	cfg.Id = desc.Id
-
-	if err := writeServiceConfig(cfgPath, cfg); err != nil {
-		return err
-	}
-
-	fmt.Printf("INFO service %s port normalized %d->%d range=%d-%d config=%s\n", service, currentPort, newPort, start, end, cfgPath)
-	return nil
-}
-
 func executableForService(svc string) string {
 	name := normalizeServiceName(svc)
 	if name == "" {
@@ -683,29 +654,6 @@ func readServiceConfig(path string) (*describePayload, error) {
 		return nil, err
 	}
 	return &cfg, nil
-}
-
-func writeServiceConfig(path string, cfg *describePayload) error {
-	if cfg == nil {
-		return errors.New("nil config")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
-
-func cfgPathMissing(path string) bool {
-	_, err := os.Stat(path)
-	return errors.Is(err, os.ErrNotExist)
 }
 
 // renderTemplateVars replaces Go template placeholders in unit/config files

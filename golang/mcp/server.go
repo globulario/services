@@ -10,6 +10,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/globulario/services/golang/interceptors"
 )
 
 // ── JSON-RPC 2.0 types ─────────────────────────────────────────────────────
@@ -61,13 +63,23 @@ type toolCallParams struct {
 }
 
 type toolResultContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"`     // base64 for image type
+	MimeType string `json:"mimeType,omitempty"` // e.g. "image/png"
 }
 
 type toolResult struct {
 	Content []toolResultContent `json:"content"`
 	IsError bool                `json:"isError,omitempty"`
+}
+
+// imageToolResult is returned by tool handlers that produce image data.
+// The server detects this type and formats it as an MCP image content block.
+type imageToolResult struct {
+	Data     string // base64-encoded image data
+	MimeType string // e.g. "image/png"
+	Text     string // optional text description alongside the image
 }
 
 // ── Tool handler ────────────────────────────────────────────────────────────
@@ -171,7 +183,7 @@ func (s *server) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: map[string]interface{}{
-			"protocolVersion": "2024-11-05",
+			"protocolVersion": "2025-03-26",
 			"capabilities": map[string]interface{}{
 				"tools": map[string]interface{}{},
 			},
@@ -236,9 +248,24 @@ func (s *server) handleToolsCall(ctx context.Context, req *jsonRPCRequest) *json
 
 	start := time.Now()
 	result, err := tool.handler(ctx, params.Arguments)
+	duration := time.Since(start)
 	if s.cfg.AuditLog {
 		auditLog(ctx, params.Name, params.Arguments, start, err)
 	}
+
+	// Emit to interceptor ring buffer for AI-queryable structured logs.
+	{
+		code := "OK"
+		level := "TRACE"
+		msg := "tool call: " + params.Name
+		if err != nil {
+			code = "ERROR"
+			level = "WARN"
+			msg = "tool error: " + params.Name + ": " + err.Error()
+		}
+		interceptors.EmitLog(level, "mcp", params.Name, "", "", code, msg, duration.Milliseconds(), nil)
+	}
+
 	if err != nil {
 		// Invalidate cached connections on TLS or connectivity errors so
 		// the next call re-dials with fresh credentials. This handles
@@ -267,6 +294,21 @@ func (s *server) handleToolsCall(ctx context.Context, req *jsonRPCRequest) *json
 					break
 				}
 			}
+		}
+	}
+
+	// If the handler returned an image result, format as MCP image content block.
+	if img, ok := result.(*imageToolResult); ok {
+		content := []toolResultContent{
+			{Type: "image", Data: img.Data, MimeType: img.MimeType},
+		}
+		if img.Text != "" {
+			content = append(content, toolResultContent{Type: "text", Text: img.Text})
+		}
+		return &jsonRPCResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  toolResult{Content: content},
 		}
 	}
 

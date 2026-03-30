@@ -26,7 +26,6 @@ var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb
 
 var plan_pb = require('./plan_pb.js')
 
-var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.cluster_controller = require('./cluster_controller_pb.js');
 

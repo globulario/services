@@ -43,6 +43,8 @@ const (
 	FileService_UploadFile_FullMethodName      = "/file.FileService/UploadFile"
 	FileService_WriteExcelFile_FullMethodName  = "/file.FileService/WriteExcelFile"
 	FileService_HtmlToPdf_FullMethodName       = "/file.FileService/HtmlToPdf"
+	FileService_IndexFile_FullMethodName       = "/file.FileService/IndexFile"
+	FileService_FindIndexes_FullMethodName     = "/file.FileService/FindIndexes"
 )
 
 // FileServiceClient is the client API for FileService service.
@@ -95,6 +97,10 @@ type FileServiceClient interface {
 	WriteExcelFile(ctx context.Context, in *WriteExcelFileRequest, opts ...grpc.CallOption) (*WriteExcelFileResponse, error)
 	// Convert HTML to PDF.
 	HtmlToPdf(ctx context.Context, in *HtmlToPdfRqst, opts ...grpc.CallOption) (*HtmlToPdfResponse, error)
+	// Index files for full-text search (PDFs, text files).
+	IndexFile(ctx context.Context, in *IndexFileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[IndexFileResponse], error)
+	// Find all search index paths (__index_db__) under a directory.
+	FindIndexes(ctx context.Context, in *FindIndexesRequest, opts ...grpc.CallOption) (*FindIndexesResponse, error)
 }
 
 type fileServiceClient struct {
@@ -354,6 +360,35 @@ func (c *fileServiceClient) HtmlToPdf(ctx context.Context, in *HtmlToPdfRqst, op
 	return out, nil
 }
 
+func (c *fileServiceClient) IndexFile(ctx context.Context, in *IndexFileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[IndexFileResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &FileService_ServiceDesc.Streams[5], FileService_IndexFile_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[IndexFileRequest, IndexFileResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FileService_IndexFileClient = grpc.ServerStreamingClient[IndexFileResponse]
+
+func (c *fileServiceClient) FindIndexes(ctx context.Context, in *FindIndexesRequest, opts ...grpc.CallOption) (*FindIndexesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FindIndexesResponse)
+	err := c.cc.Invoke(ctx, FileService_FindIndexes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FileServiceServer is the server API for FileService service.
 // All implementations should embed UnimplementedFileServiceServer
 // for forward compatibility.
@@ -404,6 +439,10 @@ type FileServiceServer interface {
 	WriteExcelFile(context.Context, *WriteExcelFileRequest) (*WriteExcelFileResponse, error)
 	// Convert HTML to PDF.
 	HtmlToPdf(context.Context, *HtmlToPdfRqst) (*HtmlToPdfResponse, error)
+	// Index files for full-text search (PDFs, text files).
+	IndexFile(*IndexFileRequest, grpc.ServerStreamingServer[IndexFileResponse]) error
+	// Find all search index paths (__index_db__) under a directory.
+	FindIndexes(context.Context, *FindIndexesRequest) (*FindIndexesResponse, error)
 }
 
 // UnimplementedFileServiceServer should be embedded to have
@@ -475,6 +514,12 @@ func (UnimplementedFileServiceServer) WriteExcelFile(context.Context, *WriteExce
 }
 func (UnimplementedFileServiceServer) HtmlToPdf(context.Context, *HtmlToPdfRqst) (*HtmlToPdfResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HtmlToPdf not implemented")
+}
+func (UnimplementedFileServiceServer) IndexFile(*IndexFileRequest, grpc.ServerStreamingServer[IndexFileResponse]) error {
+	return status.Error(codes.Unimplemented, "method IndexFile not implemented")
+}
+func (UnimplementedFileServiceServer) FindIndexes(context.Context, *FindIndexesRequest) (*FindIndexesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FindIndexes not implemented")
 }
 func (UnimplementedFileServiceServer) testEmbeddedByValue() {}
 
@@ -835,6 +880,35 @@ func _FileService_HtmlToPdf_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_IndexFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(IndexFileRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(FileServiceServer).IndexFile(m, &grpc.GenericServerStream[IndexFileRequest, IndexFileResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FileService_IndexFileServer = grpc.ServerStreamingServer[IndexFileResponse]
+
+func _FileService_FindIndexes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindIndexesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).FindIndexes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_FindIndexes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).FindIndexes(ctx, req.(*FindIndexesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FileService_ServiceDesc is the grpc.ServiceDesc for FileService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -906,6 +980,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "HtmlToPdf",
 			Handler:    _FileService_HtmlToPdf_Handler,
 		},
+		{
+			MethodName: "FindIndexes",
+			Handler:    _FileService_FindIndexes_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -931,6 +1009,11 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "UploadFile",
 			Handler:       _FileService_UploadFile_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "IndexFile",
+			Handler:       _FileService_IndexFile_Handler,
 			ServerStreams: true,
 		},
 	},

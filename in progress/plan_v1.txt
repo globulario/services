@@ -1,0 +1,186 @@
+  ┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
+  │  Cluster Controller │     │    etcd (plan slot)   │     │   Node Agent    │
+  │  (release reconciler│     │  1 slot per node      │     │  (plan runner)  │
+  └─────────┬───────────┘     └──────────┬────────────┘     └────────┬────────┘
+            │                            │                           │
+            │  ① startReleaseReconciler()                            │
+            │  Enqueue 25 ServiceRelease keys                        │
+            │  (foundational first: event,dns,rbac,file...)          │
+            │                            │                           │
+            │  ② Worker pops "release/core@globular.io/event"        │
+            │     reconcileRelease()                                 │
+            │       phase="" → reconcilePending()                    │
+            │         resolve version from repository                │
+            │         patch status: phase=RESOLVED                   │
+            │                            │                           │
+            │  ③ Watch fires (RESOLVED written)                      │
+            │     Worker pops "release/core@globular.io/event" again │
+            │       phase=RESOLVED → reconcileResolved()             │
+            │         hasAnyActivePlan? → NO (slot empty)            │
+            │         compilePlan() → NodePlan{event}                │
+            │         stampAndDispatchPlan()───────┐                  │
+            │                            │        ▼                  │
+            │                     ┌──────┴───────────────┐           │
+            │                     │ current = event plan  │           │
+            │                     │ status = PLAN_PENDING │           │
+            │                     │ gen = 1               │           │
+            │                     └──────┬───────────────┘           │
+            │         patch release: phase=APPLYING                  │
+            │                            │                           │
+            │  ④ Meanwhile, worker already popped next key:          │
+            │     "release/core@globular.io/dns"                     │
+            │       phase="" → reconcilePending()                    │
+            │         patch: phase=RESOLVED                          │
+            │                            │                           │
+            │  ⑤ Watch fires again                                   │
+            │     "release/core@globular.io/dns"                     │
+            │       phase=RESOLVED → reconcileResolved()             │
+            │         hasAnyActivePlan? → YES (event PENDING)        │
+            │         *** GOOD: skips, sets node error =             │
+            │             "waiting for active node plan to finish"   │
+            │         patch: phase=APPLYING (with waiting msg)       │
+            │                            │                           │
+            │                            │            ⑥ pollPlan()   │
+            │                            │◄──────────────────────────┤
+            │                            │  reads current plan (event)│
+            │                            │  status gen != plan gen    │
+            │                            │  → runStoredPlan()         │
+            │                            │               ┌───────────┤
+            │                            │               │ execute   │
+            │                            │               │ steps:    │
+            │                            │               │ fetch     │
+            │                            │               │ verify    │
+            │                            │               │ install   │
+            │                            │               │ restart   │
+            │                            │               │ probe     │
+            │                            │               └───────────┤
+            │                            │                           │
+            │                            │  ⑦ Plan succeeds:         │
+            │                     ┌──────┴───────────────┐           │
+            │                     │ status = SUCCEEDED    │◄──────────┤
+            │                     │ gen = 1               │           │
+            │                     └──────┬───────────────┘           │
+            │                            │                           │
+            │  ⑧ Reconcile loop tick (every 5s)                      │
+            │     Worker re-processes ALL releases                   │
+            │                            │                           │
+            │     "release/event": phase=APPLYING                    │
+            │       reconcileApplying()                              │
+            │         checkNodePlanStatuses() → SUCCEEDED            │
+            │         patch: phase=AVAILABLE ✅                       │
+            │                            │                           │
+            │     "release/dns": phase=APPLYING                      │
+            │       reconcileApplying()                              │
+            │         node error = "waiting for active plan"         │
+            │         plan status = SUCCEEDED (but that's event's!)  │
+            │                            │                           │
+            │  ⑨ "release/dns" re-enters via reconcileRelease()     │
+            │     phase=APPLYING, but hasUnservedNodes → true        │
+            │     ... WAIT — it stays APPLYING, not FAILED           │
+            │     reconcileApplying sees no matching plan_id         │
+            │                            │                           │
+
+  HERE'S WHERE IT BREAKS — The Race
+
+            │  ⑩ Multiple releases hit RESOLVED in the SAME tick:   │
+            │                            │                           │
+            │  "release/dns":   RESOLVED → reconcileResolved()      │
+            │    hasAnyActivePlan? → NO (event succeeded, slot free) │
+            │    stampAndDispatchPlan(dns)                            │
+            │                     ┌──────┴───────────────┐           │
+            │                     │ current = dns plan    │           │
+            │                     │ status = PLAN_PENDING │           │
+            │                     │ gen = 2               │           │
+            │                     └──────┬───────────────┘           │
+            │                            │                           │
+            │  "release/rbac":  RESOLVED → reconcileResolved()      │
+            │    hasAnyActivePlan? → YES (dns PENDING)    │           │
+            │    *** GOOD: skips ✅                        │           │
+            │                            │                           │
+            │  "release/mcp":   RESOLVED → reconcileResolved()      │
+            │    hasAnyActivePlan? → YES (dns PENDING)    │           │
+            │    *** GOOD: skips ✅                        │           │
+            │                            │                           │
+            │  ... dns executes, succeeds, gen=2 ...                 │
+            │                            │                           │
+            │  ⑪ Next tick: rbac dispatches (gen=3), succeeds        │
+            │     Next tick: mcp dispatches (gen=4), succeeds        │
+            │     ... one by one, 25 releases all converge ...       │
+            │                            │                           │
+            │  ████████████████████████████████████████████████████   │
+            │  █ THIS IS THE HAPPY PATH — IT SHOULD WORK LIKE THIS █ │
+            │  ████████████████████████████████████████████████████   │
+
+  What Actually Happened (the bug)
+
+            │  ⑫ BUT — reconcileResolved has a subtle problem:      │
+            │                            │                           │
+            │  When reconcileResolved dispatches a plan, it patches  │
+            │  the release to APPLYING with the plan_id. Then the   │
+            │  reconcile loop comes back and runs reconcileApplying. │
+            │                            │                           │
+            │  reconcileApplying calls checkNodePlanStatuses() which │
+            │  reads the plan STATUS from etcd — but the status key  │
+            │  is SHARED across all plans (one status per node).     │
+            │                            │                           │
+            │  Timeline of the actual crash:                         │
+            │                            │                           │
+            │  T=0  dns dispatched, gen=2, plan_id=aaa               │
+            │  T=1  node agent starts executing dns plan             │
+            │  T=2  reconcile tick: mcp is RESOLVED                  │
+            │        hasAnyActivePlan → YES (dns RUNNING)            │
+            │        skips ✅                                         │
+            │  T=3  dns plan SUCCEEDS, status=SUCCEEDED gen=2        │
+            │  T=4  reconcile tick:                                   │
+            │        dns: APPLYING → checkNodePlanStatuses           │
+            │          status.State=SUCCEEDED → dns goes AVAILABLE ✅ │
+            │        mcp: APPLYING → reconcileResolved               │
+            │          hasAnyActivePlan → NO                          │
+            │          dispatch mcp plan, gen=3, plan_id=bbb         │
+            │          status overwritten: PLAN_PENDING gen=3        │
+            │                            │                           │
+            │  ⑬ PROBLEM: 10 releases hit RESOLVED in same tick     │
+            │     They ALL see hasAnyActivePlan=NO because the       │
+            │     status write from stampAndDispatchPlan hasn't       │
+            │     propagated to the other goroutine iterations yet   │
+            │                            │                           │
+            │     WAIT — actually the work queue is single-goroutine │
+            │     So they execute SEQUENTIALLY within the worker.    │
+            │     After mcp dispatches (gen=3), the next release     │
+            │     should see PLAN_PENDING gen=3.                     │
+            │                            │                           │
+            │  ⑭ Let me re-examine. The actual problem:             │
+            │                            │                           │
+            │  The releases that got stuck at APPLYING had           │
+            │  plan_id=ee0952fd (mcp). But the current plan in etcd │
+            │  is ca683142 gen=10. That means 10 plans were          │
+            │  dispatched sequentially (gen 1→10), each overwriting  │
+            │  the previous.                                         │
+            │                            │                           │
+            │  HOW? Because reconcileApplying checks:                │
+            │    - Is the node's plan_id matching what I dispatched? │
+            │    - NO! The plan_id in the status is from a LATER     │
+            │      release that overwrote the slot.                  │
+            │                            │                           │
+            │  ⑮ The ACTUAL sequence:                                │
+            │                            │                           │
+            │  reconcileResolved runs for release A:                 │
+            │    dispatch plan_id=aaa gen=1                           │
+            │    release A status: APPLYING, node.plan_id=aaa        │
+            │                            │                           │
+            │  reconcileResolved runs for release B:                 │
+            │    hasAnyActivePlan? → YES (aaa is PENDING)            │
+            │    node error = "waiting for active plan"              │
+            │    release B status: APPLYING (no plan_id)             │
+            │                            │                           │
+            │  node agent executes plan aaa, SUCCEEDS                │
+            │                            │                           │
+            │  Next tick — release A: APPLYING → reconcileApplying   │
+            │    checkNodePlanStatuses reads status gen=1 SUCCEEDED   │
+            │    plan_id matches aaa → node phase = AVAILABLE        │
+            │    release A → AVAILABLE ✅                              │
+            │                            │                           │
+            │  Next tick — release B: APPLYING → reconcileApplying   │
+            │    ❓ B has no plan_id (it was "waiting")               │
+            │    checkNodePlanStatuses reads status gen=1 SUCCEEDED   │
+            │    But B's node.plan_id is EMPTY — does it match?      │

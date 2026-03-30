@@ -252,7 +252,7 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 
 	if srv.DataDir == "" {
-		srv.DataDir = "/var/backups/globular"
+		srv.DataDir = "/var/lib/globular/backups"
 	}
 
 	// On a fresh install after a cluster wipe, restore previous backup settings
@@ -657,7 +657,7 @@ func initializeServerDefaults() *server {
 	srv.Dependencies = make([]string, 0)
 	srv.Permissions = make([]any, 0)
 
-	srv.DataDir = "/var/backups/globular"
+	srv.DataDir = "/var/lib/globular/backups"
 	srv.MaxConcurrentJobs = 1
 	srv.AllowResticPruneOnDelete = false
 	srv.AllowRemoteDelete = true

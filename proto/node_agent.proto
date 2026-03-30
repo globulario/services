@@ -64,6 +64,15 @@ message GetInstalledPackageResponse {
   InstalledPackage package = 1;
 }
 
+message SetInstalledPackageRequest {
+  InstalledPackage package = 1;
+}
+
+message SetInstalledPackageResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
 message UnitStatus {
   string name = 1;
   string state = 2;
@@ -320,6 +329,14 @@ service NodeAgentService {
       default_role_hint: "viewer"
     };
   };
+  rpc SetInstalledPackage(SetInstalledPackageRequest) returns (SetInstalledPackageResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.installed_package.write"
+      permission: "admin"
+      resource_template: "/node_agent/nodes/{node_id}/packages/{name}"
+      default_role_hint: "admin"
+    };
+  };
 
   // Node identity token rotation (Phase 2)
   rpc RotateNodeToken(RotateNodeTokenRequest) returns (RotateNodeTokenResponse) {
@@ -335,6 +352,26 @@ service NodeAgentService {
   rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {
     option (globular.auth.authz) = {
       action: "node_agent.service_logs.read"
+      permission: "read"
+      resource_template: "/node_agent/services/{unit}/logs"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // Systemd service control (restart/stop/start/status)
+  rpc ControlService(ControlServiceRequest) returns (ControlServiceResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.service.control"
+      permission: "admin"
+      resource_template: "/node_agent/services/{unit}"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Observability: search service logs by time range, pattern, severity
+  rpc SearchServiceLogs(SearchServiceLogsRequest) returns (SearchServiceLogsResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.service_logs.search"
       permission: "read"
       resource_template: "/node_agent/services/{unit}/logs"
       default_role_hint: "viewer"
@@ -377,6 +414,27 @@ message GetServiceLogsResponse {
   repeated string lines = 3;
 }
 
+// ── Log search ──
+
+message SearchServiceLogsRequest {
+  string unit = 1 [(globular.auth.resource) = { kind: "service_unit" }];   // systemd unit name (must start with "globular-" or "scylla")
+  string pattern = 2;      // grep pattern (regex supported via journalctl --grep)
+  string since = 3;        // time range start: "5m ago", "1h ago", "2026-03-25 00:00:00", etc.
+  string until = 4;        // time range end (optional)
+  string priority = 5;     // severity filter: "emerg","alert","crit","err","warning","notice","info","debug"
+  int32  limit = 6;        // max lines to return (default 100, max 500)
+  bool   case_sensitive = 7; // default false (case-insensitive grep)
+}
+
+message SearchServiceLogsResponse {
+  string unit = 1;
+  int32  match_count = 2;
+  repeated string lines = 3;
+  string since = 4;        // actual time range used
+  string until = 5;
+  bool   truncated = 6;    // true if more lines matched than limit
+}
+
 // ── Certificate status ──
 
 message CertificateInfo {
@@ -388,6 +446,21 @@ message CertificateInfo {
   int32  days_until_expiry = 6;
   bool   chain_valid = 7;
   string fingerprint = 8;     // SHA256 fingerprint
+}
+
+// ── Systemd service control ──
+
+message ControlServiceRequest {
+  string unit = 1 [(globular.auth.resource) = { kind: "service_unit" }];   // systemd unit name (must start with "globular-" or "scylla")
+  string action = 2;    // "restart", "stop", "start", "status"
+}
+
+message ControlServiceResponse {
+  bool ok = 1;
+  string unit = 2;
+  string action = 3;
+  string state = 4;       // current state after action: "active", "inactive", "failed", etc.
+  string message = 5;     // human-readable status or error detail
 }
 
 message GetCertificateStatusRequest {}

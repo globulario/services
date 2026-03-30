@@ -304,7 +304,18 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	uuid := Utility.GenerateUUID("A:" + domain)
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
-		return nil, 0, err
+		// Wildcard fallback: try *.parent for e.g. auth.globular.cloud → *.globular.cloud
+		if idx := strings.Index(domain, "."); idx >= 0 {
+			wildcard := "*" + domain[idx:]
+			wuuid := Utility.GenerateUUID("A:" + wildcard)
+			data, err = srv.store.GetItem(wuuid)
+			if err != nil {
+				return nil, 0, err
+			}
+			uuid = wuuid
+		} else {
+			return nil, 0, err
+		}
 	}
 	values := make([]string, 0)
 	if err := json.Unmarshal(data, &values); err != nil {

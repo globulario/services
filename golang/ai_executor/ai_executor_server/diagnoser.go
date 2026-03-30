@@ -17,16 +17,35 @@ import (
 
 // diagnoser gathers evidence from cluster services, then uses Claude
 // for reasoning when available, with deterministic fallback.
+// Prefers direct Anthropic API when configured, falls back to CLI.
 type diagnoser struct {
 	controllerAddr string
 	memoryAddr     string
 	claude         *claudeClient
+	anthropic      *anthropicClient
 }
 
-func newDiagnoser() *diagnoser {
+func newDiagnoser(cfg AnthropicConfig) *diagnoser {
 	return &diagnoser{
-		claude: newClaudeClient(),
+		claude:    newClaudeClient(),
+		anthropic: newAnthropicClient(cfg),
 	}
+}
+
+// sendPrompt routes to the best available backend: API > CLI > error.
+// Falls through to CLI if the API call fails (e.g. OAuth tokens not supported by API).
+func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, error) {
+	if d.anthropic != nil && d.anthropic.isAvailable() {
+		resp, err := d.anthropic.sendPrompt(ctx, prompt)
+		if err == nil {
+			return resp, nil
+		}
+		logger.Warn("anthropic API failed, falling back to CLI", "err", err)
+	}
+	if d.claude != nil && d.claude.isAvailable() {
+		return d.claude.sendPrompt(ctx, prompt)
+	}
+	return "", fmt.Errorf("no AI backend available (set ANTHROPIC_API_KEY or install claude CLI)")
 }
 
 // diagnose gathers context and builds a diagnosis for an incident.
@@ -83,40 +102,45 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 	// 3. Try Claude for intelligent analysis (falls back to deterministic).
 	var proposedAction, actionReason string
 
-	if d.claude.isAvailable() && rootCause == "" {
+	aiAvailable := (d.anthropic != nil && d.anthropic.isAvailable()) || (d.claude != nil && d.claude.isAvailable())
+	if aiAvailable && rootCause == "" {
 		healthStr := ""
 		if health != nil {
 			healthStr = fmt.Sprintf("%d healthy, %d unhealthy, %d unknown nodes",
 				health.HealthyNodes, health.UnhealthyNodes, health.UnknownNodes)
 		}
 
-		analysis, err := d.claude.analyzeIncident(callCtx, req, evidence, healthStr)
-		if err == nil && analysis != nil {
-			rootCause = analysis.RootCause
-			confidence = float32(analysis.Confidence)
-			proposedAction = analysis.ProposedAction
-			actionReason = analysis.Rationale
-			evidence = append(evidence, "claude_analysis: "+analysis.Summary)
-			if analysis.Detail != "" {
-				evidence = append(evidence, "claude_detail: "+analysis.Detail)
+		prompt := buildAnalysisPrompt(req, evidence, healthStr)
+		response, err := d.sendPrompt(callCtx, prompt)
+		if err == nil {
+			analysis, parseErr := parseAnalysis(response)
+			if parseErr == nil && analysis != nil {
+				rootCause = analysis.RootCause
+				confidence = float32(analysis.Confidence)
+				proposedAction = analysis.ProposedAction
+				actionReason = analysis.Rationale
+				evidence = append(evidence, "ai_analysis: "+analysis.Summary)
+				if analysis.Detail != "" {
+					evidence = append(evidence, "ai_detail: "+analysis.Detail)
+				}
+				if analysis.RiskLevel == "high" && proposedAction != "observe_and_record" && proposedAction != "notify_admin" {
+					actionReason = actionReason + " [SAFETY: high risk, escalated to notify]"
+					proposedAction = "notify_admin"
+				}
+				logger.Info("ai_diagnosis",
+					"incident", req.GetIncidentId(),
+					"root_cause", rootCause,
+					"confidence", confidence,
+					"proposed_action", proposedAction,
+					"risk_level", analysis.RiskLevel,
+				)
+			} else {
+				// Got a response but couldn't parse structured output.
+				evidence = append(evidence, "ai_response: "+response)
 			}
-			if analysis.RiskLevel == "high" && proposedAction != "observe_and_record" && proposedAction != "notify_admin" {
-				// Safety: Claude said high risk — escalate to notify instead of auto-fix.
-				actionReason = actionReason + " [SAFETY: high risk, escalated to notify]"
-				proposedAction = "notify_admin"
-			}
-			logger.Info("claude_diagnosis",
-				"incident", req.GetIncidentId(),
-				"root_cause", rootCause,
-				"confidence", confidence,
-				"proposed_action", proposedAction,
-				"risk_level", analysis.RiskLevel,
-			)
 		} else {
-			if err != nil {
-				logger.Warn("claude analysis failed, using deterministic fallback", "err", err)
-				evidence = append(evidence, "claude: unavailable, using deterministic analysis")
-			}
+			logger.Warn("AI analysis failed, using deterministic fallback", "err", err)
+			evidence = append(evidence, "ai: unavailable, using deterministic analysis")
 		}
 	}
 

@@ -108,6 +108,78 @@ func registerNodeAgentTools(s *server) {
 		}, nil
 	})
 
+	// ── nodeagent_installed_set ─────────────────────────────────────────────
+	s.register(toolDef{
+		Name:        "nodeagent_installed_set",
+		Description: "Set or update an installed package record on this node. Use this to register a package as installed, fix missing state, or update version/status. Writes directly to the node's etcd installed-state registry.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"name":         {Type: "string", Description: "Package name (e.g. 'mcp', 'gateway')"},
+				"version":      {Type: "string", Description: "Package version (e.g. '0.0.1')"},
+				"kind":         {Type: "string", Description: "Package kind", Enum: []string{"SERVICE", "APPLICATION", "AGENT", "SUBSYSTEM", "INFRASTRUCTURE", "COMMAND"}},
+				"platform":     {Type: "string", Description: "Target platform (default: 'linux_amd64')"},
+				"status":       {Type: "string", Description: "Package status (default: 'installed')", Enum: []string{"installed", "updating", "failed", "removing"}},
+				"publisher_id": {Type: "string", Description: "Publisher identifier (default: 'core@globular.io')"},
+				"checksum":     {Type: "string", Description: "Optional SHA256 checksum of the installed archive"},
+				"build_number": {Type: "number", Description: "Build iteration within version (default: 0)"},
+			},
+			Required: []string{"name", "version", "kind"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		name := getStr(args, "name")
+		version := getStr(args, "version")
+		kind := strings.ToUpper(getStr(args, "kind"))
+		if name == "" || version == "" || kind == "" {
+			return nil, fmt.Errorf("name, version, and kind are required")
+		}
+
+		platform := getStr(args, "platform")
+		if platform == "" {
+			platform = "linux_amd64"
+		}
+		status := getStr(args, "status")
+		if status == "" {
+			status = "installed"
+		}
+		publisher := getStr(args, "publisher_id")
+		if publisher == "" {
+			publisher = "core@globular.io"
+		}
+
+		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+
+		req := &node_agentpb.SetInstalledPackageRequest{
+			Package: &node_agentpb.InstalledPackage{
+				Name:        name,
+				Version:     version,
+				Kind:        kind,
+				Platform:    platform,
+				Status:      status,
+				PublisherId: publisher,
+				Checksum:    getStr(args, "checksum"),
+				BuildNumber: int64(getInt(args, "build_number", 0)),
+			},
+		}
+
+		resp, err := client.SetInstalledPackage(callCtx, req)
+		if err != nil {
+			return nil, fmt.Errorf("SetInstalledPackage: %w", err)
+		}
+
+		return map[string]interface{}{
+			"ok":      resp.GetOk(),
+			"message": resp.GetMessage(),
+		}, nil
+	})
+
 	// ── nodeagent_get_plan_status ───────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "nodeagent_get_plan_status",
@@ -236,6 +308,51 @@ func registerNodeAgentTools(s *server) {
 		return normalizeInstalledPackage(pkg), nil
 	})
 
+	// ── nodeagent_control_service ──────────────────────────────────────────
+	s.register(toolDef{
+		Name:        "nodeagent_control_service",
+		Description: "Control a Globular systemd service: restart, stop, start, or check status. Only globular-* and scylla-* units are allowed. Requires admin permission.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"unit":   {Type: "string", Description: "Systemd unit name (e.g. 'globular-gateway.service', 'globular-dns', 'scylla-server.service')"},
+				"action": {Type: "string", Description: "Action to perform", Enum: []string{"restart", "stop", "start", "status"}},
+			},
+			Required: []string{"unit", "action"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		unit := getStr(args, "unit")
+		action := getStr(args, "action")
+		if unit == "" || action == "" {
+			return nil, fmt.Errorf("unit and action are required")
+		}
+
+		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 30*time.Second)
+		defer cancel()
+
+		resp, err := client.ControlService(callCtx, &node_agentpb.ControlServiceRequest{
+			Unit:   unit,
+			Action: action,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ControlService: %w", err)
+		}
+
+		return map[string]interface{}{
+			"ok":      resp.GetOk(),
+			"unit":    resp.GetUnit(),
+			"action":  resp.GetAction(),
+			"state":   resp.GetState(),
+			"message": resp.GetMessage(),
+		}, nil
+	})
+
 	// ── nodeagent_get_service_logs ─────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "nodeagent_get_service_logs",
@@ -288,6 +405,73 @@ func registerNodeAgentTools(s *server) {
 			"line_count": resp.GetLineCount(),
 			"lines":      resp.GetLines(),
 		}, nil
+	})
+
+	// ── nodeagent_search_logs ──────────────────────────────────────────────
+	s.register(toolDef{
+		Name: "nodeagent_search_logs",
+		Description: `Search service logs by time range, pattern, and severity. Uses journalctl under the hood with regex grep support.
+
+Examples:
+- Search for errors in the last hour: unit="globular-gateway", since="1h ago", priority="err"
+- Find TLS issues: unit="globular-dns", pattern="tls|certificate|cert", since="30m ago"
+- Search all severity in a time window: unit="globular-rbac", since="2026-03-25 00:00:00", until="2026-03-25 01:00:00"`,
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"unit":     {Type: "string", Description: "Systemd unit name (e.g. 'globular-gateway.service', 'globular-dns', 'scylla-server')"},
+				"pattern":  {Type: "string", Description: "Regex pattern to search for (e.g. 'error|fail|timeout', 'tls.*cert')"},
+				"since":    {Type: "string", Description: "Start of time range (e.g. '5m ago', '1h ago', '2026-03-25 00:00:00')"},
+				"until":    {Type: "string", Description: "End of time range (optional, e.g. '30m ago', '2026-03-25 01:00:00')"},
+				"priority": {Type: "string", Description: "Severity filter", Enum: []string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}},
+				"limit":    {Type: "number", Description: "Max lines to return (default 100, max 500)"},
+				"case_sensitive": {Type: "boolean", Description: "Case-sensitive pattern matching (default: false)"},
+			},
+			Required: []string{"unit"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		unit := getStr(args, "unit")
+		if unit == "" {
+			return nil, fmt.Errorf("unit is required")
+		}
+
+		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 30*time.Second)
+		defer cancel()
+
+		resp, err := client.SearchServiceLogs(callCtx, &node_agentpb.SearchServiceLogsRequest{
+			Unit:          unit,
+			Pattern:       getStr(args, "pattern"),
+			Since:         getStr(args, "since"),
+			Until:         getStr(args, "until"),
+			Priority:      getStr(args, "priority"),
+			Limit:         int32(getInt(args, "limit", 100)),
+			CaseSensitive: getBool(args, "case_sensitive", false),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("SearchServiceLogs: %w", err)
+		}
+
+		result := map[string]interface{}{
+			"unit":        resp.GetUnit(),
+			"match_count": resp.GetMatchCount(),
+			"lines":       resp.GetLines(),
+		}
+		if resp.GetSince() != "" {
+			result["since"] = resp.GetSince()
+		}
+		if resp.GetUntil() != "" {
+			result["until"] = resp.GetUntil()
+		}
+		if resp.GetTruncated() {
+			result["truncated"] = true
+		}
+		return result, nil
 	})
 
 	// ── nodeagent_get_certificate_status ───────────────────────────────────

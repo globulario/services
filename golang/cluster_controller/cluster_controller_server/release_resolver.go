@@ -57,7 +57,7 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 
 	addr := r.RepositoryAddr
 	if addr == "" {
-		addr = "localhost:10101"
+		addr = "localhost"
 	}
 
 	client, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")

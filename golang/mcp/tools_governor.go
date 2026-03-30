@@ -135,6 +135,7 @@ Requires read_only=false in MCP config.`,
 				"command":     {Type: "string", Description: "The full CLI command to execute"},
 				"workflow_id": {Type: "string", Description: "Optional: active workflow session ID — step will be advanced on success"},
 				"approved":    {Type: "boolean", Description: "Set to true to bypass approval gates for commands that need confirmation"},
+				"force":       {Type: "boolean", Description: "Set to true to skip command validation entirely and execute directly. Use when the command is known-good but not in the governor's knowledge base."},
 			},
 			Required: []string{"command"},
 		},
@@ -155,6 +156,7 @@ Requires read_only=false in MCP config.`,
 
 		workflowID := getStr(args, "workflow_id")
 		approved := getBool(args, "approved", false)
+		force := getBool(args, "force", false)
 
 		// Parse command into parts
 		parts := strings.Fields(command)
@@ -171,24 +173,29 @@ Requires read_only=false in MCP config.`,
 			cmdPath = command
 		}
 
-		// If approved, temporarily allow the command past approval gates
 		req := ValidationRequest{
 			Command:      cmdPath,
 			Args:         cmdArgs,
 			WorkflowStep: workflowID,
 		}
 
-		// Pre-validate with approval bypass if approved
-		if approved {
+		// Decide whether to skip validation:
+		// - force=true: always skip validation
+		// - approved=true: skip only if validation says needs_confirmation
+		skipValidation := force
+		if !skipValidation && approved {
 			validation := ValidateCommand(req)
 			if validation.Status == StatusNeedsConfirmation {
-				// User explicitly approved — proceed with execution
-				// We'll skip the governor's validation in ExecuteCommand and run directly
-				return executeApproved(req, workflowID)
+				skipValidation = true
 			}
 		}
 
-		result := ExecuteCommand(req)
+		var result ExecutionResult
+		if skipValidation {
+			result = executeRaw(command, cmdPath, cmdArgs)
+		} else {
+			result = ExecuteCommand(req)
+		}
 
 		// If within a workflow, advance or fail the step
 		if workflowID != "" {

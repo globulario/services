@@ -618,7 +618,7 @@ func main() {
 
 	// Custom port allocation if no positional args
 	if len(args) == 0 {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)

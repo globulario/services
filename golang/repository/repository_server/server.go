@@ -720,15 +720,20 @@ func initializeServerDefaults() *server {
 	s.KeepUpToDate = true
 
 	// Workflow recorder for publish tracing (fire-and-forget, never blocks uploads).
-	workflowAddr := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR"))
-	if workflowAddr == "" {
-		workflowAddr = "localhost:10220"
-	}
+	// Route through the Envoy gateway so it works on any node.
 	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
-	s.workflowRec = workflow.NewRecorder(workflowAddr, clusterID)
+	s.workflowRec = workflow.NewRecorderWithResolver(func() string {
+		if env := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR")); env != "" {
+			return env
+		}
+		if addr, err := config.GetMeshAddress(); err == nil {
+			return addr // routes through Envoy service mesh (:443)
+		}
+		return ""
+	}, clusterID)
 
 	return s
 }

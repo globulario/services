@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,8 +13,10 @@ import (
 	Utility "github.com/globulario/utility"
 )
 
-func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
-	if fileInfos.Mime != "text/plain" {
+// indexTextFile indexes the content of a text file for full-text search.
+// When force is true, existing index and thumbnail directories are removed before re-indexing.
+func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo, force bool) error {
+	if !strings.HasPrefix(fileInfos.Mime, "text") {
 		return errors.New("file is not a text file")
 	}
 	ctx := context.Background()
@@ -26,9 +29,15 @@ func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error 
 	hidden := filepath.Join(dir, ".hidden", base)
 	thumbDir := filepath.Join(hidden, "__thumbnail__")
 	indexDir := filepath.Join(hidden, "__index_db__")
+
+	if force {
+		_ = os.RemoveAll(thumbDir)
+		_ = os.RemoveAll(indexDir)
+	}
+
 	_ = srv.storageMkdirAll(ctx, thumbDir, 0o755)
 	_ = srv.storageMkdirAll(ctx, indexDir, 0o755)
-	if srv.storageForPath(filepath.Join(thumbDir, "data_url.txt")).Exists(ctx, filepath.Join(thumbDir, "data_url.txt")) {
+	if !force && srv.storageForPath(filepath.Join(thumbDir, "data_url.txt")).Exists(ctx, filepath.Join(thumbDir, "data_url.txt")) {
 		return errors.New("info already exist")
 	}
 

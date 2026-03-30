@@ -71,6 +71,7 @@ type ToolGroupConfig struct {
 	HTTPDiag    bool `json:"http_diag"`   // default true (HTTP latency diagnostics)
 	Monitoring  bool `json:"monitoring"`  // default true (Prometheus metrics)
 	Browser     bool `json:"browser"`     // default true (Chrome DevTools Protocol bridge)
+	AIExecutor  bool `json:"ai_executor"` // default true (AI executor peer collaboration)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 }
@@ -131,6 +132,7 @@ func defaultConfig() *MCPConfig {
 			HTTPDiag:    true,
 			Monitoring:  true,
 			Browser:     true,
+			AIExecutor:  true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 		},

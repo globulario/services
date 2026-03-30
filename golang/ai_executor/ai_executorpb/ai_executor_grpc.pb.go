@@ -19,16 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AiExecutorService_ProcessIncident_FullMethodName = "/ai_executor.AiExecutorService/ProcessIncident"
-	AiExecutorService_GetDiagnosis_FullMethodName    = "/ai_executor.AiExecutorService/GetDiagnosis"
-	AiExecutorService_GetStatus_FullMethodName       = "/ai_executor.AiExecutorService/GetStatus"
-	AiExecutorService_ListActions_FullMethodName     = "/ai_executor.AiExecutorService/ListActions"
-	AiExecutorService_ApproveAction_FullMethodName   = "/ai_executor.AiExecutorService/ApproveAction"
-	AiExecutorService_DenyAction_FullMethodName      = "/ai_executor.AiExecutorService/DenyAction"
-	AiExecutorService_RetryAction_FullMethodName     = "/ai_executor.AiExecutorService/RetryAction"
-	AiExecutorService_GetJob_FullMethodName          = "/ai_executor.AiExecutorService/GetJob"
-	AiExecutorService_ListJobs_FullMethodName        = "/ai_executor.AiExecutorService/ListJobs"
-	AiExecutorService_Stop_FullMethodName            = "/ai_executor.AiExecutorService/Stop"
+	AiExecutorService_ProcessIncident_FullMethodName    = "/ai_executor.AiExecutorService/ProcessIncident"
+	AiExecutorService_GetDiagnosis_FullMethodName       = "/ai_executor.AiExecutorService/GetDiagnosis"
+	AiExecutorService_GetStatus_FullMethodName          = "/ai_executor.AiExecutorService/GetStatus"
+	AiExecutorService_ListActions_FullMethodName        = "/ai_executor.AiExecutorService/ListActions"
+	AiExecutorService_ApproveAction_FullMethodName      = "/ai_executor.AiExecutorService/ApproveAction"
+	AiExecutorService_DenyAction_FullMethodName         = "/ai_executor.AiExecutorService/DenyAction"
+	AiExecutorService_RetryAction_FullMethodName        = "/ai_executor.AiExecutorService/RetryAction"
+	AiExecutorService_GetJob_FullMethodName             = "/ai_executor.AiExecutorService/GetJob"
+	AiExecutorService_ListJobs_FullMethodName           = "/ai_executor.AiExecutorService/ListJobs"
+	AiExecutorService_Stop_FullMethodName               = "/ai_executor.AiExecutorService/Stop"
+	AiExecutorService_SendPrompt_FullMethodName         = "/ai_executor.AiExecutorService/SendPrompt"
+	AiExecutorService_GetConversation_FullMethodName    = "/ai_executor.AiExecutorService/GetConversation"
+	AiExecutorService_ListConversations_FullMethodName  = "/ai_executor.AiExecutorService/ListConversations"
+	AiExecutorService_DeleteConversation_FullMethodName = "/ai_executor.AiExecutorService/DeleteConversation"
+	AiExecutorService_Ping_FullMethodName               = "/ai_executor.AiExecutorService/Ping"
+	AiExecutorService_ShareObservation_FullMethodName   = "/ai_executor.AiExecutorService/ShareObservation"
+	AiExecutorService_ProposeAction_FullMethodName      = "/ai_executor.AiExecutorService/ProposeAction"
+	AiExecutorService_NotifyActionTaken_FullMethodName  = "/ai_executor.AiExecutorService/NotifyActionTaken"
 )
 
 // AiExecutorServiceClient is the client API for AiExecutorService service.
@@ -64,6 +72,26 @@ type AiExecutorServiceClient interface {
 	ListJobs(ctx context.Context, in *ListJobsRequest, opts ...grpc.CallOption) (*ListJobsResponse, error)
 	// Stop gracefully shuts down the executor.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
+	// SendPrompt sends a user message and streams the AI response.
+	// Supports multi-turn via conversation_id. Can route to a specific node.
+	SendPrompt(ctx context.Context, in *SendPromptRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SendPromptResponse], error)
+	// GetConversation retrieves message history for a conversation.
+	GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*GetConversationResponse, error)
+	// ListConversations lists a user's conversations.
+	ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error)
+	// DeleteConversation removes a conversation and its messages.
+	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*DeleteConversationResponse, error)
+	// Ping checks if a peer executor is alive and returns its capabilities.
+	Ping(ctx context.Context, in *PeerPingRequest, opts ...grpc.CallOption) (*PeerPingResponse, error)
+	// ShareObservation sends a local observation to a peer for confirmation.
+	// The peer checks its own local state and returns whether it sees the same thing.
+	ShareObservation(ctx context.Context, in *PeerObservationRequest, opts ...grpc.CallOption) (*PeerObservationResponse, error)
+	// ProposeAction asks peers to vote on a proposed remediation action.
+	// Used for Tier 1+ actions that need consensus before execution.
+	ProposeAction(ctx context.Context, in *PeerProposalRequest, opts ...grpc.CallOption) (*PeerProposalResponse, error)
+	// NotifyActionTaken informs peers that an action was executed,
+	// so they can update their local state and avoid duplicate actions.
+	NotifyActionTaken(ctx context.Context, in *PeerActionNotification, opts ...grpc.CallOption) (*PeerActionAck, error)
 }
 
 type aiExecutorServiceClient struct {
@@ -174,6 +202,95 @@ func (c *aiExecutorServiceClient) Stop(ctx context.Context, in *StopRequest, opt
 	return out, nil
 }
 
+func (c *aiExecutorServiceClient) SendPrompt(ctx context.Context, in *SendPromptRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SendPromptResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AiExecutorService_ServiceDesc.Streams[0], AiExecutorService_SendPrompt_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SendPromptRequest, SendPromptResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AiExecutorService_SendPromptClient = grpc.ServerStreamingClient[SendPromptResponse]
+
+func (c *aiExecutorServiceClient) GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*GetConversationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetConversationResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_GetConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConversationsResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_ListConversations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*DeleteConversationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteConversationResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_DeleteConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) Ping(ctx context.Context, in *PeerPingRequest, opts ...grpc.CallOption) (*PeerPingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeerPingResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) ShareObservation(ctx context.Context, in *PeerObservationRequest, opts ...grpc.CallOption) (*PeerObservationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeerObservationResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_ShareObservation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) ProposeAction(ctx context.Context, in *PeerProposalRequest, opts ...grpc.CallOption) (*PeerProposalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeerProposalResponse)
+	err := c.cc.Invoke(ctx, AiExecutorService_ProposeAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiExecutorServiceClient) NotifyActionTaken(ctx context.Context, in *PeerActionNotification, opts ...grpc.CallOption) (*PeerActionAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeerActionAck)
+	err := c.cc.Invoke(ctx, AiExecutorService_NotifyActionTaken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AiExecutorServiceServer is the server API for AiExecutorService service.
 // All implementations should embed UnimplementedAiExecutorServiceServer
 // for forward compatibility.
@@ -207,6 +324,26 @@ type AiExecutorServiceServer interface {
 	ListJobs(context.Context, *ListJobsRequest) (*ListJobsResponse, error)
 	// Stop gracefully shuts down the executor.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
+	// SendPrompt sends a user message and streams the AI response.
+	// Supports multi-turn via conversation_id. Can route to a specific node.
+	SendPrompt(*SendPromptRequest, grpc.ServerStreamingServer[SendPromptResponse]) error
+	// GetConversation retrieves message history for a conversation.
+	GetConversation(context.Context, *GetConversationRequest) (*GetConversationResponse, error)
+	// ListConversations lists a user's conversations.
+	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
+	// DeleteConversation removes a conversation and its messages.
+	DeleteConversation(context.Context, *DeleteConversationRequest) (*DeleteConversationResponse, error)
+	// Ping checks if a peer executor is alive and returns its capabilities.
+	Ping(context.Context, *PeerPingRequest) (*PeerPingResponse, error)
+	// ShareObservation sends a local observation to a peer for confirmation.
+	// The peer checks its own local state and returns whether it sees the same thing.
+	ShareObservation(context.Context, *PeerObservationRequest) (*PeerObservationResponse, error)
+	// ProposeAction asks peers to vote on a proposed remediation action.
+	// Used for Tier 1+ actions that need consensus before execution.
+	ProposeAction(context.Context, *PeerProposalRequest) (*PeerProposalResponse, error)
+	// NotifyActionTaken informs peers that an action was executed,
+	// so they can update their local state and avoid duplicate actions.
+	NotifyActionTaken(context.Context, *PeerActionNotification) (*PeerActionAck, error)
 }
 
 // UnimplementedAiExecutorServiceServer should be embedded to have
@@ -245,6 +382,30 @@ func (UnimplementedAiExecutorServiceServer) ListJobs(context.Context, *ListJobsR
 }
 func (UnimplementedAiExecutorServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) SendPrompt(*SendPromptRequest, grpc.ServerStreamingServer[SendPromptResponse]) error {
+	return status.Error(codes.Unimplemented, "method SendPrompt not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) GetConversation(context.Context, *GetConversationRequest) (*GetConversationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetConversation not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConversations not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) DeleteConversation(context.Context, *DeleteConversationRequest) (*DeleteConversationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteConversation not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) Ping(context.Context, *PeerPingRequest) (*PeerPingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) ShareObservation(context.Context, *PeerObservationRequest) (*PeerObservationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ShareObservation not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) ProposeAction(context.Context, *PeerProposalRequest) (*PeerProposalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ProposeAction not implemented")
+}
+func (UnimplementedAiExecutorServiceServer) NotifyActionTaken(context.Context, *PeerActionNotification) (*PeerActionAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method NotifyActionTaken not implemented")
 }
 func (UnimplementedAiExecutorServiceServer) testEmbeddedByValue() {}
 
@@ -446,6 +607,143 @@ func _AiExecutorService_Stop_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AiExecutorService_SendPrompt_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SendPromptRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AiExecutorServiceServer).SendPrompt(m, &grpc.GenericServerStream[SendPromptRequest, SendPromptResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AiExecutorService_SendPromptServer = grpc.ServerStreamingServer[SendPromptResponse]
+
+func _AiExecutorService_GetConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).GetConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_GetConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).GetConversation(ctx, req.(*GetConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_ListConversations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConversationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).ListConversations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_ListConversations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).ListConversations(ctx, req.(*ListConversationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_DeleteConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).DeleteConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_DeleteConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).DeleteConversation(ctx, req.(*DeleteConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerPingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).Ping(ctx, req.(*PeerPingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_ShareObservation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerObservationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).ShareObservation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_ShareObservation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).ShareObservation(ctx, req.(*PeerObservationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_ProposeAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerProposalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).ProposeAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_ProposeAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).ProposeAction(ctx, req.(*PeerProposalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiExecutorService_NotifyActionTaken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerActionNotification)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiExecutorServiceServer).NotifyActionTaken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiExecutorService_NotifyActionTaken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiExecutorServiceServer).NotifyActionTaken(ctx, req.(*PeerActionNotification))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AiExecutorService_ServiceDesc is the grpc.ServiceDesc for AiExecutorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -493,7 +791,41 @@ var AiExecutorService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Stop",
 			Handler:    _AiExecutorService_Stop_Handler,
 		},
+		{
+			MethodName: "GetConversation",
+			Handler:    _AiExecutorService_GetConversation_Handler,
+		},
+		{
+			MethodName: "ListConversations",
+			Handler:    _AiExecutorService_ListConversations_Handler,
+		},
+		{
+			MethodName: "DeleteConversation",
+			Handler:    _AiExecutorService_DeleteConversation_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _AiExecutorService_Ping_Handler,
+		},
+		{
+			MethodName: "ShareObservation",
+			Handler:    _AiExecutorService_ShareObservation_Handler,
+		},
+		{
+			MethodName: "ProposeAction",
+			Handler:    _AiExecutorService_ProposeAction_Handler,
+		},
+		{
+			MethodName: "NotifyActionTaken",
+			Handler:    _AiExecutorService_NotifyActionTaken_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SendPrompt",
+			Handler:       _AiExecutorService_SendPrompt_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "ai_executor.proto",
 }

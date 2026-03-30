@@ -237,6 +237,33 @@ message UploadFileResponse {
 }
 
 
+// Request to discover all search index paths (__index_db__) under a directory.
+message FindIndexesRequest {
+    string path = 1;       // Root directory to search from.
+    bool recursive = 2;    // If true, search subdirectories too.
+}
+
+// Response containing discovered index paths.
+message FindIndexesResponse {
+    repeated string paths = 1; // All __index_db__ paths found.
+}
+
+// Request to index files for full-text search.
+message IndexFileRequest {
+    string path = 1;    // The path of the file or directory to index.
+    bool recursive = 2; // Whether to index files recursively (when path is a directory).
+    bool force = 3;     // If true, re-index even if already indexed.
+}
+
+// Response containing the indexing status for a file.
+message IndexFileResponse {
+    string path = 1;    // The path of the indexed file.
+    string status = 2;  // Status: "indexed", "skipped", or "error".
+    string message = 3; // Additional information about the indexing result.
+    int32 indexed = 4;  // Running count of successfully indexed files.
+    int32 total = 5;    // Running count of total files processed.
+}
+
 // StopRequest is the request message to stop the server.
 message StopRequest {
     // This message does not contain any fields.
@@ -453,6 +480,26 @@ service FileService {
 
     // Convert HTML to PDF.
     rpc HtmlToPdf(HtmlToPdfRqst) returns (HtmlToPdfResponse) {
+        option (globular.auth.authz) = {
+            action: "file.read"
+            permission: "read"
+            collection_template: "/file"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // Index files for full-text search (PDFs, text files).
+    rpc IndexFile(IndexFileRequest) returns (stream IndexFileResponse) {
+        option (globular.auth.authz) = {
+            action: "file.write"
+            permission: "write"
+            resource_template: "/file/path/{path}"
+            default_role_hint: "editor"
+        };
+    };
+
+    // Find all search index paths (__index_db__) under a directory.
+    rpc FindIndexes(FindIndexesRequest) returns (FindIndexesResponse) {
         option (globular.auth.authz) = {
             action: "file.read"
             permission: "read"

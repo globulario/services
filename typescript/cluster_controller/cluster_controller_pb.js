@@ -27,8 +27,6 @@ var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb
 goog.object.extend(proto, google_protobuf_empty_pb);
 var plan_pb = require('./plan_pb.js');
 goog.object.extend(proto, plan_pb);
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.cluster_controller.AffectedNodeDiff', null, global);
 goog.exportSymbol('proto.cluster_controller.ApplyNodePlanRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ApplyNodePlanResponse', null, global);

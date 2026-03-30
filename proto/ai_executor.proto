@@ -43,6 +43,41 @@ service AiExecutorService {
 
     // Stop gracefully shuts down the executor.
     rpc Stop(StopRequest) returns (StopResponse);
+
+    // ── Conversational AI ─────────────────────────────────────────────────────
+    // Direct conversation with the cluster's AI. History persisted in ScyllaDB.
+
+    // SendPrompt sends a user message and streams the AI response.
+    // Supports multi-turn via conversation_id. Can route to a specific node.
+    rpc SendPrompt(SendPromptRequest) returns (stream SendPromptResponse);
+
+    // GetConversation retrieves message history for a conversation.
+    rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+
+    // ListConversations lists a user's conversations.
+    rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+
+    // DeleteConversation removes a conversation and its messages.
+    rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+
+    // ── Peer Collaboration ───────────────────────────────────────────────────
+    // Multi-node AI consensus: executors on different nodes communicate to
+    // share observations, confirm diagnoses, and coordinate actions.
+
+    // Ping checks if a peer executor is alive and returns its capabilities.
+    rpc Ping(PeerPingRequest) returns (PeerPingResponse);
+
+    // ShareObservation sends a local observation to a peer for confirmation.
+    // The peer checks its own local state and returns whether it sees the same thing.
+    rpc ShareObservation(PeerObservationRequest) returns (PeerObservationResponse);
+
+    // ProposeAction asks peers to vote on a proposed remediation action.
+    // Used for Tier 1+ actions that need consensus before execution.
+    rpc ProposeAction(PeerProposalRequest) returns (PeerProposalResponse);
+
+    // NotifyActionTaken informs peers that an action was executed,
+    // so they can update their local state and avoid duplicate actions.
+    rpc NotifyActionTaken(PeerActionNotification) returns (PeerActionAck);
 }
 
 // ── Diagnosis ─────────────────────────────────────────────────────────────────
@@ -234,3 +269,168 @@ message ListJobsResponse {
 
 message StopRequest {}
 message StopResponse {}
+
+// ── Peer Collaboration Messages ──────────────────────────────────────────────
+
+message PeerPingRequest {
+    string sender_node_id = 1;
+    string sender_hostname = 2;
+}
+
+message PeerPingResponse {
+    string node_id = 1;
+    string hostname = 2;
+    bool ai_available = 3;          // has a working Claude connection
+    repeated string profiles = 4;    // node profiles (control-plane, core, etc.)
+    int64 uptime_seconds = 5;
+    int64 incidents_processed = 6;
+}
+
+// Observation: "I see X on my node, do you see it too?"
+message PeerObservationRequest {
+    string observation_id = 1;       // unique ID for dedup
+    string sender_node_id = 2;
+    string sender_hostname = 3;
+    string category = 4;             // service_crash, high_latency, disk_full, etc.
+    string subject = 5;              // what's affected (service name, unit, path)
+    string detail = 6;               // human-readable description
+    map<string, string> evidence = 7; // key-value evidence from sender
+    int64 observed_at_ms = 8;
+}
+
+message PeerObservationResponse {
+    string node_id = 1;
+    bool confirmed = 2;              // "yes I see the same thing"
+    string local_evidence = 3;       // what this node sees
+    float confidence = 4;            // 0-1 how sure
+}
+
+// Proposal: "I want to do X, do you agree?"
+message PeerProposalRequest {
+    string proposal_id = 1;          // unique ID
+    string incident_id = 2;
+    string sender_node_id = 3;
+    ActionType proposed_action = 4;
+    string target = 5;
+    string rationale = 6;
+    Diagnosis diagnosis = 7;         // share the diagnosis for context
+    int32 tier = 8;
+}
+
+enum PeerVote {
+    VOTE_ABSTAIN = 0;    // can't decide / not enough info
+    VOTE_APPROVE = 1;    // agree with proposed action
+    VOTE_REJECT = 2;     // disagree — too risky or wrong diagnosis
+    VOTE_ESCALATE = 3;   // agree something is wrong but want human approval
+}
+
+message PeerProposalResponse {
+    string node_id = 1;
+    PeerVote vote = 2;
+    string reason = 3;               // why this vote
+    string counter_proposal = 4;     // alternative action if rejecting
+}
+
+// Notification: "I did X, update your state"
+message PeerActionNotification {
+    string incident_id = 1;
+    string sender_node_id = 2;
+    ActionType action = 3;
+    string target = 4;
+    ActionStatus status = 5;
+    string result = 6;
+    int64 executed_at_ms = 7;
+}
+
+message PeerActionAck {
+    string node_id = 1;
+    bool acknowledged = 2;
+}
+
+// ── Conversational AI Messages ──────────────────────────────────────────────
+
+message SendPromptRequest {
+    string prompt = 1;                    // User's message text
+    string conversation_id = 2;           // Empty = new conversation, set = continue
+    string target_node = 3;               // Optional: route to specific peer by hostname
+    string user_id = 4;                   // Who is sending (extracted from auth if empty)
+    string system_prompt_override = 5;    // Optional: override system prompt
+    map<string, string> metadata = 6;     // Extra context
+}
+
+message SendPromptResponse {
+    string conversation_id = 1;
+    string message_id = 2;
+
+    string text_chunk = 3;        // Partial text (streaming)
+    string full_text = 4;         // Complete response (when done)
+    ConversationStatus status = 5;
+
+    bool done = 6;                    // True on final message
+    bool needs_human_reply = 7;       // AI is asking the human a question
+    string question_for_human = 8;    // The question text
+
+    int32 input_tokens = 10;
+    int32 output_tokens = 11;
+    string responding_node = 12;      // Which node answered
+}
+
+enum ConversationStatus {
+    CONV_STATUS_UNKNOWN = 0;
+    CONV_STATUS_THINKING = 1;
+    CONV_STATUS_USING_TOOL = 2;
+    CONV_STATUS_STREAMING = 3;
+    CONV_STATUS_COMPLETE = 4;
+    CONV_STATUS_ERROR = 5;
+    CONV_STATUS_WAITING_FOR_HUMAN = 6;
+}
+
+message ConversationMessage {
+    string id = 1;
+    string conversation_id = 2;
+    string role = 3;                  // "user" or "assistant"
+    string content = 4;
+    int64 created_at_ms = 5;
+    string node_id = 6;
+    string node_hostname = 7;
+    int32 input_tokens = 8;
+    int32 output_tokens = 9;
+    map<string, string> metadata = 10;
+}
+
+message ConversationSummary {
+    string id = 1;
+    string title = 2;
+    string user_id = 3;
+    int64 created_at_ms = 4;
+    int64 updated_at_ms = 5;
+    int32 message_count = 6;
+    string last_message_preview = 7;
+}
+
+message GetConversationRequest {
+    string conversation_id = 1;
+    int32 limit = 2;                  // Max messages (0 = all)
+    int64 before_ms = 3;              // Pagination cursor
+}
+
+message GetConversationResponse {
+    repeated ConversationMessage messages = 1;
+    string conversation_id = 2;
+    string title = 3;
+}
+
+message ListConversationsRequest {
+    string user_id = 1;
+    int32 limit = 2;
+}
+
+message ListConversationsResponse {
+    repeated ConversationSummary conversations = 1;
+}
+
+message DeleteConversationRequest {
+    string conversation_id = 1;
+}
+
+message DeleteConversationResponse {}

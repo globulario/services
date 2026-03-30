@@ -317,31 +317,36 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
         return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
     }
 
-    // Index
-    index, err := srv.getIndex(rqst.IndexPath)
-    if err != nil {
-        slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-    if err := index.Index(uuid, blogPost); err != nil {
-        slog.Error("index.Index failed", "uuid", uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+    // Index — use shared index if available, otherwise local Bleve.
+    text := blogPost.Text
+    blogPost.Text = "" // trim for internal storage
+    raw, marshalErr := protojson.Marshal(blogPost)
+    blogPost.Text = text
+    if marshalErr != nil {
+        slog.Error("protojson.Marshal failed", "uuid", uuid, "err", marshalErr)
+        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), marshalErr))
     }
 
-    // Store a trimmed version internally (no full Text)
-    text := blogPost.Text
-    blogPost.Text = ""
-    if raw, err := protojson.Marshal(blogPost); err == nil {
-        if err := index.SetInternal([]byte(uuid), raw); err != nil {
-            slog.Error("index.SetInternal failed", "uuid", uuid, "err", err)
-            // not fatal for creation, but return error for consistency
+    if srv.sharedIndex != nil {
+        if err := srv.sharedIndex.Enqueue(rqst.IndexPath, uuid, string(raw), string(raw), "uuid", nil); err != nil {
+            slog.Error("sharedIndex.Enqueue failed", "uuid", uuid, "err", err)
             return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
         }
     } else {
-        slog.Error("protojson.Marshal failed", "uuid", uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        index, err := srv.getIndex(rqst.IndexPath)
+        if err != nil {
+            slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+        if err := index.Index(uuid, blogPost); err != nil {
+            slog.Error("index.Index failed", "uuid", uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+        if err := index.SetInternal([]byte(uuid), raw); err != nil {
+            slog.Error("index.SetInternal failed", "uuid", uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
     }
-    blogPost.Text = text
 
     slog.Info("blog post created", "uuid", uuid, "author", clientId)
     return &blogpb.CreateBlogPostResponse{BlogPost: blogPost}, nil
@@ -362,30 +367,35 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
         return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
     }
 
-    index, err := srv.getIndex(rqst.IndexPath)
-    if err != nil {
-        slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-
-    if err := index.Index(rqst.BlogPost.Uuid, rqst.BlogPost); err != nil {
-        slog.Error("index.Index failed", "uuid", rqst.BlogPost.Uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-
-    // Store trimmed copy internally
     keep := rqst.BlogPost.Text
-    rqst.BlogPost.Text = ""
-    if raw, err := protojson.Marshal(rqst.BlogPost); err == nil {
+    rqst.BlogPost.Text = "" // trim for internal storage
+    raw, marshalErr := protojson.Marshal(rqst.BlogPost)
+    rqst.BlogPost.Text = keep
+    if marshalErr != nil {
+        slog.Error("protojson.Marshal failed", "uuid", rqst.BlogPost.Uuid, "err", marshalErr)
+        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), marshalErr))
+    }
+
+    if srv.sharedIndex != nil {
+        if err := srv.sharedIndex.Enqueue(rqst.IndexPath, rqst.BlogPost.Uuid, string(raw), string(raw), "uuid", nil); err != nil {
+            slog.Error("sharedIndex.Enqueue failed", "uuid", rqst.BlogPost.Uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+    } else {
+        index, err := srv.getIndex(rqst.IndexPath)
+        if err != nil {
+            slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+        if err := index.Index(rqst.BlogPost.Uuid, rqst.BlogPost); err != nil {
+            slog.Error("index.Index failed", "uuid", rqst.BlogPost.Uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
         if err := index.SetInternal([]byte(rqst.BlogPost.Uuid), raw); err != nil {
             slog.Error("index.SetInternal failed", "uuid", rqst.BlogPost.Uuid, "err", err)
             return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
         }
-    } else {
-        slog.Error("protojson.Marshal failed", "uuid", rqst.BlogPost.Uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
     }
-    rqst.BlogPost.Text = keep
 
     slog.Info("blog post saved", "uuid", rqst.BlogPost.Uuid, "author", clientId)
     return &blogpb.SaveBlogPostResponse{}, nil
@@ -569,19 +579,25 @@ func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
         return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
     }
 
-    index, err := srv.getIndex(rqst.IndexPath)
-    if err != nil {
-        slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-
-    if err := index.Delete(rqst.Uuid); err != nil {
-        slog.Error("index.Delete failed", "uuid", rqst.Uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-    if err := index.DeleteInternal([]byte(rqst.Uuid)); err != nil {
-        slog.Error("index.DeleteInternal failed", "uuid", rqst.Uuid, "err", err)
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+    if srv.sharedIndex != nil {
+        if err := srv.sharedIndex.EnqueueDelete(rqst.IndexPath, rqst.Uuid); err != nil {
+            slog.Error("sharedIndex.EnqueueDelete failed", "uuid", rqst.Uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+    } else {
+        index, err := srv.getIndex(rqst.IndexPath)
+        if err != nil {
+            slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+        if err := index.Delete(rqst.Uuid); err != nil {
+            slog.Error("index.Delete failed", "uuid", rqst.Uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+        if err := index.DeleteInternal([]byte(rqst.Uuid)); err != nil {
+            slog.Error("index.DeleteInternal failed", "uuid", rqst.Uuid, "err", err)
+            return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
     }
 
     slog.Info("blog post deleted", "uuid", rqst.Uuid, "author", clientId)

@@ -25,6 +25,33 @@ func (srv *NodeAgentServer) ListInstalledPackages(ctx context.Context, req *node
 	return &node_agentpb.ListInstalledPackagesResponse{Packages: pkgs}, nil
 }
 
+// SetInstalledPackage writes or updates an installed package record in etcd.
+func (srv *NodeAgentServer) SetInstalledPackage(ctx context.Context, req *node_agentpb.SetInstalledPackageRequest) (*node_agentpb.SetInstalledPackageResponse, error) {
+	pkg := req.GetPackage()
+	if pkg == nil {
+		return nil, status.Error(codes.InvalidArgument, "package is required")
+	}
+	if strings.TrimSpace(pkg.GetName()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "package name is required")
+	}
+	if strings.TrimSpace(pkg.GetKind()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "package kind is required")
+	}
+
+	// Default node_id to this node if not specified.
+	if strings.TrimSpace(pkg.GetNodeId()) == "" {
+		pkg.NodeId = srv.nodeID
+	}
+
+	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+		return nil, status.Errorf(codes.Internal, "set installed package: %v", err)
+	}
+	return &node_agentpb.SetInstalledPackageResponse{
+		Ok:      true,
+		Message: "package " + pkg.GetName() + " set to " + pkg.GetStatus(),
+	}, nil
+}
+
 // GetInstalledPackage returns a single installed package record.
 func (srv *NodeAgentServer) GetInstalledPackage(ctx context.Context, req *node_agentpb.GetInstalledPackageRequest) (*node_agentpb.GetInstalledPackageResponse, error) {
 	nodeID := strings.TrimSpace(req.GetNodeId())

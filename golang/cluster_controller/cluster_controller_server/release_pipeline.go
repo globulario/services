@@ -240,12 +240,24 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 
 		installedVersion := lookupInstalledVersionForHandle(nodeID, h)
 
-		// Skip nodes where the desired version is already installed.
-		// This prevents Day 0 nodes from having their running services
-		// stopped and reinstalled when an InfrastructureRelease is
-		// re-created by seed or retry.
+		// Skip nodes where the desired version AND checksum match.
+		// Version alone is not sufficient — the same version can be rebuilt
+		// with different code (e.g., bug fixes without a version bump).
 		if installedVersion != "" && h.ResolvedVersion != "" &&
 			versionutil.Equal(installedVersion, h.ResolvedVersion) {
+			// If the artifact has a digest, compare it against the installed checksum.
+			// If they differ, the binary was rebuilt — reinstall even at same version.
+			if h.ResolvedArtifactDigest != "" {
+				installedChecksum := lookupInstalledChecksumForHandle(nodeID, h)
+				if installedChecksum != "" && installedChecksum != h.ResolvedArtifactDigest {
+					log.Printf("%s %s: node %s has version %s but checksum mismatch (installed=%s, artifact=%s), reinstalling",
+						h.ResourceType, h.Name, nodeID, installedVersion,
+						installedChecksum[:min(12, len(installedChecksum))],
+						h.ResolvedArtifactDigest[:min(12, len(h.ResolvedArtifactDigest))])
+					// Fall through to dispatch install
+					goto dispatch
+				}
+			}
 			log.Printf("%s %s: node %s already has version %s installed, skipping",
 				h.ResourceType, h.Name, nodeID, installedVersion)
 			nodeStatuses = append(nodeStatuses, &cluster_controllerpb.NodeReleaseStatus{
@@ -256,6 +268,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			})
 			continue
 		}
+	dispatch:
 
 		// Guard: scope InfrastructureRelease by node intent/profile.
 		// Infrastructure should only be dispatched to nodes whose profiles
@@ -628,6 +641,17 @@ func lookupInstalledVersionForHandle(nodeID string, h *releaseHandle) string {
 			if v := strings.TrimSpace(pkg.GetVersion()); v != "" {
 				return v
 			}
+		}
+	}
+	return ""
+}
+
+// lookupInstalledChecksumForHandle returns the checksum of the installed package
+// for a given node and release handle. Returns "" if not found.
+func lookupInstalledChecksumForHandle(nodeID string, h *releaseHandle) string {
+	if h.InstalledStateKind != "" && h.InstalledStateName != "" {
+		if pkg, err := installed_state.GetInstalledPackage(context.Background(), nodeID, h.InstalledStateKind, h.InstalledStateName); err == nil && pkg != nil {
+			return strings.TrimSpace(pkg.GetChecksum())
 		}
 	}
 	return ""

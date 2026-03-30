@@ -115,15 +115,21 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 	// Connect to WorkflowService for plan execution tracing.
-	wfAddr := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR"))
-	if wfAddr == "" {
-		wfAddr = discoverServiceAddr(10220)
-	}
+	// Uses lazy connection via discoverServiceAddr so the recorder works
+	// even when the workflow service isn't available at startup (Day-1 join).
+	// The address is re-resolved on each connection attempt — local port
+	// first, then gateway fallback.
 	wfClusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
 	if wfClusterID == "" {
 		wfClusterID = "globular.internal"
 	}
-	srv.workflowRec = workflow.NewRecorder(wfAddr, wfClusterID)
+	wfResolver := func() string {
+		if env := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR")); env != "" {
+			return env
+		}
+		return discoverServiceAddr(10220)
+	}
+	srv.workflowRec = workflow.NewRecorderWithResolver(wfResolver, wfClusterID)
 	srv.clusterID = wfClusterID
 
 	srv.StartHeartbeat(ctx)

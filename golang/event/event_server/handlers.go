@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
+	"github.com/gocql/gocql"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -28,7 +30,9 @@ func (srv *server) Stop(ctx context.Context, _ *eventpb.StopRequest) (*eventpb.S
 	return &eventpb.StopResponse{}, srv.StopService()
 }
 
-// run drives the in-memory pub/sub loop.
+// run drives the pub/sub loop. Subscriptions are local (tied to gRPC streams),
+// but events are published and polled from ScyllaDB so all cluster instances
+// see every event.
 func (srv *server) run() {
 	if srv.logger == nil {
 		srv.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -43,11 +47,16 @@ func (srv *server) run() {
 
 	channels := make(map[string][]string)                          // channel -> uuids
 	streams := make(map[string]eventpb.EventService_OnEventServer) // uuid -> stream
-	quits := make(map[string]chan bool)                            // uuid -> quit
+	quits := make(map[string]chan bool)                             // uuid -> quit
 	ka := make(chan *eventpb.KeepAlive)
 
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
+
+	// ScyllaDB poller — reads new events and dispatches to local subscribers.
+	pollTicker := time.NewTicker(pollInterval)
+	defer pollTicker.Stop()
+
 	done := make(chan bool)
 
 	go func() {
@@ -98,6 +107,16 @@ func (srv *server) run() {
 				srv.cleanupSubscribers(toDelete, channels, quits, streams)
 			}
 
+		case <-pollTicker.C:
+			// Poll ScyllaDB for new events from any instance.
+			if srv.bus == nil {
+				continue
+			}
+			events := srv.bus.pollOnce()
+			for _, ev := range events {
+				srv.dispatchToLocal(ev.name, ev.data, channels, streams, quits)
+			}
+
 		case a := <-srv.actions:
 			action, _ := a["action"].(string)
 			switch action {
@@ -126,58 +145,6 @@ func (srv *server) run() {
 				if !Utility.Contains(channels[name], uuid) {
 					channels[name] = append(channels[name], uuid)
 					srv.logger.Info("subscribed", "channel", name, "uuid", uuid, "subscribers", len(channels[name]))
-				}
-
-			case "publish":
-				name, _ := a["name"].(string)
-				data, _ := a["data"].([]byte)
-				if name == "" {
-					srv.logger.Error("invalid publish request: missing channel name")
-					continue
-				}
-				// Persist to ring buffer for QueryEvents replay.
-				if srv.ring != nil {
-					srv.ring.append(name, data)
-				}
-				// Collect all subscriber UUIDs matching this event name.
-				// Supports exact match and wildcard patterns (e.g. "cluster.*"
-				// matches "cluster.health_changed").
-				seen := make(map[string]bool)
-				var matchedUUIDs []string
-				for pattern, puuids := range channels {
-					if matchesChannel(pattern, name) {
-						for _, u := range puuids {
-							if !seen[u] {
-								seen[u] = true
-								matchedUUIDs = append(matchedUUIDs, u)
-							}
-						}
-					}
-				}
-				if len(matchedUUIDs) == 0 {
-					srv.logger.Info("publish: no subscribers matched", "event", name, "channels", len(channels), "streams", len(streams))
-					continue
-				}
-				srv.logger.Info("publish: dispatching", "event", name, "matched", len(matchedUUIDs))
-				var toDelete []string
-				for _, uuid := range matchedUUIDs {
-					stream := streams[uuid]
-					if stream == nil {
-						toDelete = append(toDelete, uuid)
-						continue
-					}
-					err := stream.Send(&eventpb.OnEventResponse{
-						Data: &eventpb.OnEventResponse_Evt{
-							Evt: &eventpb.Event{Name: name, Data: data},
-						},
-					})
-					if err != nil {
-						srv.logger.Warn("event send failed; will drop subscriber", "channel", name, "uuid", uuid, "err", err)
-						toDelete = append(toDelete, uuid)
-					}
-				}
-				if len(toDelete) > 0 {
-					srv.cleanupSubscribers(toDelete, channels, quits, streams)
 				}
 
 			case "unsubscribe":
@@ -213,6 +180,51 @@ func (srv *server) run() {
 				srv.logger.Warn("unknown action", "action", action)
 			}
 		}
+	}
+}
+
+// dispatchToLocal sends an event to all local subscribers whose channel
+// pattern matches the event name.
+func (srv *server) dispatchToLocal(
+	name string, data []byte,
+	channels map[string][]string,
+	streams map[string]eventpb.EventService_OnEventServer,
+	quits map[string]chan bool,
+) {
+	seen := make(map[string]bool)
+	var matchedUUIDs []string
+	for pattern, puuids := range channels {
+		if matchesChannel(pattern, name) {
+			for _, u := range puuids {
+				if !seen[u] {
+					seen[u] = true
+					matchedUUIDs = append(matchedUUIDs, u)
+				}
+			}
+		}
+	}
+	if len(matchedUUIDs) == 0 {
+		return
+	}
+	var toDelete []string
+	for _, uuid := range matchedUUIDs {
+		stream := streams[uuid]
+		if stream == nil {
+			toDelete = append(toDelete, uuid)
+			continue
+		}
+		err := stream.Send(&eventpb.OnEventResponse{
+			Data: &eventpb.OnEventResponse_Evt{
+				Evt: &eventpb.Event{Name: name, Data: data},
+			},
+		})
+		if err != nil {
+			srv.logger.Warn("event send failed; will drop subscriber", "channel", name, "uuid", uuid, "err", err)
+			toDelete = append(toDelete, uuid)
+		}
+	}
+	if len(toDelete) > 0 {
+		srv.cleanupSubscribers(toDelete, channels, quits, streams)
 	}
 }
 
@@ -254,8 +266,6 @@ func (srv *server) cleanupSubscribers(
 }
 
 // matchesChannel returns true if the subscription pattern matches the event name.
-// Supports exact match ("cluster.health" == "cluster.health") and glob-style
-// wildcard ("cluster.*" matches "cluster.health", "cluster.drift", etc.).
 func matchesChannel(pattern, eventName string) bool {
 	if pattern == eventName {
 		return true
@@ -335,20 +345,30 @@ func (srv *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeReq
 	return &eventpb.UnSubscribeResponse{Result: true}, nil
 }
 
+// Publish writes the event to ScyllaDB. All instances will pick it up via
+// their poll loop and dispatch to local subscribers.
 func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
 	if rqst == nil || rqst.Evt == nil || rqst.Evt.Name == "" {
 		srv.logger.Error("Publish: invalid request", "err", errMissingChanName)
 		return &eventpb.PublishResponse{Result: false}, errMissingChanName
 	}
-	publish := map[string]interface{}{"action": "publish", "name": rqst.Evt.Name, "data": rqst.Evt.Data}
-	srv.actions <- publish
+	if srv.bus == nil {
+		srv.logger.Error("Publish: ScyllaDB bus not connected")
+		return &eventpb.PublishResponse{Result: false}, errors.New("event bus not connected")
+	}
+	if err := srv.bus.publish(rqst.Evt.Name, rqst.Evt.Data); err != nil {
+		srv.logger.Error("Publish: ScyllaDB write failed", "event", rqst.Evt.Name, "err", err)
+		return &eventpb.PublishResponse{Result: false}, err
+	}
 	return &eventpb.PublishResponse{Result: true}, nil
 }
 
+// QueryEvents reads recent events from ScyllaDB.
 func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsRequest) (*eventpb.QueryEventsResponse, error) {
-	if srv.ring == nil {
+	if srv.bus == nil {
 		return &eventpb.QueryEventsResponse{}, nil
 	}
+
 	nameFilter := ""
 	if rqst != nil {
 		nameFilter = rqst.GetNameFilter()
@@ -357,13 +377,35 @@ func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsReque
 	if rqst != nil && rqst.GetLimit() > 0 {
 		limit = int(rqst.GetLimit())
 	}
-	var afterSeq uint64
-	if rqst != nil {
-		afterSeq = rqst.GetAfterSequence()
+
+	// Convert afterSequence to a TimeUUID for the ScyllaDB query.
+	var afterSeq gocql.UUID
+	if rqst != nil && rqst.GetAfterSequence() > 0 {
+		// Map the uint64 sequence to a time-based UUID.
+		// afterSequence was from the ring buffer era; for ScyllaDB we use
+		// the zero UUID to start from the beginning.
+		afterSeq = gocql.MinTimeUUID(time.Now().Add(-10 * time.Minute))
 	}
-	events, latestSeq := srv.ring.query(nameFilter, afterSeq, limit)
+
+	events, _ := srv.bus.queryEvents(nameFilter, afterSeq, limit)
+
+	var out []*eventpb.PersistedEvent
+	for _, ev := range events {
+		out = append(out, &eventpb.PersistedEvent{
+			Name:     ev.name,
+			Data:     ev.data,
+			Ts:       timestamppb.New(ev.seq.Time()),
+			Sequence: uint64(ev.seq.Time().UnixNano()),
+		})
+	}
+
+	var latestSeq uint64
+	if len(out) > 0 {
+		latestSeq = out[len(out)-1].Sequence
+	}
+
 	return &eventpb.QueryEventsResponse{
-		Events:         events,
+		Events:         out,
 		LatestSequence: latestSeq,
 	}, nil
 }

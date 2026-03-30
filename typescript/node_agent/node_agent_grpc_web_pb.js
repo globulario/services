@@ -26,7 +26,6 @@ var cluster_controller_pb = require('./cluster_controller_pb.js')
 
 var plan_pb = require('./plan_pb.js')
 
-var globular_auth_pb = require('./globular_auth_pb.js')
 const proto = {};
 proto.node_agent = require('./node_agent_pb.js');
 
@@ -929,6 +928,67 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getInstalledPackage =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.SetInstalledPackageRequest,
+ *   !proto.node_agent.SetInstalledPackageResponse>}
+ */
+const methodDescriptor_NodeAgentService_SetInstalledPackage = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/SetInstalledPackage',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.SetInstalledPackageRequest,
+  proto.node_agent.SetInstalledPackageResponse,
+  /**
+   * @param {!proto.node_agent.SetInstalledPackageRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.SetInstalledPackageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.SetInstalledPackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.SetInstalledPackageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.SetInstalledPackageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.setInstalledPackage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/SetInstalledPackage',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_SetInstalledPackage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.SetInstalledPackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.SetInstalledPackageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.setInstalledPackage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/SetInstalledPackage',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_SetInstalledPackage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.node_agent.RotateNodeTokenRequest,
  *   !proto.node_agent.RotateNodeTokenResponse>}
  */
@@ -1045,6 +1105,128 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getServiceLogs =
       request,
       metadata || {},
       methodDescriptor_NodeAgentService_GetServiceLogs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.ControlServiceRequest,
+ *   !proto.node_agent.ControlServiceResponse>}
+ */
+const methodDescriptor_NodeAgentService_ControlService = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/ControlService',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.ControlServiceRequest,
+  proto.node_agent.ControlServiceResponse,
+  /**
+   * @param {!proto.node_agent.ControlServiceRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.ControlServiceResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.ControlServiceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.ControlServiceResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.ControlServiceResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.controlService =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ControlService',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ControlService,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.ControlServiceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.ControlServiceResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.controlService =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ControlService',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ControlService);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.SearchServiceLogsRequest,
+ *   !proto.node_agent.SearchServiceLogsResponse>}
+ */
+const methodDescriptor_NodeAgentService_SearchServiceLogs = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/SearchServiceLogs',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.SearchServiceLogsRequest,
+  proto.node_agent.SearchServiceLogsResponse,
+  /**
+   * @param {!proto.node_agent.SearchServiceLogsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.SearchServiceLogsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.SearchServiceLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.SearchServiceLogsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.SearchServiceLogsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.searchServiceLogs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/SearchServiceLogs',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_SearchServiceLogs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.SearchServiceLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.SearchServiceLogsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.searchServiceLogs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/SearchServiceLogs',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_SearchServiceLogs);
 };
 
 

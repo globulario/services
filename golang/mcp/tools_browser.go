@@ -511,7 +511,59 @@ func (c *cdpClient) evaluate(ctx context.Context, expression string) (interface{
 	return resp.Result.Desc, nil
 }
 
+// captureScreenshot uses CDP Page.captureScreenshot to grab a PNG of the page.
+func (c *cdpClient) captureScreenshot(ctx context.Context) (string, error) {
+	result, err := c.sendCommand(ctx, "Page.captureScreenshot", map[string]interface{}{
+		"format": "png",
+	})
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Data string `json:"data"` // base64-encoded PNG
+	}
+	if err := json.Unmarshal(result, &resp); err != nil {
+		return "", fmt.Errorf("parse screenshot result: %w", err)
+	}
+	if resp.Data == "" {
+		return "", fmt.Errorf("empty screenshot data")
+	}
+	return resp.Data, nil
+}
+
 func registerBrowserTools(s *server) {
+
+	s.register(toolDef{
+		Name: "browser_screenshot",
+		Description: `Capture a screenshot of the current browser page as a PNG image.
+Returns the screenshot as an inline image that Claude can see and analyze.
+Use this to visually inspect the UI, verify layout, check for rendering issues, or see what the user sees.
+Requires Chrome started with --remote-debugging-port=9222.`,
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"port": {Type: "integer", Description: "Chrome debugging port (default: 9222)"},
+			},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		port := getInt(args, "port", 9222)
+
+		cdp := getCDP()
+		if err := cdp.connect(ctx, port); err != nil {
+			return nil, err
+		}
+
+		data, err := cdp.captureScreenshot(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("capture screenshot: %w", err)
+		}
+
+		return &imageToolResult{
+			Data:     data,
+			MimeType: "image/png",
+			Text:     "Browser screenshot captured successfully.",
+		}, nil
+	})
 
 	s.register(toolDef{
 		Name: "browser_console",

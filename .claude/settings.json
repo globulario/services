@@ -1,7 +1,6 @@
 {
-  "mcpServers": {
-    "globular": {
-      "url": "http://localhost:10050/mcp"
-    }
+  "permissions": {
+    "allow": [],
+    "deny": []
   }
 }

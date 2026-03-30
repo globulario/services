@@ -14,6 +14,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	dns_client "github.com/globulario/services/golang/dns/dns_client"
+	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 )
 
@@ -139,20 +140,27 @@ func (r *DNSReconciler) reconcile() error {
 		// Continue with internal DNS reconciliation
 	}
 
-	// Build desired DNS state from cluster state
+	// Build desired DNS state from cluster state.
+	// Compute FQDN from hostname + cluster domain if AdvertiseFqdn is not set
+	// (backfill for nodes admitted before this field was populated).
+	clusterDomain := strings.TrimSuffix(strings.TrimSpace(spec.ClusterDomain), ".")
 	nodeInfos := make([]NodeInfo, 0, len(nodes))
 	nodeByFQDN := make(map[string]string) // FQDN -> node FQDN for service routing
 	for _, node := range nodes {
+		fqdn := node.AdvertiseFqdn
+		if fqdn == "" && node.Identity.Hostname != "" && clusterDomain != "" {
+			fqdn = node.Identity.Hostname + "." + clusterDomain
+		}
 		info := NodeInfo{
-			FQDN:     node.AdvertiseFqdn,
+			FQDN:     fqdn,
 			Profiles: node.Profiles,
 		}
 		if len(node.Identity.Ips) > 0 {
 			info.IPv4 = node.Identity.Ips[0]
 		}
 		nodeInfos = append(nodeInfos, info)
-		if node.AdvertiseFqdn != "" {
-			nodeByFQDN[node.AdvertiseFqdn] = node.AdvertiseFqdn
+		if fqdn != "" {
+			nodeByFQDN[fqdn] = fqdn
 		}
 	}
 
@@ -283,11 +291,16 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	}
 	defer client.Close()
 
-	// Generate DNS token (using cluster-controller identity)
+	// Generate DNS token (using local service account identity)
 	token, err := r.generateDNSToken(ctx, client, desired.Domain)
 	if err != nil {
 		return fmt.Errorf("generate token: %w", err)
 	}
+
+	// Inject the token into the client's context so all subsequent calls use it.
+	// The DNS client's SetDomains/SetA have a bug where the passed token is not
+	// correctly applied when GetCtx() fails to get its own local token.
+	client.SetTokenCtx(token)
 
 	// Set domains
 	if err := client.SetDomains(token, []string{desired.Domain}); err != nil {
@@ -325,11 +338,18 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	return nil
 }
 
-// generateDNSToken creates an authentication token for DNS service
+// generateDNSToken creates an authentication token for DNS service.
+// Uses the local service account token (sa) which has superadmin privileges.
 func (r *DNSReconciler) generateDNSToken(ctx context.Context, client *dns_client.Dns_Client, domain string) (string, error) {
-	// Use cluster-controller as the identity
-	// This is a placeholder - actual implementation depends on security package
-	return "cluster-controller-token", nil
+	mac, err := config.GetMacAddress()
+	if err != nil {
+		return "", fmt.Errorf("get mac address: %w", err)
+	}
+	token, err := security.GetLocalToken(mac)
+	if err != nil {
+		return "", fmt.Errorf("get local token (mac=%s): %w", mac, err)
+	}
+	return token, nil
 }
 
 // fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1)

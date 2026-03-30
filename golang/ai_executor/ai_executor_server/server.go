@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -85,6 +86,15 @@ type server struct {
 	// Recent actions log
 	recentActions   []*ai_executorpb.RemediationAction
 	recentActionsMu sync.RWMutex
+
+	// Anthropic API config — when set, calls API directly instead of CLI.
+	Anthropic AnthropicConfig `json:"Anthropic"`
+
+	// Peer collaboration — multi-node AI consensus.
+	peers *peerManager
+
+	// Conversation store — persistent chat history in ScyllaDB.
+	convStore *conversationStore
 }
 
 type executorStats struct {
@@ -183,7 +193,7 @@ func (srv *server) Init() error {
 		return err
 	}
 	srv.grpcServer = gs
-	srv.diagnoser = newDiagnoser()
+	srv.diagnoser = newDiagnoser(srv.Anthropic)
 	srv.remediator = newRemediator()
 	srv.jobStore = newJobStore()
 	srv.notifier = newMultiNotifier()
@@ -191,7 +201,55 @@ func (srv *server) Init() error {
 
 	// Start expiry checker in background.
 	go srv.expiryLoop()
+
+	// Hot-reload: periodically scan for AI credentials.
+	go srv.credentialWatchLoop()
+
+	// Conversation store: connect to ScyllaDB for chat history.
+	srv.convStore = newConversationStore()
+	go func() {
+		// Give ScyllaDB time to be ready on Day-0 boot.
+		for i := 0; i < 10; i++ {
+			if err := srv.convStore.connect(); err == nil {
+				return
+			}
+			time.Sleep(5 * time.Second)
+		}
+		logger.Warn("conversation_store: could not connect to ScyllaDB, conversations will be unavailable")
+	}()
+
+	// Peer collaboration: discover and connect to ai-executors on other nodes.
+	hostname, _ := os.Hostname()
+	srv.peers = newPeerManager(srv.GetId(), hostname, nil)
+	go srv.peers.startDiscoveryLoop(context.Background())
 	return nil
+}
+
+// credentialWatchLoop periodically checks for AI credentials.
+// When a token becomes available (user logs into Claude Code, or another
+// node syncs to etcd), it hot-swaps the diagnoser's anthropic client
+// so AI reasoning activates without a service restart.
+func (srv *server) credentialWatchLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Already have a working client? Nothing to do.
+		if srv.diagnoser.anthropic != nil && srv.diagnoser.anthropic.isAvailable() {
+			// Check if token needs refresh.
+			if srv.diagnoser.anthropic.refreshToken != "" {
+				_ = srv.diagnoser.anthropic.ensureValidToken()
+			}
+			continue
+		}
+
+		// Try to create a new client from available sources.
+		client := newAnthropicClient(srv.Anthropic)
+		if client != nil && client.isAvailable() {
+			srv.diagnoser.anthropic = client
+			logger.Info("credential-watch: AI backend activated (hot-reload)")
+		}
+	}
 }
 
 func (srv *server) Save() error { return globular.SaveService(srv) }
@@ -215,6 +273,9 @@ func (srv *server) expiryLoop() {
 func (srv *server) StopService() error {
 	if srv.diagnoser != nil && srv.diagnoser.claude != nil {
 		srv.diagnoser.claude.shutdown()
+	}
+	if srv.convStore != nil {
+		srv.convStore.close()
 	}
 	return globular.StopService(srv, srv.grpcServer)
 }

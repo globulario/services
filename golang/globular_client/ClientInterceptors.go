@@ -46,7 +46,15 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 		if client_ != nil && err != nil {
 			msg := err.Error()
 			retriable := strings.HasPrefix(msg, `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing`) ||
-				strings.HasPrefix(msg, `rpc error: code = Unimplemented desc = unknown service`)
+				strings.HasPrefix(msg, `rpc error: code = Unimplemented desc = unknown service`) ||
+				strings.Contains(msg, `the client connection is closing`) ||
+				strings.Contains(msg, `transport is closing`)
+
+			// If the mesh connection is stale, invalidate it so the next
+			// call re-dials instead of reusing a dead connection.
+			if retriable {
+				invalidateMeshConn()
+			}
 
 			if retriable {
 				// Demote WARN to DEBUG during boot/quiet mode.
