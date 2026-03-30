@@ -114,17 +114,20 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
 
-	// Re-enqueue RESOLVED releases that may be stuck waiting for a node plan
-	// slot. These releases returned from reconcileResolved without patching
-	// (slot busy), so no watch event fires. This periodic re-reconcile is the
-	// only way they get retried.
-	srv.retryResolvedReleases(ctx)
+	// Re-enqueue stuck releases (RESOLVED waiting for plan slot, APPLYING
+	// with stale plan references). No watch event fires when status doesn't
+	// change, so this periodic re-reconcile is the only retry path.
+	srv.retryStuckReleases(ctx)
 }
 
-// retryResolvedReleases finds ServiceRelease objects stuck in RESOLVED and
-// re-triggers reconciliation. This handles the case where reconcileResolved
-// returned without patching because the node plan slot was busy.
-func (srv *server) retryResolvedReleases(ctx context.Context) {
+// retryStuckReleases finds ServiceRelease objects stuck in RESOLVED or
+// APPLYING and re-triggers reconciliation. RESOLVED releases may be
+// waiting for a free plan slot. APPLYING releases may have stale plan
+// references (plan was evicted by another release) and need the
+// phase-machine to detect this and transition to AVAILABLE or re-dispatch.
+// Without this periodic re-reconcile, these releases never get re-enqueued
+// because no etcd watch event fires when the status doesn't change.
+func (srv *server) retryStuckReleases(ctx context.Context) {
 	if srv.resources == nil {
 		return
 	}
@@ -137,7 +140,9 @@ func (srv *server) retryResolvedReleases(ctx context.Context) {
 		if !ok || rel.Status == nil || rel.Meta == nil {
 			continue
 		}
-		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
+		switch rel.Status.Phase {
+		case cluster_controllerpb.ReleasePhaseResolved,
+			cluster_controllerpb.ReleasePhaseApplying:
 			srv.reconcileRelease(ctx, rel.Meta.Name)
 		}
 	}
