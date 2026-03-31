@@ -7,6 +7,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -57,6 +58,13 @@ func (srv *NodeAgentServer) planLoop(ctx context.Context) {
 
 func (srv *NodeAgentServer) pollPlan(ctx context.Context) {
 	if srv.planStore == nil || srv.nodeID == "" {
+		return
+	}
+	// Skip plan execution while a workflow is running — the workflow
+	// owns the node and installs packages directly. Without this guard
+	// the old reconciler's plans fight the workflow (e.g. stopping Envoy
+	// while the workflow is fetching artifacts through it).
+	if atomic.LoadInt32(&srv.workflowRunning) == 1 {
 		return
 	}
 	pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

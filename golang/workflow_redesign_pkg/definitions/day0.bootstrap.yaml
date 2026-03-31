@@ -1,0 +1,171 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: day0.bootstrap
+  displayName: Cluster Day-0 bootstrap
+  description: >-
+    Formalized replacement for install-day0.sh. The installer remains the local
+    primitive library, but the workflow service owns the sequence, retries,
+    persisted run history and step-level observability.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - bootstrap_node_id
+      - bootstrap_node_hostname
+      - repository_address
+      - domain
+    properties:
+      cluster_id: { type: string }
+      bootstrap_node_id: { type: string }
+      bootstrap_node_hostname: { type: string }
+      repository_address: { type: string }
+      domain: { type: string }
+      install_timeout: { type: string, default: 20m }
+      health_timeout: { type: string, default: 10m }
+  defaults:
+    install_timeout: 20m
+    health_timeout: 10m
+  strategy:
+    mode: single
+  steps:
+    - id: setup_tls
+      title: Bootstrap TLS root, server and client credentials
+      actor: installer
+      action: installer.setup_tls
+
+    - id: enable_bootstrap_window
+      title: Enable temporary bootstrap mode
+      actor: installer
+      action: installer.enable_bootstrap_window
+      with:
+        ttl: 30m
+
+    - id: write_bootstrap_credentials
+      title: Write bootstrap superuser credentials
+      actor: installer
+      action: installer.write_bootstrap_credentials
+
+    - id: install_storage_foundation
+      title: Install ScyllaDB, etcd and MinIO
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages: [scylladb, etcd, minio]
+      retry:
+        maxAttempts: 3
+        backoff: 15s
+      timeout: $.install_timeout
+
+    - id: configure_shared_storage
+      title: Configure MinIO buckets and shared cluster config
+      dependsOn: [install_storage_foundation]
+      actor: installer
+      action: installer.configure_shared_storage
+
+    - id: install_persistence
+      title: Install persistence service
+      dependsOn: [configure_shared_storage]
+      actor: installer
+      action: installer.install_package
+      with:
+        package: persistence
+      timeout: $.install_timeout
+
+    - id: install_bootstrap_services
+      title: Install xDS, Envoy, gateway, node-agent, cluster-controller and cluster-doctor
+      dependsOn: [install_persistence]
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages: [xds, envoy, gateway, node-agent, cluster-controller, cluster-doctor]
+      timeout: $.install_timeout
+
+    - id: install_control_plane
+      title: Install resource, RBAC, authentication, discovery, DNS and repository
+      dependsOn: [install_bootstrap_services]
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages: [resource, rbac, authentication, discovery, dns, repository]
+      timeout: $.install_timeout
+
+    - id: bootstrap_dns
+      title: Create initial DNS zone and records
+      dependsOn: [install_control_plane]
+      actor: installer
+      action: installer.bootstrap_dns
+
+    - id: install_ops_and_workloads
+      title: Install ops packages and workload packages
+      dependsOn: [bootstrap_dns]
+      actor: installer
+      action: installer.install_profile_sets
+      with:
+        profiles: [ops, workloads]
+      timeout: $.install_timeout
+
+    - id: validate_cluster_health
+      title: Validate cluster health and conformance
+      dependsOn: [install_ops_and_workloads]
+      actor: installer
+      action: installer.validate_cluster_health
+      timeout: $.health_timeout
+
+    - id: generate_join_token
+      title: Generate shared join token and write controller config
+      dependsOn: [validate_cluster_health]
+      actor: installer
+      action: installer.generate_join_token
+
+    - id: restart_for_join_token
+      title: Restart controller and node-agent after join token wiring
+      dependsOn: [generate_join_token]
+      actor: installer
+      action: installer.restart_bootstrap_services
+      with:
+        services: [cluster-controller, node-agent]
+
+    - id: bootstrap_first_node
+      title: Register first node and seed cluster desired state
+      dependsOn: [restart_for_join_token]
+      actor: installer
+      action: installer.cluster_bootstrap
+
+    - id: publish_bootstrap_artifacts
+      title: Publish local bootstrap artifacts to repository
+      dependsOn: [bootstrap_first_node]
+      actor: repository
+      action: repository.publish_bootstrap_artifacts
+      with:
+        source: local-bootstrap-cache
+
+    - id: import_installed_into_desired
+      title: Import installed packages into desired state
+      dependsOn: [publish_bootstrap_artifacts]
+      actor: cluster-controller
+      action: controller.seed_desired_from_installed
+
+    - id: stabilize
+      title: Final reconciliation stabilization pass
+      dependsOn: [import_installed_into_desired]
+      actor: cluster-controller
+      action: controller.reconcile_until_stable
+      retry:
+        maxAttempts: 12
+        backoff: 10s
+
+    - id: cleanup_bootstrap
+      title: Disable bootstrap mode and remove temporary credentials
+      dependsOn: [stabilize]
+      actor: installer
+      action: installer.disable_bootstrap_window
+
+  onFailure:
+    actor: installer
+    action: installer.capture_bootstrap_failure_bundle
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.emit_cluster_bootstrap_succeeded

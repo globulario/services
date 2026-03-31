@@ -1,0 +1,213 @@
+package v1alpha1
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
+
+const (
+	APIVersion = "workflow.globular.io/v1alpha1"
+	Kind       = "WorkflowDefinition"
+)
+
+// WorkflowDefinition is the authoring-time schema loaded from YAML/JSON.
+// It is intentionally more flexible than the runtime model because authoring
+// files may use expressions such as $.max_parallel_nodes or $.execute_timeout.
+type WorkflowDefinition struct {
+	APIVersion string                 `json:"apiVersion" yaml:"apiVersion"`
+	Kind       string                 `json:"kind" yaml:"kind"`
+	Metadata   WorkflowMetadata       `json:"metadata" yaml:"metadata"`
+	Spec       WorkflowDefinitionSpec `json:"spec" yaml:"spec"`
+}
+
+type WorkflowMetadata struct {
+	Name        string            `json:"name" yaml:"name"`
+	DisplayName string            `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+}
+
+type WorkflowDefinitionSpec struct {
+	InputSchema map[string]any     `json:"inputSchema,omitempty" yaml:"inputSchema,omitempty"`
+	Defaults    map[string]any     `json:"defaults,omitempty" yaml:"defaults,omitempty"`
+	Strategy    ExecutionStrategy  `json:"strategy" yaml:"strategy"`
+	Steps       []WorkflowStepSpec `json:"steps" yaml:"steps"`
+	OnFailure   *WorkflowHook      `json:"onFailure,omitempty" yaml:"onFailure,omitempty"`
+	OnSuccess   *WorkflowHook      `json:"onSuccess,omitempty" yaml:"onSuccess,omitempty"`
+}
+
+type ExecutionStrategy struct {
+	Mode        StrategyMode  `json:"mode" yaml:"mode"`
+	Collection  *ScalarString `json:"collection,omitempty" yaml:"collection,omitempty"`
+	Concurrency *ScalarInt    `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	ItemName    *ScalarString `json:"itemName,omitempty" yaml:"itemName,omitempty"`
+}
+
+type StrategyMode string
+
+const (
+	StrategySingle  StrategyMode = "single"
+	StrategyForeach StrategyMode = "foreach"
+	StrategyDAG     StrategyMode = "dag"
+)
+
+type WorkflowStepSpec struct {
+	ID        string         `json:"id" yaml:"id"`
+	Title     string         `json:"title,omitempty" yaml:"title,omitempty"`
+	Actor     ActorType      `json:"actor" yaml:"actor"`
+	Action    string         `json:"action" yaml:"action"`
+	DependsOn []string       `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty"`
+	When      *StepCondition `json:"when,omitempty" yaml:"when,omitempty"`
+	Foreach   *ScalarString  `json:"foreach,omitempty" yaml:"foreach,omitempty"`
+	With      map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
+	Retry     *RetryPolicy   `json:"retry,omitempty" yaml:"retry,omitempty"`
+	Timeout   *ScalarString  `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	WaitFor   *WaitPolicy    `json:"waitFor,omitempty" yaml:"waitFor,omitempty"`
+	Export    *ScalarString  `json:"export,omitempty" yaml:"export,omitempty"`
+}
+
+type StepCondition struct {
+	Expr  string          `json:"expr,omitempty" yaml:"expr,omitempty"`
+	AnyOf []StepCondition `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
+	AllOf []StepCondition `json:"allOf,omitempty" yaml:"allOf,omitempty"`
+	Not   *StepCondition  `json:"not,omitempty" yaml:"not,omitempty"`
+}
+
+type RetryPolicy struct {
+	MaxAttempts int           `json:"maxAttempts" yaml:"maxAttempts"`
+	Backoff     *ScalarString `json:"backoff,omitempty" yaml:"backoff,omitempty"`
+}
+
+type WaitPolicy struct {
+	Condition string        `json:"condition" yaml:"condition"`
+	Timeout   *ScalarString `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+}
+
+type WorkflowHook struct {
+	Actor  ActorType      `json:"actor" yaml:"actor"`
+	Action string         `json:"action" yaml:"action"`
+	With   map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
+}
+
+type ActorType string
+
+const (
+	ActorWorkflowService   ActorType = "workflow-service"
+	ActorClusterController ActorType = "cluster-controller"
+	ActorNodeAgent         ActorType = "node-agent"
+	ActorInstaller         ActorType = "installer"
+	ActorRepository        ActorType = "repository"
+	ActorOperator          ActorType = "operator"
+)
+
+// ScalarString accepts either a literal string or an expression-like string.
+type ScalarString struct {
+	Raw string
+}
+
+func (s *ScalarString) UnmarshalJSON(data []byte) error {
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch x := v.(type) {
+	case string:
+		s.Raw = x
+		return nil
+	default:
+		return fmt.Errorf("expected string scalar, got %T", x)
+	}
+}
+
+func (s ScalarString) MarshalJSON() ([]byte, error) { return json.Marshal(s.Raw) }
+
+func (s *ScalarString) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode {
+		return fmt.Errorf("expected scalar string node, got kind=%d", node.Kind)
+	}
+	s.Raw = node.Value
+	return nil
+}
+
+func (s *ScalarString) String() string {
+	if s == nil {
+		return ""
+	}
+	return s.Raw
+}
+func (s *ScalarString) IsExpression() bool { return s != nil && len(s.Raw) > 2 && s.Raw[0:2] == "$." }
+
+// ScalarInt accepts either a literal integer or an expression string.
+type ScalarInt struct {
+	Value *int
+	Expr  string
+}
+
+func (s *ScalarInt) UnmarshalJSON(data []byte) error {
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch x := v.(type) {
+	case float64:
+		n := int(x)
+		if float64(n) != x {
+			return fmt.Errorf("expected integer scalar, got %v", x)
+		}
+		s.Value = &n
+		s.Expr = ""
+		return nil
+	case string:
+		s.Expr = x
+		s.Value = nil
+		return nil
+	default:
+		return fmt.Errorf("expected int or string scalar, got %T", x)
+	}
+}
+
+func (s *ScalarInt) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode {
+		return fmt.Errorf("expected scalar int node, got kind=%d", node.Kind)
+	}
+	var n int
+	if err := node.Decode(&n); err == nil {
+		s.Value = &n
+		s.Expr = ""
+		return nil
+	}
+	var expr string
+	if err := node.Decode(&expr); err == nil {
+		s.Value = nil
+		s.Expr = expr
+		return nil
+	}
+	return fmt.Errorf("expected int or string scalar, got %q", node.Value)
+}
+
+func (s ScalarInt) MarshalJSON() ([]byte, error) {
+	if s.Value != nil {
+		return json.Marshal(*s.Value)
+	}
+	return json.Marshal(s.Expr)
+}
+
+func (s *ScalarInt) IntValue() (int, bool) {
+	if s == nil || s.Value == nil {
+		return 0, false
+	}
+	return *s.Value, true
+}
+
+func (s *ScalarInt) IsExpression() bool { return s != nil && s.Value == nil && s.Expr != "" }
+func (s *ScalarInt) String() string {
+	if s == nil {
+		return ""
+	}
+	if s.Value != nil {
+		return fmt.Sprintf("%d", *s.Value)
+	}
+	return s.Expr
+}

@@ -77,6 +77,7 @@ type NodeAgentServer struct {
 	lastPlanGeneration       uint64
 	planRunnerCtx            context.Context
 	planRunnerOnce           sync.Once
+	workflowRunning          int32 // atomic: 1 = workflow active, plan-runner skips
 	controllerDialer         func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	controllerClientFactory  func(conn grpc.ClientConnInterface) cluster_controllerpb.ClusterControllerServiceClient
 	controllerClientOverride func(addr string) cluster_controllerpb.ClusterControllerServiceClient

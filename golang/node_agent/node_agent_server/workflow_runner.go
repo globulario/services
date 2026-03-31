@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -94,7 +95,10 @@ func (srv *NodeAgentServer) RunJoinWorkflow(ctx context.Context, defPath string,
 		},
 	}
 
-	log.Printf("workflow-runner: starting %s for node %s", def.Metadata.Name, srv.nodeID)
+	log.Printf("workflow-runner: starting %s for node %s — disabling plan-runner", def.Metadata.Name, srv.nodeID)
+	atomic.StoreInt32(&srv.workflowRunning, 1)
+	defer atomic.StoreInt32(&srv.workflowRunning, 0)
+
 	start := time.Now()
 	run, err := eng.Execute(ctx, def, inputs)
 	elapsed := time.Since(start)

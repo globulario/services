@@ -1291,5 +1291,66 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getCertificateStatus =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.RunWorkflowRequest,
+ *   !proto.node_agent.RunWorkflowResponse>}
+ */
+const methodDescriptor_NodeAgentService_RunWorkflow = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/RunWorkflow',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.RunWorkflowRequest,
+  proto.node_agent.RunWorkflowResponse,
+  /**
+   * @param {!proto.node_agent.RunWorkflowRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.RunWorkflowResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.RunWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.RunWorkflowResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.RunWorkflowResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.runWorkflow =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunWorkflow,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.RunWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.RunWorkflowResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.runWorkflow =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/RunWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_RunWorkflow);
+};
+
+
 module.exports = proto.node_agent;
 
