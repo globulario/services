@@ -18,8 +18,6 @@ import (
 const (
 	dnsDefaultTTL                = 60
 	defaultSessionTimeoutMinutes = 15
-	dnsConnectRetryAttempts      = 10
-	dnsConnectRetrySleep         = time.Second
 	envDNSIPv4                   = "GLOBULAR_DNS_IPv4"
 	envDNSIPv6                   = "GLOBULAR_DNS_IPv6"
 	envDNSIface                  = "GLOBULAR_DNS_IFACE"

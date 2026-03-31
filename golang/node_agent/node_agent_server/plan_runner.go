@@ -268,63 +268,6 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_SUCCEEDED, "plan reconciled", 100, true, ""))
 }
 
-func (srv *NodeAgentServer) performRollback(ctx context.Context, plan *planpb.NodePlan, status *planpb.NodePlanStatus, op *operation) error {
-	spec := plan.GetSpec()
-	if spec == nil || len(spec.GetRollback()) == 0 {
-		err := errors.New("rollback steps not configured")
-		status.ErrorMessage = err.Error()
-		srv.publishPlanStatus(ctx, status)
-		return err
-	}
-	status.State = planpb.PlanState_PLAN_ROLLING_BACK
-	srv.addPlanEvent(status, "warn", "plan rolling back", "")
-	srv.publishPlanStatus(ctx, status)
-
-	steps := spec.GetRollback()
-	total := len(steps)
-	for idx, step := range steps {
-		stepStatus := &planpb.StepStatus{
-			Id:            step.GetId(),
-			State:         planpb.StepState_STEP_RUNNING,
-			Attempt:       1,
-			StartedUnixMs: uint64(time.Now().UnixMilli()),
-		}
-		status.Steps = append(status.Steps, stepStatus)
-		status.CurrentStepId = step.GetId()
-		srv.addPlanEvent(status, "info", fmt.Sprintf("rollback step %s running", step.GetId()), step.GetId())
-		srv.publishPlanStatus(ctx, status)
-
-		percent := percentForStep(idx, total)
-		op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("rollback %s running", step.GetId()), percent, false, ""))
-
-		if err := srv.executePlanStep(ctx, step); err != nil {
-			stepStatus.State = planpb.StepState_STEP_FAILED
-			stepStatus.FinishedUnixMs = uint64(time.Now().UnixMilli())
-			status.State = planpb.PlanState_PLAN_FAILED
-			status.ErrorMessage = fmt.Sprintf("rollback failed: %v", err)
-			status.ErrorStepId = step.GetId()
-			status.FinishedUnixMs = uint64(time.Now().UnixMilli())
-			srv.addPlanEvent(status, "error", fmt.Sprintf("rollback step %s failed: %v", step.GetId(), err), step.GetId())
-			srv.publishPlanStatus(ctx, status)
-			op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_FAILED, fmt.Sprintf("rollback %s failed", step.GetId()), percent, true, err.Error()))
-			return err
-		}
-
-		stepStatus.State = planpb.StepState_STEP_OK
-		stepStatus.FinishedUnixMs = uint64(time.Now().UnixMilli())
-		srv.addPlanEvent(status, "info", fmt.Sprintf("rollback step %s succeeded", step.GetId()), step.GetId())
-		srv.publishPlanStatus(ctx, status)
-	}
-
-	status.State = planpb.PlanState_PLAN_ROLLED_BACK
-	status.FinishedUnixMs = uint64(time.Now().UnixMilli())
-	status.CurrentStepId = ""
-	srv.addPlanEvent(status, "info", "rollback succeeded", "")
-	srv.publishPlanStatus(ctx, status)
-	op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_FAILED, "rollback succeeded", 100, true, ""))
-	return nil
-}
-
 func (srv *NodeAgentServer) executePlanStep(ctx context.Context, step *planpb.PlanStep) error {
 	if step == nil {
 		return errors.New("plan step is nil")

@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
 
 func TestExecuteNodeBootstrap(t *testing.T) {
 	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile("../../definitions/node.bootstrap.yaml")
+	def, err := loader.LoadFile("../definitions/node.bootstrap.yaml")
 	if err != nil {
 		t.Fatalf("load definition: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestExecuteNodeBootstrap(t *testing.T) {
 
 func TestStepSkippedWhenConditionFalse(t *testing.T) {
 	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile("../../definitions/node.bootstrap.yaml")
+	def, err := loader.LoadFile("../definitions/node.bootstrap.yaml")
 	if err != nil {
 		t.Fatalf("load definition: %v", err)
 	}

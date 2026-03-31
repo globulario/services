@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -195,32 +194,3 @@ func (srv *NodeAgentServer) StartIngressReconciliation(ctx context.Context) {
 	go srv.watchIngressSpec(ctx)
 }
 
-// GetIngressStatus returns the current ingress status for this node (optional helper method)
-func (srv *NodeAgentServer) GetIngressStatus(ctx context.Context) (*ingress.NodeStatus, error) {
-	if srv.nodeID == "" {
-		return nil, fmt.Errorf("node ID not available")
-	}
-
-	etcdClient, err := config.GetEtcdClient()
-	if err != nil {
-		return nil, fmt.Errorf("get etcd client: %w", err)
-	}
-
-	statusKey := "/globular/ingress/v1/status/" + srv.nodeID
-
-	resp, err := etcdClient.Get(ctx, statusKey)
-	if err != nil {
-		return nil, fmt.Errorf("get status from etcd: %w", err)
-	}
-
-	if len(resp.Kvs) == 0 {
-		return nil, nil // No status yet
-	}
-
-	var status ingress.NodeStatus
-	if err := json.Unmarshal(resp.Kvs[0].Value, &status); err != nil {
-		return nil, fmt.Errorf("unmarshal status: %w", err)
-	}
-
-	return &status, nil
-}

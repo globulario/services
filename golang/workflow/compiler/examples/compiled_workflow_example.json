@@ -1,0 +1,57 @@
+{
+  "name": "node.bootstrap",
+  "namespace": "globular.system",
+  "version": "v1",
+  "source_hash": "<sha256>",
+  "entry_points": ["infra"],
+  "topo_order": ["infra", "foundational", "workloads"],
+  "dependents": {
+    "infra": ["foundational"],
+    "foundational": ["workloads"]
+  },
+  "steps": {
+    "infra": {
+      "id": "infra",
+      "actor": "node-agent",
+      "action": "install_package",
+      "with": {
+        "packages": {
+          "static": ["etcd", "minio", "xds", "envoy"],
+          "expr_kind": "literal"
+        }
+      },
+      "retry": {
+        "max_attempts": 3,
+        "backoff": 5000000000
+      },
+      "timeout": 1800000000000,
+      "dependents": ["foundational"]
+    },
+    "foundational": {
+      "id": "foundational",
+      "actor": "node-agent",
+      "action": "install_package",
+      "depends_on": ["infra"],
+      "with": {
+        "packages": {
+          "static": ["cluster-controller", "repository", "resource"],
+          "expr_kind": "literal"
+        }
+      },
+      "dependents": ["workloads"]
+    },
+    "workloads": {
+      "id": "workloads",
+      "actor": "node-agent",
+      "action": "install_package",
+      "depends_on": ["foundational"],
+      "with": {
+        "packages": {
+          "raw": "$.inputs.workload_packages",
+          "is_expr": true,
+          "expr_kind": "context"
+        }
+      }
+    }
+  }
+}

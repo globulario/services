@@ -1260,38 +1260,6 @@ func restartUnitsForSpec(spec *cluster_controllerpb.ClusterNetworkSpec) []string
 	return units
 }
 
-func computeNetworkGeneration(spec *cluster_controllerpb.ClusterNetworkSpec) uint64 {
-	if spec == nil {
-		return 0
-	}
-	domain := strings.ToLower(strings.TrimSpace(spec.GetClusterDomain()))
-	protoStr := strings.ToLower(strings.TrimSpace(spec.GetProtocol()))
-	alts := normalizeDomains(spec.GetAlternateDomains())
-	sort.Strings(alts)
-	builder := strings.Builder{}
-	builder.WriteString(domain)
-	builder.WriteString("|")
-	builder.WriteString(protoStr)
-	builder.WriteString("|")
-	builder.WriteString(fmt.Sprintf("%d|%d|", spec.GetPortHttp(), spec.GetPortHttps()))
-	builder.WriteString(fmt.Sprintf("%t|", spec.GetAcmeEnabled()))
-	builder.WriteString(strings.ToLower(strings.TrimSpace(spec.GetAdminEmail())))
-	builder.WriteString("|")
-	for _, a := range alts {
-		builder.WriteString(a)
-		builder.WriteString(",")
-	}
-	sum := sha256.Sum256([]byte(builder.String()))
-	var gen uint64
-	for i := 0; i < 8; i++ {
-		gen = (gen << 8) | uint64(sum[i])
-	}
-	if gen == 0 {
-		gen = 1
-	}
-	return gen
-}
-
 func normalizeDomains(domains []string) []string {
 	if len(domains) == 0 {
 		return nil
@@ -1315,27 +1283,6 @@ func normalizeDomains(domains []string) []string {
 	return out
 }
 
-func (srv *server) shouldDispatch(node *nodeState, hash string) bool {
-	if node == nil {
-		return false
-	}
-	if node.AgentEndpoint == "" {
-		return false
-	}
-	if hash == "" {
-		return false
-	}
-	if node.LastPlanHash != hash {
-		return true
-	}
-	if node.Status != "ready" {
-		return true
-	}
-	if node.LastPlanError != "" {
-		return true
-	}
-	return false
-}
 
 func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *cluster_controllerpb.NodePlan, operationID string) error {
 	if plan == nil {

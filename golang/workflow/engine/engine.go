@@ -1,8 +1,9 @@
 // Package engine executes workflow definitions.
 //
 // It evaluates the step DAG, dispatches actions to actors, handles retries
-// and timeouts, and tracks run/step state. The engine is the runtime
-// counterpart to the v1alpha1 authoring schema.
+// and timeouts, and tracks run/step state. Definitions are compiled via
+// the compiler package before execution — all parsing, validation, and
+// graph construction happens once at compile time.
 package engine
 
 import (
@@ -13,7 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
+	"github.com/globulario/services/golang/workflow/compiler"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
 
 // --------------------------------------------------------------------------
@@ -63,6 +65,10 @@ func (r *Router) Resolve(actor v1alpha1.ActorType, action string) (ActionHandler
 	defer r.mu.RUnlock()
 	h, ok := r.handlers[string(actor)+"::"+action]
 	return h, ok
+}
+
+func (r *Router) resolveByName(actor, action string) (ActionHandler, bool) {
+	return r.Resolve(v1alpha1.ActorType(actor), action)
 }
 
 // --------------------------------------------------------------------------
@@ -127,23 +133,36 @@ type Run struct {
 // Engine
 // --------------------------------------------------------------------------
 
-// Engine executes a workflow definition to completion.
+// Engine executes compiled workflows to completion.
 type Engine struct {
-	Router    *Router
-	EvalCond  ConditionFunc
+	Router     *Router
+	EvalCond   ConditionFunc
 	OnStepDone func(run *Run, step *StepState) // optional callback for observability
 }
 
-// Execute runs a workflow definition with the given inputs. It blocks until
-// the workflow completes (success or failure) or the context is canceled.
+// Execute compiles a v1alpha1 definition and executes it. This is the
+// convenience entry point — it compiles, then delegates to ExecuteCompiled.
 func (e *Engine) Execute(ctx context.Context, def *v1alpha1.WorkflowDefinition, inputs map[string]any) (*Run, error) {
 	if def == nil {
 		return nil, fmt.Errorf("definition is nil")
 	}
+	cw, _, err := compiler.Compile(ctx, def)
+	if err != nil {
+		return nil, fmt.Errorf("compile %s: %w", def.Metadata.Name, err)
+	}
+	return e.ExecuteCompiled(ctx, cw, inputs)
+}
 
-	// Apply defaults.
+// ExecuteCompiled runs a pre-compiled workflow with the given inputs.
+// It blocks until the workflow completes or the context is canceled.
+func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkflow, inputs map[string]any) (*Run, error) {
+	if cw == nil {
+		return nil, fmt.Errorf("compiled workflow is nil")
+	}
+
+	// Merge defaults + inputs.
 	merged := make(map[string]any)
-	for k, v := range def.Spec.Defaults {
+	for k, v := range cw.Defaults {
 		merged[k] = v
 	}
 	for k, v := range inputs {
@@ -152,64 +171,58 @@ func (e *Engine) Execute(ctx context.Context, def *v1alpha1.WorkflowDefinition, 
 
 	run := &Run{
 		ID:         fmt.Sprintf("run-%d", time.Now().UnixMilli()),
-		Definition: def.Metadata.Name,
+		Definition: cw.Name,
 		Status:     RunRunning,
 		Inputs:     merged,
 		Outputs:    make(map[string]any),
-		Steps:      make(map[string]*StepState, len(def.Spec.Steps)),
+		Steps:      make(map[string]*StepState, len(cw.Steps)),
 		StartedAt:  time.Now(),
 	}
-	for _, s := range def.Spec.Steps {
-		run.Steps[s.ID] = &StepState{ID: s.ID, Status: StepPending}
+	for id := range cw.Steps {
+		run.Steps[id] = &StepState{ID: id, Status: StepPending}
 	}
 
-	// Build dependency graph.
-	stepsByID := make(map[string]*v1alpha1.WorkflowStepSpec, len(def.Spec.Steps))
-	for i := range def.Spec.Steps {
-		stepsByID[def.Spec.Steps[i].ID] = &def.Spec.Steps[i]
-	}
+	// Execute DAG using compiled topo order.
+	err := e.executeDAG(ctx, run, cw)
 
-	// Execute DAG.
-	err := e.executeDAG(ctx, run, def.Spec.Steps, stepsByID)
-
-	now := time.Now()
-	run.FinishedAt = now
+	run.FinishedAt = time.Now()
 	if err != nil {
 		run.Status = RunFailed
 		run.Error = err.Error()
-		// onFailure hook
-		if def.Spec.OnFailure != nil {
-			e.dispatchHook(ctx, run, def.Spec.OnFailure)
+		if cw.OnFailure != nil {
+			e.dispatchHook(ctx, run, cw.OnFailure)
 		}
 	} else {
 		run.Status = RunSucceeded
-		// onSuccess hook
-		if def.Spec.OnSuccess != nil {
-			e.dispatchHook(ctx, run, def.Spec.OnSuccess)
+		if cw.OnSuccess != nil {
+			e.dispatchHook(ctx, run, cw.OnSuccess)
 		}
 	}
 
 	return run, err
 }
 
+// --------------------------------------------------------------------------
+// DAG execution
+// --------------------------------------------------------------------------
+
 // executeDAG runs all steps respecting their dependency order.
 // Steps with satisfied dependencies execute in parallel.
-func (e *Engine) executeDAG(ctx context.Context, run *Run, steps []v1alpha1.WorkflowStepSpec, byID map[string]*v1alpha1.WorkflowStepSpec) error {
-	// Keep looping until all steps are terminal (succeeded/failed/skipped).
+func (e *Engine) executeDAG(ctx context.Context, run *Run, cw *compiler.CompiledWorkflow) error {
+	// Use topo order for deterministic iteration; parallelize independent steps.
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 
-		// Find ready steps: all dependencies are terminal.
-		var ready []*v1alpha1.WorkflowStepSpec
+		var ready []*compiler.CompiledStep
 		allDone := true
-		for _, s := range steps {
-			st := run.Steps[s.ID]
+		for _, id := range cw.TopoOrder {
+			st := run.Steps[id]
 			if st.Status == StepPending {
 				allDone = false
-				if e.depsReady(run, s.DependsOn) {
-					ready = append(ready, byID[s.ID])
+				if depsReady(run, cw.Steps[id].DependsOn) {
+					ready = append(ready, cw.Steps[id])
 				}
 			} else if st.Status == StepRunning {
 				allDone = false
@@ -220,23 +233,20 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, steps []v1alpha1.Work
 			break
 		}
 		if len(ready) == 0 {
-			// No steps ready but not all done — wait a tick for running steps.
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
-		// Execute ready steps in parallel.
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		var firstErr error
 
-		for _, spec := range ready {
-			spec := spec
+		for _, step := range ready {
+			step := step
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err := e.executeStep(ctx, run, spec)
-				if err != nil {
+				if err := e.executeStep(ctx, run, step); err != nil {
 					mu.Lock()
 					if firstErr == nil {
 						firstErr = err
@@ -252,7 +262,6 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, steps []v1alpha1.Work
 		}
 	}
 
-	// Check for any failed steps.
 	for _, st := range run.Steps {
 		if st.Status == StepFailed {
 			return fmt.Errorf("step %s failed: %s", st.ID, st.Error)
@@ -261,8 +270,7 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, steps []v1alpha1.Work
 	return nil
 }
 
-// depsReady returns true if all dependencies are in a terminal success state.
-func (e *Engine) depsReady(run *Run, deps []string) bool {
+func depsReady(run *Run, deps []string) bool {
 	for _, dep := range deps {
 		st, ok := run.Steps[dep]
 		if !ok {
@@ -275,62 +283,64 @@ func (e *Engine) depsReady(run *Run, deps []string) bool {
 	return true
 }
 
-// executeStep runs a single step with retry and timeout.
-func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.WorkflowStepSpec) error {
-	st := run.Steps[spec.ID]
+// --------------------------------------------------------------------------
+// Step execution
+// --------------------------------------------------------------------------
+
+func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
+	st := run.Steps[step.ID]
+
+	// Foreach expansion.
+	if step.Foreach != nil {
+		return e.executeForeach(ctx, run, step)
+	}
 
 	// Evaluate when condition.
-	if spec.When != nil {
-		ok, err := e.evaluateCondition(ctx, spec.When, run.Inputs, run.Outputs)
+	if step.When != nil {
+		ok, err := e.evalCondition(ctx, step.When, run.Inputs, run.Outputs)
 		if err != nil {
 			st.Status = StepFailed
 			st.Error = fmt.Sprintf("condition eval: %v", err)
-			return nil // condition failure doesn't fail the workflow
+			return nil
 		}
 		if !ok {
 			st.Status = StepSkipped
-			log.Printf("workflow: step %s skipped (condition not met)", spec.ID)
-			if e.OnStepDone != nil {
-				e.OnStepDone(run, st)
-			}
+			log.Printf("workflow: step %s skipped (condition not met)", step.ID)
+			e.notifyStep(run, st)
 			return nil
 		}
 	}
 
 	// Resolve handler.
-	handler, ok := e.Router.Resolve(spec.Actor, spec.Action)
+	handler, ok := e.Router.resolveByName(step.Actor, step.Action)
 	if !ok {
 		st.Status = StepFailed
-		st.Error = fmt.Sprintf("no handler for %s::%s", spec.Actor, spec.Action)
+		st.Error = fmt.Sprintf("no handler for %s::%s", step.Actor, step.Action)
 		e.notifyStep(run, st)
-		return fmt.Errorf("step %s: no handler for %s::%s", spec.ID, spec.Actor, spec.Action)
+		return fmt.Errorf("step %s: no handler for %s::%s", step.ID, step.Actor, step.Action)
 	}
 
-	// Timeout.
+	// Pre-resolved timeout from compiler.
 	stepCtx := ctx
-	if spec.Timeout != nil && !spec.Timeout.IsExpression() {
-		if d, err := time.ParseDuration(spec.Timeout.String()); err == nil {
-			var cancel context.CancelFunc
-			stepCtx, cancel = context.WithTimeout(ctx, d)
-			defer cancel()
-		}
+	if step.Timeout > 0 {
+		var cancel context.CancelFunc
+		stepCtx, cancel = context.WithTimeout(ctx, step.Timeout)
+		defer cancel()
 	}
 
-	// Retry loop.
-	maxAttempts := 1
-	backoff := 2 * time.Second
-	if spec.Retry != nil {
-		maxAttempts = spec.Retry.MaxAttempts
-		if spec.Retry.Backoff != nil && !spec.Retry.Backoff.IsExpression() {
-			if d, err := time.ParseDuration(spec.Retry.Backoff.String()); err == nil {
-				backoff = d
-			}
-		}
+	// Pre-resolved retry from compiler.
+	maxAttempts := step.Retry.MaxAttempts
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	backoff := step.Retry.Backoff
+	if backoff == 0 {
+		backoff = 2 * time.Second
 	}
 
 	st.Status = StepRunning
 	st.StartedAt = time.Now()
-	log.Printf("workflow: step %s starting (actor=%s action=%s)", spec.ID, spec.Actor, spec.Action)
+	log.Printf("workflow: step %s starting (actor=%s action=%s)", step.ID, step.Actor, step.Action)
 
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -338,10 +348,10 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 
 		req := ActionRequest{
 			RunID:   run.ID,
-			StepID:  spec.ID,
-			Actor:   spec.Actor,
-			Action:  spec.Action,
-			With:    resolveWith(spec.With, run.Inputs, run.Outputs),
+			StepID:  step.ID,
+			Actor:   v1alpha1.ActorType(step.Actor),
+			Action:  step.Action,
+			With:    resolveCompiledWith(step.With, run.Inputs, run.Outputs),
 			Inputs:  run.Inputs,
 			Outputs: run.Outputs,
 		}
@@ -351,14 +361,14 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 			lastErr = err
 			if attempt < maxAttempts {
 				log.Printf("workflow: step %s attempt %d/%d failed: %v — retrying in %s",
-					spec.ID, attempt, maxAttempts, err, backoff)
+					step.ID, attempt, maxAttempts, err, backoff)
 				select {
 				case <-stepCtx.Done():
 					st.Status = StepFailed
 					st.Error = fmt.Sprintf("timeout after %d attempts: %v", attempt, err)
 					st.FinishedAt = time.Now()
 					e.notifyStep(run, st)
-					return fmt.Errorf("step %s timed out: %v", spec.ID, err)
+					return fmt.Errorf("step %s timed out: %v", step.ID, err)
 				case <-time.After(backoff):
 				}
 				continue
@@ -366,23 +376,23 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 			st.Status = StepFailed
 			st.Error = err.Error()
 			st.FinishedAt = time.Now()
-			log.Printf("workflow: step %s FAILED after %d attempts: %v", spec.ID, attempt, err)
+			log.Printf("workflow: step %s FAILED after %d attempts: %v", step.ID, attempt, err)
 			e.notifyStep(run, st)
-			return fmt.Errorf("step %s failed: %v", spec.ID, lastErr)
+			return fmt.Errorf("step %s failed: %v", step.ID, lastErr)
 		}
 
 		if result != nil && !result.OK {
 			lastErr = fmt.Errorf("%s", result.Message)
 			if attempt < maxAttempts {
 				log.Printf("workflow: step %s attempt %d/%d not OK: %s — retrying",
-					spec.ID, attempt, maxAttempts, result.Message)
+					step.ID, attempt, maxAttempts, result.Message)
 				select {
 				case <-stepCtx.Done():
 					st.Status = StepFailed
 					st.Error = result.Message
 					st.FinishedAt = time.Now()
 					e.notifyStep(run, st)
-					return fmt.Errorf("step %s timed out", spec.ID)
+					return fmt.Errorf("step %s timed out", step.ID)
 				case <-time.After(backoff):
 				}
 				continue
@@ -391,7 +401,7 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 			st.Error = result.Message
 			st.FinishedAt = time.Now()
 			e.notifyStep(run, st)
-			return fmt.Errorf("step %s failed: %s", spec.ID, result.Message)
+			return fmt.Errorf("step %s failed: %s", step.ID, result.Message)
 		}
 
 		// Success.
@@ -400,13 +410,11 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 		if result != nil {
 			st.Output = result.Output
 		}
-
-		// Export output to run-level.
-		if spec.Export != nil && spec.Export.String() != "" {
-			run.Outputs[spec.Export.String()] = st.Output
+		if step.Export != "" {
+			run.Outputs[step.Export] = st.Output
 		}
 
-		log.Printf("workflow: step %s SUCCEEDED (attempt %d)", spec.ID, attempt)
+		log.Printf("workflow: step %s SUCCEEDED (attempt %d)", step.ID, attempt)
 		e.notifyStep(run, st)
 		return nil
 	}
@@ -414,24 +422,133 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, spec *v1alpha1.Workf
 	return lastErr
 }
 
-func (e *Engine) evaluateCondition(ctx context.Context, cond *v1alpha1.StepCondition, inputs, outputs map[string]any) (bool, error) {
+// --------------------------------------------------------------------------
+// Foreach expansion
+// --------------------------------------------------------------------------
+
+func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
+	st := run.Steps[step.ID]
+
+	// Resolve collection from inputs/outputs.
+	var items []any
+	if step.Foreach.IsExpr {
+		raw := resolveValue(step.Foreach.Raw, run.Inputs, run.Outputs)
+		if list, ok := raw.([]any); ok {
+			items = list
+		}
+	} else if step.Foreach.Raw != "" {
+		raw := resolveValue(step.Foreach.Raw, run.Inputs, run.Outputs)
+		if list, ok := raw.([]any); ok {
+			items = list
+		}
+	}
+
+	if len(items) == 0 {
+		st.Status = StepSkipped
+		log.Printf("workflow: step %s skipped (foreach collection empty)", step.ID)
+		e.notifyStep(run, st)
+		return nil
+	}
+
+	// Evaluate when condition once before iterating.
+	if step.When != nil {
+		ok, err := e.evalCondition(ctx, step.When, run.Inputs, run.Outputs)
+		if err != nil {
+			st.Status = StepFailed
+			st.Error = fmt.Sprintf("condition eval: %v", err)
+			return nil
+		}
+		if !ok {
+			st.Status = StepSkipped
+			e.notifyStep(run, st)
+			return nil
+		}
+	}
+
+	handler, ok := e.Router.resolveByName(step.Actor, step.Action)
+	if !ok {
+		st.Status = StepFailed
+		st.Error = fmt.Sprintf("no handler for %s::%s", step.Actor, step.Action)
+		e.notifyStep(run, st)
+		return fmt.Errorf("step %s: no handler for %s::%s", step.ID, step.Actor, step.Action)
+	}
+
+	st.Status = StepRunning
+	st.StartedAt = time.Now()
+	log.Printf("workflow: step %s starting foreach (%d items, actor=%s action=%s)",
+		step.ID, len(items), step.Actor, step.Action)
+
+	var results []any
+	for i, item := range items {
+		iterInputs := make(map[string]any, len(run.Inputs)+2)
+		for k, v := range run.Inputs {
+			iterInputs[k] = v
+		}
+		iterInputs["item"] = item
+		iterInputs["item_index"] = i
+		if s, ok := item.(string); ok {
+			iterInputs["node_id"] = s
+		}
+
+		req := ActionRequest{
+			RunID:   run.ID,
+			StepID:  fmt.Sprintf("%s[%d]", step.ID, i),
+			Actor:   v1alpha1.ActorType(step.Actor),
+			Action:  step.Action,
+			With:    resolveCompiledWith(step.With, iterInputs, run.Outputs),
+			Inputs:  iterInputs,
+			Outputs: run.Outputs,
+		}
+
+		result, err := handler(ctx, req)
+		if err != nil {
+			st.Status = StepFailed
+			st.Error = fmt.Sprintf("item %d: %v", i, err)
+			st.FinishedAt = time.Now()
+			e.notifyStep(run, st)
+			return fmt.Errorf("step %s item %d: %v", step.ID, i, err)
+		}
+		if result != nil && !result.OK {
+			st.Status = StepFailed
+			st.Error = fmt.Sprintf("item %d: %s", i, result.Message)
+			st.FinishedAt = time.Now()
+			e.notifyStep(run, st)
+			return fmt.Errorf("step %s item %d: %s", step.ID, i, result.Message)
+		}
+		if result != nil && result.Output != nil {
+			results = append(results, result.Output)
+		}
+	}
+
+	st.Status = StepSucceeded
+	st.FinishedAt = time.Now()
+	st.Output = map[string]any{"results": results, "count": len(items)}
+	if step.Export != "" {
+		run.Outputs[step.Export] = results
+	}
+
+	log.Printf("workflow: step %s foreach SUCCEEDED (%d/%d items)", step.ID, len(items), len(items))
+	e.notifyStep(run, st)
+	return nil
+}
+
+// --------------------------------------------------------------------------
+// Condition evaluation
+// --------------------------------------------------------------------------
+
+func (e *Engine) evalCondition(ctx context.Context, cond *compiler.CompiledCondition, inputs, outputs map[string]any) (bool, error) {
 	if cond == nil {
 		return true, nil
 	}
-
-	// Simple expression.
 	if cond.Expr != "" {
 		if e.EvalCond != nil {
 			return e.EvalCond(ctx, cond.Expr, inputs, outputs)
 		}
-		// Default: treat non-empty expression as true (pass-through).
 		return true, nil
 	}
-
-	// anyOf: at least one must be true.
 	if len(cond.AnyOf) > 0 {
 		for _, child := range cond.AnyOf {
-			ok, err := e.evaluateCondition(ctx, &child, inputs, outputs)
+			ok, err := e.evalCondition(ctx, &child, inputs, outputs)
 			if err != nil {
 				return false, err
 			}
@@ -441,11 +558,9 @@ func (e *Engine) evaluateCondition(ctx context.Context, cond *v1alpha1.StepCondi
 		}
 		return false, nil
 	}
-
-	// allOf: all must be true.
 	if len(cond.AllOf) > 0 {
 		for _, child := range cond.AllOf {
-			ok, err := e.evaluateCondition(ctx, &child, inputs, outputs)
+			ok, err := e.evalCondition(ctx, &child, inputs, outputs)
 			if err != nil {
 				return false, err
 			}
@@ -455,30 +570,31 @@ func (e *Engine) evaluateCondition(ctx context.Context, cond *v1alpha1.StepCondi
 		}
 		return true, nil
 	}
-
-	// not: invert child.
 	if cond.Not != nil {
-		ok, err := e.evaluateCondition(ctx, cond.Not, inputs, outputs)
+		ok, err := e.evalCondition(ctx, cond.Not, inputs, outputs)
 		if err != nil {
 			return false, err
 		}
 		return !ok, nil
 	}
-
 	return true, nil
 }
 
-func (e *Engine) dispatchHook(ctx context.Context, run *Run, hook *v1alpha1.WorkflowHook) {
-	handler, ok := e.Router.Resolve(hook.Actor, hook.Action)
+// --------------------------------------------------------------------------
+// Hooks
+// --------------------------------------------------------------------------
+
+func (e *Engine) dispatchHook(ctx context.Context, run *Run, hook *compiler.CompiledHook) {
+	handler, ok := e.Router.resolveByName(hook.Actor, hook.Action)
 	if !ok {
 		log.Printf("workflow: hook %s::%s has no handler, skipping", hook.Actor, hook.Action)
 		return
 	}
 	req := ActionRequest{
 		RunID:   run.ID,
-		Actor:   hook.Actor,
+		Actor:   v1alpha1.ActorType(hook.Actor),
 		Action:  hook.Action,
-		With:    hook.With,
+		With:    resolveCompiledWith(hook.With, run.Inputs, run.Outputs),
 		Inputs:  run.Inputs,
 		Outputs: run.Outputs,
 	}
@@ -497,8 +613,25 @@ func (e *Engine) notifyStep(run *Run, st *StepState) {
 // Expression resolution
 // --------------------------------------------------------------------------
 
-// resolveWith substitutes $.field references in step.With values with
-// actual values from inputs or outputs.
+// resolveCompiledWith resolves ValueExpr maps into concrete values.
+func resolveCompiledWith(with map[string]compiler.ValueExpr, inputs, outputs map[string]any) map[string]any {
+	if len(with) == 0 {
+		return nil
+	}
+	resolved := make(map[string]any, len(with))
+	for k, ve := range with {
+		if ve.IsExpr {
+			resolved[k] = resolveValue(ve.Raw, inputs, outputs)
+		} else if ve.Static != nil {
+			resolved[k] = ve.Static
+		} else {
+			resolved[k] = ve.Raw
+		}
+	}
+	return resolved
+}
+
+// resolveWith substitutes $.field references in step.With values.
 func resolveWith(with map[string]any, inputs, outputs map[string]any) map[string]any {
 	if len(with) == 0 {
 		return with

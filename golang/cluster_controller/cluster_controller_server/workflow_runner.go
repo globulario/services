@@ -9,8 +9,8 @@ import (
 
 	"os"
 
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/engine"
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
+	"github.com/globulario/services/golang/workflow/engine"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
 
 // RunBootstrapWorkflow executes the node.bootstrap workflow definition to

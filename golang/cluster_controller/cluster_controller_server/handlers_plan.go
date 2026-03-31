@@ -92,55 +92,6 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *cluster_contro
 	}, nil
 }
 
-func (srv *server) reconcileNetworkPlans(ctx context.Context, spec *cluster_controllerpb.ClusterNetworkSpec) {
-	if spec == nil || srv.planStore == nil {
-		return
-	}
-	srv.lock("reconcileNetworkPlans:snapshot")
-	clusterID := srv.state.ClusterId
-	nodes := make([]string, 0, len(srv.state.Nodes))
-	for id := range srv.state.Nodes {
-		nodes = append(nodes, id)
-	}
-	srv.unlock()
-
-	desired := ClusterDesiredState{
-		Network:         spec,
-		ServiceVersions: map[string]string{},
-	}
-
-	for _, nodeID := range nodes {
-		obsUnits := srv.observedUnitsForNode(nodeID)
-		plan, err := BuildNetworkTransitionPlan(nodeID, desired, NodeObservedState{Units: obsUnits})
-		if err != nil {
-			log.Printf("reconcile network plan for node %s failed: %v", nodeID, err)
-			continue
-		}
-		plan.PlanId = uuid.NewString()
-		plan.ClusterId = clusterID
-		plan.NodeId = nodeID
-		plan.Generation = srv.nextPlanGeneration(ctx, nodeID)
-		plan.IssuedBy = "cluster-controller"
-		if plan.GetCreatedUnixMs() == 0 {
-			plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
-		}
-		if err := srv.signOrAbort(plan); err != nil {
-			log.Printf("reconcile: signing aborted for node %s: %v", nodeID, err)
-			continue
-		}
-		if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
-			log.Printf("persist plan for node %s: %v", nodeID, err)
-			continue
-		}
-		if appendable, ok := srv.planStore.(interface {
-			AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
-		}); ok {
-			_ = appendable.AppendHistory(ctx, nodeID, plan)
-		}
-		log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", nodeID, plan.GetPlanId(), plan.GetGeneration())
-	}
-}
-
 func (srv *server) ApplyNodePlan(ctx context.Context, req *cluster_controllerpb.ApplyNodePlanRequest) (*cluster_controllerpb.ApplyNodePlanResponse, error) {
 	if err := srv.requireLeader(ctx); err != nil {
 		return nil, err

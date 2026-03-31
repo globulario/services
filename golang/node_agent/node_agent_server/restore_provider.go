@@ -1258,38 +1258,6 @@ func dropUserKeyspaces(ctx context.Context, cluster, apiURL string, outputs map[
 	}
 }
 
-// pollScyllaTask polls a sctool task until it completes (DONE/ERROR/ABORTED).
-// Returns true if the task completed successfully (DONE).
-func pollScyllaTask(ctx context.Context, taskID, cluster, apiURL string, outputs map[string]string, label string) bool {
-	progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
-		progressArgs = append(progressArgs, "--api-url", apiURL)
-	}
-	for pollCount := 0; pollCount < 120; pollCount++ { // up to 20 min
-		select {
-		case <-ctx.Done():
-			return false
-		case <-time.After(10 * time.Second):
-		}
-		pOut, pErr := exec.CommandContext(ctx, "sctool", progressArgs...).CombinedOutput()
-		if pErr != nil {
-			continue
-		}
-		pStr := string(pOut)
-		outputs[label+"_progress"] = strings.TrimSpace(pStr)
-		statusLine := extractScyllaStatusLine(pStr)
-		log.Printf("scylla restore: %s task status: %s", label, strings.TrimSpace(statusLine))
-		if strings.Contains(statusLine, "DONE") {
-			log.Printf("scylla restore: %s task completed", label)
-			return true
-		}
-		if strings.Contains(statusLine, "ERROR") || strings.Contains(statusLine, "ABORTED") {
-			return false
-		}
-	}
-	return false
-}
-
 // extractScyllaTaskID extracts a task ID from sctool output.
 // sctool restore prints lines like "restore/xxxxxxxx-xxxx-..." or just the task UUID.
 func extractScyllaTaskID(output string) string {

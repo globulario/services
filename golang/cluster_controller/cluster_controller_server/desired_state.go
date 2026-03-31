@@ -158,28 +158,6 @@ func (srv *server) putNodeAppliedServiceHash(ctx context.Context, nodeID, hash s
 	return err
 }
 
-// getNodeObservedServiceHash returns the raw inventory hash reported by the
-// node agent. This is distinct from the applied hash which is only set when
-// the reconciler confirms convergence with the desired state.
-func (srv *server) getNodeObservedServiceHash(ctx context.Context, nodeID string) (string, error) {
-	if srv.kv == nil {
-		return "", fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", observedSvcHashPrefix, nodeID)
-	resp, err := srv.kv.Get(ctx, key)
-	if err != nil {
-		return "", err
-	}
-	if len(resp.Kvs) == 0 {
-		return "", nil
-	}
-	val := string(resp.Kvs[0].Value)
-	if val != "" && !strings.HasPrefix(val, "services:") {
-		return "services:" + val, nil
-	}
-	return val, nil
-}
-
 func (srv *server) putNodeObservedServiceHash(ctx context.Context, nodeID, hash string) error {
 	if srv.kv == nil {
 		return fmt.Errorf("etcd client unavailable")

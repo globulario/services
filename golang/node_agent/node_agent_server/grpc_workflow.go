@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/engine"
+	"github.com/globulario/services/golang/workflow/engine"
 )
 
 // RunWorkflow implements the gRPC endpoint for workflow execution.

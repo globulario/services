@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/engine"
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
+	"github.com/globulario/services/golang/workflow/engine"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
 
 // RunWorkflowDefinition executes a workflow definition (e.g. node.join) to

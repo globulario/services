@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
 
 func TestNodeJoinWorkflow(t *testing.T) {
 	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile("../../definitions/node.join.yaml")
+	def, err := loader.LoadFile("../definitions/node.join.yaml")
 	if err != nil {
 		t.Fatalf("load definition: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestNodeJoinWorkflow(t *testing.T) {
 
 func TestNodeJoinWithInstallFailure(t *testing.T) {
 	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile("../../definitions/node.join.yaml")
+	def, err := loader.LoadFile("../definitions/node.join.yaml")
 	if err != nil {
 		t.Fatalf("load definition: %v", err)
 	}

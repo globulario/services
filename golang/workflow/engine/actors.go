@@ -1,0 +1,796 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/globulario/services/golang/workflow/v1alpha1"
+)
+
+// RegisterNodeAgentActions registers all node-agent actor handlers.
+// These wrap the actual install/verify/sync operations on the local node.
+func RegisterNodeAgentActions(router *Router, cfg NodeAgentConfig) {
+	router.Register(v1alpha1.ActorNodeAgent, "node.install_packages", nodeInstallPackages(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.verify_services_active", nodeVerifyServicesActive(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_state", nodeSyncInstalledState(cfg))
+}
+
+// RegisterControllerActions registers cluster-controller actor handlers.
+func RegisterControllerActions(router *Router, cfg ControllerConfig) {
+	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.set_phase", controllerSetPhase(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.mark_failed", controllerMarkFailed(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.emit_ready", controllerEmitReady(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.wait_condition", controllerWaitCondition(cfg))
+}
+
+// --------------------------------------------------------------------------
+// Config
+// --------------------------------------------------------------------------
+
+// NodeAgentConfig provides dependencies for node-agent actions.
+type NodeAgentConfig struct {
+	// FetchAndInstall fetches a package from the repository and installs it.
+	// This is the core operation — wraps the existing installer engine.
+	FetchAndInstall func(ctx context.Context, pkg PackageRef) error
+
+	// IsServiceActive checks if a systemd unit is active.
+	IsServiceActive func(name string) bool
+
+	// SyncInstalledState publishes installed packages to etcd.
+	SyncInstalledState func(ctx context.Context) error
+
+	// NodeID is the local node identifier.
+	NodeID string
+}
+
+// ControllerConfig provides dependencies for controller actions.
+type ControllerConfig struct {
+	// SetBootstrapPhase updates a node's bootstrap phase.
+	SetBootstrapPhase func(ctx context.Context, nodeID, phase string) error
+
+	// EmitEvent publishes a cluster event.
+	EmitEvent func(ctx context.Context, eventType string, data map[string]any) error
+
+	// WaitCondition polls until a bootstrap condition is satisfied.
+	WaitCondition func(ctx context.Context, nodeID, condition string) error
+}
+
+// PackageRef identifies a package to install.
+type PackageRef struct {
+	Name string
+	Kind string // SERVICE, INFRASTRUCTURE, COMMAND
+}
+
+// --------------------------------------------------------------------------
+// Node-agent actions
+// --------------------------------------------------------------------------
+
+func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		pkgs, err := extractPackageList(req.With)
+		if err != nil {
+			return nil, fmt.Errorf("parse packages: %w", err)
+		}
+		if len(pkgs) == 0 {
+			return &ActionResult{OK: true, Message: "no packages to install"}, nil
+		}
+
+		log.Printf("actor[node-agent]: installing %d packages: %s",
+			len(pkgs), packageNames(pkgs))
+
+		// Install all packages in parallel within this step.
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errors []string
+		installed := 0
+
+		for _, pkg := range pkgs {
+			pkg := pkg
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				start := time.Now()
+				if err := cfg.FetchAndInstall(ctx, pkg); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("%s: %v", pkg.Name, err))
+					mu.Unlock()
+					log.Printf("actor[node-agent]: FAILED %s (%v)", pkg.Name, err)
+					return
+				}
+				mu.Lock()
+				installed++
+				mu.Unlock()
+				log.Printf("actor[node-agent]: installed %s (%s)", pkg.Name, time.Since(start).Round(time.Millisecond))
+			}()
+		}
+		wg.Wait()
+
+		if len(errors) > 0 {
+			return nil, fmt.Errorf("failed to install %d/%d packages: %s",
+				len(errors), len(pkgs), strings.Join(errors, "; "))
+		}
+
+		return &ActionResult{
+			OK:      true,
+			Message: fmt.Sprintf("installed %d packages", installed),
+			Output:  map[string]any{"installed": installed},
+		}, nil
+	}
+}
+
+func nodeVerifyServicesActive(cfg NodeAgentConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		services, _ := req.With["services"].([]any)
+		if len(services) == 0 {
+			return &ActionResult{OK: true}, nil
+		}
+
+		var inactive []string
+		for _, s := range services {
+			name := fmt.Sprint(s)
+			if !cfg.IsServiceActive(name) {
+				inactive = append(inactive, name)
+			}
+		}
+
+		if len(inactive) > 0 {
+			return nil, fmt.Errorf("services not active: %s", strings.Join(inactive, ", "))
+		}
+
+		return &ActionResult{OK: true, Message: fmt.Sprintf("all %d services active", len(services))}, nil
+	}
+}
+
+func nodeSyncInstalledState(cfg NodeAgentConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.SyncInstalledState == nil {
+			return &ActionResult{OK: true, Message: "sync not configured"}, nil
+		}
+		if err := cfg.SyncInstalledState(ctx); err != nil {
+			return nil, fmt.Errorf("sync installed state: %w", err)
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Controller actions
+// --------------------------------------------------------------------------
+
+func controllerSetPhase(cfg ControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		phase := fmt.Sprint(req.With["phase"])
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		if cfg.SetBootstrapPhase != nil {
+			if err := cfg.SetBootstrapPhase(ctx, nodeID, phase); err != nil {
+				return nil, fmt.Errorf("set phase %s: %w", phase, err)
+			}
+		}
+		log.Printf("actor[controller]: node %s → phase %s", nodeID, phase)
+		return &ActionResult{OK: true, Output: map[string]any{"phase": phase}}, nil
+	}
+}
+
+func controllerMarkFailed(cfg ControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		reason := fmt.Sprint(req.With["reason"])
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		log.Printf("actor[controller]: node %s bootstrap FAILED: %s", nodeID, reason)
+		if cfg.EmitEvent != nil {
+			cfg.EmitEvent(ctx, "node.bootstrap.failed", map[string]any{
+				"node_id": nodeID, "reason": reason,
+			})
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func controllerEmitReady(cfg ControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		log.Printf("actor[controller]: node %s bootstrap READY", nodeID)
+		if cfg.EmitEvent != nil {
+			cfg.EmitEvent(ctx, "node.bootstrap.ready", map[string]any{"node_id": nodeID})
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func controllerWaitCondition(cfg ControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		condition := fmt.Sprint(req.With["condition"])
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		if cfg.WaitCondition != nil {
+			if err := cfg.WaitCondition(ctx, nodeID, condition); err != nil {
+				return nil, fmt.Errorf("wait condition %s: %w", condition, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"condition": condition, "satisfied": true}}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Installer actions (Day-0 bootstrap)
+// --------------------------------------------------------------------------
+
+// InstallerConfig provides dependencies for installer actor actions.
+// These wrap the local bootstrap primitives on the node-agent.
+type InstallerConfig struct {
+	SetupTLS                func(ctx context.Context, clusterID string) error
+	EnableBootstrapWindow   func(ctx context.Context, ttl time.Duration) error
+	DisableBootstrapWindow  func(ctx context.Context) error
+	WriteBootstrapCreds     func(ctx context.Context) error
+	InstallPackage          func(ctx context.Context, name string) error
+	InstallPackageSet       func(ctx context.Context, packages []string) error
+	InstallProfileSets      func(ctx context.Context, profiles []string) error
+	ConfigureSharedStorage  func(ctx context.Context) error
+	BootstrapDNS            func(ctx context.Context, domain string) error
+	ValidateClusterHealth   func(ctx context.Context) error
+	GenerateJoinToken       func(ctx context.Context) (string, error)
+	RestartServices         func(ctx context.Context, services []string) error
+	ClusterBootstrap        func(ctx context.Context, clusterID, nodeID string) error
+	CaptureFailureBundle    func(ctx context.Context, runID string) error
+}
+
+// RegisterInstallerActions registers all installer actor handlers for Day-0.
+func RegisterInstallerActions(router *Router, cfg InstallerConfig) {
+	router.Register(v1alpha1.ActorInstaller, "installer.setup_tls", installerSetupTLS(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.enable_bootstrap_window", installerEnableBootstrapWindow(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.disable_bootstrap_window", installerDisableBootstrapWindow(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.write_bootstrap_credentials", installerWriteBootstrapCreds(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.install_package", installerInstallPackage(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.install_package_set", installerInstallPackageSet(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.install_profile_sets", installerInstallProfileSets(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.configure_shared_storage", installerConfigureSharedStorage(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.bootstrap_dns", installerBootstrapDNS(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.validate_cluster_health", installerValidateClusterHealth(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.generate_join_token", installerGenerateJoinToken(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.restart_bootstrap_services", installerRestartServices(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.cluster_bootstrap", installerClusterBootstrap(cfg))
+	router.Register(v1alpha1.ActorInstaller, "installer.capture_bootstrap_failure_bundle", installerCaptureFailureBundle(cfg))
+}
+
+func installerSetupTLS(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.Inputs["cluster_id"])
+		if cfg.SetupTLS != nil {
+			if err := cfg.SetupTLS(ctx, clusterID); err != nil {
+				return nil, fmt.Errorf("setup TLS: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Message: "TLS configured"}, nil
+	}
+}
+
+func installerEnableBootstrapWindow(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ttl := 30 * time.Minute
+		if raw, ok := req.With["ttl"].(string); ok {
+			if d, err := time.ParseDuration(raw); err == nil {
+				ttl = d
+			}
+		}
+		if cfg.EnableBootstrapWindow != nil {
+			if err := cfg.EnableBootstrapWindow(ctx, ttl); err != nil {
+				return nil, fmt.Errorf("enable bootstrap window: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Message: fmt.Sprintf("bootstrap window enabled (ttl=%s)", ttl)}, nil
+	}
+}
+
+func installerDisableBootstrapWindow(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.DisableBootstrapWindow != nil {
+			if err := cfg.DisableBootstrapWindow(ctx); err != nil {
+				return nil, fmt.Errorf("disable bootstrap window: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Message: "bootstrap window disabled"}, nil
+	}
+}
+
+func installerWriteBootstrapCreds(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.WriteBootstrapCreds != nil {
+			if err := cfg.WriteBootstrapCreds(ctx); err != nil {
+				return nil, fmt.Errorf("write bootstrap credentials: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func installerInstallPackage(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package"])
+		if name == "" {
+			return nil, fmt.Errorf("package name is required")
+		}
+		if cfg.InstallPackage != nil {
+			if err := cfg.InstallPackage(ctx, name); err != nil {
+				return nil, fmt.Errorf("install %s: %w", name, err)
+			}
+		}
+		log.Printf("actor[installer]: installed %s", name)
+		return &ActionResult{OK: true, Output: map[string]any{"package": name}}, nil
+	}
+}
+
+func installerInstallPackageSet(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		raw, _ := req.With["packages"].([]any)
+		if len(raw) == 0 {
+			return &ActionResult{OK: true, Message: "no packages"}, nil
+		}
+		names := make([]string, 0, len(raw))
+		for _, p := range raw {
+			names = append(names, fmt.Sprint(p))
+		}
+		if cfg.InstallPackageSet != nil {
+			if err := cfg.InstallPackageSet(ctx, names); err != nil {
+				return nil, fmt.Errorf("install package set: %w", err)
+			}
+		}
+		log.Printf("actor[installer]: installed package set: %s", strings.Join(names, ", "))
+		return &ActionResult{OK: true, Output: map[string]any{"installed": len(names)}}, nil
+	}
+}
+
+func installerInstallProfileSets(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		raw, _ := req.With["profiles"].([]any)
+		if len(raw) == 0 {
+			return &ActionResult{OK: true}, nil
+		}
+		profiles := make([]string, 0, len(raw))
+		for _, p := range raw {
+			profiles = append(profiles, fmt.Sprint(p))
+		}
+		if cfg.InstallProfileSets != nil {
+			if err := cfg.InstallProfileSets(ctx, profiles); err != nil {
+				return nil, fmt.Errorf("install profile sets: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"profiles": profiles}}, nil
+	}
+}
+
+func installerConfigureSharedStorage(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.ConfigureSharedStorage != nil {
+			if err := cfg.ConfigureSharedStorage(ctx); err != nil {
+				return nil, fmt.Errorf("configure shared storage: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func installerBootstrapDNS(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		domain := fmt.Sprint(req.Inputs["domain"])
+		if cfg.BootstrapDNS != nil {
+			if err := cfg.BootstrapDNS(ctx, domain); err != nil {
+				return nil, fmt.Errorf("bootstrap DNS: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"domain": domain}}, nil
+	}
+}
+
+func installerValidateClusterHealth(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.ValidateClusterHealth != nil {
+			if err := cfg.ValidateClusterHealth(ctx); err != nil {
+				return nil, fmt.Errorf("cluster health validation: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Message: "cluster healthy"}, nil
+	}
+}
+
+func installerGenerateJoinToken(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.GenerateJoinToken == nil {
+			return &ActionResult{OK: true, Message: "token generation not configured"}, nil
+		}
+		token, err := cfg.GenerateJoinToken(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("generate join token: %w", err)
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"token": token}}, nil
+	}
+}
+
+func installerRestartServices(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		raw, _ := req.With["services"].([]any)
+		if len(raw) == 0 {
+			return &ActionResult{OK: true}, nil
+		}
+		services := make([]string, 0, len(raw))
+		for _, s := range raw {
+			services = append(services, fmt.Sprint(s))
+		}
+		if cfg.RestartServices != nil {
+			if err := cfg.RestartServices(ctx, services); err != nil {
+				return nil, fmt.Errorf("restart services: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"restarted": len(services)}}, nil
+	}
+}
+
+func installerClusterBootstrap(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.Inputs["cluster_id"])
+		nodeID := fmt.Sprint(req.Inputs["bootstrap_node_id"])
+		if cfg.ClusterBootstrap != nil {
+			if err := cfg.ClusterBootstrap(ctx, clusterID, nodeID); err != nil {
+				return nil, fmt.Errorf("cluster bootstrap: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func installerCaptureFailureBundle(cfg InstallerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		if cfg.CaptureFailureBundle != nil {
+			cfg.CaptureFailureBundle(ctx, req.RunID)
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Repository actions (Day-0 bootstrap)
+// --------------------------------------------------------------------------
+
+// RepositoryConfig provides dependencies for repository actor actions.
+type RepositoryConfig struct {
+	PublishBootstrapArtifacts func(ctx context.Context, source string) error
+}
+
+// RegisterRepositoryActions registers repository actor handlers.
+func RegisterRepositoryActions(router *Router, cfg RepositoryConfig) {
+	router.Register(v1alpha1.ActorRepository, "repository.publish_bootstrap_artifacts", repoPublishBootstrapArtifacts(cfg))
+}
+
+func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		source := fmt.Sprint(req.With["source"])
+		if cfg.PublishBootstrapArtifacts != nil {
+			if err := cfg.PublishBootstrapArtifacts(ctx, source); err != nil {
+				return nil, fmt.Errorf("publish bootstrap artifacts: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Extended controller actions (release management + Day-0)
+// --------------------------------------------------------------------------
+
+// ReleaseControllerConfig provides dependencies for release-management
+// controller actions used by release.apply.infrastructure and Day-0 workflows.
+type ReleaseControllerConfig struct {
+	// Release lifecycle
+	MarkReleaseResolved  func(ctx context.Context, releaseID string) error
+	MarkReleaseApplying  func(ctx context.Context, releaseID string) error
+	MarkReleaseFailed    func(ctx context.Context, releaseID, reason string) error
+	FinalizeRelease      func(ctx context.Context, releaseID string, aggregate map[string]any) error
+	RecheckConvergence   func(ctx context.Context, releaseID string) error
+
+	// Node plan management
+	FilterInfraTarget    func(ctx context.Context, releaseID, nodeID string) (bool, map[string]any, error)
+	WaitForPlanSlot      func(ctx context.Context, nodeID string) error
+	CompileInfraPlan     func(ctx context.Context, releaseID, nodeID, pkgName, version, desiredHash string) (map[string]any, error)
+	DispatchPlan         func(ctx context.Context, nodeID string, plan map[string]any) error
+	AggregateResults     func(ctx context.Context, releaseID string) (map[string]any, error)
+
+	// Day-0 extras
+	SeedDesiredFromInstalled func(ctx context.Context, clusterID string) error
+	ReconcileUntilStable     func(ctx context.Context, clusterID string) error
+	EmitBootstrapSucceeded   func(ctx context.Context, clusterID string) error
+}
+
+// RegisterReleaseControllerActions registers release-management and Day-0
+// controller actor handlers.
+func RegisterReleaseControllerActions(router *Router, cfg ReleaseControllerConfig) {
+	// Release lifecycle
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_resolved", releaseMarkResolved(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_applying", releaseMarkApplying(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_failed", releaseMarkFailed(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.finalize_infrastructure_apply", releaseFinalize(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.recheck_convergence", releaseRecheckConvergence(cfg))
+
+	// Node plan management
+	router.Register(v1alpha1.ActorClusterController, "controller.release.filter_infra_target", releaseFilterInfraTarget(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.plan.wait_for_slot", planWaitForSlot(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.plan.compile_infrastructure", planCompileInfra(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.plan.dispatch", planDispatch(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.aggregate_node_results", releaseAggregateResults(cfg))
+
+	// Day-0 extras
+	router.Register(v1alpha1.ActorClusterController, "controller.seed_desired_from_installed", controllerSeedDesired(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.reconcile_until_stable", controllerReconcileUntilStable(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.emit_cluster_bootstrap_succeeded", controllerEmitBootstrapSucceeded(cfg))
+}
+
+func releaseMarkResolved(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		if cfg.MarkReleaseResolved != nil {
+			if err := cfg.MarkReleaseResolved(ctx, releaseID); err != nil {
+				return nil, fmt.Errorf("mark resolved: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseMarkApplying(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		if cfg.MarkReleaseApplying != nil {
+			if err := cfg.MarkReleaseApplying(ctx, releaseID); err != nil {
+				return nil, fmt.Errorf("mark applying: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseMarkFailed(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		reason := fmt.Sprint(req.With["reason"])
+		if cfg.MarkReleaseFailed != nil {
+			if err := cfg.MarkReleaseFailed(ctx, releaseID, reason); err != nil {
+				return nil, fmt.Errorf("mark failed: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseFinalize(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		aggregate, _ := req.With["aggregate"].(map[string]any)
+		if aggregate == nil {
+			// Try from outputs.
+			if agg, ok := req.Outputs["aggregate"].(map[string]any); ok {
+				aggregate = agg
+			}
+		}
+		if cfg.FinalizeRelease != nil {
+			if err := cfg.FinalizeRelease(ctx, releaseID, aggregate); err != nil {
+				return nil, fmt.Errorf("finalize release: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseRecheckConvergence(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		if cfg.RecheckConvergence != nil {
+			if err := cfg.RecheckConvergence(ctx, releaseID); err != nil {
+				return nil, fmt.Errorf("recheck convergence: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseFilterInfraTarget(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		if cfg.FilterInfraTarget != nil {
+			eligible, data, err := cfg.FilterInfraTarget(ctx, releaseID, nodeID)
+			if err != nil {
+				return nil, fmt.Errorf("filter infra target: %w", err)
+			}
+			return &ActionResult{OK: eligible, Output: data}, nil
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func planWaitForSlot(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		if cfg.WaitForPlanSlot != nil {
+			if err := cfg.WaitForPlanSlot(ctx, nodeID); err != nil {
+				return nil, fmt.Errorf("wait for plan slot: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func planCompileInfra(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		pkgName := fmt.Sprint(req.With["package_name"])
+		version := fmt.Sprint(req.With["version"])
+		desiredHash := fmt.Sprint(req.With["desired_hash"])
+		if cfg.CompileInfraPlan != nil {
+			plan, err := cfg.CompileInfraPlan(ctx, releaseID, nodeID, pkgName, version, desiredHash)
+			if err != nil {
+				return nil, fmt.Errorf("compile infra plan: %w", err)
+			}
+			return &ActionResult{OK: true, Output: plan}, nil
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func planDispatch(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		plan, _ := req.With["plan"].(map[string]any)
+		if cfg.DispatchPlan != nil {
+			if err := cfg.DispatchPlan(ctx, nodeID, plan); err != nil {
+				return nil, fmt.Errorf("dispatch plan: %w", err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"node_id": nodeID, "dispatched": true}}, nil
+	}
+}
+
+func releaseAggregateResults(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		if cfg.AggregateResults != nil {
+			agg, err := cfg.AggregateResults(ctx, releaseID)
+			if err != nil {
+				return nil, fmt.Errorf("aggregate results: %w", err)
+			}
+			return &ActionResult{OK: true, Output: agg}, nil
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func controllerSeedDesired(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.Inputs["cluster_id"])
+		if cfg.SeedDesiredFromInstalled != nil {
+			if err := cfg.SeedDesiredFromInstalled(ctx, clusterID); err != nil {
+				return nil, fmt.Errorf("seed desired from installed: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func controllerReconcileUntilStable(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.Inputs["cluster_id"])
+		if cfg.ReconcileUntilStable != nil {
+			if err := cfg.ReconcileUntilStable(ctx, clusterID); err != nil {
+				return nil, fmt.Errorf("reconcile until stable: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func controllerEmitBootstrapSucceeded(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.Inputs["cluster_id"])
+		if cfg.EmitBootstrapSucceeded != nil {
+			if err := cfg.EmitBootstrapSucceeded(ctx, clusterID); err != nil {
+				return nil, fmt.Errorf("emit bootstrap succeeded: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Node-agent plan execution (used by release.apply.infrastructure)
+// --------------------------------------------------------------------------
+
+// RegisterNodePlanActions registers the node.execute_plan handler.
+func RegisterNodePlanActions(router *Router, cfg NodePlanConfig) {
+	router.Register(v1alpha1.ActorNodeAgent, "node.execute_plan", nodeExecutePlan(cfg))
+}
+
+// NodePlanConfig provides dependencies for plan execution on the node-agent.
+type NodePlanConfig struct {
+	ExecutePlan func(ctx context.Context, nodeID, planID string) error
+}
+
+func nodeExecutePlan(cfg NodePlanConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		nodeID := fmt.Sprint(req.Inputs["node_id"])
+		planID := fmt.Sprint(req.With["plan_id"])
+		if cfg.ExecutePlan != nil {
+			if err := cfg.ExecutePlan(ctx, nodeID, planID); err != nil {
+				return nil, fmt.Errorf("execute plan on %s: %w", nodeID, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"node_id": nodeID, "plan_id": planID}}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Default implementations
+// --------------------------------------------------------------------------
+
+// DefaultIsServiceActive checks if a service is ready to accept traffic.
+// For most services: systemctl is-active. For ScyllaDB: port 9042 probe
+// (systemd shows "active" during Raft join but CQL isn't ready yet).
+func DefaultIsServiceActive(name string) bool {
+	switch name {
+	case "scylladb":
+		// ScyllaDB: probe CQL native transport port directly.
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:9042", 2*time.Second)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	default:
+		unit := "globular-" + name + ".service"
+		switch name {
+		case "etcd":
+			unit = "globular-etcd.service"
+		}
+		out, err := exec.Command("systemctl", "is-active", unit).Output()
+		return err == nil && strings.TrimSpace(string(out)) == "active"
+	}
+}
+
+// --------------------------------------------------------------------------
+// Helpers
+// --------------------------------------------------------------------------
+
+func extractPackageList(with map[string]any) ([]PackageRef, error) {
+	raw, ok := with["packages"]
+	if !ok {
+		return nil, nil
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("packages must be a list, got %T", raw)
+	}
+	var pkgs []PackageRef
+	for _, item := range list {
+		switch v := item.(type) {
+		case map[string]any:
+			name, _ := v["name"].(string)
+			kind, _ := v["kind"].(string)
+			if name == "" {
+				continue
+			}
+			pkgs = append(pkgs, PackageRef{Name: name, Kind: kind})
+		case string:
+			pkgs = append(pkgs, PackageRef{Name: v, Kind: "SERVICE"})
+		}
+	}
+	return pkgs, nil
+}
+
+func packageNames(pkgs []PackageRef) string {
+	names := make([]string, len(pkgs))
+	for i, p := range pkgs {
+		names[i] = p.Name
+	}
+	return strings.Join(names, ", ")
+}

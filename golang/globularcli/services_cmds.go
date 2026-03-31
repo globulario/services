@@ -260,7 +260,7 @@ func runServicesApplyDesired(cmd *cobra.Command, args []string) error {
 		desired = seeded
 	}
 
-	var installed, skipped, adopted, failed int
+	var installed, skipped, failed int
 	for _, ds := range desired {
 		name := ds.GetServiceId()
 		version := ds.GetVersion()
@@ -272,18 +272,6 @@ func runServicesApplyDesired(cmd *cobra.Command, args []string) error {
 		if localVer == version {
 			fmt.Printf("  ✓ %s@%s — already installed\n", name, version)
 			skipped++
-			continue
-		}
-
-		// If no version marker but the service is already running (e.g. installed
-		// by globular-installer before version markers existed), adopt it by
-		// writing the marker without re-downloading.
-		if localVer == "" && isServiceRunning(name) {
-			fmt.Printf("  ✓ %s@%s — already running, adopting\n", name, version)
-			if err := writeVersionMarker(name, version); err != nil {
-				fmt.Printf("    (version marker write failed: %v)\n", err)
-			}
-			adopted++
 			continue
 		}
 
@@ -322,8 +310,8 @@ func runServicesApplyDesired(cmd *cobra.Command, args []string) error {
 		installed++
 	}
 
-	fmt.Printf("\nSummary: %d installed, %d adopted, %d skipped (up-to-date), %d failed\n",
-		installed, adopted, skipped, failed)
+	fmt.Printf("\nSummary: %d installed, %d skipped (up-to-date), %d failed\n",
+		installed, skipped, failed)
 	if failed > 0 {
 		return fmt.Errorf("%d service(s) failed to install", failed)
 	}
@@ -951,29 +939,6 @@ func systemctlActivate(unit string) error {
 	return nil
 }
 
-// isServiceRunning checks whether the systemd unit for the given service ID is
-// active (running). The service ID may be fully qualified (e.g.
-// "localhost/authentication") or a bare name ("authentication").
-func isServiceRunning(serviceID string) bool {
-	// Extract the base name: "localhost/authentication" → "authentication"
-	base := serviceID
-	if idx := strings.LastIndex(base, "/"); idx >= 0 {
-		base = base[idx+1:]
-	}
-	// Strip proto-style suffixes: "cluster_doctor.clusterdoctorservice" → "cluster_doctor"
-	if idx := strings.Index(base, "."); idx > 0 {
-		base = base[:idx]
-	}
-	// Normalize: underscores → hyphens
-	base = strings.ReplaceAll(base, "_", "-")
-
-	unit := "globular-" + base + ".service"
-	out, err := exec.Command("systemctl", "is-active", unit).Output()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) == "active"
-}
 
 // ─── Version marker ──────────────────────────────────────────────────────────
 

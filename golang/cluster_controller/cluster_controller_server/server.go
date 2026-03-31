@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -54,13 +53,6 @@ const (
 	recoveryAttemptInterval = 5 * time.Minute  // How often to attempt recovery
 	maxRecoveryAttempts     = 3                // Max recovery attempts before giving up
 )
-
-func serviceUnitName(name string) string {
-	if strings.HasSuffix(strings.ToLower(name), ".service") {
-		return name
-	}
-	return fmt.Sprintf("%s.service", name)
-}
 
 // filterVersionsForNode returns all desired services with canonical names.
 // It includes services whose unit does not yet exist on the node so that
@@ -376,24 +368,6 @@ func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestam
 	return info, nil
 }
 
-func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	safeGo("reconcile-loop", func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if !srv.isLeader() {
-					continue
-				}
-				srv.reconcileNodes(ctx)
-			}
-		}
-	})
-}
-
 func (srv *server) startAgentCleanupLoop(ctx context.Context) {
 	ticker := time.NewTicker(agentCleanupInterval)
 	safeGo("agent-cleanup", func() {
@@ -487,28 +461,6 @@ func (srv *server) observedUnitsForNode(nodeID string) []unitStatusRecord {
 	return append([]unitStatusRecord(nil), node.Units...)
 }
 
-func (srv *server) updateNodeState(nodeID, status, lastError string) bool {
-	srv.lock("unknown")
-	defer srv.unlock()
-	node := srv.state.Nodes[nodeID]
-	if node == nil {
-		return false
-	}
-	changed := false
-	if node.Status != status {
-		node.Status = status
-		changed = true
-	}
-	if node.LastError != lastError {
-		node.LastError = lastError
-		changed = true
-	}
-	if changed {
-		node.LastSeen = time.Now()
-	}
-	return changed
-}
-
 func (srv *server) recordPlanSent(nodeID, planHash string) bool {
 	srv.lock("plan:record-sent")
 	defer srv.unlock()
@@ -524,20 +476,6 @@ func (srv *server) recordPlanSent(nodeID, planHash string) bool {
 		node.LastPlanHash = planHash
 	}
 	node.LastAppliedGeneration = srv.state.NetworkingGeneration
-	return true
-}
-
-func (srv *server) recordPlanError(nodeID, errMsg string) bool {
-	srv.lock("plan:record-error")
-	defer srv.unlock()
-	node := srv.state.Nodes[nodeID]
-	if node == nil {
-		return false
-	}
-	if node.LastPlanError == errMsg {
-		return false
-	}
-	node.LastPlanError = errMsg
 	return true
 }
 
@@ -689,21 +627,6 @@ func protoUnitsToStored(in []*cluster_controllerpb.NodeUnitStatus) []unitStatusR
 			Name:    u.GetName(),
 			State:   u.GetState(),
 			Details: u.GetDetails(),
-		})
-	}
-	return out
-}
-
-func storedUnitsToProto(in []unitStatusRecord) []*cluster_controllerpb.NodeUnitStatus {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*cluster_controllerpb.NodeUnitStatus, 0, len(in))
-	for _, u := range in {
-		out = append(out, &cluster_controllerpb.NodeUnitStatus{
-			Name:    u.Name,
-			State:   u.State,
-			Details: u.Details,
 		})
 	}
 	return out

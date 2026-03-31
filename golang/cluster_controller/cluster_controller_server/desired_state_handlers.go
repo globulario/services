@@ -838,17 +838,6 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	}, nil
 }
 
-// artifactNameMatchesService returns true when an artifact's stored name corresponds
-// to the given serviceId.  Handles dot-qualified names like "authentication.AuthenticationService"
-// matching a stored artifact named "AuthenticationService".
-func artifactNameMatchesService(artifactName, serviceId string) bool {
-	if artifactName == serviceId {
-		return true
-	}
-	parts := strings.Split(serviceId, ".")
-	return parts[len(parts)-1] == artifactName
-}
-
 // normalizeServiceName strips the proto package prefix and removes all
 // non-alphanumeric characters so that bundle names and proto FQNs compare
 // equal.  Examples:
@@ -868,12 +857,6 @@ func normalizeServiceName(name string) string {
 		}
 	}
 	return b.String()
-}
-
-// bundleNameMatchesService returns true when a bundle's stored name corresponds
-// to the given serviceId after normalisation.
-func bundleNameMatchesService(bundleName, serviceId string) bool {
-	return normalizeServiceName(bundleName) == normalizeServiceName(serviceId)
 }
 
 // resolvedPkg holds the validation-relevant fields from either an
