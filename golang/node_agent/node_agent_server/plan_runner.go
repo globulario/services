@@ -24,7 +24,6 @@ func (srv *NodeAgentServer) StartPlanRunner(ctx context.Context) {
 	}
 	srv.planRunnerCtx = ctx
 	srv.startPlanRunnerLoop()
-	srv.StartWorkflowSignalHandler(ctx)
 }
 
 func (srv *NodeAgentServer) startPlanRunnerLoop() {

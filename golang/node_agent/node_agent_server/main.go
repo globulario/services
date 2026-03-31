@@ -134,6 +134,7 @@ func main() {
 
 	srv.StartHeartbeat(ctx)
 	srv.StartPlanRunner(ctx)
+	srv.StartWorkflowSignalHandler(ctx)
 	srv.StartACMERenewal(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)

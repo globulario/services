@@ -28,27 +28,28 @@ spec:
   strategy:
     mode: single
   steps:
-    # ── Tier 0: Core infrastructure (already installed by join script) ────
-    # etcd, minio, node-agent are pre-installed. Verify they're running.
+    # ── Tier 0: Verify join-script prerequisites ────────────────────────
+    # etcd and node-agent are pre-installed by the join script.
     - id: verify_prerequisites
       title: Verify join-script prerequisites are running
       actor: node-agent
       action: node.verify_services_active
       with:
-        services: [etcd, minio, node-agent]
+        services: [etcd, node-agent]
       retry:
         maxAttempts: 6
         backoff: 5s
       timeout: 1m
 
-    # ── Tier 1: Mesh infrastructure (parallel) ────────────────────────────
+    # ── Tier 1: Storage + mesh infrastructure (parallel) ──────────────
     - id: install_mesh
-      title: Install mesh infrastructure
+      title: Install storage and mesh infrastructure
       dependsOn: [verify_prerequisites]
       actor: node-agent
       action: node.install_packages
       with:
         packages:
+          - { name: minio, kind: INFRASTRUCTURE }
           - { name: sidekick, kind: INFRASTRUCTURE }
           - { name: node-exporter, kind: INFRASTRUCTURE }
           - { name: prometheus, kind: INFRASTRUCTURE }
