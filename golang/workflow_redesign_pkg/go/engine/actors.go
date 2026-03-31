@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os/exec"
 	"strings"
 	"sync"
@@ -218,18 +219,28 @@ func controllerWaitCondition(cfg ControllerConfig) ActionHandler {
 // Default implementations
 // --------------------------------------------------------------------------
 
-// DefaultIsServiceActive checks systemd unit status via systemctl.
+// DefaultIsServiceActive checks if a service is ready to accept traffic.
+// For most services: systemctl is-active. For ScyllaDB: port 9042 probe
+// (systemd shows "active" during Raft join but CQL isn't ready yet).
 func DefaultIsServiceActive(name string) bool {
-	unit := "globular-" + name + ".service"
-	// Special cases for non-globular units.
 	switch name {
-	case "etcd":
-		unit = "globular-etcd.service"
 	case "scylladb":
-		unit = "scylla-server.service"
+		// ScyllaDB: probe CQL native transport port directly.
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:9042", 2*time.Second)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	default:
+		unit := "globular-" + name + ".service"
+		switch name {
+		case "etcd":
+			unit = "globular-etcd.service"
+		}
+		out, err := exec.Command("systemctl", "is-active", unit).Output()
+		return err == nil && strings.TrimSpace(string(out)) == "active"
 	}
-	out, err := exec.Command("systemctl", "is-active", unit).Output()
-	return err == nil && strings.TrimSpace(string(out)) == "active"
 }
 
 // --------------------------------------------------------------------------

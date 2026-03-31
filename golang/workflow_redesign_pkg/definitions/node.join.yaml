@@ -90,9 +90,21 @@ spec:
         backoff: 30s
       timeout: 10m
 
+    - id: wait_scylladb_ready
+      title: Wait for ScyllaDB port 9042
+      dependsOn: [install_scylladb]
+      actor: node-agent
+      action: node.verify_services_active
+      with:
+        services: [scylladb]
+      retry:
+        maxAttempts: 60
+        backoff: 10s
+      timeout: 15m
+
     - id: install_scylla_tools
       title: Install ScyllaDB manager and agent
-      dependsOn: [install_scylladb]
+      dependsOn: [wait_scylladb_ready]
       actor: node-agent
       action: node.install_packages
       with:
@@ -104,7 +116,7 @@ spec:
     # ── Tier 3: Foundational services (parallel, need ScyllaDB) ───────────
     - id: install_foundational
       title: Install foundational services
-      dependsOn: [install_scylladb, install_gateway]
+      dependsOn: [wait_scylladb_ready, install_gateway]
       actor: node-agent
       action: node.install_packages
       with:
