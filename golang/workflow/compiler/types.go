@@ -48,6 +48,9 @@ type CompiledStep struct {
 	Retry      CompiledRetry        `json:"retry"`
 	Timeout    time.Duration        `json:"timeout,omitempty"`
 	Foreach    *ValueExpr           `json:"foreach,omitempty"`
+	SubSteps   *CompiledWorkflow    `json:"sub_steps,omitempty"` // nested DAG for foreach-with-steps
+	ItemName   string               `json:"item_name,omitempty"` // variable name for foreach current item
+	OnFailure  *CompiledHook        `json:"on_failure,omitempty"` // per-item failure hook
 	Export     string               `json:"export,omitempty"`
 	When       *CompiledCondition   `json:"when,omitempty"`
 }

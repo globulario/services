@@ -63,6 +63,21 @@ func Compile(ctx context.Context, def *v1alpha1.WorkflowDefinition) (*CompiledWo
 			ve := toValueExpr(s.Foreach.String())
 			cs.Foreach = &ve
 		}
+		if s.ItemName != nil && s.ItemName.String() != "" {
+			cs.ItemName = s.ItemName.String()
+		}
+		// Nested sub-steps for foreach groups.
+		if len(s.Steps) > 0 {
+			sub, subDiags, err := compileSubSteps(s.Steps)
+			diags = append(diags, subDiags...)
+			if err != nil {
+				return nil, diags, fmt.Errorf("compile sub-steps for %s: %w", s.ID, err)
+			}
+			cs.SubSteps = sub
+		}
+		if s.OnFailure != nil {
+			cs.OnFailure = compileHook(s.OnFailure)
+		}
 		if s.Export != nil && s.Export.String() != "" {
 			cs.Export = s.Export.String()
 		}
@@ -100,6 +115,64 @@ func Compile(ctx context.Context, def *v1alpha1.WorkflowDefinition) (*CompiledWo
 	cw.SourceHash = sourceHash(def)
 
 	return cw, diags, nil
+}
+
+// compileSubSteps recursively compiles nested steps into a sub-CompiledWorkflow.
+func compileSubSteps(steps []v1alpha1.WorkflowStepSpec) (*CompiledWorkflow, []Diagnostic, error) {
+	var diags []Diagnostic
+	sub := &CompiledWorkflow{
+		Steps:      make(map[string]*CompiledStep, len(steps)),
+		Dependents: make(map[string][]string),
+	}
+
+	for _, s := range steps {
+		cs := &CompiledStep{
+			ID:        s.ID,
+			Title:     s.Title,
+			Actor:     string(s.Actor),
+			Action:    s.Action,
+			DependsOn: append([]string(nil), s.DependsOn...),
+			With:      compileWith(s.With),
+			Retry:     compileRetry(s.Retry),
+			Timeout:   compileDuration(s.Timeout),
+		}
+		if s.Foreach != nil {
+			ve := toValueExpr(s.Foreach.String())
+			cs.Foreach = &ve
+		}
+		if s.Export != nil && s.Export.String() != "" {
+			cs.Export = s.Export.String()
+		}
+		if s.When != nil {
+			cc := compileCondition(s.When)
+			cs.When = &cc
+		}
+		sub.Steps[cs.ID] = cs
+	}
+
+	// Build sub-DAG indexes.
+	for id, step := range sub.Steps {
+		for _, dep := range step.DependsOn {
+			sub.Dependents[dep] = append(sub.Dependents[dep], id)
+		}
+	}
+	for id, step := range sub.Steps {
+		if len(step.DependsOn) == 0 {
+			sub.EntryPoints = append(sub.EntryPoints, id)
+		}
+		step.Dependents = append([]string(nil), sub.Dependents[id]...)
+		sort.Strings(step.Dependents)
+	}
+	sort.Strings(sub.EntryPoints)
+
+	order, err := topoSort(sub.Steps)
+	if err != nil {
+		diags = append(diags, Diagnostic{SeverityError, "sub_steps", "cycle_detected", err.Error()})
+		return nil, diags, err
+	}
+	sub.TopoOrder = order
+
+	return sub, diags, nil
 }
 
 // MustCompile compiles a definition and panics on error.

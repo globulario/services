@@ -501,6 +501,15 @@ type ReleaseControllerConfig struct {
 	SeedDesiredFromInstalled func(ctx context.Context, clusterID string) error
 	ReconcileUntilStable     func(ctx context.Context, clusterID string) error
 	EmitBootstrapSucceeded   func(ctx context.Context, clusterID string) error
+
+	// Direct-apply infrastructure release (replaces plan-based path)
+	SelectInfraTargets   func(ctx context.Context, candidateNodes []any, pkgName, desiredHash string) ([]any, error)
+	FinalizeNoop         func(ctx context.Context, releaseID string) error
+	MarkNodeStarted      func(ctx context.Context, releaseID, nodeID string) error
+	MarkNodeSucceeded    func(ctx context.Context, releaseID, nodeID, version, hash string) error
+	MarkNodeFailed       func(ctx context.Context, releaseID, nodeID, reason string) error
+	AggregateDirectApply func(ctx context.Context, releaseID, pkgName string) (map[string]any, error)
+	FinalizeDirectApply  func(ctx context.Context, releaseID string, aggregate map[string]any) error
 }
 
 // RegisterReleaseControllerActions registers release-management and Day-0
@@ -524,6 +533,15 @@ func RegisterReleaseControllerActions(router *Router, cfg ReleaseControllerConfi
 	router.Register(v1alpha1.ActorClusterController, "controller.seed_desired_from_installed", controllerSeedDesired(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile_until_stable", controllerReconcileUntilStable(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.emit_cluster_bootstrap_succeeded", controllerEmitBootstrapSucceeded(cfg))
+
+	// Direct-apply infrastructure release actions
+	router.Register(v1alpha1.ActorClusterController, "controller.release.select_infrastructure_targets", releaseSelectTargets(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.finalize_noop", releaseFinalizeNoop(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_node_started", releaseMarkNodeStarted(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_node_succeeded", releaseMarkNodeSucceeded(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_node_failed", releaseMarkNodeFailed(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.aggregate_direct_apply_results", releaseAggregateDirectApply(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.release.finalize_direct_apply", releaseFinalizeDirectApply(cfg))
 }
 
 func releaseMarkResolved(cfg ReleaseControllerConfig) ActionHandler {
@@ -726,6 +744,211 @@ func nodeExecutePlan(cfg NodePlanConfig) ActionHandler {
 			}
 		}
 		return &ActionResult{OK: true, Output: map[string]any{"node_id": nodeID, "plan_id": planID}}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Direct-apply controller actions (workflow-native infrastructure release)
+// --------------------------------------------------------------------------
+
+func releaseSelectTargets(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		candidates, _ := req.With["candidate_nodes"].([]any)
+		pkgName := fmt.Sprint(req.With["package_name"])
+		desiredHash := fmt.Sprint(req.With["desired_hash"])
+		var targets []any
+		if cfg.SelectInfraTargets != nil {
+			var err error
+			targets, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
+			if err != nil {
+				return nil, fmt.Errorf("select targets: %w", err)
+			}
+		} else {
+			targets = candidates
+		}
+		// Write targets directly to outputs so $.selected_targets resolves
+		// to the array (not a wrapper map). The export mechanism would
+		// store the whole Output map, but we need a bare []any.
+		req.Outputs["selected_targets"] = targets
+		return &ActionResult{OK: true, Output: map[string]any{"count": len(targets)}}, nil
+	}
+}
+
+func releaseFinalizeNoop(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		if cfg.FinalizeNoop != nil {
+			if err := cfg.FinalizeNoop(ctx, releaseID); err != nil {
+				return nil, fmt.Errorf("finalize noop: %w", err)
+			}
+		}
+		log.Printf("actor[controller]: release %s finalized as AVAILABLE (no-op)", releaseID)
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseMarkNodeStarted(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		nodeID := fmt.Sprint(req.With["node_id"])
+		if cfg.MarkNodeStarted != nil {
+			if err := cfg.MarkNodeStarted(ctx, releaseID, nodeID); err != nil {
+				return nil, fmt.Errorf("mark node started: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseMarkNodeSucceeded(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		nodeID := fmt.Sprint(req.With["node_id"])
+		version := fmt.Sprint(req.With["version"])
+		hash := fmt.Sprint(req.With["desired_hash"])
+		if cfg.MarkNodeSucceeded != nil {
+			if err := cfg.MarkNodeSucceeded(ctx, releaseID, nodeID, version, hash); err != nil {
+				return nil, fmt.Errorf("mark node succeeded: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseMarkNodeFailed(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		nodeID := fmt.Sprint(req.With["node_id"])
+		pkgName := fmt.Sprint(req.With["package_name"])
+		reason := fmt.Sprintf("package %s failed on node %s", pkgName, nodeID)
+		if cfg.MarkNodeFailed != nil {
+			if err := cfg.MarkNodeFailed(ctx, releaseID, nodeID, reason); err != nil {
+				return nil, fmt.Errorf("mark node failed: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseAggregateDirectApply(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		pkgName := fmt.Sprint(req.With["package_name"])
+		if cfg.AggregateDirectApply != nil {
+			agg, err := cfg.AggregateDirectApply(ctx, releaseID, pkgName)
+			if err != nil {
+				return nil, fmt.Errorf("aggregate: %w", err)
+			}
+			return &ActionResult{OK: true, Output: agg}, nil
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func releaseFinalizeDirectApply(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		aggregate, _ := req.With["aggregate"].(map[string]any)
+		if aggregate == nil {
+			if agg, ok := req.Outputs["aggregate"].(map[string]any); ok {
+				aggregate = agg
+			}
+		}
+		if cfg.FinalizeDirectApply != nil {
+			if err := cfg.FinalizeDirectApply(ctx, releaseID, aggregate); err != nil {
+				return nil, fmt.Errorf("finalize direct apply: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Node-agent direct-apply actions (workflow-native infrastructure release)
+// --------------------------------------------------------------------------
+
+// NodeDirectApplyConfig provides dependencies for direct node-agent package operations.
+type NodeDirectApplyConfig struct {
+	InstallPackage         func(ctx context.Context, name, version, kind string) error
+	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
+	RestartPackageService  func(ctx context.Context, name string) error
+	VerifyPackageRuntime   func(ctx context.Context, name, healthCheck string) error
+	SyncInstalledPackage   func(ctx context.Context, name, version, hash string) error
+}
+
+// RegisterNodeDirectApplyActions registers direct package operation handlers.
+func RegisterNodeDirectApplyActions(router *Router, cfg NodeDirectApplyConfig) {
+	router.Register(v1alpha1.ActorNodeAgent, "node.install_package", nodeInstallPackage(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.verify_package_installed", nodeVerifyPackage(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.restart_package_service", nodeRestartService(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.verify_package_runtime", nodeVerifyRuntime(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_package_state", nodeSyncPackageState(cfg))
+}
+
+func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package_name"])
+		version := fmt.Sprint(req.With["version"])
+		kind := fmt.Sprint(req.With["kind"])
+		if cfg.InstallPackage != nil {
+			if err := cfg.InstallPackage(ctx, name, version, kind); err != nil {
+				return nil, fmt.Errorf("install %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"package": name, "version": version}}, nil
+	}
+}
+
+func nodeVerifyPackage(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package_name"])
+		version := fmt.Sprint(req.With["version"])
+		hash := fmt.Sprint(req.With["desired_hash"])
+		if cfg.VerifyPackageInstalled != nil {
+			if err := cfg.VerifyPackageInstalled(ctx, name, version, hash); err != nil {
+				return nil, fmt.Errorf("verify %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"verified": true}}, nil
+	}
+}
+
+func nodeRestartService(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package_name"])
+		if cfg.RestartPackageService != nil {
+			if err := cfg.RestartPackageService(ctx, name); err != nil {
+				return nil, fmt.Errorf("restart %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package_name"])
+		check := fmt.Sprint(req.With["health_check"])
+		if cfg.VerifyPackageRuntime != nil {
+			if err := cfg.VerifyPackageRuntime(ctx, name, check); err != nil {
+				return nil, fmt.Errorf("verify runtime %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"healthy": true}}, nil
+	}
+}
+
+func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		name := fmt.Sprint(req.With["package_name"])
+		version := fmt.Sprint(req.With["version"])
+		hash := fmt.Sprint(req.With["desired_hash"])
+		if cfg.SyncInstalledPackage != nil {
+			if err := cfg.SyncInstalledPackage(ctx, name, version, hash); err != nil {
+				return nil, fmt.Errorf("sync state %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true, Output: map[string]any{"synced": true}}, nil
 	}
 }
 

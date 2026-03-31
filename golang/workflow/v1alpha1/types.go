@@ -60,12 +60,16 @@ type WorkflowStepSpec struct {
 	Action    string         `json:"action" yaml:"action"`
 	DependsOn []string       `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty"`
 	When      *StepCondition `json:"when,omitempty" yaml:"when,omitempty"`
-	Foreach   *ScalarString  `json:"foreach,omitempty" yaml:"foreach,omitempty"`
+	Foreach   *ScalarString    `json:"foreach,omitempty" yaml:"foreach,omitempty"`
+	Steps     []WorkflowStepSpec `json:"steps,omitempty" yaml:"steps,omitempty"` // nested sub-DAG for foreach groups
 	With      map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
 	Retry     *RetryPolicy   `json:"retry,omitempty" yaml:"retry,omitempty"`
 	Timeout   *ScalarString  `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	WaitFor   *WaitPolicy    `json:"waitFor,omitempty" yaml:"waitFor,omitempty"`
-	Export    *ScalarString  `json:"export,omitempty" yaml:"export,omitempty"`
+	WaitFor    *WaitPolicy    `json:"waitFor,omitempty" yaml:"waitFor,omitempty"`
+	Export     *ScalarString  `json:"export,omitempty" yaml:"export,omitempty"`
+	OnFailure  *WorkflowHook  `json:"onFailure,omitempty" yaml:"onFailure,omitempty"` // per-item failure hook for foreach groups
+	Strategy   *ExecutionStrategy `json:"strategy,omitempty" yaml:"strategy,omitempty"` // per-step strategy override (foreach groups)
+	ItemName   *ScalarString  `json:"itemName,omitempty" yaml:"itemName,omitempty"` // variable name for foreach current item
 }
 
 type StepCondition struct {

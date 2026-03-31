@@ -162,8 +162,11 @@ func validateSteps(steps []WorkflowStepSpec) error {
 		if _, exists := ids[s.ID]; exists {
 			return fmt.Errorf("duplicate step id %q", s.ID)
 		}
-		if err := validateActorAndAction(s.Actor, s.Action, loc); err != nil {
-			return err
+		// Foreach group steps (with nested Steps) don't require actor/action.
+		if len(s.Steps) == 0 {
+			if err := validateActorAndAction(s.Actor, s.Action, loc); err != nil {
+				return err
+			}
 		}
 		if s.Retry != nil {
 			if s.Retry.MaxAttempts <= 0 {

@@ -175,23 +175,32 @@ func TestCompileReleaseInfra(t *testing.T) {
 	if cw.Name != "release.apply.infrastructure" {
 		t.Errorf("name = %q, want release.apply.infrastructure", cw.Name)
 	}
-	if cw.Strategy.Mode != "foreach" {
-		t.Errorf("strategy mode = %q, want foreach", cw.Strategy.Mode)
-	}
-	if cw.Strategy.Collection == nil || !cw.Strategy.Collection.IsExpr {
-		t.Error("strategy collection should be a runtime expression")
+	// New YAML uses strategy: single (foreach is per-step, not per-workflow).
+	if cw.Strategy.Mode != "single" {
+		t.Errorf("strategy mode = %q, want single", cw.Strategy.Mode)
 	}
 
-	// filter_target has foreach.
-	ft := cw.Steps["filter_target"]
-	if ft == nil {
-		t.Fatal("filter_target not found")
+	// apply_per_node has foreach + nested sub-steps.
+	apn := cw.Steps["apply_per_node"]
+	if apn == nil {
+		t.Fatal("apply_per_node not found")
 	}
-	if ft.Foreach == nil {
-		t.Error("filter_target should have foreach")
+	if apn.Foreach == nil {
+		t.Error("apply_per_node should have foreach")
+	}
+	if apn.SubSteps == nil {
+		t.Fatal("apply_per_node should have sub-steps")
+	}
+	if len(apn.SubSteps.Steps) != 7 {
+		t.Errorf("apply_per_node sub-steps = %d, want 7", len(apn.SubSteps.Steps))
+	}
+	// Verify sub-DAG has topo order.
+	if len(apn.SubSteps.TopoOrder) != 7 {
+		t.Errorf("sub-steps topo order = %d, want 7", len(apn.SubSteps.TopoOrder))
 	}
 
-	t.Logf("Compiled %s: %d steps, strategy=%s", cw.Name, len(cw.Steps), cw.Strategy.Mode)
+	t.Logf("Compiled %s: %d top-level steps, apply_per_node has %d sub-steps",
+		cw.Name, len(cw.Steps), len(apn.SubSteps.Steps))
 }
 
 func TestCompileValidationErrors(t *testing.T) {

@@ -465,6 +465,11 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 		}
 	}
 
+	// Nested sub-steps: execute a sub-DAG per item.
+	if step.SubSteps != nil {
+		return e.executeForeachWithSubSteps(ctx, run, step, items)
+	}
+
 	handler, ok := e.Router.resolveByName(step.Actor, step.Action)
 	if !ok {
 		st.Status = StepFailed
@@ -532,6 +537,126 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 	return nil
 }
 
+// executeForeachWithSubSteps runs a nested sub-DAG per foreach item.
+// Unlike flat foreach, this does NOT short-circuit on first failure —
+// all items run to completion so aggregate steps can compute DEGRADED vs FAILED.
+func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step *compiler.CompiledStep, items []any) error {
+	st := run.Steps[step.ID]
+	st.Status = StepRunning
+	st.StartedAt = time.Now()
+
+	itemName := step.ItemName
+	if itemName == "" {
+		itemName = "target"
+	}
+
+	log.Printf("workflow: step %s starting foreach-with-substeps (%d items, %d sub-steps)",
+		step.ID, len(items), len(step.SubSteps.Steps))
+
+	var allResults []any
+	succeeded := 0
+	failed := 0
+
+	for i, item := range items {
+		// Build per-item inputs.
+		itemInputs := make(map[string]any, len(run.Inputs)+3)
+		for k, v := range run.Inputs {
+			itemInputs[k] = v
+		}
+		// Merge parent outputs so sub-steps can see prior step exports.
+		for k, v := range run.Outputs {
+			itemInputs[k] = v
+		}
+		itemInputs["item"] = item
+		itemInputs["item_index"] = i
+		itemInputs[itemName] = item
+		if s, ok := item.(string); ok {
+			itemInputs["node_id"] = s
+		}
+		// If item is a map, flatten its fields into inputs for $.target.node_id etc.
+		if m, ok := item.(map[string]any); ok {
+			for k, v := range m {
+				itemInputs[itemName+"."+k] = v
+				// Also expose as node_id if present.
+				if k == "node_id" {
+					itemInputs["node_id"] = v
+				}
+			}
+		}
+
+		// Create a child run for this item's sub-DAG.
+		childRun := &Run{
+			ID:         fmt.Sprintf("%s[%d]", run.ID, i),
+			Definition: run.Definition,
+			Status:     RunRunning,
+			Inputs:     itemInputs,
+			Outputs:    make(map[string]any),
+			Steps:      make(map[string]*StepState, len(step.SubSteps.Steps)),
+			StartedAt:  time.Now(),
+		}
+		for id := range step.SubSteps.Steps {
+			childRun.Steps[id] = &StepState{ID: id, Status: StepPending}
+		}
+
+		// Also register child step states in parent run for observability.
+		for id := range step.SubSteps.Steps {
+			qualID := fmt.Sprintf("%s[%d].%s", step.ID, i, id)
+			run.Steps[qualID] = childRun.Steps[id]
+		}
+
+		log.Printf("workflow: %s[%d] starting sub-DAG", step.ID, i)
+		err := e.executeDAG(ctx, childRun, step.SubSteps)
+		childRun.FinishedAt = time.Now()
+
+		if err != nil {
+			childRun.Status = RunFailed
+			childRun.Error = err.Error()
+			failed++
+			log.Printf("workflow: %s[%d] sub-DAG FAILED: %v", step.ID, i, err)
+			// Fire per-item onFailure hook.
+			if step.OnFailure != nil {
+				e.dispatchHook(ctx, childRun, step.OnFailure)
+			}
+			allResults = append(allResults, map[string]any{
+				"index": i, "status": "FAILED", "error": err.Error(),
+			})
+			// Do NOT return — continue with remaining items.
+		} else {
+			childRun.Status = RunSucceeded
+			succeeded++
+			log.Printf("workflow: %s[%d] sub-DAG SUCCEEDED", step.ID, i)
+			allResults = append(allResults, map[string]any{
+				"index": i, "status": "SUCCEEDED", "outputs": childRun.Outputs,
+			})
+		}
+	}
+
+	st.FinishedAt = time.Now()
+	st.Output = map[string]any{
+		"results":   allResults,
+		"count":     len(items),
+		"succeeded": succeeded,
+		"failed":    failed,
+	}
+
+	if step.Export != "" {
+		run.Outputs[step.Export] = allResults
+	}
+
+	if failed > 0 {
+		st.Status = StepFailed
+		st.Error = fmt.Sprintf("%d/%d items failed", failed, len(items))
+		e.notifyStep(run, st)
+		return fmt.Errorf("step %s: %d/%d items failed", step.ID, failed, len(items))
+	}
+
+	st.Status = StepSucceeded
+	log.Printf("workflow: step %s foreach-with-substeps SUCCEEDED (%d/%d items)",
+		step.ID, succeeded, len(items))
+	e.notifyStep(run, st)
+	return nil
+}
+
 // --------------------------------------------------------------------------
 // Condition evaluation
 // --------------------------------------------------------------------------
@@ -544,7 +669,8 @@ func (e *Engine) evalCondition(ctx context.Context, cond *compiler.CompiledCondi
 		if e.EvalCond != nil {
 			return e.EvalCond(ctx, cond.Expr, inputs, outputs)
 		}
-		return true, nil
+		// Fall back to built-in expression evaluator.
+		return DefaultEvalCond(ctx, cond.Expr, inputs, outputs)
 	}
 	if len(cond.AnyOf) > 0 {
 		for _, child := range cond.AnyOf {

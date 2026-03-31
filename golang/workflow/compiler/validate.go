@@ -33,11 +33,14 @@ func validate(def *v1alpha1.WorkflowDefinition) []Diagnostic {
 			diags = append(diags, Diagnostic{SeverityError, path + ".id", "duplicate_id", "duplicate step id: " + s.ID})
 		}
 		seen[s.ID] = struct{}{}
-		if s.Actor == "" {
-			diags = append(diags, Diagnostic{SeverityError, path + ".actor", "required", "actor is required"})
-		}
-		if s.Action == "" {
-			diags = append(diags, Diagnostic{SeverityError, path + ".action", "required", "action is required"})
+		// Foreach group steps (with nested Steps) don't require actor/action.
+		if len(s.Steps) == 0 {
+			if s.Actor == "" {
+				diags = append(diags, Diagnostic{SeverityError, path + ".actor", "required", "actor is required"})
+			}
+			if s.Action == "" {
+				diags = append(diags, Diagnostic{SeverityError, path + ".action", "required", "action is required"})
+			}
 		}
 		if s.Timeout != nil && !s.Timeout.IsExpression() && s.Timeout.String() != "" {
 			if _, err := time.ParseDuration(s.Timeout.String()); err != nil {
