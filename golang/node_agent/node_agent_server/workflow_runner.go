@@ -4,22 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/workflow_redesign_pkg/go/engine"
 	"github.com/globulario/services/golang/workflow_redesign_pkg/go/v1alpha1"
 )
 
-// RunJoinWorkflow executes the node.join workflow definition to install
-// all packages on this node. This replaces the one-plan-per-cycle
+// RunWorkflowDefinition executes a workflow definition (e.g. node.join) to
+// install all packages on this node. This replaces the one-plan-per-cycle
 // reconciler with a single workflow run that installs packages in
 // tiered parallel batches.
-func (srv *NodeAgentServer) RunJoinWorkflow(ctx context.Context, defPath string, inputs map[string]any) (*engine.Run, error) {
+func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath string, inputs map[string]any) (*engine.Run, error) {
 	loader := v1alpha1.NewLoader()
 	def, err := loader.LoadFile(defPath)
 	if err != nil {
@@ -120,52 +117,3 @@ func (srv *NodeAgentServer) RunJoinWorkflow(ctx context.Context, defPath string,
 	return run, err
 }
 
-// StartWorkflowSignalHandler listens for SIGUSR1 and triggers the
-// node.join workflow. This is a temporary mechanism for testing — in
-// production, the controller will trigger workflows via gRPC.
-//
-// Usage: kill -USR1 <node-agent-pid>
-func (srv *NodeAgentServer) StartWorkflowSignalHandler(ctx context.Context) {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGUSR1)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ch:
-				log.Printf("workflow-runner: SIGUSR1 received — starting node.join workflow")
-
-				// Look for the definition in standard locations.
-				defPath := ""
-				for _, p := range []string{
-					"/var/lib/globular/workflows/node.join.yaml",
-					"/tmp/node.join.yaml",
-				} {
-					if _, err := os.Stat(p); err == nil {
-						defPath = p
-						break
-					}
-				}
-				if defPath == "" {
-					log.Printf("workflow-runner: node.join.yaml not found in /var/lib/globular/workflows/ or /tmp/")
-					continue
-				}
-
-				inputs := map[string]any{
-					"cluster_id":    "globular.internal",
-					"node_id":       srv.nodeID,
-					"node_hostname": srv.state.NodeName,
-					"node_ip":       srv.state.AdvertiseIP,
-				}
-
-				go func() {
-					wfCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-					defer cancel()
-					srv.RunJoinWorkflow(wfCtx, defPath, inputs)
-				}()
-			}
-		}
-	}()
-}

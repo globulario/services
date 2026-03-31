@@ -50,7 +50,7 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	log.Printf("grpc-workflow: starting %s (def=%s)", name, defPath)
 	start := time.Now()
 
-	run, err := srv.RunJoinWorkflow(ctx, defPath, inputs)
+	run, err := srv.RunWorkflowDefinition(ctx, defPath, inputs)
 	elapsed := time.Since(start)
 
 	resp := &node_agentpb.RunWorkflowResponse{

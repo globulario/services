@@ -47,6 +47,29 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 	if resp.GetError() != "" {
 		log.Printf("workflow-trigger: node %s error: %s", nodeID, resp.GetError())
 	}
+
+	// Chain: after join workflow completes successfully, run the bootstrap
+	// workflow locally on the controller to advance the node through
+	// admitted → workload_ready.
+	if resp.GetStatus() == "SUCCEEDED" {
+		srv.triggerBootstrapWorkflow(nodeID)
+	}
+}
+
+// triggerBootstrapWorkflow runs the node.bootstrap workflow locally on the
+// controller. It advances the node from admitted → workload_ready by
+// polling in-memory node state for convergence conditions.
+func (srv *server) triggerBootstrapWorkflow(nodeID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	log.Printf("workflow-trigger: starting bootstrap workflow for node %s", nodeID)
+	run, err := srv.RunBootstrapWorkflow(ctx, nodeID)
+	if err != nil {
+		log.Printf("workflow-trigger: bootstrap workflow failed for node %s: %v", nodeID, err)
+		return
+	}
+	log.Printf("workflow-trigger: bootstrap workflow for node %s completed — status=%s", nodeID, run.Status)
 }
 
 // dialNodeAgent creates a direct gRPC connection to a node-agent.

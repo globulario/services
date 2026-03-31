@@ -45,6 +45,10 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 		if node.BootstrapPhase == BootstrapNone || node.BootstrapPhase == BootstrapWorkloadReady {
 			continue
 		}
+		// Skip nodes whose bootstrap is being driven by the workflow engine.
+		if node.BootstrapWorkflowActive {
+			continue
+		}
 		// Auto-retry failed nodes: reset to admitted so the phase machine
 		// re-evaluates. The conditions that caused the failure (e.g. missing
 		// profile, DNS) may have been fixed since the failure.
