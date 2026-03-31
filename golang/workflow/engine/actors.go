@@ -487,15 +487,7 @@ type ReleaseControllerConfig struct {
 	MarkReleaseResolved  func(ctx context.Context, releaseID string) error
 	MarkReleaseApplying  func(ctx context.Context, releaseID string) error
 	MarkReleaseFailed    func(ctx context.Context, releaseID, reason string) error
-	FinalizeRelease      func(ctx context.Context, releaseID string, aggregate map[string]any) error
 	RecheckConvergence   func(ctx context.Context, releaseID string) error
-
-	// Node plan management
-	FilterInfraTarget    func(ctx context.Context, releaseID, nodeID string) (bool, map[string]any, error)
-	WaitForPlanSlot      func(ctx context.Context, nodeID string) error
-	CompileInfraPlan     func(ctx context.Context, releaseID, nodeID, pkgName, version, desiredHash string) (map[string]any, error)
-	DispatchPlan         func(ctx context.Context, nodeID string, plan map[string]any) error
-	AggregateResults     func(ctx context.Context, releaseID string) (map[string]any, error)
 
 	// Day-0 extras
 	SeedDesiredFromInstalled func(ctx context.Context, clusterID string) error
@@ -519,15 +511,7 @@ func RegisterReleaseControllerActions(router *Router, cfg ReleaseControllerConfi
 	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_resolved", releaseMarkResolved(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_applying", releaseMarkApplying(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.release.mark_failed", releaseMarkFailed(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.release.finalize_infrastructure_apply", releaseFinalize(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.release.recheck_convergence", releaseRecheckConvergence(cfg))
-
-	// Node plan management
-	router.Register(v1alpha1.ActorClusterController, "controller.release.filter_infra_target", releaseFilterInfraTarget(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.plan.wait_for_slot", planWaitForSlot(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.plan.compile_infrastructure", planCompileInfra(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.plan.dispatch", planDispatch(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.release.aggregate_node_results", releaseAggregateResults(cfg))
 
 	// Day-0 extras
 	router.Register(v1alpha1.ActorClusterController, "controller.seed_desired_from_installed", controllerSeedDesired(cfg))
@@ -581,25 +565,6 @@ func releaseMarkFailed(cfg ReleaseControllerConfig) ActionHandler {
 	}
 }
 
-func releaseFinalize(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		releaseID := fmt.Sprint(req.Inputs["release_id"])
-		aggregate, _ := req.With["aggregate"].(map[string]any)
-		if aggregate == nil {
-			// Try from outputs.
-			if agg, ok := req.Outputs["aggregate"].(map[string]any); ok {
-				aggregate = agg
-			}
-		}
-		if cfg.FinalizeRelease != nil {
-			if err := cfg.FinalizeRelease(ctx, releaseID, aggregate); err != nil {
-				return nil, fmt.Errorf("finalize release: %w", err)
-			}
-		}
-		return &ActionResult{OK: true}, nil
-	}
-}
-
 func releaseRecheckConvergence(cfg ReleaseControllerConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		releaseID := fmt.Sprint(req.Inputs["release_id"])
@@ -607,78 +572,6 @@ func releaseRecheckConvergence(cfg ReleaseControllerConfig) ActionHandler {
 			if err := cfg.RecheckConvergence(ctx, releaseID); err != nil {
 				return nil, fmt.Errorf("recheck convergence: %w", err)
 			}
-		}
-		return &ActionResult{OK: true}, nil
-	}
-}
-
-func releaseFilterInfraTarget(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		releaseID := fmt.Sprint(req.Inputs["release_id"])
-		nodeID := fmt.Sprint(req.Inputs["node_id"])
-		if cfg.FilterInfraTarget != nil {
-			eligible, data, err := cfg.FilterInfraTarget(ctx, releaseID, nodeID)
-			if err != nil {
-				return nil, fmt.Errorf("filter infra target: %w", err)
-			}
-			return &ActionResult{OK: eligible, Output: data}, nil
-		}
-		return &ActionResult{OK: true}, nil
-	}
-}
-
-func planWaitForSlot(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		nodeID := fmt.Sprint(req.Inputs["node_id"])
-		if cfg.WaitForPlanSlot != nil {
-			if err := cfg.WaitForPlanSlot(ctx, nodeID); err != nil {
-				return nil, fmt.Errorf("wait for plan slot: %w", err)
-			}
-		}
-		return &ActionResult{OK: true}, nil
-	}
-}
-
-func planCompileInfra(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		releaseID := fmt.Sprint(req.Inputs["release_id"])
-		nodeID := fmt.Sprint(req.Inputs["node_id"])
-		pkgName := fmt.Sprint(req.With["package_name"])
-		version := fmt.Sprint(req.With["version"])
-		desiredHash := fmt.Sprint(req.With["desired_hash"])
-		if cfg.CompileInfraPlan != nil {
-			plan, err := cfg.CompileInfraPlan(ctx, releaseID, nodeID, pkgName, version, desiredHash)
-			if err != nil {
-				return nil, fmt.Errorf("compile infra plan: %w", err)
-			}
-			return &ActionResult{OK: true, Output: plan}, nil
-		}
-		return &ActionResult{OK: true}, nil
-	}
-}
-
-func planDispatch(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		nodeID := fmt.Sprint(req.Inputs["node_id"])
-		plan, _ := req.With["plan"].(map[string]any)
-		if cfg.DispatchPlan != nil {
-			if err := cfg.DispatchPlan(ctx, nodeID, plan); err != nil {
-				return nil, fmt.Errorf("dispatch plan: %w", err)
-			}
-		}
-		return &ActionResult{OK: true, Output: map[string]any{"node_id": nodeID, "dispatched": true}}, nil
-	}
-}
-
-func releaseAggregateResults(cfg ReleaseControllerConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		releaseID := fmt.Sprint(req.Inputs["release_id"])
-		if cfg.AggregateResults != nil {
-			agg, err := cfg.AggregateResults(ctx, releaseID)
-			if err != nil {
-				return nil, fmt.Errorf("aggregate results: %w", err)
-			}
-			return &ActionResult{OK: true, Output: agg}, nil
 		}
 		return &ActionResult{OK: true}, nil
 	}
@@ -721,31 +614,6 @@ func controllerEmitBootstrapSucceeded(cfg ReleaseControllerConfig) ActionHandler
 }
 
 // --------------------------------------------------------------------------
-// Node-agent plan execution (used by release.apply.infrastructure)
-// --------------------------------------------------------------------------
-
-// RegisterNodePlanActions registers the node.execute_plan handler.
-func RegisterNodePlanActions(router *Router, cfg NodePlanConfig) {
-	router.Register(v1alpha1.ActorNodeAgent, "node.execute_plan", nodeExecutePlan(cfg))
-}
-
-// NodePlanConfig provides dependencies for plan execution on the node-agent.
-type NodePlanConfig struct {
-	ExecutePlan func(ctx context.Context, nodeID, planID string) error
-}
-
-func nodeExecutePlan(cfg NodePlanConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		nodeID := fmt.Sprint(req.Inputs["node_id"])
-		planID := fmt.Sprint(req.With["plan_id"])
-		if cfg.ExecutePlan != nil {
-			if err := cfg.ExecutePlan(ctx, nodeID, planID); err != nil {
-				return nil, fmt.Errorf("execute plan on %s: %w", nodeID, err)
-			}
-		}
-		return &ActionResult{OK: true, Output: map[string]any{"node_id": nodeID, "plan_id": planID}}, nil
-	}
-}
 
 // --------------------------------------------------------------------------
 // Direct-apply controller actions (workflow-native infrastructure release)

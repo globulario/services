@@ -28,7 +28,7 @@ func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, relea
 
 	router := engine.NewRouter()
 
-	// Wire release controller actions to existing pipeline functions.
+	// Wire release controller actions (direct-apply path, no plans).
 	engine.RegisterReleaseControllerActions(router, engine.ReleaseControllerConfig{
 		MarkReleaseResolved: func(ctx context.Context, relID string) error {
 			log.Printf("release-workflow: mark %s RESOLVED", relID)
@@ -42,10 +42,6 @@ func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, relea
 			log.Printf("release-workflow: mark %s FAILED: %s", relID, reason)
 			return nil
 		},
-		FinalizeRelease: func(ctx context.Context, relID string, aggregate map[string]any) error {
-			log.Printf("release-workflow: finalize %s", relID)
-			return nil
-		},
 		RecheckConvergence: func(ctx context.Context, relID string) error {
 			log.Printf("release-workflow: recheck convergence for %s", relID)
 			if srv.enqueueReconcile != nil {
@@ -53,68 +49,67 @@ func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, relea
 			}
 			return nil
 		},
-		FilterInfraTarget: func(ctx context.Context, relID, nodeID string) (bool, map[string]any, error) {
-			srv.lock("FilterInfraTarget")
-			node := srv.state.Nodes[nodeID]
-			srv.unlock()
-			if node == nil {
-				return false, nil, nil
-			}
-			if !bootstrapPhaseReady(node.BootstrapPhase) {
-				return false, nil, nil
-			}
-			return true, map[string]any{"node_id": nodeID}, nil
-		},
-		WaitForPlanSlot: func(ctx context.Context, nodeID string) error {
-			// Poll until no active plan on this node.
-			ticker := time.NewTicker(3 * time.Second)
-			defer ticker.Stop()
-			for {
-				if !srv.hasAnyActivePlan(ctx, nodeID) {
-					return nil
+		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) ([]any, error) {
+			srv.lock("SelectInfraTargets")
+			defer srv.unlock()
+			var targets []any
+			for _, c := range candidates {
+				nodeID := fmt.Sprint(c)
+				node := srv.state.Nodes[nodeID]
+				if node == nil || !bootstrapPhaseReady(node.BootstrapPhase) {
+					continue
 				}
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-ticker.C:
-				}
+				targets = append(targets, map[string]any{"node_id": nodeID})
 			}
+			return targets, nil
 		},
-		CompileInfraPlan: func(ctx context.Context, relID, nodeID, pkg, ver, hash string) (map[string]any, error) {
-			log.Printf("release-workflow: compile plan for %s on %s (pkg=%s ver=%s)", relID, nodeID, pkg, ver)
-			return map[string]any{
-				"node_id":    nodeID,
-				"release_id": relID,
-				"package":    pkg,
-				"version":    ver,
-				"hash":       hash,
-			}, nil
-		},
-		DispatchPlan: func(ctx context.Context, nodeID string, plan map[string]any) error {
-			log.Printf("release-workflow: dispatch plan to %s", nodeID)
+		FinalizeNoop: func(ctx context.Context, releaseID string) error {
+			log.Printf("release-workflow: %s finalized AVAILABLE (no-op)", releaseID)
 			return nil
 		},
-		AggregateResults: func(ctx context.Context, relID string) (map[string]any, error) {
-			return map[string]any{"release_id": relID, "status": "ok"}, nil
+		MarkNodeStarted: func(ctx context.Context, releaseID, nodeID string) error {
+			log.Printf("release-workflow: node %s started for %s", nodeID, releaseID)
+			return nil
 		},
-	})
-
-	// Wire node plan execution.
-	engine.RegisterNodePlanActions(router, engine.NodePlanConfig{
-		ExecutePlan: func(ctx context.Context, nodeID, planID string) error {
-			log.Printf("release-workflow: execute plan %s on %s", planID, nodeID)
+		MarkNodeSucceeded: func(ctx context.Context, releaseID, nodeID, version, hash string) error {
+			log.Printf("release-workflow: node %s succeeded for %s (v=%s)", nodeID, releaseID, version)
+			return nil
+		},
+		MarkNodeFailed: func(ctx context.Context, releaseID, nodeID, reason string) error {
+			log.Printf("release-workflow: node %s failed for %s: %s", nodeID, releaseID, reason)
+			return nil
+		},
+		AggregateDirectApply: func(ctx context.Context, releaseID, pkgName string) (map[string]any, error) {
+			return map[string]any{"release_id": releaseID, "status": "ok"}, nil
+		},
+		FinalizeDirectApply: func(ctx context.Context, releaseID string, aggregate map[string]any) error {
+			log.Printf("release-workflow: finalize %s", releaseID)
 			return nil
 		},
 	})
 
-	// Condition evaluator (not needed for release workflow, but keep consistent).
-	evalCond := func(ctx context.Context, expr string, inputs, outputs map[string]any) (bool, error) {
-		return true, nil
-	}
+	// Wire node-agent direct-apply actions.
+	engine.RegisterNodeDirectApplyActions(router, engine.NodeDirectApplyConfig{
+		InstallPackage: func(ctx context.Context, name, version, kind string) error {
+			log.Printf("release-workflow: install %s@%s (%s)", name, version, kind)
+			return nil
+		},
+		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error {
+			return nil
+		},
+		RestartPackageService: func(ctx context.Context, name string) error {
+			return nil
+		},
+		VerifyPackageRuntime: func(ctx context.Context, name, check string) error {
+			return nil
+		},
+		SyncInstalledPackage: func(ctx context.Context, name, version, hash string) error {
+			return nil
+		},
+	})
 
 	eng := &engine.Engine{
-		Router:   router,
-		EvalCond: evalCond,
+		Router: router,
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
 			elapsed := time.Duration(0)
 			if !step.StartedAt.IsZero() && !step.FinishedAt.IsZero() {
