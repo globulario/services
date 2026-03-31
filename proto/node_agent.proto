@@ -387,6 +387,16 @@ service NodeAgentService {
       default_role_hint: "viewer"
     };
   };
+
+  // Workflow execution: run a workflow definition on this node
+  rpc RunWorkflow(RunWorkflowRequest) returns (RunWorkflowResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.workflow.execute"
+      permission: "execute"
+      resource_template: "/node_agent/workflows"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ── Node identity token rotation (Phase 2) ──
@@ -469,3 +479,22 @@ message GetCertificateStatusResponse {
   CertificateInfo server_cert = 1;
   CertificateInfo ca_cert = 2;
 }
+
+// ── Workflow execution ──
+
+message RunWorkflowRequest {
+  string workflow_name = 1;               // e.g. "node.join"
+  string definition_path = 2;            // path to YAML on local disk (optional, resolved from name if empty)
+  map<string, string> inputs = 3;        // workflow inputs (cluster_id, node_id, etc.)
+}
+
+message RunWorkflowResponse {
+  string run_id = 1;
+  string status = 2;                      // SUCCEEDED, FAILED, RUNNING
+  int32 steps_succeeded = 3;
+  int32 steps_failed = 4;
+  int32 steps_total = 5;
+  string error = 6;
+  int64 duration_ms = 7;
+}
+

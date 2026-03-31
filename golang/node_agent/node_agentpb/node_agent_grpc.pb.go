@@ -40,6 +40,7 @@ const (
 	NodeAgentService_ControlService_FullMethodName        = "/node_agent.NodeAgentService/ControlService"
 	NodeAgentService_SearchServiceLogs_FullMethodName     = "/node_agent.NodeAgentService/SearchServiceLogs"
 	NodeAgentService_GetCertificateStatus_FullMethodName  = "/node_agent.NodeAgentService/GetCertificateStatus"
+	NodeAgentService_RunWorkflow_FullMethodName           = "/node_agent.NodeAgentService/RunWorkflow"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -74,6 +75,8 @@ type NodeAgentServiceClient interface {
 	SearchServiceLogs(ctx context.Context, in *SearchServiceLogsRequest, opts ...grpc.CallOption) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(ctx context.Context, in *GetCertificateStatusRequest, opts ...grpc.CallOption) (*GetCertificateStatusResponse, error)
+	// Workflow execution: run a workflow definition on this node
+	RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -302,6 +305,16 @@ func (c *nodeAgentServiceClient) GetCertificateStatus(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunWorkflowResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_RunWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -334,6 +347,8 @@ type NodeAgentServiceServer interface {
 	SearchServiceLogs(context.Context, *SearchServiceLogsRequest) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error)
+	// Workflow execution: run a workflow definition on this node
+	RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -402,6 +417,9 @@ func (UnimplementedNodeAgentServiceServer) SearchServiceLogs(context.Context, *S
 }
 func (UnimplementedNodeAgentServiceServer) GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCertificateStatus not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunWorkflow not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -769,6 +787,24 @@ func _NodeAgentService_GetCertificateStatus_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_RunWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).RunWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_RunWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).RunWorkflow(ctx, req.(*RunWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -847,6 +883,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCertificateStatus",
 			Handler:    _NodeAgentService_GetCertificateStatus_Handler,
+		},
+		{
+			MethodName: "RunWorkflow",
+			Handler:    _NodeAgentService_RunWorkflow_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
