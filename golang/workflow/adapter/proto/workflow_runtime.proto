@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package workflow.runtime.v1;
+
+option go_package = "github.com/globulario/globular/workflow/runtime/v1;workflowruntimev1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+service NodeAgentExecutionService {
+  rpc ExecuteWorkflowStep(ExecuteWorkflowStepRequest) returns (ExecuteWorkflowStepResponse);
+  rpc CancelWorkflowStep(CancelWorkflowStepRequest) returns (CancelWorkflowStepResponse);
+}
+
+service WorkflowCallbackService {
+  rpc ReportStepAccepted(ReportStepAcceptedRequest) returns (Ack);
+  rpc ReportStepProgress(ReportStepProgressRequest) returns (Ack);
+  rpc ReportStepHeartbeat(ReportStepHeartbeatRequest) returns (Ack);
+  rpc ReportStepResult(ReportStepResultRequest) returns (Ack);
+}
+
+message Ack {
+  bool accepted = 1;
+  string message = 2;
+}
+
+enum StepTerminalStatus {
+  STEP_TERMINAL_STATUS_UNSPECIFIED = 0;
+  STEP_TERMINAL_STATUS_SUCCEEDED = 1;
+  STEP_TERMINAL_STATUS_FAILED = 2;
+  STEP_TERMINAL_STATUS_CANCELLED = 3;
+}
+
+enum StepErrorClass {
+  STEP_ERROR_CLASS_UNSPECIFIED = 0;
+  STEP_ERROR_CLASS_INVALID_INPUT = 1;
+  STEP_ERROR_CLASS_PRECONDITION_FAILED = 2;
+  STEP_ERROR_CLASS_NOT_FOUND = 3;
+  STEP_ERROR_CLASS_PERMISSION_DENIED = 4;
+  STEP_ERROR_CLASS_DOWNLOAD_FAILED = 5;
+  STEP_ERROR_CLASS_VERIFY_FAILED = 6;
+  STEP_ERROR_CLASS_TIMEOUT = 7;
+  STEP_ERROR_CLASS_CANCELLED = 8;
+  STEP_ERROR_CLASS_TRANSIENT = 9;
+  STEP_ERROR_CLASS_INTERNAL = 10;
+}
+
+message ExecutionIdentity {
+  string run_id = 1;
+  string step_id = 2;
+  uint32 attempt = 3;
+  string workflow_name = 4;
+  string node_id = 5;
+  string correlation_id = 6;
+}
+
+message ExecuteWorkflowStepRequest {
+  ExecutionIdentity identity = 1;
+  string actor = 2;     // expected: "node-agent"
+  string action = 3;    // install_package, start_service, verify_service_healthy, ...
+  google.protobuf.Struct inputs = 4;
+  google.protobuf.Timestamp dispatch_time = 5;
+  google.protobuf.Timestamp deadline = 6;
+  string cancellation_token = 7;
+  map<string,string> labels = 8;
+}
+
+message ExecuteWorkflowStepResponse {
+  bool accepted = 1;
+  string local_operation_id = 2;
+  string message = 3;
+}
+
+message CancelWorkflowStepRequest {
+  ExecutionIdentity identity = 1;
+  string reason = 2;
+  google.protobuf.Timestamp requested_at = 3;
+}
+
+message CancelWorkflowStepResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message ReportStepAcceptedRequest {
+  ExecutionIdentity identity = 1;
+  uint64 sequence = 2;
+  string local_operation_id = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+  string message = 5;
+}
+
+message ReportStepProgressRequest {
+  ExecutionIdentity identity = 1;
+  uint64 sequence = 2;
+  string local_operation_id = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  uint32 percent = 5;
+  string phase = 6;
+  string message = 7;
+  google.protobuf.Struct details = 8;
+}
+
+message ReportStepHeartbeatRequest {
+  ExecutionIdentity identity = 1;
+  uint64 sequence = 2;
+  string local_operation_id = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  string phase = 5;
+  string message = 6;
+  google.protobuf.Struct details = 7;
+}
+
+message StepError {
+  StepErrorClass error_class = 1;
+  string error_code = 2;
+  string message = 3;
+  bool retryable_hint = 4;
+  google.protobuf.Struct details = 5;
+}
+
+message ArtifactRef {
+  string kind = 1;
+  string uri = 2;
+  string checksum = 3;
+  string description = 4;
+}
+
+message ReportStepResultRequest {
+  ExecutionIdentity identity = 1;
+  uint64 sequence = 2;
+  string local_operation_id = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  google.protobuf.Duration duration = 6;
+  StepTerminalStatus status = 7;
+  string summary = 8;
+  google.protobuf.Struct outputs = 9;
+  StepError error = 10;
+  repeated ArtifactRef artifacts = 11;
+  google.protobuf.Struct metrics = 12;
+}

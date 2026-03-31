@@ -180,6 +180,16 @@ if [[ -d "$INSTALLER_ROOT" ]]; then
   )
 fi
 
+# ── Sync workflow definitions into the service payload ────────────────────
+echo "=> Syncing workflow definitions to payload"
+WORKFLOW_DEFS="$GO_ROOT/workflow/definitions"
+WORKFLOW_PAYLOAD="$REPO_ROOT/generated/payload/workflow/definitions"
+if [[ -d "$WORKFLOW_DEFS" ]]; then
+  mkdir -p "$WORKFLOW_PAYLOAD"
+  cp "$WORKFLOW_DEFS"/*.yaml "$WORKFLOW_PAYLOAD/"
+  echo "   copied $(ls "$WORKFLOW_PAYLOAD"/*.yaml | wc -l) definitions"
+fi
+
 echo "=> Building Go services"
 bash "$REPO_ROOT/golang/build/build-services.sh"
 

@@ -1,0 +1,130 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: release.apply.infrastructure
+  displayName: Apply infrastructure release
+  description: >-
+    Durable replacement for the hardcoded release state machine around PENDING,
+    RESOLVED, APPLYING, AVAILABLE and DEGRADED. The controller still resolves
+    intent and compiles plans, but the workflow service owns the orchestration.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - release_id
+      - release_name
+      - package_name
+      - resolved_version
+      - desired_hash
+      - candidate_nodes
+    properties:
+      cluster_id: { type: string }
+      release_id: { type: string }
+      release_name: { type: string }
+      package_name: { type: string }
+      resolved_version: { type: string }
+      desired_hash: { type: string }
+      release_kind: { type: string, default: infrastructure }
+      candidate_nodes:
+        type: array
+        items: { type: string }
+      max_parallel_nodes: { type: integer, default: 1 }
+      execute_timeout: { type: string, default: 30m }
+  defaults:
+    max_parallel_nodes: 1
+    execute_timeout: 30m
+  strategy:
+    mode: foreach
+    collection: $.candidate_nodes
+    concurrency: $.max_parallel_nodes
+    itemName: node_id
+  steps:
+    - id: mark_resolved
+      title: Mark release resolved
+      actor: cluster-controller
+      action: controller.release.mark_resolved
+
+    - id: filter_target
+      title: Evaluate node intent and eligibility
+      actor: cluster-controller
+      action: controller.release.filter_infra_target
+      foreach: $.candidate_nodes
+      export: filtered_targets
+
+    - id: wait_for_plan_slot
+      title: Wait for node plan slot
+      actor: cluster-controller
+      foreach: $.filtered_targets
+      action: controller.plan.wait_for_slot
+      retry:
+        maxAttempts: 240
+        backoff: 5s
+      timeout: 20m
+
+    - id: compile_plan
+      title: Compile node plan
+      actor: cluster-controller
+      foreach: $.filtered_targets
+      dependsOn: [wait_for_plan_slot]
+      action: controller.plan.compile_infrastructure
+      with:
+        release_id: $.release_id
+        package_name: $.package_name
+        version: $.resolved_version
+        desired_hash: $.desired_hash
+      export: compiled_plans
+
+    - id: dispatch_plan
+      title: Dispatch node plan
+      actor: cluster-controller
+      foreach: $.compiled_plans
+      dependsOn: [compile_plan]
+      action: controller.plan.dispatch
+      export: dispatched_plans
+
+    - id: mark_applying
+      title: Mark release applying
+      dependsOn: [dispatch_plan]
+      actor: cluster-controller
+      action: controller.release.mark_applying
+
+    - id: execute_plan
+      title: Execute node plan on node-agent
+      actor: node-agent
+      foreach: $.dispatched_plans
+      dependsOn: [mark_applying]
+      action: node.execute_plan
+      waitFor:
+        condition: plan_terminal
+        timeout: $.execute_timeout
+      export: node_results
+
+    - id: aggregate_outcome
+      title: Aggregate node outcomes
+      actor: cluster-controller
+      dependsOn: [execute_plan]
+      action: controller.release.aggregate_node_results
+      with:
+        successStates: [PLAN_SUCCEEDED]
+        rollbackStates: [PLAN_ROLLED_BACK]
+        failureStates: [PLAN_FAILED]
+      export: aggregate
+
+    - id: finalize_release
+      title: Finalize release status
+      dependsOn: [aggregate_outcome]
+      actor: cluster-controller
+      action: controller.release.finalize_infrastructure_apply
+      with:
+        aggregate: $.aggregate
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.release.mark_failed
+    with:
+      reason: workflow_failed
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.release.recheck_convergence
