@@ -85,9 +85,9 @@ spec:
         packages:
           - { name: scylladb, kind: INFRASTRUCTURE }
       retry:
-        maxAttempts: 3
-        backoff: 10s
-      timeout: $.install_timeout
+        maxAttempts: 2
+        backoff: 30s
+      timeout: 10m
 
     - id: install_scylla_tools
       title: Install ScyllaDB manager and agent

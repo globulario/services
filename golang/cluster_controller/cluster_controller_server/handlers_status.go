@@ -210,6 +210,12 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	if oldEndpoint != newEndpoint {
 		changed = true
 	}
+	// Trigger workflow on first heartbeat (node just joined and reported its endpoint).
+	if oldEndpoint == "" && newEndpoint != "" && node.BootstrapPhase == BootstrapAdmitted {
+		log.Printf("ReportNodeStatus: node %s first heartbeat — triggering join workflow at %s",
+			nodeID, newEndpoint)
+		go srv.triggerJoinWorkflow(nodeID, newEndpoint)
+	}
 
 	// Phase 4b: commit or discard pending rendered config hashes based on apply outcome.
 	// A report received after the plan was dispatched is our confirmation signal.

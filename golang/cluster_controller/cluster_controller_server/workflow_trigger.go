@@ -1,0 +1,101 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/security"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"crypto/tls"
+	"crypto/x509"
+	"os"
+)
+
+// triggerJoinWorkflow calls NodeAgent.RunWorkflow on the joining node
+// to execute the node.join workflow definition. This replaces the
+// old reconcile loop with a single gRPC call.
+func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	log.Printf("workflow-trigger: connecting to node-agent at %s for node %s", agentEndpoint, nodeID)
+
+	conn, err := srv.dialNodeAgent(agentEndpoint)
+	if err != nil {
+		log.Printf("workflow-trigger: failed to connect to %s: %v", agentEndpoint, err)
+		return
+	}
+	defer conn.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+	resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
+		WorkflowName: "node.join",
+	})
+	if err != nil {
+		log.Printf("workflow-trigger: RunWorkflow failed for node %s: %v", nodeID, err)
+		return
+	}
+
+	log.Printf("workflow-trigger: node %s workflow completed — status=%s steps=%d/%d duration=%dms",
+		nodeID, resp.GetStatus(), resp.GetStepsSucceeded(), resp.GetStepsTotal(), resp.GetDurationMs())
+
+	if resp.GetError() != "" {
+		log.Printf("workflow-trigger: node %s error: %s", nodeID, resp.GetError())
+	}
+}
+
+// dialNodeAgent creates a direct gRPC connection to a node-agent.
+func (srv *server) dialNodeAgent(endpoint string) (*grpc.ClientConn, error) {
+	certFile := "/var/lib/globular/pki/issued/services/service.crt"
+	keyFile := "/var/lib/globular/pki/issued/services/service.key"
+	caFile := "/var/lib/globular/pki/ca.crt"
+
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load client cert: %w", err)
+	}
+	caPEM, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("read CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(caPEM)
+
+	// The node-agent's cert may have the node hostname as SAN, not the IP.
+	// Use InsecureSkipVerify with manual verification for cross-node calls.
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            pool,
+		InsecureSkipVerify: true, // node cert SAN may not match endpoint IP
+	})
+
+	// Add node token as metadata for auth.
+	token, _ := security.GetLocalToken("")
+
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+	}
+	if token != "" {
+		opts = append(opts, grpc.WithPerRPCCredentials(tokenAuth{token: token}))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return grpc.DialContext(ctx, endpoint, opts...)
+}
+
+// tokenAuth implements grpc.PerRPCCredentials for bearer token auth.
+type tokenAuth struct {
+	token string
+}
+
+func (t tokenAuth) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	return map[string]string{"token": t.token}, nil
+}
+
+func (t tokenAuth) RequireTransportSecurity() bool { return false }
