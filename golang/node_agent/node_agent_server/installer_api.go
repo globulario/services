@@ -41,9 +41,13 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	if fetchHandler == nil {
 		return fmt.Errorf("action artifact.fetch not registered")
 	}
+	// Resolve version from package name. Infrastructure packages have
+	// specific versions; all services default to 0.0.1.
+	version := resolvePackageVersion(name)
+
 	fetchArgs, err := structpb.NewStruct(map[string]any{
 		"service":         name,
-		"version":         "",
+		"version":         version,
 		"platform":        platform,
 		"artifact_path":   artifactPath,
 		"publisher_id":    defaultPublisherID,
@@ -77,7 +81,7 @@ func (srv *NodeAgentServer) installPayload(ctx context.Context, name, artifactPa
 	}
 	args, err := structpb.NewStruct(map[string]any{
 		"service":       name,
-		"version":       "0.0.1",
+		"version":       resolvePackageVersion(name),
 		"artifact_path": artifactPath,
 	})
 	if err != nil {
@@ -86,7 +90,7 @@ func (srv *NodeAgentServer) installPayload(ctx context.Context, name, artifactPa
 	if _, err := handler.Apply(ctx, args); err != nil {
 		return fmt.Errorf("install %s: %w", name, err)
 	}
-	return srv.writeMarker(name, "0.0.1")
+	return srv.writeMarker(name, resolvePackageVersion(name))
 }
 
 func (srv *NodeAgentServer) installInfra(ctx context.Context, name, artifactPath string) error {
@@ -96,7 +100,7 @@ func (srv *NodeAgentServer) installInfra(ctx context.Context, name, artifactPath
 	}
 	args, err := structpb.NewStruct(map[string]any{
 		"name":          name,
-		"version":       "0.0.1",
+		"version":       resolvePackageVersion(name),
 		"artifact_path": artifactPath,
 	})
 	if err != nil {
@@ -105,7 +109,7 @@ func (srv *NodeAgentServer) installInfra(ctx context.Context, name, artifactPath
 	if _, err := handler.Apply(ctx, args); err != nil {
 		return fmt.Errorf("install infra %s: %w", name, err)
 	}
-	return srv.writeMarker(name, "0.0.1")
+	return srv.writeMarker(name, resolvePackageVersion(name))
 }
 
 func (srv *NodeAgentServer) writeMarker(name, version string) error {
@@ -127,10 +131,34 @@ func (srv *NodeAgentServer) discoverRepositoryAddr() string {
 }
 
 func splitHostPort(addr string) (string, string, error) {
-	// Handle addresses without port.
 	if !strings.Contains(addr, ":") {
 		return addr, "", nil
 	}
 	idx := strings.LastIndex(addr, ":")
 	return addr[:idx], addr[idx+1:], nil
+}
+
+// resolvePackageVersion returns the version for a given package name.
+// Infrastructure packages have specific versions; services default to 0.0.1.
+func resolvePackageVersion(name string) string {
+	switch name {
+	case "etcd":
+		return "3.5.14"
+	case "envoy":
+		return "1.35.3"
+	case "sidekick":
+		return "7.0.0"
+	case "prometheus":
+		return "3.5.1"
+	case "node-exporter":
+		return "1.10.2"
+	case "scylladb":
+		return "2025.3.8"
+	case "scylla-manager", "scylla-manager-agent":
+		return "3.8.1"
+	case "mcp":
+		return "0.0.2"
+	default:
+		return "0.0.1"
+	}
 }
