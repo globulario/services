@@ -4,9 +4,9 @@ metadata:
   name: release.apply.infrastructure
   displayName: Apply infrastructure release
   description: >-
-    Durable replacement for the hardcoded release state machine around PENDING,
-    RESOLVED, APPLYING, AVAILABLE and DEGRADED. The controller still resolves
-    intent and compiles plans, but the workflow service owns the orchestration.
+    Pure workflow-native infrastructure rollout. Replaces plan compilation,
+    shared plan slots, dispatch and plan-status polling with direct step
+    execution against node-agent through the workflow runtime contract.
 spec:
   inputSchema:
     type: object
@@ -31,91 +31,176 @@ spec:
         items: { type: string }
       max_parallel_nodes: { type: integer, default: 1 }
       execute_timeout: { type: string, default: 30m }
+      verify_timeout: { type: string, default: 10m }
+      restart_required: { type: boolean, default: true }
+      health_check: { type: string, default: service_healthy }
   defaults:
     max_parallel_nodes: 1
     execute_timeout: 30m
+    verify_timeout: 10m
+    restart_required: true
+    health_check: service_healthy
   strategy:
-    mode: foreach
-    collection: $.candidate_nodes
-    concurrency: $.max_parallel_nodes
-    itemName: node_id
+    mode: single
   steps:
     - id: mark_resolved
       title: Mark release resolved
       actor: cluster-controller
       action: controller.release.mark_resolved
 
-    - id: filter_target
-      title: Evaluate node intent and eligibility
+    - id: select_targets
+      title: Select eligible infrastructure targets
+      dependsOn: [mark_resolved]
       actor: cluster-controller
-      action: controller.release.filter_infra_target
-      foreach: $.candidate_nodes
-      export: filtered_targets
-
-    - id: wait_for_plan_slot
-      title: Wait for node plan slot
-      actor: cluster-controller
-      foreach: $.filtered_targets
-      action: controller.plan.wait_for_slot
-      retry:
-        maxAttempts: 240
-        backoff: 5s
-      timeout: 20m
-
-    - id: compile_plan
-      title: Compile node plan
-      actor: cluster-controller
-      foreach: $.filtered_targets
-      dependsOn: [wait_for_plan_slot]
-      action: controller.plan.compile_infrastructure
+      action: controller.release.select_infrastructure_targets
       with:
-        release_id: $.release_id
+        candidate_nodes: $.candidate_nodes
         package_name: $.package_name
-        version: $.resolved_version
         desired_hash: $.desired_hash
-      export: compiled_plans
+      # Note: handler writes selected_targets directly to run outputs
+      # (array, not wrapped map) for foreach consumption.
 
-    - id: dispatch_plan
-      title: Dispatch node plan
+    - id: short_circuit_if_no_targets
+      title: Finalize immediately when all targets are already converged
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) == 0
       actor: cluster-controller
-      foreach: $.compiled_plans
-      dependsOn: [compile_plan]
-      action: controller.plan.dispatch
-      export: dispatched_plans
+      action: controller.release.finalize_noop
+      with:
+        status: AVAILABLE
 
     - id: mark_applying
       title: Mark release applying
-      dependsOn: [dispatch_plan]
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) > 0
       actor: cluster-controller
       action: controller.release.mark_applying
 
-    - id: execute_plan
-      title: Execute node plan on node-agent
-      actor: node-agent
-      foreach: $.dispatched_plans
+    - id: apply_per_node
+      title: Apply package per target node
       dependsOn: [mark_applying]
-      action: node.execute_plan
-      waitFor:
-        condition: plan_terminal
-        timeout: $.execute_timeout
-      export: node_results
+      when:
+        expr: len(selected_targets) > 0
+      foreach: $.selected_targets
+      itemName: target
+      strategy:
+        mode: parallel
+        concurrency: $.max_parallel_nodes
+      steps:
+        - id: mark_node_started
+          title: Mark node apply started
+          actor: cluster-controller
+          action: controller.release.mark_node_started
+          with:
+            node_id: $.target.node_id
+
+        - id: install_package
+          title: Install infrastructure package on node
+          dependsOn: [mark_node_started]
+          actor: node-agent
+          action: node.install_package
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+            kind: INFRASTRUCTURE
+          timeout: $.execute_timeout
+          export: install_result
+
+        - id: verify_installed
+          title: Verify installed marker and package checksum
+          dependsOn: [install_package]
+          actor: node-agent
+          action: node.verify_package_installed
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+          retry:
+            maxAttempts: 20
+            backoff: 5s
+          timeout: $.verify_timeout
+          export: verify_result
+
+        - id: maybe_restart
+          title: Restart package service when required
+          dependsOn: [verify_installed]
+          when:
+            expr: inputs.restart_required == true
+          actor: node-agent
+          action: node.restart_package_service
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+          timeout: 5m
+
+        - id: verify_runtime_health
+          title: Verify runtime health after install
+          dependsOn: [verify_installed, maybe_restart]
+          actor: node-agent
+          action: node.verify_package_runtime
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            health_check: $.health_check
+          retry:
+            maxAttempts: 60
+            backoff: 5s
+          timeout: $.verify_timeout
+          export: health_result
+
+        - id: sync_installed_state
+          title: Sync installed state to authoritative store
+          dependsOn: [verify_runtime_health]
+          actor: node-agent
+          action: node.sync_installed_package_state
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+          export: sync_result
+
+        - id: mark_node_succeeded
+          title: Mark node apply succeeded
+          dependsOn: [sync_installed_state]
+          actor: cluster-controller
+          action: controller.release.mark_node_succeeded
+          with:
+            node_id: $.target.node_id
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+
+      onFailure:
+        actor: cluster-controller
+        action: controller.release.mark_node_failed
+        with:
+          node_id: $.target.node_id
+          package_name: $.package_name
 
     - id: aggregate_outcome
-      title: Aggregate node outcomes
+      title: Aggregate per-node outcomes
+      dependsOn: [apply_per_node]
+      when:
+        expr: len(selected_targets) > 0
       actor: cluster-controller
-      dependsOn: [execute_plan]
-      action: controller.release.aggregate_node_results
+      action: controller.release.aggregate_direct_apply_results
       with:
-        successStates: [PLAN_SUCCEEDED]
-        rollbackStates: [PLAN_ROLLED_BACK]
-        failureStates: [PLAN_FAILED]
+        release_id: $.release_id
+        package_name: $.package_name
       export: aggregate
 
     - id: finalize_release
       title: Finalize release status
       dependsOn: [aggregate_outcome]
+      when:
+        expr: len(selected_targets) > 0
       actor: cluster-controller
-      action: controller.release.finalize_infrastructure_apply
+      action: controller.release.finalize_direct_apply
       with:
         aggregate: $.aggregate
 

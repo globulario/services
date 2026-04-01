@@ -203,57 +203,10 @@ func registerNodeAgentTools(s *server) {
 		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
 		defer cancel()
 
-		req := &node_agentpb.GetPlanStatusV1Request{
-			OperationId: getStr(args, "plan_id"),
-		}
-
-		resp, err := client.GetPlanStatusV1(callCtx, req)
-		if err != nil {
-			return nil, fmt.Errorf("GetPlanStatusV1: %w", err)
-		}
-
-		st := resp.GetStatus()
-		if st == nil {
-			return map[string]interface{}{"status": "no plan found"}, nil
-		}
-
-		steps := make([]map[string]interface{}, 0, len(st.GetSteps()))
-		for _, step := range st.GetSteps() {
-			steps = append(steps, map[string]interface{}{
-				"id":      step.GetId(),
-				"state":   step.GetState().String(),
-				"attempt": step.GetAttempt(),
-				"started": fmtTime(int64(step.GetStartedUnixMs())),
-				"finished": fmtTime(int64(step.GetFinishedUnixMs())),
-				"message": step.GetMessage(),
-			})
-		}
-
-		events := make([]map[string]interface{}, 0, len(st.GetEvents()))
-		for _, ev := range st.GetEvents() {
-			events = append(events, map[string]interface{}{
-				"timestamp": fmtTime(int64(ev.GetTsUnixMs())),
-				"level":     ev.GetLevel(),
-				"message":   ev.GetMsg(),
-				"step_id":   ev.GetStepId(),
-			})
-		}
-
-		result := map[string]interface{}{
-			"plan_id":        st.GetPlanId(),
-			"node_id":        st.GetNodeId(),
-			"generation":     st.GetGeneration(),
-			"state":          st.GetState().String(),
-			"current_step":   st.GetCurrentStepId(),
-			"error_message":  st.GetErrorMessage(),
-			"error_step_id":  st.GetErrorStepId(),
-			"started":        fmtTime(int64(st.GetStartedUnixMs())),
-			"finished":       fmtTime(int64(st.GetFinishedUnixMs())),
-			"steps":          steps,
-			"events":         events,
-		}
-
-		return result, nil
+		// Plan status removed — plan system deleted.
+		_ = callCtx
+		_ = client
+		return map[string]interface{}{"status": "plan system removed — use workflow runs"}, nil
 	})
 
 	// ── nodeagent_get_installed_package ─────────────────────────────────────

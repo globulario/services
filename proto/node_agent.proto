@@ -6,7 +6,6 @@ option go_package = "github.com/globulario/services/golang/node_agent/node_agent
 
 import "google/protobuf/timestamp.proto";
 import "cluster_controller.proto";
-import "plan.proto";
 import "globular_auth.proto";
 
 message JoinClusterRequest {
@@ -89,35 +88,7 @@ message Inventory {
 message GetInventoryRequest {}
 message GetInventoryResponse { Inventory inventory = 1; }
 
-message ApplyPlanRequest {
-  cluster_controller.NodePlan plan = 1;
-  string operation_id = 2;
-}
-message ApplyPlanResponse {
-  string operation_id = 1;
-}
-
-message ApplyPlanV1Request {
-  globular.plan.v1.NodePlan plan = 1;
-  string operation_id = 2; // optional; server will generate if empty
-}
-message ApplyPlanV1Response {
-  string operation_id = 1; // always non-empty; returned even if client omitted
-  string plan_id = 2;
-  uint64 plan_generation = 3;
-}
-
-message GetPlanStatusV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];      // optional: defaults to the node-agent's node id
-  string operation_id = 2 [(globular.auth.resource) = { kind: "operation" }];  // optional: if set, return status for this specific operation
-}
-message GetPlanStatusV1Response {
-  globular.plan.v1.NodePlanStatus status = 1;
-}
-
-message WatchPlanStatusV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }]; // optional: defaults to the node-agent's node id
-}
+// Plan messages removed — Globular is workflow-native.
 
 message WatchOperationRequest { string operation_id = 1 [(globular.auth.resource) = { kind: "operation" }]; }
 
@@ -227,38 +198,9 @@ service NodeAgentService {
       default_role_hint: "viewer"
     };
   };
-  rpc ApplyPlan(ApplyPlanRequest) returns (ApplyPlanResponse) {
-    option (globular.auth.authz) = {
-      action: "node_agent.plan.apply"
-      permission: "admin"
-      resource_template: "/node_agent/plan"
-      default_role_hint: "admin"
-    };
-  };
-  rpc ApplyPlanV1(ApplyPlanV1Request) returns (ApplyPlanV1Response) {
-    option (globular.auth.authz) = {
-      action: "node_agent.plan_v1.apply"
-      permission: "admin"
-      resource_template: "/node_agent/plan-v1"
-      default_role_hint: "admin"
-    };
-  };
-  rpc GetPlanStatusV1(GetPlanStatusV1Request) returns (GetPlanStatusV1Response) {
-    option (globular.auth.authz) = {
-      action: "node_agent.plan_status.read"
-      permission: "read"
-      resource_template: "/node_agent/nodes/{node_id}/plan-status"
-      default_role_hint: "viewer"
-    };
-  };
-  rpc WatchPlanStatusV1(WatchPlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus) {
-    option (globular.auth.authz) = {
-      action: "node_agent.plan_status.watch"
-      permission: "read"
-      resource_template: "/node_agent/nodes/{node_id}/plan-status"
-      default_role_hint: "viewer"
-    };
-  };
+  // Plan RPCs removed — Globular is workflow-native.
+  // ApplyPlan, ApplyPlanV1, GetPlanStatusV1, WatchPlanStatusV1 deleted.
+
   rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent) {
     option (globular.auth.authz) = {
       action: "node_agent.operation.watch"

@@ -453,29 +453,12 @@ func registerComposedTools(s *server) {
 			callCtx, callCancel := context.WithTimeout(authCtx(outerCtx), 10*time.Second)
 			defer callCancel()
 
-			resp, err := client.GetPlanStatusV1(callCtx, &node_agentpb.GetPlanStatusV1Request{
-				NodeId: nodeID,
-			})
-			if err != nil {
-				mu.Lock()
-				errors = append(errors, fmt.Sprintf("GetPlanStatusV1: %v", err))
-				mu.Unlock()
-				return
-			}
-
-			ps := resp.GetStatus()
-			if ps != nil {
-				mu.Lock()
-				result["plan_status"] = map[string]interface{}{
-					"plan_id":        ps.GetPlanId(),
-					"state":          ps.GetState().String(),
-					"current_step":   ps.GetCurrentStepId(),
-					"error_message":  ps.GetErrorMessage(),
-					"started_at":     fmtTime(int64(ps.GetStartedUnixMs())),
-					"finished_at":    fmtTime(int64(ps.GetFinishedUnixMs())),
-				}
-				mu.Unlock()
-			}
+			// Plan status removed — plan system deleted.
+			_ = callCtx
+			_ = client
+			mu.Lock()
+			result["plan_status"] = map[string]interface{}{"status": "plan system removed"}
+			mu.Unlock()
 		}()
 
 		// 4. Doctor node report

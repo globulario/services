@@ -6,7 +6,6 @@ option go_package = "github.com/globulario/services/golang/cluster_controller/cl
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-import "plan.proto";
 import "globular_auth.proto";
 
 message ClusterInfo {
@@ -223,20 +222,7 @@ message UpdateClusterNetworkResponse {
   uint64 generation = 1;
 }
 
-message ApplyNodePlanRequest {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-}
-message ApplyNodePlanResponse {
-  string operation_id = 1;
-}
-
-message ApplyNodePlanV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-  globular.plan.v1.NodePlan plan = 2;
-}
-message ApplyNodePlanV1Response {
-  string operation_id = 1;
-}
+// Plan messages removed — Globular is workflow-native.
 
 enum ArtifactKind {
   ARTIFACT_KIND_UNSPECIFIED = 0;
@@ -258,15 +244,6 @@ message UnitAction {
   string action = 2;
 }
 
-// Deprecated: use globular.plan.v1.NodePlan with the V1 plan APIs.
-message NodePlan {
-  string node_id = 1;
-  repeated string profiles = 2;
-  repeated ArtifactRef ensure_installed = 3;
-  repeated UnitAction unit_actions = 4;
-  map<string,string> rendered_config = 5;
-}
-
 message UpgradeGlobularRequest {
   string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   string platform = 2;
@@ -277,34 +254,9 @@ message UpgradeGlobularRequest {
 }
 
 message UpgradeGlobularResponse {
-  string plan_id = 1;
-  uint64 generation = 2;
-  string terminal_state = 3;
-  string error_step_id = 4;
-  string error_message = 5;
-}
-
-message GetNodePlanRequest {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-}
-message GetNodePlanResponse {
-  NodePlan plan = 1;
-}
-
-message GetNodePlanV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-}
-message GetNodePlanV1Response {
-  globular.plan.v1.NodePlan plan = 1;
-}
-
-message ReconcileNodeV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-}
-message ReconcileNodeV1Response {}
-
-message WatchNodePlanStatusV1Request {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  string upgrade_id = 1;
+  string terminal_state = 2;
+  string error_message = 3;
 }
 
 message StartApplyRequest {
@@ -482,59 +434,15 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
-  rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.plan.read"
-      permission: "read"
-      resource_template: "/cluster_controller/nodes/{node_id}/plan"
-      default_role_hint: "viewer"
-    };
-  };
-  rpc GetNodePlanV1(GetNodePlanV1Request) returns (GetNodePlanV1Response) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.plan_v1.read"
-      permission: "read"
-      resource_template: "/cluster_controller/nodes/{node_id}/plan-v1"
-      default_role_hint: "viewer"
-    };
-  };
-  rpc ReconcileNodeV1(ReconcileNodeV1Request) returns (ReconcileNodeV1Response) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.reconcile"
-      permission: "admin"
-      resource_template: "/cluster_controller/nodes/{node_id}"
-      default_role_hint: "admin"
-    };
-  };
-  rpc WatchNodePlanStatusV1(WatchNodePlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.plan_status.watch"
-      permission: "read"
-      resource_template: "/cluster_controller/nodes/{node_id}/plan-status"
-      default_role_hint: "viewer"
-    };
-  };
+  // Plan RPCs removed — Globular is workflow-native.
+  // GetNodePlan, GetNodePlanV1, ReconcileNodeV1, WatchNodePlanStatusV1,
+  // ApplyNodePlan, ApplyNodePlanV1 deleted.
+
   rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse) {
     option (globular.auth.authz) = {
       action: "cluster_controller.network.update"
       permission: "admin"
       resource_template: "/cluster_controller/cluster/network"
-      default_role_hint: "admin"
-    };
-  };
-  rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.plan.apply"
-      permission: "admin"
-      resource_template: "/cluster_controller/nodes/{node_id}/plan"
-      default_role_hint: "admin"
-    };
-  };
-  rpc ApplyNodePlanV1(ApplyNodePlanV1Request) returns (ApplyNodePlanV1Response) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.node.plan_v1.apply"
-      permission: "admin"
-      resource_template: "/cluster_controller/nodes/{node_id}/plan-v1"
       default_role_hint: "admin"
     };
   };
@@ -651,7 +559,7 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
-  rpc PreviewDesiredServices(DesiredServicesDelta) returns (PlanPreview) {
+  rpc PreviewDesiredServices(DesiredServicesDelta) returns (ServiceChangePreview) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.preview"
       permission: "read"
@@ -660,33 +568,8 @@ service ClusterControllerService {
     };
   };
 
-  // ── Upgrade planning (canonical authority for plan generation) ──
-  rpc PlanServiceUpgrades(PlanServiceUpgradesRequest) returns (PlanServiceUpgradesResponse) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.upgrade.plan"
-      permission: "read"
-      collection_template: "/cluster_controller/upgrades"
-      default_role_hint: "viewer"
-    };
-  };
-  rpc ApplyServiceUpgrades(ApplyServiceUpgradesRequest) returns (ApplyServiceUpgradesResponse) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.upgrade.apply"
-      permission: "admin"
-      collection_template: "/cluster_controller/upgrades"
-      default_role_hint: "admin"
-    };
-  };
-
-  // ── Plan rejection reporting (Phase 1C) ──
-  rpc ReportPlanRejection(ReportPlanRejectionRequest) returns (ReportPlanRejectionResponse) {
-    option (globular.auth.authz) = {
-      action: "cluster_controller.plan.reject"
-      permission: "write"
-      resource_template: "/cluster_controller/nodes/{node_id}/plans/{plan_id}"
-      default_role_hint: "editor"
-    };
-  };
+  // PlanServiceUpgrades, ApplyServiceUpgrades, ReportPlanRejection removed —
+  // workflow-native release pipeline replaces plan-based upgrades.
 }
 
 message DesiredNetwork {
@@ -709,9 +592,7 @@ message NodeHealth {
   string applied_network_hash = 3;
   string desired_services_hash = 4;
   string applied_services_hash = 5;
-  string current_plan_id = 6;
-  uint64 current_plan_generation = 7;
-  string current_plan_phase = 8;
+  reserved 6, 7, 8; // was: current_plan_id, current_plan_generation, current_plan_phase
   string last_error = 9;
   bool can_apply_privileged = 10;  // from node capabilities, for UI display
   map<string, string> installed_versions = 11;  // canonical name → installed version
@@ -863,68 +744,12 @@ message NodeChange {
   repeated string warnings      = 4;
 }
 
-message PlanPreview {
+message ServiceChangePreview {
   repeated NodeChange      node_changes    = 1;
   repeated ValidationIssue blocking_issues = 2;
 }
 
-// ── Upgrade planning messages ──────────────────────────────────────────────
-
-message PlanServiceUpgradesRequest {
-  repeated string services = 1;    // service names to upgrade (empty = all available)
-  string node_id = 2;             // target node (empty = local node)
-  string platform = 3;            // e.g. "linux_amd64" (empty = auto-detect)
-}
-
-message UpgradePlanItem {
-  string service = 1;
-  string from_version = 2;
-  string to_version = 3;
-  string package_name = 4;
-  string sha256 = 5;
-  bool restart_required = 6;
-  repeated string impacts = 7;
-  int64 from_build_number = 8; // installed build (0 = legacy)
-  int64 to_build_number = 9;   // target build
-}
-
-message PlanServiceUpgradesResponse {
-  repeated UpgradePlanItem items = 1;
-  string repository_status = 2;   // ok | unreachable | empty
-}
-
-message ApplyServiceUpgradesRequest {
-  repeated string services = 1;    // service names to upgrade
-  string node_id = 2;             // target node (empty = all nodes = cluster-wide)
-  string platform = 3;
-}
-
-message ApplyServiceUpgradesResponse {
-  bool ok = 1;
-  string operation_id = 2;
-  string message = 3;
-  repeated NodeUpgradeStatus node_statuses = 4; // per-node results (for cluster-wide)
-}
-
-message NodeUpgradeStatus {
-  string node_id = 1;
-  string status = 2;     // pending | running | success | failed
-  string operation_id = 3;
-  string error = 4;
-}
-
-// ── Plan rejection reporting (Phase 1C) ──
-
-message ReportPlanRejectionRequest {
-  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
-  string plan_id = 2 [(globular.auth.resource) = { kind: "plan" }];
-  uint64 generation = 3;
-  string reason = 4;
-  string detail = 5;
-  uint64 rejected_at_unix_ms = 6;
-}
-
-message ReportPlanRejectionResponse {}
+// Plan upgrade messages removed — workflow-native release pipeline replaces them.
 
 // InstallPolicy controls which artifacts a cluster will accept during resolution.
 // Stored in etcd at /globular/resources/InstallPolicy/{name}.

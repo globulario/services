@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	planpb "github.com/globulario/services/golang/plan/planpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -62,37 +59,6 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 	}
 	client.touch()
 	return client, nil
-}
-
-func (a *agentClient) ApplyPlan(ctx context.Context, plan *cluster_controllerpb.NodePlan, operationID string) error {
-	if plan == nil {
-		return nil
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	req := &node_agentpb.ApplyPlanRequest{Plan: plan}
-	if strings.TrimSpace(operationID) != "" {
-		req.OperationId = operationID
-	}
-	_, err := a.client.ApplyPlan(reqCtx, req)
-	a.touch()
-	return err
-}
-
-// ApplyPlanV1 submits a V1 plan to the node agent.
-func (a *agentClient) ApplyPlanV1(ctx context.Context, plan *planpb.NodePlan, operationID string) error {
-	if plan == nil {
-		return fmt.Errorf("plan is required")
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	req := &node_agentpb.ApplyPlanV1Request{Plan: plan}
-	if strings.TrimSpace(operationID) != "" {
-		req.OperationId = operationID
-	}
-	_, err := a.client.ApplyPlanV1(reqCtx, req)
-	a.touch()
-	return err
 }
 
 // GetInventory retrieves the node's inventory, used to verify connectivity.

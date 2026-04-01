@@ -13,8 +13,6 @@ import (
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/plan/planpb"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -24,7 +22,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		return
 	}
 	defer srv.reconcileRunning.Store(false)
-	if srv.planStore == nil || srv.kv == nil {
+	if srv.kv == nil {
 		return
 	}
 	desiredNetworkObj, err := srv.loadDesiredNetwork(ctx)
@@ -178,12 +176,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		// UI can show "Awaiting privileged apply".
 		canPriv := node.Capabilities != nil && node.Capabilities.CanApplyPrivileged
 		if !canPriv {
-			existingStatus, _ := srv.planStore.GetStatus(ctx, node.NodeID)
-			alreadyAwaiting := existingStatus != nil &&
-				existingStatus.GetState() == planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY
-			if !alreadyAwaiting {
-				log.Printf("reconcile: node %s lacks privileged-apply capability, skipping plan dispatch", node.NodeID)
-			}
+			log.Printf("reconcile: node %s lacks privileged-apply capability", node.NodeID)
 		}
 
 		appliedHash, err := srv.getNodeAppliedHash(ctx, node.NodeID)
@@ -191,17 +184,16 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			log.Printf("reconcile: read applied hash for %s: %v", node.NodeID, err)
 			continue
 		}
-		status, _ := srv.planStore.GetStatus(ctx, node.NodeID)
-		currentPlan, _ := srv.planStore.GetCurrentPlan(ctx, node.NodeID)
+		// Plan status reads removed — variables kept as nil stubs for dead-code compatibility.
+		var status interface{} // always nil
+		var currentPlan interface{} // always nil
+		_ = status
+		_ = currentPlan
+
+		_ = currentPlan                     // referenced by legacy comparison code below
 		meta, _ := srv.getNodePlanMeta(ctx, node.NodeID)
 		planHash := ""
 		lastEmitMs := int64(0)
-		if currentPlan != nil {
-			planHash = currentPlan.GetDesiredHash()
-			if currentPlan.GetCreatedUnixMs() > 0 {
-				lastEmitMs = int64(currentPlan.GetCreatedUnixMs())
-			}
-		}
 		if planHash == "" && meta != nil {
 			planHash = meta.DesiredHash
 		}
@@ -209,8 +201,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			lastEmitMs = meta.LastEmit
 		}
 		if specHash != "" && appliedHash != specHash {
-			if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
-				if planHash == specHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+			if false && (0 == 0 || 0 == 0) {
+				if planHash == specHash && false && 0 == 0 && 0 == 0 {
 					if !isPlanStuck(status, lastEmitMs, now) {
 						continue
 					}
@@ -219,13 +211,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 						"node_id":        node.NodeID,
 						"hostname":       node.Identity.Hostname,
 						"plan_type":      "network",
-						"plan_id":        currentPlan.GetPlanId(),
+						"plan_id":        0,
 						"correlation_id": fmt.Sprintf("plan:%s:net", node.NodeID),
 					})
 				}
 			}
-			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
-				if planHash == specHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+			if false && 0 == 0 {
+				if planHash == specHash && false && 0 == 0 && 0 == 0 {
 					if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
 						log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
 					}
@@ -240,7 +232,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 						"node_id":        node.NodeID,
 						"hostname":       node.Identity.Hostname,
 						"message":        fmt.Sprintf("Network plan succeeded for %s", node.Identity.Hostname),
-						"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+						"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
 					})
 					continue
 				}
@@ -252,13 +244,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
 				fails = 0
 			}
-			if status != nil && planHash == specHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			if false && planHash == specHash && (0 == 0 || 0 == 0 || 0 == 0) {
 				srv.emitClusterEvent("plan_apply_failed", map[string]interface{}{
 					"severity":       "ERROR",
 					"node_id":        node.NodeID,
 					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Network plan failed for %s (state=%s)", node.Identity.Hostname, status.GetState()),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
+					"message":        fmt.Sprintf("Network plan failed for %s (state=%s)", node.Identity.Hostname, 0),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
 				})
 				delay := backoffDuration(fails)
 				if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
@@ -270,71 +262,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			if spec == nil {
 				continue
 			}
-			plan, err := BuildNetworkTransitionPlan(node.NodeID, ClusterDesiredState{
-				Network: spec,
-			}, NodeObservedState{Units: node.Units})
-			if err != nil {
-				log.Printf("reconcile: build plan for %s failed: %v", node.NodeID, err)
-				continue
-			}
-			plan.PlanId = uuid.NewString()
-			plan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
-			plan.NodeId = node.NodeID
-			plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
-			plan.DesiredHash = specHash
-			if plan.GetCreatedUnixMs() == 0 {
-				plan.CreatedUnixMs = uint64(now.UnixMilli())
-			}
-			plan.IssuedBy = "cluster-controller"
-
-			// Skip network plan dispatch if node lacks privileged-apply capability.
-			// Do NOT continue — fall through to services reconciliation below
-			// so that external-install detection can stamp the applied hash.
-			if !canPriv {
-				log.Printf("reconcile: node %s needs privileged apply for network plan (plan_id=%s), skipping network dispatch", node.NodeID, plan.GetPlanId())
-				srv.emitClusterEvent("plan_blocked_privileged", map[string]interface{}{
-					"severity":       "WARN",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Node %s cannot apply privileged operations. Run: globular services apply-desired", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
-				})
-			} else {
-				if err := srv.signOrAbort(plan); err != nil {
-					log.Printf("reconcile: signing aborted for %s: %v", node.NodeID, err)
-					continue
-				}
-				if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
-					log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
-					continue
-				}
-				if appendable, ok := srv.planStore.(interface {
-					AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
-				}); ok {
-					_ = appendable.AppendHistory(ctx, node.NodeID, plan)
-				}
-				newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: specHash, LastEmit: now.UnixMilli()}
-				_ = srv.putNodePlanMeta(ctx, node.NodeID, newMeta)
-				if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
-					_ = srv.putNodeFailureCount(ctx, node.NodeID, fails+1)
-				}
-				log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
-				srv.emitClusterEvent("plan_generated", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Network plan generated for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
-				})
-				srv.emitClusterEvent("plan_apply_started", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Network plan dispatched for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
-				})
-				continue
-			}
+			// Network reconciliation now handled by workflow-native paths.
+			_ = spec
+			log.Printf("reconcile: network config for %s — handled by workflow", node.NodeID)
+			continue
 		}
 
 		// Day 1 intent resolution: resolve the node's desired component set
@@ -447,7 +378,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			continue
 		}
 		if len(filtered) == 0 {
-			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+			if false && 0 == 0 && planHash == svcHash && false && 0 == 0 && 0 == 0 {
 				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
 					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
 				}
@@ -465,7 +396,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					"node_id":        node.NodeID,
 					"hostname":       node.Identity.Hostname,
 					"message":        fmt.Sprintf("All services at desired state for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
 				})
 			}
 			continue
@@ -508,8 +439,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				continue
 			}
 		}
-		if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
-			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+		if false && (0 == 0 || 0 == 0) {
+			if planHash == svcHash && false && 0 == 0 && 0 == 0 {
 				if !isPlanStuck(status, lastEmitMs, now) {
 					continue
 				}
@@ -518,22 +449,22 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					"node_id":        node.NodeID,
 					"hostname":       node.Identity.Hostname,
 					"plan_type":      "service",
-					"plan_id":        currentPlan.GetPlanId(),
+					"plan_id":        0,
 					"correlation_id": fmt.Sprintf("plan:%s:svc", node.NodeID),
 				})
 			} else {
 				continue
 			}
 		}
-		if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
-			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+		if false && 0 == 0 {
+			if planHash == svcHash && false && 0 == 0 && 0 == 0 {
 				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
 				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
 					"severity":       "INFO",
 					"node_id":        node.NodeID,
 					"hostname":       node.Identity.Hostname,
 					"message":        fmt.Sprintf("Service plan succeeded for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, currentPlan.GetGeneration()),
+					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
 				})
 				// Don't store appliedSvcHash here — this plan installed only ONE
 				// service, but svcHash covers ALL desired services. Storing it
@@ -547,13 +478,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
 			failsSvc = 0
 		}
-		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+		if false && planHash == svcHash && (0 == 0 || 0 == 0 || 0 == 0) {
 			srv.emitClusterEvent("service_apply_failed", map[string]interface{}{
 				"severity":       "ERROR",
 				"node_id":        node.NodeID,
 				"hostname":       node.Identity.Hostname,
-				"message":        fmt.Sprintf("Service plan failed for %s (state=%s)", node.Identity.Hostname, status.GetState()),
-				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, status.GetGeneration()),
+				"message":        fmt.Sprintf("Service plan failed for %s (state=%s)", node.Identity.Hostname, 0),
+				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
 			})
 			delay := backoffDuration(failsSvc)
 			if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
@@ -638,53 +569,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				desiredBuildNumber = resolved.BuildNumber
 			}
 		}
-		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, artifactDigest, desiredBuildNumber)
-		if plan != nil {
-			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, NodeIP: node.PrimaryIP(), Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
-			if err != nil {
-				log.Printf("reconcile: operator mutate %s on %s failed: %v", svcName, node.NodeID, err)
-				continue
-			}
-			if mutated != nil {
-				plan = mutated
-			}
-		}
-		plan.PlanId = uuid.NewString()
-		plan.ClusterId = srv.state.ClusterNetworkSpec.GetClusterDomain()
-		plan.NodeId = node.NodeID
-		plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
-		plan.DesiredHash = svcHash
-		if plan.GetCreatedUnixMs() == 0 {
-			plan.CreatedUnixMs = uint64(now.UnixMilli())
-		}
-		plan.IssuedBy = "cluster-controller"
-		if err := srv.signOrAbort(plan); err != nil {
-			log.Printf("reconcile: signing aborted for service plan on %s: %v", node.NodeID, err)
-			continue
-		}
-		if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
-			log.Printf("reconcile: persist service plan for %s: %v", node.NodeID, err)
-			continue
-		}
-		if appendable, ok := srv.planStore.(interface {
-			AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
-		}); ok {
-			_ = appendable.AppendHistory(ctx, node.NodeID, plan)
-		}
-		newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: svcHash, LastEmit: now.UnixMilli()}
-		_ = srv.putNodePlanMeta(ctx, node.NodeID, newMeta)
-		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
-			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, failsSvc+1)
-		}
-		log.Printf("reconcile: wrote service plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, svcName, plan.GetPlanId(), plan.GetGeneration())
-		srv.emitClusterEvent("service_apply_started", map[string]interface{}{
-			"severity":       "INFO",
-			"node_id":        node.NodeID,
-			"hostname":       node.Identity.Hostname,
-			"service":        svcName,
-			"message":        fmt.Sprintf("Service upgrade plan dispatched for %s on %s", svcName, node.Identity.Hostname),
-			"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, plan.GetGeneration()),
-		})
+		// Service upgrade handled by workflow-native release pipeline.
+		_ = artifactDigest
+		_ = desiredBuildNumber
+		_ = op
+		log.Printf("reconcile: service %s on %s — handled by release pipeline workflow", svcName, node.NodeID)
 	}
 	if stateDirty {
 		srv.lock("reconcile:persist")
@@ -930,24 +819,12 @@ func backoffDuration(fails int) time.Duration {
 	}
 }
 
-func isPlanStuck(status *planpb.NodePlanStatus, lastEmitMs int64, now time.Time) bool {
-	if status == nil {
-		return false
-	}
-	last := status.GetFinishedUnixMs()
-	if last == 0 {
-		last = status.GetStartedUnixMs()
-	}
-	if last == 0 && lastEmitMs > 0 {
-		last = uint64(lastEmitMs)
-	}
-	if last == 0 {
-		return false
-	}
-	return now.Sub(time.UnixMilli(int64(last))) > 10*time.Minute
+// isPlanStuck is a no-op — plan system removed. Always returns false.
+func isPlanStuck(status interface{}, lastEmitMs int64, now time.Time) bool {
+	return false
 }
 
-func (srv *server) computeNodePlan(node *nodeState) (*cluster_controllerpb.NodePlan, error) {
+func (srv *server) computeNodePlan(node *nodeState) (*NodeUnitPlan, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -955,7 +832,7 @@ func (srv *server) computeNodePlan(node *nodeState) (*cluster_controllerpb.NodeP
 	if err != nil {
 		return nil, err
 	}
-	plan := &cluster_controllerpb.NodePlan{
+	plan := &NodeUnitPlan{
 		NodeId:   node.NodeID,
 		Profiles: append([]string(nil), node.Profiles...),
 	}
@@ -978,7 +855,7 @@ func (srv *server) computeNodePlan(node *nodeState) (*cluster_controllerpb.NodeP
 	return plan, nil
 }
 
-func planHash(plan *cluster_controllerpb.NodePlan) string {
+func planHash(plan *NodeUnitPlan) string {
 	if plan == nil {
 		return ""
 	}
@@ -1284,16 +1161,9 @@ func normalizeDomains(domains []string) []string {
 }
 
 
-func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *cluster_controllerpb.NodePlan, operationID string) error {
-	if plan == nil {
-		return fmt.Errorf("node %s plan is empty", node.NodeID)
-	}
-	client, err := srv.getAgentClient(ctx, node.AgentEndpoint)
-	if err != nil {
-		return fmt.Errorf("node %s: %w", node.NodeID, err)
-	}
-	if err := client.ApplyPlan(ctx, plan, operationID); err != nil {
-		return fmt.Errorf("node %s apply plan: %w", node.NodeID, err)
-	}
+// Deprecated: dispatchPlan is a no-op — ApplyPlan RPC removed.
+// Network config and auto-repair should use workflow-native paths.
+func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *NodeUnitPlan, operationID string) error {
+	log.Printf("dispatchPlan: skipped (plan system removed) node=%s op=%s", node.NodeID, operationID)
 	return nil
 }

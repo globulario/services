@@ -1,0 +1,207 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: release.apply.package
+  displayName: Apply package release
+  description: >-
+    Generic direct package rollout for SERVICE, WORKLOAD, COMMAND and
+    INFRASTRUCTURE packages. This is the uniform rollout model. Specialized
+    workflows may wrap it, but rollout execution must remain direct and
+    workflow-native.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - release_id
+      - package_name
+      - package_kind
+      - resolved_version
+      - desired_hash
+      - candidate_nodes
+    properties:
+      cluster_id: { type: string }
+      release_id: { type: string }
+      release_name: { type: string, default: "" }
+      package_name: { type: string }
+      package_kind: { type: string }
+      resolved_version: { type: string }
+      desired_hash: { type: string }
+      candidate_nodes:
+        type: array
+        items: { type: string }
+      max_parallel_nodes: { type: integer, default: 2 }
+      execute_timeout: { type: string, default: 20m }
+      verify_timeout: { type: string, default: 10m }
+      restart_policy: { type: string, default: auto }
+      runtime_check: { type: string, default: auto }
+  defaults:
+    max_parallel_nodes: 2
+    execute_timeout: 20m
+    verify_timeout: 10m
+    restart_policy: auto
+    runtime_check: auto
+  strategy:
+    mode: single
+  steps:
+    - id: mark_resolved
+      title: Mark release resolved
+      actor: cluster-controller
+      action: controller.release.mark_resolved
+
+    - id: select_targets
+      title: Select eligible package targets
+      dependsOn: [mark_resolved]
+      actor: cluster-controller
+      action: controller.release.select_package_targets
+      with:
+        candidate_nodes: $.candidate_nodes
+        package_name: $.package_name
+        package_kind: $.package_kind
+        desired_hash: $.desired_hash
+      # Handler writes selected_targets directly to run outputs
+      # (array, not wrapped map) for foreach consumption.
+
+    - id: short_circuit_if_no_targets
+      title: Finalize immediately when all targets are already converged
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) == 0
+      actor: cluster-controller
+      action: controller.release.finalize_noop
+      with:
+        status: AVAILABLE
+
+    - id: mark_applying
+      title: Mark release applying
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) > 0
+      actor: cluster-controller
+      action: controller.release.mark_applying
+
+    - id: apply_per_node
+      title: Apply package per target node
+      dependsOn: [mark_applying]
+      when:
+        expr: len(selected_targets) > 0
+      foreach: $.selected_targets
+      itemName: target
+      strategy:
+        mode: parallel
+        concurrency: $.max_parallel_nodes
+      steps:
+        - id: mark_node_started
+          actor: cluster-controller
+          action: controller.release.mark_node_started
+          with:
+            node_id: $.target.node_id
+
+        - id: install_package
+          dependsOn: [mark_node_started]
+          actor: node-agent
+          action: node.install_package
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+            kind: $.package_kind
+          timeout: $.execute_timeout
+
+        - id: verify_installed
+          dependsOn: [install_package]
+          actor: node-agent
+          action: node.verify_package_installed
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+          retry:
+            maxAttempts: 20
+            backoff: 5s
+          timeout: $.verify_timeout
+
+        - id: maybe_restart
+          dependsOn: [verify_installed]
+          when:
+            expr: inputs.restart_policy != 'never'
+          actor: node-agent
+          action: node.maybe_restart_package
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            package_kind: $.package_kind
+            restart_policy: $.restart_policy
+
+        - id: verify_runtime
+          dependsOn: [verify_installed, maybe_restart]
+          actor: node-agent
+          action: node.verify_package_runtime
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            package_kind: $.package_kind
+            runtime_check: $.runtime_check
+          retry:
+            maxAttempts: 60
+            backoff: 5s
+          timeout: $.verify_timeout
+
+        - id: sync_installed_state
+          dependsOn: [verify_runtime]
+          actor: node-agent
+          action: node.sync_installed_package_state
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+            package_kind: $.package_kind
+
+        - id: mark_node_succeeded
+          dependsOn: [sync_installed_state]
+          actor: cluster-controller
+          action: controller.release.mark_node_succeeded
+          with:
+            node_id: $.target.node_id
+            version: $.resolved_version
+            desired_hash: $.desired_hash
+
+      onFailure:
+        actor: cluster-controller
+        action: controller.release.mark_node_failed
+        with:
+          node_id: $.target.node_id
+          package_name: $.package_name
+
+    - id: aggregate_outcome
+      dependsOn: [apply_per_node]
+      when:
+        expr: len(selected_targets) > 0
+      actor: cluster-controller
+      action: controller.release.aggregate_direct_apply_results
+      with:
+        release_id: $.release_id
+        package_name: $.package_name
+      export: aggregate
+
+    - id: finalize_release
+      dependsOn: [aggregate_outcome]
+      when:
+        expr: len(selected_targets) > 0
+      actor: cluster-controller
+      action: controller.release.finalize_direct_apply
+      with:
+        aggregate: $.aggregate
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.release.mark_failed
+    with:
+      reason: workflow_failed
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.release.recheck_convergence

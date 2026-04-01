@@ -398,12 +398,9 @@ func (srv *NodeAgentServer) getCertKV() certs.KV {
 	if srv.certKV != nil {
 		return srv.certKV
 	}
-	ps, ok := srv.planStore.(lockablePlanStore)
-	if !ok || ps.Client() == nil {
-		return nil
-	}
-	srv.certKV = certs.NewEtcdKV(ps.Client())
-	return srv.certKV
+	// Plan store removed — etcd KV for cert operations needs separate wiring.
+	// TODO: pass etcd client directly to node-agent for cert renewal.
+	return nil
 }
 
 func writeCertBundleFiles(bundle certs.CertBundle, keyDst, fullchainDst, caDst string) error {

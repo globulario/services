@@ -57,38 +57,6 @@ steps:
     install_spec: false
     install_systemd: false
 
-  - id: deploy-workflow-definitions
-    type: ensure_dirs
-    dirs:
-      - path: "{{.StateDir}}/workflows"
-        owner: globular
-        group: globular
-        mode: 0750
-
-  - id: install-workflow-definitions
-    type: install_files
-    files:
-      - src: definitions/node.join.yaml
-        dest: "{{.StateDir}}/workflows/node.join.yaml"
-        owner: globular
-        group: globular
-        mode: 0644
-      - src: definitions/node.bootstrap.yaml
-        dest: "{{.StateDir}}/workflows/node.bootstrap.yaml"
-        owner: globular
-        group: globular
-        mode: 0644
-      - src: definitions/day0.bootstrap.yaml
-        dest: "{{.StateDir}}/workflows/day0.bootstrap.yaml"
-        owner: globular
-        group: globular
-        mode: 0644
-      - src: definitions/release.apply.infrastructure.yaml
-        dest: "{{.StateDir}}/workflows/release.apply.infrastructure.yaml"
-        owner: globular
-        group: globular
-        mode: 0644
-
   - id: ensure-workflow-config
     type: ensure_service_config
     service_name: workflow

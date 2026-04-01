@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"

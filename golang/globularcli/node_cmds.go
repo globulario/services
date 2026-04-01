@@ -72,62 +72,9 @@ func runNodeReconcileDryRun() error {
 
 	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	// Get the current node plan
-	resp, err := client.GetNodePlanV1(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanV1Request{
-		NodeId: nodeReconcileNodeID,
-	})
-	if err != nil {
-		return fmt.Errorf("get node plan: %w", err)
-	}
-
-	plan := resp.GetPlan()
-	if plan == nil {
-		if nodeReconcileJSON {
-			result := map[string]interface{}{
-				"dry_run": true,
-				"node_id": nodeReconcileNodeID,
-				"plan":    nil,
-				"message": "no plan available for node",
-			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			return encoder.Encode(result)
-		}
-
-		fmt.Printf("✅ No reconciliation plan for node %s\n", nodeReconcileNodeID)
-		fmt.Println("Node is already in desired state or no plan has been generated yet.")
-		return nil
-	}
-
-	if nodeReconcileJSON {
-		result := map[string]interface{}{
-			"dry_run":    true,
-			"node_id":    nodeReconcileNodeID,
-			"plan":       plan,
-			"reason":     plan.GetReason(),
-			"step_count": len(plan.GetSpec().GetSteps()),
-		}
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(result)
-	}
-
-	// Human-readable output
-	fmt.Printf("🔍 Dry-run: Reconciliation plan for node %s\n\n", nodeReconcileNodeID)
-	fmt.Printf("Reason: %s\n", plan.GetReason())
-	fmt.Printf("Steps: %d\n\n", len(plan.GetSpec().GetSteps()))
-
-	if steps := plan.GetSpec().GetSteps(); len(steps) > 0 {
-		fmt.Println("Plan steps:")
-		for i, step := range steps {
-			fmt.Printf("  %d. %s\n", i+1, step.GetAction())
-			if step.GetArgs() != nil && len(step.GetArgs().GetFields()) > 0 {
-				fmt.Printf("     Args: %v\n", step.GetArgs().GetFields())
-			}
-		}
-	}
-
-	fmt.Println("\nNote: This is a dry-run. No changes will be applied.")
+	// Plan display removed.
+	_ = client
+	return fmt.Errorf("plan system removed — use workflow-native release pipeline")
 	fmt.Println("Run without --dry-run to execute the plan.")
 
 	return nil
@@ -140,14 +87,8 @@ func runNodeReconcileApply() error {
 	}
 	defer cc.Close()
 
-	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-
-	// Trigger reconciliation
-	fmt.Printf("Triggering reconciliation for node %s...\n", nodeReconcileNodeID)
-
-	_, err = client.ReconcileNodeV1(ctxWithTimeout(), &cluster_controllerpb.ReconcileNodeV1Request{
-		NodeId: nodeReconcileNodeID,
-	})
+	_ = cc
+	err = fmt.Errorf("ReconcileNodeV1 removed — reconciliation now workflow-driven")
 	if err != nil {
 		if nodeReconcileJSON {
 			result := map[string]interface{}{

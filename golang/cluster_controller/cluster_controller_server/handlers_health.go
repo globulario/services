@@ -8,7 +8,6 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -79,8 +78,8 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
 	}
-	if srv.planStore == nil || srv.kv == nil {
-		return nil, status.Error(codes.FailedPrecondition, "plan store or kv unavailable")
+	if srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "kv unavailable")
 	}
 	desiredNetObj, err := srv.loadDesiredNetwork(ctx)
 	if err != nil {
@@ -153,16 +152,7 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		filtered := filterVersionsForNode(desiredCanon, node)
 		desiredSvcHash := stableServiceDesiredHash(filtered)
 		appliedSvcHash, _ := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
-		plan, _ := srv.planStore.GetCurrentPlan(ctx, node.NodeID)
-		status, _ := srv.planStore.GetStatus(ctx, node.NodeID)
-		phase := ""
-		if status != nil {
-			phase = status.GetState().String()
-		}
-		lastErr := ""
-		if status != nil {
-			lastErr = status.GetErrorMessage()
-		}
+		// Plan system removed — no plan phase or error to display.
 		// Determine whether the node can perform privileged operations.
 		canPriv := false
 		if node.Capabilities != nil {
@@ -195,14 +185,7 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 					break
 				}
 			}
-			if hasMissing && !canPriv {
-				isActive := status != nil &&
-					(status.GetState() == planpb.PlanState_PLAN_RUNNING ||
-						status.GetState() == planpb.PlanState_PLAN_ROLLING_BACK)
-				if !isActive {
-					phase = planpb.PlanState_PLAN_AWAITING_PRIVILEGED_APPLY.String()
-				}
-			}
+			// Plan status check removed — no active plan to check.
 			// Stamp the applied service hash when all desired services are
 			// already installed at the correct version but the hash was never
 			// written (e.g. services installed externally via bootstrap/CLI).
@@ -222,22 +205,8 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			AppliedNetworkHash:  appliedNet,
 			DesiredServicesHash: desiredSvcHash,
 			AppliedServicesHash: appliedSvcHash,
-			CurrentPlanId: func() string {
-				if plan != nil {
-					return plan.GetPlanId()
-				} else {
-					return ""
-				}
-			}(),
-			CurrentPlanGeneration: func() uint64 {
-				if plan != nil {
-					return plan.GetGeneration()
-				} else {
-					return 0
-				}
-			}(),
-			CurrentPlanPhase:    phase,
-			LastError:           lastErr,
+			// Plan fields removed from proto (reserved 6,7,8).
+			LastError:           "",
 			CanApplyPrivileged:  canPriv,
 			InstalledVersions:   node.InstalledVersions,
 		})
@@ -268,11 +237,6 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			}
 			if installedVer == desiredVer {
 				serviceAtDesired[svc]++
-			}
-			if status != nil && plan != nil && plan.GetDesiredHash() != "" && plan.GetDesiredHash() == desiredSvcHash {
-				if status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING {
-					serviceUpgrading[svc]++
-				}
 			}
 		}
 	}

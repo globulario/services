@@ -1,0 +1,142 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: node.repair
+  displayName: Node repair
+  description: >-
+    Diagnose, isolate and repair a degraded or partially converged node. Used
+    when a node join is incomplete, local package state is corrupted, or
+    runtime health has drifted from desired state.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - node_id
+      - reason
+    properties:
+      cluster_id: { type: string }
+      node_id: { type: string }
+      reason: { type: string }
+      target_packages:
+        type: array
+        items: { type: string }
+      isolate_first: { type: boolean, default: true }
+      repair_timeout: { type: string, default: 30m }
+      verify_timeout: { type: string, default: 10m }
+  defaults:
+    isolate_first: true
+    repair_timeout: 30m
+    verify_timeout: 10m
+  strategy:
+    mode: single
+  steps:
+    - id: mark_repair_started
+      title: Mark node repair started
+      actor: cluster-controller
+      action: controller.node_repair.mark_started
+      with:
+        node_id: $.node_id
+        reason: $.reason
+
+    - id: diagnose_node
+      title: Collect diagnostic facts
+      dependsOn: [mark_repair_started]
+      actor: node-agent
+      action: node.collect_repair_facts
+      with:
+        node_id: $.node_id
+        target_packages: $.target_packages
+      timeout: 5m
+      # Handler writes diagnosis directly to run outputs.
+
+    - id: classify_failure
+      title: Classify node failure
+      dependsOn: [diagnose_node]
+      actor: cluster-controller
+      action: controller.node_repair.classify
+      with:
+        node_id: $.node_id
+        diagnosis: $.diagnosis
+      # Handler writes repair_plan directly to run outputs.
+
+    - id: maybe_isolate
+      title: Isolate node if required
+      dependsOn: [classify_failure]
+      when:
+        expr: inputs.isolate_first == true
+      actor: cluster-controller
+      action: controller.node_repair.isolate_node
+      with:
+        node_id: $.node_id
+        repair_plan: $.repair_plan
+
+    - id: repair_packages
+      title: Repair or reinstall selected packages
+      dependsOn: [classify_failure, maybe_isolate]
+      actor: node-agent
+      action: node.repair_packages
+      with:
+        node_id: $.node_id
+        repair_plan: $.repair_plan
+      timeout: $.repair_timeout
+      # Handler writes repair_result directly to run outputs.
+
+    - id: restart_repaired_services
+      title: Restart repaired services
+      dependsOn: [repair_packages]
+      actor: node-agent
+      action: node.restart_repaired_services
+      with:
+        node_id: $.node_id
+        repair_result: $.repair_result
+      timeout: 10m
+
+    - id: verify_runtime
+      title: Verify node runtime after repair
+      dependsOn: [restart_repaired_services]
+      actor: node-agent
+      action: node.verify_repair_runtime
+      with:
+        node_id: $.node_id
+        repair_plan: $.repair_plan
+      retry:
+        maxAttempts: 60
+        backoff: 5s
+      timeout: $.verify_timeout
+
+    - id: sync_installed_state
+      title: Sync authoritative installed state after repair
+      dependsOn: [verify_runtime]
+      actor: node-agent
+      action: node.sync_installed_state
+      with:
+        node_id: $.node_id
+
+    - id: rejoin_node
+      title: Re-enable scheduling and convergence for node
+      dependsOn: [sync_installed_state]
+      actor: cluster-controller
+      action: controller.node_repair.rejoin_node
+      with:
+        node_id: $.node_id
+
+    - id: mark_recovered
+      title: Mark node recovered
+      dependsOn: [rejoin_node]
+      actor: cluster-controller
+      action: controller.node_repair.mark_recovered
+      with:
+        node_id: $.node_id
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.node_repair.mark_failed
+    with:
+      node_id: $.node_id
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.node_repair.emit_recovered
+    with:
+      node_id: $.node_id

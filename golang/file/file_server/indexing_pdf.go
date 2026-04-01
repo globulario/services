@@ -30,8 +30,8 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo, force b
 	indexDir := filepath.Join(hidden, "__index_db__")
 
 	if force {
-		_ = os.RemoveAll(thumbDir)
-		_ = os.RemoveAll(indexDir)
+		_ = srv.storageRemoveAll(context.Background(), thumbDir)
+		_ = srv.storageRemoveAll(context.Background(), indexDir)
 	}
 
 	_ = srv.storageMkdirAll(context.Background(), thumbDir, 0o755)

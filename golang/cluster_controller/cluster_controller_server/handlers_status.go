@@ -324,32 +324,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	}, nil
 }
 
-func (srv *server) ReportPlanRejection(ctx context.Context, req *cluster_controllerpb.ReportPlanRejectionRequest) (*cluster_controllerpb.ReportPlanRejectionResponse, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is nil")
-	}
-
-	// Node identity + own-node scope enforcement
-	if err := enforceNodeScope(ctx, req.GetNodeId(), "/clustercontroller.ClusterControllerService/ReportPlanRejection"); err != nil {
-		return nil, err
-	}
-
-	log.Printf("WARN plan-rejection: node=%s plan=%s gen=%d reason=%s detail=%s",
-		req.GetNodeId(), req.GetPlanId(), req.GetGeneration(), req.GetReason(), req.GetDetail())
-
-	// Emit cluster event for observability
-	srv.emitClusterEvent("plan_rejected", map[string]interface{}{
-		"severity":       "WARN",
-		"node_id":        req.GetNodeId(),
-		"plan_id":        req.GetPlanId(),
-		"generation":     req.GetGeneration(),
-		"reason":         req.GetReason(),
-		"detail":         req.GetDetail(),
-		"rejected_at_ms": req.GetRejectedAtUnixMs(),
-	})
-
-	return &cluster_controllerpb.ReportPlanRejectionResponse{}, nil
-}
+// ReportPlanRejection deleted — plan system removed.
 
 // ResourcesService implementation
 func (srv *server) ApplyClusterNetwork(ctx context.Context, req *cluster_controllerpb.ApplyClusterNetworkRequest) (*cluster_controllerpb.ClusterNetwork, error) {

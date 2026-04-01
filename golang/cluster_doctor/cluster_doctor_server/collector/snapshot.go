@@ -6,7 +6,6 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	planpb "github.com/globulario/services/golang/plan/planpb"
 )
 
 // DataError records a failed upstream RPC call.
@@ -27,8 +26,6 @@ type Snapshot struct {
 	Nodes       []*cluster_controllerpb.NodeRecord
 	NodeHealths map[string]*cluster_controllerpb.NodeHealth // keyed by NodeId
 	Inventories map[string]*node_agentpb.Inventory          // keyed by NodeId
-	PlanStatuses map[string]*planpb.NodePlanStatus         // keyed by NodeId
-	NodePlans   map[string]*planpb.NodePlan                // keyed by NodeId
 
 	mu sync.Mutex
 }
@@ -39,8 +36,6 @@ func newSnapshot(id string) *Snapshot {
 		GeneratedAt:  time.Now(),
 		NodeHealths:  make(map[string]*cluster_controllerpb.NodeHealth),
 		Inventories:  make(map[string]*node_agentpb.Inventory),
-		PlanStatuses: make(map[string]*planpb.NodePlanStatus),
-		NodePlans:    make(map[string]*planpb.NodePlan),
 	}
 }
 

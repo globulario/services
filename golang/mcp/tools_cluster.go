@@ -91,7 +91,6 @@ func registerClusterTools(s *server) {
 				"status":              status,
 				"desired_hash":        n.GetDesiredServicesHash(),
 				"applied_hash":        n.GetAppliedServicesHash(),
-				"current_plan_phase":  n.GetCurrentPlanPhase(),
 				"last_error":          n.GetLastError(),
 				"can_apply_privileged": n.GetCanApplyPrivileged(),
 				"health_checks":       healthChecks,
@@ -294,34 +293,16 @@ func registerClusterTools(s *server) {
 		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
 		defer cancel()
 
-		resp, err := client.GetNodePlanV1(callCtx, &cluster_controllerpb.GetNodePlanV1Request{
-			NodeId: nodeID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("GetNodePlanV1: %w", err)
-		}
-
-		plan := resp.GetPlan()
-		if plan == nil {
+		// Plan system removed — return empty plan info.
+		_ = callCtx
+		_ = client
+		{
 			return map[string]interface{}{
 				"node_id": nodeID,
 				"status":  "no pending plan",
 			}, nil
 		}
 
-		return map[string]interface{}{
-			"node_id":        plan.GetNodeId(),
-			"plan_id":        plan.GetPlanId(),
-			"generation":     plan.GetGeneration(),
-			"created_at":     fmtTime(int64(plan.GetCreatedUnixMs())),
-			"expires_at":     fmtTime(int64(plan.GetExpiresUnixMs())),
-			"issued_by":      plan.GetIssuedBy(),
-			"reason":         plan.GetReason(),
-			"desired_hash":   plan.GetDesiredHash(),
-			"locks":          plan.GetLocks(),
-			"api_version":    plan.GetApiVersion(),
-			"kind":           plan.GetKind(),
-		}, nil
 	})
 
 	// ── cluster_get_desired_state ───────────────────────────────────────

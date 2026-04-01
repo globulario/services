@@ -769,15 +769,45 @@ func resolveWith(with map[string]any, inputs, outputs map[string]any) map[string
 	return resolved
 }
 
+// resolveDotPath navigates a dotted path (e.g. "foo.bar.baz") into nested maps.
+func resolveDotPath(path string, data map[string]any) (any, bool) {
+	parts := strings.SplitN(path, ".", 2)
+	if len(parts) < 2 {
+		return nil, false
+	}
+	root, ok := data[parts[0]]
+	if !ok {
+		return nil, false
+	}
+	m, ok := root.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	rest := parts[1]
+	if val, ok := m[rest]; ok {
+		return val, true
+	}
+	// Recurse for deeper paths.
+	return resolveDotPath(rest, m)
+}
+
 func resolveValue(v any, inputs, outputs map[string]any) any {
 	switch val := v.(type) {
 	case string:
 		if strings.HasPrefix(val, "$.") {
 			path := val[2:]
+			// Direct key lookup first.
 			if result, ok := outputs[path]; ok {
 				return result
 			}
 			if result, ok := inputs[path]; ok {
+				return result
+			}
+			// Dot-path navigation into nested maps (e.g. "workflow_choice.workflow_name").
+			if result, ok := resolveDotPath(path, outputs); ok {
+				return result
+			}
+			if result, ok := resolveDotPath(path, inputs); ok {
 				return result
 			}
 		}

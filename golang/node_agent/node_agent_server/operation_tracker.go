@@ -12,7 +12,6 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -32,8 +31,6 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 	// endpoint. Derive a routable address from the cluster domain + default port.
 	controllerEndpoint := ""
 	bindAddr := strings.TrimSpace(req.GetControllerBind())
-	domain := strings.TrimSpace(req.GetClusterDomain())
-
 	// Extract port from bind address (default 12000).
 	ctrlPort := "12000"
 	if bindAddr != "" {
@@ -56,12 +53,6 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 		log.Printf("warn: persist controller endpoint: %v", err)
 	}
 
-	// Create a plan with both unit actions and network configuration.
-	plan := srv.buildBootstrapPlanWithNetwork(profiles, domain)
-
-	op := srv.registerOperation("bootstrap node", profiles)
-	go srv.runPlan(ctx, op, plan)
-
 	// Self-register the bootstrap node SYNCHRONOUSLY.
 	// The caller must know whether registration actually succeeded before
 	// printing "success" and proceeding to seed.
@@ -70,7 +61,7 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 	}
 
 	return &node_agentpb.BootstrapFirstNodeResponse{
-		OperationId: op.id,
+		OperationId: "bootstrap",
 		JoinToken:   srv.joinToken,
 		Message:     fmt.Sprintf("bootstrap complete; node registered as %s", srv.nodeID),
 	}, nil
@@ -146,45 +137,10 @@ func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profi
 	return nil
 }
 
-func (srv *NodeAgentServer) registerOperation(kind string, profiles []string) *operation {
-	return srv.registerOperationWithID(kind, uuid.NewString(), profiles)
-}
-
-func (srv *NodeAgentServer) registerOperationWithID(kind, id string, profiles []string) *operation {
-	op := &operation{
-		id:          id,
-		kind:        kind,
-		profiles:    append([]string(nil), profiles...),
-		subscribers: make(map[chan *node_agentpb.OperationEvent]struct{}),
-	}
-	srv.mu.Lock()
-	srv.operations[id] = op
-	srv.mu.Unlock()
-	return op
-}
-
 func (srv *NodeAgentServer) getOperation(id string) *operation {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	return srv.operations[id]
-}
-
-func (srv *NodeAgentServer) startOperation(op *operation, message string) {
-	go func() {
-		op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_QUEUED, fmt.Sprintf("%s queued", message), 0, false, ""))
-		time.Sleep(100 * time.Millisecond)
-		op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("%s started", message), 5, false, ""))
-
-		total := len(op.profiles)
-		for idx, profile := range op.profiles {
-			time.Sleep(250 * time.Millisecond)
-			percent := percentForStep(idx, total)
-			op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("profile %s applied", profile), percent, false, ""))
-		}
-
-		time.Sleep(200 * time.Millisecond)
-		op.broadcast(op.newEvent(cluster_controllerpb.OperationPhase_OP_SUCCEEDED, fmt.Sprintf("%s complete", message), 100, true, ""))
-	}()
 }
 
 func (srv *NodeAgentServer) WatchOperation(req *node_agentpb.WatchOperationRequest, stream node_agentpb.NodeAgentService_WatchOperationServer) error {
@@ -221,41 +177,6 @@ func (srv *NodeAgentServer) WatchOperation(req *node_agentpb.WatchOperationReque
 				return nil
 			}
 		}
-	}
-}
-
-func (srv *NodeAgentServer) notifyControllerOperationResult(operationID string, success bool, message string, opErr error) {
-	if srv.controllerEndpoint == "" || operationID == "" || srv.nodeID == "" {
-		return
-	}
-	if srv.controllerClient == nil {
-		if err := srv.ensureControllerClient(context.Background()); err != nil {
-			log.Printf("controller client unavailable: %v", err)
-			return
-		}
-	}
-	payload := &cluster_controllerpb.CompleteOperationRequest{
-		OperationId: operationID,
-		NodeId:      srv.nodeID,
-		Success:     success,
-		Message:     message,
-	}
-	if opErr != nil {
-		payload.Error = opErr.Error()
-		if payload.Message == "" {
-			payload.Message = "plan failed"
-		}
-	}
-	if success && payload.Percent == 0 {
-		payload.Percent = 100
-		if payload.Message == "" {
-			payload.Message = "plan applied"
-		}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if _, err := srv.controllerClient.CompleteOperation(ctx, payload); err != nil {
-		log.Printf("notify controller operation %s completion: %v", operationID, err)
 	}
 }
 
@@ -316,7 +237,7 @@ func (op *operation) broadcast(evt *node_agentpb.OperationEvent) {
 
 func (op *operation) newEvent(phase cluster_controllerpb.OperationPhase, message string, percent int32, done bool, errStr string) *node_agentpb.OperationEvent {
 	return &node_agentpb.OperationEvent{
-		OperationId: op.id,
+		OperationId: "bootstrap",
 		Phase:       phase,
 		Message:     message,
 		Percent:     percent,

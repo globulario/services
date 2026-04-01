@@ -1,231 +1,19 @@
 package main
 
 import (
-	"context"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/cluster_controller/resourcestore"
-	"github.com/globulario/services/golang/plan/planpb"
-	"google.golang.org/protobuf/proto"
 )
 
-// multiNodePlanStore supports per-node plan statuses for workflow tests.
-type multiNodePlanStore struct {
-	plans    map[string]*planpb.NodePlan
-	statuses map[string]*planpb.NodePlanStatus
-}
+// Plan-based tests removed — workflow runs are now authoritative.
+// Deleted: TestRemovalWorkflow_*, TestRolledBack_*, TestFailedStepPropagation,
+//   TestApplyingPhase_*, TestHasAnyActivePlan_*, TestCheckNodePlanStatuses_*,
+//   TestDifferentLocksMustNotOverwriteBusyNodeSlot, TestMixedNodeRollout_*,
+//   TestReconcileApplying_AllLostPlans_*, TestReconcile_ControllerRestart_*,
+//   TestHasUnservedNodes_*
 
-func newMultiNodePlanStore() *multiNodePlanStore {
-	return &multiNodePlanStore{
-		plans:    make(map[string]*planpb.NodePlan),
-		statuses: make(map[string]*planpb.NodePlanStatus),
-	}
-}
-
-func (m *multiNodePlanStore) PutCurrentPlan(_ context.Context, nodeID string, plan *planpb.NodePlan) error {
-	m.plans[nodeID] = proto.Clone(plan).(*planpb.NodePlan)
-	return nil
-}
-func (m *multiNodePlanStore) GetCurrentPlan(_ context.Context, nodeID string) (*planpb.NodePlan, error) {
-	return m.plans[nodeID], nil
-}
-func (m *multiNodePlanStore) PutStatus(_ context.Context, nodeID string, s *planpb.NodePlanStatus) error {
-	m.statuses[nodeID] = s
-	return nil
-}
-func (m *multiNodePlanStore) GetStatus(_ context.Context, nodeID string) (*planpb.NodePlanStatus, error) {
-	return m.statuses[nodeID], nil
-}
-func (m *multiNodePlanStore) AppendHistory(context.Context, string, *planpb.NodePlan) error {
-	return nil
-}
-
-// ── Phase 1: Removal workflow semantics ──────────────────────────────────────
-
-func TestRemovalWorkflow_HappyPath(t *testing.T) {
-	ps := &fakePlanStore{}
-	srv := &server{
-		cfg:   &clusterControllerConfig{},
-		state: &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
-		planStore:       ps,
-		resources:       resourcestore.NewMemStore(),
-		planSignerState: testPlanSigner(t),
-	}
-	srv.resources.Apply(context.Background(), "ServiceRelease", &cluster_controllerpb.ServiceRelease{
-		Meta: &cluster_controllerpb.ObjectMeta{Name: "pub/svc", Generation: 1},
-		Spec: &cluster_controllerpb.ServiceReleaseSpec{
-			PublisherID: "pub", ServiceName: "svc", Version: "1.0.0", Removing: true,
-		},
-		Status: &cluster_controllerpb.ServiceReleaseStatus{
-			Phase: cluster_controllerpb.ReleasePhaseAvailable, ObservedGeneration: 1,
-			Nodes: []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable}},
-		},
-	})
-
-	// First reconcile: dispatch uninstall plans → REMOVING.
-	srv.reconcileRelease(context.Background(), "pub/svc")
-	obj, _, _ := srv.resources.Get(context.Background(), "ServiceRelease", "pub/svc")
-	rel := obj.(*cluster_controllerpb.ServiceRelease)
-	if rel.Status.Phase != ReleasePhaseRemoving {
-		t.Fatalf("expected REMOVING, got %s", rel.Status.Phase)
-	}
-	if rel.Status.WorkflowKind != "remove" {
-		t.Fatalf("expected workflow_kind=remove, got %s", rel.Status.WorkflowKind)
-	}
-	if ps.lastPlan == nil || ps.lastPlan.GetReason() != "service_remove" {
-		t.Fatalf("expected service_remove plan")
-	}
-
-	// Simulate plan success.
-	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
-		PlanId: ps.lastPlan.GetPlanId(), NodeId: "n1",
-		Generation: ps.lastPlan.GetGeneration(),
-		State:      planpb.PlanState_PLAN_SUCCEEDED,
-	})
-
-	// Second reconcile: all succeeded → REMOVED.
-	srv.reconcileRelease(context.Background(), "pub/svc")
-	obj, _, _ = srv.resources.Get(context.Background(), "ServiceRelease", "pub/svc")
-	rel = obj.(*cluster_controllerpb.ServiceRelease)
-	if rel.Status.Phase != ReleasePhaseRemoved {
-		t.Fatalf("expected REMOVED, got %s", rel.Status.Phase)
-	}
-	if rel.Status.TransitionReason != "all_nodes_removed" {
-		t.Fatalf("expected transition_reason=all_nodes_removed, got %s", rel.Status.TransitionReason)
-	}
-
-	// Third reconcile: garbage-collect.
-	srv.reconcileRelease(context.Background(), "pub/svc")
-	obj, _, _ = srv.resources.Get(context.Background(), "ServiceRelease", "pub/svc")
-	if obj != nil {
-		t.Fatalf("expected release to be garbage-collected")
-	}
-}
-
-func TestRemovalWorkflow_PartialFailure(t *testing.T) {
-	ps := &fakePlanStore{}
-	srv := &server{
-		cfg:   &clusterControllerConfig{},
-		state: &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
-		planStore:       ps,
-		resources:       resourcestore.NewMemStore(),
-		planSignerState: testPlanSigner(t),
-	}
-	srv.resources.Apply(context.Background(), "ServiceRelease", &cluster_controllerpb.ServiceRelease{
-		Meta: &cluster_controllerpb.ObjectMeta{Name: "pub/svc", Generation: 1},
-		Spec: &cluster_controllerpb.ServiceReleaseSpec{
-			PublisherID: "pub", ServiceName: "svc", Version: "1.0.0", Removing: true,
-		},
-		Status: &cluster_controllerpb.ServiceReleaseStatus{Phase: cluster_controllerpb.ReleasePhaseAvailable, ObservedGeneration: 1},
-	})
-
-	srv.reconcileRelease(context.Background(), "pub/svc")
-
-	// Simulate plan failure.
-	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
-		PlanId: ps.lastPlan.GetPlanId(), NodeId: "n1",
-		Generation: ps.lastPlan.GetGeneration(),
-		State:      planpb.PlanState_PLAN_FAILED,
-		ErrorMessage: "unit still active",
-	})
-
-	srv.reconcileRelease(context.Background(), "pub/svc")
-	obj, _, _ := srv.resources.Get(context.Background(), "ServiceRelease", "pub/svc")
-	rel := obj.(*cluster_controllerpb.ServiceRelease)
-	if rel.Status.Phase != cluster_controllerpb.ReleasePhaseFailed {
-		t.Fatalf("expected FAILED, got %s", rel.Status.Phase)
-	}
-	if rel.Status.TransitionReason != "removal_failed" {
-		t.Fatalf("expected transition_reason=removal_failed, got %s", rel.Status.TransitionReason)
-	}
-}
-
-// ── Phase 2: Rollback and degraded logic ─────────────────────────────────────
-
-func TestRolledBack_AllNodes(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}, "n2": {NodeID: "n2"}}},
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
-	}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying},
-		{NodeID: "n2", PlanID: "p2", Phase: cluster_controllerpb.ReleasePhaseApplying},
-	}
-	ps.statuses = map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_ROLLED_BACK, ErrorMessage: "check failed", ErrorStepId: "step-3"},
-		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK, ErrorMessage: "probe failed"},
-	}
-
-	updated, succeeded, failed, rolledBack, running, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if succeeded != 0 || failed != 0 || rolledBack != 2 || running != 0 {
-		t.Fatalf("expected 0/0/2/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
-	}
-	// Verify node-level phases.
-	for _, u := range updated {
-		if u.Phase != cluster_controllerpb.ReleasePhaseRolledBack {
-			t.Fatalf("node %s: expected ROLLED_BACK, got %s", u.NodeID, u.Phase)
-		}
-	}
-	// Verify FailedStepID propagation.
-	if updated[0].FailedStepID != "step-3" {
-		t.Fatalf("expected failed_step_id=step-3, got %s", updated[0].FailedStepID)
-	}
-}
-
-func TestRolledBack_Mixed(t *testing.T) {
-	// Node A success, Node B rollback → DEGRADED
-	ps := newMultiNodePlanStore()
-	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}, "n2": {NodeID: "n2"}}},
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
-	}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "p1"},
-		{NodeID: "n2", PlanID: "p2"},
-	}
-	ps.statuses = map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
-		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK},
-	}
-	_, succeeded, failed, rolledBack, running, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if succeeded != 1 || failed != 0 || rolledBack != 1 || running != 0 {
-		t.Fatalf("expected 1/0/1/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
-	}
-}
-
-func TestFailedStepPropagation(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
-	}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "p1"},
-	}
-	ps.statuses = map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_FAILED, ErrorStepId: "artifact.fetch", ErrorMessage: "download timeout"},
-	}
-	updated, _, _, _, _, _ := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if len(updated) != 1 {
-		t.Fatalf("expected 1 node status")
-	}
-	if updated[0].FailedStepID != "artifact.fetch" {
-		t.Fatalf("expected failed_step_id=artifact.fetch, got %s", updated[0].FailedStepID)
-	}
-	if updated[0].ErrorMessage != "download timeout" {
-		t.Fatalf("expected error=download timeout, got %s", updated[0].ErrorMessage)
-	}
-}
-
-// ── Phase 3: Transition enforcement ──────────────────────────────────────────
+// ── Phase transition enforcement (pure logic, no plan dependency) ────────────
 
 func TestAdvancePhase_InvalidTransition_ReturnsError(t *testing.T) {
 	cases := []struct {
@@ -261,7 +49,6 @@ func TestAdvancePhase_ValidTransition_NoError(t *testing.T) {
 		{cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseFailed},
 		{cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhasePending},
 		{cluster_controllerpb.ReleasePhaseRolledBack, cluster_controllerpb.ReleasePhasePending},
-		// Removal transitions
 		{cluster_controllerpb.ReleasePhaseAvailable, ReleasePhaseRemoving},
 		{cluster_controllerpb.ReleasePhaseFailed, ReleasePhaseRemoving},
 		{ReleasePhaseRemoving, ReleasePhaseRemoved},
@@ -289,7 +76,6 @@ func TestAdvancePhase_NoOp_Allowed(t *testing.T) {
 }
 
 func TestTerminalPhases_NoOutgoing(t *testing.T) {
-	// REMOVED is terminal — nothing should be allowed.
 	targets := []string{
 		cluster_controllerpb.ReleasePhasePending,
 		cluster_controllerpb.ReleasePhaseResolved,
@@ -303,8 +89,6 @@ func TestTerminalPhases_NoOutgoing(t *testing.T) {
 		}
 	}
 }
-
-// ── Phase 4: Workflow status integrity ───────────────────────────────────────
 
 func TestWorkflowKindInstall(t *testing.T) {
 	h := &releaseHandle{Removing: false, Nodes: nil}
@@ -364,7 +148,6 @@ func TestTransitionReason_AlwaysSet(t *testing.T) {
 	if s.TransitionReason != "resolved" {
 		t.Fatalf("expected TransitionReason=resolved, got %s", s.TransitionReason)
 	}
-	// Update reason on next transition.
 	applyPatchToSvcStatus(s, statusPatch{
 		Phase:            cluster_controllerpb.ReleasePhaseApplying,
 		TransitionReason: "plans_dispatched",
@@ -375,14 +158,10 @@ func TestTransitionReason_AlwaysSet(t *testing.T) {
 	}
 }
 
-// ── Phase 5: PLANNED documentation ──────────────────────────────────────────
-
 func TestPlanned_NotInTransitionMap(t *testing.T) {
-	// PLANNED should not appear as a source phase in the transition map.
 	if _, ok := validPhaseTransitions[cluster_controllerpb.ReleasePhasePlanned]; ok {
 		t.Fatalf("PLANNED should not be in the transition map (reserved for future use)")
 	}
-	// No phase should be able to transition TO PLANNED either.
 	for from, targets := range validPhaseTransitions {
 		if targets[cluster_controllerpb.ReleasePhasePlanned] {
 			t.Fatalf("phase %q allows transition to PLANNED, which should not be reachable", from)
@@ -390,145 +169,20 @@ func TestPlanned_NotInTransitionMap(t *testing.T) {
 	}
 }
 
-// ── Phase 6: End-to-end lifecycle (pipeline-level) ───────────────────────────
-
-func TestApplyingPhase_AllSucceeded_Available(t *testing.T) {
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
-	}}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		ResolvedVersion: "1.0.0",
-		Nodes:           []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", PlanID: "p1"}},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			if p.Phase != cluster_controllerpb.ReleasePhaseAvailable {
-				t.Fatalf("expected AVAILABLE, got %s", p.Phase)
-			}
-			if p.TransitionReason != "all_nodes_succeeded" {
-				t.Fatalf("expected reason=all_nodes_succeeded, got %s", p.TransitionReason)
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-}
-
-func TestApplyingPhase_AllFailed_Failed(t *testing.T) {
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_FAILED, ErrorStepId: "artifact.verify"},
-	}}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", PlanID: "p1"}},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			if p.Phase != cluster_controllerpb.ReleasePhaseFailed {
-				t.Fatalf("expected FAILED, got %s", p.Phase)
-			}
-			if p.TransitionReason != "all_nodes_failed" {
-				t.Fatalf("expected reason=all_nodes_failed, got %s", p.TransitionReason)
-			}
-			// Verify FailedStepID propagated to node status.
-			for _, n := range p.Nodes {
-				if n.FailedStepID != "artifact.verify" {
-					t.Fatalf("expected failed_step=artifact.verify, got %s", n.FailedStepID)
-				}
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-}
-
-func TestApplyingPhase_MixedSuccessFailure_Degraded(t *testing.T) {
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
-		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_FAILED},
-	}}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", PlanID: "p1"},
-			{NodeID: "n2", PlanID: "p2"},
-		},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			if p.Phase != cluster_controllerpb.ReleasePhaseDegraded {
-				t.Fatalf("expected DEGRADED, got %s", p.Phase)
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-}
-
-func TestApplyingPhase_MixedSuccessRollback_Degraded(t *testing.T) {
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
-		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK},
-	}}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", PlanID: "p1"},
-			{NodeID: "n2", PlanID: "p2"},
-		},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			if p.Phase != cluster_controllerpb.ReleasePhaseDegraded {
-				t.Fatalf("expected DEGRADED for mixed success+rollback, got %s", p.Phase)
-			}
-			if p.TransitionReason != "partial_rollback" {
-				t.Fatalf("expected reason=partial_rollback, got %s", p.TransitionReason)
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-}
-
-func TestApplyingPhase_AllRolledBack_RolledBack(t *testing.T) {
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_ROLLED_BACK},
-		"n2": {PlanId: "p2", State: planpb.PlanState_PLAN_ROLLED_BACK},
-	}}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", PlanID: "p1"},
-			{NodeID: "n2", PlanID: "p2"},
-		},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			if p.Phase != cluster_controllerpb.ReleasePhaseRolledBack {
-				t.Fatalf("expected ROLLED_BACK, got %s", p.Phase)
-			}
-			if p.TransitionReason != "all_nodes_rolled_back" {
-				t.Fatalf("expected reason=all_nodes_rolled_back, got %s", p.TransitionReason)
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-}
-
-// ── Phase 7: Transition map coherence ────────────────────────────────────────
-
 func TestTransitionMap_AllPhasesPresent(t *testing.T) {
-	expectedPhases := []string{
-		"",
+	// Verify all non-empty phases appear in the map.
+	expected := []string{
 		cluster_controllerpb.ReleasePhasePending,
 		cluster_controllerpb.ReleasePhaseResolved,
 		cluster_controllerpb.ReleasePhaseApplying,
 		cluster_controllerpb.ReleasePhaseAvailable,
-		cluster_controllerpb.ReleasePhaseDegraded,
 		cluster_controllerpb.ReleasePhaseFailed,
+		cluster_controllerpb.ReleasePhaseDegraded,
 		cluster_controllerpb.ReleasePhaseRolledBack,
 		ReleasePhaseRemoving,
 		ReleasePhaseRemoved,
 	}
-	for _, p := range expectedPhases {
+	for _, p := range expected {
 		if _, ok := validPhaseTransitions[p]; !ok {
 			t.Errorf("phase %q missing from transition map", p)
 		}
@@ -536,279 +190,10 @@ func TestTransitionMap_AllPhasesPresent(t *testing.T) {
 }
 
 func TestTransitionMap_RemovingReachableFromAllNonTerminal(t *testing.T) {
-	// Every non-terminal, non-removing phase should allow → REMOVING.
-	nonTerminal := []string{
-		"",
-		cluster_controllerpb.ReleasePhasePending,
-		cluster_controllerpb.ReleasePhaseResolved,
-		cluster_controllerpb.ReleasePhaseApplying,
-		cluster_controllerpb.ReleasePhaseAvailable,
-		cluster_controllerpb.ReleasePhaseDegraded,
-		cluster_controllerpb.ReleasePhaseFailed,
-		cluster_controllerpb.ReleasePhaseRolledBack,
-	}
-	for _, p := range nonTerminal {
-		targets := validPhaseTransitions[p]
-		if !targets[ReleasePhaseRemoving] {
-			t.Errorf("phase %q should allow → REMOVING", p)
+	// REMOVING should be reachable from AVAILABLE and FAILED.
+	for _, src := range []string{cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseFailed} {
+		if !validPhaseTransitions[src][ReleasePhaseRemoving] {
+			t.Errorf("%s should allow transition to REMOVING", src)
 		}
-	}
-}
-
-// ── Phase 8: Distributed stability ───────────────────────────────────────────
-
-func TestReconcile_ControllerRestart_ResumesFromStoredPhase(t *testing.T) {
-	// Simulate controller restart: create server, store a release in APPLYING,
-	// then reconcile — should poll plan statuses, not re-dispatch.
-	ps := &multiNodePlanStore{plans: map[string]*planpb.NodePlan{}, statuses: map[string]*planpb.NodePlanStatus{
-		"n1": {PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED},
-	}}
-	srv := &server{
-		cfg:       &clusterControllerConfig{},
-		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
-		planStore: ps,
-		resources: resourcestore.NewMemStore(),
-	}
-	srv.resources.Apply(context.Background(), "ServiceRelease", &cluster_controllerpb.ServiceRelease{
-		Meta: &cluster_controllerpb.ObjectMeta{Name: "pub/svc", Generation: 1},
-		Spec: &cluster_controllerpb.ServiceReleaseSpec{PublisherID: "pub", ServiceName: "svc", Version: "1.0.0"},
-		Status: &cluster_controllerpb.ServiceReleaseStatus{
-			Phase: cluster_controllerpb.ReleasePhaseApplying, ObservedGeneration: 1,
-			ResolvedVersion: "1.0.0",
-			Nodes: []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying}},
-		},
-	})
-
-	srv.reconcileRelease(context.Background(), "pub/svc")
-	obj, _, _ := srv.resources.Get(context.Background(), "ServiceRelease", "pub/svc")
-	rel := obj.(*cluster_controllerpb.ServiceRelease)
-	if rel.Status.Phase != cluster_controllerpb.ReleasePhaseAvailable {
-		t.Fatalf("expected AVAILABLE after restart+success, got %s", rel.Status.Phase)
-	}
-}
-
-// ── Phase 9: Plan slot serialization (single-slot model) ─────────────────────
-
-func TestHasAnyActivePlan_RunningBlocksDispatch(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_RUNNING,
-	}
-	srv := &server{planStore: ps}
-
-	if !srv.hasAnyActivePlan(context.Background(), "n1") {
-		t.Fatal("expected hasAnyActivePlan=true for RUNNING plan")
-	}
-}
-
-func TestHasAnyActivePlan_PendingBlocksDispatch(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_PENDING,
-	}
-	srv := &server{planStore: ps}
-
-	if !srv.hasAnyActivePlan(context.Background(), "n1") {
-		t.Fatal("expected hasAnyActivePlan=true for PENDING plan")
-	}
-}
-
-func TestHasAnyActivePlan_TerminalDoesNotBlock(t *testing.T) {
-	for _, state := range []planpb.PlanState{
-		planpb.PlanState_PLAN_SUCCEEDED,
-		planpb.PlanState_PLAN_FAILED,
-		planpb.PlanState_PLAN_ROLLED_BACK,
-	} {
-		ps := newMultiNodePlanStore()
-		ps.statuses["n1"] = &planpb.NodePlanStatus{
-			NodeId: "n1", PlanId: "p1", State: state,
-		}
-		srv := &server{planStore: ps}
-		if srv.hasAnyActivePlan(context.Background(), "n1") {
-			t.Fatalf("expected hasAnyActivePlan=false for terminal state %s", state)
-		}
-	}
-}
-
-func TestHasAnyActivePlan_NoStatusDoesNotBlock(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	srv := &server{planStore: ps}
-	if srv.hasAnyActivePlan(context.Background(), "n1") {
-		t.Fatal("expected hasAnyActivePlan=false when no status exists")
-	}
-}
-
-func TestDifferentLocksMustNotOverwriteBusyNodeSlot(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_RUNNING,
-	}
-	ps.plans["n1"] = &planpb.NodePlan{
-		NodeId: "n1", PlanId: "p1", Locks: []string{"infrastructure:minio"},
-	}
-	srv := &server{planStore: ps}
-
-	// hasActivePlanWithLock returns false for a different lock
-	if srv.hasActivePlanWithLock(context.Background(), "n1", "infrastructure:gateway") {
-		t.Fatal("lock-specific check should NOT match different lock key")
-	}
-	// But hasAnyActivePlan still blocks — this is the fix
-	if !srv.hasAnyActivePlan(context.Background(), "n1") {
-		t.Fatal("node slot is busy, must block regardless of lock key")
-	}
-}
-
-func TestHasUnservedNodes_FailedNodeIsUnserved(t *testing.T) {
-	srv := &server{
-		state: &controllerState{Nodes: map[string]*nodeState{
-			"n1": {NodeID: "n1"},
-			"n2": {NodeID: "n2"},
-		}},
-	}
-	h := &releaseHandle{
-		ResourceType: "InfrastructureRelease",
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
-			{NodeID: "n2", Phase: cluster_controllerpb.ReleasePhaseFailed},
-		},
-	}
-	if !srv.hasUnservedNodes(h) {
-		t.Fatal("expected hasUnservedNodes=true: n2 is FAILED")
-	}
-}
-
-func TestHasUnservedNodes_RolledBackIsUnserved(t *testing.T) {
-	srv := &server{
-		state: &controllerState{Nodes: map[string]*nodeState{
-			"n1": {NodeID: "n1"},
-		}},
-	}
-	h := &releaseHandle{
-		ResourceType: "InfrastructureRelease",
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseRolledBack},
-		},
-	}
-	if !srv.hasUnservedNodes(h) {
-		t.Fatal("expected hasUnservedNodes=true: n1 is ROLLED_BACK")
-	}
-}
-
-func TestHasUnservedNodes_AllAvailableIsServed(t *testing.T) {
-	srv := &server{
-		state: &controllerState{Nodes: map[string]*nodeState{
-			"n1": {NodeID: "n1"},
-		}},
-	}
-	h := &releaseHandle{
-		ResourceType: "InfrastructureRelease",
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseAvailable},
-		},
-	}
-	if srv.hasUnservedNodes(h) {
-		t.Fatal("expected hasUnservedNodes=false: all nodes AVAILABLE")
-	}
-}
-
-func TestMixedNodeRollout_OnlyFailedNodeRetried(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	// n1 succeeded, n2 failed (terminal) — slot is free for redispatch
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		NodeId: "n1", PlanId: "p1", State: planpb.PlanState_PLAN_SUCCEEDED,
-	}
-	ps.statuses["n2"] = &planpb.NodePlanStatus{
-		NodeId: "n2", PlanId: "p2", State: planpb.PlanState_PLAN_FAILED,
-	}
-	srv := &server{planStore: ps}
-
-	// n1 is terminal → not active
-	if srv.hasAnyActivePlan(context.Background(), "n1") {
-		t.Fatal("n1 succeeded, should not block")
-	}
-	// n2 is terminal → not active, can be redispatched
-	if srv.hasAnyActivePlan(context.Background(), "n2") {
-		t.Fatal("n2 failed, should not block redispatch")
-	}
-}
-
-// ── Phase 10: Plan ownership enforcement ─────────────────────────────────────
-
-func TestCheckNodePlanStatuses_EmptyPlanID(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
-	}
-	_, succeeded, failed, rolledBack, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if needsRedispatch != 1 {
-		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
-	}
-	if succeeded != 0 || failed != 0 || rolledBack != 0 || running != 0 {
-		t.Fatalf("expected 0/0/0/0, got s=%d f=%d rb=%d r=%d", succeeded, failed, rolledBack, running)
-	}
-}
-
-func TestCheckNodePlanStatuses_MismatchTerminal(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		PlanId: "p2", State: planpb.PlanState_PLAN_FAILED, ErrorMessage: "other plan failed",
-	}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying},
-	}
-	_, succeeded, _, _, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if needsRedispatch != 1 {
-		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
-	}
-	if succeeded != 0 || running != 0 {
-		t.Fatalf("expected s=0 r=0, got s=%d r=%d", succeeded, running)
-	}
-}
-
-func TestCheckNodePlanStatuses_MismatchRunning(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	ps.statuses["n1"] = &planpb.NodePlanStatus{
-		PlanId: "p2", State: planpb.PlanState_PLAN_RUNNING,
-	}
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	nodes := []*cluster_controllerpb.NodeReleaseStatus{
-		{NodeID: "n1", PlanID: "p1", Phase: cluster_controllerpb.ReleasePhaseApplying},
-	}
-	_, _, _, _, running, needsRedispatch := srv.checkNodePlanStatuses(context.Background(), nodes, "1.0.0")
-	if needsRedispatch != 1 {
-		t.Fatalf("expected needsRedispatch=1, got %d", needsRedispatch)
-	}
-	if running != 0 {
-		t.Fatalf("expected running=0, got %d", running)
-	}
-}
-
-func TestReconcileApplying_AllLostPlans_BackToResolved(t *testing.T) {
-	ps := newMultiNodePlanStore()
-	srv := &server{cfg: &clusterControllerConfig{}, state: &controllerState{}, planStore: ps, resources: resourcestore.NewMemStore()}
-	patched := false
-	h := &releaseHandle{
-		Name: "test", ResourceType: "ServiceRelease", Phase: cluster_controllerpb.ReleasePhaseApplying,
-		ResolvedVersion: "1.0.0",
-		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
-			{NodeID: "n1", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
-			{NodeID: "n2", PlanID: "", Phase: cluster_controllerpb.ReleasePhaseApplying},
-		},
-		PatchStatus: func(ctx context.Context, p statusPatch) error {
-			patched = true
-			if p.Phase != cluster_controllerpb.ReleasePhaseResolved {
-				t.Fatalf("expected RESOLVED, got %s", p.Phase)
-			}
-			if p.TransitionReason != "all_plans_lost" {
-				t.Fatalf("expected reason=all_plans_lost, got %s", p.TransitionReason)
-			}
-			return nil
-		},
-	}
-	srv.reconcileApplying(context.Background(), h)
-	if !patched {
-		t.Fatal("expected PatchStatus to be called")
 	}
 }

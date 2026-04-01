@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/workflow/engine"
@@ -92,9 +91,7 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 		},
 	}
 
-	log.Printf("workflow-runner: starting %s for node %s — disabling plan-runner", def.Metadata.Name, srv.nodeID)
-	atomic.StoreInt32(&srv.workflowRunning, 1)
-	defer atomic.StoreInt32(&srv.workflowRunning, 0)
+	log.Printf("workflow-runner: starting %s for node %s", def.Metadata.Name, srv.nodeID)
 
 	start := time.Now()
 	run, err := eng.Execute(ctx, def, inputs)

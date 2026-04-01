@@ -17,7 +17,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -935,7 +935,7 @@ func normalizeArtifactPlatform(p string) string {
 // changes without mutating state.  It queries the repository to validate each
 // artifact (existence + platform) and produces per-node will_install lists
 // that reflect only nodes that actually need the change.
-func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_controllerpb.DesiredServicesDelta) (*cluster_controllerpb.PlanPreview, error) {
+func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_controllerpb.DesiredServicesDelta) (*cluster_controllerpb.ServiceChangePreview, error) {
 	// Snapshot node state under lock.
 	srv.lock("PreviewDesiredServices")
 	nodeCopy := make(map[string]*nodeState, len(srv.state.Nodes))
@@ -944,7 +944,7 @@ func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_contro
 	}
 	srv.unlock()
 
-	preview := &cluster_controllerpb.PlanPreview{}
+	preview := &cluster_controllerpb.ServiceChangePreview{}
 
 	// Query repository for artifact validation (best-effort; degraded if unreachable).
 	addr := strings.TrimSpace(os.Getenv(repositoryAddressEnv))

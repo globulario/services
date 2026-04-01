@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 

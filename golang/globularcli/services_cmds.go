@@ -24,7 +24,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"

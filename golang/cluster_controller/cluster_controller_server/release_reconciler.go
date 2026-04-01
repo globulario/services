@@ -10,8 +10,6 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/plan/planpb"
-	"github.com/google/uuid"
 )
 
 const releaseKeyPrefix = "release/"
@@ -243,7 +241,6 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *cluster_c
 		minReplicas = 1
 	}
 
-	targetLock := fmt.Sprintf("service:%s", canonicalServiceName(rel.Spec.ServiceName))
 	updatedNodes := make([]*cluster_controllerpb.NodeReleaseStatus, 0, total)
 
 	ok := 0
@@ -273,19 +270,11 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *cluster_c
 			nCopy.Phase = cluster_controllerpb.ReleasePhaseAvailable
 		} else {
 			issues++
-			// Drift detection: enqueue plan if not already running with the same lock.
-			if srv.planStore != nil && !srv.hasActivePlanWithLockFn(ctx, nodeID, targetLock) {
-				if plan, err := srv.dispatchReleasePlanFn(ctx, rel, nodeID); err == nil && plan != nil {
-					nCopy.PlanID = plan.GetPlanId()
-					nCopy.Phase = cluster_controllerpb.ReleasePhaseApplying
-					nCopy.UpdatedUnixMs = time.Now().UnixMilli()
-				} else if err != nil {
-					log.Printf("release %s: node %s drift plan compile failed: %v", name, nodeID, err)
-				}
-			}
-			if nCopy.Phase == "" {
-				nCopy.Phase = cluster_controllerpb.ReleasePhaseDegraded
-			}
+			// Drift detected — mark degraded so reconcile pipeline re-enters PENDING
+			// and the workflow handles re-installation.
+			log.Printf("release %s: node %s drift detected, marking DEGRADED for workflow re-apply", name, nodeID)
+			nCopy.Phase = cluster_controllerpb.ReleasePhaseDegraded
+			nCopy.UpdatedUnixMs = time.Now().UnixMilli()
 		}
 		updatedNodes = append(updatedNodes, &nCopy)
 	}
@@ -327,60 +316,8 @@ func (srv *server) serviceHealthyForRelease(node *nodeState, rel *cluster_contro
 	return false
 }
 
-func (srv *server) dispatchReleasePlan(ctx context.Context, rel *cluster_controllerpb.ServiceRelease, nodeID string) (*planpb.NodePlan, error) {
-	if srv.planStore == nil {
-		return nil, fmt.Errorf("plan store unavailable")
-	}
-	installedVersion := srv.getInstalledVersionForRelease(rel, nodeID)
-	clusterID := ""
-	if srv.state != nil {
-		clusterID = srv.state.ClusterId
-	}
-
-	// Node-aware platform: if spec.Platform is empty, derive from node's reported platform.
-	if rel.Spec != nil && strings.TrimSpace(rel.Spec.Platform) == "" {
-		if nodePlatform := srv.getNodePlatform(nodeID); nodePlatform != "" {
-			rel.Spec.Platform = nodePlatform
-		}
-	}
-
-	plan, err := CompileReleasePlan(nodeID, rel, installedVersion, clusterID)
-	if err != nil {
-		return nil, err
-	}
-	plan.PlanId = uuid.NewString()
-	plan.Generation = srv.nextPlanGeneration(ctx, nodeID)
-	plan.IssuedBy = "cluster-controller"
-	if plan.GetCreatedUnixMs() == 0 {
-		plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
-	}
-	if err := srv.signOrAbort(plan); err != nil {
-		return nil, err
-	}
-	if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
-		return nil, err
-	}
-	if appendable, ok := srv.planStore.(interface {
-		AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
-	}); ok {
-		_ = appendable.AppendHistory(ctx, nodeID, plan)
-	}
-	return plan, nil
-}
-
-func (srv *server) hasActivePlanWithLockFn(ctx context.Context, nodeID, lock string) bool {
-	if srv.testHasActivePlanWithLock != nil {
-		return srv.testHasActivePlanWithLock(ctx, nodeID, lock)
-	}
-	return srv.hasActivePlanWithLock(ctx, nodeID, lock)
-}
-
-func (srv *server) dispatchReleasePlanFn(ctx context.Context, rel *cluster_controllerpb.ServiceRelease, nodeID string) (*planpb.NodePlan, error) {
-	if srv.testDispatchReleasePlan != nil {
-		return srv.testDispatchReleasePlan(ctx, rel, nodeID)
-	}
-	return srv.dispatchReleasePlan(ctx, rel, nodeID)
-}
+// Deprecated: plan dispatch functions removed — release pipeline uses workflows.
+// dispatchReleasePlan, hasActivePlanWithLockFn, dispatchReleasePlanFn deleted.
 
 // patchReleaseStatus loads the latest copy of a ServiceRelease, applies f to its status,
 // and saves via resources.Apply. This avoids conflicting with concurrent writes.
@@ -476,40 +413,8 @@ func isFoundationalService(name string) bool {
 	return false
 }
 
-func (srv *server) hasAnyActivePlan(ctx context.Context, nodeID string) bool {
-	status, err := srv.planStore.GetStatus(ctx, nodeID)
-	if err != nil || status == nil {
-		return false
-	}
-	switch status.GetState() {
-	case planpb.PlanState_PLAN_RUNNING, planpb.PlanState_PLAN_PENDING, planpb.PlanState_PLAN_ROLLING_BACK:
-		return true
-	default:
-		return false
-	}
-}
-
-func (srv *server) hasActivePlanWithLock(ctx context.Context, nodeID, lock string) bool {
-	status, err := srv.planStore.GetStatus(ctx, nodeID)
-	if err != nil || status == nil {
-		return false
-	}
-	switch status.GetState() {
-	case planpb.PlanState_PLAN_RUNNING, planpb.PlanState_PLAN_PENDING, planpb.PlanState_PLAN_ROLLING_BACK:
-	default:
-		return false
-	}
-	plan, err := srv.planStore.GetCurrentPlan(ctx, nodeID)
-	if err != nil || plan == nil {
-		return false
-	}
-	for _, l := range plan.GetLocks() {
-		if l == lock {
-			return true
-		}
-	}
-	return false
-}
+// Deprecated: hasAnyActivePlan, hasActivePlanWithLock deleted — workflow
+// orchestration replaces plan-slot guards.
 
 // ── ApplicationRelease reconciler (unified pipeline) ─────────────────────────
 
@@ -701,89 +606,4 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 	return ""
 }
 
-// checkNodePlanStatuses inspects the plan store for each node in the list and
-// returns updated statuses plus counts of succeeded, failed, rolledBack, running,
-// and needsRedispatch nodes. needsRedispatch counts nodes whose plan was never
-// dispatched (empty PlanID) or was evicted by another release.
-// When resolvedVersion is non-empty and a plan succeeds, InstalledVersion is set.
-// PLAN_ROLLED_BACK is counted separately from failures so the caller can
-// distinguish full rollback (ROLLED_BACK) from mixed outcomes (DEGRADED).
-func (srv *server) checkNodePlanStatuses(ctx context.Context, nodes []*cluster_controllerpb.NodeReleaseStatus, resolvedVersion string) (updated []*cluster_controllerpb.NodeReleaseStatus, succeeded, failed, rolledBack, running, needsRedispatch int) {
-	for _, nrs := range nodes {
-		if nrs == nil {
-			continue
-		}
-		u := *nrs
-
-		// Empty plan_id: this node was recorded in APPLYING but never had a
-		// plan dispatched (e.g. slot was busy). It needs a fresh dispatch.
-		if nrs.PlanID == "" {
-			needsRedispatch++
-			u.ErrorMessage = "no plan dispatched"
-			u.UpdatedUnixMs = time.Now().UnixMilli()
-			updated = append(updated, &u)
-			continue
-		}
-
-		ps, err := srv.planStore.GetStatus(ctx, nrs.NodeID)
-
-		// Plan not found: treat as externally completed (the plan store was
-		// wiped or the plan expired). The drift detector will catch genuinely
-		// missing services.
-		if err != nil || ps == nil {
-			succeeded++
-			u.Phase = cluster_controllerpb.ReleasePhaseAvailable
-			u.InstalledVersion = resolvedVersion
-			u.ErrorMessage = ""
-			u.FailedStepID = ""
-			u.UpdatedUnixMs = time.Now().UnixMilli()
-			updated = append(updated, &u)
-			continue
-		}
-
-		// Plan ID mismatch: another release's plan overwrote ours in the
-		// single-plan-per-node store. If the current plan succeeded, the
-		// node is converged — treat this release as succeeded too.
-		// Otherwise, our plan was evicted — needs redispatch.
-		if ps.GetPlanId() != nrs.PlanID {
-			if ps.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
-				succeeded++
-				u.Phase = cluster_controllerpb.ReleasePhaseAvailable
-				u.InstalledVersion = resolvedVersion
-				u.ErrorMessage = ""
-				u.UpdatedUnixMs = time.Now().UnixMilli()
-			} else {
-				needsRedispatch++
-				u.ErrorMessage = "plan evicted by another release"
-				u.UpdatedUnixMs = time.Now().UnixMilli()
-			}
-			updated = append(updated, &u)
-			continue
-		}
-		switch ps.GetState() {
-		case planpb.PlanState_PLAN_SUCCEEDED:
-			succeeded++
-			u.Phase = cluster_controllerpb.ReleasePhaseAvailable
-			u.InstalledVersion = resolvedVersion
-			u.ErrorMessage = ""
-			u.FailedStepID = ""
-			u.UpdatedUnixMs = time.Now().UnixMilli()
-		case planpb.PlanState_PLAN_ROLLED_BACK:
-			rolledBack++
-			u.Phase = cluster_controllerpb.ReleasePhaseRolledBack
-			u.ErrorMessage = ps.GetErrorMessage()
-			u.FailedStepID = ps.GetErrorStepId()
-			u.UpdatedUnixMs = time.Now().UnixMilli()
-		case planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_EXPIRED:
-			failed++
-			u.Phase = cluster_controllerpb.ReleasePhaseFailed
-			u.ErrorMessage = ps.GetErrorMessage()
-			u.FailedStepID = ps.GetErrorStepId()
-			u.UpdatedUnixMs = time.Now().UnixMilli()
-		default:
-			running++
-		}
-		updated = append(updated, &u)
-	}
-	return
-}
+// Deprecated: checkNodePlanStatuses deleted — workflow results are authoritative.

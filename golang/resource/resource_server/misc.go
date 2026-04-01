@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson/primitive"

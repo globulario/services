@@ -98,40 +98,7 @@ func DriftReport(snap *collector.Snapshot, nodeID string, version string) *clust
 				})
 			}
 
-			// Component version drift vs desired plan
-			if plan, ok := snap.NodePlans[nid]; ok && plan.GetSpec() != nil && plan.GetSpec().GetDesired() != nil {
-				desiredVersions := make(map[string]string)
-				for _, ds := range plan.GetSpec().GetDesired().GetServices() {
-					desiredVersions[ds.GetName()] = ds.GetVersion()
-				}
-				for _, comp := range inv.GetComponents() {
-					desired, hasDesired := desiredVersions[comp.GetName()]
-					if !hasDesired || desired == "" {
-						continue
-					}
-					if comp.GetVersion() != desired {
-						items = append(items, &cluster_doctorpb.DriftItem{
-							NodeId:    nid,
-							EntityRef: comp.GetName(),
-							Category:  cluster_doctorpb.DriftCategory_VERSION_MISMATCH,
-							Desired:   desired,
-							Actual:    comp.GetVersion(),
-							Evidence: []*cluster_doctorpb.Evidence{{
-								SourceService: "nodeagent+clustercontroller",
-								SourceRpc:     "GetInventory+GetNodePlanV1",
-								KeyValues: map[string]string{
-									"node_id":          nid,
-									"component":        comp.GetName(),
-									"installed_version": comp.GetVersion(),
-									"desired_version":  desired,
-									"plan_id":          plan.GetPlanId(),
-								},
-								Timestamp: timestamppb.New(snap.GeneratedAt),
-							}},
-						})
-					}
-				}
-			}
+			// Plan-based version drift check removed — plan system deleted.
 
 			// Components not installed
 			for _, comp := range inv.GetComponents() {

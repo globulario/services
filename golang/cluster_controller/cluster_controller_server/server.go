@@ -20,8 +20,6 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/workflow"
-	"github.com/globulario/services/golang/plan/planpb"
-	"github.com/globulario/services/golang/plan/store"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
@@ -121,12 +119,6 @@ type kvClient interface {
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
 }
 
-func extractKV(ps store.PlanStore) kvClient {
-	if eps, ok := ps.(*store.EtcdPlanStore); ok && eps != nil {
-		return eps.Client()
-	}
-	return nil
-}
 
 type server struct {
 	cluster_controllerpb.UnimplementedClusterControllerServiceServer
@@ -138,7 +130,6 @@ type server struct {
 	mu                   sync.Mutex
 	muHeldSince          atomic.Int64
 	muHeldBy             atomic.Value
-	planStore            store.PlanStore
 	kv                   kvClient
 	agentMu              sync.Mutex
 	agentClients         map[string]*agentClient
@@ -194,12 +185,12 @@ type server struct {
 
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
-	testDispatchReleasePlan   func(context.Context, *cluster_controllerpb.ServiceRelease, string) (*planpb.NodePlan, error)
+	// Plan test seams removed.
 }
 
 var testHookBeforeReportNodeStatusApply func()
 
-func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState, planStore store.PlanStore) *server {
+func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState, kv kvClient) *server {
 	if state == nil {
 		state = newControllerState()
 	}
@@ -217,8 +208,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		cfgPath:          cfgPath,
 		statePath:        statePath,
 		state:            state,
-		planStore:        planStore,
-		kv:               extractKV(planStore),
+		kv:               kv,
 		agentClients:     make(map[string]*agentClient),
 		serviceBlock:     make(map[string]time.Time),
 		agentInsecure:    strings.EqualFold(os.Getenv("CLUSTER_INSECURE_AGENT_GRPC"), "true"),
@@ -276,9 +266,9 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		}
 		return ids
 	}
-	operator.Register("etcd", operator.NewEtcdOperator(planStore, nodesFn))
-	operator.Register("minio", operator.NewMinioOperator(planStore, nodesFn))
-	operator.Register("scylla", operator.NewScyllaOperator(planStore, nodesFn))
+	operator.Register("etcd", operator.NewEtcdOperator(nodesFn))
+	operator.Register("minio", operator.NewMinioOperator(nodesFn))
+	operator.Register("scylla", operator.NewScyllaOperator(nodesFn))
 
 	safeGo("mu-watchdog", func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -653,7 +643,7 @@ func normalizedUnits(units []unitStatusRecord) []unitStatusRecord {
 	return out
 }
 
-func requiredUnitsFromPlan(plan *cluster_controllerpb.NodePlan) map[string]struct{} {
+func requiredUnitsFromPlan(plan *NodeUnitPlan) map[string]struct{} {
 	req := make(map[string]struct{})
 	if plan == nil {
 		return req

@@ -148,33 +148,7 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.addSource("node_agent.GetInventory@" + nid)
 			}
 
-			// GetPlanStatusV1
-			psCtx, cancel2 := context.WithTimeout(ctx, c.cfg.NodeTimeout)
-			defer cancel2()
-			psResp, err := agentClient.GetPlanStatusV1(psCtx, &node_agentpb.GetPlanStatusV1Request{})
-			if err != nil {
-				snap.addError("node_agent@"+nid, "GetPlanStatusV1", err)
-			} else {
-				snap.mu.Lock()
-				snap.PlanStatuses[nid] = psResp.GetStatus()
-				snap.mu.Unlock()
-				snap.addSource("node_agent.GetPlanStatusV1@" + nid)
-			}
-
-			// GetNodePlanV1 (from controller, using node id)
-			planCtx, cancel3 := context.WithTimeout(ctx, c.cfg.NodeTimeout)
-			defer cancel3()
-			planResp, err := c.controllerClient.GetNodePlanV1(planCtx, &cluster_controllerpb.GetNodePlanV1Request{
-				NodeId: nid,
-			})
-			if err != nil {
-				snap.addError("cluster_controller@"+nid, "GetNodePlanV1", err)
-			} else if planResp.GetPlan() != nil {
-				snap.mu.Lock()
-				snap.NodePlans[nid] = planResp.GetPlan()
-				snap.mu.Unlock()
-				snap.addSource("cluster_controller.GetNodePlanV1@" + nid)
-			}
+			// Plan collection removed — plan system deleted.
 		}(nodeID, endpoint)
 	}
 

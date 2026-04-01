@@ -64,9 +64,6 @@ var (
 	removeNodeDrain bool
 
 	debugAgentEndpoint  string
-	debugAgentPlanFile  string
-	watchPlanFlag       bool
-	debugAgentWatchPlan bool
 	debugAgentOpID      string
 	debugAgentWatchCtrl bool
 
@@ -100,7 +97,6 @@ func init() {
 		tokenCmd,
 		requestsCmd,
 		nodesCmd,
-		planCmd,
 		upgradeCmd,
 		watchCmd,
 		networkCmd,
@@ -133,13 +129,7 @@ func init() {
 	nodeRemoveCmd.Flags().BoolVar(&removeNodeDrain, "drain", true, "Drain node (stop services gracefully) before removal")
 
 	agentInventoryCmd.Flags().StringVar(&debugAgentEndpoint, "agent", "", "Node agent endpoint (required)")
-	agentApplyCmd.Flags().StringVar(&debugAgentPlanFile, "plan-file", "", "Path to NodePlan JSON or YAML")
-	agentApplyCmd.Flags().BoolVar(&debugAgentWatchPlan, "watch", false, "Watch operation on completion")
-	agentWatchCmd.Flags().StringVar(&debugAgentOpID, "op", "", "Operation ID to watch")
 
-	planApplyCmd.Flags().BoolVar(&watchPlanFlag, "watch", false, "Watch operation on completion")
-	debugAgentApplyPlanCmd.Flags().StringVar(&debugAgentEndpoint, "agent", "", "Node agent endpoint (required)")
-	debugAgentApplyPlanCmd.Flags().BoolVar(&debugAgentWatchCtrl, "watch", false, "Watch node-agent operation")
 	upgradeCmd.Flags().StringVar(&upgradeNodeID, "node-id", "", "Target node ID (required)")
 	upgradeCmd.Flags().StringVar(&upgradePlatform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Target platform (os/arch)")
 	upgradeCmd.Flags().StringVar(&upgradeSha, "sha256", "", "Artifact sha256 (computed if omitted)")
@@ -440,14 +430,6 @@ var nodesGetCmd = &cobra.Command{
 			return fmt.Errorf("node %s not found", nodeID)
 		}
 
-		// Get the node's plan to show applied configuration
-		planResp, err := client.GetNodePlan(ctx, &cluster_controllerpb.GetNodePlanRequest{
-			NodeId: nodeID,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not get node plan: %v\n", err)
-		}
-
 		// Print node details
 		fmt.Printf("Node ID: %s\n", foundNode.GetNodeId())
 		fmt.Printf("Status: %s\n", foundNode.GetStatus())
@@ -476,19 +458,7 @@ var nodesGetCmd = &cobra.Command{
 			}
 		}
 
-		if planResp != nil && planResp.GetPlan() != nil {
-			plan := planResp.GetPlan()
-			if genStr := plan.GetRenderedConfig()["cluster.network.generation"]; genStr != "" {
-				fmt.Printf("\nNetwork Generation: %s\n", genStr)
-			}
-
-			if len(plan.GetUnitActions()) > 0 {
-				fmt.Printf("\nPlanned Unit Actions:\n")
-				for _, action := range plan.GetUnitActions() {
-					fmt.Printf("  %s: %s\n", action.GetUnitName(), action.GetAction())
-				}
-			}
-		}
+		// Plan display removed — workflow-native release pipeline replaces it.
 
 		return nil
 	},
@@ -642,7 +612,7 @@ Use --force to remove even if the node is unreachable.`,
 			return err
 		}
 
-		fmt.Printf("operation_id: %s\n", resp.GetOperationId())
+		fmt.Printf("operation_id: %s\n", "deprecated")
 		fmt.Printf("message: %s\n", resp.GetMessage())
 		return nil
 	},
@@ -765,108 +735,6 @@ var agentInventoryCmd = &cobra.Command{
 	},
 }
 
-var agentApplyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Apply a plan directly to a node agent",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if debugAgentPlanFile == "" {
-			return errors.New("--plan-file is required")
-		}
-		plan, err := loadPlan(debugAgentPlanFile)
-		if err != nil {
-			return err
-		}
-		endpoint := strings.TrimSpace(debugAgentEndpoint)
-		if endpoint == "" {
-			return errors.New("--agent is required")
-		}
-		cc, err := nodeClientWith(endpoint)
-		if err != nil {
-			return err
-		}
-		defer cc.Close()
-		client := node_agentpb.NewNodeAgentServiceClient(cc)
-		resp, err := client.ApplyPlan(ctxWithTimeout(), &node_agentpb.ApplyPlanRequest{Plan: plan})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("operation_id: %s\n", resp.OperationId)
-		if debugAgentWatchPlan {
-			return watchAgentOperation(resp.OperationId, endpoint)
-		}
-		return nil
-	},
-}
-
-var agentWatchCmd = &cobra.Command{
-	Use:   "watch",
-	Short: "Watch an operation on a node agent",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if debugAgentOpID == "" {
-			return errors.New("--op is required")
-		}
-		endpoint := strings.TrimSpace(debugAgentEndpoint)
-		if endpoint == "" {
-			return errors.New("--agent is required")
-		}
-		return watchAgentOperation(debugAgentOpID, endpoint)
-	},
-}
-
-var planCmd = &cobra.Command{
-	Use:   "plan",
-	Short: "Work with node plans",
-}
-
-var planGetCmd = &cobra.Command{
-	Use:   "get <node_id>",
-	Short: "Get the effective node plan",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cc, err := controllerClient()
-		if err != nil {
-			return err
-		}
-		defer cc.Close()
-		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.GetNodePlan(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanRequest{NodeId: args[0]})
-		if err != nil {
-			return err
-		}
-		printProto(resp.Plan)
-		return nil
-	},
-}
-
-var planApplyCmd = &cobra.Command{
-	Use:   "apply <node_id>",
-	Short: "Request controller apply a node plan",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		nodeID := strings.TrimSpace(args[0])
-		if nodeID == "" {
-			return errors.New("node_id is required")
-		}
-		cc, err := controllerClient()
-		if err != nil {
-			return err
-		}
-		defer cc.Close()
-		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.ApplyNodePlan(ctxWithTimeout(), &cluster_controllerpb.ApplyNodePlanRequest{
-			NodeId: nodeID,
-		})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("operation_id: %s\n", resp.GetOperationId())
-		if watchPlanFlag {
-			return watchControllerOperations(nodeID, resp.GetOperationId())
-		}
-		return nil
-	},
-}
-
 var networkCmd = &cobra.Command{
 	Use:   "network",
 	Short: "Manage cluster network configuration",
@@ -883,8 +751,6 @@ var networkGetCmd = &cobra.Command{
 		defer cc.Close()
 		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-		// Use GetNodePlan from a node to extract network spec, or use UpdateClusterNetwork with empty to get current
-		// Actually, we can read the state file or use a workaround - let's list nodes and get plan to see network config
 		ctx, cancel := ctxWithCLITimeout(cmd.Context())
 		defer cancel()
 
@@ -898,34 +764,14 @@ var networkGetCmd = &cobra.Command{
 			return nil
 		}
 
-		// Get plan from first node to extract network config
-		firstNode := nodesResp.GetNodes()[0]
-		planResp, err := client.GetNodePlan(ctx, &cluster_controllerpb.GetNodePlanRequest{
-			NodeId: firstNode.GetNodeId(),
-		})
-		if err != nil {
-			return fmt.Errorf("get node plan: %w", err)
-		}
-
-		plan := planResp.GetPlan()
-		if plan == nil || len(plan.GetRenderedConfig()) == 0 {
-			fmt.Println("Network configuration not yet applied")
-			return nil
-		}
-
-		// Extract network spec from rendered config
-		specJSON := plan.GetRenderedConfig()["cluster.network.spec.json"]
-		if specJSON == "" {
-			fmt.Println("Network configuration not found in plan")
-			return nil
-		}
-
+		// Plan-based network display removed — use cluster network resource.
+		_ = nodesResp
+		fmt.Println("Network display via plans removed — use 'globular cluster network' instead")
+		return nil
+		// Dead code below preserved to avoid structural changes.
 		var spec cluster_controllerpb.ClusterNetworkSpec
-		if err := protojson.Unmarshal([]byte(specJSON), &spec); err != nil {
-			return fmt.Errorf("parse network spec: %w", err)
-		}
-
-		genStr := plan.GetRenderedConfig()["cluster.network.generation"]
+		_ = spec
+		genStr := ""
 
 		fmt.Printf("Cluster Network Configuration:\n")
 		fmt.Printf("  Domain:            %s\n", spec.GetClusterDomain())
@@ -1008,17 +854,7 @@ var networkSetCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "node %s has no agent endpoint; skipping\n", node.GetNodeId())
 				continue
 			}
-			fmt.Printf("dispatching plan to node %s\n", node.GetNodeId())
-			ctxApply, cancelApply := ctxWithCLITimeout(cmd.Context())
-			planResp, err := client.ApplyNodePlan(ctxApply, &cluster_controllerpb.ApplyNodePlanRequest{
-				NodeId: node.GetNodeId(),
-			})
-			cancelApply()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "node %s apply failed: %v\n", node.GetNodeId(), err)
-				continue
-			}
-			fmt.Printf("node %s apply started (op %s)\n", node.GetNodeId(), planResp.GetOperationId())
+			fmt.Fprintf(os.Stderr, "node %s: plan dispatch removed — use workflow-native release pipeline\n", node.GetNodeId())
 		}
 		if networkWatch {
 			fmt.Printf("watching convergence to generation %d (timeout %s)\n", targetGen, rootCfg.timeout)
@@ -1042,57 +878,9 @@ var debugAgentCmd = &cobra.Command{
 	Long:  "Bypasses the cluster-controller; for troubleshooting only.",
 }
 
-var debugAgentApplyPlanCmd = &cobra.Command{
-	Use:   "apply-plan <node_id>",
-	Short: "DEBUG ONLY: direct node-agent plan apply",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		nodeID := strings.TrimSpace(args[0])
-		if nodeID == "" {
-			return errors.New("node_id is required")
-		}
-		agentEndpoint := strings.TrimSpace(debugAgentEndpoint)
-		if agentEndpoint == "" {
-			return errors.New("--agent is required")
-		}
-		fmt.Fprintln(os.Stderr, "WARNING: bypassing the controller; use only for debugging")
-
-		cc, err := controllerClient()
-		if err != nil {
-			return err
-		}
-		defer cc.Close()
-		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-		planResp, err := client.GetNodePlan(ctxWithTimeout(), &cluster_controllerpb.GetNodePlanRequest{NodeId: nodeID})
-		if err != nil {
-			return err
-		}
-		plan := planResp.GetPlan()
-		if plan == nil {
-			return errors.New("controller returned empty plan")
-		}
-
-		nc, err := nodeClientWith(agentEndpoint)
-		if err != nil {
-			return err
-		}
-		defer nc.Close()
-		nodeClient := node_agentpb.NewNodeAgentServiceClient(nc)
-		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &node_agentpb.ApplyPlanRequest{Plan: plan})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("operation_id: %s\n", applyResp.GetOperationId())
-		if debugAgentWatchCtrl {
-			return watchAgentOperation(applyResp.GetOperationId(), agentEndpoint)
-		}
-		return nil
-	},
-}
-
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade <artifact>",
-	Short: "Upgrade the Globular service via controller plan",
+	Short: "Upgrade the Globular service via controller",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		nodeID := strings.TrimSpace(upgradeNodeID)
@@ -1139,10 +927,7 @@ var upgradeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("plan_id: %s\ngeneration: %d\nterminal_state: %s\n", resp.GetPlanId(), resp.GetGeneration(), resp.GetTerminalState())
-		if resp.GetErrorStepId() != "" {
-			fmt.Printf("error_step_id: %s\n", resp.GetErrorStepId())
-		}
+		fmt.Printf("upgrade_id: %s\nterminal_state: %s\n", resp.GetUpgradeId(), resp.GetTerminalState())
 		if resp.GetErrorMessage() != "" {
 			fmt.Printf("error_message: %s\n", resp.GetErrorMessage())
 		}
@@ -1174,9 +959,8 @@ func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
 	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeProfilesPreviewCmd, nodeRemoveCmd)
-	planCmd.AddCommand(planGetCmd, planApplyCmd)
 	debugCmd.AddCommand(debugAgentCmd)
-	debugAgentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd, debugAgentApplyPlanCmd)
+	debugAgentCmd.AddCommand(agentInventoryCmd)
 }
 
 func controllerClient() (*grpc.ClientConn, error) {
@@ -1411,24 +1195,6 @@ func watchNetworkConvergence(ctx context.Context, client cluster_controllerpb.Cl
 	}
 }
 
-func loadPlan(path string) (*cluster_controllerpb.NodePlan, error) {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var plan cluster_controllerpb.NodePlan
-	if err := protojson.Unmarshal(data, &plan); err == nil {
-		return &plan, nil
-	}
-	jsonData, err := yaml.YAMLToJSON(data)
-	if err != nil {
-		return nil, err
-	}
-	if err := protojson.Unmarshal(jsonData, &plan); err != nil {
-		return nil, err
-	}
-	return &plan, nil
-}
 
 func printProto(msg proto.Message) {
 	if msg == nil {

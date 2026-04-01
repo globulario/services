@@ -249,8 +249,6 @@ func registerConvergenceTools(s *server) {
 
 		var (
 			health rpcResult[*cluster_controllerpb.GetNodeHealthDetailV1Response]
-			plan   rpcResult[*cluster_controllerpb.GetNodePlanV1Response]
-			pstat  rpcResult[*node_agentpb.GetPlanStatusV1Response]
 			wg     sync.WaitGroup
 		)
 
@@ -271,39 +269,7 @@ func registerConvergenceTools(s *server) {
 			})
 		}()
 
-		// 2. Node plan
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			conn, err := s.clients.get(outerCtx, controllerEndpoint())
-			if err != nil {
-				plan.err = err
-				return
-			}
-			client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
-			callCtx, callCancel := context.WithTimeout(authCtx(outerCtx), 10*time.Second)
-			defer callCancel()
-			plan.resp, plan.err = client.GetNodePlanV1(callCtx, &cluster_controllerpb.GetNodePlanV1Request{
-				NodeId: nodeID,
-			})
-		}()
-
-		// 3. Plan execution status
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			conn, err := s.clients.get(outerCtx, nodeAgentEndpoint())
-			if err != nil {
-				pstat.err = err
-				return
-			}
-			client := node_agentpb.NewNodeAgentServiceClient(conn)
-			callCtx, callCancel := context.WithTimeout(authCtx(outerCtx), 10*time.Second)
-			defer callCancel()
-			pstat.resp, pstat.err = client.GetPlanStatusV1(callCtx, &node_agentpb.GetPlanStatusV1Request{
-				NodeId: nodeID,
-			})
-		}()
+		// Plan goroutines removed — plan system deleted.
 
 		wg.Wait()
 
@@ -341,64 +307,10 @@ func registerConvergenceTools(s *server) {
 			}
 		}
 
-		// Process plan
-		if plan.err != nil {
-			errors = append(errors, fmt.Sprintf("GetNodePlanV1: %v", plan.err))
-		} else if plan.resp != nil {
-			p := plan.resp.GetPlan()
-			if p == nil {
-				result["pending_plan"] = "none"
-			} else {
-				expired := false
-				if p.GetExpiresUnixMs() > 0 {
-					expiresAt := time.UnixMilli(int64(p.GetExpiresUnixMs()))
-					expired = time.Now().After(expiresAt)
-				}
-				result["pending_plan"] = map[string]interface{}{
-					"plan_id":      p.GetPlanId(),
-					"generation":   p.GetGeneration(),
-					"reason":       p.GetReason(),
-					"desired_hash": p.GetDesiredHash(),
-					"issued_by":    p.GetIssuedBy(),
-					"created_at":   fmtTime(int64(p.GetCreatedUnixMs())),
-					"expires_at":   fmtTime(int64(p.GetExpiresUnixMs())),
-					"expired":      expired,
-				}
-			}
-		}
-
-		// Process plan status
-		if pstat.err != nil {
-			errors = append(errors, fmt.Sprintf("GetPlanStatusV1: %v", pstat.err))
-		} else if pstat.resp != nil {
-			st := pstat.resp.GetStatus()
-			if st == nil {
-				result["execution"] = "no plan executed"
-			} else {
-				completedSteps := 0
-				totalSteps := len(st.GetSteps())
-				for _, step := range st.GetSteps() {
-					if step.GetState().String() == "STEP_SUCCEEDED" {
-						completedSteps++
-					}
-				}
-
-				result["execution"] = map[string]interface{}{
-					"plan_id":         st.GetPlanId(),
-					"state":           st.GetState().String(),
-					"current_step":    st.GetCurrentStepId(),
-					"completed_steps": completedSteps,
-					"total_steps":     totalSteps,
-					"error_message":   st.GetErrorMessage(),
-					"error_step_id":   st.GetErrorStepId(),
-					"started_at":      fmtTime(int64(st.GetStartedUnixMs())),
-					"finished_at":     fmtTime(int64(st.GetFinishedUnixMs())),
-				}
-			}
-		}
-
-		// Compute diagnosis
-		result["diagnosis"] = computeDiagnosis(result, health, plan, pstat)
+		// Plan processing removed — plan system deleted.
+		result["pending_plan"] = "plan system removed"
+		result["execution"] = "plan system removed"
+		result["diagnosis"] = computeDiagnosis(result, health)
 		result["errors"] = errors
 
 		return result, nil
@@ -520,75 +432,22 @@ type rpcResult[T any] struct {
 	err  error
 }
 
-func computeDiagnosis(_ map[string]interface{}, health rpcResult[*cluster_controllerpb.GetNodeHealthDetailV1Response], plan rpcResult[*cluster_controllerpb.GetNodePlanV1Response], pstat rpcResult[*node_agentpb.GetPlanStatusV1Response]) string {
-	// Check for errors first
-	if health.err != nil && plan.err != nil {
-		return "Cannot diagnose: both health and plan data unavailable. Check controller connectivity."
+func computeDiagnosis(_ map[string]interface{}, health rpcResult[*cluster_controllerpb.GetNodeHealthDetailV1Response]) string {
+	if health.err != nil {
+		return "Cannot diagnose: health data unavailable. Check controller connectivity."
 	}
-
-	// Check privilege
 	if health.resp != nil && !health.resp.GetCanApplyPrivileged() {
 		reason := health.resp.GetPrivilegeReason()
 		if reason == "" {
-			reason = "euid is not 0, no systemd write access, no sudo access"
+			reason = "euid is not 0, no systemd write access"
 		}
-		return fmt.Sprintf("BLOCKED: Node lacks privilege to apply plans. Reason: %s. The reconciler will skip this node until it has systemd access.", reason)
+		return fmt.Sprintf("BLOCKED: Node lacks privilege. Reason: %s.", reason)
 	}
-
-	// Check health
 	if health.resp != nil && health.resp.GetLastError() != "" {
-		return fmt.Sprintf("UNHEALTHY: Last error reported: %s. The reconciler may delay plan dispatch until the node is healthy.", health.resp.GetLastError())
+		return fmt.Sprintf("UNHEALTHY: %s", health.resp.GetLastError())
 	}
-
-	// Check plan existence
-	if plan.resp != nil && plan.resp.GetPlan() == nil {
-		if health.resp != nil && health.resp.GetHealthy() {
-			return "CONVERGED: No pending plan and node is healthy. The reconciler considers this node up-to-date."
-		}
-		return "NO PLAN: No convergence plan is pending for this node. The reconciler may not have generated one yet, or the node may already be converged."
+	if health.resp != nil && health.resp.GetHealthy() {
+		return "CONVERGED: Node is healthy. Workflow-native release pipeline handles convergence."
 	}
-
-	// Check plan expiry
-	if plan.resp != nil && plan.resp.GetPlan() != nil {
-		p := plan.resp.GetPlan()
-		if p.GetExpiresUnixMs() > 0 {
-			expiresAt := time.UnixMilli(int64(p.GetExpiresUnixMs()))
-			if time.Now().After(expiresAt) {
-				return fmt.Sprintf("EXPIRED: Plan %s expired at %s. The reconciler should issue a new plan on the next cycle.", p.GetPlanId(), fmtTime(int64(p.GetExpiresUnixMs())))
-			}
-		}
-	}
-
-	// Check execution status
-	if pstat.resp != nil && pstat.resp.GetStatus() != nil {
-		st := pstat.resp.GetStatus()
-		state := st.GetState().String()
-
-		switch {
-		case state == "PLAN_RUNNING" || state == "PLAN_PENDING":
-			step := st.GetCurrentStepId()
-			if step == "" {
-				step = "unknown"
-			}
-			return fmt.Sprintf("IN PROGRESS: Plan %s is %s, currently at step '%s'.", st.GetPlanId(), state, step)
-
-		case state == "PLAN_FAILED":
-			errMsg := st.GetErrorMessage()
-			errStep := st.GetErrorStepId()
-			if errStep != "" {
-				return fmt.Sprintf("FAILED: Plan %s failed at step '%s': %s. The reconciler will retry on the next cycle.", st.GetPlanId(), errStep, errMsg)
-			}
-			return fmt.Sprintf("FAILED: Plan %s failed: %s. The reconciler will retry on the next cycle.", st.GetPlanId(), errMsg)
-
-		case state == "PLAN_SUCCEEDED":
-			return fmt.Sprintf("COMPLETED: Plan %s succeeded at %s. If hashes still mismatch, the health report may not have refreshed yet.", st.GetPlanId(), fmtTime(int64(st.GetFinishedUnixMs())))
-		}
-	}
-
-	// Plan exists but no execution status
-	if plan.resp != nil && plan.resp.GetPlan() != nil {
-		return fmt.Sprintf("PENDING: Plan %s is pending but has not started executing. The node agent may not have picked it up yet.", plan.resp.GetPlan().GetPlanId())
-	}
-
-	return "UNKNOWN: Insufficient data to determine convergence state."
+	return "UNKNOWN: Insufficient data."
 }

@@ -484,7 +484,7 @@ func (srv *server) drainNode(ctx context.Context, node *nodeState, opID string) 
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, cluster_controllerpb.OperationPhase_OP_RUNNING, "draining node services", 10, false, ""))
 
 	// Build a plan with stop actions for all services
-	plan := &cluster_controllerpb.NodePlan{
+	plan := &NodeUnitPlan{
 		NodeId:   node.NodeID,
 		Profiles: node.Profiles,
 	}
@@ -524,16 +524,9 @@ func (srv *server) drainNode(ctx context.Context, node *nodeState, opID string) 
 		return nil // Nothing to drain
 	}
 
-	client, err := srv.getAgentClient(ctx, node.AgentEndpoint)
-	if err != nil {
-		return fmt.Errorf("connect to agent: %w", err)
-	}
-
-	if err := client.ApplyPlan(ctx, plan, opID); err != nil {
-		return fmt.Errorf("apply drain plan: %w", err)
-	}
-
-	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, cluster_controllerpb.OperationPhase_OP_RUNNING, "drain plan sent", 50, false, ""))
-
+	// Plan dispatch removed — drain should use workflow-native path.
+	log.Printf("drain: plan dispatch skipped for node %s (plan system removed)", node.NodeID)
+	_ = plan
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, cluster_controllerpb.OperationPhase_OP_RUNNING, "drain skipped (plan removed)", 50, false, ""))
 	return nil
 }

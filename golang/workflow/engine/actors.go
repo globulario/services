@@ -494,6 +494,9 @@ type ReleaseControllerConfig struct {
 	ReconcileUntilStable     func(ctx context.Context, clusterID string) error
 	EmitBootstrapSucceeded   func(ctx context.Context, clusterID string) error
 
+	// Generic package target selection (release.apply.package)
+	SelectPackageTargets func(ctx context.Context, candidateNodes []any, pkgName, pkgKind, desiredHash string) ([]any, error)
+
 	// Direct-apply infrastructure release (replaces plan-based path)
 	SelectInfraTargets   func(ctx context.Context, candidateNodes []any, pkgName, desiredHash string) ([]any, error)
 	FinalizeNoop         func(ctx context.Context, releaseID string) error
@@ -517,6 +520,9 @@ func RegisterReleaseControllerActions(router *Router, cfg ReleaseControllerConfi
 	router.Register(v1alpha1.ActorClusterController, "controller.seed_desired_from_installed", controllerSeedDesired(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile_until_stable", controllerReconcileUntilStable(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.emit_cluster_bootstrap_succeeded", controllerEmitBootstrapSucceeded(cfg))
+
+	// Generic package target selection
+	router.Register(v1alpha1.ActorClusterController, "controller.release.select_package_targets", releaseSelectPackageTargets(cfg))
 
 	// Direct-apply infrastructure release actions
 	router.Register(v1alpha1.ActorClusterController, "controller.release.select_infrastructure_targets", releaseSelectTargets(cfg))
@@ -642,6 +648,34 @@ func releaseSelectTargets(cfg ReleaseControllerConfig) ActionHandler {
 	}
 }
 
+func releaseSelectPackageTargets(cfg ReleaseControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		candidates, _ := req.With["candidate_nodes"].([]any)
+		pkgName := fmt.Sprint(req.With["package_name"])
+		pkgKind := fmt.Sprint(req.With["package_kind"])
+		desiredHash := fmt.Sprint(req.With["desired_hash"])
+		var targets []any
+		if cfg.SelectPackageTargets != nil {
+			var err error
+			targets, err = cfg.SelectPackageTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
+			if err != nil {
+				return nil, fmt.Errorf("select package targets: %w", err)
+			}
+		} else if cfg.SelectInfraTargets != nil {
+			// Fall back to infra selector if no package-specific one.
+			var err error
+			targets, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
+			if err != nil {
+				return nil, fmt.Errorf("select targets: %w", err)
+			}
+		} else {
+			targets = candidates
+		}
+		req.Outputs["selected_targets"] = targets
+		return &ActionResult{OK: true, Output: map[string]any{"count": len(targets)}}, nil
+	}
+}
+
 func releaseFinalizeNoop(cfg ReleaseControllerConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		releaseID := fmt.Sprint(req.Inputs["release_id"])
@@ -740,8 +774,15 @@ type NodeDirectApplyConfig struct {
 	InstallPackage         func(ctx context.Context, name, version, kind string) error
 	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	RestartPackageService  func(ctx context.Context, name string) error
+	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
 	VerifyPackageRuntime   func(ctx context.Context, name, healthCheck string) error
 	SyncInstalledPackage   func(ctx context.Context, name, version, hash string) error
+
+	// Removal actions (release.remove.package workflow)
+	StopPackageService        func(ctx context.Context, name string) error
+	DisablePackageService     func(ctx context.Context, name string) error
+	UninstallPackage          func(ctx context.Context, name, kind string) error
+	ClearInstalledPackageState func(ctx context.Context, name, kind string) error
 }
 
 // RegisterNodeDirectApplyActions registers direct package operation handlers.
@@ -749,12 +790,61 @@ func RegisterNodeDirectApplyActions(router *Router, cfg NodeDirectApplyConfig) {
 	router.Register(v1alpha1.ActorNodeAgent, "node.install_package", nodeInstallPackage(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.verify_package_installed", nodeVerifyPackage(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.restart_package_service", nodeRestartService(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.maybe_restart_package", nodeMaybeRestartPackage(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.verify_package_runtime", nodeVerifyRuntime(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_package_state", nodeSyncPackageState(cfg))
+
+	// Removal actions
+	router.Register(v1alpha1.ActorNodeAgent, "node.stop_package_service", nodeStopPackageService(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.disable_package_service", nodeDisablePackageService(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.uninstall_package", nodeUninstallPackage(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.clear_installed_package_state", nodeClearInstalledPackageState(cfg))
+}
+
+// nodeContextKey is the context key for per-node metadata (node_id, agent_endpoint).
+type nodeContextKey struct{}
+
+// NodeContext carries per-node metadata through action handler contexts.
+type NodeContext struct {
+	NodeID        string
+	AgentEndpoint string
+}
+
+// WithNodeContext attaches node metadata to a context.
+func WithNodeContext(ctx context.Context, nc NodeContext) context.Context {
+	return context.WithValue(ctx, nodeContextKey{}, nc)
+}
+
+// GetNodeContext extracts node metadata from a context.
+func GetNodeContext(ctx context.Context) (NodeContext, bool) {
+	nc, ok := ctx.Value(nodeContextKey{}).(NodeContext)
+	return nc, ok
+}
+
+// enrichNodeContext extracts node_id and agent_endpoint from the action
+// request and attaches them to the context for callbacks.
+func enrichNodeContext(ctx context.Context, req ActionRequest) context.Context {
+	nodeID := ""
+	endpoint := ""
+	// Try With first (explicit step params), then Inputs (foreach item).
+	if v, ok := req.With["node_id"]; ok {
+		nodeID = fmt.Sprint(v)
+	} else if v, ok := req.Inputs["node_id"]; ok {
+		nodeID = fmt.Sprint(v)
+	}
+	if v, ok := req.With["agent_endpoint"]; ok {
+		endpoint = fmt.Sprint(v)
+	} else if v, ok := req.Inputs["agent_endpoint"]; ok {
+		endpoint = fmt.Sprint(v)
+	} else if v, ok := req.Inputs["target.agent_endpoint"]; ok {
+		endpoint = fmt.Sprint(v)
+	}
+	return WithNodeContext(ctx, NodeContext{NodeID: nodeID, AgentEndpoint: endpoint})
 }
 
 func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
 		kind := fmt.Sprint(req.With["kind"])
@@ -769,6 +859,7 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 
 func nodeVerifyPackage(cfg NodeDirectApplyConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
 		hash := fmt.Sprint(req.With["desired_hash"])
@@ -783,6 +874,7 @@ func nodeVerifyPackage(cfg NodeDirectApplyConfig) ActionHandler {
 
 func nodeRestartService(cfg NodeDirectApplyConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		if cfg.RestartPackageService != nil {
 			if err := cfg.RestartPackageService(ctx, name); err != nil {
@@ -793,8 +885,32 @@ func nodeRestartService(cfg NodeDirectApplyConfig) ActionHandler {
 	}
 }
 
+func nodeMaybeRestartPackage(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
+		name := fmt.Sprint(req.With["package_name"])
+		kind := fmt.Sprint(req.With["package_kind"])
+		policy := fmt.Sprint(req.With["restart_policy"])
+		if cfg.MaybeRestartPackage != nil {
+			if err := cfg.MaybeRestartPackage(ctx, name, kind, policy); err != nil {
+				return nil, fmt.Errorf("maybe restart %s: %w", name, err)
+			}
+		} else if cfg.RestartPackageService != nil {
+			// Fall back to unconditional restart for INFRASTRUCTURE/SERVICE kinds.
+			if kind == "COMMAND" {
+				return &ActionResult{OK: true, Message: "skip restart for COMMAND"}, nil
+			}
+			if err := cfg.RestartPackageService(ctx, name); err != nil {
+				return nil, fmt.Errorf("restart %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
 func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		check := fmt.Sprint(req.With["health_check"])
 		if cfg.VerifyPackageRuntime != nil {
@@ -808,6 +924,7 @@ func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 
 func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
 		hash := fmt.Sprint(req.With["desired_hash"])
@@ -817,6 +934,64 @@ func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 			}
 		}
 		return &ActionResult{OK: true, Output: map[string]any{"synced": true}}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Package removal actions (release.remove.package workflow)
+// --------------------------------------------------------------------------
+
+func nodeStopPackageService(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
+		name := fmt.Sprint(req.With["package_name"])
+		if cfg.StopPackageService != nil {
+			if err := cfg.StopPackageService(ctx, name); err != nil {
+				return nil, fmt.Errorf("stop %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeDisablePackageService(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
+		name := fmt.Sprint(req.With["package_name"])
+		if cfg.DisablePackageService != nil {
+			if err := cfg.DisablePackageService(ctx, name); err != nil {
+				return nil, fmt.Errorf("disable %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeUninstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
+		name := fmt.Sprint(req.With["package_name"])
+		kind := fmt.Sprint(req.With["package_kind"])
+		if cfg.UninstallPackage != nil {
+			if err := cfg.UninstallPackage(ctx, name, kind); err != nil {
+				return nil, fmt.Errorf("uninstall %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeClearInstalledPackageState(cfg NodeDirectApplyConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		ctx = enrichNodeContext(ctx, req)
+		name := fmt.Sprint(req.With["package_name"])
+		kind := fmt.Sprint(req.With["package_kind"])
+		if cfg.ClearInstalledPackageState != nil {
+			if err := cfg.ClearInstalledPackageState(ctx, name, kind); err != nil {
+				return nil, fmt.Errorf("clear state %s: %w", name, err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
 	}
 }
 

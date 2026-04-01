@@ -1,0 +1,121 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: release.remove.package
+  displayName: Remove package release
+  description: >-
+    Uninstall a package from all target nodes. Stops the service, disables
+    the unit, removes binaries, and clears installed-state registry entries.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - release_id
+      - package_name
+      - package_kind
+      - candidate_nodes
+    properties:
+      cluster_id: { type: string }
+      release_id: { type: string }
+      package_name: { type: string }
+      package_kind: { type: string }
+      candidate_nodes:
+        type: array
+        items: { type: string }
+  defaults: {}
+  strategy:
+    mode: single
+  steps:
+    - id: mark_removing
+      title: Mark release removing
+      actor: cluster-controller
+      action: controller.release.mark_applying
+
+    - id: select_targets
+      title: Select nodes with this package installed
+      dependsOn: [mark_removing]
+      actor: cluster-controller
+      action: controller.release.select_package_targets
+      with:
+        candidate_nodes: $.candidate_nodes
+        package_name: $.package_name
+        package_kind: $.package_kind
+        desired_hash: ""
+      # Handler writes selected_targets directly to run outputs.
+
+    - id: short_circuit_if_no_targets
+      title: Finalize immediately when no nodes have the package
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) == 0
+      actor: cluster-controller
+      action: controller.release.finalize_noop
+      with:
+        status: REMOVED
+
+    - id: remove_per_node
+      title: Remove package from each target node
+      dependsOn: [select_targets]
+      when:
+        expr: len(selected_targets) > 0
+      foreach: $.selected_targets
+      itemName: target
+      steps:
+        - id: stop_service
+          title: Stop service
+          actor: node-agent
+          action: node.stop_package_service
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+
+        - id: disable_service
+          title: Disable service
+          dependsOn: [stop_service]
+          actor: node-agent
+          action: node.disable_package_service
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+
+        - id: uninstall_package
+          title: Remove package files
+          dependsOn: [disable_service]
+          actor: node-agent
+          action: node.uninstall_package
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            package_kind: $.package_kind
+
+        - id: clear_installed_state
+          title: Clear installed-state registry
+          dependsOn: [uninstall_package]
+          actor: node-agent
+          action: node.clear_installed_package_state
+          with:
+            node_id: $.target.node_id
+            package_name: $.package_name
+            package_kind: $.package_kind
+
+      onFailure:
+        actor: cluster-controller
+        action: controller.release.mark_node_failed
+        with:
+          node_id: $.target.node_id
+          package_name: $.package_name
+
+    - id: finalize_removal
+      title: Finalize removal
+      dependsOn: [remove_per_node]
+      when:
+        expr: len(selected_targets) > 0
+      actor: cluster-controller
+      action: controller.release.finalize_direct_apply
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.release.mark_failed
+    with:
+      reason: removal_workflow_failed

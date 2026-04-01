@@ -7,7 +7,7 @@ import (
 	"time"
 
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"

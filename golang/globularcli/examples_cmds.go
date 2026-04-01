@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
-	"github.com/globulario/services/golang/plan/planpb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -428,95 +427,12 @@ func getFirstNodeID(ctx context.Context) (string, error) {
 	return resp.GetNodes()[0].GetNodeId(), nil
 }
 
-func createServiceInstallPlan(nodeID, serviceType, packagePath string) (*planpb.NodePlan, error) {
-	// Create a simple plan to install the service
-	// This is a minimal implementation - in production you'd use proper package management
-
-	unitName := fmt.Sprintf("globular-%s.service", serviceType)
-
-	steps := []*planpb.PlanStep{
-		{
-			Id:     "fetch-artifact",
-			Action: "artifact.fetch",
-			Args: structpbFromMap(map[string]interface{}{
-				"source":        packagePath,
-				"artifact_path": fmt.Sprintf("/var/lib/globular/artifacts/%s.tgz", serviceType),
-				"service":       serviceType,
-				"version":       "latest",
-				"platform":      "linux_amd64",
-			}),
-		},
-		{
-			Id:     "install-payload",
-			Action: "service.install_payload",
-			Args: structpbFromMap(map[string]interface{}{
-				"service":       serviceType,
-				"artifact_path": fmt.Sprintf("/var/lib/globular/artifacts/%s.tgz", serviceType),
-				"version":       "latest",
-			}),
-		},
-		{
-			Id:     "start-service",
-			Action: "service.start",
-			Args: structpbFromMap(map[string]interface{}{
-				"unit": unitName,
-			}),
-		},
-	}
-
-	plan := &planpb.NodePlan{
-		ApiVersion: "globular.io/v1",
-		Kind:       "NodePlan",
-		NodeId:     nodeID,
-		PlanId:     fmt.Sprintf("install-%s-%d", serviceType, time.Now().Unix()),
-		Generation: 1,
-		Spec: &planpb.PlanSpec{
-			Steps: steps,
-		},
-	}
-
-	return plan, nil
+func createServiceInstallPlan(nodeID, serviceType, packagePath string) (interface{}, error) {
+	return nil, fmt.Errorf("plan system removed")
 }
 
-func applyServicePlan(ctx context.Context, nodeID string, plan *planpb.NodePlan) error {
-	// Submit the plan to cluster controller for execution
-	if plan == nil || plan.NodeId == "" {
-		return fmt.Errorf("invalid plan")
-	}
-
-	// Validate node_id matches
-	if plan.NodeId != nodeID {
-		return fmt.Errorf("plan node_id %s does not match requested node_id %s", plan.NodeId, nodeID)
-	}
-
-	cc, err := controllerClient()
-	if err != nil {
-		return fmt.Errorf("connect to controller: %w", err)
-	}
-	defer cc.Close()
-
-	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-
-	// Apply the plan via controller V1 API (sends actual plan)
-	resp, err := client.ApplyNodePlanV1(ctx, &cluster_controllerpb.ApplyNodePlanV1Request{
-		NodeId: nodeID,
-		Plan:   plan,
-	})
-	if err != nil {
-		return fmt.Errorf("apply plan: %w", err)
-	}
-
-	operationID := resp.GetOperationId()
-	if operationID == "" {
-		return fmt.Errorf("no operation ID returned from plan application")
-	}
-
-	// Wait for plan execution to complete
-	if err := waitForOperationCompletion(ctx, client, nodeID, operationID); err != nil {
-		return fmt.Errorf("plan execution failed: %w", err)
-	}
-
-	return nil
+func applyServicePlan(ctx context.Context, nodeID string, plan interface{}) error {
+	return fmt.Errorf("plan system removed")
 }
 
 func waitForOperationCompletion(ctx context.Context, client cluster_controllerpb.ClusterControllerServiceClient, nodeID, operationID string) error {
@@ -694,15 +610,13 @@ func signalGatewayReload(ctx context.Context) error {
 		return fmt.Errorf("no nodes available")
 	}
 
-	nodeID := nodesResp.GetNodes()[0].GetNodeId()
+	_ = nodesResp.GetNodes()[0].GetNodeId()
 
 	// For now, we rely on services picking up route config changes on restart
 	// In production, this would be handled via xds push or service reload signals
 	// We'll trigger a reconciliation which will restart services if needed
 
-	_, err = client.ReconcileNodeV1(ctx, &cluster_controllerpb.ReconcileNodeV1Request{
-		NodeId: nodeID,
-	})
+	err = fmt.Errorf("ReconcileNodeV1 removed")
 	if err != nil {
 		return fmt.Errorf("reconcile node for route reload: %w", err)
 	}
@@ -975,36 +889,17 @@ func stopService(ctx context.Context, unitName string) error {
 		return fmt.Errorf("no nodes available")
 	}
 
-	nodeID := nodesResp.GetNodes()[0].GetNodeId()
+	_ = nodesResp.GetNodes()[0].GetNodeId()
 
 	// Create stop plan
-	stopPlan := &planpb.NodePlan{
-		ApiVersion: "globular.io/v1",
-		Kind:       "NodePlan",
-		NodeId:     nodeID,
-		PlanId:     fmt.Sprintf("stop-%s-%d", unitName, time.Now().Unix()),
-		Generation: 1,
-		Spec: &planpb.PlanSpec{
-			Steps: []*planpb.PlanStep{
-				{
-					Id:     "stop-service",
-					Action: "service.stop",
-					Args: structpbFromMap(map[string]interface{}{
-						"unit": unitName,
-					}),
-				},
-			},
-		},
-	}
+	// stopPlan removed — plan system deleted
 
 	// Note: ApplyNodePlan expects the plan to be stored/managed by controller
 	// For now, we'll use a simplified approach - just trigger reconciliation
 	// which should handle service state
-	_ = stopPlan // Keep for reference, but use reconcile instead
+	
 
-	_, err = client.ReconcileNodeV1(ctx, &cluster_controllerpb.ReconcileNodeV1Request{
-		NodeId: nodeID,
-	})
+	err = fmt.Errorf("ReconcileNodeV1 removed")
 	return err
 }
 

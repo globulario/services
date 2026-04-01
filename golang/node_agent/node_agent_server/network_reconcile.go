@@ -17,134 +17,10 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *cluster_controllerpb.NodePlan, op *operation, generation uint64, desiredDomain string, networkChanged bool) error {
-	if plan == nil {
-		return nil
-	}
-	spec, err := specFromPlan(plan)
-	if err != nil {
-		return fmt.Errorf("parse desired spec: %w", err)
-	}
-	if desiredDomain == "" && spec != nil {
-		desiredDomain = strings.TrimSpace(spec.GetClusterDomain())
-	}
-	if desiredDomain == "" {
-		return fmt.Errorf("objectstore layout enforcement requires cluster domain, but none was found in reconcile")
-	}
-	if spec != nil && strings.EqualFold(spec.GetProtocol(), "https") && strings.TrimSpace(spec.GetClusterDomain()) == "" {
-		return fmt.Errorf("cluster_domain is required when protocol=https")
-	}
-
-	if spec != nil && strings.TrimSpace(spec.GetClusterDomain()) == "" {
-		return fmt.Errorf("cluster domain required for reconcile")
-	}
-
-	shouldSyncDNS := networkChanged
-	if spec != nil {
-		if strings.TrimSpace(spec.GetClusterDomain()) != strings.TrimSpace(srv.state.ClusterDomain) {
-			shouldSyncDNS = true
-		}
-		if strings.ToLower(strings.TrimSpace(spec.GetProtocol())) != strings.ToLower(strings.TrimSpace(srv.state.Protocol)) {
-			shouldSyncDNS = true
-		}
-	}
-
-	if shouldSyncDNS {
-		syncFn := srv.syncDNS
-		if srv.syncDNSHook != nil {
-			syncFn = srv.syncDNSHook
-		}
-		if err := syncFn(spec); err != nil {
-			return fmt.Errorf("sync dns: %w", err)
-		}
-		waitFn := srv.waitForDNSAuthoritative
-		if srv.waitDNSHook != nil {
-			waitFn = srv.waitDNSHook
-		}
-		if err := waitFn(ctx, spec); err != nil {
-			return fmt.Errorf("dns readiness: %w", err)
-		}
-		srv.state.ClusterDomain = spec.GetClusterDomain()
-		srv.state.Protocol = spec.GetProtocol()
-		if generation != 0 {
-			srv.lastNetworkGeneration = generation
-			srv.state.NetworkGeneration = generation
-		}
-		if err := srv.saveState(); err != nil {
-			log.Printf("nodeagent: save state after dns sync: %v", err)
-		}
-	}
-
-	if spec != nil && strings.EqualFold(spec.GetProtocol(), "https") {
-		if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
-			return fmt.Errorf("admin_email is required for ACME")
-		}
-		if spec.GetAcmeEnabled() {
-			if err := srv.acmeDNSPreflight(ctx, spec); err != nil {
-				return fmt.Errorf("acme preflight: %w", err)
-			}
-		}
-		certFn := srv.ensureNetworkCerts
-		if srv.ensureCertsHook != nil {
-			certFn = srv.ensureCertsHook
-		}
-		if err := certFn(spec); err != nil {
-			return fmt.Errorf("ensure network certs: %w", err)
-		}
-	}
-
-	units := orderRestartUnits(parseRestartUnits(plan))
-	if len(units) > 0 {
-		restartFn := srv.performRestartUnits
-		if srv.restartHook != nil {
-			restartFn = srv.restartHook
-		}
-		if err := restartFn(units, op); err != nil {
-			return fmt.Errorf("restart units: %w", err)
-		}
-	}
-
-	if spec != nil {
-		checkFn := runConvergenceChecks
-		if srv.healthCheckHook != nil {
-			checkFn = srv.healthCheckHook
-		}
-		if err := checkFn(ctx, spec); err != nil {
-			return fmt.Errorf("convergence checks failed: %w", err)
-		}
-	}
-
-	if spec != nil && strings.TrimSpace(spec.ClusterDomain) != "" {
-		srv.lastSpec = proto.Clone(spec).(*cluster_controllerpb.ClusterNetworkSpec)
-		if strings.TrimSpace(spec.GetClusterDomain()) != "" {
-			srv.state.ClusterDomain = spec.GetClusterDomain()
-		}
-		if strings.TrimSpace(spec.GetProtocol()) != "" {
-			srv.state.Protocol = spec.GetProtocol()
-		}
-		layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		defer cancel()
-		log.Printf("Invoking ensure_objectstore_layout (network reconcile, domain=%s)", spec.ClusterDomain)
-		ensureFn := srv.ensureObjectstoreLayout
-		if srv.objectstoreLayoutHook != nil {
-			ensureFn = func(c context.Context, d string) error {
-				return srv.objectstoreLayoutHook(c, d)
-			}
-		}
-		if err := ensureFn(layoutCtx, spec.ClusterDomain); err != nil {
-			return fmt.Errorf("ensure objectstore layout: %w", err)
-		}
-		if err := srv.saveState(); err != nil {
-			log.Printf("nodeagent: save state after reconcile: %v", err)
-		}
-	}
-	return nil
-}
+// deleted: plan-era function removed
 
 func (srv *NodeAgentServer) acmeDNSPreflight(ctx context.Context, spec *cluster_controllerpb.ClusterNetworkSpec) error {
 	if spec == nil || !strings.EqualFold(spec.GetProtocol(), "https") || !spec.GetAcmeEnabled() {
@@ -239,42 +115,7 @@ func (srv *NodeAgentServer) waitForDNSAuthoritative(ctx context.Context, spec *c
 	}
 }
 
-func (srv *NodeAgentServer) applyRenderedConfig(plan *cluster_controllerpb.NodePlan) (bool, error) {
-	if plan == nil {
-		return false, nil
-	}
-	rendered := plan.GetRenderedConfig()
-	if len(rendered) == 0 {
-		return false, nil
-	}
-	networkChanged := false
-	for target, value := range rendered {
-		if target == "" {
-			continue
-		}
-		switch target {
-		case "cluster.network.spec.json":
-			if err := srv.writeNetworkSpecSnapshot(value); err != nil {
-				return false, fmt.Errorf("write network spec snapshot: %w", err)
-			}
-			networkChanged = true
-		case "/var/lib/globular/network.json":
-			if err := srv.applyNetworkOverlay(target, value); err != nil {
-				return false, fmt.Errorf("apply network overlay: %w", err)
-			}
-			networkChanged = true
-		default:
-			if !isAllowedRenderTarget(target) {
-				log.Printf("nodeagent: render target %s not allowed; skipping", target)
-				continue
-			}
-			if err := writeAtomicFile(target, []byte(value), 0o644); err != nil {
-				return false, fmt.Errorf("write rendered config %s: %w", target, err)
-			}
-		}
-	}
-	return networkChanged, nil
-}
+// deleted: plan-era function removed
 
 func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain string) error {
 	log.Printf("==== ensureObjectstoreLayout CALLED ====")
@@ -411,36 +252,9 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 	return writeAtomicFile(path, []byte(data), 0o600)
 }
 
-func specFromPlan(plan *cluster_controllerpb.NodePlan) (*cluster_controllerpb.ClusterNetworkSpec, error) {
-	if plan == nil {
-		return nil, nil
-	}
-	data := strings.TrimSpace(plan.GetRenderedConfig()["cluster.network.spec.json"])
-	if data == "" {
-		return nil, nil
-	}
-	spec := &cluster_controllerpb.ClusterNetworkSpec{}
-	if err := protojson.Unmarshal([]byte(data), spec); err != nil {
-		return nil, err
-	}
-	return spec, nil
-}
+// deleted: plan-era function removed
 
-func parseRestartUnits(plan *cluster_controllerpb.NodePlan) []string {
-	if plan == nil {
-		return nil
-	}
-	data := strings.TrimSpace(plan.GetRenderedConfig()["reconcile.restart_units"])
-	if data == "" {
-		return nil
-	}
-	var units []string
-	if err := json.Unmarshal([]byte(data), &units); err != nil {
-		log.Printf("nodeagent: invalid restart unit list: %v", err)
-		return nil
-	}
-	return units
-}
+// deleted: plan-era function removed
 
 func orderRestartUnits(units []string) []string {
 	priority := map[string]int{
@@ -539,20 +353,7 @@ func resolveUnits(units []string, exists func(string) bool) []string {
 	return orderRestartUnits(resolved)
 }
 
-func networkGenerationFromPlan(plan *cluster_controllerpb.NodePlan) uint64 {
-	if plan == nil {
-		return 0
-	}
-	data := strings.TrimSpace(plan.GetRenderedConfig()["cluster.network.generation"])
-	if data == "" {
-		return 0
-	}
-	gen, err := strconv.ParseUint(data, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return gen
-}
+// deleted: plan-era function removed
 
 func (srv *NodeAgentServer) applyNetworkOverlay(target, data string) error {
 	if strings.TrimSpace(data) == "" {

@@ -5,12 +5,30 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/planner"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
 
+// Operation represents a systemd unit action.
+type Operation string
+
+const (
+	OpStart   Operation = "start"
+	OpStop    Operation = "stop"
+	OpRestart Operation = "restart"
+	OpEnable  Operation = "enable"
+	OpDisable Operation = "disable"
+)
+
+// Action describes a single unit operation to execute.
+type Action struct {
+	Unit         string
+	Op           Operation
+	Wait         bool
+	WaitDuration time.Duration
+}
+
 // ApplyActions runs each action sequentially via the supervisor.
-func ApplyActions(ctx context.Context, actions []planner.Action, before func(planner.Action)) error {
+func ApplyActions(ctx context.Context, actions []Action, before func(Action)) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -20,15 +38,15 @@ func ApplyActions(ctx context.Context, actions []planner.Action, before func(pla
 		}
 		var err error
 		switch act.Op {
-		case planner.OpStart:
+		case OpStart:
 			err = supervisor.Start(ctx, act.Unit)
-		case planner.OpStop:
+		case OpStop:
 			err = supervisor.Stop(ctx, act.Unit)
-		case planner.OpRestart:
+		case OpRestart:
 			err = supervisor.Restart(ctx, act.Unit)
-		case planner.OpEnable:
+		case OpEnable:
 			err = supervisor.Enable(ctx, act.Unit)
-		case planner.OpDisable:
+		case OpDisable:
 			err = supervisor.Disable(ctx, act.Unit)
 		default:
 			continue

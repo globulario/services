@@ -17,7 +17,6 @@ func NewRegistry(cfg Config) *Registry {
 		// Implementable invariants (available RPC data)
 		nodeReachable{},
 		nodeInventoryComplete{},
-		nodePlanSuccess{},
 		nodeUnitFilesPresent{},
 		nodeUnitsRunning{},
 		clusterServicesDrift{},
@@ -34,7 +33,6 @@ func NewRegistry(cfg Config) *Registry {
 		// Day 1 join failure diagnostics
 		etcdStaleMember{},
 		serviceRegistrationGap{},
-		planStuckTerminal{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)
@@ -61,8 +59,6 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 		DataErrors:     snap.DataErrors,
 		NodeHealths:    snap.NodeHealths,
 		Inventories:    snap.Inventories,
-		PlanStatuses:   snap.PlanStatuses,
-		NodePlans:      snap.NodePlans,
 	}
 	// Filter Nodes to just the requested one.
 	for _, n := range snap.Nodes {

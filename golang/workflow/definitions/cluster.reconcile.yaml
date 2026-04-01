@@ -1,0 +1,144 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: cluster.reconcile
+  displayName: Cluster reconcile
+  description: >-
+    Continuous cluster drift detection and remediation dispatch. Replaces hidden
+    reconcile-loop branching with an explicit workflow that detects drift,
+    classifies it, selects the correct remediation workflow, and records the
+    decision path.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+    properties:
+      cluster_id: { type: string }
+      scope: { type: string, default: cluster }
+      max_remediations: { type: integer, default: 50 }
+      include_nodes:
+        type: array
+        items: { type: string }
+      drift_scan_timeout: { type: string, default: 2m }
+      remediation_parallelism: { type: integer, default: 4 }
+  defaults:
+    scope: cluster
+    max_remediations: 50
+    drift_scan_timeout: 2m
+    remediation_parallelism: 4
+  strategy:
+    mode: single
+  steps:
+    - id: scan_drift
+      title: Scan cluster drift
+      actor: cluster-controller
+      action: controller.reconcile.scan_drift
+      with:
+        cluster_id: $.cluster_id
+        scope: $.scope
+        include_nodes: $.include_nodes
+      timeout: $.drift_scan_timeout
+      # Handler writes drift_report directly to run outputs.
+
+    - id: classify_drift
+      title: Classify drift items
+      dependsOn: [scan_drift]
+      actor: cluster-controller
+      action: controller.reconcile.classify_drift
+      with:
+        drift_report: $.drift_report
+        max_remediations: $.max_remediations
+      # Handler writes remediation_items directly to run outputs.
+
+    - id: short_circuit_clean
+      title: Finish when no remediation is needed
+      dependsOn: [classify_drift]
+      when:
+        expr: len(remediation_items) == 0
+      actor: cluster-controller
+      action: controller.reconcile.finalize_clean
+
+    - id: dispatch_remediations
+      title: Dispatch remediation workflows
+      dependsOn: [classify_drift]
+      when:
+        expr: len(remediation_items) > 0
+      foreach: $.remediation_items
+      itemName: item
+      strategy:
+        mode: parallel
+        concurrency: $.remediation_parallelism
+      steps:
+        - id: mark_item_started
+          title: Mark remediation item started
+          actor: cluster-controller
+          action: controller.reconcile.mark_item_started
+          with:
+            item: $.item
+
+        - id: choose_workflow
+          title: Choose remediation workflow
+          dependsOn: [mark_item_started]
+          actor: cluster-controller
+          action: controller.reconcile.choose_workflow
+          with:
+            item: $.item
+          # Handler writes workflow_choice directly to run outputs.
+
+        - id: launch_remediation
+          title: Launch selected remediation workflow
+          dependsOn: [choose_workflow]
+          actor: workflow-service
+          action: workflow.start_child
+          with:
+            workflow_name: $.workflow_choice.workflow_name
+            inputs: $.workflow_choice.inputs
+          # Handler writes child_run directly to run outputs.
+
+        - id: wait_child_terminal
+          title: Wait for child remediation run
+          dependsOn: [launch_remediation]
+          actor: workflow-service
+          action: workflow.wait_child_terminal
+          with:
+            child_run_id: $.child_run.run_id
+          # Handler writes child_result directly to run outputs.
+
+        - id: mark_item_terminal
+          title: Persist remediation item terminal state
+          dependsOn: [wait_child_terminal]
+          actor: cluster-controller
+          action: controller.reconcile.mark_item_terminal
+          with:
+            item: $.item
+            child_result: $.child_result
+
+      onFailure:
+        actor: cluster-controller
+        action: controller.reconcile.mark_item_failed
+        with:
+          item: $.item
+
+    - id: aggregate_remediation
+      title: Aggregate remediation outcomes
+      dependsOn: [dispatch_remediations]
+      actor: cluster-controller
+      action: controller.reconcile.aggregate_results
+      export: aggregate
+
+    - id: finalize_reconcile
+      title: Finalize reconcile pass
+      dependsOn: [aggregate_remediation]
+      actor: cluster-controller
+      action: controller.reconcile.finalize
+      with:
+        aggregate: $.aggregate
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.reconcile.mark_failed
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.reconcile.emit_completed

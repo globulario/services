@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

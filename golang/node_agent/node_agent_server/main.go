@@ -21,7 +21,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	planstore "github.com/globulario/services/golang/plan/store"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -43,11 +42,7 @@ func main() {
 	}
 	srv := NewNodeAgentServer(statePath, state)
 	srv.SetEtcdMode(*etcdModeFlag)
-	if etcdClient, err := config.GetEtcdClient(); err == nil {
-		srv.SetPlanStore(planstore.NewEtcdPlanStore(etcdClient))
-	} else {
-		log.Printf("plan store unavailable: %v", err)
-	}
+	// Plan store removed — workflows handle all execution.
 	if planPath := strings.TrimSpace(*bootstrapPlanFlag); planPath != "" {
 		if plan, err := loadBootstrapPlan(planPath); err != nil {
 			log.Printf("unable to load bootstrap plan %s: %v", planPath, err)
@@ -133,7 +128,7 @@ func main() {
 	srv.clusterID = wfClusterID
 
 	srv.StartHeartbeat(ctx)
-	srv.StartPlanRunner(ctx)
+	// Plan runner removed — workflows handle all execution.
 	srv.StartACMERenewal(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)

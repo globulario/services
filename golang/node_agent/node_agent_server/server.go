@@ -24,17 +24,10 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/pki"
-	"github.com/globulario/services/golang/plan/planpb"
-	"github.com/globulario/services/golang/plan/store"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var defaultPort = "11000"
-
-const defaultPlanPollInterval = 5 * time.Second
-const planLockTTL = 30
 
 var (
 	restartCommand    = restartUnit
@@ -72,17 +65,9 @@ type NodeAgentServer struct {
 	controllerSNI            string
 	controllerUseSystemRoots bool
 	lastNetworkGeneration    uint64
-	planStore                store.PlanStore
-	planPollInterval         time.Duration
-	lastPlanGeneration       uint64
-	planRunnerCtx            context.Context
-	planRunnerOnce           sync.Once
-	workflowRunning          int32 // atomic: 1 = workflow active, plan-runner skips
 	controllerDialer         func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	controllerClientFactory  func(conn grpc.ClientConnInterface) cluster_controllerpb.ClusterControllerServiceClient
 	controllerClientOverride func(addr string) cluster_controllerpb.ClusterControllerServiceClient
-	lockAcquirer             func(context.Context, *planpb.NodePlan) (*planLockGuard, error)
-
 	// test hooks
 	syncDNSHook           func(*cluster_controllerpb.ClusterNetworkSpec) error
 	waitDNSHook           func(context.Context, *cluster_controllerpb.ClusterNetworkSpec) error
@@ -96,63 +81,9 @@ type NodeAgentServer struct {
 	lastCertRestart time.Time
 	lastSpec        *cluster_controllerpb.ClusterNetworkSpec
 
-	// Plan verification (Phase 1B)
-	signerCache      map[string]signerCacheEntry
-	signerCacheMu    sync.RWMutex
-	rejectionTracker *planRejectionTracker
-	lastSeenPlanID   string // for quarantine clearing
-
 	// Workflow tracing (nil-safe, fire-and-forget)
 	workflowRec *workflow.Recorder
 	clusterID   string
-}
-
-type lockablePlanStore interface {
-	store.PlanStore
-	Client() *clientv3.Client
-}
-
-type planLockGuard struct {
-	client   *clientv3.Client
-	leaseID  clientv3.LeaseID
-	cancel   context.CancelFunc
-	nodeID   string
-	lockKeys []string
-}
-
-func (g *planLockGuard) release(ctx context.Context) {
-	if g == nil {
-		return
-	}
-	if g.cancel != nil {
-		g.cancel()
-	}
-	if g.client != nil && g.leaseID != 0 {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		g.client.Revoke(ctx, g.leaseID)
-	}
-}
-
-func (g *planLockGuard) keepAliveLoop(ch <-chan *clientv3.LeaseKeepAliveResponse) {
-	if ch == nil {
-		return
-	}
-	for range ch {
-	}
-}
-
-func planLockKey(nodeID, lock string) string {
-	return fmt.Sprintf("%s/%s/%s", store.PlanLockBaseKey, nodeID, lock)
-}
-
-func isTerminalState(state planpb.PlanState) bool {
-	switch state {
-	case planpb.PlanState_PLAN_SUCCEEDED, planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED, planpb.PlanState_PLAN_REJECTED, planpb.PlanState_PLAN_QUARANTINED:
-		return true
-	default:
-		return false
-	}
 }
 
 func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServer {
@@ -263,13 +194,9 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		controllerCAPath:         strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA")),
 		controllerSNI:            strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_SNI")),
 		controllerUseSystemRoots: strings.EqualFold(os.Getenv("NODE_AGENT_CONTROLLER_USE_SYSTEM_ROOTS"), "true"),
-		planPollInterval:         defaultPlanPollInterval,
-		lastPlanGeneration:       state.LastPlanGeneration,
 		lastNetworkGeneration:    state.NetworkGeneration,
 		controllerDialer:         grpc.DialContext,
 		controllerClientFactory:  cluster_controllerpb.NewClusterControllerServiceClient,
-		rejectionTracker:         newPlanRejectionTracker(),
-		signerCache:              make(map[string]signerCacheEntry),
 	}
 }
 
@@ -280,12 +207,6 @@ func (srv *NodeAgentServer) SetEtcdMode(mode string) {
 	srv.etcdMode = strings.ToLower(strings.TrimSpace(mode))
 }
 
-func (srv *NodeAgentServer) SetPlanStore(ps store.PlanStore) {
-	srv.planStore = ps
-	if srv.planPollInterval <= 0 {
-		srv.planPollInterval = defaultPlanPollInterval
-	}
-}
 
 func (srv *NodeAgentServer) isEtcdManaged() bool {
 	return strings.EqualFold(srv.etcdMode, "managed")
@@ -322,12 +243,7 @@ func (srv *NodeAgentServer) BootstrapIfNeeded(ctx context.Context) error {
 	if reachable {
 		return nil
 	}
-	plan := buildBootstrapPlan(srv.bootstrapPlan)
-	if len(plan.GetUnitActions()) == 0 {
-		return nil
-	}
-	op := srv.registerOperation("bootstrap plan", srv.bootstrapPlan)
-	go srv.runPlan(ctx, op, plan)
+	// Bootstrap plan execution removed — uses workflow-native day0.bootstrap.
 	return nil
 }
 
@@ -846,89 +762,8 @@ func queryUnitState(ctx context.Context, unit string) (activeState, subState, lo
 	return
 }
 
-func buildBootstrapPlan(services []string) *cluster_controllerpb.NodePlan {
-	actions := make([]*cluster_controllerpb.UnitAction, 0, len(services))
-	for _, svc := range services {
-		unit := units.UnitForService(svc)
-		if unit == "" {
-			continue
-		}
-		actions = append(actions, &cluster_controllerpb.UnitAction{
-			UnitName: unit,
-			Action:   "start",
-		})
-	}
-	if len(actions) == 0 {
-		return &cluster_controllerpb.NodePlan{
-			Profiles: []string{"bootstrap"},
-		}
-	}
-	return &cluster_controllerpb.NodePlan{
-		Profiles:    []string{"bootstrap"},
-		UnitActions: actions,
-	}
-}
+// buildBootstrapPlan deleted — bootstrap uses workflow-native day0.bootstrap.
 
-func (srv *NodeAgentServer) buildBootstrapPlanWithNetwork(profiles []string, clusterDomain string) *cluster_controllerpb.NodePlan {
-	// Build unit actions from profiles
-	plan := buildBootstrapPlan(profiles)
-	plan.Profiles = append([]string(nil), profiles...)
-
-	// Add network configuration if domain is provided
-	domain := strings.TrimSpace(clusterDomain)
-	if domain == "" {
-		return plan
-	}
-
-	// Create default network spec for bootstrap
-	spec := &cluster_controllerpb.ClusterNetworkSpec{
-		ClusterDomain: domain,
-		Protocol:      "https", // TLS is mandatory for all services
-		PortHttp:      8080,
-		PortHttps:     8443,
-		AcmeEnabled:   false,
-		AdminEmail:    "",
-	}
-
-	// Build rendered config
-	rendered := make(map[string]string)
-
-	// Add network spec snapshot
-	if specJSON, err := protojson.Marshal(spec); err == nil {
-		rendered["cluster.network.spec.json"] = string(specJSON)
-	}
-
-	// Add network overlay
-	configPayload := map[string]interface{}{
-		"Domain":    spec.ClusterDomain,
-		"Protocol":  spec.Protocol,
-		"PortHTTP":  spec.PortHttp,
-		"PortHTTPS": spec.PortHttps,
-	}
-	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
-		rendered["/var/lib/globular/network.json"] = string(cfgJSON)
-	}
-
-	// Add network generation (bootstrap starts at 1)
-	rendered["cluster.network.generation"] = "1"
-
-	// Add restart units for network config
-	restartUnits := []string{
-		"globular-etcd.service",
-		"globular-dns.service",
-		"globular-discovery.service",
-		"globular-xds.service",
-		"globular-envoy.service",
-		"globular-gateway.service",
-		"globular-minio.service",
-	}
-	if unitsJSON, err := json.Marshal(restartUnits); err == nil {
-		rendered["reconcile.restart_units"] = string(unitsJSON)
-	}
-
-	plan.RenderedConfig = rendered
-	return plan
-}
 
 func (srv *NodeAgentServer) saveState() error {
 	if srv.statePath == "" {
@@ -942,7 +777,6 @@ func (srv *NodeAgentServer) saveState() error {
 	srv.state.ControllerEndpoint = srv.controllerEndpoint
 	srv.state.RequestID = srv.joinRequestID
 	srv.state.NodeID = srv.nodeID
-	srv.state.LastPlanGeneration = srv.lastPlanGeneration
 	srv.state.NetworkGeneration = srv.lastNetworkGeneration
 	return srv.state.save(srv.statePath)
 }
@@ -1032,12 +866,24 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	if err := srv.saveState(); err != nil {
 		log.Printf("warn: persist approved node id: %v", err)
 	}
-	srv.startPlanRunnerLoop()
-
 	// Now that we have a node ID, immediately sync installed packages to etcd.
-	// On Day-0 the initial sync in heartbeatLoop runs before bootstrap assigns
-	// the node ID, so this is the first opportunity to populate the registry.
 	go srv.syncInstalledStateToEtcd(context.Background())
+}
+
+func (srv *NodeAgentServer) storeNodeToken(token, principal string) error {
+	tokenDir := "/var/lib/globular/tokens"
+	if err := os.MkdirAll(tokenDir, 0750); err != nil {
+		return fmt.Errorf("create token dir: %w", err)
+	}
+	tokenPath := filepath.Join(tokenDir, "node_token")
+	if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return fmt.Errorf("write node token: %w", err)
+	}
+	principalPath := filepath.Join(tokenDir, "node_principal")
+	if err := os.WriteFile(principalPath, []byte(principal), 0600); err != nil {
+		return fmt.Errorf("write node principal: %w", err)
+	}
+	return nil
 }
 
 func parseNodeAgentLabels() map[string]string {

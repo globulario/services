@@ -4,10 +4,8 @@ import (
 	"context"
 	"time"
 
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	planpb "github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -198,35 +196,12 @@ func (client *NodeAgentClient) GetInventory(ctx context.Context) (*node_agentpb.
 	return client.c.GetInventory(ctx, &node_agentpb.GetInventoryRequest{})
 }
 
-func (client *NodeAgentClient) ApplyPlan(ctx context.Context, plan *cluster_controllerpb.NodePlan) (*node_agentpb.ApplyPlanResponse, error) {
-	if ctx == nil {
-		ctx = client.GetCtx()
-	}
-	return client.c.ApplyPlan(ctx, &node_agentpb.ApplyPlanRequest{Plan: plan})
-}
-
 func (client *NodeAgentClient) WatchOperation(ctx context.Context, operationID string) (node_agentpb.NodeAgentService_WatchOperationClient, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
 	req := &node_agentpb.WatchOperationRequest{OperationId: operationID}
 	return client.c.WatchOperation(ctx, req)
-}
-
-func (client *NodeAgentClient) ApplyPlanV1(ctx context.Context, plan *planpb.NodePlan) (*node_agentpb.ApplyPlanV1Response, error) {
-	if ctx == nil {
-		ctx = client.GetCtx()
-	}
-	return client.c.ApplyPlanV1(ctx, &node_agentpb.ApplyPlanV1Request{Plan: plan})
-}
-
-func (client *NodeAgentClient) GetPlanStatusV1(ctx context.Context, operationID string) (*node_agentpb.GetPlanStatusV1Response, error) {
-	if ctx == nil {
-		ctx = client.GetCtx()
-	}
-	return client.c.GetPlanStatusV1(ctx, &node_agentpb.GetPlanStatusV1Request{
-		OperationId: operationID,
-	})
 }
 
 func (client *NodeAgentClient) BootstrapFirstNode(ctx context.Context, clusterDomain, controllerBind string, profiles []string) (*node_agentpb.BootstrapFirstNodeResponse, error) {

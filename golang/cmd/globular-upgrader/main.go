@@ -26,7 +26,6 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -40,9 +39,7 @@ import (
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/globulario/services/golang/plan/planpb"
 )
 
 func main() {
@@ -197,39 +194,15 @@ func etcdClient(endpoints, certFile, keyFile, caFile string) (*clientv3.Client, 
 	})
 }
 
-func writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64, state planpb.PlanState, errMsg string) error {
-	cli, err := etcdClient(endpoints, certFile, keyFile, caFile)
-	if err != nil {
-		return err
-	}
-	defer cli.Close()
-
-	status := &planpb.NodePlanStatus{
-		NodeId:     nodeID,
-		PlanId:     planID,
-		Generation: generation,
-		State:      state,
-	}
-	if errMsg != "" {
-		status.ErrorMessage = errMsg
-	}
-	data, err := proto.Marshal(status)
-	if err != nil {
-		return err
-	}
-	key := fmt.Sprintf("globular/plans/v1/nodes/%s/status", nodeID)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, err = cli.Put(ctx, key, string(data))
-	return err
-}
+// writeStatus deleted — plan system removed.
+func writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64, state int, errMsg string) error { return nil }
 
 func reportSuccess(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64) error {
-	return writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, planpb.PlanState_PLAN_SUCCEEDED, "")
+	return writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, 0, "")
 }
 
 func fail(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64, errMsg string) {
 	log.Printf("FAILED: %s", errMsg)
-	_ = writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, planpb.PlanState_PLAN_FAILED, errMsg)
+	_ = writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, 1, errMsg)
 	os.Exit(1)
 }

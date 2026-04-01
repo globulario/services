@@ -23,7 +23,7 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"

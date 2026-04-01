@@ -35,6 +35,11 @@ func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[strin
 		return evalLen(expr, inputs, outputs)
 	}
 
+	// inputs.X != val / outputs.X != val  (must come before == check)
+	if strings.Contains(expr, "!=") {
+		return evalInequality(expr, inputs, outputs)
+	}
+
 	// inputs.X == val / outputs.X == val
 	if strings.Contains(expr, "==") {
 		return evalEquality(expr, inputs, outputs)
@@ -154,6 +159,19 @@ func evalEquality(expr string, inputs, outputs map[string]any) (bool, error) {
 
 	// Compare as strings.
 	return fmt.Sprint(lVal) == rVal, nil
+}
+
+// evalInequality handles: inputs.restart_policy != 'never', X != Y
+func evalInequality(expr string, inputs, outputs map[string]any) (bool, error) {
+	parts := strings.SplitN(expr, "!=", 2)
+	if len(parts) != 2 {
+		return false, nil
+	}
+	lhs := strings.TrimSpace(parts[0])
+	rhs := strings.TrimSpace(parts[1])
+	rhs = strings.Trim(rhs, "'\"")
+	lVal := resolveVar(lhs, inputs, outputs)
+	return fmt.Sprint(lVal) != rhs, nil
 }
 
 // resolveVar resolves a variable path from inputs/outputs.

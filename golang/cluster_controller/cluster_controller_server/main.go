@@ -26,7 +26,6 @@ import (
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
-	planstore "github.com/globulario/services/golang/plan/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -152,16 +151,12 @@ func main() {
 	// This is independent of the config package's shared singleton so that
 	// health-probe reconnects in the config layer cannot destroy leader
 	// election sessions, watches, or plan-store operations.
-	var (
-		planStore  planstore.PlanStore
-		etcdClient *clientv3.Client
-	)
+	var etcdClient *clientv3.Client
 	if c, err := config.NewEtcdClient(); err == nil {
 		etcdClient = c
-		planStore = planstore.NewEtcdPlanStore(c)
 		logger.Info("etcd client connected (dedicated)", "endpoints", etcdClient.Endpoints())
 	} else {
-		logger.Warn("plan store unavailable", "error", err)
+		logger.Warn("etcd client unavailable", "error", err)
 	}
 	if etcdClient != nil {
 		defer etcdClient.Close()
@@ -218,7 +213,7 @@ func main() {
 
 	// Initialize server
 	logger.Info("initializing cluster controller server")
-	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
+	srv := newServer(cfg, *cfgPath, *statePath, state, etcdClient)
 	srv.initResourceStore(etcdClient)
 	if etcdClient != nil {
 		srv.etcdMembers = newEtcdMemberManager(etcdClient)
@@ -242,12 +237,10 @@ func main() {
 	}
 	logger.Info("built-in roles verified (including node-executor)")
 
-	// Initialize plan signing (Ed25519 keypair for signed plans)
+	// Legacy plan signer init (no-op — plan system removed).
 	if err := srv.initPlanSigner(); err != nil {
-		logger.Warn("plan-signer: init failed (plans will be unsigned)", "err", err)
+		logger.Warn("plan-signer init failed", "err", err)
 	}
-	// Log dispatch mode (hardened vs compatibility)
-	logPlanDispatchMode()
 
 	// Register gRPC services
 	cluster_controllerpb.RegisterClusterControllerServiceServer(grpcServer, srv)

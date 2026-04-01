@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/identity"
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // ServiceKey uniquely identifies a service by publisher and name.

@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/globulario/services/golang/plan/versionutil"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 type BuildOptions struct {
