@@ -165,6 +165,10 @@ type server struct {
 	// on every ReportNodeStatus heartbeat.
 	autoImportDone atomic.Bool
 
+	// workflowSem limits concurrent release workflows to prevent systemd
+	// overload on target nodes. Defaults to 3 concurrent workflows.
+	workflowSem chan struct{}
+
 	// etcd cluster membership manager (for multi-node expansion)
 	etcdMembers *etcdMemberManager
 
@@ -217,6 +221,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		agentServerName:  serverName,
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
+		workflowSem:      make(chan struct{}, 3), // max 3 concurrent release workflows
 	}
 	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
 		srv.enableServiceRemoval = true

@@ -213,6 +213,11 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
 	go func() {
+		// Acquire semaphore to limit concurrent workflows and prevent
+		// systemd overload on target nodes from too many parallel restarts.
+		srv.workflowSem <- struct{}{}
+		defer func() { <-srv.workflowSem }()
+
 		run, err := srv.RunPackageReleaseWorkflow(ctx,
 			releaseID,
 			h.Name,

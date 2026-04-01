@@ -193,6 +193,10 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 			continue
 		}
 		unit := fields[0]
+		// Skip systemd's failure bullet character (●) and any non-unit entries.
+		if !strings.HasPrefix(unit, "globular-") {
+			continue
+		}
 		svc := canonicalServiceName(unit)
 		if svc == "" || skipSystemd[svc] {
 			continue
