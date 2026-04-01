@@ -70,6 +70,7 @@ type SpecInfo struct {
 	Systemd       []SystemdFile
 	Scripts       []ScriptFile
 	DebPaths      []string // .deb files to bundle in debs/ directory
+	DataDir       string   // optional data/ directory to bundle (e.g. workflow definitions)
 	Metadata      SpecMetadata
 }
 
@@ -169,6 +170,16 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		}
 	}
 
+	// Discover data/ directory (e.g. workflow definitions, static assets).
+	// It lives as a sibling of bin/ in the root directory.
+	var dataDir string
+	if roots.BinRoot != "" {
+		candidate := filepath.Join(filepath.Dir(roots.BinRoot), "data")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			dataDir = candidate
+		}
+	}
+
 	return &SpecInfo{
 		SpecPath:      specPath,
 		SpecFile:      filepath.Base(specPath),
@@ -179,6 +190,8 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ConfigDirs:    configDirs,
 		Systemd:       systemdFiles,
 		Scripts:        scripts,
+		DebPaths:      nil,
+		DataDir:       dataDir,
 		Metadata:      meta,
 	}, nil
 }

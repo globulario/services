@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -129,6 +131,34 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 					log.Printf("day0: mc mb %s: %s (%v)", bucket, string(out), err)
 				}
 			}
+
+			// Upload workflow definitions to globular-config/workflows/ in MinIO.
+			// Same pattern as pki/ca.pem and ai/CLAUDE.md — cluster-wide config.
+			workflowDir := "/var/lib/globular/workflows"
+			entries, err := os.ReadDir(workflowDir)
+			if err != nil {
+				log.Printf("day0: no workflow definitions at %s: %v", workflowDir, err)
+				return nil
+			}
+			uploaded := 0
+			for _, e := range entries {
+				if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+					continue
+				}
+				data, err := os.ReadFile(filepath.Join(workflowDir, e.Name()))
+				if err != nil {
+					log.Printf("day0: read %s: %v", e.Name(), err)
+					continue
+				}
+				key := "workflows/" + e.Name()
+				if err := config.PutClusterConfig(key, data); err != nil {
+					log.Printf("day0: upload %s to MinIO: %v", key, err)
+					continue
+				}
+				uploaded++
+			}
+			log.Printf("day0: %d workflow definitions uploaded to MinIO globular-config/workflows/", uploaded)
+
 			log.Printf("day0: shared storage configured (%d buckets)", len(buckets))
 			return nil
 		},
@@ -296,6 +326,27 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		},
 	})
 
+	// Also register node-agent actions (probe_infra_health, verify_services_active, etc.)
+	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
+		NodeID: srv.nodeID,
+		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr)
+		},
+		IsServiceActive: func(name string) bool {
+			return engine.DefaultIsServiceActive(name)
+		},
+		SyncInstalledState: func(ctx context.Context) error {
+			srv.syncInstalledStateToEtcd(ctx)
+			return nil
+		},
+		ProbeInfraHealth: func(ctx context.Context, probeName string) bool {
+			resp, err := srv.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
+				WorkflowName: probeName,
+			})
+			return err == nil && resp.GetStatus() == "SUCCEEDED"
+		},
+	})
+
 	eng := &engine.Engine{
 		Router: router,
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
@@ -338,6 +389,9 @@ func inferPackageKind(name string) string {
 		"prometheus", "node-exporter", "sidekick",
 		"scylla-manager", "scylla-manager-agent":
 		return "INFRASTRUCTURE"
+	case "mc", "globular-cli", "etcdctl", "rclone", "restic", "sctool",
+		"sha256sum", "yt-dlp", "ffmpeg":
+		return "COMMAND"
 	default:
 		return "SERVICE"
 	}

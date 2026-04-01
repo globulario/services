@@ -294,6 +294,15 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 	}
 
+	// Bundle data directory (e.g. workflow definitions).
+	if info.DataDir != "" {
+		dataRoot := filepath.Join(stagingDir, "data")
+		if err := copyDir(info.DataDir, dataRoot); err != nil {
+			return nil, fmt.Errorf("bundle data dir: %w", err)
+		}
+		log.Printf("  bundled data/ directory from %s", info.DataDir)
+	}
+
 	// Bundle .deb files for offline installation.
 	if len(info.DebPaths) > 0 {
 		debsRoot := filepath.Join(stagingDir, "debs")
@@ -574,6 +583,21 @@ func copyDirNoOverwrite(src, destRoot string, seen map[string]string) (int, erro
 		return nil
 	})
 	return count, err
+}
+
+// copyDir recursively copies src directory to dest.
+func copyDir(src, dest string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dest, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		return copyFile(p, target)
+	})
 }
 
 func copyFile(src, dest string) error {

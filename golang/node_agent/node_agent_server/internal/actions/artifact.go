@@ -256,6 +256,11 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			dest = filepath.Join(configDir, service, strings.TrimPrefix(name, "config/"))
 		case strings.HasPrefix(name, "scripts/"):
 			dest = filepath.Join(scriptsDir, filepath.Base(name))
+		case strings.HasPrefix(name, "data/"):
+			// Data files are extracted to stateRoot preserving subdirectory structure.
+			// e.g. data/workflows/day0.bootstrap.yaml → /var/lib/globular/workflows/day0.bootstrap.yaml
+			rel := strings.TrimPrefix(name, "data/")
+			dest = filepath.Join(stateRoot, rel)
 		default:
 			// ignore unsupported paths
 			continue

@@ -108,6 +108,12 @@ build_one() {
     cp -a "${cfg_src}" "${root}/config/${svc}/config.json"
   fi
 
+  # Copy data directory if it exists (e.g. workflow definitions)
+  local data_src="${PAYLOAD_DIR}/${svc}/data"
+  if [[ -d "${data_src}" ]]; then
+    cp -a "${data_src}" "${root}/data"
+  fi
+
   echo "==> pkg build ${svc} (${exe})"
   local scripts_flag=""
   if [[ -n "${SCRIPTS_DIR}" ]]; then
