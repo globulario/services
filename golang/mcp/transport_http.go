@@ -166,15 +166,22 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		})
 	})
 
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		// Port busy — fall back to OS-assigned free port so the server
-		// stays reachable. The actual port is registered in etcd for discovery.
-		log.Printf("mcp: port %s unavailable (%v), falling back to OS-assigned port", listenAddr, err)
-		ln, err = net.Listen("tcp", ":0")
-		if err != nil {
-			return fmt.Errorf("listen fallback :0: %w", err)
+	// Retry binding the configured port a few times — Envoy or another
+	// service may still be releasing it during startup sequencing.
+	var (
+		ln      net.Listener
+		listenErr error
+	)
+	for attempt := 0; attempt < 10; attempt++ {
+		ln, listenErr = net.Listen("tcp", listenAddr)
+		if listenErr == nil {
+			break
 		}
+		log.Printf("mcp: port %s unavailable (%v), retrying in 3s (%d/10)", listenAddr, listenErr, attempt+1)
+		time.Sleep(3 * time.Second)
+	}
+	if listenErr != nil {
+		return fmt.Errorf("listen %s: %w (gave up after 10 retries)", listenAddr, listenErr)
 	}
 
 	readTimeout := s.cfg.HTTPReadTimeout.Duration
@@ -197,13 +204,8 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 	actualPort := ln.Addr().(*net.TCPAddr).Port
 	log.Printf("globular-mcp-server: HTTP listening on %s", ln.Addr())
 
-	// Persist the actual port back to config so it survives restarts and
-	// is consistent with what gets registered in etcd.
-	actualAddr := fmt.Sprintf(":%d", actualPort)
-	if s.cfg.HTTPListenAddr != actualAddr {
-		s.cfg.HTTPListenAddr = actualAddr
-		writeDefaultConfig(s.cfg)
-	}
+	// Do NOT overwrite the configured port — the config should be the
+	// source of truth. Random fallback ports caused instability.
 
 	// Update .mcp.json files so Claude Code can reconnect without a restart.
 	updateMCPJsonFiles(actualPort)

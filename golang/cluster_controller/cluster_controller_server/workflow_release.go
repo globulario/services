@@ -11,15 +11,12 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
-	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // RunPackageReleaseWorkflow executes the release.apply.package workflow to
@@ -444,11 +441,15 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			if strings.EqualFold(restartPolicy, "never") {
 				return nil
 			}
-			// Skip self-restart: the controller cannot restart itself mid-workflow
-			// without killing the workflow. The new binary takes effect on the next
-			// natural restart (crash, node reboot, or operator-initiated).
-			if name == "cluster-controller" {
-				log.Printf("release-workflow: skipping self-restart for cluster-controller (would kill running workflow)")
+			// Skip restart for stateful infrastructure that manages its own lifecycle.
+			// Restarting these mid-join kills in-progress Raft/gossip operations.
+			// Also skip self-restart (controller would kill its own workflow).
+			switch name {
+			case "cluster-controller":
+				log.Printf("release-workflow: skipping self-restart for cluster-controller")
+				return nil
+			case "scylladb", "etcd", "minio":
+				log.Printf("release-workflow: skipping restart for %s (stateful infrastructure, self-managed lifecycle)", name)
 				return nil
 			}
 
@@ -705,132 +706,52 @@ func resolveWorkflowDefinition(name string) string {
 }
 
 // ---------------------------------------------------------------------------
-// Workflow event reporting — records runs in ScyllaDB via the workflow service
-// and triggers event emission (workflow.run.started, workflow.run.succeeded,
-// workflow.run.failed, workflow.step.failed) for the ai-watcher pipeline.
+// Workflow event publishing — emits events directly to the event service
+// (same bus the ai-watcher subscribes to). Fire-and-forget, never blocks.
 //
-// Fire-and-forget: never blocks the release pipeline. Failures are logged.
+// Events emitted:
+//   workflow.release.started   — release workflow begins
+//   workflow.release.succeeded — release workflow completed OK
+//   workflow.release.failed    — release workflow failed
+//   workflow.step.failed       — individual step failure (not every success)
 // ---------------------------------------------------------------------------
 
-// workflowReporter holds a lazy-initialized client to the workflow service.
-type workflowReporter struct {
-	mu   sync.Mutex
-	conn *grpc.ClientConn
-}
-
-var wfReporter workflowReporter
-
-func (r *workflowReporter) client(srv *server) (workflowpb.WorkflowServiceClient, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.conn != nil {
-		return workflowpb.NewWorkflowServiceClient(r.conn), nil
-	}
-	// Dial the workflow service through the mesh (Envoy routes by gRPC
-	// service name on port 443). Fall back to direct localhost.
-	var conn *grpc.ClientConn
-	var err error
-	if srv.cfg.ClusterDomain != "" {
-		meshAddr := srv.cfg.ClusterDomain + ":443"
-		conn, err = srv.dialNodeAgent(meshAddr)
-	}
-	if conn == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		conn, err = grpc.DialContext(ctx, "localhost:10220",
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-		)
-	}
-	if err != nil {
-		return nil, err
-	}
-	r.conn = conn
-	return workflowpb.NewWorkflowServiceClient(conn), nil
-}
-
-// reportRunStart records a new workflow run. Returns the run ID for later updates.
+// reportRunStart publishes a workflow.release.started event.
 func (srv *server) reportRunStart(pkgName, pkgKind, version, releaseID string, nodeCount int) string {
 	runID := uuid.New().String()
-	go func() {
-		cli, err := wfReporter.client(srv)
-		if err != nil {
-			log.Printf("workflow-report: connect failed (start %s): %v", pkgName, err)
-			return
-		}
-		compKind := workflowpb.ComponentKind_COMPONENT_KIND_SERVICE
-		if strings.EqualFold(pkgKind, "INFRASTRUCTURE") {
-			compKind = workflowpb.ComponentKind_COMPONENT_KIND_INFRASTRUCTURE
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, err = cli.StartRun(ctx, &workflowpb.StartRunRequest{
-			Run: &workflowpb.WorkflowRun{
-				Id: runID,
-				Context: &workflowpb.WorkflowContext{
-					ClusterId:        srv.cfg.ClusterDomain,
-					ComponentName:    pkgName,
-					ComponentKind:    compKind,
-					ComponentVersion: version,
-					ReleaseKind:      pkgKind,
-					ReleaseObjectId:  releaseID,
-				},
-				TriggerReason: workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT,
-				Status:        workflowpb.RunStatus_RUN_STATUS_EXECUTING,
-				Summary:       fmt.Sprintf("%s@%s across %d nodes", pkgName, version, nodeCount),
-				StartedAt:     timestamppb.Now(),
-			},
-		})
-		if err != nil {
-			log.Printf("workflow-report: StartRun %s: %v", pkgName, err)
-		}
-	}()
+	go globular_service.PublishEvent("workflow.release.started", map[string]interface{}{
+		"run_id":      runID,
+		"release_id":  releaseID,
+		"package":     pkgName,
+		"kind":        pkgKind,
+		"version":     version,
+		"node_count":  nodeCount,
+		"cluster":     srv.cfg.ClusterDomain,
+	})
 	return runID
 }
 
-// reportRunDone updates a workflow run with its terminal status.
+// reportRunDone publishes workflow.release.succeeded or workflow.release.failed.
 func (srv *server) reportRunDone(runID, pkgName string, failed bool, summary string) {
-	go func() {
-		cli, err := wfReporter.client(srv)
-		if err != nil {
-			log.Printf("workflow-report: connect failed (done %s): %v", pkgName, err)
-			return
-		}
-		status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
-		if failed {
-			status = workflowpb.RunStatus_RUN_STATUS_FAILED
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, err = cli.UpdateRun(ctx, &workflowpb.UpdateRunRequest{
-			Id:        runID,
-			ClusterId: srv.cfg.ClusterDomain,
-			Status:    status,
-			Summary:   summary,
-		})
-		if err != nil {
-			log.Printf("workflow-report: UpdateRun %s: %v", pkgName, err)
-		}
-	}()
+	topic := "workflow.release.succeeded"
+	if failed {
+		topic = "workflow.release.failed"
+	}
+	go globular_service.PublishEvent(topic, map[string]interface{}{
+		"run_id":  runID,
+		"package": pkgName,
+		"summary": summary,
+		"cluster": srv.cfg.ClusterDomain,
+	})
 }
 
-// reportStepFailed records a step failure for a workflow run.
+// reportStepFailed publishes a workflow.step.failed event.
 func (srv *server) reportStepFailed(runID, stepID, errMsg string) {
-	go func() {
-		cli, err := wfReporter.client(srv)
-		if err != nil {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, _ = cli.FailStep(ctx, &workflowpb.FailStepRequest{
-			RunId:        runID,
-			ClusterId:    srv.cfg.ClusterDomain,
-			Seq:          0,
-			ErrorCode:    "step_failed",
-			ErrorMessage: errMsg,
-			Retryable:    true,
-		})
-	}()
+	go globular_service.PublishEvent("workflow.step.failed", map[string]interface{}{
+		"run_id":  runID,
+		"step_id": stepID,
+		"error":   errMsg,
+		"cluster": srv.cfg.ClusterDomain,
+	})
 }
 

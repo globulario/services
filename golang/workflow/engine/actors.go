@@ -19,6 +19,7 @@ func RegisterNodeAgentActions(router *Router, cfg NodeAgentConfig) {
 	router.Register(v1alpha1.ActorNodeAgent, "node.install_packages", nodeInstallPackages(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.verify_services_active", nodeVerifyServicesActive(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_state", nodeSyncInstalledState(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.probe_infra_health", nodeProbeInfraHealth(cfg))
 }
 
 // RegisterControllerActions registers cluster-controller actor handlers.
@@ -44,6 +45,10 @@ type NodeAgentConfig struct {
 
 	// SyncInstalledState publishes installed packages to etcd.
 	SyncInstalledState func(ctx context.Context) error
+
+	// ProbeInfraHealth runs a named infrastructure health probe
+	// (e.g. "probe-scylla-health") and returns true if healthy.
+	ProbeInfraHealth func(ctx context.Context, probeName string) bool
 
 	// NodeID is the local node identifier.
 	NodeID string
@@ -156,6 +161,22 @@ func nodeSyncInstalledState(cfg NodeAgentConfig) ActionHandler {
 			return nil, fmt.Errorf("sync installed state: %w", err)
 		}
 		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeProbeInfraHealth(cfg NodeAgentConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		probeName, _ := req.With["probe"].(string)
+		if probeName == "" {
+			return nil, fmt.Errorf("probe_infra_health: missing 'probe' input")
+		}
+		if cfg.ProbeInfraHealth == nil {
+			return nil, fmt.Errorf("probe_infra_health: not configured")
+		}
+		if cfg.ProbeInfraHealth(ctx, probeName) {
+			return &ActionResult{OK: true, Message: probeName + " healthy"}, nil
+		}
+		return nil, fmt.Errorf("%s: not healthy", probeName)
 	}
 }
 
@@ -1006,12 +1027,16 @@ func DefaultIsServiceActive(name string) bool {
 	switch name {
 	case "scylladb":
 		// ScyllaDB: probe CQL native transport port directly.
-		conn, err := net.DialTimeout("tcp", "127.0.0.1:9042", 2*time.Second)
-		if err != nil {
-			return false
+		// Try localhost first, then all local IPs (ScyllaDB binds to
+		// the node's advertised IP, not 127.0.0.1).
+		for _, host := range scyllaProbeHosts() {
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, "9042"), 2*time.Second)
+			if err == nil {
+				conn.Close()
+				return true
+			}
 		}
-		conn.Close()
-		return true
+		return false
 	default:
 		unit := "globular-" + name + ".service"
 		switch name {
@@ -1021,6 +1046,28 @@ func DefaultIsServiceActive(name string) bool {
 		out, err := exec.Command("systemctl", "is-active", unit).Output()
 		return err == nil && strings.TrimSpace(string(out)) == "active"
 	}
+}
+
+// scyllaProbeHosts returns candidate hosts for ScyllaDB CQL probe.
+// ScyllaDB typically binds to the node's advertised IP, not 127.0.0.1.
+func scyllaProbeHosts() []string {
+	var hosts []string
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return hosts
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				hosts = append(hosts, ipnet.IP.String())
+			}
+		}
+	}
+	return hosts
 }
 
 // --------------------------------------------------------------------------
