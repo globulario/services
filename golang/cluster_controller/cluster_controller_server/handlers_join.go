@@ -210,6 +210,25 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		go srv.ensureNodeExecutorBinding(nodePrincipal)
 	}
 
+	// Trigger the join workflow immediately if the node-agent is already
+	// reachable. The "first heartbeat" trigger in ReportNodeStatus may miss
+	// if the agent started heartbeating before approval (race condition).
+	agentEndpoint := ""
+	if len(jr.Identity.Ips) > 0 {
+		agentEndpoint = jr.Identity.Ips[0] + ":11000"
+	}
+	srv.lock("ApproveJoin:triggerWorkflow")
+	node = srv.state.Nodes[nodeID]
+	if node != nil && !node.BootstrapWorkflowActive {
+		if node.AgentEndpoint != "" {
+			agentEndpoint = node.AgentEndpoint
+		}
+		node.BootstrapWorkflowActive = true
+		log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
+		go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
+	}
+	srv.unlock()
+
 	return &cluster_controllerpb.ApproveJoinResponse{
 		NodeId:        nodeID,
 		Message:       "approved; node will receive configuration on first heartbeat",
