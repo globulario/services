@@ -206,59 +206,60 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 
 	releaseID := fmt.Sprintf("%s/%s", h.ResourceType, h.Name)
 
-	// Execute the release workflow — this handles per-node foreach,
-	// install, verify, restart, sync, and aggregation.
-	log.Printf("%s %s: executing release workflow across %d nodes (v=%s)",
+	// Execute the release workflow asynchronously so the work queue worker
+	// is not blocked. This prevents gRPC server deadlocks when multiple
+	// workflows try to acquire srv.lock concurrently with gRPC handlers.
+	log.Printf("%s %s: dispatching release workflow across %d nodes (v=%s)",
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
-	run, err := srv.RunPackageReleaseWorkflow(ctx,
-		releaseID,
-		h.Name,
-		h.InstalledStateName,
-		pkgKind,
-		h.ResolvedVersion,
-		h.DesiredHash,
-		nodeIDs,
-	)
+	go func() {
+		run, err := srv.RunPackageReleaseWorkflow(ctx,
+			releaseID,
+			h.Name,
+			h.InstalledStateName,
+			pkgKind,
+			h.ResolvedVersion,
+			h.DesiredHash,
+			nodeIDs,
+		)
 
-	nowMs := time.Now().UnixMilli()
+		nowMs := time.Now().UnixMilli()
 
-	if err != nil {
-		log.Printf("%s %s: release workflow FAILED: %v", h.ResourceType, h.Name, err)
-		// Workflow failed — check if partial success (DEGRADED) or total failure.
-		if run != nil && run.Steps != nil {
-			nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
-			succeeded, failed := countNodeOutcomes(nodeStatuses)
-			if succeeded > 0 && failed > 0 {
-				h.PatchStatus(ctx, statusPatch{
-					Phase:                cluster_controllerpb.ReleasePhaseDegraded,
-					Nodes:                nodeStatuses,
-					LastTransitionUnixMs: nowMs,
-					TransitionReason:     "partial_failure",
-					SetFields:            "nodes",
-				})
-				return
+		if err != nil {
+			log.Printf("%s %s: release workflow FAILED: %v", h.ResourceType, h.Name, err)
+			if run != nil && run.Steps != nil {
+				nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
+				succeeded, failed := countNodeOutcomes(nodeStatuses)
+				if succeeded > 0 && failed > 0 {
+					h.PatchStatus(ctx, statusPatch{
+						Phase:                cluster_controllerpb.ReleasePhaseDegraded,
+						Nodes:                nodeStatuses,
+						LastTransitionUnixMs: nowMs,
+						TransitionReason:     "partial_failure",
+						SetFields:            "nodes",
+					})
+					return
+				}
 			}
+			h.PatchStatus(ctx, statusPatch{
+				Phase:                cluster_controllerpb.ReleasePhaseFailed,
+				Message:              fmt.Sprintf("workflow failed: %v", err),
+				LastTransitionUnixMs: nowMs,
+				TransitionReason:     "workflow_failed",
+				SetFields:            "fail",
+			})
+			return
 		}
-		h.PatchStatus(ctx, statusPatch{
-			Phase:                cluster_controllerpb.ReleasePhaseFailed,
-			Message:              fmt.Sprintf("workflow failed: %v", err),
-			LastTransitionUnixMs: nowMs,
-			TransitionReason:     "workflow_failed",
-			SetFields:            "fail",
-		})
-		return
-	}
 
-	// Workflow succeeded — all nodes converged.
-	nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
-	h.PatchStatus(ctx, statusPatch{
-		Phase:                cluster_controllerpb.ReleasePhaseAvailable,
-		Nodes:                nodeStatuses,
-		LastTransitionUnixMs: nowMs,
-		TransitionReason:     "workflow_succeeded",
-		SetFields:            "nodes",
-	})
+		nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
+		h.PatchStatus(ctx, statusPatch{
+			Phase:                cluster_controllerpb.ReleasePhaseAvailable,
+			Nodes:                nodeStatuses,
+			LastTransitionUnixMs: nowMs,
+			TransitionReason:     "workflow_succeeded",
+			SetFields:            "nodes",
+		})
+	}()
 }
 
 // buildNodeStatusesFromRun constructs NodeReleaseStatus entries from a
