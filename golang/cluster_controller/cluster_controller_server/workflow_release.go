@@ -505,7 +505,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			return nil
 		},
 
-		SyncInstalledPackage: func(ctx context.Context, name, version, hash string) error {
+		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind string) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
@@ -525,6 +525,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 					Name:     name,
 					Version:  version,
 					Checksum: hash,
+					Kind:     kind,
 				},
 			})
 			if err != nil {
