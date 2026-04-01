@@ -260,6 +260,11 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			continue
 		}
 
+		// Skip nodes not yet approved — nothing deploys until join workflow starts.
+		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
+			log.Printf("release-workflow: skip node %s (bootstrap_phase=%s, not yet approved)", nodeID, node.BootstrapPhase)
+			continue
+		}
 		// Workload/service releases skip nodes not yet bootstrap-ready.
 		// Infrastructure releases target all nodes (they're what gets nodes ready).
 		if !isInfra && !bootstrapPhaseReady(node.BootstrapPhase) {

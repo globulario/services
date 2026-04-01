@@ -174,6 +174,13 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	}
 	catalogEntry := CatalogByName(serviceName)
 	for id, node := range srv.state.Nodes {
+		// Skip nodes that haven't been approved yet — no packages should be
+		// deployed until the join workflow advances the phase past "admitted".
+		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
+			log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not yet approved)",
+				h.ResourceType, h.Name, id, node.BootstrapPhase)
+			continue
+		}
 		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
 			log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not ready for workloads)",
 				h.ResourceType, h.Name, id, node.BootstrapPhase)
@@ -396,6 +403,9 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 
 	for id, node := range srv.state.Nodes {
 		if served[id] {
+			continue
+		}
+		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
 			continue
 		}
 		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
