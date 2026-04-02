@@ -122,6 +122,9 @@ type server struct {
 	minioClient *minio.Client
 
 	checksumCache sync.Map
+
+	// Cluster-wide public dir cache (populated by etcd watcher).
+	clusterDirs clusterDirCache
 }
 
 // -------------------- Globular getters/setters --------------------
@@ -589,6 +592,17 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 				if parsed.Prefix == "users" {
 					parsed.Prefix = ""
 				}
+				// Validate file-based credentials actually exist on this node.
+				// Nodes without the storage profile won't have the credentials
+				// file written by the MinIO installer — fall through to other
+				// discovery methods or disable MinIO entirely.
+				if parsed.Auth != nil && parsed.Auth.Mode == config.MinioProxyAuthModeFile {
+					if _, err := os.Stat(parsed.Auth.CredFile); err != nil {
+						logger.Warn("minio credentials file from etcd config not found on this node; disabling MinIO",
+							"credFile", parsed.Auth.CredFile)
+						return nil
+					}
+				}
 				return parsed
 			}
 		}
@@ -745,9 +759,20 @@ func (srv *server) Storage() storage_backend.Storage {
 //   - /users/ paths: the configured backend (MinIO or local OS rooted at srv.Root).
 func (srv *server) storageForPath(path string) storage_backend.Storage {
 	path = srv.formatPath(path)
-	if srv.isPublic(path) {
+	if srv.isPublic(path) && !strings.HasPrefix(path, "/public/") {
 		// Real OS path registered as a public directory; use it as-is without root translation.
+		// Paths starting with /public/ are MinIO-backed and handled below.
 		return storage_backend.NewOSStorage("")
+	}
+	// MinIO /public/ prefix: route to MinIO storage.
+	// The path already contains "public/" so use an empty prefix to avoid double-prefixing.
+	if strings.HasPrefix(path, "/public/") && srv.minioEnabled() {
+		if err := srv.ensureMinioClient(); err == nil {
+			m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, "")
+			if err == nil {
+				return m
+			}
+		}
 	}
 	if !strings.HasPrefix(path, "/users/") {
 		if srv.publicStorage == nil {
@@ -953,6 +978,12 @@ func main() {
 			s.Address = addr
 		}
 	}
+
+	// Start cluster-wide public dir watcher and background migration.
+	clusterCtx, clusterCancel := context.WithCancel(context.Background())
+	defer clusterCancel()
+	s.startClusterDirWatcher(clusterCtx)
+	go s.migrateLocalUsersToMinio(clusterCtx)
 
 	// Select cache backend
 	logger.Debug("selecting cache backend", "type", s.CacheType)

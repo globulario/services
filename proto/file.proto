@@ -175,13 +175,30 @@ message CreateLnkResponse {
 }
 
 
+// Type of public directory.
+enum PublicDirType {
+    PUBLIC_DIR_LOCAL = 0;     // Local filesystem dir shared by a node
+    PUBLIC_DIR_MINIO = 1;     // Directory on MinIO /public/ prefix
+    PUBLIC_DIR_EXTERNAL = 2;  // External mount (NTFS, Samba, NFS)
+}
+
+// Structured information about a public directory.
+message PublicDirInfo {
+    string         path = 1;       // Virtual path (how clients address it)
+    PublicDirType  type = 2;       // Which pattern
+    string         node_id = 3;    // Origin node ID (empty for MinIO type)
+    string         node_address = 4; // Origin node gRPC address (for proxy)
+    string         local_path = 5; // Actual filesystem path on origin node
+}
+
 // Add a public directory.
 message AddPublicDirRequest {
     string path = 1 [(globular.auth.resource) = { kind: "path", scope_anchor: true }]; // Path of the directory to make public.
+    PublicDirType type = 2; // Optional: type of public dir (auto-detected if not set).
 }
 
 message AddPublicDirResponse {
-    // This message is empty as the response does not require specific data.
+    PublicDirInfo info = 1; // Structured info about the registered public dir.
 }
 
 // Remove a public directory.
@@ -199,7 +216,8 @@ message GetPublicDirsRequest {
 }
 
 message GetPublicDirsResponse {
-    repeated string dirs = 1; // List of paths of public directories.
+    repeated string dirs = 1;                 // List of paths of public directories (backward compat).
+    repeated PublicDirInfo public_dirs = 2;    // Structured public dir info with origin tracking.
 }
 
 // Request to write an Excel file on the server.

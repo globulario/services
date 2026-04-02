@@ -133,6 +133,13 @@ func (srv *server) GetFileClient(address string) (*file_client.File_Client, erro
 // GetFileInfo returns a single FileInfo and (internally) flattens children for caching.
 func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
 	p := rqst.GetPath()
+
+	// Check if this path belongs to a remote node's public dir.
+	nodeID, _ := config.GetMacAddress()
+	if remote := srv.clusterDirs.findRemoteDir(srv.formatPath(p), nodeID); remote != nil {
+		return srv.proxyGetFileInfo(ctx, p, remote.NodeAddress)
+	}
+
 	fi, err := getFileInfo(srv, p, int(rqst.ThumbnailHeight), int(rqst.ThumbnailWidth))
 	if err != nil {
 		return nil, err
@@ -145,6 +152,13 @@ func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequ
 // ReadFile streams file bytes in chunks.
 func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
 	p := rqst.GetPath()
+
+	// Check if this path belongs to a remote node's public dir.
+	nodeID, _ := config.GetMacAddress()
+	if remote := srv.clusterDirs.findRemoteDir(srv.formatPath(p), nodeID); remote != nil {
+		return srv.proxyReadFile(p, remote.NodeAddress, stream)
+	}
+
 	f, err := srv.storageOpen(stream.Context(), p)
 	if err != nil {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

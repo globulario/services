@@ -26,6 +26,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Type of public directory.
+type PublicDirType int32
+
+const (
+	PublicDirType_PUBLIC_DIR_LOCAL    PublicDirType = 0 // Local filesystem dir shared by a node
+	PublicDirType_PUBLIC_DIR_MINIO    PublicDirType = 1 // Directory on MinIO /public/ prefix
+	PublicDirType_PUBLIC_DIR_EXTERNAL PublicDirType = 2 // External mount (NTFS, Samba, NFS)
+)
+
+// Enum value maps for PublicDirType.
+var (
+	PublicDirType_name = map[int32]string{
+		0: "PUBLIC_DIR_LOCAL",
+		1: "PUBLIC_DIR_MINIO",
+		2: "PUBLIC_DIR_EXTERNAL",
+	}
+	PublicDirType_value = map[string]int32{
+		"PUBLIC_DIR_LOCAL":    0,
+		"PUBLIC_DIR_MINIO":    1,
+		"PUBLIC_DIR_EXTERNAL": 2,
+	}
+)
+
+func (x PublicDirType) Enum() *PublicDirType {
+	p := new(PublicDirType)
+	*p = x
+	return p
+}
+
+func (x PublicDirType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PublicDirType) Descriptor() protoreflect.EnumDescriptor {
+	return file_file_proto_enumTypes[0].Descriptor()
+}
+
+func (PublicDirType) Type() protoreflect.EnumType {
+	return &file_file_proto_enumTypes[0]
+}
+
+func (x PublicDirType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PublicDirType.Descriptor instead.
+func (PublicDirType) EnumDescriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{0}
+}
+
 type Empty struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1588,17 +1638,95 @@ func (*CreateLnkResponse) Descriptor() ([]byte, []int) {
 	return file_file_proto_rawDescGZIP(), []int{29}
 }
 
+// Structured information about a public directory.
+type PublicDirInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`                                  // Virtual path (how clients address it)
+	Type          PublicDirType          `protobuf:"varint,2,opt,name=type,proto3,enum=file.PublicDirType" json:"type,omitempty"`         // Which pattern
+	NodeId        string                 `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                // Origin node ID (empty for MinIO type)
+	NodeAddress   string                 `protobuf:"bytes,4,opt,name=node_address,json=nodeAddress,proto3" json:"node_address,omitempty"` // Origin node gRPC address (for proxy)
+	LocalPath     string                 `protobuf:"bytes,5,opt,name=local_path,json=localPath,proto3" json:"local_path,omitempty"`       // Actual filesystem path on origin node
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublicDirInfo) Reset() {
+	*x = PublicDirInfo{}
+	mi := &file_file_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublicDirInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublicDirInfo) ProtoMessage() {}
+
+func (x *PublicDirInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublicDirInfo.ProtoReflect.Descriptor instead.
+func (*PublicDirInfo) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *PublicDirInfo) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PublicDirInfo) GetType() PublicDirType {
+	if x != nil {
+		return x.Type
+	}
+	return PublicDirType_PUBLIC_DIR_LOCAL
+}
+
+func (x *PublicDirInfo) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PublicDirInfo) GetNodeAddress() string {
+	if x != nil {
+		return x.NodeAddress
+	}
+	return ""
+}
+
+func (x *PublicDirInfo) GetLocalPath() string {
+	if x != nil {
+		return x.LocalPath
+	}
+	return ""
+}
+
 // Add a public directory.
 type AddPublicDirRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"` // Path of the directory to make public.
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`                          // Path of the directory to make public.
+	Type          PublicDirType          `protobuf:"varint,2,opt,name=type,proto3,enum=file.PublicDirType" json:"type,omitempty"` // Optional: type of public dir (auto-detected if not set).
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddPublicDirRequest) Reset() {
 	*x = AddPublicDirRequest{}
-	mi := &file_file_proto_msgTypes[30]
+	mi := &file_file_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1610,7 +1738,7 @@ func (x *AddPublicDirRequest) String() string {
 func (*AddPublicDirRequest) ProtoMessage() {}
 
 func (x *AddPublicDirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[30]
+	mi := &file_file_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1623,7 +1751,7 @@ func (x *AddPublicDirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPublicDirRequest.ProtoReflect.Descriptor instead.
 func (*AddPublicDirRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{30}
+	return file_file_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AddPublicDirRequest) GetPath() string {
@@ -1633,15 +1761,23 @@ func (x *AddPublicDirRequest) GetPath() string {
 	return ""
 }
 
+func (x *AddPublicDirRequest) GetType() PublicDirType {
+	if x != nil {
+		return x.Type
+	}
+	return PublicDirType_PUBLIC_DIR_LOCAL
+}
+
 type AddPublicDirResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Info          *PublicDirInfo         `protobuf:"bytes,1,opt,name=info,proto3" json:"info,omitempty"` // Structured info about the registered public dir.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddPublicDirResponse) Reset() {
 	*x = AddPublicDirResponse{}
-	mi := &file_file_proto_msgTypes[31]
+	mi := &file_file_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1653,7 +1789,7 @@ func (x *AddPublicDirResponse) String() string {
 func (*AddPublicDirResponse) ProtoMessage() {}
 
 func (x *AddPublicDirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[31]
+	mi := &file_file_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1666,7 +1802,14 @@ func (x *AddPublicDirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPublicDirResponse.ProtoReflect.Descriptor instead.
 func (*AddPublicDirResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{31}
+	return file_file_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *AddPublicDirResponse) GetInfo() *PublicDirInfo {
+	if x != nil {
+		return x.Info
+	}
+	return nil
 }
 
 // Remove a public directory.
@@ -1679,7 +1822,7 @@ type RemovePublicDirRequest struct {
 
 func (x *RemovePublicDirRequest) Reset() {
 	*x = RemovePublicDirRequest{}
-	mi := &file_file_proto_msgTypes[32]
+	mi := &file_file_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1691,7 +1834,7 @@ func (x *RemovePublicDirRequest) String() string {
 func (*RemovePublicDirRequest) ProtoMessage() {}
 
 func (x *RemovePublicDirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[32]
+	mi := &file_file_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1704,7 +1847,7 @@ func (x *RemovePublicDirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePublicDirRequest.ProtoReflect.Descriptor instead.
 func (*RemovePublicDirRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{32}
+	return file_file_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RemovePublicDirRequest) GetPath() string {
@@ -1722,7 +1865,7 @@ type RemovePublicDirResponse struct {
 
 func (x *RemovePublicDirResponse) Reset() {
 	*x = RemovePublicDirResponse{}
-	mi := &file_file_proto_msgTypes[33]
+	mi := &file_file_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1734,7 +1877,7 @@ func (x *RemovePublicDirResponse) String() string {
 func (*RemovePublicDirResponse) ProtoMessage() {}
 
 func (x *RemovePublicDirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[33]
+	mi := &file_file_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1747,7 +1890,7 @@ func (x *RemovePublicDirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePublicDirResponse.ProtoReflect.Descriptor instead.
 func (*RemovePublicDirResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{33}
+	return file_file_proto_rawDescGZIP(), []int{34}
 }
 
 // Request to get the list of public directories.
@@ -1759,7 +1902,7 @@ type GetPublicDirsRequest struct {
 
 func (x *GetPublicDirsRequest) Reset() {
 	*x = GetPublicDirsRequest{}
-	mi := &file_file_proto_msgTypes[34]
+	mi := &file_file_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +1914,7 @@ func (x *GetPublicDirsRequest) String() string {
 func (*GetPublicDirsRequest) ProtoMessage() {}
 
 func (x *GetPublicDirsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[34]
+	mi := &file_file_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,19 +1927,20 @@ func (x *GetPublicDirsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDirsRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicDirsRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{34}
+	return file_file_proto_rawDescGZIP(), []int{35}
 }
 
 type GetPublicDirsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Dirs          []string               `protobuf:"bytes,1,rep,name=dirs,proto3" json:"dirs,omitempty"` // List of paths of public directories.
+	Dirs          []string               `protobuf:"bytes,1,rep,name=dirs,proto3" json:"dirs,omitempty"`                               // List of paths of public directories (backward compat).
+	PublicDirs    []*PublicDirInfo       `protobuf:"bytes,2,rep,name=public_dirs,json=publicDirs,proto3" json:"public_dirs,omitempty"` // Structured public dir info with origin tracking.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetPublicDirsResponse) Reset() {
 	*x = GetPublicDirsResponse{}
-	mi := &file_file_proto_msgTypes[35]
+	mi := &file_file_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1808,7 +1952,7 @@ func (x *GetPublicDirsResponse) String() string {
 func (*GetPublicDirsResponse) ProtoMessage() {}
 
 func (x *GetPublicDirsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[35]
+	mi := &file_file_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1821,12 +1965,19 @@ func (x *GetPublicDirsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDirsResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicDirsResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{35}
+	return file_file_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetPublicDirsResponse) GetDirs() []string {
 	if x != nil {
 		return x.Dirs
+	}
+	return nil
+}
+
+func (x *GetPublicDirsResponse) GetPublicDirs() []*PublicDirInfo {
+	if x != nil {
+		return x.PublicDirs
 	}
 	return nil
 }
@@ -1842,7 +1993,7 @@ type WriteExcelFileRequest struct {
 
 func (x *WriteExcelFileRequest) Reset() {
 	*x = WriteExcelFileRequest{}
-	mi := &file_file_proto_msgTypes[36]
+	mi := &file_file_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1854,7 +2005,7 @@ func (x *WriteExcelFileRequest) String() string {
 func (*WriteExcelFileRequest) ProtoMessage() {}
 
 func (x *WriteExcelFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[36]
+	mi := &file_file_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1867,7 +2018,7 @@ func (x *WriteExcelFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteExcelFileRequest.ProtoReflect.Descriptor instead.
 func (*WriteExcelFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{36}
+	return file_file_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *WriteExcelFileRequest) GetPath() string {
@@ -1893,7 +2044,7 @@ type WriteExcelFileResponse struct {
 
 func (x *WriteExcelFileResponse) Reset() {
 	*x = WriteExcelFileResponse{}
-	mi := &file_file_proto_msgTypes[37]
+	mi := &file_file_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1905,7 +2056,7 @@ func (x *WriteExcelFileResponse) String() string {
 func (*WriteExcelFileResponse) ProtoMessage() {}
 
 func (x *WriteExcelFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[37]
+	mi := &file_file_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,7 +2069,7 @@ func (x *WriteExcelFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteExcelFileResponse.ProtoReflect.Descriptor instead.
 func (*WriteExcelFileResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{37}
+	return file_file_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *WriteExcelFileResponse) GetResult() bool {
@@ -1937,7 +2088,7 @@ type HtmlToPdfRqst struct {
 
 func (x *HtmlToPdfRqst) Reset() {
 	*x = HtmlToPdfRqst{}
-	mi := &file_file_proto_msgTypes[38]
+	mi := &file_file_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1949,7 +2100,7 @@ func (x *HtmlToPdfRqst) String() string {
 func (*HtmlToPdfRqst) ProtoMessage() {}
 
 func (x *HtmlToPdfRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[38]
+	mi := &file_file_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1962,7 +2113,7 @@ func (x *HtmlToPdfRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HtmlToPdfRqst.ProtoReflect.Descriptor instead.
 func (*HtmlToPdfRqst) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{38}
+	return file_file_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *HtmlToPdfRqst) GetHtml() string {
@@ -1981,7 +2132,7 @@ type HtmlToPdfResponse struct {
 
 func (x *HtmlToPdfResponse) Reset() {
 	*x = HtmlToPdfResponse{}
-	mi := &file_file_proto_msgTypes[39]
+	mi := &file_file_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1993,7 +2144,7 @@ func (x *HtmlToPdfResponse) String() string {
 func (*HtmlToPdfResponse) ProtoMessage() {}
 
 func (x *HtmlToPdfResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[39]
+	mi := &file_file_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2006,7 +2157,7 @@ func (x *HtmlToPdfResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HtmlToPdfResponse.ProtoReflect.Descriptor instead.
 func (*HtmlToPdfResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{39}
+	return file_file_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *HtmlToPdfResponse) GetPdf() []byte {
@@ -2030,7 +2181,7 @@ type UploadFileRequest struct {
 
 func (x *UploadFileRequest) Reset() {
 	*x = UploadFileRequest{}
-	mi := &file_file_proto_msgTypes[40]
+	mi := &file_file_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2042,7 +2193,7 @@ func (x *UploadFileRequest) String() string {
 func (*UploadFileRequest) ProtoMessage() {}
 
 func (x *UploadFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[40]
+	mi := &file_file_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2055,7 +2206,7 @@ func (x *UploadFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadFileRequest.ProtoReflect.Descriptor instead.
 func (*UploadFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{40}
+	return file_file_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *UploadFileRequest) GetUrl() string {
@@ -2104,7 +2255,7 @@ type UploadFileResponse struct {
 
 func (x *UploadFileResponse) Reset() {
 	*x = UploadFileResponse{}
-	mi := &file_file_proto_msgTypes[41]
+	mi := &file_file_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2116,7 +2267,7 @@ func (x *UploadFileResponse) String() string {
 func (*UploadFileResponse) ProtoMessage() {}
 
 func (x *UploadFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[41]
+	mi := &file_file_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2129,7 +2280,7 @@ func (x *UploadFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadFileResponse.ProtoReflect.Descriptor instead.
 func (*UploadFileResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{41}
+	return file_file_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *UploadFileResponse) GetUploaded() int64 {
@@ -2164,7 +2315,7 @@ type FindIndexesRequest struct {
 
 func (x *FindIndexesRequest) Reset() {
 	*x = FindIndexesRequest{}
-	mi := &file_file_proto_msgTypes[42]
+	mi := &file_file_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2176,7 +2327,7 @@ func (x *FindIndexesRequest) String() string {
 func (*FindIndexesRequest) ProtoMessage() {}
 
 func (x *FindIndexesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[42]
+	mi := &file_file_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2189,7 +2340,7 @@ func (x *FindIndexesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindIndexesRequest.ProtoReflect.Descriptor instead.
 func (*FindIndexesRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{42}
+	return file_file_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *FindIndexesRequest) GetPath() string {
@@ -2216,7 +2367,7 @@ type FindIndexesResponse struct {
 
 func (x *FindIndexesResponse) Reset() {
 	*x = FindIndexesResponse{}
-	mi := &file_file_proto_msgTypes[43]
+	mi := &file_file_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2228,7 +2379,7 @@ func (x *FindIndexesResponse) String() string {
 func (*FindIndexesResponse) ProtoMessage() {}
 
 func (x *FindIndexesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[43]
+	mi := &file_file_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2241,7 +2392,7 @@ func (x *FindIndexesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindIndexesResponse.ProtoReflect.Descriptor instead.
 func (*FindIndexesResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{43}
+	return file_file_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *FindIndexesResponse) GetPaths() []string {
@@ -2263,7 +2414,7 @@ type IndexFileRequest struct {
 
 func (x *IndexFileRequest) Reset() {
 	*x = IndexFileRequest{}
-	mi := &file_file_proto_msgTypes[44]
+	mi := &file_file_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2275,7 +2426,7 @@ func (x *IndexFileRequest) String() string {
 func (*IndexFileRequest) ProtoMessage() {}
 
 func (x *IndexFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[44]
+	mi := &file_file_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2288,7 +2439,7 @@ func (x *IndexFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexFileRequest.ProtoReflect.Descriptor instead.
 func (*IndexFileRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{44}
+	return file_file_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *IndexFileRequest) GetPath() string {
@@ -2326,7 +2477,7 @@ type IndexFileResponse struct {
 
 func (x *IndexFileResponse) Reset() {
 	*x = IndexFileResponse{}
-	mi := &file_file_proto_msgTypes[45]
+	mi := &file_file_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2338,7 +2489,7 @@ func (x *IndexFileResponse) String() string {
 func (*IndexFileResponse) ProtoMessage() {}
 
 func (x *IndexFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[45]
+	mi := &file_file_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2351,7 +2502,7 @@ func (x *IndexFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexFileResponse.ProtoReflect.Descriptor instead.
 func (*IndexFileResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{45}
+	return file_file_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *IndexFileResponse) GetPath() string {
@@ -2398,7 +2549,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_file_proto_msgTypes[46]
+	mi := &file_file_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +2561,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[46]
+	mi := &file_file_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +2574,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{46}
+	return file_file_proto_rawDescGZIP(), []int{47}
 }
 
 // StopResponse is the response message when the server is stopped.
@@ -2435,7 +2586,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_file_proto_msgTypes[47]
+	mi := &file_file_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2447,7 +2598,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_file_proto_msgTypes[47]
+	mi := &file_file_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2460,7 +2611,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_file_proto_rawDescGZIP(), []int{47}
+	return file_file_proto_rawDescGZIP(), []int{48}
 }
 
 var File_file_proto protoreflect.FileDescriptor
@@ -2569,18 +2720,29 @@ const file_file_proto_rawDesc = "" +
 	"\x04path\x10\x01R\x04path\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
 	"\x03lnk\x18\x03 \x01(\tR\x03lnk\"\x13\n" +
-	"\x11CreateLnkResponse\"7\n" +
+	"\x11CreateLnkResponse\"\xa7\x01\n" +
+	"\rPublicDirInfo\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12'\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x13.file.PublicDirTypeR\x04type\x12\x17\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12!\n" +
+	"\fnode_address\x18\x04 \x01(\tR\vnodeAddress\x12\x1d\n" +
+	"\n" +
+	"local_path\x18\x05 \x01(\tR\tlocalPath\"`\n" +
 	"\x13AddPublicDirRequest\x12 \n" +
 	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
-	"\x04path\x10\x01R\x04path\"\x16\n" +
-	"\x14AddPublicDirResponse\":\n" +
+	"\x04path\x10\x01R\x04path\x12'\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x13.file.PublicDirTypeR\x04type\"?\n" +
+	"\x14AddPublicDirResponse\x12'\n" +
+	"\x04info\x18\x01 \x01(\v2\x13.file.PublicDirInfoR\x04info\":\n" +
 	"\x16RemovePublicDirRequest\x12 \n" +
 	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
 	"\x04path\x10\x01R\x04path\"\x19\n" +
 	"\x17RemovePublicDirResponse\"\x16\n" +
-	"\x14GetPublicDirsRequest\"+\n" +
+	"\x14GetPublicDirsRequest\"a\n" +
 	"\x15GetPublicDirsResponse\x12\x12\n" +
-	"\x04dirs\x18\x01 \x03(\tR\x04dirs\"M\n" +
+	"\x04dirs\x18\x01 \x03(\tR\x04dirs\x124\n" +
+	"\vpublic_dirs\x18\x02 \x03(\v2\x13.file.PublicDirInfoR\n" +
+	"publicDirs\"M\n" +
 	"\x15WriteExcelFileRequest\x12 \n" +
 	"\x04path\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
 	"\x04path\x10\x01R\x04path\x12\x12\n" +
@@ -2618,7 +2780,11 @@ const file_file_proto_rawDesc = "" +
 	"\aindexed\x18\x04 \x01(\x05R\aindexed\x12\x14\n" +
 	"\x05total\x18\x05 \x01(\x05R\x05total\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xd1\x14\n" +
+	"\fStopResponse*T\n" +
+	"\rPublicDirType\x12\x14\n" +
+	"\x10PUBLIC_DIR_LOCAL\x10\x00\x12\x14\n" +
+	"\x10PUBLIC_DIR_MINIO\x10\x01\x12\x17\n" +
+	"\x13PUBLIC_DIR_EXTERNAL\x10\x022\xd1\x14\n" +
 	"\vFileService\x12T\n" +
 	"\x04Stop\x12\x11.file.StopRequest\x1a\x12.file.StopResponse\"%\x82\xb5\x18!\n" +
 	"\n" +
@@ -2693,115 +2859,122 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
+var file_file_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
 var file_file_proto_goTypes = []any{
-	(*Empty)(nil),                   // 0: file.Empty
-	(*FileInfo)(nil),                // 1: file.FileInfo
-	(*ReadDirRequest)(nil),          // 2: file.ReadDirRequest
-	(*ReadDirResponse)(nil),         // 3: file.ReadDirResponse
-	(*CreateDirRequest)(nil),        // 4: file.CreateDirRequest
-	(*CreateDirResponse)(nil),       // 5: file.CreateDirResponse
-	(*DeleteDirRequest)(nil),        // 6: file.DeleteDirRequest
-	(*DeleteDirResponse)(nil),       // 7: file.DeleteDirResponse
-	(*RenameRequest)(nil),           // 8: file.RenameRequest
-	(*RenameResponse)(nil),          // 9: file.RenameResponse
-	(*CopyRequest)(nil),             // 10: file.CopyRequest
-	(*CopyResponse)(nil),            // 11: file.CopyResponse
-	(*MoveRequest)(nil),             // 12: file.MoveRequest
-	(*MoveResponse)(nil),            // 13: file.MoveResponse
-	(*GetFileInfoRequest)(nil),      // 14: file.GetFileInfoRequest
-	(*GetFileInfoResponse)(nil),     // 15: file.GetFileInfoResponse
-	(*GetFileMetadataRequest)(nil),  // 16: file.GetFileMetadataRequest
-	(*GetFileMetadataResponse)(nil), // 17: file.GetFileMetadataResponse
-	(*ReadFileRequest)(nil),         // 18: file.ReadFileRequest
-	(*ReadFileResponse)(nil),        // 19: file.ReadFileResponse
-	(*SaveFileRequest)(nil),         // 20: file.SaveFileRequest
-	(*SaveFileResponse)(nil),        // 21: file.SaveFileResponse
-	(*DeleteFileRequest)(nil),       // 22: file.DeleteFileRequest
-	(*DeleteFileResponse)(nil),      // 23: file.DeleteFileResponse
-	(*GetThumbnailsRequest)(nil),    // 24: file.GetThumbnailsRequest
-	(*GetThumbnailsResponse)(nil),   // 25: file.GetThumbnailsResponse
-	(*CreateArchiveRequest)(nil),    // 26: file.CreateArchiveRequest
-	(*CreateArchiveResponse)(nil),   // 27: file.CreateArchiveResponse
-	(*CreateLnkRequest)(nil),        // 28: file.CreateLnkRequest
-	(*CreateLnkResponse)(nil),       // 29: file.CreateLnkResponse
-	(*AddPublicDirRequest)(nil),     // 30: file.AddPublicDirRequest
-	(*AddPublicDirResponse)(nil),    // 31: file.AddPublicDirResponse
-	(*RemovePublicDirRequest)(nil),  // 32: file.RemovePublicDirRequest
-	(*RemovePublicDirResponse)(nil), // 33: file.RemovePublicDirResponse
-	(*GetPublicDirsRequest)(nil),    // 34: file.GetPublicDirsRequest
-	(*GetPublicDirsResponse)(nil),   // 35: file.GetPublicDirsResponse
-	(*WriteExcelFileRequest)(nil),   // 36: file.WriteExcelFileRequest
-	(*WriteExcelFileResponse)(nil),  // 37: file.WriteExcelFileResponse
-	(*HtmlToPdfRqst)(nil),           // 38: file.HtmlToPdfRqst
-	(*HtmlToPdfResponse)(nil),       // 39: file.HtmlToPdfResponse
-	(*UploadFileRequest)(nil),       // 40: file.UploadFileRequest
-	(*UploadFileResponse)(nil),      // 41: file.UploadFileResponse
-	(*FindIndexesRequest)(nil),      // 42: file.FindIndexesRequest
-	(*FindIndexesResponse)(nil),     // 43: file.FindIndexesResponse
-	(*IndexFileRequest)(nil),        // 44: file.IndexFileRequest
-	(*IndexFileResponse)(nil),       // 45: file.IndexFileResponse
-	(*StopRequest)(nil),             // 46: file.StopRequest
-	(*StopResponse)(nil),            // 47: file.StopResponse
-	(*structpb.Struct)(nil),         // 48: google.protobuf.Struct
+	(PublicDirType)(0),              // 0: file.PublicDirType
+	(*Empty)(nil),                   // 1: file.Empty
+	(*FileInfo)(nil),                // 2: file.FileInfo
+	(*ReadDirRequest)(nil),          // 3: file.ReadDirRequest
+	(*ReadDirResponse)(nil),         // 4: file.ReadDirResponse
+	(*CreateDirRequest)(nil),        // 5: file.CreateDirRequest
+	(*CreateDirResponse)(nil),       // 6: file.CreateDirResponse
+	(*DeleteDirRequest)(nil),        // 7: file.DeleteDirRequest
+	(*DeleteDirResponse)(nil),       // 8: file.DeleteDirResponse
+	(*RenameRequest)(nil),           // 9: file.RenameRequest
+	(*RenameResponse)(nil),          // 10: file.RenameResponse
+	(*CopyRequest)(nil),             // 11: file.CopyRequest
+	(*CopyResponse)(nil),            // 12: file.CopyResponse
+	(*MoveRequest)(nil),             // 13: file.MoveRequest
+	(*MoveResponse)(nil),            // 14: file.MoveResponse
+	(*GetFileInfoRequest)(nil),      // 15: file.GetFileInfoRequest
+	(*GetFileInfoResponse)(nil),     // 16: file.GetFileInfoResponse
+	(*GetFileMetadataRequest)(nil),  // 17: file.GetFileMetadataRequest
+	(*GetFileMetadataResponse)(nil), // 18: file.GetFileMetadataResponse
+	(*ReadFileRequest)(nil),         // 19: file.ReadFileRequest
+	(*ReadFileResponse)(nil),        // 20: file.ReadFileResponse
+	(*SaveFileRequest)(nil),         // 21: file.SaveFileRequest
+	(*SaveFileResponse)(nil),        // 22: file.SaveFileResponse
+	(*DeleteFileRequest)(nil),       // 23: file.DeleteFileRequest
+	(*DeleteFileResponse)(nil),      // 24: file.DeleteFileResponse
+	(*GetThumbnailsRequest)(nil),    // 25: file.GetThumbnailsRequest
+	(*GetThumbnailsResponse)(nil),   // 26: file.GetThumbnailsResponse
+	(*CreateArchiveRequest)(nil),    // 27: file.CreateArchiveRequest
+	(*CreateArchiveResponse)(nil),   // 28: file.CreateArchiveResponse
+	(*CreateLnkRequest)(nil),        // 29: file.CreateLnkRequest
+	(*CreateLnkResponse)(nil),       // 30: file.CreateLnkResponse
+	(*PublicDirInfo)(nil),           // 31: file.PublicDirInfo
+	(*AddPublicDirRequest)(nil),     // 32: file.AddPublicDirRequest
+	(*AddPublicDirResponse)(nil),    // 33: file.AddPublicDirResponse
+	(*RemovePublicDirRequest)(nil),  // 34: file.RemovePublicDirRequest
+	(*RemovePublicDirResponse)(nil), // 35: file.RemovePublicDirResponse
+	(*GetPublicDirsRequest)(nil),    // 36: file.GetPublicDirsRequest
+	(*GetPublicDirsResponse)(nil),   // 37: file.GetPublicDirsResponse
+	(*WriteExcelFileRequest)(nil),   // 38: file.WriteExcelFileRequest
+	(*WriteExcelFileResponse)(nil),  // 39: file.WriteExcelFileResponse
+	(*HtmlToPdfRqst)(nil),           // 40: file.HtmlToPdfRqst
+	(*HtmlToPdfResponse)(nil),       // 41: file.HtmlToPdfResponse
+	(*UploadFileRequest)(nil),       // 42: file.UploadFileRequest
+	(*UploadFileResponse)(nil),      // 43: file.UploadFileResponse
+	(*FindIndexesRequest)(nil),      // 44: file.FindIndexesRequest
+	(*FindIndexesResponse)(nil),     // 45: file.FindIndexesResponse
+	(*IndexFileRequest)(nil),        // 46: file.IndexFileRequest
+	(*IndexFileResponse)(nil),       // 47: file.IndexFileResponse
+	(*StopRequest)(nil),             // 48: file.StopRequest
+	(*StopResponse)(nil),            // 49: file.StopResponse
+	(*structpb.Struct)(nil),         // 50: google.protobuf.Struct
 }
 var file_file_proto_depIdxs = []int32{
-	48, // 0: file.FileInfo.metadata:type_name -> google.protobuf.Struct
-	1,  // 1: file.FileInfo.files:type_name -> file.FileInfo
-	1,  // 2: file.ReadDirResponse.info:type_name -> file.FileInfo
-	1,  // 3: file.GetFileInfoResponse.info:type_name -> file.FileInfo
-	48, // 4: file.GetFileMetadataResponse.result:type_name -> google.protobuf.Struct
-	46, // 5: file.FileService.Stop:input_type -> file.StopRequest
-	30, // 6: file.FileService.AddPublicDir:input_type -> file.AddPublicDirRequest
-	32, // 7: file.FileService.RemovePublicDir:input_type -> file.RemovePublicDirRequest
-	34, // 8: file.FileService.GetPublicDirs:input_type -> file.GetPublicDirsRequest
-	2,  // 9: file.FileService.ReadDir:input_type -> file.ReadDirRequest
-	4,  // 10: file.FileService.CreateDir:input_type -> file.CreateDirRequest
-	28, // 11: file.FileService.CreateLnk:input_type -> file.CreateLnkRequest
-	6,  // 12: file.FileService.DeleteDir:input_type -> file.DeleteDirRequest
-	8,  // 13: file.FileService.Rename:input_type -> file.RenameRequest
-	12, // 14: file.FileService.Move:input_type -> file.MoveRequest
-	10, // 15: file.FileService.Copy:input_type -> file.CopyRequest
-	26, // 16: file.FileService.CreateArchive:input_type -> file.CreateArchiveRequest
-	14, // 17: file.FileService.GetFileInfo:input_type -> file.GetFileInfoRequest
-	16, // 18: file.FileService.GetFileMetadata:input_type -> file.GetFileMetadataRequest
-	18, // 19: file.FileService.ReadFile:input_type -> file.ReadFileRequest
-	20, // 20: file.FileService.SaveFile:input_type -> file.SaveFileRequest
-	22, // 21: file.FileService.DeleteFile:input_type -> file.DeleteFileRequest
-	24, // 22: file.FileService.GetThumbnails:input_type -> file.GetThumbnailsRequest
-	40, // 23: file.FileService.UploadFile:input_type -> file.UploadFileRequest
-	36, // 24: file.FileService.WriteExcelFile:input_type -> file.WriteExcelFileRequest
-	38, // 25: file.FileService.HtmlToPdf:input_type -> file.HtmlToPdfRqst
-	44, // 26: file.FileService.IndexFile:input_type -> file.IndexFileRequest
-	42, // 27: file.FileService.FindIndexes:input_type -> file.FindIndexesRequest
-	47, // 28: file.FileService.Stop:output_type -> file.StopResponse
-	31, // 29: file.FileService.AddPublicDir:output_type -> file.AddPublicDirResponse
-	33, // 30: file.FileService.RemovePublicDir:output_type -> file.RemovePublicDirResponse
-	35, // 31: file.FileService.GetPublicDirs:output_type -> file.GetPublicDirsResponse
-	3,  // 32: file.FileService.ReadDir:output_type -> file.ReadDirResponse
-	5,  // 33: file.FileService.CreateDir:output_type -> file.CreateDirResponse
-	29, // 34: file.FileService.CreateLnk:output_type -> file.CreateLnkResponse
-	7,  // 35: file.FileService.DeleteDir:output_type -> file.DeleteDirResponse
-	9,  // 36: file.FileService.Rename:output_type -> file.RenameResponse
-	13, // 37: file.FileService.Move:output_type -> file.MoveResponse
-	11, // 38: file.FileService.Copy:output_type -> file.CopyResponse
-	27, // 39: file.FileService.CreateArchive:output_type -> file.CreateArchiveResponse
-	15, // 40: file.FileService.GetFileInfo:output_type -> file.GetFileInfoResponse
-	17, // 41: file.FileService.GetFileMetadata:output_type -> file.GetFileMetadataResponse
-	19, // 42: file.FileService.ReadFile:output_type -> file.ReadFileResponse
-	21, // 43: file.FileService.SaveFile:output_type -> file.SaveFileResponse
-	23, // 44: file.FileService.DeleteFile:output_type -> file.DeleteFileResponse
-	25, // 45: file.FileService.GetThumbnails:output_type -> file.GetThumbnailsResponse
-	41, // 46: file.FileService.UploadFile:output_type -> file.UploadFileResponse
-	37, // 47: file.FileService.WriteExcelFile:output_type -> file.WriteExcelFileResponse
-	39, // 48: file.FileService.HtmlToPdf:output_type -> file.HtmlToPdfResponse
-	45, // 49: file.FileService.IndexFile:output_type -> file.IndexFileResponse
-	43, // 50: file.FileService.FindIndexes:output_type -> file.FindIndexesResponse
-	28, // [28:51] is the sub-list for method output_type
-	5,  // [5:28] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	50, // 0: file.FileInfo.metadata:type_name -> google.protobuf.Struct
+	2,  // 1: file.FileInfo.files:type_name -> file.FileInfo
+	2,  // 2: file.ReadDirResponse.info:type_name -> file.FileInfo
+	2,  // 3: file.GetFileInfoResponse.info:type_name -> file.FileInfo
+	50, // 4: file.GetFileMetadataResponse.result:type_name -> google.protobuf.Struct
+	0,  // 5: file.PublicDirInfo.type:type_name -> file.PublicDirType
+	0,  // 6: file.AddPublicDirRequest.type:type_name -> file.PublicDirType
+	31, // 7: file.AddPublicDirResponse.info:type_name -> file.PublicDirInfo
+	31, // 8: file.GetPublicDirsResponse.public_dirs:type_name -> file.PublicDirInfo
+	48, // 9: file.FileService.Stop:input_type -> file.StopRequest
+	32, // 10: file.FileService.AddPublicDir:input_type -> file.AddPublicDirRequest
+	34, // 11: file.FileService.RemovePublicDir:input_type -> file.RemovePublicDirRequest
+	36, // 12: file.FileService.GetPublicDirs:input_type -> file.GetPublicDirsRequest
+	3,  // 13: file.FileService.ReadDir:input_type -> file.ReadDirRequest
+	5,  // 14: file.FileService.CreateDir:input_type -> file.CreateDirRequest
+	29, // 15: file.FileService.CreateLnk:input_type -> file.CreateLnkRequest
+	7,  // 16: file.FileService.DeleteDir:input_type -> file.DeleteDirRequest
+	9,  // 17: file.FileService.Rename:input_type -> file.RenameRequest
+	13, // 18: file.FileService.Move:input_type -> file.MoveRequest
+	11, // 19: file.FileService.Copy:input_type -> file.CopyRequest
+	27, // 20: file.FileService.CreateArchive:input_type -> file.CreateArchiveRequest
+	15, // 21: file.FileService.GetFileInfo:input_type -> file.GetFileInfoRequest
+	17, // 22: file.FileService.GetFileMetadata:input_type -> file.GetFileMetadataRequest
+	19, // 23: file.FileService.ReadFile:input_type -> file.ReadFileRequest
+	21, // 24: file.FileService.SaveFile:input_type -> file.SaveFileRequest
+	23, // 25: file.FileService.DeleteFile:input_type -> file.DeleteFileRequest
+	25, // 26: file.FileService.GetThumbnails:input_type -> file.GetThumbnailsRequest
+	42, // 27: file.FileService.UploadFile:input_type -> file.UploadFileRequest
+	38, // 28: file.FileService.WriteExcelFile:input_type -> file.WriteExcelFileRequest
+	40, // 29: file.FileService.HtmlToPdf:input_type -> file.HtmlToPdfRqst
+	46, // 30: file.FileService.IndexFile:input_type -> file.IndexFileRequest
+	44, // 31: file.FileService.FindIndexes:input_type -> file.FindIndexesRequest
+	49, // 32: file.FileService.Stop:output_type -> file.StopResponse
+	33, // 33: file.FileService.AddPublicDir:output_type -> file.AddPublicDirResponse
+	35, // 34: file.FileService.RemovePublicDir:output_type -> file.RemovePublicDirResponse
+	37, // 35: file.FileService.GetPublicDirs:output_type -> file.GetPublicDirsResponse
+	4,  // 36: file.FileService.ReadDir:output_type -> file.ReadDirResponse
+	6,  // 37: file.FileService.CreateDir:output_type -> file.CreateDirResponse
+	30, // 38: file.FileService.CreateLnk:output_type -> file.CreateLnkResponse
+	8,  // 39: file.FileService.DeleteDir:output_type -> file.DeleteDirResponse
+	10, // 40: file.FileService.Rename:output_type -> file.RenameResponse
+	14, // 41: file.FileService.Move:output_type -> file.MoveResponse
+	12, // 42: file.FileService.Copy:output_type -> file.CopyResponse
+	28, // 43: file.FileService.CreateArchive:output_type -> file.CreateArchiveResponse
+	16, // 44: file.FileService.GetFileInfo:output_type -> file.GetFileInfoResponse
+	18, // 45: file.FileService.GetFileMetadata:output_type -> file.GetFileMetadataResponse
+	20, // 46: file.FileService.ReadFile:output_type -> file.ReadFileResponse
+	22, // 47: file.FileService.SaveFile:output_type -> file.SaveFileResponse
+	24, // 48: file.FileService.DeleteFile:output_type -> file.DeleteFileResponse
+	26, // 49: file.FileService.GetThumbnails:output_type -> file.GetThumbnailsResponse
+	43, // 50: file.FileService.UploadFile:output_type -> file.UploadFileResponse
+	39, // 51: file.FileService.WriteExcelFile:output_type -> file.WriteExcelFileResponse
+	41, // 52: file.FileService.HtmlToPdf:output_type -> file.HtmlToPdfResponse
+	47, // 53: file.FileService.IndexFile:output_type -> file.IndexFileResponse
+	45, // 54: file.FileService.FindIndexes:output_type -> file.FindIndexesResponse
+	32, // [32:55] is the sub-list for method output_type
+	9,  // [9:32] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_file_proto_init() }
@@ -2818,13 +2991,14 @@ func file_file_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   48,
+			NumEnums:      1,
+			NumMessages:   49,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_file_proto_goTypes,
 		DependencyIndexes: file_file_proto_depIdxs,
+		EnumInfos:         file_file_proto_enumTypes,
 		MessageInfos:      file_file_proto_msgTypes,
 	}.Build()
 	File_file_proto = out.File

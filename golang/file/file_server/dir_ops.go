@@ -215,11 +215,29 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
 	}
 	p := srv.formatPath(rqst.Path)
+
+	// Check if this path belongs to a remote node's public dir.
+	nodeID, _ := config.GetMacAddress()
+	if remote := srv.clusterDirs.findRemoteDir(p, nodeID); remote != nil {
+		return srv.proxyReadDir(p, remote.NodeAddress, rqst.GetRecursive(), stream)
+	}
+
 	ctx := stream.Context()
 	storage := srv.storageForPath(p)
 	info, err := storage.Stat(ctx, p)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
+			// MinIO public dirs may not have a physical directory object —
+			// they only exist as key prefixes. If this path is a registered
+			// public dir, return an empty directory instead of not-found.
+			if srv.publicContains(p) && strings.HasPrefix(p, "/public/") {
+				return stream.Send(&filepb.ReadDirResponse{Info: &filepb.FileInfo{
+					Name:  filepath.Base(p),
+					IsDir: true,
+					Path:  p,
+					Mime:  "inode/directory",
+				}})
+			}
 			return status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
 		}
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -374,36 +392,100 @@ func (srv *server) publishReloadDirEvent(path string) {
 	}
 }
 
-// AddPublicDir registers a folder as public.
+// AddPublicDir registers a folder as public with origin tracking.
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	p := srv.formatPath(rqst.Path)
 	if p == "" {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid empty path")))
 	}
-	// Check existence via storageForPath which handles both local FS and MinIO.
-	if !srv.pathExists(ctx, p) {
-		// Fallback: try os.Stat for external mounts (e.g. /mnt/...) not routed
-		// through storageForPath.
-		if _, err := os.Stat(p); err != nil {
-			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
+
+	// Determine public dir type.
+	dirType := rqst.GetType()
+
+	switch dirType {
+	case filepb.PublicDirType_PUBLIC_DIR_MINIO:
+		// MinIO public dirs: create the prefix in MinIO if needed.
+		// No local filesystem check — the dir lives in object storage.
+		if !srv.minioEnabled() {
+			return nil, status.Errorf(codes.FailedPrecondition, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("MinIO is not configured")))
+		}
+		// Use storageForPath which routes /public/ paths to MinIO with "public" prefix.
+		storage := srv.storageForPath(p)
+		if err := storage.MkdirAll(ctx, p, 0o755); err != nil {
+			slog.Warn("AddPublicDir: minio mkdir (non-fatal)", "path", p, "err", err)
+		}
+
+	default:
+		// Local or External: verify the path exists on the filesystem.
+		if !srv.pathExists(ctx, p) {
+			// Fallback: try os.Stat for external mounts (e.g. /mnt/...) not routed
+			// through storageForPath.
+			if _, err := os.Stat(p); err != nil {
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
+			}
+		}
+
+		// Auto-detect type if not explicitly set (default LOCAL = 0).
+		if dirType == filepb.PublicDirType_PUBLIC_DIR_LOCAL {
+			if isExternalMount(p) {
+				dirType = filepb.PublicDirType_PUBLIC_DIR_EXTERNAL
+			}
 		}
 	}
+
 	if srv.publicContains(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s already exist in public paths", p)))
 	}
+
+	// Build origin info.
+	nodeID, _ := config.GetMacAddress()
+	nodeAddr := srv.Address
+
+	var typeStr string
+	switch dirType {
+	case filepb.PublicDirType_PUBLIC_DIR_MINIO:
+		typeStr = "minio"
+	case filepb.PublicDirType_PUBLIC_DIR_EXTERNAL:
+		typeStr = "external"
+	default:
+		typeStr = "local"
+	}
+
+	info := &filepb.PublicDirInfo{
+		Path:        p,
+		Type:        dirType,
+		NodeId:      nodeID,
+		NodeAddress: nodeAddr,
+		LocalPath:   p,
+	}
+
+	// Append to local config (backward compat).
 	srv.Public = append(srv.Public, p)
 	if err := srv.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	slog.Info("public dir added", "path", p)
-	return &filepb.AddPublicDirResponse{}, nil
+
+	// Write to cluster registry.
+	entry := config.PublicDirEntry{
+		Path:        p,
+		Type:        typeStr,
+		NodeID:      nodeID,
+		NodeAddress: nodeAddr,
+		LocalPath:   p,
+	}
+	if err := config.PutPublicDir(entry); err != nil {
+		slog.Warn("AddPublicDir: failed to write cluster registry", "path", p, "err", err)
+	}
+
+	slog.Info("public dir added", "path", p, "type", typeStr, "node", nodeID)
+	return &filepb.AddPublicDirResponse{Info: info}, nil
 }
 
 // RemovePublicDir unregisters a public folder.
 func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
 	p := srv.formatPath(rqst.Path)
-	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
+	if p == "" {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid empty path")))
 	}
 	if !srv.publicContains(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s doesn't exist in public paths", p)))
@@ -412,13 +494,70 @@ func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePubli
 	if err := srv.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// Remove from cluster registry.
+	nodeID, _ := config.GetMacAddress()
+	if err := config.DeletePublicDir(nodeID, p); err != nil {
+		slog.Warn("RemovePublicDir: failed to delete from cluster registry", "path", p, "err", err)
+	}
+
 	slog.Info("public dir removed", "path", p)
 	return &filepb.RemovePublicDirResponse{}, nil
 }
 
-// GetPublicDirs returns configured public directories.
-func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
-	return &filepb.GetPublicDirsResponse{Dirs: srv.Public}, nil
+// GetPublicDirs returns configured public directories from both local config and cluster registry.
+func (srv *server) GetPublicDirs(_ context.Context, _ *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
+	nodeID, _ := config.GetMacAddress()
+
+	// Start with local dirs (backward compat string list).
+	dirs := make([]string, len(srv.Public))
+	copy(dirs, srv.Public)
+
+	// Build structured list from cluster registry.
+	var publicDirs []*filepb.PublicDirInfo
+
+	// Add local entries.
+	for _, p := range srv.Public {
+		dirType := filepb.PublicDirType_PUBLIC_DIR_LOCAL
+		if strings.HasPrefix(p, "/public/") {
+			dirType = filepb.PublicDirType_PUBLIC_DIR_MINIO
+		} else if isExternalMount(p) {
+			dirType = filepb.PublicDirType_PUBLIC_DIR_EXTERNAL
+		}
+		publicDirs = append(publicDirs, &filepb.PublicDirInfo{
+			Path:        p,
+			Type:        dirType,
+			NodeId:      nodeID,
+			NodeAddress: srv.Address,
+			LocalPath:   p,
+		})
+	}
+
+	// Merge remote entries from cluster cache.
+	for _, e := range srv.clusterDirs.get() {
+		if e.NodeID == nodeID {
+			continue // already included from local config
+		}
+		var t filepb.PublicDirType
+		switch e.Type {
+		case "minio":
+			t = filepb.PublicDirType_PUBLIC_DIR_MINIO
+		case "external":
+			t = filepb.PublicDirType_PUBLIC_DIR_EXTERNAL
+		default:
+			t = filepb.PublicDirType_PUBLIC_DIR_LOCAL
+		}
+		dirs = append(dirs, e.Path)
+		publicDirs = append(publicDirs, &filepb.PublicDirInfo{
+			Path:        e.Path,
+			Type:        t,
+			NodeId:      e.NodeID,
+			NodeAddress: e.NodeAddress,
+			LocalPath:   e.LocalPath,
+		})
+	}
+
+	return &filepb.GetPublicDirsResponse{Dirs: dirs, PublicDirs: publicDirs}, nil
 }
 
 // isPublic returns true if a concrete filesystem path is inside a public root.
