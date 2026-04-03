@@ -1,0 +1,30 @@
+2026-04-02T13:17:09Z | cluster_controller | v0.0.1+3 | etcd state persistence for leader election — fixes split-brain on leadership transfer
+2026-04-02T23:43:18Z | media | v0.0.1+1 | fix UploadVideo: add /public/ to isMinioPath and minioKeyFromPath
+2026-04-02T23:57:09Z | event | v0.0.1+1 | fix ScyllaDB bus: use routable IP instead of 127.0.0.1, add reconnect every 10s
+2026-04-03T15:21:55Z | cluster_controller | v0.0.1+4 | fix: release selectReleaseTargets held srv.mu during etcd I/O causing deadlock
+2026-04-03T15:34:46Z | cluster_controller | v0.0.1+5 | fix: use routable IP for leader addr instead of bare hostname
+2026-04-03T15:47:42Z | cluster_controller | v0.0.1+6 | fix: use routable IP/FQDN instead of bare hostname in leader addr and etcd endpoints
+2026-04-03T15:48:02Z | node_agent | v0.0.1+1 | fix: advertise FQDN in node identity so other nodes can resolve hostname
+2026-04-03T16:01:07Z | ai_executor | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:01:19Z | ai_memory | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:01:31Z | ai_router | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:01:42Z | ai_watcher | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:01:54Z | authentication | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:02:07Z | backup_manager | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:02:18Z | cluster_doctor | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:02:29Z | discovery | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:02:42Z | dns | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:02:54Z | event | v0.0.1+2 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:03:10Z | file | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:03:22Z | log | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:03:37Z | media | v0.0.1+2 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:03:48Z | monitoring | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:04:02Z | persistence | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:04:15Z | rbac | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:04:28Z | repository | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:04:43Z | resource | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:04:57Z | search | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:05:13Z | title | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:05:29Z | torrent | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:05:41Z | workflow | v0.0.1+1 | rebuild: pick up bare-hostname fixes in shared libraries
+2026-04-03T16:16:44Z | cluster_controller | v0.0.1+7 | feat: include build number in release hash so same-version rebuilds trigger rollout

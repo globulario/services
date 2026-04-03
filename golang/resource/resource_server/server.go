@@ -893,7 +893,7 @@ func main() {
 		logger.Info("Scylla process detected, using Scylla as backend store", "process", process)
 	}
 	computeBackendConfig(s, scyllaDetected)
-	s.Backend_replication_factor = 1
+	s.Backend_replication_factor = 3
 
 	s.Backend_user = "sa"
 	s.Backend_password = "adminadmin"

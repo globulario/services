@@ -11,15 +11,17 @@ import (
 )
 
 var allowed = map[string]struct{}{
-	"start":   {},
-	"stop":    {},
-	"restart": {},
-	"enable":  {},
-	"disable": {},
-	"status":  {},
+	"start":         {},
+	"stop":          {},
+	"restart":       {},
+	"enable":        {},
+	"disable":       {},
+	"status":        {},
+	"daemon-reload": {},
 }
 
 // ApplyUnitAction executes the requested action for the given unit via systemctl.
+// The special action "daemon-reload" ignores the unit name and reloads all unit files.
 func ApplyUnitAction(ctx context.Context, unitName, action string) (string, error) {
 	action = strings.ToLower(strings.TrimSpace(action))
 	if unitName == "" {
@@ -27,6 +29,11 @@ func ApplyUnitAction(ctx context.Context, unitName, action string) (string, erro
 	}
 	if _, ok := allowed[action]; !ok {
 		return "", errors.New("unsupported action: " + action)
+	}
+
+	// daemon-reload is global — no unit name argument.
+	if action == "daemon-reload" {
+		return "", DaemonReload(ctx)
 	}
 
 	cmd := exec.CommandContext(ctx, "systemctl", action, unitName)

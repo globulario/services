@@ -661,13 +661,22 @@ func isPrivateIP(ip net.IP) bool {
 
 func buildNodeIdentity() *cluster_controllerpb.NodeIdentity {
 	hostname, _ := os.Hostname()
+	domain := os.Getenv("NODE_AGENT_DOMAIN")
+	// Build an advertise FQDN so other nodes can resolve this host without
+	// relying on bare-hostname DNS (which only works with /etc/hosts or
+	// search-domain config). Prefer hostname.domain; fall back to hostname.
+	advertiseFqdn := hostname
+	if domain != "" && !strings.Contains(hostname, ".") {
+		advertiseFqdn = hostname + "." + domain
+	}
 	return &cluster_controllerpb.NodeIdentity{
-		Hostname:     hostname,
-		Domain:       os.Getenv("NODE_AGENT_DOMAIN"),
-		Ips:          gatherIPs(),
-		Os:           runtime.GOOS,
-		Arch:         runtime.GOARCH,
-		AgentVersion: getEnv("NODE_AGENT_VERSION", "0.0.1"),
+		Hostname:      hostname,
+		Domain:        domain,
+		AdvertiseFqdn: advertiseFqdn,
+		Ips:           gatherIPs(),
+		Os:            runtime.GOOS,
+		Arch:          runtime.GOARCH,
+		AgentVersion:  getEnv("NODE_AGENT_VERSION", "0.0.1"),
 	}
 }
 

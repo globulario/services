@@ -183,7 +183,7 @@ func TestRenderEtcdConfig(t *testing.T) {
 			t.Errorf("single node bootstrap should use localhost-only listen-client-urls, got:\n%s", config)
 		}
 		// Must use HTTPS
-		if strings.Contains(config, "http://") {
+		if strings.Contains(config, "https://") {
 			t.Error("etcd config must use HTTPS, found http://")
 		}
 		// Fresh bootstrap = initial-cluster-state: "new"
@@ -268,7 +268,7 @@ func TestRenderEtcdConfig(t *testing.T) {
 			t.Error("multi-node should have localhost in listen-client-urls")
 		}
 		// No HTTP URLs
-		if strings.Contains(config, "http://") {
+		if strings.Contains(config, "https://") {
 			t.Error("etcd config must use HTTPS, found http://")
 		}
 	})
@@ -372,7 +372,7 @@ func TestRenderMinioConfig(t *testing.T) {
 		if !strings.Contains(config, "MINIO_VOLUMES=/var/lib/globular/minio/data") {
 			t.Error("single node should use local path")
 		}
-		if strings.Contains(config, "http://") {
+		if strings.Contains(config, "https://") {
 			t.Error("single node should not have HTTP endpoints")
 		}
 	})
@@ -394,10 +394,10 @@ func TestRenderMinioConfig(t *testing.T) {
 			t.Fatal("renderMinioConfig() returned false")
 		}
 
-		if !strings.Contains(config, "http://192.168.1.10:9000") {
+		if !strings.Contains(config, "https://192.168.1.10:9000") {
 			t.Error("config missing first node endpoint")
 		}
-		if !strings.Contains(config, "http://192.168.1.11:9000") {
+		if !strings.Contains(config, "https://192.168.1.11:9000") {
 			t.Error("config missing second node endpoint")
 		}
 	})
@@ -418,6 +418,203 @@ func TestRenderMinioConfig(t *testing.T) {
 			t.Error("renderMinioConfig() should return false for node without minio profile")
 		}
 	})
+
+	t.Run("control-plane profile enables minio", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"control-plane", "gateway"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"control-plane", "gateway"}},
+		}
+		_, ok := renderMinioConfig(ctx)
+		if !ok {
+			t.Error("renderMinioConfig() should return true for control-plane profile")
+		}
+	})
+
+	t.Run("multi-drive distributed (3 nodes x 2 drives)", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "10.0.0.63", Profiles: []string{"control-plane"}},
+					{NodeID: "n2", Hostname: "host2", IP: "10.0.0.8", Profiles: []string{"core"}},
+					{NodeID: "n3", Hostname: "host3", IP: "10.0.0.20", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode:    &memberNode{NodeID: "n1", Hostname: "host1", IP: "10.0.0.63", Profiles: []string{"control-plane"}},
+			MinioPoolNodes: []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"},
+			MinioNodePaths: map[string]string{
+				"10.0.0.63": "/mnt/40F43F08F43EFFA8/minio",
+			},
+			MinioDrivesPerNode: 2,
+			MinioCredentials:   &minioCredentials{RootUser: "testuser", RootPassword: "testpass"},
+		}
+
+		config, ok := renderMinioConfig(ctx)
+		if !ok {
+			t.Fatal("renderMinioConfig() returned false")
+		}
+
+		// Should have 6 endpoints (3 nodes x 2 drives)
+		if !strings.Contains(config, "https://10.0.0.63:9000/mnt/40F43F08F43EFFA8/minio/data1") {
+			t.Error("missing ryzen data1 with custom path")
+		}
+		if !strings.Contains(config, "https://10.0.0.63:9000/mnt/40F43F08F43EFFA8/minio/data2") {
+			t.Error("missing ryzen data2 with custom path")
+		}
+		if !strings.Contains(config, "https://10.0.0.8:9000/var/lib/globular/minio/data1") {
+			t.Error("missing nuc data1 with default path")
+		}
+		if !strings.Contains(config, "https://10.0.0.8:9000/var/lib/globular/minio/data2") {
+			t.Error("missing nuc data2 with default path")
+		}
+		if !strings.Contains(config, "https://10.0.0.20:9000/var/lib/globular/minio/data1") {
+			t.Error("missing dell data1 with default path")
+		}
+		if !strings.Contains(config, "https://10.0.0.20:9000/var/lib/globular/minio/data2") {
+			t.Error("missing dell data2 with default path")
+		}
+
+		// Verify credentials
+		if !strings.Contains(config, "MINIO_ROOT_USER=testuser") {
+			t.Error("missing credentials")
+		}
+	})
+
+	t.Run("single node multi-drive", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode:    &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+			MinioDrivesPerNode: 2,
+		}
+
+		config, ok := renderMinioConfig(ctx)
+		if !ok {
+			t.Fatal("renderMinioConfig() returned false")
+		}
+
+		if !strings.Contains(config, "/var/lib/globular/minio/data1") {
+			t.Error("missing data1")
+		}
+		if !strings.Contains(config, "/var/lib/globular/minio/data2") {
+			t.Error("missing data2")
+		}
+		if strings.Contains(config, "https://") {
+			t.Error("single node multi-drive should not have HTTP endpoints")
+		}
+	})
+}
+
+func TestRenderMinioSystemdOverride(t *testing.T) {
+	t.Run("not rendered for single node single drive", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				Nodes: []memberNode{
+					{NodeID: "n1", IP: "10.0.0.1", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n1", IP: "10.0.0.1", Profiles: []string{"core"}},
+		}
+		_, ok := renderMinioSystemdOverride(ctx)
+		if ok {
+			t.Error("should not render for single-node single-drive")
+		}
+	})
+
+	t.Run("rendered for multi-drive distributed", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				Nodes: []memberNode{
+					{NodeID: "n1", IP: "10.0.0.63", Profiles: []string{"control-plane"}},
+					{NodeID: "n2", IP: "10.0.0.8", Profiles: []string{"core"}},
+					{NodeID: "n3", IP: "10.0.0.20", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode:    &memberNode{NodeID: "n1", IP: "10.0.0.63", Profiles: []string{"control-plane"}},
+			MinioPoolNodes: []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"},
+			MinioNodePaths: map[string]string{"10.0.0.63": "/mnt/custom/minio"},
+			MinioDrivesPerNode: 2,
+		}
+
+		content, ok := renderMinioSystemdOverride(ctx)
+		if !ok {
+			t.Fatal("should render for distributed multi-drive")
+		}
+
+		// Check ExecStartPre creates data1 and data2 with custom path
+		if !strings.Contains(content, "mkdir -p /mnt/custom/minio/data1") {
+			t.Error("missing mkdir for data1 with custom path")
+		}
+		if !strings.Contains(content, "mkdir -p /mnt/custom/minio/data2") {
+			t.Error("missing mkdir for data2 with custom path")
+		}
+		if !strings.Contains(content, "chown globular:globular /mnt/custom/minio/data1") {
+			t.Error("missing chown for data1")
+		}
+		// Check ExecStart uses $MINIO_VOLUMES
+		if !strings.Contains(content, "$MINIO_VOLUMES") {
+			t.Error("ExecStart should use $MINIO_VOLUMES")
+		}
+		if !strings.Contains(content, "--address 10.0.0.63:9000") {
+			t.Error("ExecStart should bind to node IP")
+		}
+		// Check ExecStart= (empty) line to clear the original
+		if !strings.Contains(content, "ExecStart=\n") {
+			t.Error("should clear original ExecStart")
+		}
+	})
+
+	t.Run("default path for node not in MinioNodePaths", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				Nodes: []memberNode{
+					{NodeID: "n1", IP: "10.0.0.8", Profiles: []string{"core"}},
+					{NodeID: "n2", IP: "10.0.0.20", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode:    &memberNode{NodeID: "n1", IP: "10.0.0.8", Profiles: []string{"core"}},
+			MinioPoolNodes: []string{"10.0.0.8", "10.0.0.20"},
+			MinioDrivesPerNode: 2,
+		}
+
+		content, ok := renderMinioSystemdOverride(ctx)
+		if !ok {
+			t.Fatal("should render")
+		}
+		if !strings.Contains(content, "/var/lib/globular/minio/data1") {
+			t.Error("should use default path")
+		}
+	})
+}
+
+func TestRenderMinioConfigIncludesCICD(t *testing.T) {
+	ctx := &serviceConfigContext{
+		Membership: &clusterMembership{
+			Nodes: []memberNode{
+				{NodeID: "n1", IP: "10.0.0.1", Profiles: []string{"core"}},
+				{NodeID: "n2", IP: "10.0.0.2", Profiles: []string{"core"}},
+			},
+		},
+		CurrentNode:    &memberNode{NodeID: "n1", IP: "10.0.0.1", Profiles: []string{"core"}},
+		MinioPoolNodes: []string{"10.0.0.1", "10.0.0.2"},
+		MinioCredentials: &minioCredentials{RootUser: "u", RootPassword: "p"},
+	}
+	config, ok := renderMinioConfig(ctx)
+	if !ok {
+		t.Fatal("expected success")
+	}
+	if !strings.Contains(config, "MINIO_CI_CD=1") {
+		t.Error("distributed mode should include MINIO_CI_CD=1")
+	}
 }
 
 func TestRenderXDSConfig(t *testing.T) {

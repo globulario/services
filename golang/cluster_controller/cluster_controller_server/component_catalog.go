@@ -212,7 +212,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-minio.service",
 			Kind:                 KindInfrastructure,
 			Priority:             6,
-			Profiles:             []string{"core", "compute", "storage"},
+			Profiles:             []string{"core", "compute", "storage", "control-plane"},
 			ProvidesCapabilities: []Capability{CapObjectStore},
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-minio.service", Port: 9000},
 		},
@@ -551,6 +551,7 @@ func buildCatalog() []*Component {
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
+			InstallMode:              InstallModeDay0Join, // apt package, not a repo artifact
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
 		},
 		{
@@ -560,6 +561,7 @@ func buildCatalog() []*Component {
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
+			InstallMode:              InstallModeDay0Join, // apt package, not a repo artifact
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager-agent.service", Port: 10001},
 		},
 		{

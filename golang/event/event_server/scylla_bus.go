@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 )
 
@@ -32,7 +33,7 @@ const (
 
 const createEventKeyspaceCQL = `
 CREATE KEYSPACE IF NOT EXISTS globular_events
-  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
+  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3}
 `
 
 // Events are partitioned by a time bucket (minute-level) so ScyllaDB can
@@ -66,7 +67,7 @@ func newScyllaBus(logger *slog.Logger) *scyllaBus {
 }
 
 func (sb *scyllaBus) connect() error {
-	hosts := []string{"127.0.0.1"}
+	hosts := []string{config.GetLocalIP()}
 	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
 		hosts = strings.Split(h, ",")
 	}

@@ -18,7 +18,20 @@ import (
 // triggerJoinWorkflow calls NodeAgent.RunWorkflow on the joining node
 // to execute the node.join workflow definition. This replaces the
 // old reconcile loop with a single gRPC call.
+//
+// Callers MUST set BootstrapWorkflowActive = true under the state lock
+// before launching this goroutine to prevent double-triggers.
 func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
+	// Clear BootstrapWorkflowActive when we exit, regardless of outcome,
+	// so the recovery mechanism can re-trigger if needed.
+	defer func() {
+		srv.lock("triggerJoinWorkflow:deactivate")
+		if n := srv.state.Nodes[nodeID]; n != nil {
+			n.BootstrapWorkflowActive = false
+		}
+		srv.unlock()
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 

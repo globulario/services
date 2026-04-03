@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -243,16 +243,24 @@ func (srv *server) buildReleaseControllerConfig() engine.ReleaseControllerConfig
 	}
 }
 
+// releaseTargetCandidate holds the subset of node state needed for target
+// selection, snapshotted under the lock so that etcd I/O can happen without
+// holding srv.mu.
+type releaseTargetCandidate struct {
+	nodeID        string
+	agentEndpoint string
+	installedKind string
+}
+
 // selectReleaseTargets filters candidate nodes: only include nodes that are
 // bootstrap-ready and have the package's required profiles.
 func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) ([]any, error) {
-	srv.lock("selectReleaseTargets")
-	defer srv.unlock()
-
 	isInfra := strings.EqualFold(pkgKind, "INFRASTRUCTURE")
 	catalogEntry := CatalogByName(pkgName)
 
-	var targets []any
+	// Phase 1: snapshot node state under the lock — no I/O here.
+	srv.lock("selectReleaseTargets")
+	var eligible []releaseTargetCandidate
 	for _, c := range candidates {
 		nodeID := fmt.Sprint(c)
 		node := srv.state.Nodes[nodeID]
@@ -282,17 +290,11 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		}
 
 		// Skip nodes that are active infrastructure members for this package.
-		// Reinstalling an active ScyllaDB/etcd/MinIO member would cause data
-		// loss or cluster instability.
 		if isActiveInfraMember(node, pkgName) {
 			log.Printf("release-workflow: SKIP node %s — active %s member (protected)", nodeID, pkgName)
 			continue
 		}
 
-		// Skip nodes where the package is already installed at the desired hash.
-		// When desiredHash is empty (e.g. auto-imported releases), skip nodes
-		// where the package is already installed at any version — the node is
-		// already converged and doesn't need a reinstall+restart cycle.
 		installedKind := pkgKind
 		if installedKind == "" {
 			if catalogEntry != nil && catalogEntry.Kind == KindInfrastructure {
@@ -301,9 +303,21 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 				installedKind = "SERVICE"
 			}
 		}
-		pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, installedKind, pkgName)
+
+		eligible = append(eligible, releaseTargetCandidate{
+			nodeID:        nodeID,
+			agentEndpoint: node.AgentEndpoint,
+			installedKind: installedKind,
+		})
+	}
+	srv.unlock()
+
+	// Phase 2: check installed state via etcd WITHOUT holding srv.mu.
+	var targets []any
+	for _, ec := range eligible {
+		pkg, err := installed_state.GetInstalledPackage(ctx, ec.nodeID, ec.installedKind, pkgName)
 		if err != nil {
-			log.Printf("release-workflow: installed check %s/%s on %s: %v", installedKind, pkgName, nodeID, err)
+			log.Printf("release-workflow: installed check %s/%s on %s: %v", ec.installedKind, pkgName, ec.nodeID, err)
 		}
 		if pkg != nil {
 			// The desired hash is a synthetic release hash (sha256 of metadata
@@ -315,30 +329,31 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			// and compare that to the desired hash. If they match, the node has
 			// the correct version installed.
 			installedVersion := pkg.GetVersion()
+			installedBuild := pkg.GetBuildNumber()
 			publisher := pkg.GetPublisherId()
 			if publisher == "" {
 				publisher = "core@globular.io"
 			}
 			var computedHash string
 			if isInfra {
-				computedHash = ComputeInfrastructureDesiredHash(publisher, pkgName, installedVersion)
+				computedHash = ComputeInfrastructureDesiredHash(publisher, pkgName, installedVersion, installedBuild)
 			} else {
-				computedHash = ComputeReleaseDesiredHash(publisher, pkgName, installedVersion, nil)
+				computedHash = ComputeReleaseDesiredHash(publisher, pkgName, installedVersion, installedBuild, nil)
 			}
 			if desiredHash == "" || computedHash == desiredHash {
 				log.Printf("release-workflow: skip node %s for %s (already installed v=%s)",
-					nodeID, pkgName, installedVersion)
+					ec.nodeID, pkgName, installedVersion)
 				continue
 			}
 			log.Printf("release-workflow: node %s needs update for %s (installed_v=%s computed=%s desired=%s)",
-				nodeID, pkgName, installedVersion, computedHash, desiredHash)
+				ec.nodeID, pkgName, installedVersion, computedHash, desiredHash)
 		} else {
-			log.Printf("release-workflow: node %s has no installed record for %s/%s", nodeID, installedKind, pkgName)
+			log.Printf("release-workflow: node %s has no installed record for %s/%s", ec.nodeID, ec.installedKind, pkgName)
 		}
 
 		targets = append(targets, map[string]any{
-			"node_id":        nodeID,
-			"agent_endpoint": node.AgentEndpoint,
+			"node_id":        ec.nodeID,
+			"agent_endpoint": ec.agentEndpoint,
 		})
 	}
 	return targets, nil
@@ -495,7 +510,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			}
 			defer conn.Close()
 
-			unit := "globular-" + name + ".service"
+			unit := packageToUnit(name)
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			resp, err := client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
 				Unit:   unit,
@@ -646,13 +661,35 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 }
 
 // --------------------------------------------------------------------------
+// Package → systemd unit mapping
+// --------------------------------------------------------------------------
+
+// packageUnitOverrides maps package names to their actual systemd unit names
+// for packages that don't follow the "globular-{name}.service" convention.
+var packageUnitOverrides = map[string]string{
+	"scylladb":             "scylla-server.service",
+	"scylla-manager":       "globular-scylla-manager.service",
+	"scylla-manager-agent": "globular-scylla-manager-agent.service",
+}
+
+// packageToUnit returns the systemd unit name for a package.
+func packageToUnit(name string) string {
+	if unit, ok := packageUnitOverrides[name]; ok {
+		return unit
+	}
+	return "globular-" + name + ".service"
+}
+
+// --------------------------------------------------------------------------
 // Workflow definition resolver
 // --------------------------------------------------------------------------
 
-var fetchControllerDefsOnce sync.Once
+var fetchControllerDefsDone int32 // atomic: 1 = successfully fetched
 
 // resolveWorkflowDefinition finds a workflow YAML by name.
 // On first miss it attempts to fetch all definitions from MinIO.
+// Unlike sync.Once, retries on failure so transient MinIO unavailability
+// during startup doesn't permanently prevent workflow resolution.
 func resolveWorkflowDefinition(name string) string {
 	candidates := []string{
 		"/var/lib/globular/workflows/" + name + ".yaml",
@@ -665,42 +702,10 @@ func resolveWorkflowDefinition(name string) string {
 		}
 	}
 
-	// Not found on disk — try fetching from MinIO (once).
-	fetchControllerDefsOnce.Do(func() {
-		destDir := "/var/lib/globular/workflows"
-		os.MkdirAll(destDir, 0o755)
-		knownDefs := []string{
-			"day0.bootstrap.yaml",
-			"node.bootstrap.yaml",
-			"node.join.yaml",
-			"node.repair.yaml",
-			"cluster.reconcile.yaml",
-			"release.apply.package.yaml",
-			"release.apply.infrastructure.yaml",
-			"release.remove.package.yaml",
-		}
-		fetched := 0
-		for _, defName := range knownDefs {
-			key := "workflows/" + defName
-			data, err := config.GetClusterConfig(key)
-			if err != nil {
-				log.Printf("workflow-resolver: fetch %s: %v", key, err)
-				continue
-			}
-			if data == nil {
-				continue
-			}
-			dest := filepath.Join(destDir, defName)
-			if err := os.WriteFile(dest, data, 0o644); err != nil {
-				log.Printf("workflow-resolver: write %s: %v", dest, err)
-				continue
-			}
-			fetched++
-		}
-		if fetched > 0 {
-			log.Printf("workflow-resolver: fetched %d workflow definitions from MinIO", fetched)
-		}
-	})
+	// Not found on disk — try fetching from MinIO (retry until success).
+	if atomic.LoadInt32(&fetchControllerDefsDone) == 0 {
+		fetchWorkflowDefsFromMinIO()
+	}
 
 	// Retry after fetch.
 	for _, p := range candidates {
@@ -709,6 +714,43 @@ func resolveWorkflowDefinition(name string) string {
 		}
 	}
 	return ""
+}
+
+func fetchWorkflowDefsFromMinIO() {
+	destDir := "/var/lib/globular/workflows"
+	os.MkdirAll(destDir, 0o755)
+	knownDefs := []string{
+		"day0.bootstrap.yaml",
+		"node.bootstrap.yaml",
+		"node.join.yaml",
+		"node.repair.yaml",
+		"cluster.reconcile.yaml",
+		"release.apply.package.yaml",
+		"release.apply.infrastructure.yaml",
+		"release.remove.package.yaml",
+	}
+	fetched := 0
+	for _, defName := range knownDefs {
+		key := "workflows/" + defName
+		data, err := config.GetClusterConfig(key)
+		if err != nil {
+			log.Printf("workflow-resolver: fetch %s: %v", key, err)
+			continue
+		}
+		if data == nil {
+			continue
+		}
+		dest := filepath.Join(destDir, defName)
+		if err := os.WriteFile(dest, data, 0o644); err != nil {
+			log.Printf("workflow-resolver: write %s: %v", dest, err)
+			continue
+		}
+		fetched++
+	}
+	if fetched > 0 {
+		log.Printf("workflow-resolver: fetched %d workflow definitions from MinIO", fetched)
+		atomic.StoreInt32(&fetchControllerDefsDone, 1)
+	}
 }
 
 // ---------------------------------------------------------------------------

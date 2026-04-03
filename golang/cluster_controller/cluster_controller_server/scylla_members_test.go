@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -119,7 +120,7 @@ func TestScyllaJoin_HappyPath(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// none → configured (prepared checks pass)
-	dirty := mgr.reconcileScyllaJoinPhases(nodes)
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty {
 		t.Fatal("expected dirty")
 	}
@@ -128,21 +129,21 @@ func TestScyllaJoin_HappyPath(t *testing.T) {
 	}
 
 	// configured: service not active yet → stays
-	dirty = mgr.reconcileScyllaJoinPhases(nodes)
+	dirty = mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if dirty {
 		t.Fatal("expected no change — scylla not active")
 	}
 
 	// configured → started: service goes active
 	node.Units = []unitStatusRecord{{Name: "scylla-server.service", State: "active"}}
-	dirty = mgr.reconcileScyllaJoinPhases(nodes)
+	dirty = mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty || node.ScyllaJoinPhase != ScyllaJoinStarted {
 		t.Fatalf("expected started, got %s", node.ScyllaJoinPhase)
 	}
 
 	// started → verified: after 30s heuristic
 	node.ScyllaJoinStartedAt = time.Now().Add(-35 * time.Second)
-	dirty = mgr.reconcileScyllaJoinPhases(nodes)
+	dirty = mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty || node.ScyllaJoinPhase != ScyllaJoinVerified {
 		t.Fatalf("expected verified, got %s", node.ScyllaJoinPhase)
 	}
@@ -163,7 +164,7 @@ func TestScyllaJoin_Timeout(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := mgr.reconcileScyllaJoinPhases(nodes)
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty {
 		t.Fatal("expected dirty after timeout")
 	}
@@ -186,7 +187,7 @@ func TestScyllaJoin_NonScyllaNodeSkipped(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := mgr.reconcileScyllaJoinPhases(nodes)
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if dirty {
 		t.Fatal("expected no change for non-scylla node")
 	}
@@ -208,7 +209,7 @@ func TestScyllaJoin_VerifiedResetsOnStop(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// ScyllaDB stopped → reset to none
-	dirty := mgr.reconcileScyllaJoinPhases(nodes)
+	dirty := mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty {
 		t.Fatal("expected dirty after service stopped")
 	}

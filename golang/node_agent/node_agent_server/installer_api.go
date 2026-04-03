@@ -23,44 +23,71 @@ const defaultPublisherID = "core@globular.io"
 //   - name: package name (e.g. "dns", "envoy")
 //   - kind: SERVICE, INFRASTRUCTURE, or COMMAND
 //   - repositoryAddr: gRPC address of the repository (e.g. "10.0.0.63:443")
+// localPackageDirs are searched (in order) when the repository is unreachable.
+// The installer script copies .tgz packages here before starting the workflow.
+var localPackageDirs = []string{
+	"/var/lib/globular/packages",
+	"/var/lib/globular/staging/local",
+}
+
 func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
-
-	if repositoryAddr == "" {
-		repositoryAddr = srv.discoverRepositoryAddr()
-	}
-	if repositoryAddr == "" {
-		return fmt.Errorf("no repository address available")
-	}
+	version := resolvePackageVersion(name)
 
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
 		defaultPublisherID, name)
 
-	// Fetch.
-	fetchHandler := actions.Get("artifact.fetch")
-	if fetchHandler == nil {
-		return fmt.Errorf("action artifact.fetch not registered")
-	}
-	// Resolve version from package name. Infrastructure packages have
-	// specific versions; all services default to 0.0.1.
-	version := resolvePackageVersion(name)
-
-	fetchArgs, err := structpb.NewStruct(map[string]any{
-		"service":         name,
-		"version":         version,
-		"platform":        platform,
-		"artifact_path":   artifactPath,
-		"publisher_id":    defaultPublisherID,
-		"repository_addr": repositoryAddr,
-		"artifact_kind":   kind,
-	})
-	if err != nil {
-		return fmt.Errorf("build fetch args: %w", err)
+	// Try fetching from repository first.
+	if repositoryAddr == "" {
+		repositoryAddr = srv.discoverRepositoryAddr()
 	}
 
-	log.Printf("installer-api: fetching %s (%s) from %s", name, kind, repositoryAddr)
-	if _, err := fetchHandler.Apply(ctx, fetchArgs); err != nil {
-		return fmt.Errorf("fetch %s: %w", name, err)
+	fetched := false
+	if repositoryAddr != "" {
+		fetchHandler := actions.Get("artifact.fetch")
+		if fetchHandler != nil {
+			fetchArgs, err := structpb.NewStruct(map[string]any{
+				"service":         name,
+				"version":         version,
+				"platform":        platform,
+				"artifact_path":   artifactPath,
+				"publisher_id":    defaultPublisherID,
+				"repository_addr": repositoryAddr,
+				"artifact_kind":   kind,
+			})
+			if err == nil {
+				log.Printf("installer-api: fetching %s (%s) from %s", name, kind, repositoryAddr)
+				if _, err := fetchHandler.Apply(ctx, fetchArgs); err == nil {
+					fetched = true
+				} else {
+					log.Printf("installer-api: repo fetch failed for %s: %v — trying local fallback", name, err)
+				}
+			}
+		}
+	}
+
+	// Local fallback: find a .tgz package on disk.
+	if !fetched {
+		localPath := srv.findLocalPackage(name, version, platform)
+		if localPath == "" {
+			if repositoryAddr == "" {
+				return fmt.Errorf("no repository address available and no local package for %s", name)
+			}
+			return fmt.Errorf("fetch %s: repository unreachable and no local package found", name)
+		}
+		log.Printf("installer-api: using local package %s for %s", localPath, name)
+
+		// Copy the .tgz to the staging path so the install handlers can find it.
+		if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+			return fmt.Errorf("create staging dir: %w", err)
+		}
+		src, err := os.ReadFile(localPath)
+		if err != nil {
+			return fmt.Errorf("read local package %s: %w", localPath, err)
+		}
+		if err := os.WriteFile(artifactPath, src, 0o644); err != nil {
+			return fmt.Errorf("write staging artifact: %w", err)
+		}
 	}
 
 	// Install.
@@ -72,6 +99,26 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	default:
 		return srv.installPayload(ctx, name, artifactPath)
 	}
+}
+
+// findLocalPackage searches localPackageDirs for a .tgz matching the package.
+// Naming convention: <name>_<version>_<platform>.tgz  (e.g. dns_0.0.1_linux_amd64.tgz)
+// Also checks for just <name>_<version>.tgz and <name>.tgz as fallbacks.
+func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) string {
+	candidates := []string{
+		fmt.Sprintf("%s_%s_%s.tgz", name, version, platform),
+		fmt.Sprintf("%s_%s.tgz", name, version),
+		fmt.Sprintf("%s.tgz", name),
+	}
+	for _, dir := range localPackageDirs {
+		for _, c := range candidates {
+			path := filepath.Join(dir, c)
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+	return ""
 }
 
 func (srv *NodeAgentServer) installPayload(ctx context.Context, name, artifactPath string) error {

@@ -91,11 +91,11 @@ func TestForeachWithSubSteps_AllSucceed(t *testing.T) {
 			record(fmt.Sprintf("install:%s", name))
 			return nil
 		},
-		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error {
+		VerifyPackageInstalled: func(ctx context.Context, name, version, hash, kind string) error {
 			record(fmt.Sprintf("verify:%s", name))
 			return nil
 		},
-		SyncInstalledPackage: func(ctx context.Context, name, version, hash string) error {
+		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind string) error {
 			record(fmt.Sprintf("sync:%s", name))
 			return nil
 		},
@@ -191,8 +191,8 @@ func TestForeachWithSubSteps_PartialFailure(t *testing.T) {
 			}
 			return nil
 		},
-		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
-		SyncInstalledPackage:   func(ctx context.Context, name, version, hash string) error { return nil },
+		VerifyPackageInstalled: func(ctx context.Context, name, version, hash, kind string) error { return nil },
+		SyncInstalledPackage:   func(ctx context.Context, name, version, hash, kind string) error { return nil },
 	})
 	RegisterReleaseControllerActions(router, ReleaseControllerConfig{
 		FinalizeDirectApply: func(ctx context.Context, releaseID string, aggregate map[string]any) error {
@@ -263,8 +263,8 @@ func TestForeachWithSubSteps_ChildStatesVisibleInParent(t *testing.T) {
 	router := NewRouter()
 	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
 		InstallPackage:         func(ctx context.Context, name, version, kind string) error { return nil },
-		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
-		SyncInstalledPackage:   func(ctx context.Context, name, version, hash string) error { return nil },
+		VerifyPackageInstalled: func(ctx context.Context, name, version, hash, kind string) error { return nil },
+		SyncInstalledPackage:   func(ctx context.Context, name, version, hash, kind string) error { return nil },
 	})
 	RegisterReleaseControllerActions(router, ReleaseControllerConfig{})
 

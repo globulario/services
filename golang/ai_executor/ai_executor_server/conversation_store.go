@@ -15,7 +15,7 @@ const (
 	conversationKeyspace = "ai_conversations"
 
 	cqlCreateKeyspace = `CREATE KEYSPACE IF NOT EXISTS ai_conversations
-		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}`
+		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3}`
 
 	cqlCreateConversations = `CREATE TABLE IF NOT EXISTS ai_conversations.conversations (
 		user_id         text,

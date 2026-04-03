@@ -91,12 +91,12 @@ spec:
       timeout: 10m
 
     - id: wait_scylladb_ready
-      title: Wait for ScyllaDB port 9042
+      title: Wait for ScyllaDB to accept CQL connections
       dependsOn: [install_scylladb]
       actor: node-agent
-      action: node.verify_services_active
+      action: node.probe_infra_health
       with:
-        services: [scylladb]
+        probe: probe-scylla-health
       retry:
         maxAttempts: 60
         backoff: 10s

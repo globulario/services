@@ -10,12 +10,18 @@ import (
 	"sync/atomic"
 	"time"
 
+	"crypto/tls"
+	"crypto/x509"
+
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/dnsprovider"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
-	dns_client "github.com/globulario/services/golang/dns/dns_client"
+	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	grpcmd "google.golang.org/grpc/metadata"
 )
 
 const (
@@ -47,10 +53,16 @@ type DNSReconciler struct {
 // Day-0 Security: Uses dynamic discovery instead of hardcoded 10033
 func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
 	if len(dnsEndpoints) == 0 {
-		// Use dynamic discovery to find DNS service endpoint
-		discovered := config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
-		dnsEndpoints = []string{discovered}
-		log.Printf("DNS reconciler: discovered DNS endpoint: %s", discovered)
+		// Discover DNS endpoints from cluster membership: all nodes with DNS profiles.
+		dnsEndpoints = discoverDNSEndpoints(srv)
+		if len(dnsEndpoints) == 0 {
+			// Fallback to local discovery
+			discovered := config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
+			dnsEndpoints = []string{discovered}
+			log.Printf("DNS reconciler: fallback to local DNS endpoint: %s", discovered)
+		} else {
+			log.Printf("DNS reconciler: discovered %d DNS endpoints from cluster membership: %v", len(dnsEndpoints), dnsEndpoints)
+		}
 	}
 
 	healthStatus := make(map[string]bool)
@@ -65,6 +77,33 @@ func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
 		stopCh:       make(chan struct{}),
 		healthStopCh: make(chan struct{}),
 	}
+}
+
+// discoverDNSEndpoints builds the list of DNS gRPC endpoints (IP:10006) from
+// all cluster nodes that have a DNS-eligible profile.
+func discoverDNSEndpoints(srv *server) []string {
+	if srv == nil {
+		return nil
+	}
+	srv.lock("dns-discover-endpoints")
+	defer srv.unlock()
+
+	var endpoints []string
+	for _, node := range srv.state.Nodes {
+		if node == nil || node.Status == "removed" {
+			continue
+		}
+		member := &memberNode{Profiles: node.Profiles}
+		if !nodeHasProfile(member, profilesForDNS) {
+			continue
+		}
+		ip := node.PrimaryIP()
+		if ip == "" {
+			continue
+		}
+		endpoints = append(endpoints, fmt.Sprintf("%s:10006", ip))
+	}
+	return endpoints
 }
 
 // Start begins the reconciliation loop and health checks (PR7)
@@ -104,6 +143,47 @@ func (r *DNSReconciler) reconcileLoop() {
 	}
 }
 
+// refreshEndpoints re-discovers DNS endpoints from cluster membership.
+// Called periodically so new DNS nodes are picked up automatically.
+func (r *DNSReconciler) refreshEndpoints() {
+	fresh := discoverDNSEndpoints(r.srv)
+	if len(fresh) == 0 {
+		return
+	}
+
+	// Build set of current endpoints for comparison.
+	current := make(map[string]struct{}, len(r.dnsEndpoints))
+	for _, ep := range r.dnsEndpoints {
+		current[ep] = struct{}{}
+	}
+
+	// Check for new endpoints.
+	changed := len(fresh) != len(r.dnsEndpoints)
+	if !changed {
+		for _, ep := range fresh {
+			if _, ok := current[ep]; !ok {
+				changed = true
+				break
+			}
+		}
+	}
+
+	if !changed {
+		return
+	}
+
+	r.dnsEndpoints = fresh
+	for _, ep := range fresh {
+		if _, ok := r.healthStatus[ep]; !ok {
+			r.healthStatus[ep] = true // new endpoint, assume healthy
+		}
+	}
+	log.Printf("dns reconciler: refreshed endpoints (%d): %v", len(fresh), fresh)
+
+	// Force re-apply on next cycle by resetting generation.
+	r.lastGeneration = 0
+}
+
 // reconcile performs a single reconciliation cycle
 func (r *DNSReconciler) reconcile() error {
 	startTime := time.Now()
@@ -114,6 +194,9 @@ func (r *DNSReconciler) reconcile() error {
 		atomic.StoreInt64(&r.lastReconcileDur, int64(duration))
 		atomic.StoreInt64(&r.lastReconcileAt, time.Now().Unix())
 	}()
+
+	// Re-discover DNS endpoints from cluster membership so new nodes are picked up.
+	r.refreshEndpoints()
 
 	r.srv.lock("dns-reconciler:snapshot")
 	spec := r.srv.state.ClusterNetworkSpec
@@ -283,28 +366,52 @@ func (r *DNSReconciler) applyDNSState(ctx context.Context, desired *DesiredDNSSt
 	return nil
 }
 
-// applyToDNSInstance applies state to a single DNS instance (PR7)
+// dialDNSDirect creates a direct gRPC connection to a DNS endpoint, bypassing
+// the Globular client framework (which routes through Envoy and uses a single
+// etcd service config). This is necessary because the DNS reconciler needs to
+// push records to ALL DNS nodes, not just the one registered in etcd.
+func (r *DNSReconciler) dialDNSDirect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+	caPath := config.GetLocalCACertificate()
+	if caPath == "" {
+		return nil, fmt.Errorf("no CA certificate found")
+	}
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("read CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(caPEM)
+
+	tlsCfg := &tls.Config{
+		RootCAs:            pool,
+		InsecureSkipVerify: true, // DNS nodes use service certs with IP SANs, not the endpoint hostname
+	}
+
+	return grpc.DialContext(ctx, endpoint,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+		grpc.WithBlock(),
+	)
+}
+
+// applyToDNSInstance applies state to a single DNS instance using direct gRPC (PR7).
+// Bypasses the Globular client framework to avoid routing through Envoy.
 func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string, desired *DesiredDNSState) error {
-	client, err := dns_client.NewDnsService_Client(endpoint, "dns.DnsService")
-	if err != nil {
-		return fmt.Errorf("connect dns: %w", err)
-	}
-	defer client.Close()
+	dialCtx, dialCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer dialCancel()
 
-	// Generate DNS token (using local service account identity)
-	token, err := r.generateDNSToken(ctx, client, desired.Domain)
+	cc, err := r.dialDNSDirect(dialCtx, endpoint)
 	if err != nil {
-		return fmt.Errorf("generate token: %w", err)
+		return fmt.Errorf("dial %s: %w", endpoint, err)
 	}
+	defer cc.Close()
 
-	// Inject the token into the client's context so all subsequent calls use it.
-	// The DNS client's SetDomains/SetA have a bug where the passed token is not
-	// correctly applied when GetCtx() fails to get its own local token.
-	client.SetTokenCtx(token)
+	dnsClient := dnspb.NewDnsServiceClient(cc)
+	authCtx := r.buildAuthContext(ctx)
 
 	// Set domains
-	if err := client.SetDomains(token, []string{desired.Domain}); err != nil {
-		return fmt.Errorf("set domains: %w", err)
+	_, err = dnsClient.SetDomains(authCtx, &dnspb.SetDomainsRequest{Domains: []string{desired.Domain}})
+	if err != nil {
+		return fmt.Errorf("set domains on %s: %w", endpoint, err)
 	}
 
 	// Apply records
@@ -312,20 +419,26 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	for _, rec := range desired.Records {
 		switch rec.Type {
 		case RecordTypeA:
-			if _, err := client.SetA(token, rec.Name, rec.Value, rec.TTL); err != nil {
+			_, err := dnsClient.SetA(authCtx, &dnspb.SetARequest{Domain: rec.Name, A: rec.Value, Ttl: rec.TTL})
+			if err != nil {
 				log.Printf("dns reconciler: WARN - failed to set A record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
 			} else {
 				recordCount[RecordTypeA]++
 			}
 		case RecordTypeAAAA:
-			if _, err := client.SetAAAA(token, rec.Name, rec.Value, rec.TTL); err != nil {
+			_, err := dnsClient.SetAAAA(authCtx, &dnspb.SetAAAARequest{Domain: rec.Name, Aaaa: rec.Value, Ttl: rec.TTL})
+			if err != nil {
 				log.Printf("dns reconciler: WARN - failed to set AAAA record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
 			} else {
 				recordCount[RecordTypeAAAA]++
 			}
 		case RecordTypeSRV:
-			// PR4.1: Create SRV record
-			if err := r.setSRVRecord(client, token, rec); err != nil {
+			_, err := dnsClient.SetSrv(authCtx, &dnspb.SetSrvRequest{
+				Id:  rec.Name,
+				Srv: &dnspb.SRV{Priority: uint32(rec.Priority), Weight: uint32(rec.Weight), Port: uint32(rec.Port), Target: rec.Value},
+				Ttl: rec.TTL,
+			})
+			if err != nil {
 				log.Printf("dns reconciler: WARN - failed to set SRV record %s -> %s:%d on %s: %v", rec.Name, rec.Value, rec.Port, endpoint, err)
 			} else {
 				recordCount[RecordTypeSRV]++
@@ -338,19 +451,6 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	return nil
 }
 
-// generateDNSToken creates an authentication token for DNS service.
-// Uses the local service account token (sa) which has superadmin privileges.
-func (r *DNSReconciler) generateDNSToken(ctx context.Context, client *dns_client.Dns_Client, domain string) (string, error) {
-	mac, err := config.GetMacAddress()
-	if err != nil {
-		return "", fmt.Errorf("get mac address: %w", err)
-	}
-	token, err := security.GetLocalToken(mac)
-	if err != nil {
-		return "", fmt.Errorf("get local token (mac=%s): %w", mac, err)
-	}
-	return token, nil
-}
 
 // fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1)
 func (r *DNSReconciler) fetchServiceInstances(clusterDomain string, nodeByFQDN map[string]string) []ServiceInstance {
@@ -435,10 +535,6 @@ func (r *DNSReconciler) extractNodeFQDN(addr, clusterDomain string, nodeByFQDN m
 	return ""
 }
 
-// setSRVRecord sets a DNS SRV record (PR4.1)
-func (r *DNSReconciler) setSRVRecord(client *dns_client.Dns_Client, token string, rec DNSRecord) error {
-	return client.SetSrv(token, rec.Name, uint32(rec.Priority), uint32(rec.Weight), uint32(rec.Port), rec.Value, rec.TTL)
-}
 
 // healthCheckLoop periodically checks DNS endpoint health (PR7)
 func (r *DNSReconciler) healthCheckLoop() {
@@ -469,7 +565,10 @@ func (r *DNSReconciler) checkAllEndpoints() {
 
 		if previousHealth != healthy {
 			if healthy {
-				log.Printf("dns reconciler: endpoint %s is now HEALTHY", endpoint)
+				log.Printf("dns reconciler: endpoint %s is now HEALTHY — forcing re-push", endpoint)
+				// Reset generation so the next reconcile cycle re-applies all records.
+				// This handles the case where a DNS node restarted and lost its records.
+				r.lastGeneration = 0
 			} else {
 				log.Printf("dns reconciler: endpoint %s is now UNHEALTHY", endpoint)
 			}
@@ -479,16 +578,46 @@ func (r *DNSReconciler) checkAllEndpoints() {
 
 // checkEndpointHealth checks if a single DNS endpoint is healthy (PR7)
 func (r *DNSReconciler) checkEndpointHealth(endpoint string) bool {
-	// Try to connect and perform a simple operation
-	client, err := dns_client.NewDnsService_Client(endpoint, "dns.DnsService")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	cc, err := r.dialDNSDirect(ctx, endpoint)
 	if err != nil {
 		return false
 	}
-	defer client.Close()
+	defer cc.Close()
 
-	// Try to get domains as a health check
-	_, err = client.GetDomains()
+	dnsClient := dnspb.NewDnsServiceClient(cc)
+	authCtx := r.buildAuthContext(ctx)
+	_, err = dnsClient.GetDomains(authCtx, &dnspb.GetDomainsRequest{})
 	return err == nil
+}
+
+// buildAuthContext creates a gRPC context with authentication metadata
+// (token, cluster_id, mac) for direct DNS calls.
+func (r *DNSReconciler) buildAuthContext(ctx context.Context) context.Context {
+	mac, err := config.GetMacAddress()
+	if err != nil {
+		return ctx
+	}
+	token, err := security.GetLocalToken(mac)
+	if err != nil {
+		return ctx
+	}
+
+	clusterID := ""
+	r.srv.lock("dns-reconciler:cluster-id")
+	if r.srv.state != nil {
+		clusterID = r.srv.state.ClusterId
+	}
+	r.srv.unlock()
+
+	md := grpcmd.New(map[string]string{
+		"token":      token,
+		"mac":        mac,
+		"cluster_id": clusterID,
+	})
+	return grpcmd.NewOutgoingContext(ctx, md)
 }
 
 // getHealthyEndpoints returns a list of currently healthy DNS endpoints (PR7)

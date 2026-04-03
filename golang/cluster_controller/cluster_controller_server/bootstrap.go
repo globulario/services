@@ -32,13 +32,18 @@ func registryHost(_ string) string {
 }
 
 // resolveLeaderAddr turns a listen address into an advertise/leader address.
+// Uses the routable IP rather than bare hostname so that other nodes can
+// reach this controller without relying on DNS resolution of short names.
 func resolveLeaderAddr(listenAddr string) string {
 	addr := strings.TrimSpace(listenAddr)
 	if addr == "" {
 		return addr
 	}
 	if strings.HasPrefix(addr, ":") {
-		host, _ := os.Hostname()
+		host := config.GetRoutableIPv4()
+		if host == "" {
+			host, _ = os.Hostname()
+		}
 		return net.JoinHostPort(host, strings.TrimPrefix(addr, ":"))
 	}
 	return addr

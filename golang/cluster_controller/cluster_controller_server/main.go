@@ -219,6 +219,9 @@ func main() {
 		srv.etcdMembers = newEtcdMemberManager(etcdClient)
 	}
 	srv.scyllaMembers = newScyllaClusterManager()
+	srv.scyllaMembers.probeNodeHealth = func(ctx context.Context, endpoint string) bool {
+		return srv.probeScyllaHealth(ctx, endpoint)
+	}
 	srv.minioPoolMgr = newMinioPoolManager()
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.

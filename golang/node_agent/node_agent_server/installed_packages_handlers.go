@@ -63,8 +63,18 @@ func (srv *NodeAgentServer) GetInstalledPackage(ctx context.Context, req *node_a
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
+	// If kind is not specified, search across all known kinds.
 	if kind == "" {
-		return nil, status.Error(codes.InvalidArgument, "kind is required")
+		for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+			pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, k, name)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "get installed package: %v", err)
+			}
+			if pkg != nil {
+				return &node_agentpb.GetInstalledPackageResponse{Package: pkg}, nil
+			}
+		}
+		return nil, status.Errorf(codes.NotFound, "package %s not found on node %s", name, nodeID)
 	}
 
 	pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, kind, name)

@@ -116,6 +116,33 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		})
 	}
 
+	// Periodic cluster.reconcile workflow: drives infrastructure health
+	// scans (ScyllaDB, MinIO join phases + probes) and detects package
+	// drift. Runs every 30s when leader, replacing the old direct calls
+	// in reconcileNodes().
+	safeGo("periodic-cluster-reconcile", func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !srv.isLeader() {
+					continue
+				}
+				// Run asynchronously so it doesn't block the reconcile queue.
+				go func() {
+					rctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+					defer cancel()
+					if _, err := srv.RunClusterReconcileWorkflow(rctx); err != nil {
+						logger.Debug("periodic cluster.reconcile failed", "error", err)
+					}
+				}()
+			}
+		}
+	})
+
 	// Periodic bridge: re-create ServiceRelease objects for desired services
 	// that lost their release (e.g. deleted during troubleshooting, or
 	// garbage-collected while in REMOVED phase). Without this, a missing

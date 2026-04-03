@@ -130,6 +130,7 @@ func main() {
 	srv.StartHeartbeat(ctx)
 	// Plan runner removed — workflows handle all execution.
 	srv.StartACMERenewal(ctx)
+	srv.StartCAKeySync(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
 

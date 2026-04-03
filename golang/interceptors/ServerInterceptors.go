@@ -634,7 +634,12 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 
 	idx := idxAny.(int)
 	peer := peers[idx].(map[string]interface{})
-	address := peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":" + Utility.ToString(peer["Port"])
+	peerHost := peer["Hostname"].(string)
+	peerDomain, _ := peer["Domain"].(string)
+	if peerDomain != "" && !strings.Contains(peerHost, ".") {
+		peerHost = peerHost + "." + peerDomain
+	}
+	address := peerHost + ":" + Utility.ToString(peer["Port"])
 
 	service := method[1:][:strings.Index(method[1:], "/")]
 	client, err := getClient(address, service)
@@ -787,9 +792,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Skip cluster_id enforcement for:
 	// - Bootstrap mode (Day-0)
 	// - mTLS-authenticated calls (TLS trust chain already prevents cross-cluster)
+	// - JWT-authenticated calls (token signed by cluster-local key proves membership)
 	// - Loopback calls (inter-service on same host — trusted by network isolation)
 	// - Unauthenticated/public endpoints (login, health)
-	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && !authCtx.IsLoopback && !isUnauthenticated(method) {
+	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && authCtx.AuthMethod != "jwt" && !authCtx.IsLoopback && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster_id)
 		localClusterID, err := security.GetLocalClusterID()
 		if err == nil && localClusterID != "" {

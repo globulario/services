@@ -2,16 +2,23 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/versionutil"
-	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/versionutil"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 )
 
 // ReleaseResolver resolves a ServiceReleaseSpec version policy (exact pin or channel)
@@ -60,11 +67,15 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		addr = "localhost"
 	}
 
-	client, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
+	// Direct gRPC connection to the repository service, bypassing Envoy.
+	// Envoy strips custom gRPC metadata (token, cluster_id) which breaks auth.
+	repoClient, cc, err := r.dialRepositoryDirect(ctx, addr)
 	if err != nil {
 		return nil, fmt.Errorf("connect to repository %s: %w", addr, err)
 	}
-	defer client.Close()
+	defer cc.Close()
+
+	authCtx := r.buildAuthContext(ctx)
 
 	version := strings.TrimSpace(spec.Version)
 	buildNumber := spec.BuildNumber
@@ -76,7 +87,7 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 				"channel", ch, "service", spec.ServiceName)
 		}
 		// Resolve latest PUBLISHED artifact: highest semver, then highest build_number.
-		resolved, err := r.getLatestPublished(ctx, client, spec)
+		resolved, err := r.getLatestPublished(authCtx, repoClient, spec)
 		if err != nil {
 			return nil, fmt.Errorf("resolve latest version for %s/%s: %w", spec.PublisherID, spec.ServiceName, err)
 		}
@@ -108,11 +119,15 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		Platform:    platform,
 		Kind:        kind,
 	}
-	manifest, err := client.GetArtifactManifest(ref, buildNumber)
+	manifestResp, err := repoClient.GetArtifactManifest(authCtx, &repositorypb.GetArtifactManifestRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get artifact manifest for %s/%s@%s build %d: %w",
 			spec.PublisherID, spec.ServiceName, version, buildNumber, err)
 	}
+	manifest := manifestResp.GetManifest()
 	if manifest == nil {
 		return nil, fmt.Errorf("no manifest returned for %s/%s@%s build %d",
 			spec.PublisherID, spec.ServiceName, version, buildNumber)
@@ -140,11 +155,12 @@ type artifactCandidate struct {
 // getLatestPublished resolves the latest PUBLISHED artifact for a service.
 // Filters by publish_state == PUBLISHED, then picks highest semver,
 // then highest build_number within that version.
-func (r *ReleaseResolver) getLatestPublished(_ context.Context, client *repository_client.Repository_Service_Client, spec *cluster_controllerpb.ServiceReleaseSpec) (*artifactCandidate, error) {
-	artifacts, err := client.ListArtifacts()
+func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client repositorypb.PackageRepositoryClient, spec *cluster_controllerpb.ServiceReleaseSpec) (*artifactCandidate, error) {
+	resp, err := client.ListArtifacts(ctx, &repositorypb.ListArtifactsRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("list artifacts: %w", err)
 	}
+	artifacts := resp.GetArtifacts()
 	if len(artifacts) == 0 {
 		return nil, fmt.Errorf("no artifacts found for %s/%s", spec.PublisherID, spec.ServiceName)
 	}
@@ -201,7 +217,7 @@ func (r *ReleaseResolver) getLatestPublished(_ context.Context, client *reposito
 							continue
 						}
 					} else {
-						verified := isVerifiedPublisher(client, pubID)
+						verified := isVerifiedPublisher(ctx, client, pubID)
 						verifiedCache[pubID] = verified
 						if !verified {
 							slog.Debug("artifact skipped (unverified publisher)", "publisher", pubID, "name", ref.GetName())
@@ -279,8 +295,8 @@ func LoadInstallPolicy() *cluster_controllerpb.InstallPolicySpec {
 }
 
 // isVerifiedPublisher checks if a publisher namespace has been claimed by a real owner.
-func isVerifiedPublisher(client *repository_client.Repository_Service_Client, publisherID string) bool {
-	resp, err := client.GetNamespace(publisherID)
+func isVerifiedPublisher(ctx context.Context, client repositorypb.PackageRepositoryClient, publisherID string) bool {
+	resp, err := client.GetNamespace(ctx, &repositorypb.GetNamespaceRequest{NamespaceId: publisherID})
 	if err != nil || resp == nil || resp.GetNamespace() == nil {
 		return false
 	}
@@ -326,4 +342,80 @@ func assertSHA256Hex(checksum, publisherID, serviceName, version string) error {
 		}
 	}
 	return nil
+}
+
+// dialRepositoryDirect creates a direct gRPC connection to the repository service,
+// bypassing Envoy which strips auth metadata.
+func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string) (repositorypb.PackageRepositoryClient, *grpc.ClientConn, error) {
+	// Resolve the repository port from the service config in etcd.
+	repoCfg, err := config.GetServiceConfigurationsByName("repository.PackageRepository")
+	if err == nil && repoCfg != nil {
+		if port, ok := repoCfg["Port"]; ok {
+			cfgAddr := fmt.Sprintf("%v", repoCfg["Address"])
+			if cfgAddr == "" || cfgAddr == "localhost" || cfgAddr == "127.0.0.1" {
+				cfgAddr = "127.0.0.1"
+			}
+			// Strip existing port if present
+			if idx := strings.Index(cfgAddr, ":"); idx >= 0 {
+				cfgAddr = cfgAddr[:idx]
+			}
+			addr = fmt.Sprintf("%s:%v", cfgAddr, port)
+		}
+	}
+
+	// Fallback: use localhost:10003 if we can't resolve
+	if !strings.Contains(addr, ":") {
+		addr = addr + ":10003"
+	}
+
+	caPath := config.GetLocalCACertificate()
+	if caPath == "" {
+		return nil, nil, fmt.Errorf("no CA certificate found")
+	}
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(caPEM)
+
+	tlsCfg := &tls.Config{
+		RootCAs:            pool,
+		InsecureSkipVerify: true, // service certs use IP SANs
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cc, err := grpc.DialContext(dialCtx, addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("dial repository %s: %w", addr, err)
+	}
+
+	return repositorypb.NewPackageRepositoryClient(cc), cc, nil
+}
+
+// buildAuthContext creates a gRPC context with authentication metadata
+// for direct repository calls.
+func (r *ReleaseResolver) buildAuthContext(ctx context.Context) context.Context {
+	mac, err := config.GetMacAddress()
+	if err != nil {
+		return ctx
+	}
+	token, err := security.GetLocalToken(mac)
+	if err != nil {
+		return ctx
+	}
+
+	clusterID, _ := security.GetLocalClusterID()
+
+	md := metadata.New(map[string]string{
+		"token":      token,
+		"mac":        mac,
+		"cluster_id": clusterID,
+	})
+	return metadata.NewOutgoingContext(ctx, md)
 }

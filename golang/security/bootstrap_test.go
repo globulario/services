@@ -220,7 +220,7 @@ func TestBootstrapGate_AllowedMethods(t *testing.T) {
 		"/rbac.RbacService/SetRoleBinding",
 		"/rbac.RbacService/ListRoleBindings",
 		"/authentication.AuthenticationService/Authenticate",
-		"/resource.ResourceService/CreatePeer",
+		"/resource.ResourceService/UpsertNodeIdentity",
 		"/dns.DnsService/CreateZone",
 	}
 

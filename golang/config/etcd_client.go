@@ -286,9 +286,14 @@ func etcdEndpointsFromEnv() []string {
 	}
 
 	if len(eps) == 0 {
-		// Last resort: bare hostname without domain.
+		// Last resort: use bare hostname but prefer routable IP over
+		// unqualified hostname (which won't resolve on other nodes).
 		if host != "" && host != "0.0.0.0" {
-			eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, host))
+			if ip := GetRoutableIPv4(); ip != "" {
+				eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, ip))
+			} else {
+				eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, host))
+			}
 		}
 	}
 

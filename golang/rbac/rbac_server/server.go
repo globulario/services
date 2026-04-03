@@ -193,7 +193,7 @@ func (srv *server) buildPermsOpts(host string) string {
   "hosts": ["%s:%d"],
   "keyspace": "rbac_permissions",
   "table": "permissions",
-  "replication_factor": 1,
+  "replication_factor": 3,
   "connect_timeout_ms": 5000,
   "timeout_ms": 5000,
   "consistency": "quorum",

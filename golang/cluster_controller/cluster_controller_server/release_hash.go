@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"strings"
 
@@ -11,13 +12,19 @@ import (
 )
 
 // ComputeReleaseDesiredHash computes a deterministic hash for a service release.
-func ComputeReleaseDesiredHash(publisherID, serviceName, resolvedVersion string, cfg map[string]string) string {
+// Includes build number so that publishing a new build of the same version
+// triggers a rollout (e.g., hotfix rebuild without version bump).
+func ComputeReleaseDesiredHash(publisherID, serviceName, resolvedVersion string, buildNumber int64, cfg map[string]string) string {
 	var b strings.Builder
 	b.WriteString(publisherID)
 	b.WriteString("/")
 	b.WriteString(serviceName)
 	b.WriteString("=")
 	b.WriteString(resolvedVersion)
+	if buildNumber > 0 {
+		b.WriteString("+b:")
+		b.WriteString(strings.TrimSpace(fmt.Sprintf("%d", buildNumber)))
+	}
 	b.WriteString(";")
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])
@@ -56,7 +63,7 @@ func ComputeApplicationDesiredHash(publisherID, appName, resolvedVersion string)
 }
 
 // ComputeInfrastructureDesiredHash computes a deterministic hash for an infrastructure release.
-func ComputeInfrastructureDesiredHash(publisherID, component, resolvedVersion string) string {
+func ComputeInfrastructureDesiredHash(publisherID, component, resolvedVersion string, buildNumber int64) string {
 	var b strings.Builder
 	b.WriteString("infra:")
 	b.WriteString(publisherID)
@@ -64,6 +71,10 @@ func ComputeInfrastructureDesiredHash(publisherID, component, resolvedVersion st
 	b.WriteString(component)
 	b.WriteString("=")
 	b.WriteString(resolvedVersion)
+	if buildNumber > 0 {
+		b.WriteString("+b:")
+		b.WriteString(strings.TrimSpace(fmt.Sprintf("%d", buildNumber)))
+	}
 	b.WriteString(";")
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])

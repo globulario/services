@@ -3,8 +3,11 @@ package config
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -36,11 +39,18 @@ type MinIOConfig struct {
 
 // GetMinIOConfig reads MinIO credentials from environment or well-known paths.
 func GetMinIOConfig() MinIOConfig {
+	// Default Secure to true — the cluster always uses TLS.
+	// Only disable with MINIO_SECURE=false explicitly.
+	secure := true
+	if v := os.Getenv("MINIO_SECURE"); v == "false" {
+		secure = false
+	}
+
 	cfg := MinIOConfig{
 		Endpoint:  os.Getenv("MINIO_ENDPOINT"),
 		AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
 		SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-		Secure:    os.Getenv("MINIO_SECURE") == "true",
+		Secure:    secure,
 	}
 
 	if cfg.Endpoint == "" {
@@ -73,11 +83,30 @@ func GetMinIOConfig() MinIOConfig {
 }
 
 // newMinIOClient creates a MinIO client from the current config.
+// When Secure is true, the cluster CA is loaded so the client trusts
+// the internal PKI certificate used by MinIO.
 func newMinIOClient(cfg MinIOConfig) (*minio.Client, error) {
-	return minio.New(cfg.Endpoint, &minio.Options{
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.Secure,
-	})
+	}
+
+	if cfg.Secure {
+		tlsCfg := &tls.Config{}
+		// Load the cluster CA so we trust the internal MinIO certificate.
+		caPath := GetLocalCACertificate()
+		if caPath != "" {
+			caPEM, err := os.ReadFile(caPath)
+			if err == nil {
+				pool := x509.NewCertPool()
+				pool.AppendCertsFromPEM(caPEM)
+				tlsCfg.RootCAs = pool
+			}
+		}
+		opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+	}
+
+	return minio.New(cfg.Endpoint, opts)
 }
 
 // EnsureClusterConfigBucket creates the config bucket if it doesn't exist.

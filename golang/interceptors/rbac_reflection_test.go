@@ -60,12 +60,10 @@ var KnownServiceMethods = map[string]map[string]string{
 		"GetRecord":    "LOW - Record information",
 	},
 	"resource.ResourceService": {
-		"CreatePeer":   "CRITICAL - Cluster membership (rogue node risk)",
-		"UpdatePeer":   "HIGH - Node identity modification",
-		"DeletePeer":   "HIGH - Node removal (availability risk)",
-		"GetPeers":     "MEDIUM - Cluster topology disclosure",
-		"GetPeer":      "MEDIUM - Node information",
-		"RegisterNode": "CRITICAL - Cluster join",
+		"UpsertNodeIdentity":     "CRITICAL - Node registration/modification (rogue node risk)",
+		"GetNodeIdentity":        "MEDIUM - Node information disclosure",
+		"ListNodeIdentities":     "MEDIUM - Cluster topology enumeration",
+		"SetNodeIdentityEnabled": "HIGH - Node enable/disable (availability risk)",
 	},
 	"authentication.AuthenticationService": {
 		"Authenticate":  "CRITICAL - Token issuance",

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -41,6 +42,12 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 		SyncInstalledState: func(ctx context.Context) error {
 			srv.syncInstalledStateToEtcd(ctx)
 			return nil
+		},
+		ProbeInfraHealth: func(ctx context.Context, probeName string) bool {
+			resp, err := srv.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
+				WorkflowName: probeName,
+			})
+			return err == nil && resp.GetStatus() == "SUCCEEDED"
 		},
 	})
 

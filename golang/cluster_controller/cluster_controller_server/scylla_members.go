@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 )
@@ -80,6 +81,11 @@ type scyllaClusterManager struct {
 	// gossip ring. In production, this queries system.peers via CQL.
 	// For testing, it can be replaced with a mock.
 	seedChecker func(seedIP, checkIP string) bool
+
+	// probeNodeHealth is a function that probes ScyllaDB health on a node
+	// agent endpoint via gRPC. Set by the server at startup.
+	// Returns true if the probe reports the node is healthy.
+	probeNodeHealth func(ctx context.Context, endpoint string) bool
 }
 
 func newScyllaClusterManager() *scyllaClusterManager {
@@ -112,7 +118,7 @@ func defaultScyllaSeedChecker(seedIP, checkIP string) bool {
 // ScyllaDB uses gossip, so there's no explicit "add to cluster" API call.
 // The config rendering (via renderScyllaConfig in service_config.go) provides
 // the seed list. The node starts, contacts seeds, and auto-joins.
-func (m *scyllaClusterManager) reconcileScyllaJoinPhases(nodes []*nodeState) (dirty bool) {
+func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, nodes []*nodeState) (dirty bool) {
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -154,15 +160,29 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(nodes []*nodeState) (di
 
 		case ScyllaJoinStarted:
 			// ScyllaDB is running. Verify it has joined the gossip ring.
-			// ScyllaDB gossip join takes a few seconds after startup.
-			// We use a simple heuristic: if the service has been active for
-			// at least 30 seconds, consider it joined (gossip converges fast).
+			// We require a minimum 30s wait to avoid flapping, then use a
+			// real probe if available, falling back to the time-based heuristic.
 			elapsed := now.Sub(node.ScyllaJoinStartedAt)
-			if elapsed > 30*time.Second || m.isNodeInRing(node) {
+			minWaitMet := elapsed > 30*time.Second
+
+			probeOK := false
+			if minWaitMet && m.probeNodeHealth != nil && node.AgentEndpoint != "" {
+				probeOK = m.probeNodeHealth(ctx, node.AgentEndpoint)
+			}
+
+			if minWaitMet && (probeOK || m.isNodeInRing(node)) {
 				node.ScyllaJoinPhase = ScyllaJoinVerified
 				node.ScyllaJoinError = ""
 				dirty = true
-				log.Printf("scylla join: node %s verified in gossip ring", node.NodeID)
+				log.Printf("scylla join: node %s verified in gossip ring (probe=%v)", node.NodeID, probeOK)
+				continue
+			}
+			// Fallback: if no probe is available, use elapsed-only heuristic.
+			if minWaitMet && m.probeNodeHealth == nil {
+				node.ScyllaJoinPhase = ScyllaJoinVerified
+				node.ScyllaJoinError = ""
+				dirty = true
+				log.Printf("scylla join: node %s verified in gossip ring (heuristic)", node.NodeID)
 				continue
 			}
 			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout {
@@ -179,6 +199,17 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(nodes []*nodeState) (di
 				node.ScyllaJoinError = ""
 				dirty = true
 				log.Printf("scylla join: node %s scylla-server stopped, resetting to none", node.NodeID)
+				continue
+			}
+			// Re-probe to detect regression (e.g. node fell out of ring).
+			if m.probeNodeHealth != nil && node.AgentEndpoint != "" {
+				if !m.probeNodeHealth(ctx, node.AgentEndpoint) {
+					log.Printf("scylla join: node %s probe regression detected, resetting to started", node.NodeID)
+					node.ScyllaJoinPhase = ScyllaJoinStarted
+					node.ScyllaJoinStartedAt = now
+					node.ScyllaJoinError = "probe regression: node no longer healthy"
+					dirty = true
+				}
 			}
 		}
 	}

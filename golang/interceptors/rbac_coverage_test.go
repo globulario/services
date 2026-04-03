@@ -145,31 +145,31 @@ var criticalMethods = []CriticalServiceMethod{
 	},
 
 	// -----------------------------------------------------------------------
-	// Resource Service: Peer and cluster management
+	// Resource Service: Node identity and cluster management
 	// -----------------------------------------------------------------------
 	{
 		Service: "resource.ResourceService",
-		Method:  "CreatePeer",
-		Action:  "/resource.ResourceService/CreatePeer",
-		Risk:    "CRITICAL - Can add malicious nodes to cluster",
+		Method:  "UpsertNodeIdentity",
+		Action:  "/resource.ResourceService/UpsertNodeIdentity",
+		Risk:    "CRITICAL - Can add/modify nodes in cluster",
 	},
 	{
 		Service: "resource.ResourceService",
-		Method:  "DeletePeer",
-		Action:  "/resource.ResourceService/DeletePeer",
-		Risk:    "HIGH - Can remove legitimate cluster nodes",
+		Method:  "GetNodeIdentity",
+		Action:  "/resource.ResourceService/GetNodeIdentity",
+		Risk:    "MEDIUM - Node information disclosure",
 	},
 	{
 		Service: "resource.ResourceService",
-		Method:  "UpdatePeer",
-		Action:  "/resource.ResourceService/UpdatePeer",
-		Risk:    "HIGH - Can modify node identity/capabilities",
-	},
-	{
-		Service: "resource.ResourceService",
-		Method:  "GetPeers",
-		Action:  "/resource.ResourceService/GetPeers",
+		Method:  "ListNodeIdentities",
+		Action:  "/resource.ResourceService/ListNodeIdentities",
 		Risk:    "MEDIUM - Cluster topology enumeration",
+	},
+	{
+		Service: "resource.ResourceService",
+		Method:  "SetNodeIdentityEnabled",
+		Action:  "/resource.ResourceService/SetNodeIdentityEnabled",
+		Risk:    "HIGH - Can disable/enable cluster nodes",
 	},
 
 	// -----------------------------------------------------------------------

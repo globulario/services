@@ -23,6 +23,68 @@ func (srv *NodeAgentServer) StartACMERenewal(ctx context.Context) {
 	go srv.acmeRenewalLoop(ctx)
 }
 
+// StartCAKeySync starts a background loop that ensures the CA private key
+// is available locally by pulling it from MinIO (globular-config/pki/ca.key).
+// This enables any node to act as a certificate authority — if the original
+// bootstrap node goes down, other nodes can still issue certificates.
+func (srv *NodeAgentServer) StartCAKeySync(ctx context.Context) {
+	go srv.caKeySyncLoop(ctx)
+}
+
+func (srv *NodeAgentServer) caKeySyncLoop(ctx context.Context) {
+	// Initial delay: wait for MinIO to be available after startup.
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(30 * time.Second):
+	}
+
+	srv.syncCAKeyFromMinIO()
+
+	// Re-check every hour in case the key was rotated.
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			srv.syncCAKeyFromMinIO()
+		}
+	}
+}
+
+func (srv *NodeAgentServer) syncCAKeyFromMinIO() {
+	caKeyPath := config.GetCanonicalPKIDir() + "/ca.key"
+
+	// If the key already exists locally, nothing to do.
+	if _, err := os.Stat(caKeyPath); err == nil {
+		return
+	}
+
+	data, err := config.GetClusterConfig(config.ConfigKeyCAKey)
+	if err != nil {
+		log.Printf("ca-key-sync: failed to fetch ca.key from MinIO: %v", err)
+		return
+	}
+	if data == nil {
+		log.Printf("ca-key-sync: ca.key not found in MinIO (globular-config/%s)", config.ConfigKeyCAKey)
+		return
+	}
+
+	if err := os.MkdirAll(config.GetCanonicalPKIDir(), 0o755); err != nil {
+		log.Printf("ca-key-sync: mkdir %s: %v", config.GetCanonicalPKIDir(), err)
+		return
+	}
+
+	if err := os.WriteFile(caKeyPath, data, 0o400); err != nil {
+		log.Printf("ca-key-sync: write %s: %v", caKeyPath, err)
+		return
+	}
+
+	log.Printf("ca-key-sync: pulled ca.key from MinIO to %s (%d bytes)", caKeyPath, len(data))
+}
+
 func (srv *NodeAgentServer) acmeRenewalLoop(ctx context.Context) {
 	// Check every 12 hours
 	ticker := time.NewTicker(12 * time.Hour)

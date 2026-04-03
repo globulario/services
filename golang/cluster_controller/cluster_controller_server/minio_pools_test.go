@@ -280,10 +280,10 @@ func TestRenderMinioConfig_Distributed(t *testing.T) {
 		t.Fatal("expected success")
 	}
 	// Should contain both endpoints in order.
-	if !strings.Contains(content, "http://10.0.0.1:9000") {
+	if !strings.Contains(content, "https://10.0.0.1:9000") {
 		t.Error("missing first endpoint")
 	}
-	if !strings.Contains(content, "http://10.0.0.2:9000") {
+	if !strings.Contains(content, "https://10.0.0.2:9000") {
 		t.Error("missing second endpoint")
 	}
 	// Order must be 10.0.0.1 before 10.0.0.2.
@@ -317,11 +317,11 @@ func TestRenderMinioConfig_PoolExpansion(t *testing.T) {
 		t.Fatal("expected success")
 	}
 	// All 3 endpoints in order.
-	if !strings.Contains(content, "http://10.0.0.3:9000") {
+	if !strings.Contains(content, "https://10.0.0.3:9000") {
 		t.Error("missing expansion node endpoint")
 	}
 	// Count endpoints.
-	count := strings.Count(content, "http://")
+	count := strings.Count(content, "https://")
 	if count != 3 {
 		t.Errorf("expected 3 endpoints, got %d", count)
 	}

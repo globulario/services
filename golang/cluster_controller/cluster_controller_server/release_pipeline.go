@@ -13,6 +13,11 @@ import (
 	"github.com/globulario/services/golang/workflow/engine"
 )
 
+// releaseRetryBackoff is the minimum time to wait before auto-retrying a
+// FAILED release. Without this, resolve errors (e.g. "cluster_id required")
+// create a tight FAILED→PENDING→FAILED loop that starves other handlers.
+const releaseRetryBackoff = 30 * time.Second
+
 // releaseHandle is a type-erased view of a release object (ServiceRelease,
 // ApplicationRelease, or InfrastructureRelease) that the unified pipeline
 // operates on. Each typed reconciler builds a handle, then calls the shared
@@ -30,6 +35,7 @@ type releaseHandle struct {
 	ResolvedVersion        string
 	ResolvedArtifactDigest string
 	DesiredHash            string
+	LastTransitionUnixMs   int64
 	Nodes                  []*cluster_controllerpb.NodeReleaseStatus
 
 	// Resolve parameters (normalized to the common resolver shape)
@@ -47,7 +53,7 @@ type releaseHandle struct {
 	Removing bool
 
 	// Type-specific callbacks
-	ComputeHash func(resolvedVersion string) string
+	ComputeHash func(resolvedVersion string, buildNumber int64) string
 
 	// DriftDetector is an optional callback for hash+health drift detection.
 	// Called from reconcileAvailable for ServiceRelease (nil for App/Infra).
@@ -141,7 +147,7 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
-	desiredHash := h.ComputeHash(resolved.Version)
+	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
 		ResolvedVersion:        resolved.Version,
@@ -432,6 +438,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
+		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         appRepoAddr(rel.Spec),
 		LockKey:                fmt.Sprintf("application:%s", rel.Spec.AppName),
@@ -444,7 +451,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 			Platform:     rel.Spec.Platform,
 			RepositoryID: rel.Spec.RepositoryID,
 		},
-		ComputeHash: func(resolvedVersion string) string {
+		ComputeHash: func(resolvedVersion string, buildNumber int64) string {
 			return ComputeApplicationDesiredHash(rel.Spec.PublisherID, rel.Spec.AppName, resolvedVersion)
 		},
 		PatchStatus: func(ctx context.Context, p statusPatch) error {
@@ -466,6 +473,7 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
+		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         infraRepoAddr(rel.Spec),
 		LockKey:                fmt.Sprintf("infrastructure:%s", rel.Spec.Component),
@@ -478,8 +486,8 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 			Platform:     rel.Spec.Platform,
 			RepositoryID: rel.Spec.RepositoryID,
 		},
-		ComputeHash: func(resolvedVersion string) string {
-			return ComputeInfrastructureDesiredHash(rel.Spec.PublisherID, rel.Spec.Component, resolvedVersion)
+		ComputeHash: func(resolvedVersion string, buildNumber int64) string {
+			return ComputeInfrastructureDesiredHash(rel.Spec.PublisherID, rel.Spec.Component, resolvedVersion, buildNumber)
 		},
 		PatchStatus: func(ctx context.Context, p statusPatch) error {
 			return srv.patchInfraReleaseStatus(ctx, rel.Meta.Name, func(s *cluster_controllerpb.InfrastructureReleaseStatus) {
@@ -582,14 +590,15 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		ResolvedVersion:        rel.Status.ResolvedVersion,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
+		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         repositoryAddrForSpec(rel.Spec),
 		LockKey:                fmt.Sprintf("service:%s", canon),
 		InstalledStateKind:     "SERVICE",
 		InstalledStateName:     canon,
 		ResolverSpec:           rel.Spec,
-		ComputeHash: func(resolvedVersion string) string {
-			return ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolvedVersion, rel.Spec.Config)
+		ComputeHash: func(resolvedVersion string, buildNumber int64) string {
+			return ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolvedVersion, buildNumber, rel.Spec.Config)
 		},
 		PatchStatus: func(ctx context.Context, p statusPatch) error {
 			return srv.patchReleaseStatus(ctx, rel.Meta.Name, func(s *cluster_controllerpb.ServiceReleaseStatus) {

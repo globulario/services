@@ -57,6 +57,10 @@ func (srv *server) run() {
 	pollTicker := time.NewTicker(pollInterval)
 	defer pollTicker.Stop()
 
+	// Reconnect ticker — try to connect to ScyllaDB every 10s if bus is nil.
+	reconnectTicker := time.NewTicker(10 * time.Second)
+	defer reconnectTicker.Stop()
+
 	done := make(chan bool)
 
 	go func() {
@@ -105,6 +109,16 @@ func (srv *server) run() {
 			}
 			if len(toDelete) > 0 {
 				srv.cleanupSubscribers(toDelete, channels, quits, streams)
+			}
+
+		case <-reconnectTicker.C:
+			// Periodically try to (re)connect the ScyllaDB bus.
+			if srv.bus == nil {
+				b := newScyllaBus(srv.logger)
+				if err := b.connect(); err == nil {
+					srv.logger.Info("ScyllaDB event bus reconnected")
+					srv.bus = b
+				}
 			}
 
 		case <-pollTicker.C:

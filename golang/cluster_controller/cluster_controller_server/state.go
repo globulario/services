@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/netutil"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // generateMinioCredentials creates random MinIO root credentials.
@@ -39,8 +41,10 @@ type controllerState struct {
 	// MinIO pool membership — ordered, append-only list of node IPs.
 	// New nodes are appended; existing entries never change order.
 	// This preserves erasure set boundaries across pool expansion.
-	MinioPoolNodes   []string          `json:"minio_pool_nodes,omitempty"`
-	MinioCredentials *minioCredentials `json:"minio_credentials,omitempty"`
+	MinioPoolNodes     []string          `json:"minio_pool_nodes,omitempty"`
+	MinioCredentials   *minioCredentials `json:"minio_credentials,omitempty"`
+	MinioNodePaths     map[string]string `json:"minio_node_paths,omitempty"`   // IP → base data path (default: /var/lib/globular/minio)
+	MinioDrivesPerNode int               `json:"minio_drives_per_node,omitempty"` // drives per node (0/1 = single, 2+ = multi-drive)
 }
 
 // minioCredentials holds the MinIO root credentials for the cluster.
@@ -385,4 +389,45 @@ func (s *controllerState) save(path string) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// etcdStateKey is the etcd key where controller state is persisted.
+// This is the authoritative copy — local disk is a backup.
+const etcdStateKey = "/globular/clustercontroller/state"
+
+// saveToEtcd persists the controller state to etcd.
+func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
+	if cli == nil {
+		return nil
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	_, err = cli.Put(ctx, etcdStateKey, string(data))
+	return err
+}
+
+// loadFromEtcd loads the controller state from etcd.
+// Returns nil, nil if the key does not exist (fresh cluster).
+func loadFromEtcd(cli *clientv3.Client) (*controllerState, error) {
+	if cli == nil {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	resp, err := cli.Get(ctx, etcdStateKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	state := newControllerState()
+	if err := json.Unmarshal(resp.Kvs[0].Value, state); err != nil {
+		return nil, err
+	}
+	return state, nil
 }

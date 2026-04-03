@@ -1513,6 +1513,16 @@ func StartEtcdServer() error {
 			if pd != "" && !strings.Contains(ph, ".") {
 				adv = ph + "." + pd
 			}
+			// If the advertised host is still a bare hostname (no domain
+			// available), try to use the peer's IP address instead so etcd
+			// peers can reach each other without bare-hostname DNS.
+			if !strings.Contains(adv, ".") {
+				if peerIPs, _ := peer["Ips"].([]interface{}); len(peerIPs) > 0 {
+					if ip := strings.TrimSpace(Utility.ToString(peerIPs[0])); ip != "" {
+						adv = ip
+					}
+				}
+			}
 			initialCluster += "," + Utility.ToString(peer["Name"]) + "=" + scheme + "://" + net.JoinHostPort(adv, peerPort)
 		}
 	}

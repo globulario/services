@@ -213,9 +213,11 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// Trigger workflow on first heartbeat (node just joined and reported its endpoint).
 	// The node may already be in infra_preparing by the time the heartbeat arrives
 	// (the reconcile loop advances phases before ReportNodeStatus completes).
-	if oldEndpoint == "" && newEndpoint != "" && node.BootstrapPhase != BootstrapWorkloadReady {
+	if oldEndpoint == "" && newEndpoint != "" && node.BootstrapPhase != BootstrapWorkloadReady &&
+		!node.BootstrapWorkflowActive {
 		log.Printf("ReportNodeStatus: node %s first heartbeat (phase=%s) — triggering join workflow at %s",
 			nodeID, node.BootstrapPhase, newEndpoint)
+		node.BootstrapWorkflowActive = true
 		go srv.triggerJoinWorkflow(nodeID, newEndpoint)
 	}
 

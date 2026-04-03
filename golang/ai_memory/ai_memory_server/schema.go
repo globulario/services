@@ -55,7 +55,7 @@ const keyspace = "ai_memory"
 
 const createKeyspaceCQL = `
 CREATE KEYSPACE IF NOT EXISTS ai_memory
-  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
+  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3}
 `
 
 const createMemoriesTableCQL = `

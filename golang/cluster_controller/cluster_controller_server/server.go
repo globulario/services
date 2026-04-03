@@ -389,6 +389,26 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	srv.leader.Store(isLeader)
 	srv.leaderID.Store(id)
 	srv.leaderAddr.Store(addr)
+	// When gaining leadership, update the service registry so Envoy routes
+	// to this node's controller (the leader). Without this, the registry
+	// points to whichever node last started — not necessarily the leader.
+	if isLeader {
+		if err := config.SaveServiceConfiguration(map[string]interface{}{
+			"Id":       "cluster_controller.ClusterControllerService",
+			"Name":     "cluster_controller.ClusterControllerService",
+			"Address":  config.GetRoutableIPv4(),
+			"Port":     srv.cfg.Port,
+			"Protocol": "grpc",
+			"TLS":      true,
+			"State":    "running",
+			"Process":  os.Getpid(),
+			"Version":  Version,
+		}); err != nil {
+			log.Printf("leader: failed to update service registry: %v", err)
+		} else {
+			log.Printf("leader: updated service registry to %s:%d", config.GetRoutableIPv4(), srv.cfg.Port)
+		}
+	}
 }
 
 func (srv *server) requireLeader(ctx context.Context) error {
@@ -444,6 +464,46 @@ func (srv *server) cleanupAgentClients() {
 			log.Printf("closed idle agent client %s", endpoint)
 		}
 	}
+}
+
+// reloadStateFromEtcd loads the authoritative controller state from etcd.
+// Called when this instance gains leadership so it picks up state written by
+// the previous leader (which may have been on a different node).
+func (srv *server) reloadStateFromEtcd() {
+	if srv.etcdClient == nil {
+		return
+	}
+	etcdState, err := loadFromEtcd(srv.etcdClient)
+	if err != nil {
+		log.Printf("leader: failed to load state from etcd: %v — keeping local state", err)
+		return
+	}
+	if etcdState == nil {
+		log.Printf("leader: no state in etcd — seeding from local state")
+		// First leader ever: push local state to etcd so other nodes can pick it up.
+		if err := srv.state.saveToEtcd(srv.etcdClient); err != nil {
+			log.Printf("leader: failed to seed state to etcd: %v", err)
+		}
+		return
+	}
+	srv.lock("leader:reload-state")
+	defer srv.unlock()
+	// Preserve in-memory-only fields that don't serialize to etcd.
+	for nodeID, oldNode := range srv.state.Nodes {
+		if oldNode == nil {
+			continue
+		}
+		if newNode, ok := etcdState.Nodes[nodeID]; ok && newNode != nil {
+			newNode.BootstrapWorkflowActive = oldNode.BootstrapWorkflowActive
+			newNode.RestartAttempts = oldNode.RestartAttempts
+		}
+	}
+	srv.state = etcdState
+	// Also update the local disk backup.
+	if err := srv.state.save(srv.statePath); err != nil {
+		log.Printf("leader: failed to save etcd state to disk: %v", err)
+	}
+	log.Printf("leader: reloaded state from etcd (%d nodes, cluster=%s)", len(srv.state.Nodes), srv.state.ClusterId)
 }
 
 func (srv *server) observedUnitsForNode(nodeID string) []unitStatusRecord {
@@ -551,6 +611,12 @@ func (srv *server) persistStateLocked(force bool) error {
 	if !force && time.Since(srv.lastStateSave) < statePersistInterval {
 		return nil
 	}
+	// Primary: persist to etcd (authoritative for leadership transfers).
+	if err := srv.state.saveToEtcd(srv.etcdClient); err != nil {
+		log.Printf("persist state to etcd failed: %v", err)
+		// Continue to save to disk even if etcd write fails.
+	}
+	// Backup: persist to local disk.
 	if err := srv.state.save(srv.statePath); err != nil {
 		return err
 	}

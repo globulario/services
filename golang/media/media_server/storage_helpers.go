@@ -55,10 +55,11 @@ func (srv *server) isMinioPath(p string) bool {
 		p = "/" + p
 	}
 
-	// The file service routes /users and /applications paths to MinIO.
+	// The file service routes /users, /applications, and /public paths to MinIO.
 	// MinioConfig.Prefix is a bucket key prefix, not a logical path prefix.
 	return p == "/users" || strings.HasPrefix(p, "/users/") ||
-		p == "/applications" || strings.HasPrefix(p, "/applications/")
+		p == "/applications" || strings.HasPrefix(p, "/applications/") ||
+		p == "/public" || strings.HasPrefix(p, "/public/")
 }
 
 // minioKeyFromPath mirrors the file service's pathToKey:
@@ -73,9 +74,18 @@ func (srv *server) isMinioPath(p string) bool {
 // With Prefix="myapp" and logical path "/users/sa/file.mp4":
 //
 //	key = "myapp/users/sa/file.mp4"
+//
+// /public/ paths never get a prefix — the file service uses an empty prefix
+// for the public namespace so the key is always "public/…".
 func (srv *server) minioKeyFromPath(p string) string {
 	p = filepath.ToSlash(strings.TrimSpace(p))
 	clean := strings.TrimLeft(filepath.ToSlash(filepath.Clean(p)), "/")
+
+	// /public/ paths use empty prefix (matches file service behaviour).
+	if strings.HasPrefix(clean, "public/") || clean == "public" {
+		return clean
+	}
+
 	rawPrefix := ""
 	if srv.MinioConfig != nil {
 		rawPrefix = strings.Trim(srv.MinioConfig.Prefix, "/")

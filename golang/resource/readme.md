@@ -1,6 +1,6 @@
 # Resource Service
 
-The **Resource Service** is a core Globular microservice that manages **accounts, groups, organizations, roles, peers, applications, and sessions**.  
+The **Resource Service** is a core Globular microservice that manages **accounts, groups, organizations, roles, node identities, applications, and sessions**.  
 It acts as the authoritative registry for all entities in a Globular domain and provides APIs to manage identity, relationships, and membership.
 
 ---
@@ -12,7 +12,7 @@ It acts as the authoritative registry for all entities in a Globular domain and 
 - **Groups**: Add/remove members, manage group ownership and roles
 - **Roles**: Create roles, assign/remove actions, associate accounts and organizations
 - **Applications**: Register applications, manage versions, actions, and ownership
-- **Peers**: Manage distributed peers in a cluster, with approval workflows
+- **Node Identities**: Manage cluster node identities and membership
 - **Calls**: Track call history and sessions
 - **Sessions**: Manage account login sessions, state, and expiration
 - Full integration with **RBAC Service** for access control
@@ -27,7 +27,7 @@ It acts as the authoritative registry for all entities in a Globular domain and 
 - **Group**: Collection of accounts inside an organization.
 - **Role**: Defines actions (permissions) that can be granted to accounts or organizations.
 - **Application**: Software entity registered in the domain with its own access control.
-- **Peer**: A remote Globular node in a distributed system.
+- **Node Identity**: A registered Globular node in a distributed cluster.
 - **Session**: Active authenticated presence of an account.
 
 ---
@@ -61,9 +61,9 @@ The gRPC API is defined in [`resource.proto`](./resource.proto).
 - `AddApplicationActions`, `RemoveApplicationAction`
 - `GetApplications`
 
-### Peers
-- `RegisterPeer`, `DeletePeer`, `AcceptPeer`, `RejectPeer`
-- `GetPeers`, `GetPeerPublicKey`, `GetPeerApprovalState`
+### Node Identities
+- `UpsertNodeIdentity`, `GetNodeIdentity`
+- `ListNodeIdentities`, `SetNodeIdentityEnabled`
 
 ### Sessions
 - `GetSession`, `GetSessions`
@@ -131,7 +131,7 @@ Covers:
 - Account, group, organization lifecycle
 - Role creation and action assignment
 - Application management
-- Peer registration and approval
+- Node identity management
 - Call history and sessions
 
 ---

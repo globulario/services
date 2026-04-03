@@ -4,9 +4,17 @@ metadata:
   name: day0.bootstrap
   displayName: Cluster Day-0 bootstrap
   description: >-
-    Formalized replacement for install-day0.sh. The installer remains the local
-    primitive library, but the workflow service owns the sequence, retries,
-    persisted run history and step-level observability.
+    Day-0 cluster bootstrap workflow. Runs on the node-agent AFTER the
+    install-day0.sh script has installed the minimal prerequisites
+    (TLS, etcd, scylladb, minio, node-agent). This workflow installs
+    all remaining packages, bootstraps DNS, publishes artifacts, and
+    seeds desired state.
+
+    Prerequisites (handled by install-day0.sh before this workflow):
+      1. TLS root + server + client certificates
+      2. Bootstrap mode enabled (30-minute window)
+      3. Minimal packages installed: scylladb, etcd, minio, node-agent
+      4. Node-agent running and reachable on :11000
 spec:
   inputSchema:
     type: object
@@ -14,101 +22,178 @@ spec:
       - cluster_id
       - bootstrap_node_id
       - bootstrap_node_hostname
-      - repository_address
       - domain
     properties:
       cluster_id: { type: string }
       bootstrap_node_id: { type: string }
       bootstrap_node_hostname: { type: string }
-      repository_address: { type: string }
+      repository_address: { type: string, default: "" }
       domain: { type: string }
       install_timeout: { type: string, default: 20m }
       health_timeout: { type: string, default: 10m }
   defaults:
     install_timeout: 20m
     health_timeout: 10m
+    repository_address: ""
   strategy:
     mode: single
   steps:
-    - id: setup_tls
-      title: Bootstrap TLS root, server and client credentials
-      actor: installer
-      action: installer.setup_tls
-
-    - id: enable_bootstrap_window
-      title: Enable temporary bootstrap mode
-      actor: installer
-      action: installer.enable_bootstrap_window
+    # ── Tier 0: Verify prerequisites are truly healthy ─────────────────
+    - id: verify_etcd_healthy
+      title: Verify etcd is healthy (etcdctl endpoint health)
+      actor: node-agent
+      action: node.probe_infra_health
       with:
-        ttl: 30m
-
-    - id: write_bootstrap_credentials
-      title: Write bootstrap superuser credentials
-      actor: installer
-      action: installer.write_bootstrap_credentials
-
-    - id: install_storage_foundation
-      title: Install ScyllaDB, etcd and MinIO
-      actor: installer
-      action: installer.install_package_set
-      with:
-        packages: [scylladb, etcd, minio]
+        probe: probe-etcd-health
       retry:
-        maxAttempts: 3
-        backoff: 15s
-      timeout: $.install_timeout
+        maxAttempts: 30
+        backoff: 5s
+      timeout: 3m
 
+    - id: verify_scylla_healthy
+      title: Verify ScyllaDB is accepting CQL connections
+      actor: node-agent
+      action: node.probe_infra_health
+      with:
+        probe: probe-scylla-health
+      retry:
+        maxAttempts: 60
+        backoff: 10s
+      timeout: 12m
+
+    - id: verify_minio_healthy
+      title: Verify MinIO is healthy (HTTP health endpoint)
+      actor: node-agent
+      action: node.probe_infra_health
+      with:
+        probe: probe-minio-health
+      retry:
+        maxAttempts: 30
+        backoff: 5s
+      timeout: 3m
+
+    # ── Tier 1: Configure shared storage ────────────────────────────────
     - id: configure_shared_storage
-      title: Configure MinIO buckets and shared cluster config
-      dependsOn: [install_storage_foundation]
+      title: Configure MinIO buckets and upload workflow definitions
+      dependsOn: [verify_etcd_healthy, verify_scylla_healthy, verify_minio_healthy]
       actor: installer
       action: installer.configure_shared_storage
 
+    - id: write_bootstrap_credentials
+      title: Write bootstrap superuser credentials
+      dependsOn: [verify_etcd_healthy, verify_scylla_healthy, verify_minio_healthy]
+      actor: installer
+      action: installer.write_bootstrap_credentials
+
+    # ── Tier 2: Data layer ──────────────────────────────────────────────
     - id: install_persistence
       title: Install persistence service
-      dependsOn: [configure_shared_storage]
+      dependsOn: [configure_shared_storage, write_bootstrap_credentials]
       actor: installer
       action: installer.install_package
       with:
         package: persistence
       timeout: $.install_timeout
 
-    - id: install_bootstrap_services
-      title: Install xDS, Envoy, gateway, node-agent, cluster-controller and cluster-doctor
+    # ── Tier 3: Mesh + proxy ────────────────────────────────────────────
+    - id: install_mesh_services
+      title: Install xDS, Envoy, gateway
       dependsOn: [install_persistence]
       actor: installer
       action: installer.install_package_set
       with:
-        packages: [xds, envoy, gateway, node-agent, cluster-controller, cluster-doctor]
+        packages: [xds, envoy, gateway]
       timeout: $.install_timeout
 
+    # ── Tier 4: Core infrastructure ─────────────────────────────────────
+    - id: install_infra_services
+      title: Install cluster-controller and cluster-doctor
+      dependsOn: [install_mesh_services]
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages: [cluster-controller, cluster-doctor]
+      timeout: $.install_timeout
+
+    # ── Tier 5: Control plane ───────────────────────────────────────────
     - id: install_control_plane
       title: Install resource, RBAC, authentication, discovery, DNS and repository
-      dependsOn: [install_bootstrap_services]
+      dependsOn: [install_infra_services]
       actor: installer
       action: installer.install_package_set
       with:
         packages: [resource, rbac, authentication, discovery, dns, repository]
       timeout: $.install_timeout
 
+    # ── Tier 6: DNS bootstrap ───────────────────────────────────────────
     - id: bootstrap_dns
       title: Create initial DNS zone and records
       dependsOn: [install_control_plane]
       actor: installer
       action: installer.bootstrap_dns
 
-    - id: install_ops_and_workloads
-      title: Install ops packages and workload packages
+    # ── Tier 7: Ops services ────────────────────────────────────────────
+    - id: install_ops_services
+      title: Install monitoring, event, log, backup, AI, workflow
       dependsOn: [bootstrap_dns]
       actor: installer
-      action: installer.install_profile_sets
+      action: installer.install_package_set
       with:
-        profiles: [ops, workloads]
+        packages:
+          - sidekick
+          - node-exporter
+          - prometheus
+          - monitoring
+          - event
+          - log
+          - backup-manager
+          - workflow
+          - mcp
+          - ai-memory
+          - ai-watcher
+          - ai-executor
+          - ai-router
+          - scylla-manager-agent
+          - scylla-manager
       timeout: $.install_timeout
 
+    # ── Tier 8: Workload services (parallel with CLI tools) ─────────────
+    - id: install_workload_services
+      title: Install file, search, media, title, torrent
+      dependsOn: [install_ops_services]
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages:
+          - file
+          - search
+          - media
+          - title
+          - torrent
+      timeout: $.install_timeout
+
+    - id: install_cli_tools
+      title: Install CLI tools (mc, globular-cli, etcdctl, restic, etc.)
+      dependsOn: [install_ops_services]
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages:
+          - mc
+          - globular-cli
+          - etcdctl
+          - rclone
+          - restic
+          - sctool
+          - sha256sum
+          - yt-dlp
+          - ffmpeg
+      timeout: $.install_timeout
+
+    # ── Tier 9: Post-install ────────────────────────────────────────────
     - id: validate_cluster_health
       title: Validate cluster health and conformance
-      dependsOn: [install_ops_and_workloads]
+      dependsOn: [install_workload_services, install_cli_tools]
       actor: installer
       action: installer.validate_cluster_health
       timeout: $.health_timeout

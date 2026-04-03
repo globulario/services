@@ -63,29 +63,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		stateDirty = true
 	}
 
-	// Pre-reconcile phase 2: drive the etcd join state machine.
-	// Only runs for nodes in etcd_joining or workload_ready phase.
-	if srv.etcdMembers != nil {
-		if joinDirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); joinDirty {
-			stateDirty = true
-		}
-	}
-
-	// Pre-reconcile phase 3: drive the ScyllaDB join state machine.
-	// ScyllaDB uses gossip — config is rendered with seeds, node auto-joins.
-	if srv.scyllaMembers != nil {
-		if scyllaDirty := srv.scyllaMembers.reconcileScyllaJoinPhases(nodes); scyllaDirty {
-			stateDirty = true
-		}
-	}
-
-	// Pre-reconcile phase 4: drive the MinIO pool join state machine.
-	// MinIO uses erasure coding — new nodes are appended to the ordered pool list.
-	if srv.minioPoolMgr != nil {
-		if minioDirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, srv.state); minioDirty {
-			stateDirty = true
-		}
-	}
+	// etcd, ScyllaDB, and MinIO join phases are now driven by
+	// cluster.reconcile workflow scan_drift action (see reconcile_actions.go).
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
@@ -1040,17 +1019,24 @@ func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
 	srv.lock("minio-pool-snapshot")
 	minioPoolNodes := append([]string(nil), srv.state.MinioPoolNodes...)
 	minioCreds := srv.state.MinioCredentials
+	minioNodePaths := make(map[string]string, len(srv.state.MinioNodePaths))
+	for k, v := range srv.state.MinioNodePaths {
+		minioNodePaths[k] = v
+	}
+	minioDrivesPerNode := srv.state.MinioDrivesPerNode
 	srv.unlock()
 
 	ctx := &serviceConfigContext{
-		Membership:       membership,
-		CurrentNode:      currentMember,
-		ClusterID:        membership.ClusterID,
-		Domain:           domain,
-		ExternalDomain:   externalDomain,
-		EtcdState:        etcdState,
-		MinioPoolNodes:   minioPoolNodes,
-		MinioCredentials: minioCreds,
+		Membership:         membership,
+		CurrentNode:        currentMember,
+		ClusterID:          membership.ClusterID,
+		Domain:             domain,
+		ExternalDomain:     externalDomain,
+		EtcdState:          etcdState,
+		MinioPoolNodes:     minioPoolNodes,
+		MinioCredentials:   minioCreds,
+		MinioNodePaths:     minioNodePaths,
+		MinioDrivesPerNode: minioDrivesPerNode,
 	}
 
 	serviceConfigs := renderServiceConfigs(ctx)
@@ -1095,17 +1081,24 @@ func (srv *server) renderServiceConfigsForNodeInMembership(node *nodeState, memb
 	srv.lock("minio-pool-snapshot-preview")
 	minioPool := append([]string(nil), srv.state.MinioPoolNodes...)
 	minioCr := srv.state.MinioCredentials
+	minioNP := make(map[string]string, len(srv.state.MinioNodePaths))
+	for k, v := range srv.state.MinioNodePaths {
+		minioNP[k] = v
+	}
+	minioDPN := srv.state.MinioDrivesPerNode
 	srv.unlock()
 
 	ctx := &serviceConfigContext{
-		Membership:       membership,
-		CurrentNode:      currentMember,
-		ClusterID:        membership.ClusterID,
-		Domain:           domain,
-		ExternalDomain:   externalDomain,
-		EtcdState:        etcdState,
-		MinioPoolNodes:   minioPool,
-		MinioCredentials: minioCr,
+		Membership:         membership,
+		CurrentNode:        currentMember,
+		ClusterID:          membership.ClusterID,
+		Domain:             domain,
+		ExternalDomain:     externalDomain,
+		EtcdState:          etcdState,
+		MinioPoolNodes:     minioPool,
+		MinioCredentials:   minioCr,
+		MinioNodePaths:     minioNP,
+		MinioDrivesPerNode: minioDPN,
 	}
 	return renderServiceConfigs(ctx)
 }
@@ -1166,4 +1159,93 @@ func normalizeDomains(domains []string) []string {
 func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *NodeUnitPlan, operationID string) error {
 	log.Printf("dispatchPlan: skipped (plan system removed) node=%s op=%s", node.NodeID, operationID)
 	return nil
+}
+
+// bootstrapRecoveryGracePeriod is the minimum time a node must be stuck at a
+// non-terminal bootstrap phase (with no active workflow) before the recovery
+// mechanism re-triggers the join workflow. This prevents re-triggering during
+// normal startup where the workflow simply hasn't finished yet.
+const bootstrapRecoveryGracePeriod = 2 * time.Minute
+
+// recoverStuckBootstrapWorkflows scans nodes for those stuck at non-terminal
+// bootstrap phases with no active join workflow goroutine. This handles the
+// case where the controller restarts and kills in-flight triggerJoinWorkflow
+// goroutines, leaving nodes stranded.
+//
+// For each stuck node, it re-triggers go srv.triggerJoinWorkflow() after
+// setting BootstrapWorkflowActive = true to prevent double-triggers.
+func (srv *server) recoverStuckBootstrapWorkflows(nodes []*nodeState, now time.Time) {
+	srv.lock("recoverStuckBootstrapWorkflows")
+	defer srv.unlock()
+
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+
+		// Skip terminal phases — these nodes are done or legacy.
+		if node.BootstrapPhase == BootstrapNone || node.BootstrapPhase == BootstrapWorkloadReady {
+			continue
+		}
+
+		// Skip nodes already being driven by a workflow.
+		if node.BootstrapWorkflowActive {
+			continue
+		}
+
+		// Skip nodes that failed — the reconcileBootstrapPhases auto-retry
+		// handles those by resetting to admitted.
+		if node.BootstrapPhase == BootstrapFailed {
+			continue
+		}
+
+		// Must have a valid agent endpoint to connect to.
+		if node.AgentEndpoint == "" {
+			continue
+		}
+
+		// CRITICAL: do NOT re-trigger the join workflow on nodes that have
+		// already installed infrastructure (storage_joining or later).
+		// The join workflow reinstalls packages like ScyllaDB, which wipes
+		// their data and destroys Raft identity — causing unrecoverable
+		// quorum deadlocks. For these phases, let the bootstrap phase
+		// machine handle timeouts and retries without re-running join.
+		if node.BootstrapPhase == BootstrapStorageJoining ||
+			node.BootstrapPhase == BootstrapEtcdReady ||
+			node.BootstrapPhase == BootstrapXdsReady ||
+			node.BootstrapPhase == BootstrapEnvoyReady {
+			log.Printf("bootstrap-recovery: node %s (%s) at phase %s — skipping join re-trigger (infra already installed)",
+				node.NodeID, node.Identity.Hostname, node.BootstrapPhase)
+			continue
+		}
+
+		// Grace period: don't re-trigger if the node was seen recently.
+		// Use LastSeen (last heartbeat time) as the staleness signal.
+		// A node that is actively heartbeating but stuck means the workflow
+		// goroutine died (controller restart).
+		if node.LastSeen.IsZero() || now.Sub(node.LastSeen) < bootstrapRecoveryGracePeriod {
+			// Also check BootstrapStartedAt — if the phase was entered recently,
+			// the workflow may still be in progress from a fresh trigger.
+			if !node.BootstrapStartedAt.IsZero() && now.Sub(node.BootstrapStartedAt) < bootstrapRecoveryGracePeriod {
+				continue
+			}
+			// If LastSeen is recent but BootstrapStartedAt is old, the node is
+			// heartbeating but the workflow is gone — proceed with recovery.
+			if node.BootstrapStartedAt.IsZero() || now.Sub(node.BootstrapStartedAt) < bootstrapRecoveryGracePeriod {
+				continue
+			}
+		}
+
+		log.Printf("bootstrap-recovery: node %s (%s) stuck at phase %s (last_seen=%s, phase_started=%s) — re-triggering join workflow at %s",
+			node.NodeID, node.Identity.Hostname, node.BootstrapPhase,
+			node.LastSeen.Format(time.RFC3339), node.BootstrapStartedAt.Format(time.RFC3339),
+			node.AgentEndpoint)
+
+		// Set active flag under lock before launching goroutine to prevent
+		// double-triggers from concurrent reconcile cycles.
+		node.BootstrapWorkflowActive = true
+		nodeID := node.NodeID
+		endpoint := node.AgentEndpoint
+		go srv.triggerJoinWorkflow(nodeID, endpoint)
+	}
 }

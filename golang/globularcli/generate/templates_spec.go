@@ -98,7 +98,7 @@ steps:
           Type=simple
           User=globular
           Group=globular
-          WorkingDirectory={{stateDir}}/{{.PackageName}}
+          WorkingDirectory=-{{stateDir}}/{{.PackageName}}
           Environment=GLOBULAR_SERVICES_DIR={{stateDir}}/services
           ExecStart={{prefix}}/bin/{{.PackageName}}_server
           Restart=on-failure

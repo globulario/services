@@ -69,6 +69,7 @@ const (
 	etcdPrefix          = "/globular/services/"
 	configKey           = "config"
 	runtimeKey          = "runtime"
+	instancesPrefix     = "instances"
 	liveKey             = "live"
 	globularRootPrefix  = "/globular/"
 	etcdSnapshotDirName = "etcd-snapshots"
@@ -77,6 +78,61 @@ const (
 
 func etcdKey(id, leaf string) string {
 	return etcdPrefix + id + "/" + leaf
+}
+
+// instanceKey returns the etcd key for a per-node service instance:
+// /globular/services/{id}/instances/{nodeKey}
+func instanceKey(id, nodeKey string) string {
+	return etcdPrefix + id + "/" + instancesPrefix + "/" + nodeKey
+}
+
+// sanitizeMAC converts a MAC address to a safe etcd key segment:
+// "00:0a:f7:2c:1c:2b" → "00_0a_f7_2c_1c_2b"
+func sanitizeMAC(mac string) string {
+	return strings.ReplaceAll(mac, ":", "_")
+}
+
+// PutInstance writes per-node instance data for a service.
+// Each node writes its own instance key so xDS can discover all endpoints.
+// The data includes Address, Port, PID, State, and MAC.
+func PutInstance(serviceID, mac string, data map[string]any) error {
+	if serviceID == "" || mac == "" {
+		return errors.New("PutInstance: missing serviceID or mac")
+	}
+	data["UpdatedAt"] = time.Now().Unix()
+	data["Mac"] = mac
+
+	b, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("PutInstance: marshal: %w", err)
+	}
+	cli, err := etcdClient()
+	if err != nil {
+		return fmt.Errorf("PutInstance: etcd connect: %w", err)
+	}
+	key := instanceKey(serviceID, sanitizeMAC(mac))
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	_, err = cli.Put(ctx, key, string(b))
+	if err != nil {
+		return fmt.Errorf("PutInstance: etcd put: %w", err)
+	}
+	return nil
+}
+
+// DeleteInstance removes a node's instance key for a service.
+func DeleteInstance(serviceID, mac string) error {
+	if serviceID == "" || mac == "" {
+		return nil
+	}
+	cli, err := etcdClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	_, err = cli.Delete(ctx, instanceKey(serviceID, sanitizeMAC(mac)))
+	return err
 }
 
 // BootstrapServicesFromFiles loads all JSON configs from
@@ -247,6 +303,9 @@ func DeleteServiceConfigurationByName(name string) error {
 }
 
 // GetServicesConfigurations lists and merges all services under /globular/services/.
+// When instance keys exist (/globular/services/{id}/instances/{node}), each instance
+// produces a separate entry with the shared config + per-node Address/Port/State.
+// This allows xDS to discover multiple endpoints per service across nodes.
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	c, err := etcdClient()
 	if err != nil {
@@ -262,6 +321,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	desiredByID := map[string]map[string]interface{}{}
 	runtimeByID := map[string]map[string]interface{}{}
+	// instancesByID maps service ID → list of per-node instance data.
+	instancesByID := map[string][]map[string]interface{}{}
 
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
@@ -275,30 +336,65 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		}
 		id, leaf := parts[0], parts[1]
 
-		switch leaf {
-		case configKey:
+		switch {
+		case leaf == configKey:
 			var d map[string]interface{}
 			if err := json.Unmarshal(kv.Value, &d); err != nil {
 				continue
 			}
 			desiredByID[id] = d
-		case runtimeKey:
+		case leaf == runtimeKey:
 			var r map[string]interface{}
 			if err := json.Unmarshal(kv.Value, &r); err != nil {
 				continue
 			}
 			runtimeByID[id] = r
+		case strings.HasPrefix(leaf, instancesPrefix+"/"):
+			var inst map[string]interface{}
+			if err := json.Unmarshal(kv.Value, &inst); err != nil {
+				continue
+			}
+			instancesByID[id] = append(instancesByID[id], inst)
 		}
 	}
 
 	var out []map[string]interface{}
 	for id, d := range desiredByID {
-		r := runtimeByID[id]
-		if r == nil {
-			r = map[string]interface{}{}
+		instances := instancesByID[id]
+		if len(instances) > 0 {
+			// Multi-node: produce one merged entry per instance.
+			for _, inst := range instances {
+				m := mergeDesiredRuntime(d, map[string]interface{}{})
+				// Override with per-node instance data.
+				if addr, ok := inst["Address"]; ok {
+					m["Address"] = addr
+				}
+				if port, ok := inst["Port"]; ok {
+					m["Port"] = port
+				}
+				if proc, ok := inst["Process"]; ok {
+					m["Process"] = proc
+				}
+				if st, ok := inst["State"]; ok {
+					m["State"] = st
+				}
+				if mac, ok := inst["Mac"]; ok {
+					m["Mac"] = mac
+				}
+				if le, ok := inst["LastError"]; ok {
+					m["LastError"] = le
+				}
+				out = append(out, m)
+			}
+		} else {
+			// Legacy: no instance keys, use shared runtime key.
+			r := runtimeByID[id]
+			if r == nil {
+				r = map[string]interface{}{}
+			}
+			m := mergeDesiredRuntime(d, r)
+			out = append(out, m)
 		}
-		m := mergeDesiredRuntime(d, r)
-		out = append(out, m)
 	}
 	return out, nil
 }

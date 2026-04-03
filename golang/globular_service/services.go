@@ -1491,47 +1491,87 @@ func assignValueToField(field reflect.Value, raw any) error {
 
 func putRuntimeRunning(s Service) error {
 	s.SetState("running")
-	return config.PutRuntime(s.GetId(), map[string]any{
+	patch := map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "running",
 		"LastError": "",
-	})
+	}
+	// Write per-node instance so xDS discovers all endpoints.
+	putInstance(s, patch)
+	return config.PutRuntime(s.GetId(), patch)
 }
 
 func putRuntimeFailed(s Service, lastErr string) error {
 	s.SetState("failed")
-	return config.PutRuntime(s.GetId(), map[string]any{
+	patch := map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "failed",
 		"LastError": lastErr,
-	})
+	}
+	putInstance(s, patch)
+	return config.PutRuntime(s.GetId(), patch)
 }
 
 func putRuntimeStopped(s Service, lastErr string) error {
 	s.SetState("stopped")
-	return config.PutRuntime(s.GetId(), map[string]any{
+	patch := map[string]any{
 		"Process":   -1,
 		"State":     "stopped",
 		"LastError": lastErr,
-	})
+	}
+	putInstance(s, patch)
+	return config.PutRuntime(s.GetId(), patch)
 }
 
 func putRuntimeClosing(s Service, lastErr string) error {
 	s.SetState("closing")
-	return config.PutRuntime(s.GetId(), map[string]any{
+	patch := map[string]any{
 		"Process":   os.Getpid(),
 		"State":     "closing",
 		"LastError": lastErr,
-	})
+	}
+	putInstance(s, patch)
+	return config.PutRuntime(s.GetId(), patch)
 }
 
 func putRuntimeClosed(s Service, lastErr string) error {
 	s.SetState("closed")
-	return config.PutRuntime(s.GetId(), map[string]any{
+	patch := map[string]any{
 		"Process":   -1,
 		"State":     "closed",
 		"LastError": lastErr,
-	})
+	}
+	putInstance(s, patch)
+	return config.PutRuntime(s.GetId(), patch)
+}
+
+// putInstance writes per-node instance data to etcd so that xDS can
+// discover endpoints from all nodes running the same service.
+func putInstance(s Service, runtimePatch map[string]any) {
+	mac := s.GetMac()
+	if mac == "" {
+		return // no MAC, skip instance registration
+	}
+
+	// Use the node's actual local IP for the instance address, not the
+	// shared service config address (which may belong to another node).
+	localIP, err := config.GetRoutableIP()
+	if err != nil || localIP == "" {
+		localIP = config.GetLocalIP()
+	}
+	localAddr := fmt.Sprintf("%s:%d", localIP, s.GetPort())
+
+	data := map[string]any{
+		"Address": localAddr,
+		"Port":    s.GetPort(),
+	}
+	for k, v := range runtimePatch {
+		data[k] = v
+	}
+	// Best-effort: don't fail the caller if instance write fails.
+	if err := config.PutInstance(s.GetId(), mac, data); err != nil {
+		slog.Warn("putInstance: failed", "service", s.GetName(), "mac", mac, "err", err)
+	}
 }
 
 // NormalizeEndpointAddress ensures consistent endpoint host normalization.

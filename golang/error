@@ -1,0 +1,17 @@
+
+E {message: '{"ErrorMsg":"rpc error: code = Internal desc = {\\"…FunctionName":"main.(*server).GetSharedResource"}', stack: 'Error: {"ErrorMsg":"rpc error: code = Internal des…/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1436:63)', code: 13, metadata: {…}}
+code
+: 
+13
+message
+: 
+"{\"ErrorMsg\":\"rpc error: code = Internal desc = {\\\"ErrorMsg\\\":\\\"no matching document found for query {\\\\\\\"_id\\\\\\\":\\\\\\\"sa\\\\\\\"}\\\",\\\"FileLine\\\":\\\"/home/dave/Documents/github.com/globulario/services/golang/resource/resource_server/accounts.go:1073\\\",\\\"FunctionName\\\":\\\"main.(*server).GetAccount\\\"}\",\"FileLine\":\"/home/dave/Documents/github.com/globulario/services/golang/rbac/rbac_server/rbac_sharing.go:403\",\"FunctionName\":\"main.(*server).GetSharedResource\"}"
+metadata
+: 
+{content-type: 'application/grpc-web-text+proto', grpc-message: '{"ErrorMsg":"rpc error: code = Internal desc = {\\"…FunctionName":"main.(*server).GetSharedResource"}', grpc-status: '13'}
+stack
+: 
+"Error: {\"ErrorMsg\":\"rpc error: code = Internal desc = {\\\"ErrorMsg\\\":\\\"no matching document found for query {\\\\\\\"_id\\\\\\\":\\\\\\\"sa\\\\\\\"}\\\",\\\"FileLine\\\":\\\"/home/dave/Documents/github.com/globulario/services/golang/resource/resource_server/accounts.go:1073\\\",\\\"FunctionName\\\":\\\"main.(*server).GetAccount\\\"}\",\"FileLine\":\"/home/dave/Documents/github.com/globulario/services/golang/rbac/rbac_server/rbac_sharing.go:403\",\"FunctionName\":\"main.(*server).GetSharedResource\"}\n    at new E (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:550:17)\n    at Y (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1719:37)\n    at rc.<anonymous> (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1699:139)\n    at Kb (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1041:29)\n    at O (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1031:7)\n    at Bc (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1476:20)\n    at n.W (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1439:7)\n    at n.R (http://localhost:5174/node_modules/.vite/deps/chunk-6XQI7RFJ.js?v=b25133f7:1436:63)"
+[[Prototype]]
+: 
+Error

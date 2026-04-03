@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"unsafe"
 	"strconv"
 	"strings"
 	"sync"
@@ -184,9 +185,15 @@ func normalizeControlAddress(address, localAddr string, cfg map[string]interface
 	}
 
 	// If it's a bare hostname (no dots), attach the local domain.
+	// If no domain is available, try the routable IP as a last resort
+	// so connections work across nodes without bare-hostname DNS.
 	host := address
-	if !strings.Contains(host, ".") && domain != "" {
-		host = host + "." + domain
+	if !strings.Contains(host, ".") {
+		if domain != "" {
+			host = host + "." + domain
+		} else if ip := config.GetRoutableIPv4(); ip != "" {
+			host = ip
+		}
 	}
 	// Default: add the control port from our protocol.
 	return net.JoinHostPort(host, defPort)
@@ -267,20 +274,29 @@ func isClientConnectionHealthy(c Client) bool {
 	ce, ok := c.(connExposer)
 	if !ok {
 		// Client doesn't expose connection — check via reflect as fallback.
-		// All generated clients have a `cc *grpc.ClientConn` field.
+		// All generated clients have a `cc *grpc.ClientConn` field (unexported).
 		v := reflect.ValueOf(c)
 		if v.Kind() == reflect.Ptr {
 			v = v.Elem()
 		}
 		ccField := v.FieldByName("cc")
-		if !ccField.IsValid() || !ccField.CanInterface() {
-			return true // unexported or missing — assume healthy, let RPC fail naturally
+		if !ccField.IsValid() {
+			return true // field missing — assume healthy, let RPC fail naturally
 		}
-		if ccField.IsNil() {
-			return false // no connection at all
+		// The cc field is unexported in all client structs, so CanInterface()
+		// returns false. Use unsafe to read the pointer value directly.
+		// This is safe because we know the field type is *grpc.ClientConn.
+		var cc *grpc.ClientConn
+		if ccField.CanInterface() {
+			cc, ok = ccField.Interface().(*grpc.ClientConn)
+			if !ok {
+				return true
+			}
+		} else {
+			// Unexported field — use unsafe pointer to read it.
+			cc = *(**grpc.ClientConn)(unsafe.Pointer(ccField.UnsafeAddr()))
 		}
-		cc, ok := ccField.Interface().(*grpc.ClientConn)
-		if !ok || cc == nil {
+		if cc == nil {
 			return false
 		}
 		state := cc.GetState()

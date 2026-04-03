@@ -47,7 +47,7 @@ type BootstrapState struct {
 // - Health checks for service readiness
 // - Account/role creation for first admin user
 // - Authentication to get initial tokens
-// - Peer registration for cluster formation
+// - Node identity registration for cluster formation
 // - NO data access methods (read/write/delete)
 // - NO administration methods beyond initial setup
 //
@@ -67,9 +67,10 @@ var bootstrapAllowedMethods = map[string]bool{
 	// Authentication (required for getting initial tokens)
 	"/authentication.AuthenticationService/Authenticate": true,
 
-	// Resource service (required for peer registration)
-	"/resource.ResourceService/CreatePeer": true,
-	"/resource.ResourceService/GetPeers":   true,
+	// Resource service (required for node identity during cluster formation)
+	"/resource.ResourceService/UpsertNodeIdentity":  true,
+	"/resource.ResourceService/GetNodeIdentity":     true,
+	"/resource.ResourceService/ListNodeIdentities":  true,
 
 	// DNS service (required for initial zone and record setup)
 	"/dns.DnsService/CreateZone":   true,

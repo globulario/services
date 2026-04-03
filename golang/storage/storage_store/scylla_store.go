@@ -263,6 +263,8 @@ func (s *ScyllaStore) buildCluster(opts OpenOptions) (*gocql.ClusterConfig, erro
 }
 
 // ensureKeyspaceAndTable makes sure keyspace and table exist.
+// It first checks system_schema (read-only, no raft) before attempting DDL,
+// so that services can start even when ScyllaDB has lost raft quorum.
 func (s *ScyllaStore) ensureKeyspaceAndTable(opts OpenOptions) error {
 	sysCluster := *s.cluster // shallow copy
 	sysCluster.Keyspace = "" // connect to system to create ks if needed
@@ -272,20 +274,57 @@ func (s *ScyllaStore) ensureKeyspaceAndTable(opts OpenOptions) error {
 	}
 	defer sysSession.Close()
 
-	// Replication strategy: SimpleStrategy
-	cql := fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS "%s" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`,
-		opts.Keyspace, opts.ReplicationFactor)
-	if err := sysSession.Query(cql).Consistency(gocql.All).Exec(); err != nil {
-		return fmt.Errorf("create keyspace: %w", err)
+	// Check if keyspace already exists (read from system_schema, no raft needed).
+	var ksCount int
+	if err := sysSession.Query(
+		`SELECT count(*) FROM system_schema.keyspaces WHERE keyspace_name = ?`, opts.Keyspace,
+	).Consistency(gocql.One).Scan(&ksCount); err != nil {
+		return fmt.Errorf("check keyspace existence: %w", err)
 	}
-	// now create table
-	tableCQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
-		k text PRIMARY KEY,
-		v blob,
-		updated_at timestamp
-	)`, opts.Keyspace, opts.Table)
-	if err := sysSession.Query(tableCQL).Consistency(gocql.All).Exec(); err != nil {
-		return fmt.Errorf("create table: %w", err)
+
+	if ksCount == 0 {
+		// Keyspace does not exist — CREATE requires raft quorum.
+		// Default to RF=3 for cluster deployments (multi-node). RF=1 is only
+		// acceptable for single-node dev setups.
+		rf := opts.ReplicationFactor
+		if rf <= 1 {
+			// Auto-detect cluster size: count ScyllaDB peers.
+			var peerCount int
+			if err := sysSession.Query(`SELECT count(*) FROM system.peers`).Consistency(gocql.One).Scan(&peerCount); err == nil && peerCount > 0 {
+				rf = peerCount + 1 // peers + self
+				if rf > 3 {
+					rf = 3 // cap at 3 for performance
+				}
+			} else {
+				rf = 1 // single node fallback
+			}
+		}
+		cql := fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS "%s" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`,
+			opts.Keyspace, rf)
+		if err := sysSession.Query(cql).Consistency(gocql.All).Exec(); err != nil {
+			return fmt.Errorf("create keyspace: %w", err)
+		}
+	}
+
+	// Check if table already exists.
+	var tblCount int
+	if err := sysSession.Query(
+		`SELECT count(*) FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?`,
+		opts.Keyspace, opts.Table,
+	).Consistency(gocql.One).Scan(&tblCount); err != nil {
+		return fmt.Errorf("check table existence: %w", err)
+	}
+
+	if tblCount == 0 {
+		// Table does not exist — CREATE requires raft quorum.
+		tableCQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s"."%s" (
+			k text PRIMARY KEY,
+			v blob,
+			updated_at timestamp
+		)`, opts.Keyspace, opts.Table)
+		if err := sysSession.Query(tableCQL).Consistency(gocql.All).Exec(); err != nil {
+			return fmt.Errorf("create table: %w", err)
+		}
 	}
 
 	return nil

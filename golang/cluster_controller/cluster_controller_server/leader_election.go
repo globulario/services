@@ -64,7 +64,9 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			}
 			// Reset backoff after successful campaign
 			resetBackoff()
-			// Gained leadership
+			// Gained leadership — reload authoritative state from etcd before
+			// enabling reconciliation, so we pick up state from the previous leader.
+			srv.reloadStateFromEtcd()
 			srv.setLeader(true, candidateID, addr)
 			if err := publishLeaderAddr(ctx, cli, sess.Lease(), addr); err != nil {
 				log.Printf("leader election: publish addr failed: %v", err)

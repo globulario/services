@@ -77,7 +77,7 @@ type releaseTestOpts struct {
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	restartPackageService func(ctx context.Context, name string) error
 	verifyPackageRuntime func(ctx context.Context, name, check string) error
-	syncInstalledPackage func(ctx context.Context, name, version, hash string) error
+	syncInstalledPackage func(ctx context.Context, name, version, hash, kind string) error
 }
 
 func defaultReleaseOpts() releaseTestOpts {

@@ -55,7 +55,7 @@ func (q *indexQueue) connect(hosts []string) error {
 
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Port = 9042
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = gocql.One // start with ONE for bootstrap
 	cluster.Timeout = 10 * time.Second
 	cluster.ConnectTimeout = 10 * time.Second
 
@@ -65,9 +65,32 @@ func (q *indexQueue) connect(hosts []string) error {
 		return fmt.Errorf("scylla connect: %w", err)
 	}
 
+	// Detect actual cluster size to set appropriate replication factor and consistency.
+	var peerCount int
+	if err := initSess.Query(`SELECT count(*) FROM system.peers`).Consistency(gocql.One).Scan(&peerCount); err != nil {
+		peerCount = 0
+	}
+	nodeCount := peerCount + 1 // system.peers excludes local node
+
+	rf := 3
+	if nodeCount < 3 {
+		rf = nodeCount
+	}
+	if rf < 1 {
+		rf = 1
+	}
+
+	// Work queue uses ONE: items are idempotent and processed by a single
+	// elected writer, so strong consistency is unnecessary. ONE keeps the
+	// queue functional during partial outages (gocql may not discover all
+	// peers immediately after startup).
+	cluster.Consistency = gocql.One
+
+	q.logger.Info("index queue: cluster probed", "nodes", nodeCount, "replication_factor", rf, "consistency", cluster.Consistency)
+
 	cql := fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS %s
-		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}`, queueKeyspace)
-	if err := initSess.Query(cql).Exec(); err != nil {
+		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`, queueKeyspace, rf)
+	if err := initSess.Query(cql).Consistency(gocql.One).Exec(); err != nil {
 		initSess.Close()
 		return fmt.Errorf("create keyspace: %w", err)
 	}

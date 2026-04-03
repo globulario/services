@@ -38,8 +38,9 @@ Bootstrap mode allows requests ONLY when ALL 4 gates pass:
   - `/rbac.RbacService/SetAccountRole` - Bind admin role
   - `/rbac.RbacService/GetAccount` - Check if account exists
   - `/authentication.AuthenticationService/Authenticate` - Get initial tokens
-  - `/resource.ResourceService/CreatePeer` - Cluster formation
-  - `/resource.ResourceService/GetPeers` - Cluster enumeration
+  - `/resource.ResourceService/UpsertNodeIdentity` - Node registration
+  - `/resource.ResourceService/GetNodeIdentity` - Node lookup
+  - `/resource.ResourceService/ListNodeIdentities` - Cluster enumeration
   - `/dns.DnsService/CreateZone` - Initial DNS setup
   - `/dns.DnsService/GetZone` - Check zone exists
   - `/dns.DnsService/CreateRecord` - Bootstrap DNS records

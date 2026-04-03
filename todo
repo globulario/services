@@ -1,0 +1,1 @@
+Uncaught SyntaxError: The requested module '/@fs/home/dave/Documents/github.com/globulario/globular-admin/packages/sdk/src/index.ts' does not provide an export named 'registerPeer' (at peer_discovery.ts:6:3)

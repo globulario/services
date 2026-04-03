@@ -193,6 +193,14 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			log.Printf("release %s: garbage-collected (REMOVED)", releaseName)
 		}
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+		// Backoff: wait at least releaseRetryBackoff since the last transition
+		// to avoid a tight FAILED→PENDING→FAILED loop that starves heartbeats.
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseRetryBackoff {
+				return // too soon, let the next reconcile cycle handle it
+			}
+		}
 		// Re-enter PENDING if the spec generation advanced (explicit re-apply).
 		if h.Generation > h.ObservedGeneration {
 			log.Printf("release %s: %s → PENDING (generation %d > observed %d)",
@@ -205,7 +213,6 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 			return
 		}
 		// Auto-retry: if there are still unserved nodes, re-enter PENDING.
-		// The reconcile loop interval provides natural backoff between retries.
 		if srv.hasUnservedNodes(h) {
 			log.Printf("release %s: %s → PENDING (auto-retry, unserved nodes remain)",
 				releaseName, h.Phase)
