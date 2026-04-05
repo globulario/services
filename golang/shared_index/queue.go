@@ -10,10 +10,9 @@ package shared_index
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 )
 
@@ -46,11 +45,13 @@ func newIndexQueue(logger *slog.Logger) *indexQueue {
 }
 
 func (q *indexQueue) connect(hosts []string) error {
+	// Caller-supplied hosts win; otherwise pull from etcd (Tier-0).
 	if len(hosts) == 0 {
-		hosts = []string{"127.0.0.1"}
-	}
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		hosts = strings.Split(h, ",")
+		etcdHosts, err := config.GetScyllaHosts()
+		if err != nil {
+			return fmt.Errorf("scylla hosts: %w", err)
+		}
+		hosts = etcdHosts
 	}
 
 	cluster := gocql.NewCluster(hosts...)

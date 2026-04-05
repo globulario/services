@@ -462,15 +462,19 @@ func (srv *server) ensureMinioClient() error {
 		creds = credentials.NewStaticV4("", "", "")
 	}
 	opts := &minio.Options{Creds: creds, Secure: cfg.Secure}
+	// Always install the cluster DNS dialer so *.globular.internal names
+	// resolve via Globular DNS (system resolver has no knowledge of them).
+	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if cfg.Secure {
 		tlsCfg, err := buildMinioTLSConfig(cfg)
 		if err != nil {
 			return fmt.Errorf("build minio TLS config: %w", err)
 		}
 		if tlsCfg != nil {
-			opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+			transport.TLSClientConfig = tlsCfg
 		}
 	}
+	opts.Transport = transport
 	client, err := minio.New(cfg.Endpoint, opts)
 	if err != nil {
 		return err
@@ -527,63 +531,13 @@ func isLocalIP(ip string) bool {
 }
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
-	// 1. Service config in etcd
-	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
-		if raw, ok := cfg["MinioConfig"]; ok {
-			if m, ok := raw.(map[string]interface{}); ok {
-				parsed := parseMinioConfigFromMap(m)
-				parsed.Prefix = strings.Trim(parsed.Prefix, "/")
-				if parsed.Prefix == "users" {
-					parsed.Prefix = ""
-				}
-				return parsed
-			}
-		}
+	// etcd is the only source of truth. No env vars, no disk contracts, no
+	// localhost fallbacks. Endpoint is a DNS name resolved via cluster DNS.
+	cfg, err := config.BuildMinioProxyConfig()
+	if err != nil {
+		return nil
 	}
-	// 2. Environment variable
-	if endpoint := os.Getenv("MINIO_ENDPOINT"); endpoint != "" {
-		return &config.MinioProxyConfig{
-			Endpoint: endpoint,
-			Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
-			Prefix:   getEnvOrDefault("MINIO_PREFIX", ""),
-			Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
-			Auth: &config.MinioProxyAuth{
-				Mode:      config.MinioProxyAuthModeAccessKey,
-				AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-				SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-			},
-		}
-	}
-	// 3. Installer contract file
-	if f, err := os.Open(minioContractPath); err == nil {
-		defer f.Close()
-		if cfg, err := config.LoadMinioProxyConfigFrom(f); err == nil {
-			cfg.Prefix = strings.Trim(cfg.Prefix, "/")
-			return cfg
-		}
-	}
-	// 4. Credentials file (localhost defaults)
-	if data, err := os.ReadFile(minioCredentialsPath); err == nil {
-		parts := strings.Split(strings.TrimSpace(string(data)), ":")
-		if len(parts) == 2 {
-			access, secret := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-			if access != "" && secret != "" {
-				return &config.MinioProxyConfig{
-					Endpoint:     "127.0.0.1:9000",
-					Bucket:       "globular",
-					Prefix:       "",
-					Secure:       true, // MinIO uses HTTPS when certs are present in .minio/certs/
-					CABundlePath: "/var/lib/globular/pki/ca.pem",
-					Auth: &config.MinioProxyAuth{
-						Mode:      config.MinioProxyAuthModeAccessKey,
-						AccessKey: access,
-						SecretKey: secret,
-					},
-				}
-			}
-		}
-	}
-	return nil
+	return cfg
 }
 
 func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {
@@ -821,7 +775,8 @@ func main() {
 	if s.MinioConfig != nil {
 		logger.Info("minio storage configured",
 			"endpoint", s.MinioConfig.Endpoint,
-			"bucket", s.MinioConfig.Bucket)
+			"bucket", s.MinioConfig.Bucket,
+			"prefix", s.MinioConfig.Prefix)
 	}
 	if err := s.initStorage(); err != nil {
 		logger.Error("storage init failed, falling back to local filesystem", "err", err)

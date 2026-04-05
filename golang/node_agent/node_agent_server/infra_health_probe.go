@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
@@ -132,9 +134,16 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 func (srv *NodeAgentServer) runProbeMinioHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
 
+	// Probe MinIO on this node's routable address (cert is issued for the node IP).
+	// This is a local probe — we're checking whether MinIO is alive on *this* host.
+	nodeIP := config.GetRoutableIPv4()
+
 	// --- Strategy 1: HTTP liveness endpoint ---
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("http://127.0.0.1:9000/minio/health/live")
+	client := &http.Client{
+		Timeout:   3 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+	}
+	resp, err := client.Get(fmt.Sprintf("https://%s:9000/minio/health/live", nodeIP))
 	if err == nil {
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
@@ -144,11 +153,11 @@ func (srv *NodeAgentServer) runProbeMinioHealth(ctx context.Context, req *node_a
 	}
 
 	// --- Strategy 2: TCP connect ---
-	if tryTCPConnect("127.0.0.1", 9000, 2*time.Second) {
+	if tryTCPConnect(nodeIP, 9000, 2*time.Second) {
 		return probeOK(start), nil
 	}
 
-	return probeFail(start, fmt.Sprintf("MinIO unreachable: liveness HTTP failed (%v) and port 9000 closed", err)), nil
+	return probeFail(start, fmt.Sprintf("MinIO unreachable at %s: liveness HTTPS failed (%v) and port 9000 closed", nodeIP, err)), nil
 }
 
 // ---------------------------------------------------------------------------

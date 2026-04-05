@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -23,52 +23,19 @@ const (
 	minioContractPath    = "/var/lib/globular/objectstore/minio.json"
 )
 
-// tryLoadMinioCredentials loads MinIO credentials from known Globular locations.
+// tryLoadMinioCredentials loads MinIO credentials from etcd. etcd is the only
+// source of truth — no env vars, no disk files, no loopback fallbacks.
 func (srv *server) tryLoadMinioCredentials() {
-	// 1. Try credentials file (format: "access:secret")
-	if data, err := os.ReadFile(minioCredentialsPath); err == nil {
-		parts := strings.SplitN(strings.TrimSpace(string(data)), ":", 2)
-		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
-			srv.MinioAccessKey = parts[0]
-			srv.MinioSecretKey = parts[1]
-			slog.Info("loaded MinIO credentials from file", "path", minioCredentialsPath)
-			return
-		}
+	cfg, err := config.LoadMinIOConfig()
+	if err != nil {
+		slog.Warn("minio config unavailable", "err", err)
+		return
 	}
-
-	// 2. Try contract file (JSON with endpoint, auth, etc.)
-	if data, err := os.ReadFile(minioContractPath); err == nil {
-		var contract struct {
-			Endpoint string `json:"endpoint"`
-			Secure   bool   `json:"secure"`
-			Auth     *struct {
-				AccessKey string `json:"access_key"`
-				SecretKey string `json:"secret_key"`
-			} `json:"auth"`
-		}
-		if err := json.Unmarshal(data, &contract); err == nil && contract.Auth != nil {
-			if contract.Auth.AccessKey != "" && contract.Auth.SecretKey != "" {
-				srv.MinioAccessKey = contract.Auth.AccessKey
-				srv.MinioSecretKey = contract.Auth.SecretKey
-				if contract.Endpoint != "" {
-					srv.MinioEndpoint = contract.Endpoint
-				}
-				srv.MinioSecure = contract.Secure
-				slog.Info("loaded MinIO credentials from contract", "path", minioContractPath)
-				return
-			}
-		}
-	}
-
-	// 3. Try environment variables
-	if ak := os.Getenv("MINIO_ACCESS_KEY"); ak != "" {
-		srv.MinioAccessKey = ak
-		srv.MinioSecretKey = os.Getenv("MINIO_SECRET_KEY")
-		if ep := os.Getenv("MINIO_ENDPOINT"); ep != "" {
-			srv.MinioEndpoint = ep
-		}
-		slog.Info("loaded MinIO credentials from environment")
-	}
+	srv.MinioAccessKey = cfg.AccessKey
+	srv.MinioSecretKey = cfg.SecretKey
+	srv.MinioEndpoint = cfg.Endpoint
+	srv.MinioSecure = cfg.Secure
+	slog.Info("loaded MinIO credentials from etcd", "endpoint", cfg.Endpoint)
 }
 
 // loadMinioCA tries to load the Globular internal CA certificate pool.
@@ -126,8 +93,8 @@ func (srv *server) newMinioClient() (*minio.Client, error) {
 		Secure: srv.MinioSecure,
 	}
 
-	// For internal MinIO with self-signed certs, skip TLS verification.
-	// Try the Globular internal CA first; fall back to skip-verify.
+	// Cluster DNS dialer for *.globular.internal names + TLS.
+	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if srv.MinioSecure {
 		tlsCfg := &tls.Config{}
 		if caCert := srv.loadMinioCA(); caCert != nil {
@@ -136,8 +103,9 @@ func (srv *server) newMinioClient() (*minio.Client, error) {
 		} else {
 			tlsCfg.InsecureSkipVerify = true
 		}
-		opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+		transport.TLSClientConfig = tlsCfg
 	}
+	opts.Transport = transport
 
 	return minio.New(srv.MinioEndpoint, opts)
 }

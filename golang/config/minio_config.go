@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,51 +36,150 @@ type MinIOConfig struct {
 	AccessKey string
 	SecretKey string
 	Secure    bool
+	// Bucket is the MinIO bucket where Globular stores objects. Empty = "globular".
+	Bucket string
+	// Prefix is the key prefix within the bucket (typically the cluster domain,
+	// e.g. "globular.internal"). Services prepend this to their storage keys.
+	Prefix string
 }
 
-// GetMinIOConfig reads MinIO credentials from environment or well-known paths.
+// EtcdKeyMinioConfig is the sole source of truth for MinIO connection info.
+// Written by the cluster controller whenever the MinIO pool state changes.
+// JSON schema: {"endpoint":"minio.globular.internal:9000","access_key":"...","secret_key":"...","secure":true}
+const EtcdKeyMinioConfig = "/globular/cluster/minio/config"
+
+// GetMinIOConfig reads MinIO connection info from etcd. etcd is the only
+// source of truth for cluster configuration — no environment variables, no
+// disk fallbacks, no hardcoded defaults. The endpoint is a DNS name
+// (minio.globular.internal) resolved via the cluster DNS, so no IP is ever
+// baked into a service or a systemd unit.
 func GetMinIOConfig() MinIOConfig {
-	// Default Secure to true — the cluster always uses TLS.
-	// Only disable with MINIO_SECURE=false explicitly.
-	secure := true
-	if v := os.Getenv("MINIO_SECURE"); v == "false" {
-		secure = false
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		// Return zero config; callers that actually need MinIO will fail at
+		// connect time with a clear error instead of silently connecting to a
+		// stale/wrong endpoint.
+		return MinIOConfig{}
 	}
-
-	cfg := MinIOConfig{
-		Endpoint:  os.Getenv("MINIO_ENDPOINT"),
-		AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-		SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-		Secure:    secure,
-	}
-
-	if cfg.Endpoint == "" {
-		cfg.Endpoint = "127.0.0.1:9000"
-	}
-
-	// Try reading credentials from file if env not set.
-	if cfg.AccessKey == "" {
-		credFile := os.Getenv("MINIO_CREDENTIALS_FILE")
-		if credFile == "" {
-			credFile = "/var/lib/globular/objectstore/minio.json"
-		}
-		if data, err := os.ReadFile(credFile); err == nil {
-			// Simple key:secret format or JSON.
-			parts := strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)
-			if len(parts) >= 2 {
-				cfg.AccessKey = strings.TrimSpace(parts[0])
-				cfg.SecretKey = strings.TrimSpace(parts[1])
-			}
-		}
-	}
-
-	// Fallback: default MinIO creds from the installer.
-	if cfg.AccessKey == "" {
-		cfg.AccessKey = "minioadmin"
-		cfg.SecretKey = "minioadmin"
-	}
-
 	return cfg
+}
+
+// LoadMinIOConfig reads and validates the MinIO cluster config from etcd.
+// Returns an error if the key is missing or malformed. Use this when the caller
+// wants to surface configuration errors explicitly.
+func LoadMinIOConfig() (MinIOConfig, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cli, err := GetEtcdClient()
+	if err != nil {
+		return MinIOConfig{}, fmt.Errorf("minio config: etcd unavailable: %w", err)
+	}
+
+	resp, err := cli.Get(ctx, EtcdKeyMinioConfig)
+	if err != nil {
+		return MinIOConfig{}, fmt.Errorf("minio config: etcd get %s: %w", EtcdKeyMinioConfig, err)
+	}
+	if len(resp.Kvs) == 0 {
+		return MinIOConfig{}, fmt.Errorf("minio config: %s not set in etcd (cluster controller must publish it)", EtcdKeyMinioConfig)
+	}
+
+	var stored struct {
+		Endpoint  string `json:"endpoint"`
+		AccessKey string `json:"access_key"`
+		SecretKey string `json:"secret_key"`
+		Secure    bool   `json:"secure"`
+		Bucket    string `json:"bucket"`
+		Prefix    string `json:"prefix"`
+	}
+	if err := json.Unmarshal(resp.Kvs[0].Value, &stored); err != nil {
+		return MinIOConfig{}, fmt.Errorf("minio config: parse %s: %w", EtcdKeyMinioConfig, err)
+	}
+	if stored.Endpoint == "" {
+		return MinIOConfig{}, fmt.Errorf("minio config: endpoint is empty in %s", EtcdKeyMinioConfig)
+	}
+	if strings.Contains(stored.Endpoint, "127.0.0.1") || strings.Contains(stored.Endpoint, "localhost") {
+		return MinIOConfig{}, fmt.Errorf("minio config: endpoint %q uses loopback — refuse to use (rule: no 127.0.0.1/localhost, ever)", stored.Endpoint)
+	}
+	if stored.Bucket == "" {
+		stored.Bucket = "globular"
+	}
+	return MinIOConfig{
+		Endpoint:  stored.Endpoint,
+		AccessKey: stored.AccessKey,
+		SecretKey: stored.SecretKey,
+		Secure:    stored.Secure,
+		Bucket:    stored.Bucket,
+		Prefix:    stored.Prefix,
+	}, nil
+}
+
+// BuildMinioProxyConfig returns a MinioProxyConfig populated from the etcd
+// cluster config plus well-known defaults (bucket, prefix, CA bundle). This
+// is the one and only way services should obtain MinIO connection info.
+// Returns an error if the etcd key is missing or invalid.
+func BuildMinioProxyConfig() (*MinioProxyConfig, error) {
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		return nil, err
+	}
+	bucket := cfg.Bucket
+	if bucket == "" {
+		bucket = "globular"
+	}
+	return &MinioProxyConfig{
+		Endpoint:     cfg.Endpoint,
+		Bucket:       bucket,
+		Prefix:       cfg.Prefix,
+		Secure:       cfg.Secure,
+		CABundlePath: "/var/lib/globular/pki/ca.pem",
+		Auth: &MinioProxyAuth{
+			Mode:      MinioProxyAuthModeAccessKey,
+			AccessKey: cfg.AccessKey,
+			SecretKey: cfg.SecretKey,
+		},
+	}, nil
+}
+
+// SaveMinIOConfig writes the MinIO connection info to etcd. Called by the
+// cluster controller after pool state changes.
+func SaveMinIOConfig(cfg MinIOConfig) error {
+	if cfg.Endpoint == "" {
+		return fmt.Errorf("minio config: endpoint required")
+	}
+	if strings.Contains(cfg.Endpoint, "127.0.0.1") || strings.Contains(cfg.Endpoint, "localhost") {
+		return fmt.Errorf("minio config: endpoint %q uses loopback — refuse to write (rule: no 127.0.0.1/localhost, ever)", cfg.Endpoint)
+	}
+	stored := struct {
+		Endpoint  string `json:"endpoint"`
+		AccessKey string `json:"access_key"`
+		SecretKey string `json:"secret_key"`
+		Secure    bool   `json:"secure"`
+		Bucket    string `json:"bucket"`
+		Prefix    string `json:"prefix"`
+	}{
+		Endpoint:  cfg.Endpoint,
+		AccessKey: cfg.AccessKey,
+		SecretKey: cfg.SecretKey,
+		Secure:    cfg.Secure,
+		Bucket:    cfg.Bucket,
+		Prefix:    cfg.Prefix,
+	}
+	data, err := json.Marshal(stored)
+	if err != nil {
+		return fmt.Errorf("minio config: marshal: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cli, err := GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("minio config: etcd unavailable: %w", err)
+	}
+	if _, err := cli.Put(ctx, EtcdKeyMinioConfig, string(data)); err != nil {
+		return fmt.Errorf("minio config: etcd put %s: %w", EtcdKeyMinioConfig, err)
+	}
+	return nil
 }
 
 // newMinIOClient creates a MinIO client from the current config.
@@ -91,6 +191,10 @@ func newMinIOClient(cfg MinIOConfig) (*minio.Client, error) {
 		Secure: cfg.Secure,
 	}
 
+	// Wire the cluster DNS resolver into the MinIO SDK so that *.globular.internal
+	// names resolve via Globular DNS (not the system resolver, which has no
+	// knowledge of cluster names).
+	transport := &http.Transport{DialContext: ClusterDialContext}
 	if cfg.Secure {
 		tlsCfg := &tls.Config{}
 		// Load the cluster CA so we trust the internal MinIO certificate.
@@ -103,8 +207,9 @@ func newMinIOClient(cfg MinIOConfig) (*minio.Client, error) {
 				tlsCfg.RootCAs = pool
 			}
 		}
-		opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+		transport.TLSClientConfig = tlsCfg
 	}
+	opts.Transport = transport
 
 	return minio.New(cfg.Endpoint, opts)
 }
@@ -178,6 +283,31 @@ func GetClusterConfig(key string) ([]byte, error) {
 		return nil, fmt.Errorf("read %s: %w", key, err)
 	}
 	return data, nil
+}
+
+// ListClusterConfigPrefix returns all keys in the config bucket matching the given prefix.
+func ListClusterConfigPrefix(prefix string) ([]string, error) {
+	cfg := GetMinIOConfig()
+	client, err := newMinIOClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("minio client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var keys []string
+	objCh := client.ListObjects(ctx, ClusterConfigBucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+	for obj := range objCh {
+		if obj.Err != nil {
+			return nil, fmt.Errorf("list %s: %w", prefix, obj.Err)
+		}
+		keys = append(keys, obj.Key)
+	}
+	return keys, nil
 }
 
 // PutClusterConfigFile uploads a local file to the config bucket.

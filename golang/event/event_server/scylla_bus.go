@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -67,9 +66,10 @@ func newScyllaBus(logger *slog.Logger) *scyllaBus {
 }
 
 func (sb *scyllaBus) connect() error {
-	hosts := []string{config.GetLocalIP()}
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		hosts = strings.Split(h, ",")
+	// Scylla hosts from etcd (Tier-0).
+	hosts, err := config.GetScyllaHosts()
+	if err != nil {
+		return fmt.Errorf("scylla hosts: %w", err)
 	}
 	port := 9042
 

@@ -401,9 +401,11 @@ func loadCustomConfigFromEtcd(id string) (tmdbKey, cacheAddr, cacheType string, 
 
 // StartService begins serving gRPC and starts the shared index for mesh-ready search.
 func (srv *server) StartService() error {
-	scyllaHosts := []string{"127.0.0.1"}
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		scyllaHosts = strings.Split(h, ",")
+	// Scylla hosts come from etcd (Tier-0 — DNS depends on Scylla).
+	scyllaHosts, err := config.GetScyllaHosts()
+	if err != nil {
+		logger.Warn("scylla hosts unavailable, shared index disabled", "err", err)
+		return globular.StartService(srv, srv.grpcServer)
 	}
 	if srv.CacheAddress != "" {
 		scyllaHosts = strings.Split(srv.CacheAddress, ",")

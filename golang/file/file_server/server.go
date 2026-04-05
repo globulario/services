@@ -527,15 +527,18 @@ func (srv *server) ensureMinioClient() error {
 	}
 
 	opts := &minio.Options{Creds: creds, Secure: cfg.Secure}
+	// Cluster DNS dialer for *.globular.internal names.
+	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if cfg.Secure {
 		tlsCfg, err := buildMinioTLSConfig(cfg)
 		if err != nil {
 			return fmt.Errorf("build minio TLS config: %w", err)
 		}
 		if tlsCfg != nil {
-			opts.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+			transport.TLSClientConfig = tlsCfg
 		}
 	}
+	opts.Transport = transport
 
 	client, err := minio.New(cfg.Endpoint, opts)
 	if err != nil {
@@ -575,122 +578,17 @@ const minioContractPath = "/var/lib/globular/objectstore/minio.json"
 // minioCredentialsPath is written by the MinIO package installer (format: "access:secret").
 const minioCredentialsPath = "/var/lib/globular/minio/credentials"
 
-// loadMinioConfig reads MinIO configuration from (in priority order):
-//  1. Service config in etcd (set by admin or via globular service config)
-//  2. MINIO_ENDPOINT environment variable
-//  3. Installer-written contract at /var/lib/globular/objectstore/minio.json
-//  4. Credentials file at /var/lib/globular/minio/credentials (localhost defaults)
+// loadMinioConfig reads MinIO configuration from etcd. etcd is the only
+// source of truth — no env vars, no disk contracts, no localhost fallbacks.
+// The endpoint is a DNS name (minio.<cluster-domain>) served by the cluster
+// DNS reconciler.
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
-	// 1. Service config in etcd
-	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
-		if minioRaw, ok := cfg["MinioConfig"]; ok {
-			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
-				parsed := parseMinioConfigFromMap(minioMap)
-				// Normalize prefix: strip slashes and clear the old bad default "users"
-				// which caused pathToKey("/users/sa") → "users/users/sa" (double prefix).
-				parsed.Prefix = strings.Trim(parsed.Prefix, "/")
-				if parsed.Prefix == "users" {
-					parsed.Prefix = ""
-				}
-				// Validate file-based credentials actually exist on this node.
-				// Nodes without the storage profile won't have the credentials
-				// file written by the MinIO installer — fall through to other
-				// discovery methods or disable MinIO entirely.
-				if parsed.Auth != nil && parsed.Auth.Mode == config.MinioProxyAuthModeFile {
-					if _, err := os.Stat(parsed.Auth.CredFile); err != nil {
-						logger.Warn("minio credentials file from etcd config not found on this node; disabling MinIO",
-							"credFile", parsed.Auth.CredFile)
-						return nil
-					}
-				}
-				return parsed
-			}
-		}
-	}
-
-	// 2. Environment variables
-	endpoint := os.Getenv("MINIO_ENDPOINT")
-	if endpoint != "" {
-		return &config.MinioProxyConfig{
-			Endpoint: endpoint,
-			Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
-			Prefix:   getEnvOrDefault("MINIO_PREFIX", ""),
-			Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
-			Auth: &config.MinioProxyAuth{
-				Mode:      config.MinioProxyAuthModeAccessKey,
-				AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-				SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-			},
-		}
-	}
-
-	// 3. Installer contract file
-	if cfg := loadMinioConfigFromContractFile(); cfg != nil {
-		return cfg
-	}
-
-	return nil
-}
-
-// loadMinioConfigFromContractFile reads the installer-written minio.json.
-// User directories are domain-agnostic: /users/sa → globular/users/sa (no domain prefix).
-func loadMinioConfigFromContractFile() *config.MinioProxyConfig {
-	f, err := os.Open(minioContractPath)
+	cfg, err := config.BuildMinioProxyConfig()
 	if err != nil {
-		// Contract missing: last resort — try credentials file with localhost defaults.
-		return loadMinioConfigFromCredentialsFile()
-	}
-	defer f.Close()
-
-	cfg, err := config.LoadMinioProxyConfigFrom(f)
-	if err != nil {
-		logger.Warn("failed to parse minio contract", "path", minioContractPath, "err", err)
+		logger.Warn("minio config unavailable", "err", err)
 		return nil
 	}
-
-	// Use the contract's prefix as-is (no domain appended).
-	// pathToKey("/users/sa") = prefix + "users/sa"
-	// With empty prefix → key = "users/sa" → bucket path: globular/users/sa
-	cfg.Prefix = strings.Trim(cfg.Prefix, "/")
-
-	logger.Info("loaded minio config from contract",
-		"path", minioContractPath,
-		"endpoint", cfg.Endpoint,
-		"bucket", cfg.Bucket,
-		"prefix", cfg.Prefix)
 	return cfg
-}
-
-// loadMinioConfigFromCredentialsFile is a last-resort fallback using the MinIO
-// credentials file (format: "accessKey:secretKey") written by the package installer.
-// It assumes Minio is running on localhost:9000 with the default "globular" bucket.
-func loadMinioConfigFromCredentialsFile() *config.MinioProxyConfig {
-	data, err := os.ReadFile(minioCredentialsPath)
-	if err != nil {
-		return nil
-	}
-	parts := strings.Split(strings.TrimSpace(string(data)), ":")
-	if len(parts) != 2 {
-		return nil
-	}
-	access := strings.TrimSpace(parts[0])
-	secret := strings.TrimSpace(parts[1])
-	if access == "" || secret == "" {
-		return nil
-	}
-	logger.Info("loaded minio config from credentials file", "path", minioCredentialsPath)
-	return &config.MinioProxyConfig{
-		Endpoint:     "127.0.0.1:9000",
-		Bucket:       "globular",
-		Prefix:       "",
-		Secure:       true, // MinIO uses HTTPS when certs are present in .minio/certs/
-		CABundlePath: "/var/lib/globular/pki/ca.pem",
-		Auth: &config.MinioProxyAuth{
-			Mode:      config.MinioProxyAuthModeAccessKey,
-			AccessKey: access,
-			SecretKey: secret,
-		},
-	}
 }
 
 func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {

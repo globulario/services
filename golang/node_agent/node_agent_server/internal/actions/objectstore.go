@@ -181,17 +181,12 @@ func loadMinioConfig(path string, strict bool) (*config.MinioProxyConfig, string
 		if strict {
 			return nil, "", fmt.Errorf("minio contract not found at %s (strict contract mode enabled)", path)
 		}
-		// Fallback to env defaults so Day0 does not silently skip provisioning.
-		if envCfg := minioConfigFromEnv(); envCfg != nil {
-			fmt.Printf("[objectstore] Using MinIO config from environment variables\n")
-			return envCfg, "env", nil
+		// Fallback to etcd cluster config (the single source of truth).
+		if etcdCfg, err := config.BuildMinioProxyConfig(); err == nil && etcdCfg != nil {
+			fmt.Printf("[objectstore] Using MinIO config from etcd\n")
+			return etcdCfg, "etcd", nil
 		}
-		// Last resort: try localhost defaults if MinIO appears to be running
-		if defaultCfg := tryLocalMinioDefaults(); defaultCfg != nil {
-			fmt.Printf("[objectstore] Using localhost default MinIO config\n")
-			return defaultCfg, "local-default", nil
-		}
-		return nil, "", fmt.Errorf("minio contract not found at %s and no fallback configuration available (set MINIO_ENDPOINT or create contract file)", path)
+		return nil, "", fmt.Errorf("minio contract not found at %s and etcd cluster config unavailable", path)
 	}
 	return nil, "", fmt.Errorf("open minio contract %s: %w", path, err)
 }
@@ -267,6 +262,8 @@ func buildMinioClient(cfg *config.MinioProxyConfig) (*minio.Client, error) {
 		Creds:  creds,
 	}
 
+	// Cluster DNS dialer for *.globular.internal names.
+	transport := &http.Transport{DialContext: config.ClusterDialContext}
 	if bundle := strings.TrimSpace(cfg.CABundlePath); bundle != "" {
 		pem, err := os.ReadFile(bundle)
 		if err != nil {
@@ -276,12 +273,9 @@ func buildMinioClient(cfg *config.MinioProxyConfig) (*minio.Client, error) {
 		if !pool.AppendCertsFromPEM(pem) {
 			return nil, fmt.Errorf("parse CA bundle: %s", bundle)
 		}
-		opts.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: pool,
-			},
-		}
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool}
 	}
+	opts.Transport = transport
 
 	return minio.New(cfg.Endpoint, opts)
 }
@@ -317,80 +311,8 @@ func minioCredentials(auth *config.MinioProxyAuth) (*credentials.Credentials, er
 	}
 }
 
-// minioConfigFromEnv returns a MinIO config derived from environment variables when no contract is present.
-// Recognizes MINIO_ENDPOINT, MINIO_BUCKET, MINIO_PREFIX, MINIO_SECURE, MINIO_ACCESS_KEY, MINIO_SECRET_KEY.
-func minioConfigFromEnv() *config.MinioProxyConfig {
-	endpoint := strings.TrimSpace(os.Getenv("MINIO_ENDPOINT"))
-	if endpoint == "" {
-		return nil
-	}
-	bucket := strings.TrimSpace(os.Getenv("MINIO_BUCKET"))
-	if bucket == "" {
-		bucket = "globular"
-	}
-	prefix := strings.Trim(strings.TrimSpace(os.Getenv("MINIO_PREFIX")), "/")
-	secure := strings.EqualFold(strings.TrimSpace(os.Getenv("MINIO_SECURE")), "true")
-	access := strings.TrimSpace(os.Getenv("MINIO_ACCESS_KEY"))
-	secret := strings.TrimSpace(os.Getenv("MINIO_SECRET_KEY"))
-	authMode := config.MinioProxyAuthModeNone
-	if access != "" && secret != "" {
-		authMode = config.MinioProxyAuthModeAccessKey
-	}
-	return &config.MinioProxyConfig{
-		Endpoint: endpoint,
-		Bucket:   bucket,
-		Prefix:   prefix,
-		Secure:   secure,
-		Auth: &config.MinioProxyAuth{
-			Mode:      authMode,
-			AccessKey: access,
-			SecretKey: secret,
-		},
-	}
-}
-
-// tryLocalMinioDefaults attempts to use localhost defaults if MinIO appears to be running.
-// This is a last-resort fallback to avoid failing Day-0 due to missing contract.
-// Returns nil if localhost MinIO is not detected or credentials are unavailable.
-//
-// SINGLE SOURCE OF TRUTH: /var/lib/globular/minio/credentials (created by MinIO package)
-func tryLocalMinioDefaults() *config.MinioProxyConfig {
-	// Standard credentials file location (created by MinIO package)
-	credFile := "/var/lib/globular/minio/credentials"
-
-	data, err := os.ReadFile(credFile)
-	if err != nil {
-		fmt.Printf("[objectstore] Could not read credentials from %s: %v\n", credFile, err)
-		return nil
-	}
-
-	parts := strings.Split(strings.TrimSpace(string(data)), ":")
-	if len(parts) != 2 {
-		fmt.Printf("[objectstore] Invalid credentials format in %s\n", credFile)
-		return nil
-	}
-
-	access := strings.TrimSpace(parts[0])
-	secret := strings.TrimSpace(parts[1])
-
-	if access == "" || secret == "" {
-		fmt.Printf("[objectstore] Empty credentials in %s\n", credFile)
-		return nil
-	}
-
-	fmt.Printf("[objectstore] Using localhost defaults with credentials from %s\n", credFile)
-	return &config.MinioProxyConfig{
-		Endpoint: "127.0.0.1:9000",
-		Bucket:   "globular",
-		Prefix:   "",
-		Secure:   false,
-		Auth: &config.MinioProxyAuth{
-			Mode:      config.MinioProxyAuthModeAccessKey,
-			AccessKey: access,
-			SecretKey: secret,
-		},
-	}
-}
+// Env-var and loopback fallbacks were removed. etcd is the only source of
+// truth for MinIO config — see config.BuildMinioProxyConfig().
 
 func ensureLayout(ctx context.Context, client *minio.Client, layout objectstoreLayout, createSentinels bool, sentinelName string) error {
 	fmt.Printf("[objectstore] Ensuring bucket: %s\n", layout.usersBucket)

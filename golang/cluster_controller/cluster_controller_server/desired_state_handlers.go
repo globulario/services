@@ -637,14 +637,31 @@ func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStat
 		resourceType:  "InfrastructureRelease",
 		logPrefix:     "infra",
 		existingName: func(obj interface{}) string {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-				return rel.Meta.Name
+			// Return the bare component name for dedup (existing[info.name] uses bare).
+			// Meta.Name may be bare (legacy) or "<publisher>/<component>" (new). Prefer
+			// Spec.Component which is always the bare component.
+			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok {
+				if rel.Spec != nil && rel.Spec.Component != "" {
+					return rel.Spec.Component
+				}
+				if rel.Meta != nil {
+					// Fall back to Meta.Name, stripping "<publisher>/" prefix if present.
+					n := rel.Meta.Name
+					if i := strings.LastIndex(n, "/"); i >= 0 {
+						return n[i+1:]
+					}
+					return n
+				}
 			}
 			return ""
 		},
 		buildRelease: func(info installedPkgInfo) interface{} {
+			// Canonical key: "<publisher>/<component>" — matches materializeInfraDesired
+			// and ApplyInfrastructureRelease. Using a bare name here caused split-brain
+			// duplicates in etcd (one entry per naming convention).
+			relName := info.publisherID + "/" + info.name
 			return &cluster_controllerpb.InfrastructureRelease{
-				Meta: &cluster_controllerpb.ObjectMeta{Name: info.name},
+				Meta: &cluster_controllerpb.ObjectMeta{Name: relName},
 				Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
 					PublisherID: info.publisherID,
 					Component:   info.name,

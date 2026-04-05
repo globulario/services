@@ -272,32 +272,12 @@ func (srv *server) Init() error {
 	}
 	srv.grpcServer = gs
 
-	// Read ScyllaDB hosts from environment or use defaults.
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		srv.ScyllaHosts = strings.Split(h, ",")
-	}
-	if len(srv.ScyllaHosts) == 0 || (len(srv.ScyllaHosts) == 1 && srv.ScyllaHosts[0] == "127.0.0.1") {
-		// Try to get from persistence service config (ScyllaDB connection).
-		if cfg, err := config.GetServiceConfigurationById("persistence.PersistenceService"); err == nil {
-			for _, key := range []string{"Host", "host", "Address", "address"} {
-				if host, ok := cfg[key].(string); ok && host != "" {
-					srv.ScyllaHosts = []string{host}
-					break
-				}
-			}
-		}
-	}
-	if len(srv.ScyllaHosts) == 0 || (len(srv.ScyllaHosts) == 1 && srv.ScyllaHosts[0] == "127.0.0.1") {
-		// Fall back to the service's own advertise address (node IP).
-		if srv.Address != "" {
-			host := srv.Address
-			if h, _, ok := strings.Cut(host, ":"); ok {
-				host = h
-			}
-			if host != "" && host != "127.0.0.1" && host != "localhost" {
-				srv.ScyllaHosts = []string{host}
-			}
-		}
+	// Scylla hosts from etcd (Tier-0 — DNS depends on Scylla). Always override
+	// any stale service-config entries that might contain 127.0.0.1 or the wrong IPs.
+	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+		srv.ScyllaHosts = hosts
+	} else if len(srv.ScyllaHosts) == 0 {
+		return fmt.Errorf("scylla hosts unavailable: %w", err)
 	}
 
 	if err := srv.connectScylla(); err != nil {

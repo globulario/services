@@ -14,11 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -205,7 +207,11 @@ func (srv *server) connectScylla() error {
 
 	hosts := srv.ScyllaHosts
 	if len(hosts) == 0 {
-		hosts = []string{"127.0.0.1"}
+		etcdHosts, err := config.GetScyllaHosts()
+		if err != nil {
+			return fmt.Errorf("scylla hosts: %w", err)
+		}
+		hosts = etcdHosts
 	}
 	port := srv.ScyllaPort
 	if port == 0 {
@@ -253,14 +259,16 @@ func (srv *server) connectScylla() error {
 	if err := session.Query(`SELECT count(*) FROM system_schema.tables WHERE keyspace_name = ?`, workflowKeyspace).Scan(&tableCount); err != nil {
 		tableCount = 0
 	}
-	if tableCount == 0 {
-		for _, stmt := range schemaCQLStatements {
-			if err := session.Query(stmt).Exec(); err != nil {
-				session.Close()
-				return fmt.Errorf("schema init: %w", err)
-			}
+	// Always run schema statements (all use CREATE TABLE IF NOT EXISTS), so
+	// upgrades with new tables propagate to existing deployments without
+	// requiring manual migration.
+	for _, stmt := range schemaCQLStatements {
+		if err := session.Query(stmt).Exec(); err != nil {
+			session.Close()
+			return fmt.Errorf("schema init: %w", err)
 		}
 	}
+	_ = tableCount
 
 	srv.session = session
 	if err != nil {
@@ -293,16 +301,14 @@ func (srv *server) Init() error {
 	}
 	srv.grpcServer = gs
 
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		srv.ScyllaHosts = strings.Split(h, ",")
-	}
-	if p := os.Getenv("SCYLLA_PORT"); p != "" {
-		fmt.Sscanf(p, "%d", &srv.ScyllaPort)
+	// ScyllaDB hosts come from etcd (Tier-0 — DNS depends on Scylla).
+	// Always override stale service-config entries (which may contain 127.0.0.1).
+	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+		srv.ScyllaHosts = hosts
 	}
 
-	// ScyllaDB binds to the routable IP, not 127.0.0.1. If still on default,
-	// fall back to this service's advertised address (which is the node IP).
-	if len(srv.ScyllaHosts) == 0 || (len(srv.ScyllaHosts) == 1 && srv.ScyllaHosts[0] == "127.0.0.1") {
+	// Legacy fallback: if etcd lookup failed, use advertised address.
+	if len(srv.ScyllaHosts) == 0 {
 		if srv.Address != "" {
 			host := srv.Address
 			if h, _, ok := strings.Cut(host, ":"); ok && h != "" {
@@ -323,16 +329,151 @@ func (srv *server) Init() error {
 
 	// Close stale DISPATCHED runs that the node agent never finished
 	// (e.g. workflow service was down when the node agent tried to call FinishRun).
-	go srv.sweepStaleDispatchedRuns()
+	go srv.reapStaleRuns()
+
+	// Scan convergence telemetry and emit threshold events so ai-watcher
+	// (or any subscriber) can react when step failure rates rise, drift
+	// gets stuck, or periodic workflows stop firing.
+	go srv.scanTelemetryAndEmit()
+
+	// Aggregate telemetry into operator-facing incidents per minute.
+	// See docs/incidents-design.md.
+	go srv.runIncidentScanner()
 
 	return nil
 }
 
-// sweepStaleDispatchedRuns finds runs stuck in DISPATCHED for more than 10 minutes
-// and marks them as SUCCEEDED. This handles the case where the node agent completed
-// the plan but the fire-and-forget FinishRun call was lost (e.g. workflow service was down).
-func (srv *server) sweepStaleDispatchedRuns() {
-	const staleThreshold = 10 * time.Minute
+// scanTelemetryAndEmit polls the convergence telemetry tables every minute
+// and emits workflow.* events when thresholds cross. Idempotent per event_key
+// (we remember the last emitted key and only fire on deltas).
+func (srv *server) scanTelemetryAndEmit() {
+	const (
+		scanInterval        = 60 * time.Second
+		minExecutions       = 5
+		failureRateThresh   = 0.10
+		driftStuckThresh    = 3
+	)
+	// Per-workflow inactivity thresholds.
+	noActivity := map[string]time.Duration{
+		"cluster.reconcile": 5 * time.Minute,
+	}
+
+	// Last-fired-at per event key, to deduplicate noisy scans.
+	lastFired := make(map[string]time.Time)
+	const cooldown = 5 * time.Minute
+
+	fire := func(key, topic string, payload map[string]interface{}) {
+		if t, ok := lastFired[key]; ok && time.Since(t) < cooldown {
+			return
+		}
+		lastFired[key] = time.Now()
+		publishWorkflowEvent(topic, payload)
+	}
+
+	ticker := time.NewTicker(scanInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		// We need a cluster_id. Lift it from any existing summary row.
+		var clusterID string
+		if err := srv.session.Query(
+			`SELECT cluster_id FROM workflow_run_summaries LIMIT 1`,
+		).Scan(&clusterID); err != nil || clusterID == "" {
+			continue
+		}
+
+		// Step failure rates.
+		iter := srv.session.Query(
+			`SELECT workflow_name, step_id, total_executions, failure_count, last_error_message
+			 FROM workflow_step_outcomes WHERE cluster_id=?`, clusterID,
+		).Iter()
+		for {
+			var (
+				wf, step, lastErr string
+				total, fail       int64
+			)
+			if !iter.Scan(&wf, &step, &total, &fail, &lastErr) {
+				break
+			}
+			if total < minExecutions || fail == 0 {
+				continue
+			}
+			rate := float64(fail) / float64(total)
+			if rate < failureRateThresh {
+				continue
+			}
+			key := "step_fail:" + wf + "/" + step
+			fire(key, "workflow.step.failures_high", map[string]interface{}{
+				"cluster_id":     clusterID,
+				"workflow_name":  wf,
+				"step_id":        step,
+				"failure_rate":   rate,
+				"failure_count":  fail,
+				"total_executions": total,
+				"last_error":     lastErr,
+			})
+		}
+		_ = iter.Close()
+
+		// Drift stuck.
+		iter2 := srv.session.Query(
+			`SELECT drift_type, entity_ref, consecutive_cycles, chosen_workflow
+			 FROM drift_unresolved WHERE cluster_id=?`, clusterID,
+		).Iter()
+		for {
+			var (
+				dType, eRef, chosen string
+				cycles              int
+			)
+			if !iter2.Scan(&dType, &eRef, &cycles, &chosen) {
+				break
+			}
+			if cycles < driftStuckThresh {
+				continue
+			}
+			key := "drift_stuck:" + dType + "/" + eRef
+			fire(key, "workflow.drift.stuck", map[string]interface{}{
+				"cluster_id":         clusterID,
+				"drift_type":         dType,
+				"entity_ref":         eRef,
+				"consecutive_cycles": cycles,
+				"chosen_workflow":    chosen,
+			})
+		}
+		_ = iter2.Close()
+
+		// No activity on periodic workflows.
+		for wfName, threshold := range noActivity {
+			var lastFinished time.Time
+			if err := srv.session.Query(
+				`SELECT last_finished_at FROM workflow_run_summaries WHERE cluster_id=? AND workflow_name=?`,
+				clusterID, wfName,
+			).Scan(&lastFinished); err != nil {
+				continue
+			}
+			if lastFinished.IsZero() {
+				continue
+			}
+			age := time.Since(lastFinished)
+			if age < threshold {
+				continue
+			}
+			key := "no_activity:" + wfName
+			fire(key, "workflow.no_activity", map[string]interface{}{
+				"cluster_id":    clusterID,
+				"workflow_name": wfName,
+				"age_seconds":   int64(age.Seconds()),
+				"threshold_seconds": int64(threshold.Seconds()),
+			})
+		}
+	}
+}
+
+// reapStaleRuns ensures every run has an explicit terminal outcome.
+// Runs stuck in non-terminal states past the deadline are marked FAILED
+// with reason "timeout". This prevents orphaned runs when the workflow
+// engine crashes before FinishRun is called.
+func (srv *server) reapStaleRuns() {
+	const staleThreshold = 15 * time.Minute
 	const sweepInterval = 5 * time.Minute
 
 	for {
@@ -340,25 +481,24 @@ func (srv *server) sweepStaleDispatchedRuns() {
 			return
 		}
 
-		// Query all runs — ScyllaDB doesn't support WHERE on non-partition columns
-		// efficiently, so we scan and filter in-memory.
 		iter := srv.session.Query(`
-			SELECT id, cluster_id, started_at, status, updated_at, summary
+			SELECT id, cluster_id, started_at, status, updated_at
 			FROM workflow_runs LIMIT 500 ALLOW FILTERING`,
 		).Iter()
 
 		var (
-			id, clusterID, summary string
-			status                 int
-			startedAt, updatedAt   time.Time
+			id, clusterID        string
+			status               int
+			startedAt, updatedAt time.Time
 		)
 		now := time.Now()
-		closed := 0
-		for iter.Scan(&id, &clusterID, &startedAt, &status, &updatedAt, &summary) {
-			if workflowpb.RunStatus(status) != workflowpb.RunStatus_RUN_STATUS_DISPATCHED {
+		reaped := 0
+		for iter.Scan(&id, &clusterID, &startedAt, &status, &updatedAt) {
+			s := workflowpb.RunStatus(status)
+			// Skip terminal statuses — they're done.
+			if isTerminalStatus(s) {
 				continue
 			}
-			// Use the most recent timestamp to determine staleness
 			lastActivity := updatedAt
 			if lastActivity.IsZero() {
 				lastActivity = startedAt
@@ -366,24 +506,84 @@ func (srv *server) sweepStaleDispatchedRuns() {
 			if now.Sub(lastActivity) < staleThreshold {
 				continue
 			}
-			// Close the stale run
+			// Mark as FAILED with timeout reason.
 			srv.session.Query(`
-				UPDATE workflow_runs SET status=?, summary=?, finished_at=?, updated_at=?
+				UPDATE workflow_runs SET status=?, failure_class=?, error_message=?, summary=?, finished_at=?, updated_at=?
 				WHERE cluster_id=? AND started_at=? AND id=?`,
-				int(workflowpb.RunStatus_RUN_STATUS_SUCCEEDED),
-				"Closed by sweeper: node agent completed but callback was lost",
+				int(workflowpb.RunStatus_RUN_STATUS_FAILED),
+				int(workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN),
+				"timeout: no progress for "+staleThreshold.String(),
+				"Reaped by watchdog: run stuck in "+s.String(),
 				now, now,
 				clusterID, startedAt, id,
 			).Exec()
-			closed++
+			reaped++
 		}
 		iter.Close()
 
-		if closed > 0 {
-			slog.Info("swept stale dispatched runs", "closed", closed)
+		if reaped > 0 {
+			slog.Warn("reaped stale runs", "reaped", reaped, "threshold", staleThreshold)
 		}
 
 		time.Sleep(sweepInterval)
+	}
+}
+
+// isTerminalStatus returns true if the run status is a terminal outcome
+// and should not be reaped or touched.
+func isTerminalStatus(s workflowpb.RunStatus) bool {
+	switch s {
+	case workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
+		workflowpb.RunStatus_RUN_STATUS_FAILED,
+		workflowpb.RunStatus_RUN_STATUS_CANCELED,
+		workflowpb.RunStatus_RUN_STATUS_ROLLED_BACK,
+		workflowpb.RunStatus_RUN_STATUS_SUPERSEDED:
+		return true
+	}
+	return false
+}
+
+// supersedePriorRuns finds non-terminal runs with the same correlation_id
+// as the new run and marks them SUPERSEDED with superseded_by=newRunID.
+// Called from StartRun so each correlation_id has at most one active run.
+func (srv *server) supersedePriorRuns(clusterID, correlationID, newRunID string) {
+	if srv.session == nil || correlationID == "" {
+		return
+	}
+	iter := srv.session.Query(`
+		SELECT id, started_at, status FROM workflow_runs
+		WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
+		clusterID, correlationID,
+	).Iter()
+
+	var (
+		id        string
+		startedAt time.Time
+		status    int
+	)
+	now := time.Now()
+	superseded := 0
+	for iter.Scan(&id, &startedAt, &status) {
+		if id == newRunID {
+			continue
+		}
+		if isTerminalStatus(workflowpb.RunStatus(status)) {
+			continue
+		}
+		// Mark prior run as SUPERSEDED.
+		srv.session.Query(`
+			UPDATE workflow_runs SET status=?, superseded_by=?, finished_at=?, updated_at=?
+			WHERE cluster_id=? AND started_at=? AND id=?`,
+			int(workflowpb.RunStatus_RUN_STATUS_SUPERSEDED),
+			newRunID, now, now,
+			clusterID, startedAt, id,
+		).Exec()
+		superseded++
+	}
+	iter.Close()
+	if superseded > 0 {
+		slog.Info("superseded prior runs", "correlation_id", correlationID,
+			"new_run_id", newRunID, "count", superseded)
 	}
 }
 
@@ -409,23 +609,29 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 	}
 	run.UpdatedAt = timestamppb.New(now)
 
+	// Supersede any non-terminal runs with the same correlation_id so we
+	// don't have two active runs racing for the same operator story.
+	if run.CorrelationId != "" {
+		srv.supersedePriorRuns(ctx.ClusterId, run.CorrelationId, run.Id)
+	}
+
 	if err := srv.session.Query(`
 		INSERT INTO workflow_runs (
 			cluster_id, id, correlation_id, parent_run_id,
 			node_id, node_hostname, component_name, component_kind, component_version,
-			release_kind, release_object_id, desired_object_id, plan_id, plan_generation,
+			release_kind, release_object_id, desired_object_id,
 			trigger_reason, status, current_actor, failure_class,
 			summary, error_message, retry_count,
 			acknowledged, acknowledged_by, acknowledged_at,
-			started_at, updated_at, finished_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			started_at, updated_at, finished_at, workflow_name
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		ctx.ClusterId, run.Id, run.CorrelationId, run.ParentRunId,
 		ctx.NodeId, ctx.NodeHostname, ctx.ComponentName, int(ctx.ComponentKind), ctx.ComponentVersion,
-		ctx.ReleaseKind, ctx.ReleaseObjectId, ctx.DesiredObjectId, ctx.PlanId, ctx.PlanGeneration,
+		ctx.ReleaseKind, ctx.ReleaseObjectId, ctx.DesiredObjectId,
 		int(run.TriggerReason), int(run.Status), int(run.CurrentActor), int(run.FailureClass),
 		run.Summary, run.ErrorMessage, run.RetryCount,
 		run.Acknowledged, run.AcknowledgedBy, tsOrNil(run.AcknowledgedAt),
-		tsToTime(run.StartedAt), tsToTime(run.UpdatedAt), tsOrNil(run.FinishedAt),
+		tsToTime(run.StartedAt), tsToTime(run.UpdatedAt), tsOrNil(run.FinishedAt), run.WorkflowName,
 	).Exec(); err != nil {
 		return nil, fmt.Errorf("insert run: %w", err)
 	}
@@ -458,28 +664,31 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 
 func (srv *server) UpdateRun(_ context.Context, req *workflowpb.UpdateRunRequest) (*emptypb.Empty, error) {
 	now := time.Now()
-	if err := srv.session.Query(`
-		UPDATE workflow_runs SET status=?, summary=?, plan_id=?, plan_generation=?, current_actor=?, updated_at=?
-		WHERE cluster_id=? AND started_at=(SELECT started_at FROM workflow_runs WHERE cluster_id=? AND id=? LIMIT 1 ALLOW FILTERING) AND id=?`,
-		int(req.Status), req.Summary, req.PlanId, req.PlanGeneration, int(req.CurrentActor), now,
-		req.ClusterId, req.ClusterId, req.Id, req.Id,
-	).Exec(); err != nil {
-		// ScyllaDB doesn't support subqueries in UPDATE WHERE. Use a two-step approach.
-		return nil, srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
-			return srv.session.Query(`
-				UPDATE workflow_runs SET status=?, summary=?, plan_id=?, plan_generation=?, current_actor=?, updated_at=?
-				WHERE cluster_id=? AND started_at=? AND id=?`,
-				int(req.Status), req.Summary, req.PlanId, req.PlanGeneration, int(req.CurrentActor), now,
-				req.ClusterId, startedAt, req.Id,
-			).Exec()
-		})
-	}
-	return &emptypb.Empty{}, nil
+	// ScyllaDB doesn't support subqueries in UPDATE WHERE. Use two-step approach.
+	return nil, srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
+		return srv.session.Query(`
+			UPDATE workflow_runs SET status=?, summary=?, current_actor=?, updated_at=?
+			WHERE cluster_id=? AND started_at=? AND id=?`,
+			int(req.Status), req.Summary, int(req.CurrentActor), now,
+			req.ClusterId, startedAt, req.Id,
+		).Exec()
+	})
 }
 
 func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest) (*emptypb.Empty, error) {
 	now := time.Now()
+	var (
+		runStartedAt time.Time
+		workflowName string
+	)
 	err := srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
+		runStartedAt = startedAt
+		// Load workflow_name to update the summary table after the run row is updated.
+		_ = srv.session.Query(`
+			SELECT workflow_name FROM workflow_runs
+			WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
+			req.ClusterId, startedAt, req.Id,
+		).Scan(&workflowName)
 		return srv.session.Query(`
 			UPDATE workflow_runs SET status=?, failure_class=?, summary=?, error_message=?, updated_at=?, finished_at=?
 			WHERE cluster_id=? AND started_at=? AND id=?`,
@@ -497,6 +706,14 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 			"failure_class": req.FailureClass.String(), "summary": req.Summary,
 			"error": req.ErrorMessage,
 		})
+		// Update bounded summary table so dashboards have O(# workflow types).
+		failureReason := req.ErrorMessage
+		if failureReason == "" {
+			failureReason = req.Summary
+		}
+		durationMs := now.Sub(runStartedAt).Milliseconds()
+		srv.upsertWorkflowSummary(req.ClusterId, workflowName, req.Id, req.Status,
+			runStartedAt, now, durationMs, failureReason)
 	}
 	return &emptypb.Empty{}, err
 }
@@ -685,6 +902,9 @@ func (srv *server) ListRuns(_ context.Context, req *workflowpb.ListRunsRequest) 
 			continue
 		}
 		if req.FailedOnly && r.Status != workflowpb.RunStatus_RUN_STATUS_FAILED {
+			continue
+		}
+		if req.WorkflowName != "" && r.WorkflowName != req.WorkflowName {
 			continue
 		}
 		filtered = append(filtered, r)
@@ -1035,6 +1255,557 @@ func (srv *server) DiagnoseRun(_ context.Context, req *workflowpb.DiagnoseRunReq
 }
 
 // ---------------------------------------------------------------------------
+// Workflow Definitions (MinIO-backed single source of truth)
+// ---------------------------------------------------------------------------
+
+// ListWorkflowDefinitions returns the list of YAML workflow definitions stored
+// in MinIO under globular-config/workflows/.
+func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.ListWorkflowDefinitionsRequest) (*workflowpb.ListWorkflowDefinitionsResponse, error) {
+	keys, err := config.ListClusterConfigPrefix("workflows/")
+	if err != nil {
+		return nil, fmt.Errorf("list workflow definitions: %w", err)
+	}
+
+	var defs []*workflowpb.WorkflowDefinitionSummary
+	for _, key := range keys {
+		if !strings.HasSuffix(key, ".yaml") {
+			continue
+		}
+		// Extract the workflow name from the key (e.g. "workflows/day0.bootstrap.yaml" → "day0.bootstrap")
+		name := strings.TrimPrefix(key, "workflows/")
+		name = strings.TrimSuffix(name, ".yaml")
+
+		// Read the YAML to extract displayName and description
+		data, err := config.GetClusterConfig(key)
+		if err != nil || data == nil {
+			defs = append(defs, &workflowpb.WorkflowDefinitionSummary{Name: name})
+			continue
+		}
+		displayName, description := parseWorkflowMetadata(string(data), name)
+		defs = append(defs, &workflowpb.WorkflowDefinitionSummary{
+			Name:        name,
+			DisplayName: displayName,
+			Description: description,
+		})
+	}
+
+	return &workflowpb.ListWorkflowDefinitionsResponse{Definitions: defs}, nil
+}
+
+// GetWorkflowDefinition returns the raw YAML content for a workflow definition.
+func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetWorkflowDefinitionRequest) (*workflowpb.GetWorkflowDefinitionResponse, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("workflow name is required")
+	}
+	key := "workflows/" + req.Name + ".yaml"
+	data, err := config.GetClusterConfig(key)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", key, err)
+	}
+	if data == nil {
+		return nil, fmt.Errorf("workflow definition %q not found", req.Name)
+	}
+	return &workflowpb.GetWorkflowDefinitionResponse{
+		Name:        req.Name,
+		YamlContent: string(data),
+	}, nil
+}
+
+// parseWorkflowMetadata extracts displayName and description from a workflow YAML
+// without full parsing — uses line-by-line string scanning for simplicity.
+func parseWorkflowMetadata(yamlContent, fallbackName string) (displayName, description string) {
+	displayName = fallbackName
+	inMetadata := false
+	inDescriptionBlock := false
+	var descLines []string
+
+	for _, line := range strings.Split(yamlContent, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(line, "metadata:") {
+			inMetadata = true
+			continue
+		}
+		if inMetadata && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") && trimmed != "" {
+			// Left the metadata block
+			inMetadata = false
+			inDescriptionBlock = false
+		}
+		if !inMetadata {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "displayName:") {
+			displayName = strings.TrimSpace(strings.TrimPrefix(trimmed, "displayName:"))
+			displayName = strings.Trim(displayName, `"'`)
+			continue
+		}
+		if strings.HasPrefix(trimmed, "description:") {
+			rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "description:"))
+			if rest == ">-" || rest == ">" || rest == "|" || rest == "|-" {
+				inDescriptionBlock = true
+				continue
+			}
+			description = strings.Trim(rest, `"'`)
+			continue
+		}
+		if inDescriptionBlock {
+			// Continue collecting description lines while indented deeper than "description:"
+			if strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t\t") {
+				descLines = append(descLines, trimmed)
+			} else {
+				inDescriptionBlock = false
+			}
+		}
+	}
+	if description == "" && len(descLines) > 0 {
+		description = strings.Join(descLines, " ")
+	}
+	return
+}
+
+// ---------------------------------------------------------------------------
+// Workflow Run Summaries (bounded per-workflow-name aggregates)
+// ---------------------------------------------------------------------------
+
+// isTerminalRunStatus reports whether a RunStatus is terminal (no further
+// transitions expected). Summary updates happen only on terminal transitions.
+func isTerminalRunStatus(s workflowpb.RunStatus) bool {
+	switch s {
+	case workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
+		workflowpb.RunStatus_RUN_STATUS_FAILED,
+		workflowpb.RunStatus_RUN_STATUS_CANCELED,
+		workflowpb.RunStatus_RUN_STATUS_ROLLED_BACK,
+		workflowpb.RunStatus_RUN_STATUS_SUPERSEDED:
+		return true
+	}
+	return false
+}
+
+// upsertWorkflowSummary updates the workflow_run_summaries row for the given
+// (cluster_id, workflow_name). Uses read-modify-write; concurrent writers for
+// the same workflow_name may race, but this is acceptable for aggregate stats.
+func (srv *server) upsertWorkflowSummary(clusterID, workflowName, runID string,
+	status workflowpb.RunStatus, startedAt, finishedAt time.Time, durationMs int64, failureReason string) {
+	if clusterID == "" || workflowName == "" {
+		return
+	}
+	if !isTerminalRunStatus(status) {
+		return
+	}
+
+	// Read existing summary (ignore error: missing row → zeroed fields).
+	var (
+		total, succ, fail                          int64
+		lastSuccessID, lastFailureID, lastFailureReason string
+		lastSuccessAt, lastFailureAt              time.Time
+	)
+	_ = srv.session.Query(`
+		SELECT total_runs, success_runs, failure_runs,
+			last_success_id, last_success_at,
+			last_failure_id, last_failure_at, last_failure_reason
+		FROM workflow_run_summaries WHERE cluster_id=? AND workflow_name=?`,
+		clusterID, workflowName,
+	).Scan(&total, &succ, &fail, &lastSuccessID, &lastSuccessAt,
+		&lastFailureID, &lastFailureAt, &lastFailureReason)
+
+	total++
+	if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
+		succ++
+		lastSuccessID = runID
+		lastSuccessAt = finishedAt
+	} else {
+		fail++
+		lastFailureID = runID
+		lastFailureAt = finishedAt
+		if failureReason != "" {
+			lastFailureReason = failureReason
+		}
+	}
+
+	if err := srv.session.Query(`
+		INSERT INTO workflow_run_summaries (
+			cluster_id, workflow_name,
+			total_runs, success_runs, failure_runs,
+			last_run_id, last_run_status,
+			last_started_at, last_finished_at, last_duration_ms,
+			last_success_id, last_success_at,
+			last_failure_id, last_failure_at, last_failure_reason,
+			updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		clusterID, workflowName,
+		total, succ, fail,
+		runID, int(status),
+		startedAt, finishedAt, durationMs,
+		lastSuccessID, tsTimeOrNil(lastSuccessAt),
+		lastFailureID, tsTimeOrNil(lastFailureAt), lastFailureReason,
+		time.Now(),
+	).Exec(); err != nil {
+		logger.Warn("upsert workflow summary failed", "cluster", clusterID, "workflow", workflowName, "err", err)
+	}
+}
+
+// tsTimeOrNil returns nil for a zero time so Scylla stores NULL instead of epoch.
+func tsTimeOrNil(t time.Time) interface{} {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
+// RecordOutcome updates only the workflow summary table (no individual run row).
+// Used by periodic workflows (e.g. cluster.reconcile firing every 30s) that
+// would otherwise inflate storage with per-run detail.
+func (srv *server) RecordOutcome(_ context.Context, req *workflowpb.RecordOutcomeRequest) (*emptypb.Empty, error) {
+	if req == nil {
+		return &emptypb.Empty{}, nil
+	}
+	srv.upsertWorkflowSummary(
+		req.GetClusterId(), req.GetWorkflowName(), req.GetRunId(),
+		req.GetStatus(),
+		tsToTime(req.GetStartedAt()), tsToTime(req.GetFinishedAt()),
+		req.GetDurationMs(), req.GetFailureReason(),
+	)
+	return &emptypb.Empty{}, nil
+}
+
+// ListWorkflowSummaries returns all summary rows for a cluster, optionally
+// filtered by workflow_name.
+func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.ListWorkflowSummariesRequest) (*workflowpb.ListWorkflowSummariesResponse, error) {
+	if req == nil || req.ClusterId == "" {
+		return nil, fmt.Errorf("cluster_id is required")
+	}
+
+	query := `SELECT cluster_id, workflow_name, total_runs, success_runs, failure_runs,
+		last_run_id, last_run_status,
+		last_started_at, last_finished_at, last_duration_ms,
+		last_success_id, last_success_at,
+		last_failure_id, last_failure_at, last_failure_reason,
+		updated_at
+		FROM workflow_run_summaries WHERE cluster_id=?`
+	args := []interface{}{req.ClusterId}
+	if req.WorkflowName != "" {
+		query += ` AND workflow_name=?`
+		args = append(args, req.WorkflowName)
+	}
+
+	iter := srv.session.Query(query, args...).Iter()
+	defer iter.Close()
+
+	var summaries []*workflowpb.WorkflowRunSummary
+	for {
+		var (
+			clusterID, workflowName, lastRunID      string
+			lastSuccessID, lastFailureID            string
+			lastFailureReason                        string
+			total, succ, fail, durationMs            int64
+			lastStatus                               int
+			lastStarted, lastFinished, lastSuccessAt time.Time
+			lastFailureAt, updatedAt                 time.Time
+		)
+		if !iter.Scan(&clusterID, &workflowName, &total, &succ, &fail,
+			&lastRunID, &lastStatus,
+			&lastStarted, &lastFinished, &durationMs,
+			&lastSuccessID, &lastSuccessAt,
+			&lastFailureID, &lastFailureAt, &lastFailureReason,
+			&updatedAt) {
+			break
+		}
+		summaries = append(summaries, &workflowpb.WorkflowRunSummary{
+			ClusterId:         clusterID,
+			WorkflowName:      workflowName,
+			TotalRuns:         total,
+			SuccessRuns:       succ,
+			FailureRuns:       fail,
+			LastRunId:         lastRunID,
+			LastRunStatus:     workflowpb.RunStatus(lastStatus),
+			LastStartedAt:     maybeTimestamp(lastStarted),
+			LastFinishedAt:    maybeTimestamp(lastFinished),
+			LastDurationMs:    durationMs,
+			LastSuccessId:     lastSuccessID,
+			LastSuccessAt:     maybeTimestamp(lastSuccessAt),
+			LastFailureId:     lastFailureID,
+			LastFailureAt:     maybeTimestamp(lastFailureAt),
+			LastFailureReason: lastFailureReason,
+			UpdatedAt:         maybeTimestamp(updatedAt),
+		})
+	}
+	return &workflowpb.ListWorkflowSummariesResponse{Summaries: summaries}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Convergence telemetry (AI-facing diagnostic signals)
+// ---------------------------------------------------------------------------
+
+// RecordStepOutcome upserts per-step aggregate counters. Called from the
+// workflow engine's OnStepDone hook. Bounded cardinality: O(#workflows × #steps).
+func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordStepOutcomeRequest) (*emptypb.Empty, error) {
+	if req == nil || req.ClusterId == "" || req.WorkflowName == "" || req.StepId == "" {
+		return &emptypb.Empty{}, nil
+	}
+
+	var (
+		total, succ, fail, skip int64
+		firstSeen                time.Time
+	)
+	_ = srv.session.Query(`
+		SELECT total_executions, success_count, failure_count, skipped_count, first_seen_at
+		FROM workflow_step_outcomes WHERE cluster_id=? AND workflow_name=? AND step_id=?`,
+		req.ClusterId, req.WorkflowName, req.StepId,
+	).Scan(&total, &succ, &fail, &skip, &firstSeen)
+
+	total++
+	switch req.Status {
+	case workflowpb.StepStatus_STEP_STATUS_SUCCEEDED:
+		succ++
+	case workflowpb.StepStatus_STEP_STATUS_FAILED:
+		fail++
+	case workflowpb.StepStatus_STEP_STATUS_SKIPPED:
+		skip++
+	}
+	if firstSeen.IsZero() {
+		firstSeen = time.Now()
+	}
+
+	if err := srv.session.Query(`
+		INSERT INTO workflow_step_outcomes (
+			cluster_id, workflow_name, step_id,
+			total_executions, success_count, failure_count, skipped_count,
+			last_status, last_started_at, last_finished_at, last_duration_ms,
+			last_error_code, last_error_message,
+			first_seen_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.ClusterId, req.WorkflowName, req.StepId,
+		total, succ, fail, skip,
+		int(req.Status),
+		tsTimeOrNil(tsToTime(req.StartedAt)),
+		tsTimeOrNil(tsToTime(req.FinishedAt)),
+		req.DurationMs,
+		req.ErrorCode, req.ErrorMessage,
+		firstSeen, time.Now(),
+	).Exec(); err != nil {
+		logger.Warn("record step outcome failed", "workflow", req.WorkflowName, "step", req.StepId, "err", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ListStepOutcomes returns per-step aggregate counters, optionally filtered
+// by workflow_name.
+func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepOutcomesRequest) (*workflowpb.ListStepOutcomesResponse, error) {
+	if req == nil || req.ClusterId == "" {
+		return nil, fmt.Errorf("cluster_id is required")
+	}
+	query := `SELECT cluster_id, workflow_name, step_id,
+		total_executions, success_count, failure_count, skipped_count,
+		last_status, last_started_at, last_finished_at, last_duration_ms,
+		last_error_code, last_error_message, first_seen_at, updated_at
+		FROM workflow_step_outcomes WHERE cluster_id=?`
+	args := []interface{}{req.ClusterId}
+	if req.WorkflowName != "" {
+		query += ` AND workflow_name=?`
+		args = append(args, req.WorkflowName)
+	}
+	iter := srv.session.Query(query, args...).Iter()
+	defer iter.Close()
+
+	var out []*workflowpb.WorkflowStepOutcome
+	for {
+		var (
+			clusterID, wfName, stepID      string
+			errCode, errMsg                string
+			total, succ, fail, skip, dur   int64
+			lastStatus                     int
+			lastStarted, lastFinished      time.Time
+			firstSeen, updatedAt           time.Time
+		)
+		if !iter.Scan(&clusterID, &wfName, &stepID,
+			&total, &succ, &fail, &skip,
+			&lastStatus, &lastStarted, &lastFinished, &dur,
+			&errCode, &errMsg, &firstSeen, &updatedAt) {
+			break
+		}
+		out = append(out, &workflowpb.WorkflowStepOutcome{
+			ClusterId:        clusterID,
+			WorkflowName:     wfName,
+			StepId:           stepID,
+			TotalExecutions:  total,
+			SuccessCount:     succ,
+			FailureCount:     fail,
+			SkippedCount:     skip,
+			LastStatus:       workflowpb.StepStatus(lastStatus),
+			LastStartedAt:    maybeTimestamp(lastStarted),
+			LastFinishedAt:   maybeTimestamp(lastFinished),
+			LastDurationMs:   dur,
+			LastErrorCode:    errCode,
+			LastErrorMessage: errMsg,
+			FirstSeenAt:      maybeTimestamp(firstSeen),
+			UpdatedAt:        maybeTimestamp(updatedAt),
+		})
+	}
+	return &workflowpb.ListStepOutcomesResponse{Outcomes: out}, nil
+}
+
+// RecordPhaseTransition appends a phase transition event (TTL 7 days).
+// Called whenever a resource's phase changes or an invariant guard rejects a transition.
+func (srv *server) RecordPhaseTransition(_ context.Context, req *workflowpb.RecordPhaseTransitionRequest) (*emptypb.Empty, error) {
+	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
+		return &emptypb.Empty{}, nil
+	}
+	now := time.Now()
+	eventID := uuid.NewString()
+	if err := srv.session.Query(`
+		INSERT INTO phase_transition_log (
+			cluster_id, resource_type, resource_name, event_at, event_id,
+			from_phase, to_phase, reason, caller, blocked
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.ClusterId, req.ResourceType, req.ResourceName, now, eventID,
+		req.FromPhase, req.ToPhase, req.Reason, req.Caller, req.Blocked,
+	).Exec(); err != nil {
+		logger.Warn("record phase transition failed", "resource", req.ResourceName, "err", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ListPhaseTransitions returns the transition history for a single resource.
+func (srv *server) ListPhaseTransitions(_ context.Context, req *workflowpb.ListPhaseTransitionsRequest) (*workflowpb.ListPhaseTransitionsResponse, error) {
+	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
+		return nil, fmt.Errorf("cluster_id, resource_type, resource_name are required")
+	}
+	limit := int(req.Limit)
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	iter := srv.session.Query(`
+		SELECT event_at, event_id, from_phase, to_phase, reason, caller, blocked
+		FROM phase_transition_log
+		WHERE cluster_id=? AND resource_type=? AND resource_name=?
+		LIMIT ?`,
+		req.ClusterId, req.ResourceType, req.ResourceName, limit,
+	).Iter()
+	defer iter.Close()
+
+	var events []*workflowpb.PhaseTransitionEvent
+	for {
+		var (
+			eventAt                           time.Time
+			eventID, from, to, reason, caller string
+			blocked                           bool
+		)
+		if !iter.Scan(&eventAt, &eventID, &from, &to, &reason, &caller, &blocked) {
+			break
+		}
+		events = append(events, &workflowpb.PhaseTransitionEvent{
+			ClusterId:    req.ClusterId,
+			ResourceType: req.ResourceType,
+			ResourceName: req.ResourceName,
+			EventAt:      maybeTimestamp(eventAt),
+			EventId:      eventID,
+			FromPhase:    from,
+			ToPhase:      to,
+			Reason:       reason,
+			Caller:       caller,
+			Blocked:      blocked,
+		})
+	}
+	return &workflowpb.ListPhaseTransitionsResponse{Events: events}, nil
+}
+
+// RecordDriftObservation increments consecutive_cycles for a drift item or
+// inserts it as a new observation. Callers should invoke this once per
+// reconcile cycle for each drift item still present.
+func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.RecordDriftObservationRequest) (*emptypb.Empty, error) {
+	if req == nil || req.ClusterId == "" || req.DriftType == "" || req.EntityRef == "" {
+		return &emptypb.Empty{}, nil
+	}
+
+	var (
+		cycles          int
+		firstObserved   time.Time
+	)
+	_ = srv.session.Query(`
+		SELECT consecutive_cycles, first_observed_at
+		FROM drift_unresolved WHERE cluster_id=? AND drift_type=? AND entity_ref=?`,
+		req.ClusterId, req.DriftType, req.EntityRef,
+	).Scan(&cycles, &firstObserved)
+
+	cycles++
+	now := time.Now()
+	if firstObserved.IsZero() {
+		firstObserved = now
+	}
+
+	if err := srv.session.Query(`
+		INSERT INTO drift_unresolved (
+			cluster_id, drift_type, entity_ref,
+			consecutive_cycles, first_observed_at, last_observed_at,
+			chosen_workflow, last_remediation_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.ClusterId, req.DriftType, req.EntityRef,
+		cycles, firstObserved, now, req.ChosenWorkflow, req.RemediationId,
+	).Exec(); err != nil {
+		logger.Warn("record drift observation failed", "drift_type", req.DriftType, "entity", req.EntityRef, "err", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ClearDriftObservation removes a drift item when it's no longer observed.
+func (srv *server) ClearDriftObservation(_ context.Context, req *workflowpb.ClearDriftObservationRequest) (*emptypb.Empty, error) {
+	if req == nil || req.ClusterId == "" || req.DriftType == "" || req.EntityRef == "" {
+		return &emptypb.Empty{}, nil
+	}
+	if err := srv.session.Query(`
+		DELETE FROM drift_unresolved WHERE cluster_id=? AND drift_type=? AND entity_ref=?`,
+		req.ClusterId, req.DriftType, req.EntityRef,
+	).Exec(); err != nil {
+		logger.Warn("clear drift observation failed", "drift_type", req.DriftType, "entity", req.EntityRef, "err", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ListDriftUnresolved returns drift items that have been observed >= min_cycles
+// consecutive reconcile cycles without being cleared.
+func (srv *server) ListDriftUnresolved(_ context.Context, req *workflowpb.ListDriftUnresolvedRequest) (*workflowpb.ListDriftUnresolvedResponse, error) {
+	if req == nil || req.ClusterId == "" {
+		return nil, fmt.Errorf("cluster_id is required")
+	}
+	query := `SELECT cluster_id, drift_type, entity_ref, consecutive_cycles,
+		first_observed_at, last_observed_at, chosen_workflow, last_remediation_id
+		FROM drift_unresolved WHERE cluster_id=?`
+	args := []interface{}{req.ClusterId}
+	if req.DriftType != "" {
+		query += ` AND drift_type=?`
+		args = append(args, req.DriftType)
+	}
+	iter := srv.session.Query(query, args...).Iter()
+	defer iter.Close()
+
+	minCycles := int(req.MinCycles)
+	var out []*workflowpb.DriftUnresolved
+	for {
+		var (
+			cID, dType, eRef, chosen, remID string
+			cycles                          int
+			first, last                     time.Time
+		)
+		if !iter.Scan(&cID, &dType, &eRef, &cycles, &first, &last, &chosen, &remID) {
+			break
+		}
+		if cycles < minCycles {
+			continue
+		}
+		out = append(out, &workflowpb.DriftUnresolved{
+			ClusterId:         cID,
+			DriftType:         dType,
+			EntityRef:         eRef,
+			ConsecutiveCycles: int32(cycles),
+			FirstObservedAt:   maybeTimestamp(first),
+			LastObservedAt:    maybeTimestamp(last),
+			ChosenWorkflow:    chosen,
+			LastRemediationId: remID,
+		})
+	}
+	return &workflowpb.ListDriftUnresolvedResponse{Items: out}, nil
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -1053,9 +1824,9 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 	var (
 		id, corrID, parentID                                                                 string
 		nodeID, nodeHostname, compName, compVersion                                          string
-		relKind, relObjID, desObjID, planID                                                  string
-		summary, errMsg, ackBy                                                               string
-		compKind, trigReason, status, curActor, failClass, planGen, retryCnt                 int
+		relKind, relObjID, desObjID                                                          string
+		summary, errMsg, ackBy, wfName                                                       string
+		compKind, trigReason, status, curActor, failClass, retryCnt                          int
 		ack                                                                                  bool
 		startedAt, updatedAt, finishedAt, ackAt                                              time.Time
 	)
@@ -1063,21 +1834,21 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 	if err := srv.session.Query(`
 		SELECT id, correlation_id, parent_run_id,
 			node_id, node_hostname, component_name, component_kind, component_version,
-			release_kind, release_object_id, desired_object_id, plan_id, plan_generation,
+			release_kind, release_object_id, desired_object_id,
 			trigger_reason, status, current_actor, failure_class,
 			summary, error_message, retry_count,
 			acknowledged, acknowledged_by, acknowledged_at,
-			started_at, updated_at, finished_at
+			started_at, updated_at, finished_at, workflow_name
 		FROM workflow_runs WHERE cluster_id=? AND id=? LIMIT 1 ALLOW FILTERING`,
 		clusterID, runID,
 	).Scan(
 		&id, &corrID, &parentID,
 		&nodeID, &nodeHostname, &compName, &compKind, &compVersion,
-		&relKind, &relObjID, &desObjID, &planID, &planGen,
+		&relKind, &relObjID, &desObjID,
 		&trigReason, &status, &curActor, &failClass,
 		&summary, &errMsg, &retryCnt,
 		&ack, &ackBy, &ackAt,
-		&startedAt, &updatedAt, &finishedAt,
+		&startedAt, &updatedAt, &finishedAt, &wfName,
 	); err != nil {
 		return nil, fmt.Errorf("load run %s: %w", runID, err)
 	}
@@ -1096,8 +1867,6 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 			ReleaseKind:     relKind,
 			ReleaseObjectId: relObjID,
 			DesiredObjectId: desObjID,
-			PlanId:          planID,
-			PlanGeneration:  int32(planGen),
 		},
 		TriggerReason:  workflowpb.TriggerReason(trigReason),
 		Status:         workflowpb.RunStatus(status),
@@ -1112,6 +1881,7 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 		StartedAt:      timestamppb.New(startedAt),
 		UpdatedAt:      timestamppb.New(updatedAt),
 		FinishedAt:     maybeTimestamp(finishedAt),
+		WorkflowName:   wfName,
 	}, nil
 }
 
@@ -1336,9 +2106,6 @@ func maybeTimestamp(t time.Time) *timestamppb.Timestamp {
 func isActiveStatus(s workflowpb.RunStatus) bool {
 	switch s {
 	case workflowpb.RunStatus_RUN_STATUS_PENDING,
-		workflowpb.RunStatus_RUN_STATUS_PLANNING,
-		workflowpb.RunStatus_RUN_STATUS_WAITING_FOR_SLOT,
-		workflowpb.RunStatus_RUN_STATUS_DISPATCHED,
 		workflowpb.RunStatus_RUN_STATUS_EXECUTING,
 		workflowpb.RunStatus_RUN_STATUS_BLOCKED,
 		workflowpb.RunStatus_RUN_STATUS_RETRYING:
@@ -1351,10 +2118,6 @@ func phaseDisplayName(p workflowpb.WorkflowPhaseKind) string {
 	switch p {
 	case workflowpb.WorkflowPhaseKind_PHASE_DECISION:
 		return "Decision"
-	case workflowpb.WorkflowPhaseKind_PHASE_PLAN:
-		return "Plan"
-	case workflowpb.WorkflowPhaseKind_PHASE_DISPATCH:
-		return "Dispatch"
 	case workflowpb.WorkflowPhaseKind_PHASE_FETCH:
 		return "Fetch"
 	case workflowpb.WorkflowPhaseKind_PHASE_INSTALL:

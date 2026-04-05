@@ -296,7 +296,15 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 	if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
 		return errors.New("admin_email is required for ACME")
 	}
-	dns := append([]string{domain}, spec.GetAlternateDomains()...)
+	// Cluster services (MinIO, workflow, repository, etc.) are addressed via
+	// DNS names like <service>.<domain>. Include the wildcard so one cert per
+	// node covers every service alias, plus the node's hostname FQDN.
+	host, _ := os.Hostname()
+	dns := []string{domain, "*." + domain}
+	if host != "" {
+		dns = append(dns, host, host+"."+domain)
+	}
+	dns = append(dns, spec.GetAlternateDomains()...)
 	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
 	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
 		return fmt.Errorf("create tls dir: %w", err)

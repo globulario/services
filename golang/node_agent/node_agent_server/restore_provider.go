@@ -1005,37 +1005,14 @@ func restoreSchemaFromBackup(ctx context.Context, snapshotTag, locations string,
 		return fmt.Errorf("no s3: location found in locations=%q", locations)
 	}
 
-	// Read MinIO credentials from scylla-manager-agent config
-	agentCfgPath := "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
-	minioEndpoint := "127.0.0.1:9000"
-	minioAccessKey := "globular"
-	minioSecretKey := "globularadmin"
-	if data, err := os.ReadFile(agentCfgPath); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "endpoint:") {
-				ep := strings.TrimSpace(strings.TrimPrefix(line, "endpoint:"))
-				ep = strings.Trim(ep, "\"'")
-				ep = strings.TrimPrefix(ep, "https://")
-				ep = strings.TrimPrefix(ep, "http://")
-				if ep != "" {
-					minioEndpoint = ep
-				}
-			}
-			if strings.HasPrefix(line, "access_key_id:") {
-				v := strings.TrimSpace(strings.TrimPrefix(line, "access_key_id:"))
-				if v != "" {
-					minioAccessKey = v
-				}
-			}
-			if strings.HasPrefix(line, "secret_access_key:") {
-				v := strings.TrimSpace(strings.TrimPrefix(line, "secret_access_key:"))
-				if v != "" {
-					minioSecretKey = v
-				}
-			}
-		}
+	// Read MinIO connection info from etcd (the single source of truth).
+	minioCfg, err := config.LoadMinIOConfig()
+	if err != nil {
+		return fmt.Errorf("scylla restore: minio config from etcd: %w", err)
 	}
+	minioEndpoint := minioCfg.Endpoint
+	minioAccessKey := minioCfg.AccessKey
+	minioSecretKey := minioCfg.SecretKey
 
 	// Set up mc alias
 	log.Printf("scylla restore: setting up mc alias for MinIO at %s", minioEndpoint)

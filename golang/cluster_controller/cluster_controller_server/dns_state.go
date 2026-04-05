@@ -71,6 +71,15 @@ func ComputeDesiredStateWithServices(domain string, nodes []NodeInfo, services [
 
 // ComputeDesiredStateWithLeader builds DNS state with leader-aware controller record (H3)
 func ComputeDesiredStateWithLeader(domain string, nodes []NodeInfo, services []ServiceInstance, leaderFQDN string, generation uint64) *DesiredDNSState {
+	return ComputeDesiredStateWithPools(domain, nodes, services, leaderFQDN, nil, generation)
+}
+
+// ComputeDesiredStateWithPools builds DNS state with additional pool-based multi-A records.
+// pools maps a role name (e.g., "minio") to the ordered list of IPv4 addresses that host
+// that role. One multi-A record is emitted at <role>.<domain> pointing to every IP. This
+// is how cluster services discover pool endpoints via DNS (etcd+DNS are the only sources
+// of truth — no env vars, no loopback literals).
+func ComputeDesiredStateWithPools(domain string, nodes []NodeInfo, services []ServiceInstance, leaderFQDN string, pools map[string][]string, generation uint64) *DesiredDNSState {
 	state := &DesiredDNSState{
 		Domain:     domain,
 		Records:    make([]DNSRecord, 0),
@@ -296,6 +305,28 @@ func ComputeDesiredStateWithLeader(domain string, nodes []NodeInfo, services []S
 			Weight:   10,
 			Port:     svc.Port,
 		})
+	}
+
+	// Emit pool-based multi-A records: <role>.<domain> → every IP in the pool.
+	// Services (including MinIO consumers) resolve the pool address via DNS so that
+	// no endpoint is ever hardcoded or read from an environment variable.
+	for role, ips := range pools {
+		if role == "" || len(ips) == 0 {
+			continue
+		}
+		poolFQDN := fmt.Sprintf("%s.%s", strings.ToLower(role), domain)
+		for _, ip := range ips {
+			ip = strings.TrimSpace(ip)
+			if ip == "" {
+				continue
+			}
+			state.Records = append(state.Records, DNSRecord{
+				Name:  poolFQDN,
+				Type:  RecordTypeA,
+				Value: ip,
+				TTL:   60,
+			})
+		}
 	}
 
 	return state

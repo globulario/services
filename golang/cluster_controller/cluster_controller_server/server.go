@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -516,24 +517,6 @@ func (srv *server) observedUnitsForNode(nodeID string) []unitStatusRecord {
 	return append([]unitStatusRecord(nil), node.Units...)
 }
 
-func (srv *server) recordPlanSent(nodeID, planHash string) bool {
-	srv.lock("plan:record-sent")
-	defer srv.unlock()
-	node := srv.state.Nodes[nodeID]
-	if node == nil {
-		return false
-	}
-	node.LastPlanSentAt = time.Now()
-	if node.LastPlanError != "" {
-		node.LastPlanError = ""
-	}
-	if planHash != "" {
-		node.LastPlanHash = planHash
-	}
-	node.LastAppliedGeneration = srv.state.NetworkingGeneration
-	return true
-}
-
 // globularNodeIDNamespace is a fixed UUID v5 namespace for Globular node IDs.
 // Must match the same constant in identity/validation.go.
 var globularNodeIDNamespace = uuid.MustParse("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
@@ -616,12 +599,46 @@ func (srv *server) persistStateLocked(force bool) error {
 		log.Printf("persist state to etcd failed: %v", err)
 		// Continue to save to disk even if etcd write fails.
 	}
+	// Publish MinIO connection info to the well-known etcd key so that all
+	// cluster services can read it. Endpoint is a DNS name (minio.<domain>)
+	// served by the DNS reconciler — no IPs are baked in.
+	srv.publishMinioConfigLocked()
 	// Backup: persist to local disk.
 	if err := srv.state.save(srv.statePath); err != nil {
 		return err
 	}
 	srv.lastStateSave = time.Now()
 	return nil
+}
+
+// publishMinioConfigLocked writes /globular/cluster/minio/config to etcd.
+// Must be called with srv.mu held. Safe to call on every state persist —
+// the write is tiny and idempotent, so we always keep etcd in sync with
+// generated credentials and the current cluster domain.
+func (srv *server) publishMinioConfigLocked() {
+	if srv.state == nil || srv.state.MinioCredentials == nil {
+		return
+	}
+	// The endpoint is a DNS name served by the cluster DNS (see DNSReconciler
+	// collectPoolMemberships → minio.<domain> multi-A records).
+	domain := ""
+	if srv.state.ClusterNetworkSpec != nil {
+		domain = srv.state.ClusterNetworkSpec.ClusterDomain
+	}
+	if domain == "" {
+		return
+	}
+	cfg := config.MinIOConfig{
+		Endpoint:  fmt.Sprintf("minio.%s:9000", domain),
+		AccessKey: srv.state.MinioCredentials.RootUser,
+		SecretKey: srv.state.MinioCredentials.RootPassword,
+		Secure:    true,
+		Bucket:    "globular",
+		Prefix:    domain,
+	}
+	if err := config.SaveMinIOConfig(cfg); err != nil {
+		log.Printf("publish minio config to etcd failed: %v", err)
+	}
 }
 
 func protoToStoredIdentity(pi *cluster_controllerpb.NodeIdentity) storedIdentity {

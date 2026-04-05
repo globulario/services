@@ -7,8 +7,6 @@ package main
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -198,10 +196,12 @@ func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
 // StartService begins serving gRPC, and starts the shared index if ScyllaDB is available.
 func (srv *server) StartService() error {
-	// Start shared index for mesh-ready search.
-	scyllaHosts := []string{"127.0.0.1"}
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		scyllaHosts = strings.Split(h, ",")
+	// Start shared index for mesh-ready search. Scylla hosts come from etcd
+	// (Tier-0: DNS depends on Scylla so we can't use DNS to reach it).
+	scyllaHosts, err := config.GetScyllaHosts()
+	if err != nil {
+		srv.logger.Warn("scylla hosts unavailable, shared index disabled", "err", err)
+		return globular.StartService(srv, srv.grpcServer)
 	}
 	dataDir := config.GetDataDir()
 

@@ -308,11 +308,10 @@ func (srv *server) Init() error {
 	if srv.HookTimeoutSeconds <= 0 {
 		srv.HookTimeoutSeconds = 30
 	}
-	if srv.MinioEndpoint == "" {
-		srv.MinioEndpoint = "127.0.0.1:9000"
-	}
-	// Auto-load MinIO credentials from the Globular credentials file if not configured.
-	if srv.MinioAccessKey == "" || srv.MinioSecretKey == "" {
+	// MinIO endpoint + credentials come from etcd (the single source of truth).
+	// tryLoadMinioCredentials() populates MinioEndpoint, MinioAccessKey,
+	// MinioSecretKey, MinioSecure from /globular/cluster/minio/config.
+	if srv.MinioEndpoint == "" || srv.MinioAccessKey == "" || srv.MinioSecretKey == "" {
 		srv.tryLoadMinioCredentials()
 	}
 	if len(srv.Destinations) == 0 {
@@ -684,7 +683,7 @@ func initializeServerDefaults() *server {
 
 	srv.ClusterDefaultProviders = []string{"etcd", "scylla", "restic", "minio"}
 
-	srv.MinioEndpoint = "127.0.0.1:9000"
+	// MinioEndpoint is populated from etcd at startup — see tryLoadMinioCredentials.
 	srv.MinioSecure = true
 
 	return srv

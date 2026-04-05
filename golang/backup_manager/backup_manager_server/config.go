@@ -96,7 +96,7 @@ type Config struct {
 	ScheduleInterval string `json:"ScheduleInterval"` // e.g. "6h", "24h", "daily", "weekly", "0"=disabled
 
 	// MinIO connection (shared by minio provider + bucket management)
-	MinioEndpoint  string `json:"MinioEndpoint"`  // e.g. "127.0.0.1:9000"
+	MinioEndpoint  string `json:"MinioEndpoint"`  // DNS name served by cluster DNS (minio.<domain>:9000)
 	MinioAccessKey string `json:"MinioAccessKey"` // access key
 	MinioSecretKey string `json:"MinioSecretKey"` // secret key
 	MinioSecure    bool   `json:"MinioSecure"`    // use HTTPS
@@ -178,7 +178,8 @@ func DefaultConfig() *Config {
 
 		ScheduleInterval: "daily",
 
-		MinioEndpoint:  "127.0.0.1:9000",
+		// Populated from etcd at runtime — do not hardcode addresses.
+		MinioEndpoint:  "",
 		MinioAccessKey: "",
 		MinioSecretKey: "",
 		MinioSecure:    true,

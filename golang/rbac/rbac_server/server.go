@@ -163,22 +163,17 @@ func detectPrimaryIP() (string, error) {
 	return "", errors.New("no non-loopback IPv4 address found")
 }
 
-// resolveScyllaHost probes for the Scylla host using:
-// 1. GLOBULAR_SCYLLA_HOST env var
-// 2. 127.0.0.1 TCP probe
-// 3. Primary node IP TCP probe (returned even without a successful probe as fallback)
+// resolveScyllaHost returns the first Scylla host from etcd (Tier-0 list).
+// DNS cannot be used here because DNS records live in Scylla.
 func resolveScyllaHost(port int) string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_SCYLLA_HOST")); v != "" {
-		return v
+	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+		return hosts[0]
 	}
-	if tcpProbe("127.0.0.1", port, 500*time.Millisecond) {
-		return "127.0.0.1"
-	}
+	// Emergency fallback: node's own routable IP (scylla likely runs here).
 	if ip, err := detectPrimaryIP(); err == nil {
-		// Return the primary IP even if probe didn't succeed yet; gocql will retry.
 		return ip
 	}
-	return "127.0.0.1" // last resort
+	return ""
 }
 
 // buildPermsOpts builds the JSON options string for the ScyllaStore.
@@ -712,30 +707,12 @@ func (srv *server) Stop(ctx context.Context, _ *rbacpb.StopRqst) (*rbacpb.StopRe
 }*/
 
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
-	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
-		if minioRaw, ok := cfg["MinioConfig"]; ok {
-			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
-				return parseMinioConfigFromMap(minioMap)
-			}
-		}
-	}
-
-	endpoint := os.Getenv("MINIO_ENDPOINT")
-	if endpoint == "" {
+	// etcd-only — no env vars, no loopback.
+	cfg, err := config.BuildMinioProxyConfig()
+	if err != nil {
 		return nil
 	}
-
-	return &config.MinioProxyConfig{
-		Endpoint: endpoint,
-		Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
-		Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
-		Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
-		Auth: &config.MinioProxyAuth{
-			Mode:      config.MinioProxyAuthModeAccessKey,
-			AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-			SecretKey: os.Getenv("MINIO_SECRET_KEY"),
-		},
-	}
+	return cfg
 }
 
 func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {

@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -115,33 +113,13 @@ func (cs *conversationStore) isConnected() bool {
 	return cs.session != nil && !cs.session.Closed()
 }
 
-// scyllaHosts returns ScyllaDB contact points.
-// Checks env, then ScyllaDB config, then local network interfaces.
+// scyllaHosts returns ScyllaDB contact points from etcd (Tier-0 — DNS depends on Scylla).
 func scyllaHosts() []string {
-	if h := os.Getenv("SCYLLA_HOSTS"); h != "" {
-		return strings.Split(h, ",")
+	hosts, err := config.GetScyllaHosts()
+	if err != nil {
+		return nil
 	}
-
-	// Read ScyllaDB listen address from its config file.
-	if data, err := os.ReadFile("/etc/scylla/scylla.yaml"); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "listen_address:") {
-				addr := strings.TrimSpace(strings.TrimPrefix(line, "listen_address:"))
-				addr = strings.Trim(addr, "'\"")
-				if addr != "" && addr != "localhost" {
-					return []string{addr}
-				}
-			}
-		}
-	}
-
-	// Fall back to the local IP from config.
-	if localIP := config.GetLocalIP(); localIP != "" {
-		return []string{localIP}
-	}
-
-	return []string{"127.0.0.1"}
+	return hosts
 }
 
 // --- Conversation CRUD ---

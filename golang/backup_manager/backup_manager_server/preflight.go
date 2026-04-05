@@ -796,7 +796,7 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 			} else if strings.Contains(outLower, "timeout") || strings.Contains(outLower, "connection refused") {
 				fail("storage_location",
 					"Cannot reach S3/MinIO endpoint from agent",
-					"Verify MinIO is running:\nsudo systemctl status globular-minio.service\nCheck endpoint in agent config should be:\nhttps://127.0.0.1:9000")
+					"Verify MinIO is running:\nsudo systemctl status globular-minio.service\nCheck agent config endpoint resolves via cluster DNS (minio.<domain>:9000)")
 			} else {
 				// backup list may return empty or error for valid location with no backups yet
 				// If agent was reachable (step 4 passed), a non-critical error here just means no backups yet

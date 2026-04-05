@@ -282,29 +282,23 @@ func detectPrimaryIP() (string, error) {
 	return "", fmt.Errorf("no primary IP found")
 }
 
-// resolveScyllaHost determines the Scylla host to connect to.
-// Priority: env var > probe 127.0.0.1 > probe node primary IP
+// resolveScyllaHost returns the first reachable Scylla host from the etcd
+// Tier-0 list (/globular/cluster/scylla/hosts). DNS cannot be used here
+// because DNS records live in Scylla.
 func resolveScyllaHost(port int) (string, error) {
-	// 1. Explicit env override
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_SCYLLA_HOST")); v != "" {
-		logger.Info("scylla host from env", "host", v)
-		return v, nil
+	hosts, err := config.GetScyllaHosts()
+	if err != nil {
+		return "", fmt.Errorf("scylla hosts from etcd: %w", err)
 	}
-
-	// 2. Try loopback
-	if tcpProbe("127.0.0.1", port, 500*time.Millisecond) {
-		logger.Info("scylla host detected", "host", "127.0.0.1", "method", "tcp-probe")
-		return "127.0.0.1", nil
+	for _, h := range hosts {
+		if tcpProbe(h, port, 500*time.Millisecond) {
+			logger.Info("scylla host detected", "host", h, "method", "tcp-probe")
+			return h, nil
+		}
 	}
-
-	// 3. Fallback to node primary IP
-	ip, err := detectPrimaryIP()
-	if err == nil && tcpProbe(ip, port, 500*time.Millisecond) {
-		logger.Info("scylla host detected", "host", ip, "method", "tcp-probe")
-		return ip, nil
-	}
-
-	return "", fmt.Errorf("no reachable scylla host found (tried: 127.0.0.1, %s)", ip)
+	// Return the first even if probe didn't succeed — gocql will retry.
+	logger.Info("scylla host (not probed)", "host", hosts[0])
+	return hosts[0], nil
 }
 
 // retryWithBackoff retries fn with exponential backoff until timeout.

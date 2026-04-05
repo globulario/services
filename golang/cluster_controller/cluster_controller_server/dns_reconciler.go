@@ -275,8 +275,13 @@ func (r *DNSReconciler) reconcile() error {
 	ctx, cancel := context.WithTimeout(context.Background(), dnsReconcileTimeout)
 	defer cancel()
 
+	// Gather pool memberships from controller state so DNS exposes <role>.<domain>
+	// multi-A records. Services discover pool endpoints via DNS only — no env vars,
+	// no hardcoded addresses, no loopback.
+	pools := r.collectPoolMemberships()
+
 	for _, domain := range domains {
-		desired := ComputeDesiredStateWithLeader(domain, nodeInfos, serviceInstances, leaderFQDN, generation)
+		desired := ComputeDesiredStateWithPools(domain, nodeInfos, serviceInstances, leaderFQDN, pools, generation)
 		if err := r.applyDNSState(ctx, desired); err != nil {
 			atomic.AddUint64(&r.reconcileFailure, 1)
 			return fmt.Errorf("apply dns state for domain %s: %w", domain, err)
@@ -293,6 +298,19 @@ func (r *DNSReconciler) reconcile() error {
 	atomic.AddUint64(&r.reconcileSuccess, 1)
 	log.Printf("dns reconciler: SUCCESS - applied generation %d to %d domain(s)", generation, len(domains))
 	return nil
+}
+
+// collectPoolMemberships snapshots controller state for pool-based DNS records.
+// Returns a map of role → ordered list of IPv4 addresses. Used by the DNS
+// reconciler to publish <role>.<domain> multi-A records (e.g. minio.globular.internal).
+func (r *DNSReconciler) collectPoolMemberships() map[string][]string {
+	r.srv.lock("collectPoolMemberships")
+	defer r.srv.unlock()
+	pools := map[string][]string{}
+	if len(r.srv.state.MinioPoolNodes) > 0 {
+		pools["minio"] = append([]string(nil), r.srv.state.MinioPoolNodes...)
+	}
+	return pools
 }
 
 // determineLeaderFQDN finds the FQDN of the current leader node (H3 Hardening)
