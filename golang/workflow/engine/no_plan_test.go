@@ -21,6 +21,7 @@ func TestNoPlanVocabularyInWorkflowActions(t *testing.T) {
 	RegisterWorkflowServiceActions(router, WorkflowServiceConfig{})
 	RegisterNodeRepairControllerActions(router, NodeRepairControllerConfig{})
 	RegisterNodeRepairAgentActions(router, NodeRepairAgentConfig{})
+	RegisterDoctorRemediationActions(router, DoctorRemediationConfig{})
 
 	// Collect all registered action names.
 	router.mu.RLock()

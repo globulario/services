@@ -48,7 +48,13 @@ func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 		if !canPriv {
 			remediation = []*cluster_doctorpb.RemediationStep{
 				step(1, "Node lacks privilege for systemd operations. Ensure the globular user has sudoers rules for systemctl.", ""),
-				step(2, "Restart the node agent to pick up the updated sudo permissions", "sudo systemctl restart globular-node-agent.service"),
+				actionStep(
+					2,
+					"Restart the node agent to pick up the updated sudo permissions",
+					fmt.Sprintf("globular doctor remediate %s --step 1",
+						FindingID("cluster.services.drift", nodeID, desired)),
+					systemctlRestartAction("globular-node-agent.service", nodeID),
+				),
 			}
 		}
 

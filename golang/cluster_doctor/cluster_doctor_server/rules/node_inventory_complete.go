@@ -54,9 +54,15 @@ func (nodeInventoryComplete) Evaluate(snap *collector.Snapshot, cfg Config) []Fi
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Re-trigger inventory scan on the node agent", ""),
-				step(2, "Restart the node agent if scan has stalled: systemctl restart globular-nodeagent", ""),
-				step(3, "Check node agent logs for scan errors: journalctl -u globular-nodeagent -n 200", ""),
+				actionStep(
+					1,
+					"Restart node-agent to force a fresh inventory scan",
+					fmt.Sprintf("globular doctor remediate %s --step 0",
+						FindingID("node.inventory.complete", nodeID, nodeID)),
+					systemctlRestartAction("globular-node-agent.service", nodeID),
+				),
+				step(2, "Check node agent logs for scan errors: journalctl -u globular-node-agent -n 200", ""),
+				step(3, "If scan fails repeatedly, the node-agent may be missing privileges for systemctl list-units", ""),
 			},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
