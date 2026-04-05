@@ -14,6 +14,7 @@ import (
 
 // ReconcileControllerConfig provides dependencies for cluster reconciliation.
 type ReconcileControllerConfig struct {
+	AdvanceInfraJoins func(ctx context.Context, clusterID string) error
 	ScanDrift       func(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error)
 	ClassifyDrift   func(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error)
 	FinalizeClean   func(ctx context.Context, clusterID string) error
@@ -29,6 +30,7 @@ type ReconcileControllerConfig struct {
 
 // RegisterReconcileControllerActions registers reconcile controller handlers.
 func RegisterReconcileControllerActions(router *Router, cfg ReconcileControllerConfig) {
+	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.advance_infra_joins", reconcileAdvanceInfraJoins(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.scan_drift", reconcileScanDrift(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.classify_drift", reconcileClassifyDrift(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.finalize_clean", reconcileFinalizeClean(cfg))
@@ -40,6 +42,21 @@ func RegisterReconcileControllerActions(router *Router, cfg ReconcileControllerC
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.finalize", reconcileFinalize(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.mark_failed", reconcileMarkFailed(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.emit_completed", reconcileEmitCompleted(cfg))
+}
+
+func reconcileAdvanceInfraJoins(cfg ReconcileControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		clusterID := fmt.Sprint(req.With["cluster_id"])
+		if clusterID == "" {
+			clusterID = fmt.Sprint(req.Inputs["cluster_id"])
+		}
+		if cfg.AdvanceInfraJoins != nil {
+			if err := cfg.AdvanceInfraJoins(ctx, clusterID); err != nil {
+				return nil, fmt.Errorf("advance infra joins: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
 }
 
 func reconcileScanDrift(cfg ReconcileControllerConfig) ActionHandler {

@@ -46,8 +46,17 @@ func (nodeReachable) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Verify node agent is running on the node", "globular doctor node "+nodeID),
-				step(2, "Check node agent logs: journalctl -u globular-nodeagent -n 100", ""),
+				// Step 1 is a structured action — restart the node-agent on
+				// the unreachable node. LOW risk because the unit is
+				// Globular-managed and restart is idempotent. If the node
+				// is genuinely offline, the dialer returns a clean error.
+				actionStep(
+					1,
+					"Restart globular-node-agent on "+nodeID,
+					"globular doctor remediate "+FindingID("node.reachable", nodeID, nodeID)+" --step 0",
+					systemctlRestartAction("globular-node-agent.service", nodeID),
+				),
+				step(2, "Check node agent logs: journalctl -u globular-node-agent -n 100", ""),
 				step(3, "Verify network connectivity from controller to node "+nodeID, ""),
 				step(4, "If node is permanently gone, remove it from the cluster", ""),
 			},

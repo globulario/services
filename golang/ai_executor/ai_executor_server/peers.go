@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"crypto/tls"
 	"crypto/x509"
 	"os"
@@ -60,7 +63,13 @@ func (pm *peerManager) discoverPeers() {
 		if !strings.Contains(name, "ai_executor.AiExecutorService") {
 			continue
 		}
-		id, _ := svc["Id"].(string)
+		// Identify each peer by Mac (instance identifier). Id in the service
+		// config is the service type ID and is shared across all instances.
+		id, _ := svc["Mac"].(string)
+		if id == "" {
+			// Fall back to Id if Mac is missing (legacy / non-instanced svc).
+			id, _ = svc["Id"].(string)
+		}
 		if id == "" || id == pm.localNodeID {
 			continue
 		}
@@ -69,6 +78,13 @@ func (pm *peerManager) discoverPeers() {
 		port, _ := svc["Port"].(float64)
 		if address == "" || port == 0 {
 			continue
+		}
+
+		// Strip any existing port from address — service configs sometimes
+		// store "host:port" in the Address field, which would produce
+		// "host:port:port" when combined with Port below.
+		if host, _, err := net.SplitHostPort(address); err == nil && host != "" {
+			address = host
 		}
 
 		endpoint := fmt.Sprintf("%s:%d", address, int(port))
@@ -88,15 +104,19 @@ func (pm *peerManager) discoverPeers() {
 		}
 
 		hostname := ""
-		// Try to get hostname via Ping.
+		// Try to get hostname via Ping. Inject auth metadata so the peer's
+		// server interceptor accepts the call post-cluster-init.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx = peerAuthContext(ctx)
 		resp, err := client.Ping(ctx, &ai_executorpb.PeerPingRequest{
-			SenderNodeId:  pm.localNodeID,
+			SenderNodeId:   pm.localNodeID,
 			SenderHostname: pm.localHostname,
 		})
 		cancel()
 		if err == nil {
 			hostname = resp.Hostname
+		} else {
+			logger.Warn("peer: ping failed", "endpoint", endpoint, "err", err)
 		}
 
 		pm.peers[id] = &peerConn{
@@ -128,6 +148,24 @@ func dialPeer(endpoint string) (*grpc.ClientConn, ai_executorpb.AiExecutorServic
 		return nil, nil, err
 	}
 	return conn, ai_executorpb.NewAiExecutorServiceClient(conn), nil
+}
+
+// peerAuthContext attaches outgoing metadata required by the target server's
+// interceptor chain: cluster_id (post-init enforcement) and a local service
+// token so the peer accepts the call without flagging it anonymous.
+func peerAuthContext(ctx context.Context) context.Context {
+	md := metadata.MD{}
+	if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+		md.Set("cluster_id", clusterID)
+	}
+	// Best-effort: include the local service token if available. Peers accept
+	// loopback/mesh calls without tokens, but real mesh calls need one.
+	if mac, err := config.GetMacAddress(); err == nil && mac != "" {
+		if tok, err := security.GetLocalToken(mac); err == nil && tok != "" {
+			md.Set("token", tok)
+		}
+	}
+	return metadata.NewOutgoingContext(ctx, md)
 }
 
 func buildPeerTLS() credentials.TransportCredentials {

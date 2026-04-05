@@ -98,8 +98,6 @@ type WorkflowPhaseKind int32
 const (
 	WorkflowPhaseKind_PHASE_UNKNOWN   WorkflowPhaseKind = 0
 	WorkflowPhaseKind_PHASE_DECISION  WorkflowPhaseKind = 1  // release evaluated, profile checked
-	WorkflowPhaseKind_PHASE_PLAN      WorkflowPhaseKind = 2  // plan generated, persisted
-	WorkflowPhaseKind_PHASE_DISPATCH  WorkflowPhaseKind = 3  // plan written to node slot, handoff to agent
 	WorkflowPhaseKind_PHASE_FETCH     WorkflowPhaseKind = 4  // artifact download, checksum verify
 	WorkflowPhaseKind_PHASE_INSTALL   WorkflowPhaseKind = 5  // package extract, OS install, spec steps
 	WorkflowPhaseKind_PHASE_CONFIGURE WorkflowPhaseKind = 6  // config render, env patch, post-install script
@@ -114,8 +112,6 @@ var (
 	WorkflowPhaseKind_name = map[int32]string{
 		0:  "PHASE_UNKNOWN",
 		1:  "PHASE_DECISION",
-		2:  "PHASE_PLAN",
-		3:  "PHASE_DISPATCH",
 		4:  "PHASE_FETCH",
 		5:  "PHASE_INSTALL",
 		6:  "PHASE_CONFIGURE",
@@ -127,8 +123,6 @@ var (
 	WorkflowPhaseKind_value = map[string]int32{
 		"PHASE_UNKNOWN":   0,
 		"PHASE_DECISION":  1,
-		"PHASE_PLAN":      2,
-		"PHASE_DISPATCH":  3,
 		"PHASE_FETCH":     4,
 		"PHASE_INSTALL":   5,
 		"PHASE_CONFIGURE": 6,
@@ -166,22 +160,22 @@ func (WorkflowPhaseKind) EnumDescriptor() ([]byte, []int) {
 	return file_workflow_proto_rawDescGZIP(), []int{1}
 }
 
-// RunStatus is the lifecycle state of a workflow run.
+// RunStatus is the lifecycle state of a workflow run. All workflow-native:
+// a run is created (pending), may wait (blocked/retrying), executes, and
+// ends in a single terminal state.
 type RunStatus int32
 
 const (
-	RunStatus_RUN_STATUS_UNKNOWN          RunStatus = 0
-	RunStatus_RUN_STATUS_PENDING          RunStatus = 1 // created, not yet started
-	RunStatus_RUN_STATUS_PLANNING         RunStatus = 2 // controller generating plan
-	RunStatus_RUN_STATUS_WAITING_FOR_SLOT RunStatus = 3 // plan ready but slot occupied
-	RunStatus_RUN_STATUS_DISPATCHED       RunStatus = 4 // plan written to node current plan slot
-	RunStatus_RUN_STATUS_EXECUTING        RunStatus = 5 // node-agent is running plan steps
-	RunStatus_RUN_STATUS_BLOCKED          RunStatus = 6 // waiting on dependency / operator
-	RunStatus_RUN_STATUS_RETRYING         RunStatus = 7 // auto-retry in progress
-	RunStatus_RUN_STATUS_SUCCEEDED        RunStatus = 8
-	RunStatus_RUN_STATUS_FAILED           RunStatus = 9
-	RunStatus_RUN_STATUS_CANCELED         RunStatus = 10
-	RunStatus_RUN_STATUS_ROLLED_BACK      RunStatus = 11
+	RunStatus_RUN_STATUS_UNKNOWN     RunStatus = 0
+	RunStatus_RUN_STATUS_PENDING     RunStatus = 1  // created, not yet started
+	RunStatus_RUN_STATUS_EXECUTING   RunStatus = 5  // workflow engine is running steps
+	RunStatus_RUN_STATUS_BLOCKED     RunStatus = 6  // waiting on dependency/operator/node (see wait_reason)
+	RunStatus_RUN_STATUS_RETRYING    RunStatus = 7  // auto-retry in progress (see retry_attempt)
+	RunStatus_RUN_STATUS_SUCCEEDED   RunStatus = 8  // terminal
+	RunStatus_RUN_STATUS_FAILED      RunStatus = 9  // terminal
+	RunStatus_RUN_STATUS_CANCELED    RunStatus = 10 // terminal, operator-initiated
+	RunStatus_RUN_STATUS_ROLLED_BACK RunStatus = 11 // terminal, rolled back to prior state
+	RunStatus_RUN_STATUS_SUPERSEDED  RunStatus = 12 // terminal, replaced by newer run (see superseded_by)
 )
 
 // Enum value maps for RunStatus.
@@ -189,9 +183,6 @@ var (
 	RunStatus_name = map[int32]string{
 		0:  "RUN_STATUS_UNKNOWN",
 		1:  "RUN_STATUS_PENDING",
-		2:  "RUN_STATUS_PLANNING",
-		3:  "RUN_STATUS_WAITING_FOR_SLOT",
-		4:  "RUN_STATUS_DISPATCHED",
 		5:  "RUN_STATUS_EXECUTING",
 		6:  "RUN_STATUS_BLOCKED",
 		7:  "RUN_STATUS_RETRYING",
@@ -199,20 +190,19 @@ var (
 		9:  "RUN_STATUS_FAILED",
 		10: "RUN_STATUS_CANCELED",
 		11: "RUN_STATUS_ROLLED_BACK",
+		12: "RUN_STATUS_SUPERSEDED",
 	}
 	RunStatus_value = map[string]int32{
-		"RUN_STATUS_UNKNOWN":          0,
-		"RUN_STATUS_PENDING":          1,
-		"RUN_STATUS_PLANNING":         2,
-		"RUN_STATUS_WAITING_FOR_SLOT": 3,
-		"RUN_STATUS_DISPATCHED":       4,
-		"RUN_STATUS_EXECUTING":        5,
-		"RUN_STATUS_BLOCKED":          6,
-		"RUN_STATUS_RETRYING":         7,
-		"RUN_STATUS_SUCCEEDED":        8,
-		"RUN_STATUS_FAILED":           9,
-		"RUN_STATUS_CANCELED":         10,
-		"RUN_STATUS_ROLLED_BACK":      11,
+		"RUN_STATUS_UNKNOWN":     0,
+		"RUN_STATUS_PENDING":     1,
+		"RUN_STATUS_EXECUTING":   5,
+		"RUN_STATUS_BLOCKED":     6,
+		"RUN_STATUS_RETRYING":    7,
+		"RUN_STATUS_SUCCEEDED":   8,
+		"RUN_STATUS_FAILED":      9,
+		"RUN_STATUS_CANCELED":    10,
+		"RUN_STATUS_ROLLED_BACK": 11,
+		"RUN_STATUS_SUPERSEDED":  12,
 	}
 )
 
@@ -494,7 +484,6 @@ type ArtifactKind int32
 const (
 	ArtifactKind_ARTIFACT_KIND_UNKNOWN     ArtifactKind = 0
 	ArtifactKind_ARTIFACT_KIND_RELEASE     ArtifactKind = 1
-	ArtifactKind_ARTIFACT_KIND_PLAN        ArtifactKind = 2
 	ArtifactKind_ARTIFACT_KIND_PACKAGE     ArtifactKind = 3
 	ArtifactKind_ARTIFACT_KIND_MANIFEST    ArtifactKind = 4
 	ArtifactKind_ARTIFACT_KIND_SPEC        ArtifactKind = 5
@@ -510,7 +499,6 @@ var (
 	ArtifactKind_name = map[int32]string{
 		0:  "ARTIFACT_KIND_UNKNOWN",
 		1:  "ARTIFACT_KIND_RELEASE",
-		2:  "ARTIFACT_KIND_PLAN",
 		3:  "ARTIFACT_KIND_PACKAGE",
 		4:  "ARTIFACT_KIND_MANIFEST",
 		5:  "ARTIFACT_KIND_SPEC",
@@ -523,7 +511,6 @@ var (
 	ArtifactKind_value = map[string]int32{
 		"ARTIFACT_KIND_UNKNOWN":     0,
 		"ARTIFACT_KIND_RELEASE":     1,
-		"ARTIFACT_KIND_PLAN":        2,
 		"ARTIFACT_KIND_PACKAGE":     3,
 		"ARTIFACT_KIND_MANIFEST":    4,
 		"ARTIFACT_KIND_SPEC":        5,
@@ -562,6 +549,230 @@ func (ArtifactKind) EnumDescriptor() ([]byte, []int) {
 	return file_workflow_proto_rawDescGZIP(), []int{7}
 }
 
+type IncidentStatus int32
+
+const (
+	IncidentStatus_INCIDENT_STATUS_UNKNOWN   IncidentStatus = 0
+	IncidentStatus_INCIDENT_STATUS_OPEN      IncidentStatus = 1
+	IncidentStatus_INCIDENT_STATUS_RESOLVING IncidentStatus = 2
+	IncidentStatus_INCIDENT_STATUS_RESOLVED  IncidentStatus = 3
+	IncidentStatus_INCIDENT_STATUS_ACKED     IncidentStatus = 4
+)
+
+// Enum value maps for IncidentStatus.
+var (
+	IncidentStatus_name = map[int32]string{
+		0: "INCIDENT_STATUS_UNKNOWN",
+		1: "INCIDENT_STATUS_OPEN",
+		2: "INCIDENT_STATUS_RESOLVING",
+		3: "INCIDENT_STATUS_RESOLVED",
+		4: "INCIDENT_STATUS_ACKED",
+	}
+	IncidentStatus_value = map[string]int32{
+		"INCIDENT_STATUS_UNKNOWN":   0,
+		"INCIDENT_STATUS_OPEN":      1,
+		"INCIDENT_STATUS_RESOLVING": 2,
+		"INCIDENT_STATUS_RESOLVED":  3,
+		"INCIDENT_STATUS_ACKED":     4,
+	}
+)
+
+func (x IncidentStatus) Enum() *IncidentStatus {
+	p := new(IncidentStatus)
+	*p = x
+	return p
+}
+
+func (x IncidentStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IncidentStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_workflow_proto_enumTypes[8].Descriptor()
+}
+
+func (IncidentStatus) Type() protoreflect.EnumType {
+	return &file_workflow_proto_enumTypes[8]
+}
+
+func (x IncidentStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IncidentStatus.Descriptor instead.
+func (IncidentStatus) EnumDescriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{8}
+}
+
+type IncidentSeverity int32
+
+const (
+	IncidentSeverity_INCIDENT_SEVERITY_UNKNOWN  IncidentSeverity = 0
+	IncidentSeverity_INCIDENT_SEVERITY_INFO     IncidentSeverity = 1
+	IncidentSeverity_INCIDENT_SEVERITY_WARN     IncidentSeverity = 2
+	IncidentSeverity_INCIDENT_SEVERITY_ERROR    IncidentSeverity = 3
+	IncidentSeverity_INCIDENT_SEVERITY_CRITICAL IncidentSeverity = 4
+)
+
+// Enum value maps for IncidentSeverity.
+var (
+	IncidentSeverity_name = map[int32]string{
+		0: "INCIDENT_SEVERITY_UNKNOWN",
+		1: "INCIDENT_SEVERITY_INFO",
+		2: "INCIDENT_SEVERITY_WARN",
+		3: "INCIDENT_SEVERITY_ERROR",
+		4: "INCIDENT_SEVERITY_CRITICAL",
+	}
+	IncidentSeverity_value = map[string]int32{
+		"INCIDENT_SEVERITY_UNKNOWN":  0,
+		"INCIDENT_SEVERITY_INFO":     1,
+		"INCIDENT_SEVERITY_WARN":     2,
+		"INCIDENT_SEVERITY_ERROR":    3,
+		"INCIDENT_SEVERITY_CRITICAL": 4,
+	}
+)
+
+func (x IncidentSeverity) Enum() *IncidentSeverity {
+	p := new(IncidentSeverity)
+	*p = x
+	return p
+}
+
+func (x IncidentSeverity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IncidentSeverity) Descriptor() protoreflect.EnumDescriptor {
+	return file_workflow_proto_enumTypes[9].Descriptor()
+}
+
+func (IncidentSeverity) Type() protoreflect.EnumType {
+	return &file_workflow_proto_enumTypes[9]
+}
+
+func (x IncidentSeverity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IncidentSeverity.Descriptor instead.
+func (IncidentSeverity) EnumDescriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{9}
+}
+
+// Provenance layer — where a statement came from. See design doc §5.
+type Provenance int32
+
+const (
+	Provenance_PROVENANCE_UNKNOWN     Provenance = 0
+	Provenance_PROVENANCE_OBSERVED    Provenance = 1 // raw measurement from a single source
+	Provenance_PROVENANCE_CORRELATED  Provenance = 2 // joined from two or more Observed facts
+	Provenance_PROVENANCE_DIAGNOSED   Provenance = 3 // rule-based inference (cluster_doctor etc.)
+	Provenance_PROVENANCE_AI_PROPOSED Provenance = 4 // LLM-based inference with confidence
+)
+
+// Enum value maps for Provenance.
+var (
+	Provenance_name = map[int32]string{
+		0: "PROVENANCE_UNKNOWN",
+		1: "PROVENANCE_OBSERVED",
+		2: "PROVENANCE_CORRELATED",
+		3: "PROVENANCE_DIAGNOSED",
+		4: "PROVENANCE_AI_PROPOSED",
+	}
+	Provenance_value = map[string]int32{
+		"PROVENANCE_UNKNOWN":     0,
+		"PROVENANCE_OBSERVED":    1,
+		"PROVENANCE_CORRELATED":  2,
+		"PROVENANCE_DIAGNOSED":   3,
+		"PROVENANCE_AI_PROPOSED": 4,
+	}
+)
+
+func (x Provenance) Enum() *Provenance {
+	p := new(Provenance)
+	*p = x
+	return p
+}
+
+func (x Provenance) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Provenance) Descriptor() protoreflect.EnumDescriptor {
+	return file_workflow_proto_enumTypes[10].Descriptor()
+}
+
+func (Provenance) Type() protoreflect.EnumType {
+	return &file_workflow_proto_enumTypes[10]
+}
+
+func (x Provenance) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Provenance.Descriptor instead.
+func (Provenance) EnumDescriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{10}
+}
+
+type FixStatus int32
+
+const (
+	FixStatus_FIX_STATUS_UNKNOWN  FixStatus = 0
+	FixStatus_FIX_STATUS_PROPOSED FixStatus = 1
+	FixStatus_FIX_STATUS_APPROVED FixStatus = 2
+	FixStatus_FIX_STATUS_APPLIED  FixStatus = 3
+	FixStatus_FIX_STATUS_REJECTED FixStatus = 4
+	FixStatus_FIX_STATUS_FAILED   FixStatus = 5
+)
+
+// Enum value maps for FixStatus.
+var (
+	FixStatus_name = map[int32]string{
+		0: "FIX_STATUS_UNKNOWN",
+		1: "FIX_STATUS_PROPOSED",
+		2: "FIX_STATUS_APPROVED",
+		3: "FIX_STATUS_APPLIED",
+		4: "FIX_STATUS_REJECTED",
+		5: "FIX_STATUS_FAILED",
+	}
+	FixStatus_value = map[string]int32{
+		"FIX_STATUS_UNKNOWN":  0,
+		"FIX_STATUS_PROPOSED": 1,
+		"FIX_STATUS_APPROVED": 2,
+		"FIX_STATUS_APPLIED":  3,
+		"FIX_STATUS_REJECTED": 4,
+		"FIX_STATUS_FAILED":   5,
+	}
+)
+
+func (x FixStatus) Enum() *FixStatus {
+	p := new(FixStatus)
+	*p = x
+	return p
+}
+
+func (x FixStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FixStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_workflow_proto_enumTypes[11].Descriptor()
+}
+
+func (FixStatus) Type() protoreflect.EnumType {
+	return &file_workflow_proto_enumTypes[11]
+}
+
+func (x FixStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FixStatus.Descriptor instead.
+func (FixStatus) EnumDescriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{11}
+}
+
 // WorkflowContext groups the reconciliation identity fields shared across
 // runs, events, and stream envelopes. Avoids repeating the same set of
 // fields on every message and makes reuse in future APIs cleaner.
@@ -576,8 +787,6 @@ type WorkflowContext struct {
 	ReleaseKind      string                 `protobuf:"bytes,7,opt,name=release_kind,json=releaseKind,proto3" json:"release_kind,omitempty"` // InfrastructureRelease, ServiceRelease
 	ReleaseObjectId  string                 `protobuf:"bytes,8,opt,name=release_object_id,json=releaseObjectId,proto3" json:"release_object_id,omitempty"`
 	DesiredObjectId  string                 `protobuf:"bytes,9,opt,name=desired_object_id,json=desiredObjectId,proto3" json:"desired_object_id,omitempty"`
-	PlanId           string                 `protobuf:"bytes,10,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
-	PlanGeneration   int32                  `protobuf:"varint,11,opt,name=plan_generation,json=planGeneration,proto3" json:"plan_generation,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -675,20 +884,6 @@ func (x *WorkflowContext) GetDesiredObjectId() string {
 	return ""
 }
 
-func (x *WorkflowContext) GetPlanId() string {
-	if x != nil {
-		return x.PlanId
-	}
-	return ""
-}
-
-func (x *WorkflowContext) GetPlanGeneration() int32 {
-	if x != nil {
-		return x.PlanGeneration
-	}
-	return 0
-}
-
 // WorkflowRun represents one reconciliation attempt for a component on a node.
 //
 // Identity:
@@ -716,9 +911,22 @@ type WorkflowRun struct {
 	AcknowledgedBy string                 `protobuf:"bytes,13,opt,name=acknowledged_by,json=acknowledgedBy,proto3" json:"acknowledged_by,omitempty"`
 	AcknowledgedAt *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
 	// Timing
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	StartedAt  *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	UpdatedAt  *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	// Workflow definition name (e.g. "day0.bootstrap", "release.apply.package")
+	WorkflowName string `protobuf:"bytes,18,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	// Wait reason when status=BLOCKED (e.g. "waiting_on_dependency:verify_etcd",
+	// "waiting_on_node:globule-nuc", "waiting_on_slot").
+	WaitReason string `protobuf:"bytes,19,opt,name=wait_reason,json=waitReason,proto3" json:"wait_reason,omitempty"`
+	// Retry tracking: current attempt (1-indexed) and max allowed.
+	RetryAttempt int32 `protobuf:"varint,20,opt,name=retry_attempt,json=retryAttempt,proto3" json:"retry_attempt,omitempty"`
+	MaxRetries   int32 `protobuf:"varint,21,opt,name=max_retries,json=maxRetries,proto3" json:"max_retries,omitempty"`
+	// Unix millis: when retry backoff expires and next attempt can start.
+	BackoffUntilMs int64 `protobuf:"varint,22,opt,name=backoff_until_ms,json=backoffUntilMs,proto3" json:"backoff_until_ms,omitempty"`
+	// Supersession: when a newer run obsoletes this one for the same
+	// correlation_id. Both fields point to the replacement run id.
+	SupersededBy  string `protobuf:"bytes,23,opt,name=superseded_by,json=supersededBy,proto3" json:"superseded_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -870,6 +1078,48 @@ func (x *WorkflowRun) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *WorkflowRun) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *WorkflowRun) GetWaitReason() string {
+	if x != nil {
+		return x.WaitReason
+	}
+	return ""
+}
+
+func (x *WorkflowRun) GetRetryAttempt() int32 {
+	if x != nil {
+		return x.RetryAttempt
+	}
+	return 0
+}
+
+func (x *WorkflowRun) GetMaxRetries() int32 {
+	if x != nil {
+		return x.MaxRetries
+	}
+	return 0
+}
+
+func (x *WorkflowRun) GetBackoffUntilMs() int64 {
+	if x != nil {
+		return x.BackoffUntilMs
+	}
+	return 0
+}
+
+func (x *WorkflowRun) GetSupersededBy() string {
+	if x != nil {
+		return x.SupersededBy
+	}
+	return ""
 }
 
 // WorkflowStep represents a single action or transition within a run.
@@ -1697,16 +1947,15 @@ func (x *StartRunRequest) GetRun() *WorkflowRun {
 }
 
 type UpdateRunRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ClusterId      string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-	Status         RunStatus              `protobuf:"varint,3,opt,name=status,proto3,enum=workflow.RunStatus" json:"status,omitempty"`
-	Summary        string                 `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
-	PlanId         string                 `protobuf:"bytes,5,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
-	PlanGeneration int32                  `protobuf:"varint,6,opt,name=plan_generation,json=planGeneration,proto3" json:"plan_generation,omitempty"`
-	CurrentActor   WorkflowActor          `protobuf:"varint,7,opt,name=current_actor,json=currentActor,proto3,enum=workflow.WorkflowActor" json:"current_actor,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ClusterId     string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	Status        RunStatus              `protobuf:"varint,3,opt,name=status,proto3,enum=workflow.RunStatus" json:"status,omitempty"`
+	Summary       string                 `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	CurrentActor  WorkflowActor          `protobuf:"varint,7,opt,name=current_actor,json=currentActor,proto3,enum=workflow.WorkflowActor" json:"current_actor,omitempty"`
+	WaitReason    string                 `protobuf:"bytes,8,opt,name=wait_reason,json=waitReason,proto3" json:"wait_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateRunRequest) Reset() {
@@ -1767,25 +2016,18 @@ func (x *UpdateRunRequest) GetSummary() string {
 	return ""
 }
 
-func (x *UpdateRunRequest) GetPlanId() string {
-	if x != nil {
-		return x.PlanId
-	}
-	return ""
-}
-
-func (x *UpdateRunRequest) GetPlanGeneration() int32 {
-	if x != nil {
-		return x.PlanGeneration
-	}
-	return 0
-}
-
 func (x *UpdateRunRequest) GetCurrentActor() WorkflowActor {
 	if x != nil {
 		return x.CurrentActor
 	}
 	return WorkflowActor_ACTOR_UNKNOWN
+}
+
+func (x *UpdateRunRequest) GetWaitReason() string {
+	if x != nil {
+		return x.WaitReason
+	}
+	return ""
 }
 
 type FinishRunRequest struct {
@@ -2281,8 +2523,9 @@ type ListRunsRequest struct {
 	Kind          ComponentKind          `protobuf:"varint,5,opt,name=kind,proto3,enum=workflow.ComponentKind" json:"kind,omitempty"`           // optional filter (0 = all)
 	ActiveOnly    bool                   `protobuf:"varint,6,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
 	FailedOnly    bool                   `protobuf:"varint,7,opt,name=failed_only,json=failedOnly,proto3" json:"failed_only,omitempty"`
-	Limit         int32                  `protobuf:"varint,8,opt,name=limit,proto3" json:"limit,omitempty"`                         // default 50
-	PageToken     string                 `protobuf:"bytes,9,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"` // opaque pagination cursor
+	Limit         int32                  `protobuf:"varint,8,opt,name=limit,proto3" json:"limit,omitempty"`                                   // default 50
+	PageToken     string                 `protobuf:"bytes,9,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`           // opaque pagination cursor
+	WorkflowName  string                 `protobuf:"bytes,10,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"` // optional filter by definition name
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2376,6 +2619,13 @@ func (x *ListRunsRequest) GetLimit() int32 {
 func (x *ListRunsRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListRunsRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
 	}
 	return ""
 }
@@ -3165,11 +3415,2749 @@ func (x *DiagnoseRunResponse) GetSuggestedAction() string {
 	return ""
 }
 
+// WorkflowRunSummary is a bounded per-workflow-name aggregate. Used for
+// dashboards where full run detail would inflate storage (e.g. periodic
+// cluster.reconcile runs firing every 30s). One row per (cluster, workflow).
+type WorkflowRunSummary struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId    string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	TotalRuns    int64                  `protobuf:"varint,3,opt,name=total_runs,json=totalRuns,proto3" json:"total_runs,omitempty"`
+	SuccessRuns  int64                  `protobuf:"varint,4,opt,name=success_runs,json=successRuns,proto3" json:"success_runs,omitempty"`
+	FailureRuns  int64                  `protobuf:"varint,5,opt,name=failure_runs,json=failureRuns,proto3" json:"failure_runs,omitempty"`
+	// Last run (regardless of outcome)
+	LastRunId      string                 `protobuf:"bytes,6,opt,name=last_run_id,json=lastRunId,proto3" json:"last_run_id,omitempty"`
+	LastRunStatus  RunStatus              `protobuf:"varint,7,opt,name=last_run_status,json=lastRunStatus,proto3,enum=workflow.RunStatus" json:"last_run_status,omitempty"`
+	LastStartedAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_started_at,json=lastStartedAt,proto3" json:"last_started_at,omitempty"`
+	LastFinishedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_finished_at,json=lastFinishedAt,proto3" json:"last_finished_at,omitempty"`
+	LastDurationMs int64                  `protobuf:"varint,10,opt,name=last_duration_ms,json=lastDurationMs,proto3" json:"last_duration_ms,omitempty"`
+	// Last success
+	LastSuccessId string                 `protobuf:"bytes,11,opt,name=last_success_id,json=lastSuccessId,proto3" json:"last_success_id,omitempty"`
+	LastSuccessAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=last_success_at,json=lastSuccessAt,proto3" json:"last_success_at,omitempty"`
+	// Last failure (for forensic drill-down)
+	LastFailureId     string                 `protobuf:"bytes,13,opt,name=last_failure_id,json=lastFailureId,proto3" json:"last_failure_id,omitempty"`
+	LastFailureAt     *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=last_failure_at,json=lastFailureAt,proto3" json:"last_failure_at,omitempty"`
+	LastFailureReason string                 `protobuf:"bytes,15,opt,name=last_failure_reason,json=lastFailureReason,proto3" json:"last_failure_reason,omitempty"`
+	UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *WorkflowRunSummary) Reset() {
+	*x = WorkflowRunSummary{}
+	mi := &file_workflow_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowRunSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowRunSummary) ProtoMessage() {}
+
+func (x *WorkflowRunSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowRunSummary.ProtoReflect.Descriptor instead.
+func (*WorkflowRunSummary) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *WorkflowRunSummary) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetTotalRuns() int64 {
+	if x != nil {
+		return x.TotalRuns
+	}
+	return 0
+}
+
+func (x *WorkflowRunSummary) GetSuccessRuns() int64 {
+	if x != nil {
+		return x.SuccessRuns
+	}
+	return 0
+}
+
+func (x *WorkflowRunSummary) GetFailureRuns() int64 {
+	if x != nil {
+		return x.FailureRuns
+	}
+	return 0
+}
+
+func (x *WorkflowRunSummary) GetLastRunId() string {
+	if x != nil {
+		return x.LastRunId
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetLastRunStatus() RunStatus {
+	if x != nil {
+		return x.LastRunStatus
+	}
+	return RunStatus_RUN_STATUS_UNKNOWN
+}
+
+func (x *WorkflowRunSummary) GetLastStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastStartedAt
+	}
+	return nil
+}
+
+func (x *WorkflowRunSummary) GetLastFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFinishedAt
+	}
+	return nil
+}
+
+func (x *WorkflowRunSummary) GetLastDurationMs() int64 {
+	if x != nil {
+		return x.LastDurationMs
+	}
+	return 0
+}
+
+func (x *WorkflowRunSummary) GetLastSuccessId() string {
+	if x != nil {
+		return x.LastSuccessId
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetLastSuccessAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSuccessAt
+	}
+	return nil
+}
+
+func (x *WorkflowRunSummary) GetLastFailureId() string {
+	if x != nil {
+		return x.LastFailureId
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetLastFailureAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFailureAt
+	}
+	return nil
+}
+
+func (x *WorkflowRunSummary) GetLastFailureReason() string {
+	if x != nil {
+		return x.LastFailureReason
+	}
+	return ""
+}
+
+func (x *WorkflowRunSummary) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type RecordOutcomeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName  string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"` // optional; empty for purely summary-only callers
+	Status        RunStatus              `protobuf:"varint,4,opt,name=status,proto3,enum=workflow.RunStatus" json:"status,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	DurationMs    int64                  `protobuf:"varint,7,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	FailureReason string                 `protobuf:"bytes,8,opt,name=failure_reason,json=failureReason,proto3" json:"failure_reason,omitempty"` // set when status is FAILED/ROLLED_BACK
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordOutcomeRequest) Reset() {
+	*x = RecordOutcomeRequest{}
+	mi := &file_workflow_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordOutcomeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordOutcomeRequest) ProtoMessage() {}
+
+func (x *RecordOutcomeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordOutcomeRequest.ProtoReflect.Descriptor instead.
+func (*RecordOutcomeRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RecordOutcomeRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *RecordOutcomeRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *RecordOutcomeRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *RecordOutcomeRequest) GetStatus() RunStatus {
+	if x != nil {
+		return x.Status
+	}
+	return RunStatus_RUN_STATUS_UNKNOWN
+}
+
+func (x *RecordOutcomeRequest) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *RecordOutcomeRequest) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+func (x *RecordOutcomeRequest) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *RecordOutcomeRequest) GetFailureReason() string {
+	if x != nil {
+		return x.FailureReason
+	}
+	return ""
+}
+
+type ListWorkflowSummariesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName  string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"` // optional filter
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkflowSummariesRequest) Reset() {
+	*x = ListWorkflowSummariesRequest{}
+	mi := &file_workflow_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkflowSummariesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkflowSummariesRequest) ProtoMessage() {}
+
+func (x *ListWorkflowSummariesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkflowSummariesRequest.ProtoReflect.Descriptor instead.
+func (*ListWorkflowSummariesRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ListWorkflowSummariesRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ListWorkflowSummariesRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+type ListWorkflowSummariesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Summaries     []*WorkflowRunSummary  `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkflowSummariesResponse) Reset() {
+	*x = ListWorkflowSummariesResponse{}
+	mi := &file_workflow_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkflowSummariesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkflowSummariesResponse) ProtoMessage() {}
+
+func (x *ListWorkflowSummariesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkflowSummariesResponse.ProtoReflect.Descriptor instead.
+func (*ListWorkflowSummariesResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ListWorkflowSummariesResponse) GetSummaries() []*WorkflowRunSummary {
+	if x != nil {
+		return x.Summaries
+	}
+	return nil
+}
+
+// Per-step aggregate for a workflow definition.
+type WorkflowStepOutcome struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId        string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName     string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	StepId           string                 `protobuf:"bytes,3,opt,name=step_id,json=stepId,proto3" json:"step_id,omitempty"`
+	TotalExecutions  int64                  `protobuf:"varint,4,opt,name=total_executions,json=totalExecutions,proto3" json:"total_executions,omitempty"`
+	SuccessCount     int64                  `protobuf:"varint,5,opt,name=success_count,json=successCount,proto3" json:"success_count,omitempty"`
+	FailureCount     int64                  `protobuf:"varint,6,opt,name=failure_count,json=failureCount,proto3" json:"failure_count,omitempty"`
+	SkippedCount     int64                  `protobuf:"varint,7,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	LastStatus       StepStatus             `protobuf:"varint,8,opt,name=last_status,json=lastStatus,proto3,enum=workflow.StepStatus" json:"last_status,omitempty"`
+	LastStartedAt    *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_started_at,json=lastStartedAt,proto3" json:"last_started_at,omitempty"`
+	LastFinishedAt   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=last_finished_at,json=lastFinishedAt,proto3" json:"last_finished_at,omitempty"`
+	LastDurationMs   int64                  `protobuf:"varint,11,opt,name=last_duration_ms,json=lastDurationMs,proto3" json:"last_duration_ms,omitempty"`
+	LastErrorCode    string                 `protobuf:"bytes,12,opt,name=last_error_code,json=lastErrorCode,proto3" json:"last_error_code,omitempty"`
+	LastErrorMessage string                 `protobuf:"bytes,13,opt,name=last_error_message,json=lastErrorMessage,proto3" json:"last_error_message,omitempty"`
+	FirstSeenAt      *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=first_seen_at,json=firstSeenAt,proto3" json:"first_seen_at,omitempty"`
+	UpdatedAt        *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *WorkflowStepOutcome) Reset() {
+	*x = WorkflowStepOutcome{}
+	mi := &file_workflow_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowStepOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowStepOutcome) ProtoMessage() {}
+
+func (x *WorkflowStepOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowStepOutcome.ProtoReflect.Descriptor instead.
+func (*WorkflowStepOutcome) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *WorkflowStepOutcome) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *WorkflowStepOutcome) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *WorkflowStepOutcome) GetStepId() string {
+	if x != nil {
+		return x.StepId
+	}
+	return ""
+}
+
+func (x *WorkflowStepOutcome) GetTotalExecutions() int64 {
+	if x != nil {
+		return x.TotalExecutions
+	}
+	return 0
+}
+
+func (x *WorkflowStepOutcome) GetSuccessCount() int64 {
+	if x != nil {
+		return x.SuccessCount
+	}
+	return 0
+}
+
+func (x *WorkflowStepOutcome) GetFailureCount() int64 {
+	if x != nil {
+		return x.FailureCount
+	}
+	return 0
+}
+
+func (x *WorkflowStepOutcome) GetSkippedCount() int64 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *WorkflowStepOutcome) GetLastStatus() StepStatus {
+	if x != nil {
+		return x.LastStatus
+	}
+	return StepStatus_STEP_STATUS_UNKNOWN
+}
+
+func (x *WorkflowStepOutcome) GetLastStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastStartedAt
+	}
+	return nil
+}
+
+func (x *WorkflowStepOutcome) GetLastFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFinishedAt
+	}
+	return nil
+}
+
+func (x *WorkflowStepOutcome) GetLastDurationMs() int64 {
+	if x != nil {
+		return x.LastDurationMs
+	}
+	return 0
+}
+
+func (x *WorkflowStepOutcome) GetLastErrorCode() string {
+	if x != nil {
+		return x.LastErrorCode
+	}
+	return ""
+}
+
+func (x *WorkflowStepOutcome) GetLastErrorMessage() string {
+	if x != nil {
+		return x.LastErrorMessage
+	}
+	return ""
+}
+
+func (x *WorkflowStepOutcome) GetFirstSeenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FirstSeenAt
+	}
+	return nil
+}
+
+func (x *WorkflowStepOutcome) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type RecordStepOutcomeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName  string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"`
+	StepId        string                 `protobuf:"bytes,3,opt,name=step_id,json=stepId,proto3" json:"step_id,omitempty"`
+	Status        StepStatus             `protobuf:"varint,4,opt,name=status,proto3,enum=workflow.StepStatus" json:"status,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	DurationMs    int64                  `protobuf:"varint,7,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	ErrorCode     string                 `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,9,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordStepOutcomeRequest) Reset() {
+	*x = RecordStepOutcomeRequest{}
+	mi := &file_workflow_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordStepOutcomeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordStepOutcomeRequest) ProtoMessage() {}
+
+func (x *RecordStepOutcomeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordStepOutcomeRequest.ProtoReflect.Descriptor instead.
+func (*RecordStepOutcomeRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *RecordStepOutcomeRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *RecordStepOutcomeRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *RecordStepOutcomeRequest) GetStepId() string {
+	if x != nil {
+		return x.StepId
+	}
+	return ""
+}
+
+func (x *RecordStepOutcomeRequest) GetStatus() StepStatus {
+	if x != nil {
+		return x.Status
+	}
+	return StepStatus_STEP_STATUS_UNKNOWN
+}
+
+func (x *RecordStepOutcomeRequest) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *RecordStepOutcomeRequest) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+func (x *RecordStepOutcomeRequest) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *RecordStepOutcomeRequest) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *RecordStepOutcomeRequest) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+type ListStepOutcomesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName  string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"` // optional filter
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListStepOutcomesRequest) Reset() {
+	*x = ListStepOutcomesRequest{}
+	mi := &file_workflow_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListStepOutcomesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListStepOutcomesRequest) ProtoMessage() {}
+
+func (x *ListStepOutcomesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListStepOutcomesRequest.ProtoReflect.Descriptor instead.
+func (*ListStepOutcomesRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ListStepOutcomesRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ListStepOutcomesRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+type ListStepOutcomesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Outcomes      []*WorkflowStepOutcome `protobuf:"bytes,1,rep,name=outcomes,proto3" json:"outcomes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListStepOutcomesResponse) Reset() {
+	*x = ListStepOutcomesResponse{}
+	mi := &file_workflow_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListStepOutcomesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListStepOutcomesResponse) ProtoMessage() {}
+
+func (x *ListStepOutcomesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListStepOutcomesResponse.ProtoReflect.Descriptor instead.
+func (*ListStepOutcomesResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ListStepOutcomesResponse) GetOutcomes() []*WorkflowStepOutcome {
+	if x != nil {
+		return x.Outcomes
+	}
+	return nil
+}
+
+// Phase transition event (append-only, 7-day TTL).
+type PhaseTransitionEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	ResourceType  string                 `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	ResourceName  string                 `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
+	EventAt       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=event_at,json=eventAt,proto3" json:"event_at,omitempty"`
+	EventId       string                 `protobuf:"bytes,5,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	FromPhase     string                 `protobuf:"bytes,6,opt,name=from_phase,json=fromPhase,proto3" json:"from_phase,omitempty"`
+	ToPhase       string                 `protobuf:"bytes,7,opt,name=to_phase,json=toPhase,proto3" json:"to_phase,omitempty"`
+	Reason        string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	Caller        string                 `protobuf:"bytes,9,opt,name=caller,proto3" json:"caller,omitempty"`
+	Blocked       bool                   `protobuf:"varint,10,opt,name=blocked,proto3" json:"blocked,omitempty"` // true = rejected by invariant guard
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PhaseTransitionEvent) Reset() {
+	*x = PhaseTransitionEvent{}
+	mi := &file_workflow_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PhaseTransitionEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PhaseTransitionEvent) ProtoMessage() {}
+
+func (x *PhaseTransitionEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PhaseTransitionEvent.ProtoReflect.Descriptor instead.
+func (*PhaseTransitionEvent) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *PhaseTransitionEvent) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetResourceName() string {
+	if x != nil {
+		return x.ResourceName
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetEventAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EventAt
+	}
+	return nil
+}
+
+func (x *PhaseTransitionEvent) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetFromPhase() string {
+	if x != nil {
+		return x.FromPhase
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetToPhase() string {
+	if x != nil {
+		return x.ToPhase
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+func (x *PhaseTransitionEvent) GetBlocked() bool {
+	if x != nil {
+		return x.Blocked
+	}
+	return false
+}
+
+type RecordPhaseTransitionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	ResourceType  string                 `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	ResourceName  string                 `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
+	FromPhase     string                 `protobuf:"bytes,4,opt,name=from_phase,json=fromPhase,proto3" json:"from_phase,omitempty"`
+	ToPhase       string                 `protobuf:"bytes,5,opt,name=to_phase,json=toPhase,proto3" json:"to_phase,omitempty"`
+	Reason        string                 `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	Caller        string                 `protobuf:"bytes,7,opt,name=caller,proto3" json:"caller,omitempty"`
+	Blocked       bool                   `protobuf:"varint,8,opt,name=blocked,proto3" json:"blocked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordPhaseTransitionRequest) Reset() {
+	*x = RecordPhaseTransitionRequest{}
+	mi := &file_workflow_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordPhaseTransitionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordPhaseTransitionRequest) ProtoMessage() {}
+
+func (x *RecordPhaseTransitionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordPhaseTransitionRequest.ProtoReflect.Descriptor instead.
+func (*RecordPhaseTransitionRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *RecordPhaseTransitionRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetResourceName() string {
+	if x != nil {
+		return x.ResourceName
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetFromPhase() string {
+	if x != nil {
+		return x.FromPhase
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetToPhase() string {
+	if x != nil {
+		return x.ToPhase
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetCaller() string {
+	if x != nil {
+		return x.Caller
+	}
+	return ""
+}
+
+func (x *RecordPhaseTransitionRequest) GetBlocked() bool {
+	if x != nil {
+		return x.Blocked
+	}
+	return false
+}
+
+type ListPhaseTransitionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	ResourceType  string                 `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"` // required
+	ResourceName  string                 `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"` // required
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`                                  // default 100
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPhaseTransitionsRequest) Reset() {
+	*x = ListPhaseTransitionsRequest{}
+	mi := &file_workflow_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPhaseTransitionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPhaseTransitionsRequest) ProtoMessage() {}
+
+func (x *ListPhaseTransitionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPhaseTransitionsRequest.ProtoReflect.Descriptor instead.
+func (*ListPhaseTransitionsRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ListPhaseTransitionsRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ListPhaseTransitionsRequest) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *ListPhaseTransitionsRequest) GetResourceName() string {
+	if x != nil {
+		return x.ResourceName
+	}
+	return ""
+}
+
+func (x *ListPhaseTransitionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListPhaseTransitionsResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Events        []*PhaseTransitionEvent `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPhaseTransitionsResponse) Reset() {
+	*x = ListPhaseTransitionsResponse{}
+	mi := &file_workflow_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPhaseTransitionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPhaseTransitionsResponse) ProtoMessage() {}
+
+func (x *ListPhaseTransitionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPhaseTransitionsResponse.ProtoReflect.Descriptor instead.
+func (*ListPhaseTransitionsResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ListPhaseTransitionsResponse) GetEvents() []*PhaseTransitionEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+// Drift item that has been observed in at least one reconcile cycle and not
+// yet cleared. consecutive_cycles increments each cycle it reappears.
+type DriftUnresolved struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId         string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	DriftType         string                 `protobuf:"bytes,2,opt,name=drift_type,json=driftType,proto3" json:"drift_type,omitempty"`
+	EntityRef         string                 `protobuf:"bytes,3,opt,name=entity_ref,json=entityRef,proto3" json:"entity_ref,omitempty"`
+	ConsecutiveCycles int32                  `protobuf:"varint,4,opt,name=consecutive_cycles,json=consecutiveCycles,proto3" json:"consecutive_cycles,omitempty"`
+	FirstObservedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=first_observed_at,json=firstObservedAt,proto3" json:"first_observed_at,omitempty"`
+	LastObservedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_observed_at,json=lastObservedAt,proto3" json:"last_observed_at,omitempty"`
+	ChosenWorkflow    string                 `protobuf:"bytes,7,opt,name=chosen_workflow,json=chosenWorkflow,proto3" json:"chosen_workflow,omitempty"`
+	LastRemediationId string                 `protobuf:"bytes,8,opt,name=last_remediation_id,json=lastRemediationId,proto3" json:"last_remediation_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DriftUnresolved) Reset() {
+	*x = DriftUnresolved{}
+	mi := &file_workflow_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DriftUnresolved) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DriftUnresolved) ProtoMessage() {}
+
+func (x *DriftUnresolved) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DriftUnresolved.ProtoReflect.Descriptor instead.
+func (*DriftUnresolved) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *DriftUnresolved) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *DriftUnresolved) GetDriftType() string {
+	if x != nil {
+		return x.DriftType
+	}
+	return ""
+}
+
+func (x *DriftUnresolved) GetEntityRef() string {
+	if x != nil {
+		return x.EntityRef
+	}
+	return ""
+}
+
+func (x *DriftUnresolved) GetConsecutiveCycles() int32 {
+	if x != nil {
+		return x.ConsecutiveCycles
+	}
+	return 0
+}
+
+func (x *DriftUnresolved) GetFirstObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FirstObservedAt
+	}
+	return nil
+}
+
+func (x *DriftUnresolved) GetLastObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastObservedAt
+	}
+	return nil
+}
+
+func (x *DriftUnresolved) GetChosenWorkflow() string {
+	if x != nil {
+		return x.ChosenWorkflow
+	}
+	return ""
+}
+
+func (x *DriftUnresolved) GetLastRemediationId() string {
+	if x != nil {
+		return x.LastRemediationId
+	}
+	return ""
+}
+
+type RecordDriftObservationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId      string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	DriftType      string                 `protobuf:"bytes,2,opt,name=drift_type,json=driftType,proto3" json:"drift_type,omitempty"`
+	EntityRef      string                 `protobuf:"bytes,3,opt,name=entity_ref,json=entityRef,proto3" json:"entity_ref,omitempty"`
+	ChosenWorkflow string                 `protobuf:"bytes,4,opt,name=chosen_workflow,json=chosenWorkflow,proto3" json:"chosen_workflow,omitempty"`
+	RemediationId  string                 `protobuf:"bytes,5,opt,name=remediation_id,json=remediationId,proto3" json:"remediation_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RecordDriftObservationRequest) Reset() {
+	*x = RecordDriftObservationRequest{}
+	mi := &file_workflow_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordDriftObservationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordDriftObservationRequest) ProtoMessage() {}
+
+func (x *RecordDriftObservationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordDriftObservationRequest.ProtoReflect.Descriptor instead.
+func (*RecordDriftObservationRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *RecordDriftObservationRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *RecordDriftObservationRequest) GetDriftType() string {
+	if x != nil {
+		return x.DriftType
+	}
+	return ""
+}
+
+func (x *RecordDriftObservationRequest) GetEntityRef() string {
+	if x != nil {
+		return x.EntityRef
+	}
+	return ""
+}
+
+func (x *RecordDriftObservationRequest) GetChosenWorkflow() string {
+	if x != nil {
+		return x.ChosenWorkflow
+	}
+	return ""
+}
+
+func (x *RecordDriftObservationRequest) GetRemediationId() string {
+	if x != nil {
+		return x.RemediationId
+	}
+	return ""
+}
+
+type ClearDriftObservationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	DriftType     string                 `protobuf:"bytes,2,opt,name=drift_type,json=driftType,proto3" json:"drift_type,omitempty"`
+	EntityRef     string                 `protobuf:"bytes,3,opt,name=entity_ref,json=entityRef,proto3" json:"entity_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearDriftObservationRequest) Reset() {
+	*x = ClearDriftObservationRequest{}
+	mi := &file_workflow_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearDriftObservationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearDriftObservationRequest) ProtoMessage() {}
+
+func (x *ClearDriftObservationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearDriftObservationRequest.ProtoReflect.Descriptor instead.
+func (*ClearDriftObservationRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ClearDriftObservationRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ClearDriftObservationRequest) GetDriftType() string {
+	if x != nil {
+		return x.DriftType
+	}
+	return ""
+}
+
+func (x *ClearDriftObservationRequest) GetEntityRef() string {
+	if x != nil {
+		return x.EntityRef
+	}
+	return ""
+}
+
+type ListDriftUnresolvedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	DriftType     string                 `protobuf:"bytes,2,opt,name=drift_type,json=driftType,proto3" json:"drift_type,omitempty"`  // optional filter
+	MinCycles     int32                  `protobuf:"varint,3,opt,name=min_cycles,json=minCycles,proto3" json:"min_cycles,omitempty"` // optional: only items observed >= N cycles
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDriftUnresolvedRequest) Reset() {
+	*x = ListDriftUnresolvedRequest{}
+	mi := &file_workflow_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDriftUnresolvedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDriftUnresolvedRequest) ProtoMessage() {}
+
+func (x *ListDriftUnresolvedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDriftUnresolvedRequest.ProtoReflect.Descriptor instead.
+func (*ListDriftUnresolvedRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ListDriftUnresolvedRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ListDriftUnresolvedRequest) GetDriftType() string {
+	if x != nil {
+		return x.DriftType
+	}
+	return ""
+}
+
+func (x *ListDriftUnresolvedRequest) GetMinCycles() int32 {
+	if x != nil {
+		return x.MinCycles
+	}
+	return 0
+}
+
+type ListDriftUnresolvedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*DriftUnresolved     `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDriftUnresolvedResponse) Reset() {
+	*x = ListDriftUnresolvedResponse{}
+	mi := &file_workflow_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDriftUnresolvedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDriftUnresolvedResponse) ProtoMessage() {}
+
+func (x *ListDriftUnresolvedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDriftUnresolvedResponse.ProtoReflect.Descriptor instead.
+func (*ListDriftUnresolvedResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *ListDriftUnresolvedResponse) GetItems() []*DriftUnresolved {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+// EvidenceItem — "what was observed/correlated" (design §6).
+type EvidenceItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Provenance    Provenance             `protobuf:"varint,2,opt,name=provenance,proto3,enum=workflow.Provenance" json:"provenance,omitempty"` // OBSERVED or CORRELATED only
+	Source        string                 `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`                                   // "workflow.step_outcomes", "node_agent", …
+	Summary       string                 `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	Facts         map[string]string      `protobuf:"bytes,5,rep,name=facts,proto3" json:"facts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ObservedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvidenceItem) Reset() {
+	*x = EvidenceItem{}
+	mi := &file_workflow_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvidenceItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvidenceItem) ProtoMessage() {}
+
+func (x *EvidenceItem) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvidenceItem.ProtoReflect.Descriptor instead.
+func (*EvidenceItem) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *EvidenceItem) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *EvidenceItem) GetProvenance() Provenance {
+	if x != nil {
+		return x.Provenance
+	}
+	return Provenance_PROVENANCE_UNKNOWN
+}
+
+func (x *EvidenceItem) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *EvidenceItem) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *EvidenceItem) GetFacts() map[string]string {
+	if x != nil {
+		return x.Facts
+	}
+	return nil
+}
+
+func (x *EvidenceItem) GetObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return nil
+}
+
+// DiagnosisItem — "what a rule inferred" (design §7). MUST cite evidence.
+type DiagnosisItem struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Source           string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // "cluster_doctor", "workflow.invariants"
+	InvariantId      string                 `protobuf:"bytes,3,opt,name=invariant_id,json=invariantId,proto3" json:"invariant_id,omitempty"`
+	Summary          string                 `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	CitedEvidenceIds []string               `protobuf:"bytes,5,rep,name=cited_evidence_ids,json=citedEvidenceIds,proto3" json:"cited_evidence_ids,omitempty"`
+	Severity         IncidentSeverity       `protobuf:"varint,6,opt,name=severity,proto3,enum=workflow.IncidentSeverity" json:"severity,omitempty"`
+	DiagnosedAt      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=diagnosed_at,json=diagnosedAt,proto3" json:"diagnosed_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DiagnosisItem) Reset() {
+	*x = DiagnosisItem{}
+	mi := &file_workflow_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiagnosisItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiagnosisItem) ProtoMessage() {}
+
+func (x *DiagnosisItem) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiagnosisItem.ProtoReflect.Descriptor instead.
+func (*DiagnosisItem) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *DiagnosisItem) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DiagnosisItem) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *DiagnosisItem) GetInvariantId() string {
+	if x != nil {
+		return x.InvariantId
+	}
+	return ""
+}
+
+func (x *DiagnosisItem) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *DiagnosisItem) GetCitedEvidenceIds() []string {
+	if x != nil {
+		return x.CitedEvidenceIds
+	}
+	return nil
+}
+
+func (x *DiagnosisItem) GetSeverity() IncidentSeverity {
+	if x != nil {
+		return x.Severity
+	}
+	return IncidentSeverity_INCIDENT_SEVERITY_UNKNOWN
+}
+
+func (x *DiagnosisItem) GetDiagnosedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DiagnosedAt
+	}
+	return nil
+}
+
+// Concrete change types that a ProposedFix can carry.
+type CodePatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FilePath      string                 `protobuf:"bytes,1,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
+	Line          int32                  `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	OldText       string                 `protobuf:"bytes,3,opt,name=old_text,json=oldText,proto3" json:"old_text,omitempty"`
+	NewText       string                 `protobuf:"bytes,4,opt,name=new_text,json=newText,proto3" json:"new_text,omitempty"`
+	Repository    string                 `protobuf:"bytes,5,opt,name=repository,proto3" json:"repository,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CodePatch) Reset() {
+	*x = CodePatch{}
+	mi := &file_workflow_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CodePatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CodePatch) ProtoMessage() {}
+
+func (x *CodePatch) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CodePatch.ProtoReflect.Descriptor instead.
+func (*CodePatch) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *CodePatch) GetFilePath() string {
+	if x != nil {
+		return x.FilePath
+	}
+	return ""
+}
+
+func (x *CodePatch) GetLine() int32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+func (x *CodePatch) GetOldText() string {
+	if x != nil {
+		return x.OldText
+	}
+	return ""
+}
+
+func (x *CodePatch) GetNewText() string {
+	if x != nil {
+		return x.NewText
+	}
+	return ""
+}
+
+func (x *CodePatch) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+type ConfigPatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetPath    string                 `protobuf:"bytes,1,opt,name=target_path,json=targetPath,proto3" json:"target_path,omitempty"` // where the config lives (file / etcd key)
+	OldValue      string                 `protobuf:"bytes,2,opt,name=old_value,json=oldValue,proto3" json:"old_value,omitempty"`
+	NewValue      string                 `protobuf:"bytes,3,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`
+	Format        string                 `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"` // "yaml" | "json" | "env"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigPatch) Reset() {
+	*x = ConfigPatch{}
+	mi := &file_workflow_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigPatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigPatch) ProtoMessage() {}
+
+func (x *ConfigPatch) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigPatch.ProtoReflect.Descriptor instead.
+func (*ConfigPatch) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ConfigPatch) GetTargetPath() string {
+	if x != nil {
+		return x.TargetPath
+	}
+	return ""
+}
+
+func (x *ConfigPatch) GetOldValue() string {
+	if x != nil {
+		return x.OldValue
+	}
+	return ""
+}
+
+func (x *ConfigPatch) GetNewValue() string {
+	if x != nil {
+		return x.NewValue
+	}
+	return ""
+}
+
+func (x *ConfigPatch) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
+type CommandList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Commands      []string               `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	TargetHost    string                 `protobuf:"bytes,2,opt,name=target_host,json=targetHost,proto3" json:"target_host,omitempty"` // node to run on (empty = cluster-wide)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandList) Reset() {
+	*x = CommandList{}
+	mi := &file_workflow_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandList) ProtoMessage() {}
+
+func (x *CommandList) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandList.ProtoReflect.Descriptor instead.
+func (*CommandList) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *CommandList) GetCommands() []string {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+func (x *CommandList) GetTargetHost() string {
+	if x != nil {
+		return x.TargetHost
+	}
+	return ""
+}
+
+type RestartAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UnitNames     []string               `protobuf:"bytes,1,rep,name=unit_names,json=unitNames,proto3" json:"unit_names,omitempty"`
+	TargetHost    string                 `protobuf:"bytes,2,opt,name=target_host,json=targetHost,proto3" json:"target_host,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestartAction) Reset() {
+	*x = RestartAction{}
+	mi := &file_workflow_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestartAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestartAction) ProtoMessage() {}
+
+func (x *RestartAction) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestartAction.ProtoReflect.Descriptor instead.
+func (*RestartAction) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *RestartAction) GetUnitNames() []string {
+	if x != nil {
+		return x.UnitNames
+	}
+	return nil
+}
+
+func (x *RestartAction) GetTargetHost() string {
+	if x != nil {
+		return x.TargetHost
+	}
+	return ""
+}
+
+// ProposedFix — "what AI suggested" (design §8). MUST cite evidence/diagnosis.
+type ProposedFix struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Proposer          string                 `protobuf:"bytes,2,opt,name=proposer,proto3" json:"proposer,omitempty"` // "ai_executor" | "operator_suggestion"
+	Summary           string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Confidence        string                 `protobuf:"bytes,4,opt,name=confidence,proto3" json:"confidence,omitempty"` // "high" | "medium" | "low"
+	Reasoning         string                 `protobuf:"bytes,5,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
+	CitedEvidenceIds  []string               `protobuf:"bytes,6,rep,name=cited_evidence_ids,json=citedEvidenceIds,proto3" json:"cited_evidence_ids,omitempty"`
+	CitedDiagnosisIds []string               `protobuf:"bytes,7,rep,name=cited_diagnosis_ids,json=citedDiagnosisIds,proto3" json:"cited_diagnosis_ids,omitempty"`
+	CodePatch         *CodePatch             `protobuf:"bytes,8,opt,name=code_patch,json=codePatch,proto3" json:"code_patch,omitempty"`
+	ConfigPatch       *ConfigPatch           `protobuf:"bytes,9,opt,name=config_patch,json=configPatch,proto3" json:"config_patch,omitempty"`
+	CommandList       *CommandList           `protobuf:"bytes,10,opt,name=command_list,json=commandList,proto3" json:"command_list,omitempty"`
+	RestartAction     *RestartAction         `protobuf:"bytes,11,opt,name=restart_action,json=restartAction,proto3" json:"restart_action,omitempty"`
+	Status            FixStatus              `protobuf:"varint,12,opt,name=status,proto3,enum=workflow.FixStatus" json:"status,omitempty"`
+	AppliedBy         string                 `protobuf:"bytes,13,opt,name=applied_by,json=appliedBy,proto3" json:"applied_by,omitempty"`
+	AppliedAt         *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=applied_at,json=appliedAt,proto3" json:"applied_at,omitempty"`
+	ApplicationResult string                 `protobuf:"bytes,15,opt,name=application_result,json=applicationResult,proto3" json:"application_result,omitempty"`
+	ProposedAt        *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=proposed_at,json=proposedAt,proto3" json:"proposed_at,omitempty"`
+	TargetIncidentId  string                 `protobuf:"bytes,17,opt,name=target_incident_id,json=targetIncidentId,proto3" json:"target_incident_id,omitempty"` // set by server from RPC ctx
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ProposedFix) Reset() {
+	*x = ProposedFix{}
+	mi := &file_workflow_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedFix) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedFix) ProtoMessage() {}
+
+func (x *ProposedFix) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedFix.ProtoReflect.Descriptor instead.
+func (*ProposedFix) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *ProposedFix) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetProposer() string {
+	if x != nil {
+		return x.Proposer
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetConfidence() string {
+	if x != nil {
+		return x.Confidence
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetReasoning() string {
+	if x != nil {
+		return x.Reasoning
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetCitedEvidenceIds() []string {
+	if x != nil {
+		return x.CitedEvidenceIds
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetCitedDiagnosisIds() []string {
+	if x != nil {
+		return x.CitedDiagnosisIds
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetCodePatch() *CodePatch {
+	if x != nil {
+		return x.CodePatch
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetConfigPatch() *ConfigPatch {
+	if x != nil {
+		return x.ConfigPatch
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetCommandList() *CommandList {
+	if x != nil {
+		return x.CommandList
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetRestartAction() *RestartAction {
+	if x != nil {
+		return x.RestartAction
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetStatus() FixStatus {
+	if x != nil {
+		return x.Status
+	}
+	return FixStatus_FIX_STATUS_UNKNOWN
+}
+
+func (x *ProposedFix) GetAppliedBy() string {
+	if x != nil {
+		return x.AppliedBy
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetAppliedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AppliedAt
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetApplicationResult() string {
+	if x != nil {
+		return x.ApplicationResult
+	}
+	return ""
+}
+
+func (x *ProposedFix) GetProposedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ProposedAt
+	}
+	return nil
+}
+
+func (x *ProposedFix) GetTargetIncidentId() string {
+	if x != nil {
+		return x.TargetIncidentId
+	}
+	return ""
+}
+
+type Incident struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ClusterId          string                 `protobuf:"bytes,2,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	Category           string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`
+	Signature          string                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
+	Status             IncidentStatus         `protobuf:"varint,5,opt,name=status,proto3,enum=workflow.IncidentStatus" json:"status,omitempty"`
+	Severity           IncidentSeverity       `protobuf:"varint,6,opt,name=severity,proto3,enum=workflow.IncidentSeverity" json:"severity,omitempty"`
+	Headline           string                 `protobuf:"bytes,7,opt,name=headline,proto3" json:"headline,omitempty"`
+	OccurrenceCount    int32                  `protobuf:"varint,8,opt,name=occurrence_count,json=occurrenceCount,proto3" json:"occurrence_count,omitempty"`
+	FirstSeenAt        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=first_seen_at,json=firstSeenAt,proto3" json:"first_seen_at,omitempty"`
+	LastSeenAt         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=last_seen_at,json=lastSeenAt,proto3" json:"last_seen_at,omitempty"`
+	Evidence           []*EvidenceItem        `protobuf:"bytes,11,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	Diagnoses          []*DiagnosisItem       `protobuf:"bytes,12,rep,name=diagnoses,proto3" json:"diagnoses,omitempty"`
+	ProposedFixes      []*ProposedFix         `protobuf:"bytes,13,rep,name=proposed_fixes,json=proposedFixes,proto3" json:"proposed_fixes,omitempty"`
+	Acknowledged       bool                   `protobuf:"varint,14,opt,name=acknowledged,proto3" json:"acknowledged,omitempty"`
+	AcknowledgedBy     string                 `protobuf:"bytes,15,opt,name=acknowledged_by,json=acknowledgedBy,proto3" json:"acknowledged_by,omitempty"`
+	AcknowledgedAt     *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
+	AssignedTo         string                 `protobuf:"bytes,17,opt,name=assigned_to,json=assignedTo,proto3" json:"assigned_to,omitempty"`
+	EntityRef          string                 `protobuf:"bytes,18,opt,name=entity_ref,json=entityRef,proto3" json:"entity_ref,omitempty"`
+	EntityType         string                 `protobuf:"bytes,19,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	RelatedIncidentIds []string               `protobuf:"bytes,20,rep,name=related_incident_ids,json=relatedIncidentIds,proto3" json:"related_incident_ids,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *Incident) Reset() {
+	*x = Incident{}
+	mi := &file_workflow_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Incident) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Incident) ProtoMessage() {}
+
+func (x *Incident) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Incident.ProtoReflect.Descriptor instead.
+func (*Incident) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *Incident) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Incident) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *Incident) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *Incident) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+func (x *Incident) GetStatus() IncidentStatus {
+	if x != nil {
+		return x.Status
+	}
+	return IncidentStatus_INCIDENT_STATUS_UNKNOWN
+}
+
+func (x *Incident) GetSeverity() IncidentSeverity {
+	if x != nil {
+		return x.Severity
+	}
+	return IncidentSeverity_INCIDENT_SEVERITY_UNKNOWN
+}
+
+func (x *Incident) GetHeadline() string {
+	if x != nil {
+		return x.Headline
+	}
+	return ""
+}
+
+func (x *Incident) GetOccurrenceCount() int32 {
+	if x != nil {
+		return x.OccurrenceCount
+	}
+	return 0
+}
+
+func (x *Incident) GetFirstSeenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FirstSeenAt
+	}
+	return nil
+}
+
+func (x *Incident) GetLastSeenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSeenAt
+	}
+	return nil
+}
+
+func (x *Incident) GetEvidence() []*EvidenceItem {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *Incident) GetDiagnoses() []*DiagnosisItem {
+	if x != nil {
+		return x.Diagnoses
+	}
+	return nil
+}
+
+func (x *Incident) GetProposedFixes() []*ProposedFix {
+	if x != nil {
+		return x.ProposedFixes
+	}
+	return nil
+}
+
+func (x *Incident) GetAcknowledged() bool {
+	if x != nil {
+		return x.Acknowledged
+	}
+	return false
+}
+
+func (x *Incident) GetAcknowledgedBy() string {
+	if x != nil {
+		return x.AcknowledgedBy
+	}
+	return ""
+}
+
+func (x *Incident) GetAcknowledgedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AcknowledgedAt
+	}
+	return nil
+}
+
+func (x *Incident) GetAssignedTo() string {
+	if x != nil {
+		return x.AssignedTo
+	}
+	return ""
+}
+
+func (x *Incident) GetEntityRef() string {
+	if x != nil {
+		return x.EntityRef
+	}
+	return ""
+}
+
+func (x *Incident) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *Incident) GetRelatedIncidentIds() []string {
+	if x != nil {
+		return x.RelatedIncidentIds
+	}
+	return nil
+}
+
+type IncidentAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"` // "ack" | "retry" | "apply_fix" | "reject_fix" | "assign" | "dismiss"
+	Actor         string                 `protobuf:"bytes,3,opt,name=actor,proto3" json:"actor,omitempty"`
+	FixId         string                 `protobuf:"bytes,4,opt,name=fix_id,json=fixId,proto3" json:"fix_id,omitempty"`
+	Comment       string                 `protobuf:"bytes,5,opt,name=comment,proto3" json:"comment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IncidentAction) Reset() {
+	*x = IncidentAction{}
+	mi := &file_workflow_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IncidentAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IncidentAction) ProtoMessage() {}
+
+func (x *IncidentAction) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IncidentAction.ProtoReflect.Descriptor instead.
+func (*IncidentAction) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *IncidentAction) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *IncidentAction) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *IncidentAction) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *IncidentAction) GetFixId() string {
+	if x != nil {
+		return x.FixId
+	}
+	return ""
+}
+
+func (x *IncidentAction) GetComment() string {
+	if x != nil {
+		return x.Comment
+	}
+	return ""
+}
+
+type ListIncidentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	Status        IncidentStatus         `protobuf:"varint,2,opt,name=status,proto3,enum=workflow.IncidentStatus" json:"status,omitempty"` // 0 = all
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	PageToken     string                 `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListIncidentsRequest) Reset() {
+	*x = ListIncidentsRequest{}
+	mi := &file_workflow_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListIncidentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListIncidentsRequest) ProtoMessage() {}
+
+func (x *ListIncidentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListIncidentsRequest.ProtoReflect.Descriptor instead.
+func (*ListIncidentsRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *ListIncidentsRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ListIncidentsRequest) GetStatus() IncidentStatus {
+	if x != nil {
+		return x.Status
+	}
+	return IncidentStatus_INCIDENT_STATUS_UNKNOWN
+}
+
+func (x *ListIncidentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListIncidentsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+type ListIncidentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Incidents     []*Incident            `protobuf:"bytes,1,rep,name=incidents,proto3" json:"incidents,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListIncidentsResponse) Reset() {
+	*x = ListIncidentsResponse{}
+	mi := &file_workflow_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListIncidentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListIncidentsResponse) ProtoMessage() {}
+
+func (x *ListIncidentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListIncidentsResponse.ProtoReflect.Descriptor instead.
+func (*ListIncidentsResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *ListIncidentsResponse) GetIncidents() []*Incident {
+	if x != nil {
+		return x.Incidents
+	}
+	return nil
+}
+
+func (x *ListIncidentsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type GetIncidentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	IncidentId    string                 `protobuf:"bytes,2,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetIncidentRequest) Reset() {
+	*x = GetIncidentRequest{}
+	mi := &file_workflow_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetIncidentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetIncidentRequest) ProtoMessage() {}
+
+func (x *GetIncidentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetIncidentRequest.ProtoReflect.Descriptor instead.
+func (*GetIncidentRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *GetIncidentRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *GetIncidentRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+type SubmitProposedFixRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	IncidentId    string                 `protobuf:"bytes,2,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
+	Fix           *ProposedFix           `protobuf:"bytes,3,opt,name=fix,proto3" json:"fix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitProposedFixRequest) Reset() {
+	*x = SubmitProposedFixRequest{}
+	mi := &file_workflow_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitProposedFixRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitProposedFixRequest) ProtoMessage() {}
+
+func (x *SubmitProposedFixRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitProposedFixRequest.ProtoReflect.Descriptor instead.
+func (*SubmitProposedFixRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *SubmitProposedFixRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *SubmitProposedFixRequest) GetIncidentId() string {
+	if x != nil {
+		return x.IncidentId
+	}
+	return ""
+}
+
+func (x *SubmitProposedFixRequest) GetFix() *ProposedFix {
+	if x != nil {
+		return x.Fix
+	}
+	return nil
+}
+
+type ListWorkflowDefinitionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkflowDefinitionsRequest) Reset() {
+	*x = ListWorkflowDefinitionsRequest{}
+	mi := &file_workflow_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkflowDefinitionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkflowDefinitionsRequest) ProtoMessage() {}
+
+func (x *ListWorkflowDefinitionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkflowDefinitionsRequest.ProtoReflect.Descriptor instead.
+func (*ListWorkflowDefinitionsRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{63}
+}
+
+type WorkflowDefinitionSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                  // e.g. "day0.bootstrap"
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"` // from metadata.displayName
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`                    // from metadata.description
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorkflowDefinitionSummary) Reset() {
+	*x = WorkflowDefinitionSummary{}
+	mi := &file_workflow_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowDefinitionSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowDefinitionSummary) ProtoMessage() {}
+
+func (x *WorkflowDefinitionSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowDefinitionSummary.ProtoReflect.Descriptor instead.
+func (*WorkflowDefinitionSummary) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *WorkflowDefinitionSummary) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *WorkflowDefinitionSummary) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *WorkflowDefinitionSummary) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type ListWorkflowDefinitionsResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Definitions   []*WorkflowDefinitionSummary `protobuf:"bytes,1,rep,name=definitions,proto3" json:"definitions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkflowDefinitionsResponse) Reset() {
+	*x = ListWorkflowDefinitionsResponse{}
+	mi := &file_workflow_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkflowDefinitionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkflowDefinitionsResponse) ProtoMessage() {}
+
+func (x *ListWorkflowDefinitionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkflowDefinitionsResponse.ProtoReflect.Descriptor instead.
+func (*ListWorkflowDefinitionsResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *ListWorkflowDefinitionsResponse) GetDefinitions() []*WorkflowDefinitionSummary {
+	if x != nil {
+		return x.Definitions
+	}
+	return nil
+}
+
+type GetWorkflowDefinitionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // e.g. "day0.bootstrap"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWorkflowDefinitionRequest) Reset() {
+	*x = GetWorkflowDefinitionRequest{}
+	mi := &file_workflow_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWorkflowDefinitionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWorkflowDefinitionRequest) ProtoMessage() {}
+
+func (x *GetWorkflowDefinitionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWorkflowDefinitionRequest.ProtoReflect.Descriptor instead.
+func (*GetWorkflowDefinitionRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *GetWorkflowDefinitionRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type GetWorkflowDefinitionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	YamlContent   string                 `protobuf:"bytes,2,opt,name=yaml_content,json=yamlContent,proto3" json:"yaml_content,omitempty"` // raw YAML text
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWorkflowDefinitionResponse) Reset() {
+	*x = GetWorkflowDefinitionResponse{}
+	mi := &file_workflow_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWorkflowDefinitionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWorkflowDefinitionResponse) ProtoMessage() {}
+
+func (x *GetWorkflowDefinitionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWorkflowDefinitionResponse.ProtoReflect.Descriptor instead.
+func (*GetWorkflowDefinitionResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *GetWorkflowDefinitionResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GetWorkflowDefinitionResponse) GetYamlContent() string {
+	if x != nil {
+		return x.YamlContent
+	}
+	return ""
+}
+
 var File_workflow_proto protoreflect.FileDescriptor
 
 const file_workflow_proto_rawDesc = "" +
 	"\n" +
-	"\x0eworkflow.proto\x12\bworkflow\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xbf\x03\n" +
+	"\x0eworkflow.proto\x12\bworkflow\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xa3\x03\n" +
 	"\x0fWorkflowContext\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x17\n" +
@@ -3180,10 +6168,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\x11component_version\x18\x06 \x01(\tR\x10componentVersion\x12!\n" +
 	"\frelease_kind\x18\a \x01(\tR\vreleaseKind\x12*\n" +
 	"\x11release_object_id\x18\b \x01(\tR\x0freleaseObjectId\x12*\n" +
-	"\x11desired_object_id\x18\t \x01(\tR\x0fdesiredObjectId\x12\x17\n" +
-	"\aplan_id\x18\n" +
-	" \x01(\tR\x06planId\x12'\n" +
-	"\x0fplan_generation\x18\v \x01(\x05R\x0eplanGeneration\"\xaa\x06\n" +
+	"\x11desired_object_id\x18\t \x01(\tR\x0fdesiredObjectIdJ\x04\b\n" +
+	"\x10\vJ\x04\b\v\x10\fR\aplan_idR\x0fplan_generation\"\x85\b\n" +
 	"\vWorkflowRun\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0ecorrelation_id\x18\x02 \x01(\tR\rcorrelationId\x12\"\n" +
@@ -3206,7 +6192,15 @@ const file_workflow_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12;\n" +
 	"\vfinished_at\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\"\xd8\x06\n" +
+	"finishedAt\x12#\n" +
+	"\rworkflow_name\x18\x12 \x01(\tR\fworkflowName\x12\x1f\n" +
+	"\vwait_reason\x18\x13 \x01(\tR\n" +
+	"waitReason\x12#\n" +
+	"\rretry_attempt\x18\x14 \x01(\x05R\fretryAttempt\x12\x1f\n" +
+	"\vmax_retries\x18\x15 \x01(\x05R\n" +
+	"maxRetries\x12(\n" +
+	"\x10backoff_until_ms\x18\x16 \x01(\x03R\x0ebackoffUntilMs\x12#\n" +
+	"\rsuperseded_by\x18\x17 \x01(\tR\fsupersededBy\"\xd8\x06\n" +
 	"\fWorkflowStep\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\x05R\x03seq\x12\x19\n" +
@@ -3292,16 +6286,16 @@ const file_workflow_proto_rawDesc = "" +
 	"\x05steps\x18\x02 \x03(\v2\x16.workflow.WorkflowStepR\x05steps\x12;\n" +
 	"\tartifacts\x18\x03 \x03(\v2\x1d.workflow.WorkflowArtifactRefR\tartifacts\":\n" +
 	"\x0fStartRunRequest\x12'\n" +
-	"\x03run\x18\x01 \x01(\v2\x15.workflow.WorkflowRunR\x03run\"\x88\x02\n" +
+	"\x03run\x18\x01 \x01(\v2\x15.workflow.WorkflowRunR\x03run\"\x8d\x02\n" +
 	"\x10UpdateRunRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x02 \x01(\tR\tclusterId\x12+\n" +
 	"\x06status\x18\x03 \x01(\x0e2\x13.workflow.RunStatusR\x06status\x12\x18\n" +
-	"\asummary\x18\x04 \x01(\tR\asummary\x12\x17\n" +
-	"\aplan_id\x18\x05 \x01(\tR\x06planId\x12'\n" +
-	"\x0fplan_generation\x18\x06 \x01(\x05R\x0eplanGeneration\x12<\n" +
-	"\rcurrent_actor\x18\a \x01(\x0e2\x17.workflow.WorkflowActorR\fcurrentActor\"\xea\x01\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\x12<\n" +
+	"\rcurrent_actor\x18\a \x01(\x0e2\x17.workflow.WorkflowActorR\fcurrentActor\x12\x1f\n" +
+	"\vwait_reason\x18\b \x01(\tR\n" +
+	"waitReasonJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\aplan_idR\x0fplan_generation\"\xea\x01\n" +
 	"\x10FinishRunRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -3347,7 +6341,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\rGetRunRequest\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\xc1\x02\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\xe6\x02\n" +
 	"\x0fListRunsRequest\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x17\n" +
@@ -3361,7 +6355,9 @@ const file_workflow_proto_rawDesc = "" +
 	"failedOnly\x12\x14\n" +
 	"\x05limit\x18\b \x01(\x05R\x05limit\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\t \x01(\tR\tpageToken\"{\n" +
+	"page_token\x18\t \x01(\tR\tpageToken\x12#\n" +
+	"\rworkflow_name\x18\n" +
+	" \x01(\tR\fworkflowName\"{\n" +
 	"\x10ListRunsResponse\x12)\n" +
 	"\x04runs\x18\x01 \x03(\v2\x15.workflow.WorkflowRunR\x04runs\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12&\n" +
@@ -3424,7 +6420,295 @@ const file_workflow_proto_rawDesc = "" +
 	"confidence\x18\x02 \x01(\tR\n" +
 	"confidence\x12&\n" +
 	"\x0frelated_run_ids\x18\x03 \x03(\tR\rrelatedRunIds\x12)\n" +
-	"\x10suggested_action\x18\x04 \x01(\tR\x0fsuggestedAction*\xd7\x01\n" +
+	"\x10suggested_action\x18\x04 \x01(\tR\x0fsuggestedAction\"\x91\x06\n" +
+	"\x12WorkflowRunSummary\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x1d\n" +
+	"\n" +
+	"total_runs\x18\x03 \x01(\x03R\ttotalRuns\x12!\n" +
+	"\fsuccess_runs\x18\x04 \x01(\x03R\vsuccessRuns\x12!\n" +
+	"\ffailure_runs\x18\x05 \x01(\x03R\vfailureRuns\x12\x1e\n" +
+	"\vlast_run_id\x18\x06 \x01(\tR\tlastRunId\x12;\n" +
+	"\x0flast_run_status\x18\a \x01(\x0e2\x13.workflow.RunStatusR\rlastRunStatus\x12B\n" +
+	"\x0flast_started_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\rlastStartedAt\x12D\n" +
+	"\x10last_finished_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x0elastFinishedAt\x12(\n" +
+	"\x10last_duration_ms\x18\n" +
+	" \x01(\x03R\x0elastDurationMs\x12&\n" +
+	"\x0flast_success_id\x18\v \x01(\tR\rlastSuccessId\x12B\n" +
+	"\x0flast_success_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\rlastSuccessAt\x12&\n" +
+	"\x0flast_failure_id\x18\r \x01(\tR\rlastFailureId\x12B\n" +
+	"\x0flast_failure_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\rlastFailureAt\x12.\n" +
+	"\x13last_failure_reason\x18\x0f \x01(\tR\x11lastFailureReason\x129\n" +
+	"\n" +
+	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xde\x02\n" +
+	"\x14RecordOutcomeRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\x12+\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x13.workflow.RunStatusR\x06status\x129\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishedAt\x12\x1f\n" +
+	"\vduration_ms\x18\a \x01(\x03R\n" +
+	"durationMs\x12%\n" +
+	"\x0efailure_reason\x18\b \x01(\tR\rfailureReason\"b\n" +
+	"\x1cListWorkflowSummariesRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\"[\n" +
+	"\x1dListWorkflowSummariesResponse\x12:\n" +
+	"\tsummaries\x18\x01 \x03(\v2\x1c.workflow.WorkflowRunSummaryR\tsummaries\"\xc8\x05\n" +
+	"\x13WorkflowStepOutcome\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x17\n" +
+	"\astep_id\x18\x03 \x01(\tR\x06stepId\x12)\n" +
+	"\x10total_executions\x18\x04 \x01(\x03R\x0ftotalExecutions\x12#\n" +
+	"\rsuccess_count\x18\x05 \x01(\x03R\fsuccessCount\x12#\n" +
+	"\rfailure_count\x18\x06 \x01(\x03R\ffailureCount\x12#\n" +
+	"\rskipped_count\x18\a \x01(\x03R\fskippedCount\x125\n" +
+	"\vlast_status\x18\b \x01(\x0e2\x14.workflow.StepStatusR\n" +
+	"lastStatus\x12B\n" +
+	"\x0flast_started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\rlastStartedAt\x12D\n" +
+	"\x10last_finished_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x0elastFinishedAt\x12(\n" +
+	"\x10last_duration_ms\x18\v \x01(\x03R\x0elastDurationMs\x12&\n" +
+	"\x0flast_error_code\x18\f \x01(\tR\rlastErrorCode\x12,\n" +
+	"\x12last_error_message\x18\r \x01(\tR\x10lastErrorMessage\x12>\n" +
+	"\rfirst_seen_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\vfirstSeenAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x82\x03\n" +
+	"\x18RecordStepOutcomeRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x17\n" +
+	"\astep_id\x18\x03 \x01(\tR\x06stepId\x12,\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x14.workflow.StepStatusR\x06status\x129\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishedAt\x12\x1f\n" +
+	"\vduration_ms\x18\a \x01(\x03R\n" +
+	"durationMs\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\b \x01(\tR\terrorCode\x12#\n" +
+	"\rerror_message\x18\t \x01(\tR\ferrorMessage\"]\n" +
+	"\x17ListStepOutcomesRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\"U\n" +
+	"\x18ListStepOutcomesResponse\x129\n" +
+	"\boutcomes\x18\x01 \x03(\v2\x1d.workflow.WorkflowStepOutcomeR\boutcomes\"\xd5\x02\n" +
+	"\x14PhaseTransitionEvent\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12#\n" +
+	"\rresource_name\x18\x03 \x01(\tR\fresourceName\x125\n" +
+	"\bevent_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aeventAt\x12\x19\n" +
+	"\bevent_id\x18\x05 \x01(\tR\aeventId\x12\x1d\n" +
+	"\n" +
+	"from_phase\x18\x06 \x01(\tR\tfromPhase\x12\x19\n" +
+	"\bto_phase\x18\a \x01(\tR\atoPhase\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12\x16\n" +
+	"\x06caller\x18\t \x01(\tR\x06caller\x12\x18\n" +
+	"\ablocked\x18\n" +
+	" \x01(\bR\ablocked\"\x8b\x02\n" +
+	"\x1cRecordPhaseTransitionRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12#\n" +
+	"\rresource_name\x18\x03 \x01(\tR\fresourceName\x12\x1d\n" +
+	"\n" +
+	"from_phase\x18\x04 \x01(\tR\tfromPhase\x12\x19\n" +
+	"\bto_phase\x18\x05 \x01(\tR\atoPhase\x12\x16\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\x12\x16\n" +
+	"\x06caller\x18\a \x01(\tR\x06caller\x12\x18\n" +
+	"\ablocked\x18\b \x01(\bR\ablocked\"\x9c\x01\n" +
+	"\x1bListPhaseTransitionsRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12#\n" +
+	"\rresource_name\x18\x03 \x01(\tR\fresourceName\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"V\n" +
+	"\x1cListPhaseTransitionsResponse\x126\n" +
+	"\x06events\x18\x01 \x03(\v2\x1e.workflow.PhaseTransitionEventR\x06events\"\x84\x03\n" +
+	"\x0fDriftUnresolved\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1d\n" +
+	"\n" +
+	"drift_type\x18\x02 \x01(\tR\tdriftType\x12\x1d\n" +
+	"\n" +
+	"entity_ref\x18\x03 \x01(\tR\tentityRef\x12-\n" +
+	"\x12consecutive_cycles\x18\x04 \x01(\x05R\x11consecutiveCycles\x12F\n" +
+	"\x11first_observed_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0ffirstObservedAt\x12D\n" +
+	"\x10last_observed_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastObservedAt\x12'\n" +
+	"\x0fchosen_workflow\x18\a \x01(\tR\x0echosenWorkflow\x12.\n" +
+	"\x13last_remediation_id\x18\b \x01(\tR\x11lastRemediationId\"\xcc\x01\n" +
+	"\x1dRecordDriftObservationRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1d\n" +
+	"\n" +
+	"drift_type\x18\x02 \x01(\tR\tdriftType\x12\x1d\n" +
+	"\n" +
+	"entity_ref\x18\x03 \x01(\tR\tentityRef\x12'\n" +
+	"\x0fchosen_workflow\x18\x04 \x01(\tR\x0echosenWorkflow\x12%\n" +
+	"\x0eremediation_id\x18\x05 \x01(\tR\rremediationId\"{\n" +
+	"\x1cClearDriftObservationRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1d\n" +
+	"\n" +
+	"drift_type\x18\x02 \x01(\tR\tdriftType\x12\x1d\n" +
+	"\n" +
+	"entity_ref\x18\x03 \x01(\tR\tentityRef\"y\n" +
+	"\x1aListDriftUnresolvedRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1d\n" +
+	"\n" +
+	"drift_type\x18\x02 \x01(\tR\tdriftType\x12\x1d\n" +
+	"\n" +
+	"min_cycles\x18\x03 \x01(\x05R\tminCycles\"N\n" +
+	"\x1bListDriftUnresolvedResponse\x12/\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.workflow.DriftUnresolvedR\x05items\"\xb6\x02\n" +
+	"\fEvidenceItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\n" +
+	"provenance\x18\x02 \x01(\x0e2\x14.workflow.ProvenanceR\n" +
+	"provenance\x12\x16\n" +
+	"\x06source\x18\x03 \x01(\tR\x06source\x12\x18\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\x127\n" +
+	"\x05facts\x18\x05 \x03(\v2!.workflow.EvidenceItem.FactsEntryR\x05facts\x12;\n" +
+	"\vobserved_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"observedAt\x1a8\n" +
+	"\n" +
+	"FactsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x99\x02\n" +
+	"\rDiagnosisItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12!\n" +
+	"\finvariant_id\x18\x03 \x01(\tR\vinvariantId\x12\x18\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\x12,\n" +
+	"\x12cited_evidence_ids\x18\x05 \x03(\tR\x10citedEvidenceIds\x126\n" +
+	"\bseverity\x18\x06 \x01(\x0e2\x1a.workflow.IncidentSeverityR\bseverity\x12=\n" +
+	"\fdiagnosed_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\vdiagnosedAt\"\x92\x01\n" +
+	"\tCodePatch\x12\x1b\n" +
+	"\tfile_path\x18\x01 \x01(\tR\bfilePath\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\x05R\x04line\x12\x19\n" +
+	"\bold_text\x18\x03 \x01(\tR\aoldText\x12\x19\n" +
+	"\bnew_text\x18\x04 \x01(\tR\anewText\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x05 \x01(\tR\n" +
+	"repository\"\x80\x01\n" +
+	"\vConfigPatch\x12\x1f\n" +
+	"\vtarget_path\x18\x01 \x01(\tR\n" +
+	"targetPath\x12\x1b\n" +
+	"\told_value\x18\x02 \x01(\tR\boldValue\x12\x1b\n" +
+	"\tnew_value\x18\x03 \x01(\tR\bnewValue\x12\x16\n" +
+	"\x06format\x18\x04 \x01(\tR\x06format\"J\n" +
+	"\vCommandList\x12\x1a\n" +
+	"\bcommands\x18\x01 \x03(\tR\bcommands\x12\x1f\n" +
+	"\vtarget_host\x18\x02 \x01(\tR\n" +
+	"targetHost\"O\n" +
+	"\rRestartAction\x12\x1d\n" +
+	"\n" +
+	"unit_names\x18\x01 \x03(\tR\tunitNames\x12\x1f\n" +
+	"\vtarget_host\x18\x02 \x01(\tR\n" +
+	"targetHost\"\xf8\x05\n" +
+	"\vProposedFix\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bproposer\x18\x02 \x01(\tR\bproposer\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\x04 \x01(\tR\n" +
+	"confidence\x12\x1c\n" +
+	"\treasoning\x18\x05 \x01(\tR\treasoning\x12,\n" +
+	"\x12cited_evidence_ids\x18\x06 \x03(\tR\x10citedEvidenceIds\x12.\n" +
+	"\x13cited_diagnosis_ids\x18\a \x03(\tR\x11citedDiagnosisIds\x122\n" +
+	"\n" +
+	"code_patch\x18\b \x01(\v2\x13.workflow.CodePatchR\tcodePatch\x128\n" +
+	"\fconfig_patch\x18\t \x01(\v2\x15.workflow.ConfigPatchR\vconfigPatch\x128\n" +
+	"\fcommand_list\x18\n" +
+	" \x01(\v2\x15.workflow.CommandListR\vcommandList\x12>\n" +
+	"\x0erestart_action\x18\v \x01(\v2\x17.workflow.RestartActionR\rrestartAction\x12+\n" +
+	"\x06status\x18\f \x01(\x0e2\x13.workflow.FixStatusR\x06status\x12\x1d\n" +
+	"\n" +
+	"applied_by\x18\r \x01(\tR\tappliedBy\x129\n" +
+	"\n" +
+	"applied_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tappliedAt\x12-\n" +
+	"\x12application_result\x18\x0f \x01(\tR\x11applicationResult\x12;\n" +
+	"\vproposed_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"proposedAt\x12,\n" +
+	"\x12target_incident_id\x18\x11 \x01(\tR\x10targetIncidentId\"\xf0\x06\n" +
+	"\bIncident\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x02 \x01(\tR\tclusterId\x12\x1a\n" +
+	"\bcategory\x18\x03 \x01(\tR\bcategory\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\tR\tsignature\x120\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x18.workflow.IncidentStatusR\x06status\x126\n" +
+	"\bseverity\x18\x06 \x01(\x0e2\x1a.workflow.IncidentSeverityR\bseverity\x12\x1a\n" +
+	"\bheadline\x18\a \x01(\tR\bheadline\x12)\n" +
+	"\x10occurrence_count\x18\b \x01(\x05R\x0foccurrenceCount\x12>\n" +
+	"\rfirst_seen_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vfirstSeenAt\x12<\n" +
+	"\flast_seen_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastSeenAt\x122\n" +
+	"\bevidence\x18\v \x03(\v2\x16.workflow.EvidenceItemR\bevidence\x125\n" +
+	"\tdiagnoses\x18\f \x03(\v2\x17.workflow.DiagnosisItemR\tdiagnoses\x12<\n" +
+	"\x0eproposed_fixes\x18\r \x03(\v2\x15.workflow.ProposedFixR\rproposedFixes\x12\"\n" +
+	"\facknowledged\x18\x0e \x01(\bR\facknowledged\x12'\n" +
+	"\x0facknowledged_by\x18\x0f \x01(\tR\x0eacknowledgedBy\x12C\n" +
+	"\x0facknowledged_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\x12\x1f\n" +
+	"\vassigned_to\x18\x11 \x01(\tR\n" +
+	"assignedTo\x12\x1d\n" +
+	"\n" +
+	"entity_ref\x18\x12 \x01(\tR\tentityRef\x12\x1f\n" +
+	"\ventity_type\x18\x13 \x01(\tR\n" +
+	"entityType\x120\n" +
+	"\x14related_incident_ids\x18\x14 \x03(\tR\x12relatedIncidentIds\"\x90\x01\n" +
+	"\x0eIncidentAction\x12\x1f\n" +
+	"\vincident_id\x18\x01 \x01(\tR\n" +
+	"incidentId\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x12\x14\n" +
+	"\x05actor\x18\x03 \x01(\tR\x05actor\x12\x15\n" +
+	"\x06fix_id\x18\x04 \x01(\tR\x05fixId\x12\x18\n" +
+	"\acomment\x18\x05 \x01(\tR\acomment\"\x9c\x01\n" +
+	"\x14ListIncidentsRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x120\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x18.workflow.IncidentStatusR\x06status\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"q\n" +
+	"\x15ListIncidentsResponse\x120\n" +
+	"\tincidents\x18\x01 \x03(\v2\x12.workflow.IncidentR\tincidents\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"T\n" +
+	"\x12GetIncidentRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1f\n" +
+	"\vincident_id\x18\x02 \x01(\tR\n" +
+	"incidentId\"\x83\x01\n" +
+	"\x18SubmitProposedFixRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x1f\n" +
+	"\vincident_id\x18\x02 \x01(\tR\n" +
+	"incidentId\x12'\n" +
+	"\x03fix\x18\x03 \x01(\v2\x15.workflow.ProposedFixR\x03fix\" \n" +
+	"\x1eListWorkflowDefinitionsRequest\"t\n" +
+	"\x19WorkflowDefinitionSummary\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"h\n" +
+	"\x1fListWorkflowDefinitionsResponse\x12E\n" +
+	"\vdefinitions\x18\x01 \x03(\v2#.workflow.WorkflowDefinitionSummaryR\vdefinitions\"2\n" +
+	"\x1cGetWorkflowDefinitionRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"V\n" +
+	"\x1dGetWorkflowDefinitionResponse\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent*\xd7\x01\n" +
 	"\rWorkflowActor\x12\x11\n" +
 	"\rACTOR_UNKNOWN\x10\x00\x12\x1c\n" +
 	"\x18ACTOR_CLUSTER_CONTROLLER\x10\x01\x12\x14\n" +
@@ -3434,13 +6718,10 @@ const file_workflow_proto_rawDesc = "" +
 	"\rACTOR_RUNTIME\x10\x05\x12\x12\n" +
 	"\x0eACTOR_OPERATOR\x10\x06\x12\x16\n" +
 	"\x12ACTOR_AI_DIAGNOSER\x10\a\x12\x15\n" +
-	"\x11ACTOR_AI_EXECUTOR\x10\b*\xe1\x01\n" +
+	"\x11ACTOR_AI_EXECUTOR\x10\b*\xe5\x01\n" +
 	"\x11WorkflowPhaseKind\x12\x11\n" +
 	"\rPHASE_UNKNOWN\x10\x00\x12\x12\n" +
-	"\x0ePHASE_DECISION\x10\x01\x12\x0e\n" +
-	"\n" +
-	"PHASE_PLAN\x10\x02\x12\x12\n" +
-	"\x0ePHASE_DISPATCH\x10\x03\x12\x0f\n" +
+	"\x0ePHASE_DECISION\x10\x01\x12\x0f\n" +
 	"\vPHASE_FETCH\x10\x04\x12\x11\n" +
 	"\rPHASE_INSTALL\x10\x05\x12\x13\n" +
 	"\x0fPHASE_CONFIGURE\x10\x06\x12\x0f\n" +
@@ -3448,13 +6729,11 @@ const file_workflow_proto_rawDesc = "" +
 	"\fPHASE_VERIFY\x10\b\x12\x11\n" +
 	"\rPHASE_PUBLISH\x10\t\x12\x12\n" +
 	"\x0ePHASE_COMPLETE\x10\n" +
-	"*\xc1\x02\n" +
+	"\"\x04\b\x02\x10\x02\"\x04\b\x03\x10\x03*\n" +
+	"PHASE_PLAN*\x0ePHASE_DISPATCH*\xe2\x02\n" +
 	"\tRunStatus\x12\x16\n" +
 	"\x12RUN_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
-	"\x12RUN_STATUS_PENDING\x10\x01\x12\x17\n" +
-	"\x13RUN_STATUS_PLANNING\x10\x02\x12\x1f\n" +
-	"\x1bRUN_STATUS_WAITING_FOR_SLOT\x10\x03\x12\x19\n" +
-	"\x15RUN_STATUS_DISPATCHED\x10\x04\x12\x18\n" +
+	"\x12RUN_STATUS_PENDING\x10\x01\x12\x18\n" +
 	"\x14RUN_STATUS_EXECUTING\x10\x05\x12\x16\n" +
 	"\x12RUN_STATUS_BLOCKED\x10\x06\x12\x17\n" +
 	"\x13RUN_STATUS_RETRYING\x10\a\x12\x18\n" +
@@ -3462,7 +6741,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\x11RUN_STATUS_FAILED\x10\t\x12\x17\n" +
 	"\x13RUN_STATUS_CANCELED\x10\n" +
 	"\x12\x1a\n" +
-	"\x16RUN_STATUS_ROLLED_BACK\x10\v*\xbc\x01\n" +
+	"\x16RUN_STATUS_ROLLED_BACK\x10\v\x12\x19\n" +
+	"\x15RUN_STATUS_SUPERSEDED\x10\f\"\x04\b\x02\x10\x02\"\x04\b\x03\x10\x03\"\x04\b\x04\x10\x04*\x13RUN_STATUS_PLANNING*\x1bRUN_STATUS_WAITING_FOR_SLOT*\x15RUN_STATUS_DISPATCHED*\xbc\x01\n" +
 	"\n" +
 	"StepStatus\x12\x17\n" +
 	"\x13STEP_STATUS_UNKNOWN\x10\x00\x12\x17\n" +
@@ -3494,11 +6774,10 @@ const file_workflow_proto_rawDesc = "" +
 	"\x15TRIGGER_REASON_MANUAL\x10\x04\x12'\n" +
 	"#TRIGGER_REASON_DEPENDENCY_UNBLOCKED\x10\x05\x12\x1a\n" +
 	"\x16TRIGGER_REASON_UPGRADE\x10\x06\x12\x19\n" +
-	"\x15TRIGGER_REASON_REPAIR\x10\a*\xaf\x02\n" +
+	"\x15TRIGGER_REASON_REPAIR\x10\a*\xb1\x02\n" +
 	"\fArtifactKind\x12\x19\n" +
 	"\x15ARTIFACT_KIND_UNKNOWN\x10\x00\x12\x19\n" +
-	"\x15ARTIFACT_KIND_RELEASE\x10\x01\x12\x16\n" +
-	"\x12ARTIFACT_KIND_PLAN\x10\x02\x12\x19\n" +
+	"\x15ARTIFACT_KIND_RELEASE\x10\x01\x12\x19\n" +
 	"\x15ARTIFACT_KIND_PACKAGE\x10\x03\x12\x1a\n" +
 	"\x16ARTIFACT_KIND_MANIFEST\x10\x04\x12\x16\n" +
 	"\x12ARTIFACT_KIND_SPEC\x10\x05\x12\x18\n" +
@@ -3507,7 +6786,33 @@ const file_workflow_proto_rawDesc = "" +
 	"\x19ARTIFACT_KIND_CONFIG_FILE\x10\b\x12\x1a\n" +
 	"\x16ARTIFACT_KIND_ETCD_KEY\x10\t\x12\x15\n" +
 	"\x11ARTIFACT_KIND_LOG\x10\n" +
-	"2\xb2\v\n" +
+	"\"\x04\b\x02\x10\x02*\x12ARTIFACT_KIND_PLAN*\x9f\x01\n" +
+	"\x0eIncidentStatus\x12\x1b\n" +
+	"\x17INCIDENT_STATUS_UNKNOWN\x10\x00\x12\x18\n" +
+	"\x14INCIDENT_STATUS_OPEN\x10\x01\x12\x1d\n" +
+	"\x19INCIDENT_STATUS_RESOLVING\x10\x02\x12\x1c\n" +
+	"\x18INCIDENT_STATUS_RESOLVED\x10\x03\x12\x19\n" +
+	"\x15INCIDENT_STATUS_ACKED\x10\x04*\xa6\x01\n" +
+	"\x10IncidentSeverity\x12\x1d\n" +
+	"\x19INCIDENT_SEVERITY_UNKNOWN\x10\x00\x12\x1a\n" +
+	"\x16INCIDENT_SEVERITY_INFO\x10\x01\x12\x1a\n" +
+	"\x16INCIDENT_SEVERITY_WARN\x10\x02\x12\x1b\n" +
+	"\x17INCIDENT_SEVERITY_ERROR\x10\x03\x12\x1e\n" +
+	"\x1aINCIDENT_SEVERITY_CRITICAL\x10\x04*\x8e\x01\n" +
+	"\n" +
+	"Provenance\x12\x16\n" +
+	"\x12PROVENANCE_UNKNOWN\x10\x00\x12\x17\n" +
+	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x19\n" +
+	"\x15PROVENANCE_CORRELATED\x10\x02\x12\x18\n" +
+	"\x14PROVENANCE_DIAGNOSED\x10\x03\x12\x1a\n" +
+	"\x16PROVENANCE_AI_PROPOSED\x10\x04*\x9d\x01\n" +
+	"\tFixStatus\x12\x16\n" +
+	"\x12FIX_STATUS_UNKNOWN\x10\x00\x12\x17\n" +
+	"\x13FIX_STATUS_PROPOSED\x10\x01\x12\x17\n" +
+	"\x13FIX_STATUS_APPROVED\x10\x02\x12\x16\n" +
+	"\x12FIX_STATUS_APPLIED\x10\x03\x12\x17\n" +
+	"\x13FIX_STATUS_REJECTED\x10\x04\x12\x15\n" +
+	"\x11FIX_STATUS_FAILED\x10\x052\xef\x15\n" +
 	"\x0fWorkflowService\x12<\n" +
 	"\bStartRun\x12\x19.workflow.StartRunRequest\x1a\x15.workflow.WorkflowRun\x12?\n" +
 	"\tUpdateRun\x12\x1a.workflow.UpdateRunRequest\x1a\x16.google.protobuf.Empty\x12?\n" +
@@ -3530,7 +6835,22 @@ const file_workflow_proto_rawDesc = "" +
 	"\bRetryRun\x12\x19.workflow.RetryRunRequest\x1a\x15.workflow.WorkflowRun\x12?\n" +
 	"\tCancelRun\x12\x1a.workflow.CancelRunRequest\x1a\x16.google.protobuf.Empty\x12I\n" +
 	"\x0eAcknowledgeRun\x12\x1f.workflow.AcknowledgeRunRequest\x1a\x16.google.protobuf.Empty\x12J\n" +
-	"\vDiagnoseRun\x12\x1c.workflow.DiagnoseRunRequest\x1a\x1d.workflow.DiagnoseRunResponseB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
+	"\vDiagnoseRun\x12\x1c.workflow.DiagnoseRunRequest\x1a\x1d.workflow.DiagnoseRunResponse\x12n\n" +
+	"\x17ListWorkflowDefinitions\x12(.workflow.ListWorkflowDefinitionsRequest\x1a).workflow.ListWorkflowDefinitionsResponse\x12h\n" +
+	"\x15GetWorkflowDefinition\x12&.workflow.GetWorkflowDefinitionRequest\x1a'.workflow.GetWorkflowDefinitionResponse\x12G\n" +
+	"\rRecordOutcome\x12\x1e.workflow.RecordOutcomeRequest\x1a\x16.google.protobuf.Empty\x12h\n" +
+	"\x15ListWorkflowSummaries\x12&.workflow.ListWorkflowSummariesRequest\x1a'.workflow.ListWorkflowSummariesResponse\x12O\n" +
+	"\x11RecordStepOutcome\x12\".workflow.RecordStepOutcomeRequest\x1a\x16.google.protobuf.Empty\x12Y\n" +
+	"\x10ListStepOutcomes\x12!.workflow.ListStepOutcomesRequest\x1a\".workflow.ListStepOutcomesResponse\x12W\n" +
+	"\x15RecordPhaseTransition\x12&.workflow.RecordPhaseTransitionRequest\x1a\x16.google.protobuf.Empty\x12e\n" +
+	"\x14ListPhaseTransitions\x12%.workflow.ListPhaseTransitionsRequest\x1a&.workflow.ListPhaseTransitionsResponse\x12Y\n" +
+	"\x16RecordDriftObservation\x12'.workflow.RecordDriftObservationRequest\x1a\x16.google.protobuf.Empty\x12W\n" +
+	"\x15ClearDriftObservation\x12&.workflow.ClearDriftObservationRequest\x1a\x16.google.protobuf.Empty\x12b\n" +
+	"\x13ListDriftUnresolved\x12$.workflow.ListDriftUnresolvedRequest\x1a%.workflow.ListDriftUnresolvedResponse\x12P\n" +
+	"\rListIncidents\x12\x1e.workflow.ListIncidentsRequest\x1a\x1f.workflow.ListIncidentsResponse\x12?\n" +
+	"\vGetIncident\x12\x1c.workflow.GetIncidentRequest\x1a\x12.workflow.Incident\x12G\n" +
+	"\x13ApplyIncidentAction\x12\x18.workflow.IncidentAction\x1a\x16.google.protobuf.Empty\x12N\n" +
+	"\x11SubmitProposedFix\x12\".workflow.SubmitProposedFixRequest\x1a\x15.workflow.ProposedFixB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
 
 var (
 	file_workflow_proto_rawDescOnce sync.Once
@@ -3544,151 +6864,269 @@ func file_workflow_proto_rawDescGZIP() []byte {
 	return file_workflow_proto_rawDescData
 }
 
-var file_workflow_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_workflow_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
+var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_workflow_proto_goTypes = []any{
-	(WorkflowActor)(0),                   // 0: workflow.WorkflowActor
-	(WorkflowPhaseKind)(0),               // 1: workflow.WorkflowPhaseKind
-	(RunStatus)(0),                       // 2: workflow.RunStatus
-	(StepStatus)(0),                      // 3: workflow.StepStatus
-	(FailureClass)(0),                    // 4: workflow.FailureClass
-	(ComponentKind)(0),                   // 5: workflow.ComponentKind
-	(TriggerReason)(0),                   // 6: workflow.TriggerReason
-	(ArtifactKind)(0),                    // 7: workflow.ArtifactKind
-	(*WorkflowContext)(nil),              // 8: workflow.WorkflowContext
-	(*WorkflowRun)(nil),                  // 9: workflow.WorkflowRun
-	(*WorkflowStep)(nil),                 // 10: workflow.WorkflowStep
-	(*WorkflowArtifactRef)(nil),          // 11: workflow.WorkflowArtifactRef
-	(*WorkflowEvent)(nil),                // 12: workflow.WorkflowEvent
-	(*WorkflowPhase)(nil),                // 13: workflow.WorkflowPhase
-	(*WorkflowActorLane)(nil),            // 14: workflow.WorkflowActorLane
-	(*WorkflowGraph)(nil),                // 15: workflow.WorkflowGraph
-	(*WorkflowRunDetail)(nil),            // 16: workflow.WorkflowRunDetail
-	(*StartRunRequest)(nil),              // 17: workflow.StartRunRequest
-	(*UpdateRunRequest)(nil),             // 18: workflow.UpdateRunRequest
-	(*FinishRunRequest)(nil),             // 19: workflow.FinishRunRequest
-	(*RecordStepRequest)(nil),            // 20: workflow.RecordStepRequest
-	(*UpdateStepRequest)(nil),            // 21: workflow.UpdateStepRequest
-	(*FailStepRequest)(nil),              // 22: workflow.FailStepRequest
-	(*AddArtifactRefRequest)(nil),        // 23: workflow.AddArtifactRefRequest
-	(*AppendEventRequest)(nil),           // 24: workflow.AppendEventRequest
-	(*GetRunRequest)(nil),                // 25: workflow.GetRunRequest
-	(*ListRunsRequest)(nil),              // 26: workflow.ListRunsRequest
-	(*ListRunsResponse)(nil),             // 27: workflow.ListRunsResponse
-	(*GetRunEventsRequest)(nil),          // 28: workflow.GetRunEventsRequest
-	(*GetRunEventsResponse)(nil),         // 29: workflow.GetRunEventsResponse
-	(*GetCurrentRunsForNodeRequest)(nil), // 30: workflow.GetCurrentRunsForNodeRequest
-	(*GetComponentHistoryRequest)(nil),   // 31: workflow.GetComponentHistoryRequest
-	(*GetWorkflowGraphRequest)(nil),      // 32: workflow.GetWorkflowGraphRequest
-	(*WatchRunRequest)(nil),              // 33: workflow.WatchRunRequest
-	(*WatchNodeRunsRequest)(nil),         // 34: workflow.WatchNodeRunsRequest
-	(*WorkflowEventEnvelope)(nil),        // 35: workflow.WorkflowEventEnvelope
-	(*RetryRunRequest)(nil),              // 36: workflow.RetryRunRequest
-	(*CancelRunRequest)(nil),             // 37: workflow.CancelRunRequest
-	(*AcknowledgeRunRequest)(nil),        // 38: workflow.AcknowledgeRunRequest
-	(*DiagnoseRunRequest)(nil),           // 39: workflow.DiagnoseRunRequest
-	(*DiagnoseRunResponse)(nil),          // 40: workflow.DiagnoseRunResponse
-	(*timestamppb.Timestamp)(nil),        // 41: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 42: google.protobuf.Empty
+	(WorkflowActor)(0),                      // 0: workflow.WorkflowActor
+	(WorkflowPhaseKind)(0),                  // 1: workflow.WorkflowPhaseKind
+	(RunStatus)(0),                          // 2: workflow.RunStatus
+	(StepStatus)(0),                         // 3: workflow.StepStatus
+	(FailureClass)(0),                       // 4: workflow.FailureClass
+	(ComponentKind)(0),                      // 5: workflow.ComponentKind
+	(TriggerReason)(0),                      // 6: workflow.TriggerReason
+	(ArtifactKind)(0),                       // 7: workflow.ArtifactKind
+	(IncidentStatus)(0),                     // 8: workflow.IncidentStatus
+	(IncidentSeverity)(0),                   // 9: workflow.IncidentSeverity
+	(Provenance)(0),                         // 10: workflow.Provenance
+	(FixStatus)(0),                          // 11: workflow.FixStatus
+	(*WorkflowContext)(nil),                 // 12: workflow.WorkflowContext
+	(*WorkflowRun)(nil),                     // 13: workflow.WorkflowRun
+	(*WorkflowStep)(nil),                    // 14: workflow.WorkflowStep
+	(*WorkflowArtifactRef)(nil),             // 15: workflow.WorkflowArtifactRef
+	(*WorkflowEvent)(nil),                   // 16: workflow.WorkflowEvent
+	(*WorkflowPhase)(nil),                   // 17: workflow.WorkflowPhase
+	(*WorkflowActorLane)(nil),               // 18: workflow.WorkflowActorLane
+	(*WorkflowGraph)(nil),                   // 19: workflow.WorkflowGraph
+	(*WorkflowRunDetail)(nil),               // 20: workflow.WorkflowRunDetail
+	(*StartRunRequest)(nil),                 // 21: workflow.StartRunRequest
+	(*UpdateRunRequest)(nil),                // 22: workflow.UpdateRunRequest
+	(*FinishRunRequest)(nil),                // 23: workflow.FinishRunRequest
+	(*RecordStepRequest)(nil),               // 24: workflow.RecordStepRequest
+	(*UpdateStepRequest)(nil),               // 25: workflow.UpdateStepRequest
+	(*FailStepRequest)(nil),                 // 26: workflow.FailStepRequest
+	(*AddArtifactRefRequest)(nil),           // 27: workflow.AddArtifactRefRequest
+	(*AppendEventRequest)(nil),              // 28: workflow.AppendEventRequest
+	(*GetRunRequest)(nil),                   // 29: workflow.GetRunRequest
+	(*ListRunsRequest)(nil),                 // 30: workflow.ListRunsRequest
+	(*ListRunsResponse)(nil),                // 31: workflow.ListRunsResponse
+	(*GetRunEventsRequest)(nil),             // 32: workflow.GetRunEventsRequest
+	(*GetRunEventsResponse)(nil),            // 33: workflow.GetRunEventsResponse
+	(*GetCurrentRunsForNodeRequest)(nil),    // 34: workflow.GetCurrentRunsForNodeRequest
+	(*GetComponentHistoryRequest)(nil),      // 35: workflow.GetComponentHistoryRequest
+	(*GetWorkflowGraphRequest)(nil),         // 36: workflow.GetWorkflowGraphRequest
+	(*WatchRunRequest)(nil),                 // 37: workflow.WatchRunRequest
+	(*WatchNodeRunsRequest)(nil),            // 38: workflow.WatchNodeRunsRequest
+	(*WorkflowEventEnvelope)(nil),           // 39: workflow.WorkflowEventEnvelope
+	(*RetryRunRequest)(nil),                 // 40: workflow.RetryRunRequest
+	(*CancelRunRequest)(nil),                // 41: workflow.CancelRunRequest
+	(*AcknowledgeRunRequest)(nil),           // 42: workflow.AcknowledgeRunRequest
+	(*DiagnoseRunRequest)(nil),              // 43: workflow.DiagnoseRunRequest
+	(*DiagnoseRunResponse)(nil),             // 44: workflow.DiagnoseRunResponse
+	(*WorkflowRunSummary)(nil),              // 45: workflow.WorkflowRunSummary
+	(*RecordOutcomeRequest)(nil),            // 46: workflow.RecordOutcomeRequest
+	(*ListWorkflowSummariesRequest)(nil),    // 47: workflow.ListWorkflowSummariesRequest
+	(*ListWorkflowSummariesResponse)(nil),   // 48: workflow.ListWorkflowSummariesResponse
+	(*WorkflowStepOutcome)(nil),             // 49: workflow.WorkflowStepOutcome
+	(*RecordStepOutcomeRequest)(nil),        // 50: workflow.RecordStepOutcomeRequest
+	(*ListStepOutcomesRequest)(nil),         // 51: workflow.ListStepOutcomesRequest
+	(*ListStepOutcomesResponse)(nil),        // 52: workflow.ListStepOutcomesResponse
+	(*PhaseTransitionEvent)(nil),            // 53: workflow.PhaseTransitionEvent
+	(*RecordPhaseTransitionRequest)(nil),    // 54: workflow.RecordPhaseTransitionRequest
+	(*ListPhaseTransitionsRequest)(nil),     // 55: workflow.ListPhaseTransitionsRequest
+	(*ListPhaseTransitionsResponse)(nil),    // 56: workflow.ListPhaseTransitionsResponse
+	(*DriftUnresolved)(nil),                 // 57: workflow.DriftUnresolved
+	(*RecordDriftObservationRequest)(nil),   // 58: workflow.RecordDriftObservationRequest
+	(*ClearDriftObservationRequest)(nil),    // 59: workflow.ClearDriftObservationRequest
+	(*ListDriftUnresolvedRequest)(nil),      // 60: workflow.ListDriftUnresolvedRequest
+	(*ListDriftUnresolvedResponse)(nil),     // 61: workflow.ListDriftUnresolvedResponse
+	(*EvidenceItem)(nil),                    // 62: workflow.EvidenceItem
+	(*DiagnosisItem)(nil),                   // 63: workflow.DiagnosisItem
+	(*CodePatch)(nil),                       // 64: workflow.CodePatch
+	(*ConfigPatch)(nil),                     // 65: workflow.ConfigPatch
+	(*CommandList)(nil),                     // 66: workflow.CommandList
+	(*RestartAction)(nil),                   // 67: workflow.RestartAction
+	(*ProposedFix)(nil),                     // 68: workflow.ProposedFix
+	(*Incident)(nil),                        // 69: workflow.Incident
+	(*IncidentAction)(nil),                  // 70: workflow.IncidentAction
+	(*ListIncidentsRequest)(nil),            // 71: workflow.ListIncidentsRequest
+	(*ListIncidentsResponse)(nil),           // 72: workflow.ListIncidentsResponse
+	(*GetIncidentRequest)(nil),              // 73: workflow.GetIncidentRequest
+	(*SubmitProposedFixRequest)(nil),        // 74: workflow.SubmitProposedFixRequest
+	(*ListWorkflowDefinitionsRequest)(nil),  // 75: workflow.ListWorkflowDefinitionsRequest
+	(*WorkflowDefinitionSummary)(nil),       // 76: workflow.WorkflowDefinitionSummary
+	(*ListWorkflowDefinitionsResponse)(nil), // 77: workflow.ListWorkflowDefinitionsResponse
+	(*GetWorkflowDefinitionRequest)(nil),    // 78: workflow.GetWorkflowDefinitionRequest
+	(*GetWorkflowDefinitionResponse)(nil),   // 79: workflow.GetWorkflowDefinitionResponse
+	nil,                                     // 80: workflow.EvidenceItem.FactsEntry
+	(*timestamppb.Timestamp)(nil),           // 81: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                   // 82: google.protobuf.Empty
 }
 var file_workflow_proto_depIdxs = []int32{
-	5,  // 0: workflow.WorkflowContext.component_kind:type_name -> workflow.ComponentKind
-	8,  // 1: workflow.WorkflowRun.context:type_name -> workflow.WorkflowContext
-	6,  // 2: workflow.WorkflowRun.trigger_reason:type_name -> workflow.TriggerReason
-	2,  // 3: workflow.WorkflowRun.status:type_name -> workflow.RunStatus
-	0,  // 4: workflow.WorkflowRun.current_actor:type_name -> workflow.WorkflowActor
-	4,  // 5: workflow.WorkflowRun.failure_class:type_name -> workflow.FailureClass
-	41, // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
-	41, // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
-	41, // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	41, // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
-	0,  // 10: workflow.WorkflowStep.actor:type_name -> workflow.WorkflowActor
-	1,  // 11: workflow.WorkflowStep.phase:type_name -> workflow.WorkflowPhaseKind
-	3,  // 12: workflow.WorkflowStep.status:type_name -> workflow.StepStatus
-	41, // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
-	41, // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
-	41, // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
-	0,  // 16: workflow.WorkflowStep.source_actor:type_name -> workflow.WorkflowActor
-	0,  // 17: workflow.WorkflowStep.target_actor:type_name -> workflow.WorkflowActor
-	7,  // 18: workflow.WorkflowArtifactRef.kind:type_name -> workflow.ArtifactKind
-	41, // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 20: workflow.WorkflowEvent.actor:type_name -> workflow.WorkflowActor
-	41, // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
-	1,  // 22: workflow.WorkflowPhase.kind:type_name -> workflow.WorkflowPhaseKind
-	3,  // 23: workflow.WorkflowPhase.status:type_name -> workflow.StepStatus
-	10, // 24: workflow.WorkflowPhase.steps:type_name -> workflow.WorkflowStep
-	0,  // 25: workflow.WorkflowActorLane.actor:type_name -> workflow.WorkflowActor
-	10, // 26: workflow.WorkflowActorLane.steps:type_name -> workflow.WorkflowStep
-	9,  // 27: workflow.WorkflowGraph.run:type_name -> workflow.WorkflowRun
-	13, // 28: workflow.WorkflowGraph.phases:type_name -> workflow.WorkflowPhase
-	14, // 29: workflow.WorkflowGraph.lanes:type_name -> workflow.WorkflowActorLane
-	11, // 30: workflow.WorkflowGraph.artifacts:type_name -> workflow.WorkflowArtifactRef
-	0,  // 31: workflow.WorkflowGraph.current_actor:type_name -> workflow.WorkflowActor
-	9,  // 32: workflow.WorkflowRunDetail.run:type_name -> workflow.WorkflowRun
-	10, // 33: workflow.WorkflowRunDetail.steps:type_name -> workflow.WorkflowStep
-	11, // 34: workflow.WorkflowRunDetail.artifacts:type_name -> workflow.WorkflowArtifactRef
-	9,  // 35: workflow.StartRunRequest.run:type_name -> workflow.WorkflowRun
-	2,  // 36: workflow.UpdateRunRequest.status:type_name -> workflow.RunStatus
-	0,  // 37: workflow.UpdateRunRequest.current_actor:type_name -> workflow.WorkflowActor
-	2,  // 38: workflow.FinishRunRequest.status:type_name -> workflow.RunStatus
-	4,  // 39: workflow.FinishRunRequest.failure_class:type_name -> workflow.FailureClass
-	10, // 40: workflow.RecordStepRequest.step:type_name -> workflow.WorkflowStep
-	3,  // 41: workflow.UpdateStepRequest.status:type_name -> workflow.StepStatus
-	4,  // 42: workflow.FailStepRequest.failure_class:type_name -> workflow.FailureClass
-	11, // 43: workflow.AddArtifactRefRequest.artifact:type_name -> workflow.WorkflowArtifactRef
-	12, // 44: workflow.AppendEventRequest.event:type_name -> workflow.WorkflowEvent
-	2,  // 45: workflow.ListRunsRequest.status:type_name -> workflow.RunStatus
-	5,  // 46: workflow.ListRunsRequest.kind:type_name -> workflow.ComponentKind
-	9,  // 47: workflow.ListRunsResponse.runs:type_name -> workflow.WorkflowRun
-	12, // 48: workflow.GetRunEventsResponse.events:type_name -> workflow.WorkflowEvent
-	8,  // 49: workflow.WorkflowEventEnvelope.context:type_name -> workflow.WorkflowContext
-	12, // 50: workflow.WorkflowEventEnvelope.event:type_name -> workflow.WorkflowEvent
-	2,  // 51: workflow.WorkflowEventEnvelope.run_status:type_name -> workflow.RunStatus
-	17, // 52: workflow.WorkflowService.StartRun:input_type -> workflow.StartRunRequest
-	18, // 53: workflow.WorkflowService.UpdateRun:input_type -> workflow.UpdateRunRequest
-	19, // 54: workflow.WorkflowService.FinishRun:input_type -> workflow.FinishRunRequest
-	20, // 55: workflow.WorkflowService.RecordStep:input_type -> workflow.RecordStepRequest
-	21, // 56: workflow.WorkflowService.UpdateStep:input_type -> workflow.UpdateStepRequest
-	22, // 57: workflow.WorkflowService.FailStep:input_type -> workflow.FailStepRequest
-	23, // 58: workflow.WorkflowService.AddArtifactRef:input_type -> workflow.AddArtifactRefRequest
-	24, // 59: workflow.WorkflowService.AppendEvent:input_type -> workflow.AppendEventRequest
-	25, // 60: workflow.WorkflowService.GetRun:input_type -> workflow.GetRunRequest
-	26, // 61: workflow.WorkflowService.ListRuns:input_type -> workflow.ListRunsRequest
-	28, // 62: workflow.WorkflowService.GetRunEvents:input_type -> workflow.GetRunEventsRequest
-	30, // 63: workflow.WorkflowService.GetCurrentRunsForNode:input_type -> workflow.GetCurrentRunsForNodeRequest
-	31, // 64: workflow.WorkflowService.GetComponentHistory:input_type -> workflow.GetComponentHistoryRequest
-	32, // 65: workflow.WorkflowService.GetWorkflowGraph:input_type -> workflow.GetWorkflowGraphRequest
-	33, // 66: workflow.WorkflowService.WatchRun:input_type -> workflow.WatchRunRequest
-	34, // 67: workflow.WorkflowService.WatchNodeRuns:input_type -> workflow.WatchNodeRunsRequest
-	36, // 68: workflow.WorkflowService.RetryRun:input_type -> workflow.RetryRunRequest
-	37, // 69: workflow.WorkflowService.CancelRun:input_type -> workflow.CancelRunRequest
-	38, // 70: workflow.WorkflowService.AcknowledgeRun:input_type -> workflow.AcknowledgeRunRequest
-	39, // 71: workflow.WorkflowService.DiagnoseRun:input_type -> workflow.DiagnoseRunRequest
-	9,  // 72: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
-	42, // 73: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
-	42, // 74: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
-	10, // 75: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
-	42, // 76: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
-	42, // 77: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
-	42, // 78: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
-	42, // 79: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
-	16, // 80: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
-	27, // 81: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
-	29, // 82: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
-	27, // 83: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
-	27, // 84: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
-	15, // 85: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
-	35, // 86: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
-	35, // 87: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
-	9,  // 88: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
-	42, // 89: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
-	42, // 90: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
-	40, // 91: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
-	72, // [72:92] is the sub-list for method output_type
-	52, // [52:72] is the sub-list for method input_type
-	52, // [52:52] is the sub-list for extension type_name
-	52, // [52:52] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	5,   // 0: workflow.WorkflowContext.component_kind:type_name -> workflow.ComponentKind
+	12,  // 1: workflow.WorkflowRun.context:type_name -> workflow.WorkflowContext
+	6,   // 2: workflow.WorkflowRun.trigger_reason:type_name -> workflow.TriggerReason
+	2,   // 3: workflow.WorkflowRun.status:type_name -> workflow.RunStatus
+	0,   // 4: workflow.WorkflowRun.current_actor:type_name -> workflow.WorkflowActor
+	4,   // 5: workflow.WorkflowRun.failure_class:type_name -> workflow.FailureClass
+	81,  // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
+	81,  // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
+	81,  // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	81,  // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
+	0,   // 10: workflow.WorkflowStep.actor:type_name -> workflow.WorkflowActor
+	1,   // 11: workflow.WorkflowStep.phase:type_name -> workflow.WorkflowPhaseKind
+	3,   // 12: workflow.WorkflowStep.status:type_name -> workflow.StepStatus
+	81,  // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
+	81,  // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
+	81,  // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
+	0,   // 16: workflow.WorkflowStep.source_actor:type_name -> workflow.WorkflowActor
+	0,   // 17: workflow.WorkflowStep.target_actor:type_name -> workflow.WorkflowActor
+	7,   // 18: workflow.WorkflowArtifactRef.kind:type_name -> workflow.ArtifactKind
+	81,  // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
+	0,   // 20: workflow.WorkflowEvent.actor:type_name -> workflow.WorkflowActor
+	81,  // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
+	1,   // 22: workflow.WorkflowPhase.kind:type_name -> workflow.WorkflowPhaseKind
+	3,   // 23: workflow.WorkflowPhase.status:type_name -> workflow.StepStatus
+	14,  // 24: workflow.WorkflowPhase.steps:type_name -> workflow.WorkflowStep
+	0,   // 25: workflow.WorkflowActorLane.actor:type_name -> workflow.WorkflowActor
+	14,  // 26: workflow.WorkflowActorLane.steps:type_name -> workflow.WorkflowStep
+	13,  // 27: workflow.WorkflowGraph.run:type_name -> workflow.WorkflowRun
+	17,  // 28: workflow.WorkflowGraph.phases:type_name -> workflow.WorkflowPhase
+	18,  // 29: workflow.WorkflowGraph.lanes:type_name -> workflow.WorkflowActorLane
+	15,  // 30: workflow.WorkflowGraph.artifacts:type_name -> workflow.WorkflowArtifactRef
+	0,   // 31: workflow.WorkflowGraph.current_actor:type_name -> workflow.WorkflowActor
+	13,  // 32: workflow.WorkflowRunDetail.run:type_name -> workflow.WorkflowRun
+	14,  // 33: workflow.WorkflowRunDetail.steps:type_name -> workflow.WorkflowStep
+	15,  // 34: workflow.WorkflowRunDetail.artifacts:type_name -> workflow.WorkflowArtifactRef
+	13,  // 35: workflow.StartRunRequest.run:type_name -> workflow.WorkflowRun
+	2,   // 36: workflow.UpdateRunRequest.status:type_name -> workflow.RunStatus
+	0,   // 37: workflow.UpdateRunRequest.current_actor:type_name -> workflow.WorkflowActor
+	2,   // 38: workflow.FinishRunRequest.status:type_name -> workflow.RunStatus
+	4,   // 39: workflow.FinishRunRequest.failure_class:type_name -> workflow.FailureClass
+	14,  // 40: workflow.RecordStepRequest.step:type_name -> workflow.WorkflowStep
+	3,   // 41: workflow.UpdateStepRequest.status:type_name -> workflow.StepStatus
+	4,   // 42: workflow.FailStepRequest.failure_class:type_name -> workflow.FailureClass
+	15,  // 43: workflow.AddArtifactRefRequest.artifact:type_name -> workflow.WorkflowArtifactRef
+	16,  // 44: workflow.AppendEventRequest.event:type_name -> workflow.WorkflowEvent
+	2,   // 45: workflow.ListRunsRequest.status:type_name -> workflow.RunStatus
+	5,   // 46: workflow.ListRunsRequest.kind:type_name -> workflow.ComponentKind
+	13,  // 47: workflow.ListRunsResponse.runs:type_name -> workflow.WorkflowRun
+	16,  // 48: workflow.GetRunEventsResponse.events:type_name -> workflow.WorkflowEvent
+	12,  // 49: workflow.WorkflowEventEnvelope.context:type_name -> workflow.WorkflowContext
+	16,  // 50: workflow.WorkflowEventEnvelope.event:type_name -> workflow.WorkflowEvent
+	2,   // 51: workflow.WorkflowEventEnvelope.run_status:type_name -> workflow.RunStatus
+	2,   // 52: workflow.WorkflowRunSummary.last_run_status:type_name -> workflow.RunStatus
+	81,  // 53: workflow.WorkflowRunSummary.last_started_at:type_name -> google.protobuf.Timestamp
+	81,  // 54: workflow.WorkflowRunSummary.last_finished_at:type_name -> google.protobuf.Timestamp
+	81,  // 55: workflow.WorkflowRunSummary.last_success_at:type_name -> google.protobuf.Timestamp
+	81,  // 56: workflow.WorkflowRunSummary.last_failure_at:type_name -> google.protobuf.Timestamp
+	81,  // 57: workflow.WorkflowRunSummary.updated_at:type_name -> google.protobuf.Timestamp
+	2,   // 58: workflow.RecordOutcomeRequest.status:type_name -> workflow.RunStatus
+	81,  // 59: workflow.RecordOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	81,  // 60: workflow.RecordOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	45,  // 61: workflow.ListWorkflowSummariesResponse.summaries:type_name -> workflow.WorkflowRunSummary
+	3,   // 62: workflow.WorkflowStepOutcome.last_status:type_name -> workflow.StepStatus
+	81,  // 63: workflow.WorkflowStepOutcome.last_started_at:type_name -> google.protobuf.Timestamp
+	81,  // 64: workflow.WorkflowStepOutcome.last_finished_at:type_name -> google.protobuf.Timestamp
+	81,  // 65: workflow.WorkflowStepOutcome.first_seen_at:type_name -> google.protobuf.Timestamp
+	81,  // 66: workflow.WorkflowStepOutcome.updated_at:type_name -> google.protobuf.Timestamp
+	3,   // 67: workflow.RecordStepOutcomeRequest.status:type_name -> workflow.StepStatus
+	81,  // 68: workflow.RecordStepOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	81,  // 69: workflow.RecordStepOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	49,  // 70: workflow.ListStepOutcomesResponse.outcomes:type_name -> workflow.WorkflowStepOutcome
+	81,  // 71: workflow.PhaseTransitionEvent.event_at:type_name -> google.protobuf.Timestamp
+	53,  // 72: workflow.ListPhaseTransitionsResponse.events:type_name -> workflow.PhaseTransitionEvent
+	81,  // 73: workflow.DriftUnresolved.first_observed_at:type_name -> google.protobuf.Timestamp
+	81,  // 74: workflow.DriftUnresolved.last_observed_at:type_name -> google.protobuf.Timestamp
+	57,  // 75: workflow.ListDriftUnresolvedResponse.items:type_name -> workflow.DriftUnresolved
+	10,  // 76: workflow.EvidenceItem.provenance:type_name -> workflow.Provenance
+	80,  // 77: workflow.EvidenceItem.facts:type_name -> workflow.EvidenceItem.FactsEntry
+	81,  // 78: workflow.EvidenceItem.observed_at:type_name -> google.protobuf.Timestamp
+	9,   // 79: workflow.DiagnosisItem.severity:type_name -> workflow.IncidentSeverity
+	81,  // 80: workflow.DiagnosisItem.diagnosed_at:type_name -> google.protobuf.Timestamp
+	64,  // 81: workflow.ProposedFix.code_patch:type_name -> workflow.CodePatch
+	65,  // 82: workflow.ProposedFix.config_patch:type_name -> workflow.ConfigPatch
+	66,  // 83: workflow.ProposedFix.command_list:type_name -> workflow.CommandList
+	67,  // 84: workflow.ProposedFix.restart_action:type_name -> workflow.RestartAction
+	11,  // 85: workflow.ProposedFix.status:type_name -> workflow.FixStatus
+	81,  // 86: workflow.ProposedFix.applied_at:type_name -> google.protobuf.Timestamp
+	81,  // 87: workflow.ProposedFix.proposed_at:type_name -> google.protobuf.Timestamp
+	8,   // 88: workflow.Incident.status:type_name -> workflow.IncidentStatus
+	9,   // 89: workflow.Incident.severity:type_name -> workflow.IncidentSeverity
+	81,  // 90: workflow.Incident.first_seen_at:type_name -> google.protobuf.Timestamp
+	81,  // 91: workflow.Incident.last_seen_at:type_name -> google.protobuf.Timestamp
+	62,  // 92: workflow.Incident.evidence:type_name -> workflow.EvidenceItem
+	63,  // 93: workflow.Incident.diagnoses:type_name -> workflow.DiagnosisItem
+	68,  // 94: workflow.Incident.proposed_fixes:type_name -> workflow.ProposedFix
+	81,  // 95: workflow.Incident.acknowledged_at:type_name -> google.protobuf.Timestamp
+	8,   // 96: workflow.ListIncidentsRequest.status:type_name -> workflow.IncidentStatus
+	69,  // 97: workflow.ListIncidentsResponse.incidents:type_name -> workflow.Incident
+	68,  // 98: workflow.SubmitProposedFixRequest.fix:type_name -> workflow.ProposedFix
+	76,  // 99: workflow.ListWorkflowDefinitionsResponse.definitions:type_name -> workflow.WorkflowDefinitionSummary
+	21,  // 100: workflow.WorkflowService.StartRun:input_type -> workflow.StartRunRequest
+	22,  // 101: workflow.WorkflowService.UpdateRun:input_type -> workflow.UpdateRunRequest
+	23,  // 102: workflow.WorkflowService.FinishRun:input_type -> workflow.FinishRunRequest
+	24,  // 103: workflow.WorkflowService.RecordStep:input_type -> workflow.RecordStepRequest
+	25,  // 104: workflow.WorkflowService.UpdateStep:input_type -> workflow.UpdateStepRequest
+	26,  // 105: workflow.WorkflowService.FailStep:input_type -> workflow.FailStepRequest
+	27,  // 106: workflow.WorkflowService.AddArtifactRef:input_type -> workflow.AddArtifactRefRequest
+	28,  // 107: workflow.WorkflowService.AppendEvent:input_type -> workflow.AppendEventRequest
+	29,  // 108: workflow.WorkflowService.GetRun:input_type -> workflow.GetRunRequest
+	30,  // 109: workflow.WorkflowService.ListRuns:input_type -> workflow.ListRunsRequest
+	32,  // 110: workflow.WorkflowService.GetRunEvents:input_type -> workflow.GetRunEventsRequest
+	34,  // 111: workflow.WorkflowService.GetCurrentRunsForNode:input_type -> workflow.GetCurrentRunsForNodeRequest
+	35,  // 112: workflow.WorkflowService.GetComponentHistory:input_type -> workflow.GetComponentHistoryRequest
+	36,  // 113: workflow.WorkflowService.GetWorkflowGraph:input_type -> workflow.GetWorkflowGraphRequest
+	37,  // 114: workflow.WorkflowService.WatchRun:input_type -> workflow.WatchRunRequest
+	38,  // 115: workflow.WorkflowService.WatchNodeRuns:input_type -> workflow.WatchNodeRunsRequest
+	40,  // 116: workflow.WorkflowService.RetryRun:input_type -> workflow.RetryRunRequest
+	41,  // 117: workflow.WorkflowService.CancelRun:input_type -> workflow.CancelRunRequest
+	42,  // 118: workflow.WorkflowService.AcknowledgeRun:input_type -> workflow.AcknowledgeRunRequest
+	43,  // 119: workflow.WorkflowService.DiagnoseRun:input_type -> workflow.DiagnoseRunRequest
+	75,  // 120: workflow.WorkflowService.ListWorkflowDefinitions:input_type -> workflow.ListWorkflowDefinitionsRequest
+	78,  // 121: workflow.WorkflowService.GetWorkflowDefinition:input_type -> workflow.GetWorkflowDefinitionRequest
+	46,  // 122: workflow.WorkflowService.RecordOutcome:input_type -> workflow.RecordOutcomeRequest
+	47,  // 123: workflow.WorkflowService.ListWorkflowSummaries:input_type -> workflow.ListWorkflowSummariesRequest
+	50,  // 124: workflow.WorkflowService.RecordStepOutcome:input_type -> workflow.RecordStepOutcomeRequest
+	51,  // 125: workflow.WorkflowService.ListStepOutcomes:input_type -> workflow.ListStepOutcomesRequest
+	54,  // 126: workflow.WorkflowService.RecordPhaseTransition:input_type -> workflow.RecordPhaseTransitionRequest
+	55,  // 127: workflow.WorkflowService.ListPhaseTransitions:input_type -> workflow.ListPhaseTransitionsRequest
+	58,  // 128: workflow.WorkflowService.RecordDriftObservation:input_type -> workflow.RecordDriftObservationRequest
+	59,  // 129: workflow.WorkflowService.ClearDriftObservation:input_type -> workflow.ClearDriftObservationRequest
+	60,  // 130: workflow.WorkflowService.ListDriftUnresolved:input_type -> workflow.ListDriftUnresolvedRequest
+	71,  // 131: workflow.WorkflowService.ListIncidents:input_type -> workflow.ListIncidentsRequest
+	73,  // 132: workflow.WorkflowService.GetIncident:input_type -> workflow.GetIncidentRequest
+	70,  // 133: workflow.WorkflowService.ApplyIncidentAction:input_type -> workflow.IncidentAction
+	74,  // 134: workflow.WorkflowService.SubmitProposedFix:input_type -> workflow.SubmitProposedFixRequest
+	13,  // 135: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
+	82,  // 136: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
+	82,  // 137: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
+	14,  // 138: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
+	82,  // 139: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
+	82,  // 140: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
+	82,  // 141: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
+	82,  // 142: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
+	20,  // 143: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
+	31,  // 144: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
+	33,  // 145: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
+	31,  // 146: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
+	31,  // 147: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
+	19,  // 148: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
+	39,  // 149: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
+	39,  // 150: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
+	13,  // 151: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
+	82,  // 152: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
+	82,  // 153: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
+	44,  // 154: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
+	77,  // 155: workflow.WorkflowService.ListWorkflowDefinitions:output_type -> workflow.ListWorkflowDefinitionsResponse
+	79,  // 156: workflow.WorkflowService.GetWorkflowDefinition:output_type -> workflow.GetWorkflowDefinitionResponse
+	82,  // 157: workflow.WorkflowService.RecordOutcome:output_type -> google.protobuf.Empty
+	48,  // 158: workflow.WorkflowService.ListWorkflowSummaries:output_type -> workflow.ListWorkflowSummariesResponse
+	82,  // 159: workflow.WorkflowService.RecordStepOutcome:output_type -> google.protobuf.Empty
+	52,  // 160: workflow.WorkflowService.ListStepOutcomes:output_type -> workflow.ListStepOutcomesResponse
+	82,  // 161: workflow.WorkflowService.RecordPhaseTransition:output_type -> google.protobuf.Empty
+	56,  // 162: workflow.WorkflowService.ListPhaseTransitions:output_type -> workflow.ListPhaseTransitionsResponse
+	82,  // 163: workflow.WorkflowService.RecordDriftObservation:output_type -> google.protobuf.Empty
+	82,  // 164: workflow.WorkflowService.ClearDriftObservation:output_type -> google.protobuf.Empty
+	61,  // 165: workflow.WorkflowService.ListDriftUnresolved:output_type -> workflow.ListDriftUnresolvedResponse
+	72,  // 166: workflow.WorkflowService.ListIncidents:output_type -> workflow.ListIncidentsResponse
+	69,  // 167: workflow.WorkflowService.GetIncident:output_type -> workflow.Incident
+	82,  // 168: workflow.WorkflowService.ApplyIncidentAction:output_type -> google.protobuf.Empty
+	68,  // 169: workflow.WorkflowService.SubmitProposedFix:output_type -> workflow.ProposedFix
+	135, // [135:170] is the sub-list for method output_type
+	100, // [100:135] is the sub-list for method input_type
+	100, // [100:100] is the sub-list for extension type_name
+	100, // [100:100] is the sub-list for extension extendee
+	0,   // [0:100] is the sub-list for field type_name
 }
 
 func init() { file_workflow_proto_init() }
@@ -3701,8 +7139,8 @@ func file_workflow_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workflow_proto_rawDesc), len(file_workflow_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   33,
+			NumEnums:      12,
+			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

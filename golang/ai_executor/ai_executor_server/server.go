@@ -219,8 +219,11 @@ func (srv *server) Init() error {
 	}()
 
 	// Peer collaboration: discover and connect to ai-executors on other nodes.
+	// Use Mac (per-instance identifier) as the local node ID — srv.GetId()
+	// returns the service type ID, which is the same across all ai_executor
+	// instances in the cluster and would make the peer loop skip everyone.
 	hostname, _ := os.Hostname()
-	srv.peers = newPeerManager(srv.GetId(), hostname, nil)
+	srv.peers = newPeerManager(srv.GetMac(), hostname, nil)
 	go srv.peers.startDiscoveryLoop(context.Background())
 	return nil
 }

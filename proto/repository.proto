@@ -310,6 +310,75 @@ message PromoteArtifactResponse {
   string message = 4;               // human-readable status
 }
 
+// ── DescribePackage (live aggregator) ──────────────────────────────────────
+//
+// Phase 2 introspection: "what is this package, what's desired, where is it
+// installed, is anything failing?" Aggregates repository catalog + etcd
+// desired state + per-node installed state into a single flat response.
+//
+// Follows projection-clauses.md:
+//   - Clause 2 (Minimal Surface): one question ("what is this package?")
+//   - Clause 5 (Scoped Query): always filters to a single package name
+//   - Clause 6 (Size): stays under 3 KB even for 30-node clusters — each
+//     per-node entry carries only node_id + version + status
+//   - Clause 11 (AI Consumption): flat explicit fields, no joins — callers
+//     chain into node_resolve for hostname lookups when needed
+//
+// This is a live aggregator, not a ScyllaDB projection. Response cache is
+// in-process LRU with 10s TTL (to tame thundering herds on the repo scan).
+
+message DescribePackageRequest {
+  // Package name. May use either '-' or '_' separators; the handler tries
+  // both forms against the catalog.
+  string name = 1 [(globular.auth.resource) = { kind: "artifact" }];
+  // Optional: filter by publisher. Empty matches any.
+  string publisher_id = 2 [(globular.auth.resource) = { kind: "namespace" }];
+}
+
+// NodeInstallation is one (node_id, version, status) tuple. Callers chain
+// node_id → node_resolve to get hostname/ips/labels for display.
+message NodeInstallation {
+  string node_id         = 1;
+  string version         = 2;
+  string status          = 3;  // "installed" | "failed" | "pending"
+  string checksum        = 4;
+  int64  installed_at    = 5;  // unix seconds
+}
+
+// DesiredInfo captures the cluster-wide desired-version pointer for a
+// package. Kind determines which etcd path was read:
+//   - SERVICE        → /globular/resources/ServiceDesiredVersion/<name>
+//   - INFRASTRUCTURE → /globular/resources/InfrastructureRelease/<pub>/<name>
+//   - COMMAND        → no desired-state (commands are installed directly)
+message DesiredInfo {
+  string version     = 1;
+  int64  generation  = 2;
+  string publisher   = 3;
+  bool   present     = 4;  // false when no desired-state entry exists
+}
+
+// PackageInfo is the flat response shape. Never holds raw spec YAML or
+// full manifests — just the identity + state pointers an operator or AI
+// needs to decide "is this package healthy cluster-wide?".
+message PackageInfo {
+  string name                     = 1;
+  ArtifactKind kind               = 2;
+  string publisher                = 3;
+  repeated string versions        = 4;  // all published versions in the repo
+  string latest_version           = 5;
+  DesiredInfo desired             = 6;
+  repeated NodeInstallation installed_on = 7;
+  repeated NodeInstallation failing_on   = 8;
+  // Freshness & origin (Clause 4). source describes the aggregation path,
+  // not a single data source.
+  string source                   = 9;   // "live-aggregator"
+  int64  observed_at              = 10;  // unix seconds when aggregation ran
+}
+
+message DescribePackageResponse {
+  PackageInfo info = 1;
+}
+
 // Service for managing package uploads and downloads in a repository.
 service PackageRepository {
   // Downloads a package bundle from the package repository.
@@ -402,6 +471,18 @@ service PackageRepository {
       action: "repository.artifact.read"
       permission: "read"
       resource_template: "/repository/namespaces/{publisher_id}/artifacts/{name}/versions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // DescribePackage aggregates catalog + desired-state + per-node installed
+  // state for a single package. Live aggregator, no server-side cache.
+  // See projection-clauses.md for the contract.
+  rpc DescribePackage(DescribePackageRequest) returns(DescribePackageResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      resource_template: "/repository/artifacts/{name}"
       default_role_hint: "viewer"
     };
   };

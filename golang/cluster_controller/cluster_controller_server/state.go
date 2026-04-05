@@ -188,9 +188,6 @@ type nodeState struct {
 	Units                 []unitStatusRecord `json:"units,omitempty"`
 	LastError             string             `json:"last_error,omitempty"`
 	ReportedAt            time.Time          `json:"reported_at,omitempty"`
-	LastPlanSentAt        time.Time          `json:"last_plan_sent_at,omitempty"`
-	LastPlanError         string             `json:"last_plan_error,omitempty"`
-	LastPlanHash          string             `json:"last_plan_hash,omitempty"`
 	LastAppliedGeneration uint64             `json:"last_applied_generation,omitempty"`
 	AppliedServicesHash   string             `json:"applied_services_hash,omitempty"`
 	InstalledVersions     map[string]string  `json:"installed_versions,omitempty"`

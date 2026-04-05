@@ -114,19 +114,15 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
 
-	// Re-enqueue stuck releases (RESOLVED waiting for plan slot, APPLYING
-	// with stale plan references). No watch event fires when status doesn't
-	// change, so this periodic re-reconcile is the only retry path.
+	// Re-enqueue releases stuck in RESOLVED: no watch event fires when a
+	// release's status doesn't change, so periodic re-reconcile is the only
+	// retry path. APPLYING releases are owned by an executing workflow and
+	// are driven by workflow callbacks (or the run reaper on crash).
 	srv.retryStuckReleases(ctx)
 }
 
-// retryStuckReleases finds ServiceRelease objects stuck in RESOLVED or
-// APPLYING and re-triggers reconciliation. RESOLVED releases may be
-// waiting for a free plan slot. APPLYING releases may have stale plan
-// references (plan was evicted by another release) and need the
-// phase-machine to detect this and transition to AVAILABLE or re-dispatch.
-// Without this periodic re-reconcile, these releases never get re-enqueued
-// because no etcd watch event fires when the status doesn't change.
+// retryStuckReleases finds ServiceRelease objects stuck in RESOLVED and
+// re-triggers reconciliation so the workflow path picks them up again.
 func (srv *server) retryStuckReleases(ctx context.Context) {
 	if srv.resources == nil {
 		return
@@ -140,9 +136,7 @@ func (srv *server) retryStuckReleases(ctx context.Context) {
 		if !ok || rel.Status == nil || rel.Meta == nil {
 			continue
 		}
-		switch rel.Status.Phase {
-		case cluster_controllerpb.ReleasePhaseResolved,
-			cluster_controllerpb.ReleasePhaseApplying:
+		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
 			srv.reconcileRelease(ctx, rel.Meta.Name)
 		}
 	}

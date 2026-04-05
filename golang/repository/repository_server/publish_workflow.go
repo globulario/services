@@ -44,6 +44,7 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 		ReleaseObjectID:  fmt.Sprintf("%s/%s", publisherID, name),
 		TriggerReason:    workflowpb.TriggerReason_TRIGGER_REASON_MANUAL,
 		CorrelationID:    fmt.Sprintf("Publish/%s/%s/%s", publisherID, name, version),
+		WorkflowName:     "repository.publish",
 	})
 
 	// Record artifact reference.

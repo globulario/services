@@ -1139,11 +1139,13 @@ func getMeshConn(client Client) (*grpc.ClientConn, error) {
 		cc, err = grpc.Dial(target,
 			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
 			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
+			grpc.WithStreamInterceptor(clientStreamInterceptor(nil)),
 		)
 	} else {
 		cc, err = grpc.Dial(target,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithUnaryInterceptor(clientInterceptor(nil)),
+			grpc.WithStreamInterceptor(clientStreamInterceptor(nil)),
 		)
 	}
 	if err != nil {

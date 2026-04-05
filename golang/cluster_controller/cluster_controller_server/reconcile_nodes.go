@@ -81,7 +81,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		actions, profileErr := buildPlanActions(node.Profiles)
 		if profileErr != nil {
 			node.Status = "blocked"
-			node.LastPlanError = profileErr.Error()
 			node.BlockedReason = "unknown_profile"
 			node.BlockedDetails = profileErr.Error()
 			stateDirty = true
@@ -99,7 +98,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node.BlockedReason == "unknown_profile" {
 			node.BlockedReason = ""
 			node.BlockedDetails = ""
-			node.LastPlanError = ""
 			if node.Status == "blocked" {
 				node.Status = "converging"
 			}
@@ -120,7 +118,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				if node.InventoryComplete {
 					// Full inventory reported — hard block.
 					node.Status = "blocked"
-					node.LastPlanError = fmt.Sprintf("missing unit files: %v", missing)
 					node.BlockedReason = "missing_units"
 					node.BlockedDetails = fmt.Sprintf("missing: %s", strings.Join(missing, ", "))
 					stateDirty = true
@@ -141,7 +138,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				if node.BlockedReason == "missing_units" {
 					node.BlockedReason = ""
 					node.BlockedDetails = ""
-					node.LastPlanError = ""
 					if node.Status == "blocked" {
 						node.Status = "converging"
 					}
@@ -163,87 +159,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			log.Printf("reconcile: read applied hash for %s: %v", node.NodeID, err)
 			continue
 		}
-		// Plan status reads removed — variables kept as nil stubs for dead-code compatibility.
-		var status interface{} // always nil
-		var currentPlan interface{} // always nil
-		_ = status
-		_ = currentPlan
-
-		_ = currentPlan                     // referenced by legacy comparison code below
-		meta, _ := srv.getNodePlanMeta(ctx, node.NodeID)
-		planHash := ""
-		lastEmitMs := int64(0)
-		if planHash == "" && meta != nil {
-			planHash = meta.DesiredHash
-		}
-		if lastEmitMs == 0 && meta != nil {
-			lastEmitMs = meta.LastEmit
-		}
+		// Network reconciliation is now workflow-native; the legacy plan-slot
+		// comparison branches have been removed. Drift detection happens in
+		// reconcile workflows, not in controller-side imperative logic.
 		if specHash != "" && appliedHash != specHash {
-			if false && (0 == 0 || 0 == 0) {
-				if planHash == specHash && false && 0 == 0 && 0 == 0 {
-					if !isPlanStuck(status, lastEmitMs, now) {
-						continue
-					}
-					srv.emitClusterEvent("operation.stalled", map[string]interface{}{
-						"severity":       "ERROR",
-						"node_id":        node.NodeID,
-						"hostname":       node.Identity.Hostname,
-						"plan_type":      "network",
-						"plan_id":        0,
-						"correlation_id": fmt.Sprintf("plan:%s:net", node.NodeID),
-					})
-				}
-			}
-			if false && 0 == 0 {
-				if planHash == specHash && false && 0 == 0 && 0 == 0 {
-					if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
-						log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
-					}
-					if desiredNetworkObj != nil && desiredNetworkObj.Meta != nil && srv.resources != nil {
-						_, _ = srv.resources.UpdateStatus(ctx, "ClusterNetwork", "default", &cluster_controllerpb.ObjectStatus{
-							ObservedGeneration: desiredNetworkObj.Meta.Generation,
-						})
-					}
-					_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
-					srv.emitClusterEvent("plan_apply_succeeded", map[string]interface{}{
-						"severity":       "INFO",
-						"node_id":        node.NodeID,
-						"hostname":       node.Identity.Hostname,
-						"message":        fmt.Sprintf("Network plan succeeded for %s", node.Identity.Hostname),
-						"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
-					})
-					continue
-				}
-			}
-			fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
-			// Desired state changed since last failure — reset failure count so
-			// the new config gets a clean attempt without accumulated backoff.
-			if planHash != specHash && fails > 0 {
-				_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
-				fails = 0
-			}
-			if false && planHash == specHash && (0 == 0 || 0 == 0 || 0 == 0) {
-				srv.emitClusterEvent("plan_apply_failed", map[string]interface{}{
-					"severity":       "ERROR",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Network plan failed for %s (state=%s)", node.Identity.Hostname, 0),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
-				})
-				delay := backoffDuration(fails)
-				if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
-					continue
-				}
-			}
-
-			spec := desiredNetworkToSpec(desiredNet)
-			if spec == nil {
-				continue
-			}
-			// Network reconciliation now handled by workflow-native paths.
-			_ = spec
-			log.Printf("reconcile: network config for %s — handled by workflow", node.NodeID)
+			log.Printf("reconcile: network config drift for %s — workflow will converge", node.NodeID)
 			continue
 		}
 
@@ -357,27 +277,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			continue
 		}
 		if len(filtered) == 0 {
-			if false && 0 == 0 && planHash == svcHash && false && 0 == 0 && 0 == 0 {
-				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
-					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
-				}
-				if srv.resources != nil {
-					for _, obj := range desiredObjs {
-						if obj != nil && obj.Meta != nil {
-							_, _ = srv.resources.UpdateStatus(ctx, "ServiceDesiredVersion", obj.Meta.Name, &cluster_controllerpb.ObjectStatus{
-								ObservedGeneration: obj.Meta.Generation,
-							})
-						}
-					}
-				}
-				srv.emitClusterEvent("plan_apply_succeeded", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("All services at desired state for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
-				})
-			}
 			continue
 		}
 		if svcHash == appliedSvcHash {
@@ -418,58 +317,9 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				continue
 			}
 		}
-		if false && (0 == 0 || 0 == 0) {
-			if planHash == svcHash && false && 0 == 0 && 0 == 0 {
-				if !isPlanStuck(status, lastEmitMs, now) {
-					continue
-				}
-				srv.emitClusterEvent("operation.stalled", map[string]interface{}{
-					"severity":       "ERROR",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"plan_type":      "service",
-					"plan_id":        0,
-					"correlation_id": fmt.Sprintf("plan:%s:svc", node.NodeID),
-				})
-			} else {
-				continue
-			}
-		}
-		if false && 0 == 0 {
-			if planHash == svcHash && false && 0 == 0 && 0 == 0 {
-				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
-				srv.emitClusterEvent("service_apply_succeeded", map[string]interface{}{
-					"severity":       "INFO",
-					"node_id":        node.NodeID,
-					"hostname":       node.Identity.Hostname,
-					"message":        fmt.Sprintf("Service plan succeeded for %s", node.Identity.Hostname),
-					"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
-				})
-				// Don't store appliedSvcHash here — this plan installed only ONE
-				// service, but svcHash covers ALL desired services. Storing it
-				// would cause the reconciler to skip remaining uninstalled services.
-				// Fall through to check if more services need installation.
-			}
-		}
-		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
-		// Desired state changed since last failure — reset failure count.
-		if planHash != svcHash && failsSvc > 0 {
-			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
-			failsSvc = 0
-		}
-		if false && planHash == svcHash && (0 == 0 || 0 == 0 || 0 == 0) {
-			srv.emitClusterEvent("service_apply_failed", map[string]interface{}{
-				"severity":       "ERROR",
-				"node_id":        node.NodeID,
-				"hostname":       node.Identity.Hostname,
-				"message":        fmt.Sprintf("Service plan failed for %s (state=%s)", node.Identity.Hostname, 0),
-				"correlation_id": fmt.Sprintf("plan:%s:gen:%d", node.NodeID, 0),
-			})
-			delay := backoffDuration(failsSvc)
-			if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
-				continue
-			}
-		}
+		// Service reconciliation is workflow-native via ServiceRelease objects.
+		// The legacy plan-slot status inspection has been removed.
+		_ = srv.getNodeFailureCountServices
 
 		// Pick the next service that actually needs installation. Skip services
 		// already installed at the desired version so we don't loop forever on
@@ -497,6 +347,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			continue
 		}
 		sort.Strings(svcNames)
+		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
 		svcName := svcNames[int(failsSvc)%len(svcNames)]
 		version := filtered[svcName]
 		if blockUntil, ok := srv.serviceBlock[svcName]; ok && now.Before(blockUntil) {
@@ -796,11 +647,6 @@ func backoffDuration(fails int) time.Duration {
 	default:
 		return 60 * time.Second
 	}
-}
-
-// isPlanStuck is a no-op — plan system removed. Always returns false.
-func isPlanStuck(status interface{}, lastEmitMs int64, now time.Time) bool {
-	return false
 }
 
 func (srv *server) computeNodePlan(node *nodeState) (*NodeUnitPlan, error) {

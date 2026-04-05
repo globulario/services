@@ -10,71 +10,105 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
+
+// engineStepStatusToPB maps engine.StepStatus to the proto StepStatus enum.
+// Used when recording per-step outcomes to the workflow service.
+func engineStepStatusToPB(s engine.StepStatus) workflowpb.StepStatus {
+	switch s {
+	case engine.StepPending:
+		return workflowpb.StepStatus_STEP_STATUS_PENDING
+	case engine.StepRunning:
+		return workflowpb.StepStatus_STEP_STATUS_RUNNING
+	case engine.StepSucceeded:
+		return workflowpb.StepStatus_STEP_STATUS_SUCCEEDED
+	case engine.StepFailed:
+		return workflowpb.StepStatus_STEP_STATUS_FAILED
+	case engine.StepSkipped:
+		return workflowpb.StepStatus_STEP_STATUS_SKIPPED
+	}
+	return workflowpb.StepStatus_STEP_STATUS_UNKNOWN
+}
 
 // buildReconcileControllerConfig returns the ReconcileControllerConfig that
 // wires cluster.reconcile workflow actions to real controller state.
 func (srv *server) buildReconcileControllerConfig() engine.ReconcileControllerConfig {
 	return engine.ReconcileControllerConfig{
-		ScanDrift:        srv.reconcileScanDrift,
-		ClassifyDrift:    srv.reconcileClassifyDrift,
-		FinalizeClean:    srv.reconcileFinalizeClean,
-		MarkItemStarted:  srv.reconcileMarkItemStarted,
-		ChooseWorkflow:   srv.reconcileChooseWorkflow,
-		MarkItemTerminal: srv.reconcileMarkItemTerminal,
-		MarkItemFailed:   srv.reconcileMarkItemFailed,
-		AggregateResults: srv.reconcileAggregateResults,
-		Finalize:         srv.reconcileFinalize,
-		MarkFailed:       srv.reconcileMarkFailed,
-		EmitCompleted:    srv.reconcileEmitCompleted,
+		AdvanceInfraJoins: srv.reconcileAdvanceInfraJoins,
+		ScanDrift:         srv.reconcileScanDrift,
+		ClassifyDrift:     srv.reconcileClassifyDrift,
+		FinalizeClean:     srv.reconcileFinalizeClean,
+		MarkItemStarted:   srv.reconcileMarkItemStarted,
+		ChooseWorkflow:    srv.reconcileChooseWorkflow,
+		MarkItemTerminal:  srv.reconcileMarkItemTerminal,
+		MarkItemFailed:    srv.reconcileMarkItemFailed,
+		AggregateResults:  srv.reconcileAggregateResults,
+		Finalize:          srv.reconcileFinalize,
+		MarkFailed:        srv.reconcileMarkFailed,
+		EmitCompleted:     srv.reconcileEmitCompleted,
 	}
 }
 
-// reconcileScanDrift drives infrastructure join phases and probes health,
-// then builds a drift report of items needing remediation.
-func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error) {
-	// Snapshot nodes.
-	srv.lock("reconcileScanDrift:snapshot")
+// reconcileAdvanceInfraJoins drives the ScyllaDB/etcd/MinIO join-phase state
+// machines and recovers any stuck bootstrap workflows. This is the explicit
+// "orchestration" step — it advances nodes through their infrastructure join
+// phases. Drift scanning happens in a separate step (scan_drift).
+func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID string) error {
+	srv.lock("reconcileAdvanceInfraJoins:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
 	}
 	srv.unlock()
 
-	// Phase 1: drive ScyllaDB join state machine.
+	// Drive ScyllaDB join phases.
 	if srv.scyllaMembers != nil {
-		if scyllaDirty := srv.scyllaMembers.reconcileScyllaJoinPhases(ctx, nodes); scyllaDirty {
-			srv.lock("reconcileScanDrift:scylla-persist")
+		if dirty := srv.scyllaMembers.reconcileScyllaJoinPhases(ctx, nodes); dirty {
+			srv.lock("reconcileAdvanceInfraJoins:scylla-persist")
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
 		}
 	}
 
-	// Phase 2: drive etcd join state machine.
+	// Drive etcd join phases.
 	if srv.etcdMembers != nil {
-		if etcdDirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); etcdDirty {
-			srv.lock("reconcileScanDrift:etcd-persist")
+		if dirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); dirty {
+			srv.lock("reconcileAdvanceInfraJoins:etcd-persist")
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
 		}
 	}
 
-	// Phase 3: drive MinIO pool join state machine.
+	// Drive MinIO pool join phases.
 	if srv.minioPoolMgr != nil {
-		srv.lock("reconcileScanDrift:minio-snapshot")
+		srv.lock("reconcileAdvanceInfraJoins:minio-snapshot")
 		state := srv.state
 		srv.unlock()
-		if minioDirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, state); minioDirty {
-			srv.lock("reconcileScanDrift:minio-persist")
+		if dirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, state); dirty {
+			srv.lock("reconcileAdvanceInfraJoins:minio-persist")
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
 		}
 	}
 
-	// Phase 4: recover nodes with stuck bootstrap workflows.
-	// After a controller restart, in-flight triggerJoinWorkflow goroutines
-	// are killed. This detects stuck nodes and re-triggers the join workflow.
+	// Recover bootstrap workflows that were interrupted by a controller restart.
 	srv.recoverStuckBootstrapWorkflows(nodes, time.Now())
+
+	log.Printf("reconcile-workflow: advance_infra_joins completed for %d nodes", len(nodes))
+	return nil
+}
+
+// reconcileScanDrift scans the cluster for drift items that need remediation.
+// It does NOT drive infra join state machines — that's the job of the
+// preceding advance_infra_joins step. Returns the list of drift items.
+func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error) {
+	srv.lock("reconcileScanDrift:snapshot")
+	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
+	for _, node := range srv.state.Nodes {
+		nodes = append(nodes, node)
+	}
+	srv.unlock()
 
 	// Build the set of nodes to include (empty = all).
 	includeSet := make(map[string]bool)
@@ -244,13 +278,59 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 	}
 
 	result := make([]any, len(items))
+	currentRefs := make(map[string]map[string]bool) // drift_type → entity_ref set
 	for i, s := range items {
 		s.item["priority"] = s.score
 		result[i] = s.item
+
+		// Record observation for AI diagnostics.
+		dType := fmt.Sprint(s.item["type"])
+		eRef := driftEntityRef(s.item)
+		if dType != "" && eRef != "" {
+			if currentRefs[dType] == nil {
+				currentRefs[dType] = make(map[string]bool)
+			}
+			currentRefs[dType][eRef] = true
+			if srv.workflowRec != nil {
+				srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, "", "")
+			}
+		}
+	}
+
+	// Opportunistic cleanup: any previously-tracked drift item NOT in the
+	// current scan has been resolved and should be cleared. Fire in background
+	// so classify_drift isn't delayed by telemetry bookkeeping.
+	if srv.workflowRec != nil {
+		go srv.clearResolvedDrift(context.Background(), currentRefs)
 	}
 
 	log.Printf("reconcile-workflow: classify_drift selected %d remediation items (max=%d)", len(result), maxRemediations)
 	return result, nil
+}
+
+// driftEntityRef builds a stable identifier for a drift item so the telemetry
+// layer can track its lifetime across reconcile cycles.
+func driftEntityRef(item map[string]any) string {
+	pkg := fmt.Sprint(item["package_name"])
+	node := fmt.Sprint(item["node_id"])
+	switch {
+	case pkg != "" && node != "":
+		return pkg + "@" + node
+	case pkg != "":
+		return pkg
+	case node != "":
+		return node
+	}
+	return ""
+}
+
+// clearResolvedDrift removes drift_unresolved rows for entities that no longer
+// appear in the current drift scan. Runs in background on each classify_drift.
+func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool) {
+	// Not currently read-capable from the recorder (no ListDriftUnresolved
+	// client helper). Defer full implementation — stale rows will age out via
+	// operator action or explicit ClearDriftObservation from remediation.
+	_ = current
 }
 
 // reconcileFinalizeClean runs when no drift is found.
@@ -352,6 +432,15 @@ func (srv *server) reconcileMarkItemTerminal(ctx context.Context, item, childRes
 	}
 	log.Printf("reconcile-workflow: item terminal: type=%s node=%s pkg=%s child_status=%s",
 		item["type"], item["node_id"], item["package_name"], status)
+	// Clear the drift observation if remediation succeeded — the next scan
+	// will re-observe it if it's still there.
+	if status == "SUCCEEDED" && srv.workflowRec != nil {
+		dType := fmt.Sprint(item["type"])
+		eRef := driftEntityRef(item)
+		if dType != "" && eRef != "" {
+			srv.workflowRec.ClearDriftObservation(ctx, dType, eRef)
+		}
+	}
 	return nil
 }
 
@@ -513,6 +602,12 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 		EvalCond: evalCond,
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
 			log.Printf("reconcile-workflow: step %s -> %s", step.ID, step.Status)
+			if srv.workflowRec != nil {
+				srv.workflowRec.RecordStepOutcome(ctx, "cluster.reconcile", step.ID,
+					engineStepStatusToPB(step.Status),
+					step.StartedAt, step.FinishedAt,
+					"", step.Error)
+			}
 		},
 	}
 
@@ -522,11 +617,29 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 	}
 
 	log.Printf("reconcile-workflow: starting cluster.reconcile")
+	startedAt := time.Now()
 	run, err := eng.Execute(ctx, def, inputs)
+	finishedAt := time.Now()
+
+	// Summary-only persistence: cluster.reconcile fires every 30s, so writing
+	// a full run + steps per cycle would inflate the workflow_runs table. We
+	// record only the outcome into workflow_run_summaries (bounded O(1) rows).
+	runID := ""
+	if run != nil {
+		runID = run.ID
+	}
+	outcomeStatus := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
+	failureReason := ""
 	if err != nil {
+		outcomeStatus = workflowpb.RunStatus_RUN_STATUS_FAILED
+		failureReason = err.Error()
 		log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
 	} else {
 		log.Printf("reconcile-workflow: cluster.reconcile completed")
+	}
+	if srv.workflowRec != nil {
+		srv.workflowRec.RecordOutcome(ctx, "cluster.reconcile", runID,
+			outcomeStatus, startedAt, finishedAt, failureReason)
 	}
 
 	return run, err

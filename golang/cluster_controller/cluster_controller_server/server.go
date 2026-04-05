@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
+	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/projections"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/netutil"
@@ -187,6 +188,11 @@ type server struct {
 
 	// workflow trace recorder (fire-and-forget, nil-safe if unavailable)
 	workflowRec *workflow.Recorder
+
+	// read-only projections over cluster-controller state. Best-effort:
+	// failures never propagate to the request path; missing data falls back
+	// to the in-memory srv.state. Governed by docs/architecture/projection-clauses.md.
+	nodeIdentityProj *projections.NodeIdentityProjector
 
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool

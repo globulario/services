@@ -320,6 +320,7 @@ func recordBootstrapTransition(emitter eventEmitter, node *nodeState, fromPhase 
 			ReleaseKind:   "Bootstrap",
 			TriggerReason: workflowpb.TriggerReason_TRIGGER_REASON_BOOTSTRAP,
 			CorrelationID: fmt.Sprintf("bootstrap/%s", node.NodeID),
+			WorkflowName:  "node.bootstrap",
 		})
 		if node.BootstrapRunID == "" {
 			return

@@ -48,17 +48,17 @@ func (srv *server) probeInfraHealth(ctx context.Context, endpoint, probeName str
 
 // probeScyllaHealth probes ScyllaDB health on the given node agent endpoint.
 func (srv *server) probeScyllaHealth(ctx context.Context, endpoint string) bool {
-	return srv.probeInfraHealth(ctx, endpoint, "probe-scylla")
+	return srv.probeInfraHealth(ctx, endpoint, "probe-scylla-health")
 }
 
 // probeEtcdHealth probes etcd health on the given node agent endpoint.
 func (srv *server) probeEtcdHealth(ctx context.Context, endpoint string) bool {
-	return srv.probeInfraHealth(ctx, endpoint, "probe-etcd")
+	return srv.probeInfraHealth(ctx, endpoint, "probe-etcd-health")
 }
 
 // probeMinioHealth probes MinIO health on the given node agent endpoint.
 func (srv *server) probeMinioHealth(ctx context.Context, endpoint string) bool {
-	return srv.probeInfraHealth(ctx, endpoint, "probe-minio")
+	return srv.probeInfraHealth(ctx, endpoint, "probe-minio-health")
 }
 
 // isActiveInfraMember returns true if the node is an active member of the

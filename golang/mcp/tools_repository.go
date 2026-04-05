@@ -325,4 +325,101 @@ func registerRepositoryTools(s *server) {
 			"versions":  versions,
 		}, nil
 	})
+
+	// ── pkg_info ────────────────────────────────────────────────────────────
+	// Phase 2 aggregator: "what is this package, what's desired, where is
+	// it installed, is anything failing?" Single-package scoped per
+	// Clause 5; flat output per Clause 11; chains with node_resolve for
+	// hostname display.
+	s.register(toolDef{
+		Name: "pkg_info",
+		Description: "Describes a single package: its kind, all published versions, the cluster-wide " +
+			"desired version (if any), per-node install status, and which nodes are failing. " +
+			"Chain node_id fields into node_resolve to get hostnames. Use this instead of " +
+			"running 3 separate queries across repo/etcd/nodes.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"name": {
+					Type:        "string",
+					Description: "Package name (e.g. 'cluster-controller', 'claude'). Both '-' and '_' separators accepted.",
+				},
+				"publisher_id": {
+					Type:        "string",
+					Description: "Optional: filter by publisher (e.g. 'core@globular.io').",
+				},
+			},
+			Required: []string{"name"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		name, _ := args["name"].(string)
+		if name == "" {
+			return nil, fmt.Errorf("name is required")
+		}
+		publisher, _ := args["publisher_id"].(string)
+
+		conn, err := s.clients.get(ctx, repositoryEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := repositorypb.NewPackageRepositoryClient(conn)
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+
+		rsp, err := client.DescribePackage(callCtx, &repositorypb.DescribePackageRequest{
+			Name:        name,
+			PublisherId: publisher,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("DescribePackage: %w", err)
+		}
+		info := rsp.GetInfo()
+		if info == nil {
+			return nil, fmt.Errorf("no info returned for %q", name)
+		}
+		return packageInfoToMap(info), nil
+	})
+}
+
+// packageInfoToMap flattens PackageInfo into a plain map for MCP JSON output.
+// Keeps the shape identical to CLI --json so callers can predict both.
+func packageInfoToMap(info *repositorypb.PackageInfo) map[string]interface{} {
+	desired := map[string]interface{}{"present": false}
+	if d := info.GetDesired(); d != nil && d.GetPresent() {
+		desired = map[string]interface{}{
+			"present":    true,
+			"version":    d.GetVersion(),
+			"generation": d.GetGeneration(),
+			"publisher":  d.GetPublisher(),
+		}
+	}
+	installed := make([]map[string]interface{}, 0, len(info.GetInstalledOn()))
+	for _, n := range info.GetInstalledOn() {
+		installed = append(installed, map[string]interface{}{
+			"node_id":      n.GetNodeId(),
+			"version":      n.GetVersion(),
+			"status":       n.GetStatus(),
+			"installed_at": n.GetInstalledAt(),
+		})
+	}
+	failing := make([]map[string]interface{}, 0, len(info.GetFailingOn()))
+	for _, n := range info.GetFailingOn() {
+		failing = append(failing, map[string]interface{}{
+			"node_id": n.GetNodeId(),
+			"version": n.GetVersion(),
+			"status":  n.GetStatus(),
+		})
+	}
+	return map[string]interface{}{
+		"name":           info.GetName(),
+		"kind":           info.GetKind().String(),
+		"publisher":      info.GetPublisher(),
+		"versions":       info.GetVersions(),
+		"latest_version": info.GetLatestVersion(),
+		"desired":        desired,
+		"installed_on":   installed,
+		"failing_on":     failing,
+		"source":         info.GetSource(),
+		"observed_at":    info.GetObservedAt(),
+	}
 }

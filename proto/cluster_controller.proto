@@ -170,6 +170,30 @@ message RejectJoinResponse {
   string message = 2;
 }
 
+// NodeIdentityProjection is the minimal "who is this node?" answer, governed
+// by projection-clauses.md. It MUST NOT be extended with services, packages,
+// metrics, logs, or health fields — those belong to separate projections.
+message NodeIdentityProjection {
+  string node_id     = 1;
+  string hostname    = 2;
+  repeated string ips    = 3;
+  repeated string macs   = 4;
+  repeated string labels = 5;
+  // Freshness & origin (Clause 4) — the response never lies about its source.
+  string source      = 6;  // "scylla" | "cluster-controller" | "node-agent"
+  int64  observed_at = 7;  // unix seconds when underlying data was written
+}
+
+message ResolveNodeRequest {
+  // Identifier may be a node_id (uuid), hostname, mac, or ip.
+  // The resolver picks a lookup table based on the identifier's shape.
+  string identifier = 1;
+}
+
+message ResolveNodeResponse {
+  NodeIdentityProjection identity = 1;
+}
+
 message ListNodesRequest {}
 message ListNodesResponse {
   repeated NodeRecord nodes = 1;
@@ -181,6 +205,25 @@ message SetNodeProfilesRequest {
 }
 message SetNodeProfilesResponse {
   string operation_id = 1;
+}
+
+// Called by node-agent from workflow steps to update bootstrap phase.
+message SetNodeBootstrapPhaseRequest {
+  string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  string phase = 2;  // e.g. "infra_preparing", "workload_ready", "bootstrap_failed"
+  string reason = 3; // optional: error message for failed phase
+}
+message SetNodeBootstrapPhaseResponse {
+  bool accepted = 1;
+}
+
+// Called by node-agent from workflow steps to emit cluster-wide events.
+message EmitWorkflowEventRequest {
+  string event_type = 1;  // e.g. "node.bootstrap.ready"
+  map<string, string> data = 2;
+}
+message EmitWorkflowEventResponse {
+  bool published = 1;
 }
 
 // RemoveNode removes a node from the cluster.
@@ -410,12 +453,44 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // ResolveNode returns the minimal identity projection for a single node
+  // given any of: node_id, hostname, mac, or ip. Scoped per Clause 5 — always
+  // one target. Governed by projection-clauses.md (Phase 1 contract).
+  rpc ResolveNode(ResolveNodeRequest) returns (ResolveNodeResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.resolve"
+      permission: "read"
+      resource_template: "/cluster_controller/nodes"
+      default_role_hint: "viewer"
+    };
+  };
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse) {
     option (globular.auth.authz) = {
       action: "cluster_controller.node.set_profiles"
       permission: "admin"
       resource_template: "/cluster_controller/nodes/{node_id}"
       default_role_hint: "admin"
+    };
+  };
+  // SetNodeBootstrapPhase is called by node-agent from workflow steps to
+  // update its own bootstrap phase. The controller updates in-memory node
+  // state and emits lifecycle events.
+  rpc SetNodeBootstrapPhase(SetNodeBootstrapPhaseRequest) returns (SetNodeBootstrapPhaseResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.node.set_bootstrap_phase"
+      permission: "write"
+      resource_template: "/cluster_controller/nodes/{node_id}"
+      default_role_hint: "editor"
+    };
+  };
+  // EmitWorkflowEvent is called by node-agent from workflow steps to publish
+  // lifecycle events (e.g. node.bootstrap.ready) through the controller.
+  rpc EmitWorkflowEvent(EmitWorkflowEventRequest) returns (EmitWorkflowEventResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.workflow.emit_event"
+      permission: "write"
+      collection_template: "/cluster_controller/workflow"
+      default_role_hint: "editor"
     };
   };
   rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse) {

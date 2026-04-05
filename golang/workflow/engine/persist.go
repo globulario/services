@@ -42,6 +42,7 @@ func (p *WorkflowPersister) PersistStartRun(ctx context.Context, run *Run, workf
 		Status:        workflowpb.RunStatus_RUN_STATUS_EXECUTING,
 		Summary:       fmt.Sprintf("workflow %s started", workflowName),
 		StartedAt:     timestamppb.Now(),
+		WorkflowName:  workflowName,
 	}
 
 	_, err := p.Client.StartRun(ctx, &workflowpb.StartRunRequest{Run: wfRun})

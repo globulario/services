@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -14,11 +15,14 @@ import (
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
+
 
 // ClusterDoctorServer implements ClusterDoctorServiceServer.
 type ClusterDoctorServer struct {
@@ -29,11 +33,16 @@ type ClusterDoctorServer struct {
 	collector    *collector.Collector
 	registry     *rules.Registry
 	version      string
+	eventClient  *event_client.Event_Client
 
 	// cached findings from the last snapshot, keyed by finding_id
 	// used by ExplainFinding to avoid re-fetching.
 	lastFindings []rules.Finding
 	lastFindingsMu sync.RWMutex
+
+	// executor runs structured RemediationActions with hardcoded blocklists.
+	// Optional: nil means ExecuteRemediation returns a not-configured error.
+	executor *ActionExecutor
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport credentials
@@ -72,17 +81,52 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		SnapshotTTL: cfg.snapshotTTL(),
 	}, ccClient)
 
+	// Attach workflow-service client for convergence telemetry (optional).
+	if cfg.WorkflowEndpoint != "" {
+		wfConn, wfErr := grpc.NewClient(cfg.WorkflowEndpoint, grpc.WithTransportCredentials(creds))
+		if wfErr == nil {
+			clusterID := cfg.ClusterID
+			if clusterID == "" {
+				// Auto-discover cluster_id from the controller so operators
+				// don't have to duplicate it in the doctor config.
+				infoCtx, cancel := context.WithTimeout(context.Background(), cfg.listTimeout())
+				if info, err := ccClient.GetClusterInfo(infoCtx, nil); err == nil && info != nil {
+					clusterID = info.GetClusterId()
+				}
+				cancel()
+			}
+			col.WithWorkflowClient(workflowpb.NewWorkflowServiceClient(wfConn), clusterID)
+		}
+	}
+
 	reg := rules.NewRegistry(rules.Config{
 		HeartbeatStale:  cfg.heartbeatStale(),
 		EmitAuditEvents: cfg.EmitAuditEvents,
 	})
 
-	return &ClusterDoctorServer{
+	s := &ClusterDoctorServer{
 		cfg:       cfg,
 		collector: col,
 		registry:  reg,
 		version:   version,
-	}, nil
+		executor:  &ActionExecutor{nodeAgentDialer: newControllerNodeAgentDialer(ccClient)},
+	}
+
+	// Event client for publishing finding deltas to ai-watcher (optional).
+	if cfg.EmitAuditEvents {
+		// Dial the local event service via its in-cluster address.
+		addr := os.Getenv("EVENT_ADDRESS")
+		if addr == "" {
+			addr = "127.0.0.1:10102"
+		}
+		if ec, err := event_client.NewEventService_Client(addr, "event.EventService"); err == nil {
+			s.eventClient = ec
+		} else {
+			logger.Warn("event client init failed (finding events disabled)", "err", err)
+		}
+	}
+
+	return s, nil
 }
 
 // ─── RPC Handlers ─────────────────────────────────────────────────────────────
@@ -148,19 +192,67 @@ func (s *ClusterDoctorServer) ExplainFinding(_ context.Context, req *cluster_doc
 	}, nil
 }
 
-// cacheFindings stores the latest findings for ExplainFinding lookups.
+// cacheFindings stores the latest findings for ExplainFinding lookups and
+// emits cluster.finding.created / cluster.finding.resolved events on each
+// snapshot delta so ai-watcher (and any operator) can react to changes.
 func (s *ClusterDoctorServer) cacheFindings(findings []rules.Finding) {
 	s.lastFindingsMu.Lock()
-	defer s.lastFindingsMu.Unlock()
-	merged := make(map[string]rules.Finding, len(s.lastFindings)+len(findings))
-	for _, f := range s.lastFindings {
-		merged[f.FindingID] = f
-	}
+	// Index current findings by ID.
+	current := make(map[string]rules.Finding, len(findings))
 	for _, f := range findings {
-		merged[f.FindingID] = f
+		current[f.FindingID] = f
 	}
-	s.lastFindings = make([]rules.Finding, 0, len(merged))
-	for _, f := range merged {
-		s.lastFindings = append(s.lastFindings, f)
+	// Compute delta vs previous snapshot.
+	prev := make(map[string]rules.Finding, len(s.lastFindings))
+	for _, f := range s.lastFindings {
+		prev[f.FindingID] = f
+	}
+	var created, resolved []rules.Finding
+	for id, f := range current {
+		if _, had := prev[id]; !had {
+			created = append(created, f)
+		}
+	}
+	for id, f := range prev {
+		if _, still := current[id]; !still {
+			resolved = append(resolved, f)
+		}
+	}
+	// Replace cache with the LATEST evaluation only (drop stale entries).
+	s.lastFindings = findings
+	s.lastFindingsMu.Unlock()
+
+	// Emit events outside the lock.
+	if s.cfg.EmitAuditEvents {
+		for _, f := range created {
+			s.publishFindingEvent("cluster.finding.created", f)
+		}
+		for _, f := range resolved {
+			s.publishFindingEvent("cluster.finding.resolved", f)
+		}
+	}
+}
+
+// publishFindingEvent sends one finding event to the event service. The
+// payload is small and queryable — just the data ai-watcher needs to decide
+// whether to trigger a diagnosis run.
+func (s *ClusterDoctorServer) publishFindingEvent(topic string, f rules.Finding) {
+	if s.eventClient == nil {
+		return
+	}
+	payload := map[string]string{
+		"finding_id":   f.FindingID,
+		"invariant_id": f.InvariantID,
+		"severity":     f.Severity.String(),
+		"category":     f.Category,
+		"entity_ref":   f.EntityRef,
+		"summary":      f.Summary,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	if err := s.eventClient.Publish(topic, data); err != nil {
+		logger.Warn("publish finding event failed", "topic", topic, "err", err)
 	}
 }

@@ -74,11 +74,41 @@ func kvEvidence(service, rpc string, kv map[string]string) *cluster_doctorpb.Evi
 	}
 }
 
-// step builds a RemediationStep.
+// step builds a RemediationStep (text-only).
 func step(order uint32, desc, cli string) *cluster_doctorpb.RemediationStep {
 	return &cluster_doctorpb.RemediationStep{
 		Order:       order,
 		Description: desc,
 		CliCommand:  cli,
+	}
+}
+
+// actionStep builds a RemediationStep that carries both human-readable text
+// AND a structured RemediationAction. The action is what ExecuteRemediation
+// runs; the text is what operators and AI read. See projection-clauses.md
+// Clause 8 — typed, bounded, risk-classified.
+func actionStep(order uint32, desc, cli string, action *cluster_doctorpb.RemediationAction) *cluster_doctorpb.RemediationStep {
+	return &cluster_doctorpb.RemediationStep{
+		Order:       order,
+		Description: desc,
+		CliCommand:  cli,
+		Action:      action,
+	}
+}
+
+// systemctlRestartAction is a convenience constructor for the most common
+// structured remediation: restart a Globular-managed service unit on a
+// specific node. Risk is LOW by default (auto-executable), enforced by the
+// executor against the globular-* unit allowlist.
+func systemctlRestartAction(unit, nodeID string) *cluster_doctorpb.RemediationAction {
+	return &cluster_doctorpb.RemediationAction{
+		ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+		Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+		Idempotent: true,
+		Description: fmt.Sprintf("systemctl restart %s on node %s", unit, nodeID),
+		Params: map[string]string{
+			"unit":    unit,
+			"node_id": nodeID,
+		},
 	}
 }

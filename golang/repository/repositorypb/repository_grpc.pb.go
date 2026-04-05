@@ -28,6 +28,7 @@ const (
 	PackageRepository_ListBundles_FullMethodName         = "/repository.PackageRepository/ListBundles"
 	PackageRepository_SearchArtifacts_FullMethodName     = "/repository.PackageRepository/SearchArtifacts"
 	PackageRepository_GetArtifactVersions_FullMethodName = "/repository.PackageRepository/GetArtifactVersions"
+	PackageRepository_DescribePackage_FullMethodName     = "/repository.PackageRepository/DescribePackage"
 	PackageRepository_DeleteArtifact_FullMethodName      = "/repository.PackageRepository/DeleteArtifact"
 	PackageRepository_PromoteArtifact_FullMethodName     = "/repository.PackageRepository/PromoteArtifact"
 	PackageRepository_SetArtifactState_FullMethodName    = "/repository.PackageRepository/SetArtifactState"
@@ -62,6 +63,10 @@ type PackageRepositoryClient interface {
 	SearchArtifacts(ctx context.Context, in *SearchArtifactsRequest, opts ...grpc.CallOption) (*SearchArtifactsResponse, error)
 	// Returns all published versions of a given package.
 	GetArtifactVersions(ctx context.Context, in *GetArtifactVersionsRequest, opts ...grpc.CallOption) (*GetArtifactVersionsResponse, error)
+	// DescribePackage aggregates catalog + desired-state + per-node installed
+	// state for a single package. Live aggregator, no server-side cache.
+	// See projection-clauses.md for the contract.
+	DescribePackage(ctx context.Context, in *DescribePackageRequest, opts ...grpc.CallOption) (*DescribePackageResponse, error)
 	// Deletes a specific artifact version from the repository.
 	DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error)
 	// Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
@@ -194,6 +199,16 @@ func (c *packageRepositoryClient) GetArtifactVersions(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *packageRepositoryClient) DescribePackage(ctx context.Context, in *DescribePackageRequest, opts ...grpc.CallOption) (*DescribePackageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DescribePackageResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_DescribePackage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *packageRepositoryClient) DeleteArtifact(ctx context.Context, in *DeleteArtifactRequest, opts ...grpc.CallOption) (*DeleteArtifactResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteArtifactResponse)
@@ -262,6 +277,10 @@ type PackageRepositoryServer interface {
 	SearchArtifacts(context.Context, *SearchArtifactsRequest) (*SearchArtifactsResponse, error)
 	// Returns all published versions of a given package.
 	GetArtifactVersions(context.Context, *GetArtifactVersionsRequest) (*GetArtifactVersionsResponse, error)
+	// DescribePackage aggregates catalog + desired-state + per-node installed
+	// state for a single package. Live aggregator, no server-side cache.
+	// See projection-clauses.md for the contract.
+	DescribePackage(context.Context, *DescribePackageRequest) (*DescribePackageResponse, error)
 	// Deletes a specific artifact version from the repository.
 	DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error)
 	// Promotes an artifact's publish state (e.g. VERIFIED→PUBLISHED).
@@ -305,6 +324,9 @@ func (UnimplementedPackageRepositoryServer) SearchArtifacts(context.Context, *Se
 }
 func (UnimplementedPackageRepositoryServer) GetArtifactVersions(context.Context, *GetArtifactVersionsRequest) (*GetArtifactVersionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetArtifactVersions not implemented")
+}
+func (UnimplementedPackageRepositoryServer) DescribePackage(context.Context, *DescribePackageRequest) (*DescribePackageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DescribePackage not implemented")
 }
 func (UnimplementedPackageRepositoryServer) DeleteArtifact(context.Context, *DeleteArtifactRequest) (*DeleteArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteArtifact not implemented")
@@ -464,6 +486,24 @@ func _PackageRepository_GetArtifactVersions_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_DescribePackage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DescribePackageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).DescribePackage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_DescribePackage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).DescribePackage(ctx, req.(*DescribePackageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PackageRepository_DeleteArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteArtifactRequest)
 	if err := dec(in); err != nil {
@@ -562,6 +602,10 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetArtifactVersions",
 			Handler:    _PackageRepository_GetArtifactVersions_Handler,
+		},
+		{
+			MethodName: "DescribePackage",
+			Handler:    _PackageRepository_DescribePackage_Handler,
 		},
 		{
 			MethodName: "DeleteArtifact",

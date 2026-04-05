@@ -28,7 +28,10 @@ const (
 	ClusterControllerService_ApproveJoin_FullMethodName            = "/cluster_controller.ClusterControllerService/ApproveJoin"
 	ClusterControllerService_RejectJoin_FullMethodName             = "/cluster_controller.ClusterControllerService/RejectJoin"
 	ClusterControllerService_ListNodes_FullMethodName              = "/cluster_controller.ClusterControllerService/ListNodes"
+	ClusterControllerService_ResolveNode_FullMethodName            = "/cluster_controller.ClusterControllerService/ResolveNode"
 	ClusterControllerService_SetNodeProfiles_FullMethodName        = "/cluster_controller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_SetNodeBootstrapPhase_FullMethodName  = "/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase"
+	ClusterControllerService_EmitWorkflowEvent_FullMethodName      = "/cluster_controller.ClusterControllerService/EmitWorkflowEvent"
 	ClusterControllerService_RemoveNode_FullMethodName             = "/cluster_controller.ClusterControllerService/RemoveNode"
 	ClusterControllerService_GetClusterHealth_FullMethodName       = "/cluster_controller.ClusterControllerService/GetClusterHealth"
 	ClusterControllerService_UpdateClusterNetwork_FullMethodName   = "/cluster_controller.ClusterControllerService/UpdateClusterNetwork"
@@ -59,7 +62,18 @@ type ClusterControllerServiceClient interface {
 	ApproveJoin(ctx context.Context, in *ApproveJoinRequest, opts ...grpc.CallOption) (*ApproveJoinResponse, error)
 	RejectJoin(ctx context.Context, in *RejectJoinRequest, opts ...grpc.CallOption) (*RejectJoinResponse, error)
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
+	// ResolveNode returns the minimal identity projection for a single node
+	// given any of: node_id, hostname, mac, or ip. Scoped per Clause 5 — always
+	// one target. Governed by projection-clauses.md (Phase 1 contract).
+	ResolveNode(ctx context.Context, in *ResolveNodeRequest, opts ...grpc.CallOption) (*ResolveNodeResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
+	// SetNodeBootstrapPhase is called by node-agent from workflow steps to
+	// update its own bootstrap phase. The controller updates in-memory node
+	// state and emits lifecycle events.
+	SetNodeBootstrapPhase(ctx context.Context, in *SetNodeBootstrapPhaseRequest, opts ...grpc.CallOption) (*SetNodeBootstrapPhaseResponse, error)
+	// EmitWorkflowEvent is called by node-agent from workflow steps to publish
+	// lifecycle events (e.g. node.bootstrap.ready) through the controller.
+	EmitWorkflowEvent(ctx context.Context, in *EmitWorkflowEventRequest, opts ...grpc.CallOption) (*EmitWorkflowEventResponse, error)
 	RemoveNode(ctx context.Context, in *RemoveNodeRequest, opts ...grpc.CallOption) (*RemoveNodeResponse, error)
 	GetClusterHealth(ctx context.Context, in *GetClusterHealthRequest, opts ...grpc.CallOption) (*GetClusterHealthResponse, error)
 	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
@@ -161,10 +175,40 @@ func (c *clusterControllerServiceClient) ListNodes(ctx context.Context, in *List
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ResolveNode(ctx context.Context, in *ResolveNodeRequest, opts ...grpc.CallOption) (*ResolveNodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveNodeResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ResolveNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetNodeProfilesResponse)
 	err := c.cc.Invoke(ctx, ClusterControllerService_SetNodeProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) SetNodeBootstrapPhase(ctx context.Context, in *SetNodeBootstrapPhaseRequest, opts ...grpc.CallOption) (*SetNodeBootstrapPhaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetNodeBootstrapPhaseResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_SetNodeBootstrapPhase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) EmitWorkflowEvent(ctx context.Context, in *EmitWorkflowEventRequest, opts ...grpc.CallOption) (*EmitWorkflowEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmitWorkflowEventResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_EmitWorkflowEvent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +405,18 @@ type ClusterControllerServiceServer interface {
 	ApproveJoin(context.Context, *ApproveJoinRequest) (*ApproveJoinResponse, error)
 	RejectJoin(context.Context, *RejectJoinRequest) (*RejectJoinResponse, error)
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
+	// ResolveNode returns the minimal identity projection for a single node
+	// given any of: node_id, hostname, mac, or ip. Scoped per Clause 5 — always
+	// one target. Governed by projection-clauses.md (Phase 1 contract).
+	ResolveNode(context.Context, *ResolveNodeRequest) (*ResolveNodeResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
+	// SetNodeBootstrapPhase is called by node-agent from workflow steps to
+	// update its own bootstrap phase. The controller updates in-memory node
+	// state and emits lifecycle events.
+	SetNodeBootstrapPhase(context.Context, *SetNodeBootstrapPhaseRequest) (*SetNodeBootstrapPhaseResponse, error)
+	// EmitWorkflowEvent is called by node-agent from workflow steps to publish
+	// lifecycle events (e.g. node.bootstrap.ready) through the controller.
+	EmitWorkflowEvent(context.Context, *EmitWorkflowEventRequest) (*EmitWorkflowEventResponse, error)
 	RemoveNode(context.Context, *RemoveNodeRequest) (*RemoveNodeResponse, error)
 	GetClusterHealth(context.Context, *GetClusterHealthRequest) (*GetClusterHealthResponse, error)
 	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
@@ -413,8 +468,17 @@ func (UnimplementedClusterControllerServiceServer) RejectJoin(context.Context, *
 func (UnimplementedClusterControllerServiceServer) ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListNodes not implemented")
 }
+func (UnimplementedClusterControllerServiceServer) ResolveNode(context.Context, *ResolveNodeRequest) (*ResolveNodeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveNode not implemented")
+}
 func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetNodeProfiles not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) SetNodeBootstrapPhase(context.Context, *SetNodeBootstrapPhaseRequest) (*SetNodeBootstrapPhaseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetNodeBootstrapPhase not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) EmitWorkflowEvent(context.Context, *EmitWorkflowEventRequest) (*EmitWorkflowEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EmitWorkflowEvent not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) RemoveNode(context.Context, *RemoveNodeRequest) (*RemoveNodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveNode not implemented")
@@ -613,6 +677,24 @@ func _ClusterControllerService_ListNodes_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ResolveNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ResolveNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ResolveNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ResolveNode(ctx, req.(*ResolveNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_SetNodeProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetNodeProfilesRequest)
 	if err := dec(in); err != nil {
@@ -627,6 +709,42 @@ func _ClusterControllerService_SetNodeProfiles_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterControllerServiceServer).SetNodeProfiles(ctx, req.(*SetNodeProfilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_SetNodeBootstrapPhase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetNodeBootstrapPhaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).SetNodeBootstrapPhase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_SetNodeBootstrapPhase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).SetNodeBootstrapPhase(ctx, req.(*SetNodeBootstrapPhaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_EmitWorkflowEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmitWorkflowEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).EmitWorkflowEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_EmitWorkflowEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).EmitWorkflowEvent(ctx, req.(*EmitWorkflowEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -966,8 +1084,20 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterControllerService_ListNodes_Handler,
 		},
 		{
+			MethodName: "ResolveNode",
+			Handler:    _ClusterControllerService_ResolveNode_Handler,
+		},
+		{
 			MethodName: "SetNodeProfiles",
 			Handler:    _ClusterControllerService_SetNodeProfiles_Handler,
+		},
+		{
+			MethodName: "SetNodeBootstrapPhase",
+			Handler:    _ClusterControllerService_SetNodeBootstrapPhase_Handler,
+		},
+		{
+			MethodName: "EmitWorkflowEvent",
+			Handler:    _ClusterControllerService_EmitWorkflowEvent_Handler,
 		},
 		{
 			MethodName: "RemoveNode",

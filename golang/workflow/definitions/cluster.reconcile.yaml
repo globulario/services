@@ -30,8 +30,18 @@ spec:
   strategy:
     mode: single
   steps:
+    - id: advance_infra_joins
+      title: Advance infrastructure join phases (ScyllaDB, etcd, MinIO)
+      actor: cluster-controller
+      action: controller.reconcile.advance_infra_joins
+      with:
+        cluster_id: $.cluster_id
+      # Drives the ScyllaDB/etcd/MinIO join state machines and recovers
+      # any stuck bootstrap workflows. Makes infra orchestration visible.
+
     - id: scan_drift
       title: Scan cluster drift
+      dependsOn: [advance_infra_joins]
       actor: cluster-controller
       action: controller.reconcile.scan_drift
       with:

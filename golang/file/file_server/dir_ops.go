@@ -306,11 +306,22 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 
 	for _, e := range entries {
 		p := filepath.Join(path, e.Name())
+		// Skip MinIO internal directories — their .minio.sys/tmp/ contents are
+		// short-lived temp files that race with ReadDir and cause spurious
+		// "no such file or directory" errors during recursive traversal.
+		if e.Name() == ".minio.sys" {
+			continue
+		}
 		if e.IsDir() {
 			isHls := s.pathExists(ctx, filepath.Join(p, "playlist.m3u8"))
 			if recursive && !isHls && e.Name() != ".hidden" {
 				child, err := readDir(ctx, s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, fileInfosChan, errChan)
 				if err != nil {
+					// Entry disappeared between ReadDir and stat — transient
+					// race (e.g. MinIO temp files). Skip and continue.
+					if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
+						continue
+					}
 					if errChan != nil {
 						errChan <- err
 					}
@@ -322,8 +333,16 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 					info.Files = append(info.Files, child)
 				}
 			} else if e.Name() != ".hidden" {
-				child, err := readDir(ctx, s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, fileInfosChan, errChan)
+				// Non-recursive mode: emit shallow FileInfo for the child dir
+				// without walking its contents. Prior behavior recursed fully
+				// to populate tree metadata, which makes browsing huge trees
+				// (e.g. NFS-mounted MinIO object storage with thousands of
+				// sub-directories) effectively hang.
+				child, err := getFileInfo(s, p, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
 				if err != nil {
+					if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
+						continue
+					}
 					if errChan != nil {
 						errChan <- err
 					}
@@ -341,6 +360,10 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 		} else if readFiles {
 			fi, err := getFileInfo(s, p, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			if err != nil {
+				// Entry vanished between listing and stat — skip.
+				if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
+					continue
+				}
 				if errChan != nil {
 					errChan <- err
 				}

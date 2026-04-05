@@ -34,8 +34,6 @@ var (
 	Succeeded  = workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	Failed     = workflowpb.RunStatus_RUN_STATUS_FAILED
 	Executing  = workflowpb.RunStatus_RUN_STATUS_EXECUTING
-	Planning   = workflowpb.RunStatus_RUN_STATUS_PLANNING
-	Dispatched = workflowpb.RunStatus_RUN_STATUS_DISPATCHED
 	Pending    = workflowpb.RunStatus_RUN_STATUS_PENDING
 	Blocked    = workflowpb.RunStatus_RUN_STATUS_BLOCKED
 	RolledBack = workflowpb.RunStatus_RUN_STATUS_ROLLED_BACK
@@ -55,8 +53,6 @@ var (
 	ActorRepository = workflowpb.WorkflowActor_ACTOR_REPOSITORY
 
 	PhaseDecision  = workflowpb.WorkflowPhaseKind_PHASE_DECISION
-	PhasePlan      = workflowpb.WorkflowPhaseKind_PHASE_PLAN
-	PhaseDispatch  = workflowpb.WorkflowPhaseKind_PHASE_DISPATCH
 	PhaseFetch     = workflowpb.WorkflowPhaseKind_PHASE_FETCH
 	PhaseInstall   = workflowpb.WorkflowPhaseKind_PHASE_INSTALL
 	PhaseConfigure = workflowpb.WorkflowPhaseKind_PHASE_CONFIGURE
@@ -80,10 +76,9 @@ type RunParams struct {
 	ComponentVersion string
 	ReleaseKind      string
 	ReleaseObjectID  string
-	PlanID           string
-	PlanGeneration   int32
 	TriggerReason    workflowpb.TriggerReason
 	CorrelationID    string
+	WorkflowName     string // workflow definition name (e.g. "day0.bootstrap", "node.repair")
 }
 
 // StepParams holds the parameters for recording a workflow step.
@@ -320,13 +315,13 @@ func (r *Recorder) StartRun(ctx context.Context, p *RunParams) string {
 			ComponentVersion: p.ComponentVersion,
 			ReleaseKind:      p.ReleaseKind,
 			ReleaseObjectId:  p.ReleaseObjectID,
-			PlanId:           p.PlanID,
-			PlanGeneration:   p.PlanGeneration,
+			// plan_id/plan_generation retired (plan-era fields)
 		},
 		TriggerReason: p.TriggerReason,
 		Status:        workflowpb.RunStatus_RUN_STATUS_PENDING,
 		CurrentActor:  ActorController,
 		StartedAt:     now,
+		WorkflowName:  p.WorkflowName,
 	}
 
 	resp, err := r.client.StartRun(ctx, &workflowpb.StartRunRequest{Run: run})
@@ -447,6 +442,109 @@ func (r *Recorder) FinishRun(ctx context.Context, runID string, status workflowp
 	r.mu.Lock()
 	delete(r.seqMap, runID)
 	r.mu.Unlock()
+}
+
+// RecordOutcome updates only the workflow summary table (no individual run row).
+// Use for periodic workflows (e.g. cluster.reconcile firing every 30s) to keep
+// the runs table bounded. The summary carries last success/failure for the
+// dashboard view.
+func (r *Recorder) RecordOutcome(ctx context.Context, workflowName, runID string,
+	status workflowpb.RunStatus, startedAt, finishedAt time.Time, failureReason string) {
+	if workflowName == "" || !r.ensureConnected() {
+		return
+	}
+	durationMs := int64(0)
+	if !startedAt.IsZero() && !finishedAt.IsZero() {
+		durationMs = finishedAt.Sub(startedAt).Milliseconds()
+	}
+	if _, err := r.client.RecordOutcome(ctx, &workflowpb.RecordOutcomeRequest{
+		ClusterId:     r.clusterID,
+		WorkflowName:  workflowName,
+		RunId:         runID,
+		Status:        status,
+		StartedAt:     timestamppb.New(startedAt),
+		FinishedAt:    timestamppb.New(finishedAt),
+		DurationMs:    durationMs,
+		FailureReason: failureReason,
+	}); err != nil {
+		log.Printf("workflow recorder: RecordOutcome failed: %v", err)
+	}
+}
+
+// RecordStepOutcome upserts per-step aggregate counters. Fire-and-forget.
+func (r *Recorder) RecordStepOutcome(ctx context.Context, workflowName, stepID string,
+	status workflowpb.StepStatus, startedAt, finishedAt time.Time,
+	errorCode, errorMsg string) {
+	if workflowName == "" || stepID == "" || !r.ensureConnected() {
+		return
+	}
+	durationMs := int64(0)
+	if !startedAt.IsZero() && !finishedAt.IsZero() {
+		durationMs = finishedAt.Sub(startedAt).Milliseconds()
+	}
+	if _, err := r.client.RecordStepOutcome(ctx, &workflowpb.RecordStepOutcomeRequest{
+		ClusterId:    r.clusterID,
+		WorkflowName: workflowName,
+		StepId:       stepID,
+		Status:       status,
+		StartedAt:    timestamppb.New(startedAt),
+		FinishedAt:   timestamppb.New(finishedAt),
+		DurationMs:   durationMs,
+		ErrorCode:    errorCode,
+		ErrorMessage: errorMsg,
+	}); err != nil {
+		log.Printf("workflow recorder: RecordStepOutcome failed: %v", err)
+	}
+}
+
+// RecordPhaseTransition appends a phase transition event (TTL 7 days).
+func (r *Recorder) RecordPhaseTransition(ctx context.Context, resourceType, resourceName,
+	fromPhase, toPhase, reason, caller string, blocked bool) {
+	if resourceType == "" || resourceName == "" || !r.ensureConnected() {
+		return
+	}
+	if _, err := r.client.RecordPhaseTransition(ctx, &workflowpb.RecordPhaseTransitionRequest{
+		ClusterId:    r.clusterID,
+		ResourceType: resourceType,
+		ResourceName: resourceName,
+		FromPhase:    fromPhase,
+		ToPhase:      toPhase,
+		Reason:       reason,
+		Caller:       caller,
+		Blocked:      blocked,
+	}); err != nil {
+		log.Printf("workflow recorder: RecordPhaseTransition failed: %v", err)
+	}
+}
+
+// RecordDriftObservation increments consecutive_cycles for a drift item.
+func (r *Recorder) RecordDriftObservation(ctx context.Context, driftType, entityRef, chosenWorkflow, remediationID string) {
+	if driftType == "" || entityRef == "" || !r.ensureConnected() {
+		return
+	}
+	if _, err := r.client.RecordDriftObservation(ctx, &workflowpb.RecordDriftObservationRequest{
+		ClusterId:      r.clusterID,
+		DriftType:      driftType,
+		EntityRef:      entityRef,
+		ChosenWorkflow: chosenWorkflow,
+		RemediationId:  remediationID,
+	}); err != nil {
+		log.Printf("workflow recorder: RecordDriftObservation failed: %v", err)
+	}
+}
+
+// ClearDriftObservation removes a drift item once it's no longer observed.
+func (r *Recorder) ClearDriftObservation(ctx context.Context, driftType, entityRef string) {
+	if driftType == "" || entityRef == "" || !r.ensureConnected() {
+		return
+	}
+	if _, err := r.client.ClearDriftObservation(ctx, &workflowpb.ClearDriftObservationRequest{
+		ClusterId: r.clusterID,
+		DriftType: driftType,
+		EntityRef: entityRef,
+	}); err != nil {
+		log.Printf("workflow recorder: ClearDriftObservation failed: %v", err)
+	}
 }
 
 // AddArtifact attaches an artifact reference to a run/step.

@@ -344,7 +344,7 @@ func registerClusterTools(s *server) {
 	// ── cluster_get_service_workflow_status ────────────────────────────
 	s.register(toolDef{
 		Name:        "cluster_get_service_workflow_status",
-		Description: "Returns release workflow status for services, applications, and infrastructure: phase (PENDING→RESOLVED→APPLYING→AVAILABLE/DEGRADED/FAILED/ROLLED_BACK/REMOVING→REMOVED), workflow_kind (install/upgrade/remove), started_at, transition_reason, per-node status with failed_step, and errors. Use this to track the progress of any release.",
+		Description: "Returns release workflow status for services, applications, and infrastructure: phase (PENDING→RESOLVED→AVAILABLE/DEGRADED/FAILED/ROLLED_BACK/REMOVING→REMOVED), workflow_kind (install/upgrade/remove), started_at, transition_reason, per-node status with failed_step, and errors. Live execution state comes from workflow runs (see workflow_list_runs). APPLYING may appear on legacy rows but is no longer written by the workflow engine.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -377,7 +377,6 @@ func registerClusterTools(s *server) {
 				entry := map[string]interface{}{
 					"node_id":           n.NodeID,
 					"phase":             n.Phase,
-					"plan_id":           n.PlanID,
 					"installed_version": n.InstalledVersion,
 					"error":             n.ErrorMessage,
 					"updated":           fmtTime(n.UpdatedUnixMs),
@@ -506,6 +505,64 @@ func registerClusterTools(s *server) {
 		return map[string]interface{}{
 			"releases": releases,
 			"count":    len(releases),
+		}, nil
+	})
+
+	// ── node_resolve ────────────────────────────────────────────────────
+	// Phase 1 projection: "who is this node?". Scoped (Clause 5), flat
+	// (Clause 11), declares its own freshness (Clause 4). MUST NOT be
+	// extended with services/packages/metrics/logs — those belong in
+	// separate tools. See docs/architecture/projection-clauses.md.
+	s.register(toolDef{
+		Name: "node_resolve",
+		Description: "Resolves a node's identity from any of: node_id (uuid), hostname, mac, or ip. " +
+			"Returns only identity fields — no services, packages, metrics, or health. " +
+			"Chain into other tools (cluster_get_node_health_detail, nodeagent_list_installed_packages) " +
+			"for those. The response's `source` field tells you whether the answer came from the " +
+			"scylla projection or the cluster-controller fallback.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"identifier": {
+					Type:        "string",
+					Description: "node_id (uuid), hostname, mac (xx:xx:xx:xx:xx:xx), or ip (dotted-quad)",
+				},
+			},
+			Required: []string{"identifier"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		identifier, _ := args["identifier"].(string)
+		if identifier == "" {
+			return nil, fmt.Errorf("identifier is required")
+		}
+
+		conn, err := s.clients.get(ctx, controllerEndpoint())
+		if err != nil {
+			return nil, err
+		}
+		client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 5*time.Second)
+		defer cancel()
+
+		rsp, err := client.ResolveNode(callCtx, &cluster_controllerpb.ResolveNodeRequest{
+			Identifier: identifier,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ResolveNode: %w", err)
+		}
+		id := rsp.GetIdentity()
+		if id == nil {
+			return nil, fmt.Errorf("no identity returned for %q", identifier)
+		}
+		return map[string]interface{}{
+			"node_id":     id.GetNodeId(),
+			"hostname":    id.GetHostname(),
+			"ips":         id.GetIps(),
+			"macs":        id.GetMacs(),
+			"labels":      id.GetLabels(),
+			"source":      id.GetSource(),
+			"observed_at": id.GetObservedAt(),
 		}, nil
 	})
 }

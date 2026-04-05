@@ -15,17 +15,9 @@ const (
 	appliedHashPrefix     = "globular/cluster/v1/applied_hash"
 	appliedSvcHashPrefix  = "globular/cluster/v1/applied_hash_services"
 	observedSvcHashPrefix = "globular/cluster/v1/observed_hash_services"
-	planMetaPrefix        = "globular/cluster/v1/plan_meta"
 	failCountPrefix       = "globular/cluster/v1/fail_count"
 	failCountSvcPrefix    = "globular/cluster/v1/fail_count_services"
 )
-
-type planMeta struct {
-	PlanId      string `json:"plan_id"`
-	Generation  uint64 `json:"generation"`
-	DesiredHash string `json:"desired_hash"`
-	LastEmit    int64  `json:"last_emit_unix"`
-}
 
 func hashDesiredNetwork(net *cluster_controllerpb.DesiredNetwork) (string, error) {
 	if net == nil {
@@ -60,41 +52,6 @@ func (srv *server) putNodeAppliedHash(ctx context.Context, nodeID, hash string) 
 	}
 	key := fmt.Sprintf("%s/%s", appliedHashPrefix, nodeID)
 	_, err := srv.kv.Put(ctx, key, hash)
-	return err
-}
-
-func (srv *server) getNodePlanMeta(ctx context.Context, nodeID string) (*planMeta, error) {
-	if srv.kv == nil {
-		return nil, fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", planMetaPrefix, nodeID)
-	resp, err := srv.kv.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.Kvs) == 0 {
-		return nil, nil
-	}
-	var meta planMeta
-	if err := json.Unmarshal(resp.Kvs[0].Value, &meta); err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-func (srv *server) putNodePlanMeta(ctx context.Context, nodeID string, meta *planMeta) error {
-	if srv.kv == nil {
-		return fmt.Errorf("etcd client unavailable")
-	}
-	if meta == nil {
-		return fmt.Errorf("plan meta is nil")
-	}
-	key := fmt.Sprintf("%s/%s", planMetaPrefix, nodeID)
-	data, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-	_, err = srv.kv.Put(ctx, key, string(data))
 	return err
 }
 

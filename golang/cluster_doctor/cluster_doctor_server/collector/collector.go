@@ -12,6 +12,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,6 +30,8 @@ type CollectorConfig struct {
 type Collector struct {
 	cfg              CollectorConfig
 	controllerClient cluster_controllerpb.ClusterControllerServiceClient
+	workflowClient   workflowpb.WorkflowServiceClient
+	clusterID        string
 	cache            *SnapshotCache
 
 	connMu     sync.Mutex
@@ -42,6 +45,15 @@ func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceCl
 		cache:            NewSnapshotCache(cfg.SnapshotTTL),
 		agentConns:       make(map[string]*grpc.ClientConn),
 	}
+}
+
+// WithWorkflowClient attaches a workflow-service client so the collector can
+// pull convergence telemetry (step outcomes, drift, run summaries) into the
+// snapshot. Optional — if nil, telemetry-based invariants degrade gracefully.
+func (c *Collector) WithWorkflowClient(wf workflowpb.WorkflowServiceClient, clusterID string) *Collector {
+	c.workflowClient = wf
+	c.clusterID = clusterID
+	return c
 }
 
 // GetSnapshot returns a cached or freshly fetched Snapshot.
@@ -108,7 +120,47 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		c.fetchPerNode(ctx, snap)
 	}
 
+	// ── 4. Workflow convergence telemetry (optional) ─────────────────────────
+	if c.workflowClient != nil && c.clusterID != "" {
+		c.fetchWorkflowTelemetry(ctx, snap)
+	}
+
 	return snap, nil
+}
+
+// fetchWorkflowTelemetry pulls bounded convergence signals from the workflow
+// service: per-step outcomes, drift items still unresolved, and per-workflow
+// summaries. These drive the workflow.* invariants.
+func (c *Collector) fetchWorkflowTelemetry(ctx context.Context, snap *Snapshot) {
+	wfCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer cancel()
+
+	if stepsResp, err := c.workflowClient.ListStepOutcomes(wfCtx, &workflowpb.ListStepOutcomesRequest{
+		ClusterId: c.clusterID,
+	}); err != nil {
+		snap.addError("workflow", "ListStepOutcomes", err)
+	} else {
+		snap.StepOutcomes = stepsResp.GetOutcomes()
+		snap.addSource("workflow.ListStepOutcomes")
+	}
+
+	if summariesResp, err := c.workflowClient.ListWorkflowSummaries(wfCtx, &workflowpb.ListWorkflowSummariesRequest{
+		ClusterId: c.clusterID,
+	}); err != nil {
+		snap.addError("workflow", "ListWorkflowSummaries", err)
+	} else {
+		snap.WorkflowSummaries = summariesResp.GetSummaries()
+		snap.addSource("workflow.ListWorkflowSummaries")
+	}
+
+	if driftResp, err := c.workflowClient.ListDriftUnresolved(wfCtx, &workflowpb.ListDriftUnresolvedRequest{
+		ClusterId: c.clusterID,
+	}); err != nil {
+		snap.addError("workflow", "ListDriftUnresolved", err)
+	} else {
+		snap.DriftUnresolved = driftResp.GetItems()
+		snap.addSource("workflow.ListDriftUnresolved")
+	}
 }
 
 func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {

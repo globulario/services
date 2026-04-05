@@ -6,6 +6,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
 // DataError records a failed upstream RPC call.
@@ -26,6 +27,11 @@ type Snapshot struct {
 	Nodes       []*cluster_controllerpb.NodeRecord
 	NodeHealths map[string]*cluster_controllerpb.NodeHealth // keyed by NodeId
 	Inventories map[string]*node_agentpb.Inventory          // keyed by NodeId
+
+	// Workflow convergence telemetry — see WI17/WI18.
+	StepOutcomes       []*workflowpb.WorkflowStepOutcome
+	WorkflowSummaries  []*workflowpb.WorkflowRunSummary
+	DriftUnresolved    []*workflowpb.DriftUnresolved
 
 	mu sync.Mutex
 }

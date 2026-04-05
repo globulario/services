@@ -319,6 +319,11 @@ func main() {
 	srv.startOperationCleanupLoop(context.Background())
 	srv.startHealthMonitorLoop(context.Background())
 
+	// Bring up read-only projections (node_identity, …). Best-effort: the
+	// server continues if ScyllaDB is unreachable. See projection-clauses.md.
+	closeProjections, _ := srv.initProjections(ctx)
+	defer closeProjections()
+
 	// Start DNS reconciler if cluster domain is configured
 	startDNSReconciler(srv, state)
 

@@ -180,7 +180,9 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		srv.reconcileApplying(ctx, h)
+		// No-op: workflow is executing; its callbacks will transition the
+		// release to AVAILABLE/FAILED. If the workflow crashed, the run
+		// reaper marks it terminal and a fresh generation re-enters PENDING.
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case ReleasePhaseRemoving:
@@ -237,7 +239,6 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *cluster_c
 		})
 	}
 	name := rel.Meta.Name
-	desiredHash := strings.ToLower(strings.TrimSpace(rel.Status.DesiredHash))
 	nodes := rel.Status.Nodes
 	total := len(nodes)
 	minReplicas := total
@@ -263,16 +264,24 @@ func (srv *server) reconcileReleaseAvailable(ctx context.Context, rel *cluster_c
 		node := srv.state.Nodes[nodeID]
 		srv.unlock()
 
-		applied := ""
+		versionMatch := false
 		healthy := false
 		serviceHealthy := false
-		if node != nil {
-			applied = strings.ToLower(strings.TrimSpace(node.AppliedServicesHash))
+		if node != nil && rel.Spec != nil {
 			healthy = strings.EqualFold(node.Status, "ready")
 			serviceHealthy = srv.serviceHealthyForRelease(node, rel)
+			// A node is serving this release if it reports the resolved version
+			// for the release's service. AppliedServicesHash (cluster-wide) is
+			// a different hash domain and cannot be compared to the per-release
+			// DesiredHash directly.
+			if node.InstalledVersions != nil && rel.Status.ResolvedVersion != "" {
+				svcName := rel.Spec.ServiceName
+				if installed, ok := node.InstalledVersions[svcName]; ok && installed == rel.Status.ResolvedVersion {
+					versionMatch = true
+				}
+			}
 		}
-		hashMatch := desiredHash != "" && applied == desiredHash
-		if hashMatch && healthy && serviceHealthy {
+		if versionMatch && healthy && serviceHealthy {
 			ok++
 			nCopy.Phase = cluster_controllerpb.ReleasePhaseAvailable
 		} else {
@@ -346,12 +355,42 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 	// Hard enforcement: invalid transition blocks the patch.
 	if rel.Status.Phase != previousPhase {
 		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
+			// Record the rejected transition so AI diagnostics can see it.
+			if srv.workflowRec != nil {
+				srv.workflowRec.RecordPhaseTransition(ctx, "ServiceRelease", releaseName,
+					previousPhase, rel.Status.Phase, rel.Status.TransitionReason,
+					callerFunc(2), true)
+			}
 			return fmt.Errorf("release %s: %w", releaseName, err)
+		}
+		// Record successful transition.
+		if srv.workflowRec != nil {
+			srv.workflowRec.RecordPhaseTransition(ctx, "ServiceRelease", releaseName,
+				previousPhase, rel.Status.Phase, rel.Status.TransitionReason,
+				callerFunc(2), false)
 		}
 	}
 
 	_, err = srv.resources.Apply(ctx, "ServiceRelease", rel)
 	return err
+}
+
+// callerFunc returns the name of the function N levels up the stack.
+// Used to tag phase transitions with their source for diagnostics.
+func callerFunc(skip int) string {
+	pc, _, _, ok := runtime.Caller(skip)
+	if !ok {
+		return ""
+	}
+	if fn := runtime.FuncForPC(pc); fn != nil {
+		name := fn.Name()
+		// Keep only the short name after the last "."
+		if idx := strings.LastIndex(name, "."); idx >= 0 {
+			return name[idx+1:]
+		}
+		return name
+	}
+	return ""
 }
 
 // getInstalledVersionForRelease returns the InstalledVersion for the given node from
@@ -461,7 +500,9 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		srv.reconcileApplying(ctx, h)
+		// No-op: workflow is executing; its callbacks will transition the
+		// release to AVAILABLE/FAILED. If the workflow crashed, the run
+		// reaper marks it terminal and a fresh generation re-enters PENDING.
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case ReleasePhaseRemoving:
@@ -545,7 +586,9 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		srv.reconcileApplying(ctx, h)
+		// No-op: workflow is executing; its callbacks will transition the
+		// release to AVAILABLE/FAILED. If the workflow crashed, the run
+		// reaper marks it terminal and a fresh generation re-enters PENDING.
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:

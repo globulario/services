@@ -33,6 +33,10 @@ func NewRegistry(cfg Config) *Registry {
 		// Day 1 join failure diagnostics
 		etcdStaleMember{},
 		serviceRegistrationGap{},
+		// Workflow convergence telemetry (WI20)
+		workflowStepFailures{},
+		workflowDriftStuck{},
+		workflowNoActivity{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

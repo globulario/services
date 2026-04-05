@@ -171,7 +171,7 @@ func registerWorkflowTools(s *server) {
 				"component":     rctx.GetComponentName(),
 				"node":          rctx.GetNodeHostname(),
 				"version":       rctx.GetComponentVersion(),
-				"plan_id":       rctx.GetPlanId(),
+				"workflow_name": run.GetWorkflowName(),
 				"status":        run.GetStatus().String(),
 				"failure_class": run.GetFailureClass().String(),
 				"summary":       run.GetSummary(),

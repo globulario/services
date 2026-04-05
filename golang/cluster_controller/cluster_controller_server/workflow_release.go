@@ -10,12 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 )
 
@@ -38,13 +41,14 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	router := engine.NewRouter()
 
 	// Wire release controller actions with real implementations.
-	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig())
+	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig(releaseName, pkgKind))
 
 	// Wire node-agent actions — each callback resolves the node's agent
 	// endpoint from the workflow's per-item inputs and calls via gRPC.
 	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
 
 	var wfRunID string // set after reportRunStart, captured by OnStepDone closure
+	workflowName := def.Metadata.Name
 	eng := &engine.Engine{
 		Router: router,
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
@@ -57,6 +61,13 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 			// Report step failures to the workflow service (fires event for ai-watcher).
 			if step.Status == engine.StepFailed && wfRunID != "" {
 				srv.reportStepFailed(wfRunID, step.ID, step.Error)
+			}
+			// Record per-step outcome for AI diagnostics.
+			if srv.workflowRec != nil {
+				srv.workflowRec.RecordStepOutcome(ctx, workflowName, step.ID,
+					engineStepStatusToPB(step.Status),
+					step.StartedAt, step.FinishedAt,
+					"", step.Error)
 			}
 		},
 	}
@@ -80,8 +91,26 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	log.Printf("release-workflow: starting %s for release %s (%s:%s@%s) across %d nodes",
 		def.Metadata.Name, releaseName, pkgKind, pkgName, version, len(candidateNodes))
 
-	// Report run start to workflow service (async, fire-and-forget).
-	wfRunID = srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
+	// Persist workflow run via recorder — release workflows are user-initiated
+	// and rare, so full run detail is valuable for drill-down.
+	componentKind := workflow.KindService
+	if strings.EqualFold(pkgKind, "INFRASTRUCTURE") {
+		componentKind = workflow.KindInfra
+	}
+	if srv.workflowRec != nil {
+		wfRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+			ComponentName:    pkgName,
+			ComponentKind:    componentKind,
+			ComponentVersion: version,
+			ReleaseKind:      "ServiceRelease",
+			ReleaseObjectID:  releaseID,
+			TriggerReason:    workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT,
+			CorrelationID:    releaseID,
+			WorkflowName:     workflowName,
+		})
+	}
+	// Also publish legacy event for ai-watcher compatibility.
+	srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
 
 	start := time.Now()
 	run, err := eng.Execute(ctx, def, inputs)
@@ -90,6 +119,11 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	if err != nil {
 		log.Printf("release-workflow: %s FAILED after %s: %v",
 			releaseName, elapsed.Round(time.Millisecond), err)
+		if wfRunID != "" && srv.workflowRec != nil {
+			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Failed,
+				fmt.Sprintf("%s FAILED after %s", releaseName, elapsed.Round(time.Millisecond)),
+				err.Error(), workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN)
+		}
 		srv.reportRunDone(wfRunID, pkgName, true,
 			fmt.Sprintf("%s FAILED after %s: %v", releaseName, elapsed.Round(time.Millisecond), err))
 	} else {
@@ -101,6 +135,12 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		}
 		log.Printf("release-workflow: %s SUCCEEDED in %s (%d/%d steps)",
 			releaseName, elapsed.Round(time.Millisecond), succeeded, len(run.Steps))
+		if wfRunID != "" && srv.workflowRec != nil {
+			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Succeeded,
+				fmt.Sprintf("%s@%s SUCCEEDED in %s (%d/%d steps)",
+					pkgName, version, elapsed.Round(time.Millisecond), succeeded, len(run.Steps)),
+				"", workflow.NoFailure)
+		}
 		srv.reportRunDone(wfRunID, pkgName, false,
 			fmt.Sprintf("%s@%s SUCCEEDED in %s (%d/%d steps)",
 				pkgName, version, elapsed.Round(time.Millisecond), succeeded, len(run.Steps)))
@@ -130,7 +170,8 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 	}
 
 	router := engine.NewRouter()
-	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig())
+	// releaseName == releaseID for remove workflow
+	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig(releaseID, pkgKind))
 	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
 
 	var rmRunID string
@@ -165,7 +206,22 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 	log.Printf("remove-workflow: starting removal of %s (%s) across %d nodes",
 		pkgName, pkgKind, len(candidateNodes))
 
-	rmRunID = srv.reportRunStart(pkgName, pkgKind, "", releaseID, len(candidateNodes))
+	componentKind := workflow.KindService
+	if strings.EqualFold(pkgKind, "INFRASTRUCTURE") {
+		componentKind = workflow.KindInfra
+	}
+	if srv.workflowRec != nil {
+		rmRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+			ComponentName:   pkgName,
+			ComponentKind:   componentKind,
+			ReleaseKind:     "ServiceRelease",
+			ReleaseObjectID: releaseID,
+			TriggerReason:   workflowpb.TriggerReason_TRIGGER_REASON_MANUAL,
+			CorrelationID:   releaseID,
+			WorkflowName:    "release.remove.package",
+		})
+	}
+	srv.reportRunStart(pkgName, pkgKind, "", releaseID, len(candidateNodes))
 
 	start := time.Now()
 	run, err := eng.Execute(ctx, def, inputs)
@@ -174,11 +230,20 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 	if err != nil {
 		log.Printf("remove-workflow: %s FAILED after %s: %v",
 			pkgName, elapsed.Round(time.Millisecond), err)
+		if rmRunID != "" && srv.workflowRec != nil {
+			srv.workflowRec.FinishRun(ctx, rmRunID, workflow.Failed,
+				fmt.Sprintf("remove %s FAILED", pkgName), err.Error(), workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN)
+		}
 		srv.reportRunDone(rmRunID, pkgName, true,
 			fmt.Sprintf("remove %s FAILED: %v", pkgName, err))
 	} else {
 		log.Printf("remove-workflow: %s SUCCEEDED in %s",
 			pkgName, elapsed.Round(time.Millisecond))
+		if rmRunID != "" && srv.workflowRec != nil {
+			srv.workflowRec.FinishRun(ctx, rmRunID, workflow.Succeeded,
+				fmt.Sprintf("remove %s SUCCEEDED in %s", pkgName, elapsed.Round(time.Millisecond)),
+				"", workflow.NoFailure)
+		}
 		srv.reportRunDone(rmRunID, pkgName, false,
 			fmt.Sprintf("remove %s SUCCEEDED in %s", pkgName, elapsed.Round(time.Millisecond)))
 	}
@@ -190,22 +255,130 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 // Controller action config (runs locally on controller)
 // --------------------------------------------------------------------------
 
-func (srv *server) buildReleaseControllerConfig() engine.ReleaseControllerConfig {
+// releaseResourceType returns the resource type for the release based on pkgKind.
+// SERVICE/WORKLOAD/APPLICATION/COMMAND → ServiceRelease
+// INFRASTRUCTURE → InfrastructureRelease
+func releaseResourceType(pkgKind string) string {
+	if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" {
+		return "InfrastructureRelease"
+	}
+	return "ServiceRelease"
+}
+
+// patchReleasePhase updates the phase of a release resource (Service or Infrastructure).
+func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseName, newPhase, reason string) error {
+	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
+	if err != nil || obj == nil {
+		return fmt.Errorf("get %s %s: %w", resourceType, releaseName, err)
+	}
+	nowMs := time.Now().UnixMilli()
+
+	switch rel := obj.(type) {
+	case *cluster_controllerpb.ServiceRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
+		}
+		prev := rel.Status.Phase
+		rel.Status.Phase = newPhase
+		rel.Status.LastTransitionUnixMs = nowMs
+		if reason != "" {
+			rel.Status.Message = reason
+			rel.Status.TransitionReason = reason
+		}
+		if prev != rel.Status.Phase {
+			_ = srv.emitPhaseTransition(releaseName, prev, rel.Status.Phase, reason)
+			if srv.workflowRec != nil {
+				srv.workflowRec.RecordPhaseTransition(ctx, resourceType, releaseName,
+					prev, rel.Status.Phase, reason, callerFunc(2), false)
+			}
+		}
+		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		return err
+	case *cluster_controllerpb.InfrastructureRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+		}
+		prev := rel.Status.Phase
+		rel.Status.Phase = newPhase
+		rel.Status.LastTransitionUnixMs = nowMs
+		if reason != "" {
+			rel.Status.Message = reason
+		}
+		if prev != rel.Status.Phase && srv.workflowRec != nil {
+			srv.workflowRec.RecordPhaseTransition(ctx, resourceType, releaseName,
+				prev, rel.Status.Phase, reason, callerFunc(2), false)
+		}
+		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		return err
+	}
+	return fmt.Errorf("unexpected type %T for %s %s", obj, resourceType, releaseName)
+}
+
+// patchReleaseNodeStatus updates (or inserts) a NodeReleaseStatus entry for the
+// given node on the release.
+func (srv *server) patchReleaseNodeStatus(ctx context.Context, resourceType, releaseName, nodeID string, update func(*cluster_controllerpb.NodeReleaseStatus)) error {
+	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
+	if err != nil || obj == nil {
+		return fmt.Errorf("get %s %s: %w", resourceType, releaseName, err)
+	}
+
+	var nodes *[]*cluster_controllerpb.NodeReleaseStatus
+	switch rel := obj.(type) {
+	case *cluster_controllerpb.ServiceRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
+		}
+		nodes = &rel.Status.Nodes
+	case *cluster_controllerpb.InfrastructureRelease:
+		if rel.Status == nil {
+			rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
+		}
+		nodes = &rel.Status.Nodes
+	default:
+		return fmt.Errorf("unexpected type %T", obj)
+	}
+
+	// Find or insert node entry.
+	var entry *cluster_controllerpb.NodeReleaseStatus
+	for _, n := range *nodes {
+		if n.NodeID == nodeID {
+			entry = n
+			break
+		}
+	}
+	if entry == nil {
+		entry = &cluster_controllerpb.NodeReleaseStatus{NodeID: nodeID}
+		*nodes = append(*nodes, entry)
+	}
+	update(entry)
+
+	_, err = srv.resources.Apply(ctx, resourceType, obj)
+	return err
+}
+
+// buildReleaseControllerConfig returns a ReleaseControllerConfig with real,
+// authoritative state mutations. releaseName is the resource name (Meta.Name)
+// and pkgKind determines whether this is a ServiceRelease or InfrastructureRelease.
+func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) engine.ReleaseControllerConfig {
+	resourceType := releaseResourceType(pkgKind)
 	return engine.ReleaseControllerConfig{
 		MarkReleaseResolved: func(ctx context.Context, relID string) error {
-			log.Printf("release-workflow: mark %s RESOLVED", relID)
-			return nil
+			log.Printf("release-workflow: mark %s RESOLVED", releaseName)
+			return srv.patchReleasePhase(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseResolved, "")
 		},
 		MarkReleaseApplying: func(ctx context.Context, relID string) error {
-			log.Printf("release-workflow: mark %s APPLYING", relID)
+			// No internal APPLYING phase write: the release stays in RESOLVED
+			// while the workflow executes. Live "is-applying" is derived at
+			// the API boundary from workflow run state (see isReleaseApplying).
+			log.Printf("release-workflow: execution started for %s (release stays RESOLVED)", releaseName)
 			return nil
 		},
 		MarkReleaseFailed: func(ctx context.Context, relID, reason string) error {
-			log.Printf("release-workflow: mark %s FAILED: %s", relID, reason)
-			return nil
+			log.Printf("release-workflow: mark %s FAILED: %s", releaseName, reason)
+			return srv.patchReleasePhase(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseFailed, reason)
 		},
 		RecheckConvergence: func(ctx context.Context, relID string) error {
-			log.Printf("release-workflow: recheck convergence for %s", relID)
+			log.Printf("release-workflow: recheck convergence for %s", releaseName)
 			if srv.enqueueReconcile != nil {
 				srv.enqueueReconcile()
 			}
@@ -218,27 +391,47 @@ func (srv *server) buildReleaseControllerConfig() engine.ReleaseControllerConfig
 			return srv.selectReleaseTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
 		},
 		FinalizeNoop: func(ctx context.Context, releaseID string) error {
-			log.Printf("release-workflow: %s finalized AVAILABLE (no-op)", releaseID)
-			return nil
+			log.Printf("release-workflow: %s finalized AVAILABLE (no-op)", releaseName)
+			return srv.patchReleasePhase(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseAvailable, "no targets required update")
 		},
 		MarkNodeStarted: func(ctx context.Context, releaseID, nodeID string) error {
-			log.Printf("release-workflow: node %s started for %s", nodeID, releaseID)
-			return nil
+			log.Printf("release-workflow: node %s started for %s", nodeID, releaseName)
+			// No per-node APPLYING write: workflow run/step state is the live
+			// source of truth for "which node is currently being applied".
+			// We only bump the timestamp to record attempt start.
+			return srv.patchReleaseNodeStatus(ctx, resourceType, releaseName, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+			})
 		},
 		MarkNodeSucceeded: func(ctx context.Context, releaseID, nodeID, version, hash string) error {
-			log.Printf("release-workflow: node %s succeeded for %s (v=%s h=%s)", nodeID, releaseID, version, hash)
-			return nil
+			log.Printf("release-workflow: node %s succeeded for %s (v=%s h=%s)", nodeID, releaseName, version, hash)
+			return srv.patchReleaseNodeStatus(ctx, resourceType, releaseName, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.Phase = cluster_controllerpb.ReleasePhaseAvailable
+				n.InstalledVersion = version
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+				n.ErrorMessage = ""
+			})
 		},
 		MarkNodeFailed: func(ctx context.Context, releaseID, nodeID, reason string) error {
-			log.Printf("release-workflow: node %s FAILED for %s: %s", nodeID, releaseID, reason)
-			return nil
+			log.Printf("release-workflow: node %s FAILED for %s: %s", nodeID, releaseName, reason)
+			return srv.patchReleaseNodeStatus(ctx, resourceType, releaseName, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+				n.Phase = cluster_controllerpb.ReleasePhaseFailed
+				n.ErrorMessage = reason
+				n.UpdatedUnixMs = time.Now().UnixMilli()
+			})
 		},
 		AggregateDirectApply: func(ctx context.Context, releaseID, pkgName string) (map[string]any, error) {
 			return map[string]any{"release_id": releaseID, "package_name": pkgName, "status": "ok"}, nil
 		},
 		FinalizeDirectApply: func(ctx context.Context, releaseID string, aggregate map[string]any) error {
-			log.Printf("release-workflow: finalize %s (aggregate=%v)", releaseID, aggregate)
-			return nil
+			log.Printf("release-workflow: finalize %s (aggregate=%v)", releaseName, aggregate)
+			// Check aggregate for any failures — if any node failed, mark release DEGRADED.
+			// Otherwise, transition to AVAILABLE.
+			finalPhase := cluster_controllerpb.ReleasePhaseAvailable
+			if status, ok := aggregate["status"].(string); ok && status != "ok" {
+				finalPhase = cluster_controllerpb.ReleasePhaseDegraded
+			}
+			return srv.patchReleasePhase(ctx, resourceType, releaseName, finalPhase, "")
 		},
 	}
 }

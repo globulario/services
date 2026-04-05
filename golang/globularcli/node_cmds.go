@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -47,7 +50,10 @@ func init() {
 	nodeReconcileCmd.MarkFlagRequired("node-id")
 
 	nodeCmd.AddCommand(nodeReconcileCmd)
+	nodeCmd.AddCommand(nodeResolveCmd)
 	rootCmd.AddCommand(nodeCmd)
+
+	nodeResolveCmd.Flags().BoolVar(&nodeResolveJSON, "json", false, "Output result in JSON format")
 }
 
 func runNodeReconcile(cmd *cobra.Command, args []string) error {
@@ -118,4 +124,101 @@ func runNodeReconcileApply() error {
 	fmt.Println("\nNote: Reconciliation is asynchronous. Monitor node status to verify completion.")
 
 	return nil
+}
+
+// ─── node resolve ────────────────────────────────────────────────────────────
+
+var nodeResolveJSON bool
+
+var nodeResolveCmd = &cobra.Command{
+	Use:   "resolve <identifier>",
+	Short: "Resolve a node identity from any of node_id / hostname / mac / ip",
+	Long: `Returns the minimal "who is this node?" projection.
+
+The identifier may be a node_id (uuid), hostname, mac address, or IP. The
+resolver picks the right lookup table based on the identifier's shape.
+
+Output is flat and focused — it does NOT include services, packages, or
+metrics. Chain into other commands (or other MCP tools) for those.
+
+Examples:
+  globular node resolve globule-nuc
+  globular node resolve 10.0.0.63
+  globular node resolve e0:d4:64:f0:86:f6
+  globular node resolve eb9a2dac-05b0-52ac-9002-99d8ffd35902
+`,
+	Args: cobra.ExactArgs(1),
+	RunE: runNodeResolve,
+}
+
+func runNodeResolve(cmd *cobra.Command, args []string) error {
+	ident := strings.TrimSpace(args[0])
+	if ident == "" {
+		return errors.New("identifier required")
+	}
+
+	autoDiscoverController(cmd)
+	conn, err := controllerClient()
+	if err != nil {
+		return fmt.Errorf("connect to controller: %w", err)
+	}
+	defer conn.Close()
+	cc := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
+	defer cancel()
+
+	rsp, err := cc.ResolveNode(ctx, &cluster_controllerpb.ResolveNodeRequest{Identifier: ident})
+	if err != nil {
+		return fmt.Errorf("ResolveNode: %w", err)
+	}
+	id := rsp.GetIdentity()
+	if id == nil {
+		return fmt.Errorf("no identity returned")
+	}
+
+	if nodeResolveJSON {
+		out := map[string]interface{}{
+			"node_id":     id.GetNodeId(),
+			"hostname":    id.GetHostname(),
+			"ips":         id.GetIps(),
+			"macs":        id.GetMacs(),
+			"labels":      id.GetLabels(),
+			"source":      id.GetSource(),
+			"observed_at": id.GetObservedAt(),
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(out)
+	}
+
+	age := ""
+	if id.GetObservedAt() > 0 {
+		age = formatAge(time.Now().Unix() - id.GetObservedAt())
+	}
+	fmt.Printf("node_id:     %s\n", id.GetNodeId())
+	fmt.Printf("hostname:    %s\n", id.GetHostname())
+	fmt.Printf("ips:         %s\n", strings.Join(id.GetIps(), ", "))
+	fmt.Printf("macs:        %s\n", strings.Join(id.GetMacs(), ", "))
+	fmt.Printf("labels:      %s\n", strings.Join(id.GetLabels(), ", "))
+	fmt.Printf("source:      %s\n", id.GetSource())
+	if age != "" {
+		fmt.Printf("observed:    %s ago\n", age)
+	}
+	return nil
+}
+
+func formatAge(seconds int64) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	switch {
+	case seconds < 60:
+		return fmt.Sprintf("%ds", seconds)
+	case seconds < 3600:
+		return fmt.Sprintf("%dm%ds", seconds/60, seconds%60)
+	case seconds < 86400:
+		return fmt.Sprintf("%dh%dm", seconds/3600, (seconds%3600)/60)
+	default:
+		return fmt.Sprintf("%dd%dh", seconds/86400, (seconds%86400)/3600)
+	}
 }

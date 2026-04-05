@@ -117,6 +117,41 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 	}, nil
 }
 
+// SetNodeBootstrapPhase is the workflow-driven RPC handler. Node-agent calls
+// this from its workflow steps to advance its own bootstrap phase. The
+// controller updates in-memory node state and emits a lifecycle event.
+func (srv *server) SetNodeBootstrapPhase(ctx context.Context, req *cluster_controllerpb.SetNodeBootstrapPhaseRequest) (*cluster_controllerpb.SetNodeBootstrapPhaseResponse, error) {
+	if req == nil || req.GetNodeId() == "" || req.GetPhase() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id and phase are required")
+	}
+	if reason := strings.TrimSpace(req.GetReason()); reason != "" {
+		// Persist the reason on the node record before the phase transition.
+		srv.lock("SetNodeBootstrapPhase:reason")
+		if node := srv.state.Nodes[req.GetNodeId()]; node != nil {
+			node.BootstrapError = reason
+		}
+		srv.unlock()
+	}
+	if err := srv.setBootstrapPhase(req.GetNodeId(), req.GetPhase()); err != nil {
+		return nil, status.Errorf(codes.Internal, "set bootstrap phase: %v", err)
+	}
+	return &cluster_controllerpb.SetNodeBootstrapPhaseResponse{Accepted: true}, nil
+}
+
+// EmitWorkflowEvent is called by node-agent workflow steps to publish
+// cluster-wide events (e.g. node.bootstrap.ready) via the controller.
+func (srv *server) EmitWorkflowEvent(ctx context.Context, req *cluster_controllerpb.EmitWorkflowEventRequest) (*cluster_controllerpb.EmitWorkflowEventResponse, error) {
+	if req == nil || req.GetEventType() == "" {
+		return nil, status.Error(codes.InvalidArgument, "event_type is required")
+	}
+	payload := make(map[string]interface{}, len(req.GetData()))
+	for k, v := range req.GetData() {
+		payload[k] = v
+	}
+	srv.emitClusterEvent(req.GetEventType(), payload)
+	return &cluster_controllerpb.EmitWorkflowEventResponse{Published: true}, nil
+}
+
 func (srv *server) PreviewNodeProfiles(ctx context.Context, req *cluster_controllerpb.PreviewNodeProfilesRequest) (*cluster_controllerpb.PreviewNodeProfilesResponse, error) {
 	if req == nil || req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
@@ -308,6 +343,7 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 		ReleaseKind:   "NodeRemoval",
 		TriggerReason: workflow.TriggerRepair,
 		CorrelationID: fmt.Sprintf("repair/node-removal/%s", nodeID),
+		WorkflowName:  "node.repair",
 	})
 
 	prefixes := []struct {

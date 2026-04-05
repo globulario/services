@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/workflow/engine"
 )
 
 // releaseRetryBackoff is the minimum time to wait before auto-retrying a
@@ -41,9 +41,6 @@ type releaseHandle struct {
 	// Resolve parameters (normalized to the common resolver shape)
 	ResolverSpec   *cluster_controllerpb.ServiceReleaseSpec
 	RepositoryAddr string
-
-	// Lock key for plan dispatch conflict guard (e.g. "service:gateway")
-	LockKey string
 
 	// Installed-state lookup parameters for the canonical etcd registry.
 	InstalledStateKind string // "SERVICE", "APPLICATION", "INFRASTRUCTURE"
@@ -231,7 +228,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		srv.workflowSem <- struct{}{}
 		defer func() { <-srv.workflowSem }()
 
-		run, err := srv.RunPackageReleaseWorkflow(ctx,
+		_, err := srv.RunPackageReleaseWorkflow(ctx,
 			releaseID,
 			h.Name,
 			h.InstalledStateName,
@@ -241,107 +238,22 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			nodeIDs,
 		)
 
-		nowMs := time.Now().UnixMilli()
-
+		// Success path: workflow callbacks (MarkNodeSucceeded/Failed,
+		// FinalizeDirectApply, MarkReleaseFailed) already wrote the final
+		// release phase and per-node status. Controller does not re-patch.
 		if err != nil {
-			log.Printf("%s %s: release workflow FAILED: %v", h.ResourceType, h.Name, err)
-			if run != nil && run.Steps != nil {
-				nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
-				succeeded, failed := countNodeOutcomes(nodeStatuses)
-				if succeeded > 0 && failed > 0 {
-					h.PatchStatus(ctx, statusPatch{
-						Phase:                cluster_controllerpb.ReleasePhaseDegraded,
-						Nodes:                nodeStatuses,
-						LastTransitionUnixMs: nowMs,
-						TransitionReason:     "partial_failure",
-						SetFields:            "nodes",
-					})
-					return
-				}
-			}
+			// Engine-level error (workflow infrastructure failed to run at
+			// all) — safety net so the release doesn't stay in RESOLVED.
+			log.Printf("%s %s: release workflow engine error: %v", h.ResourceType, h.Name, err)
 			h.PatchStatus(ctx, statusPatch{
 				Phase:                cluster_controllerpb.ReleasePhaseFailed,
-				Message:              fmt.Sprintf("workflow failed: %v", err),
-				LastTransitionUnixMs: nowMs,
-				TransitionReason:     "workflow_failed",
+				Message:              fmt.Sprintf("workflow engine error: %v", err),
+				LastTransitionUnixMs: time.Now().UnixMilli(),
+				TransitionReason:     "workflow_engine_error",
 				SetFields:            "fail",
 			})
-			return
 		}
-
-		nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
-		h.PatchStatus(ctx, statusPatch{
-			Phase:                cluster_controllerpb.ReleasePhaseAvailable,
-			Nodes:                nodeStatuses,
-			LastTransitionUnixMs: nowMs,
-			TransitionReason:     "workflow_succeeded",
-			SetFields:            "nodes",
-		})
 	}()
-}
-
-// buildNodeStatusesFromRun constructs NodeReleaseStatus entries from a
-// workflow run's step results. The foreach sub-steps use qualified IDs
-// like "apply_per_node[0].install_package".
-func (srv *server) buildNodeStatusesFromRun(run *engine.Run, nodeIDs []string, h *releaseHandle) []*cluster_controllerpb.NodeReleaseStatus {
-	statuses := make([]*cluster_controllerpb.NodeReleaseStatus, 0, len(nodeIDs))
-	nowMs := time.Now().UnixMilli()
-	for i, nodeID := range nodeIDs {
-		phase := cluster_controllerpb.ReleasePhaseAvailable
-		var errMsg string
-
-		// Check if this node's sub-steps had failures.
-		prefix := fmt.Sprintf("apply_per_node[%d].", i)
-		for stepID, st := range run.Steps {
-			if strings.HasPrefix(stepID, prefix) && st.Status == engine.StepFailed {
-				phase = cluster_controllerpb.ReleasePhaseFailed
-				errMsg = st.Error
-				break
-			}
-		}
-
-		statuses = append(statuses, &cluster_controllerpb.NodeReleaseStatus{
-			NodeID:           nodeID,
-			Phase:            phase,
-			InstalledVersion: h.ResolvedVersion,
-			ErrorMessage:     errMsg,
-			UpdatedUnixMs:    nowMs,
-		})
-	}
-	return statuses
-}
-
-// countNodeOutcomes counts succeeded and failed nodes from status list.
-func countNodeOutcomes(statuses []*cluster_controllerpb.NodeReleaseStatus) (succeeded, failed int) {
-	for _, ns := range statuses {
-		switch ns.Phase {
-		case cluster_controllerpb.ReleasePhaseAvailable:
-			succeeded++
-		case cluster_controllerpb.ReleasePhaseFailed:
-			failed++
-		}
-	}
-	return
-}
-
-// reconcileApplying handles the APPLYING phase.
-//
-// In the workflow-native model, reconcileResolved() runs the workflow
-// synchronously and transitions directly to AVAILABLE/DEGRADED/FAILED.
-// Releases should no longer reach APPLYING in normal operation.
-//
-// This handler exists for backward compatibility: if a release was left in
-// APPLYING state from a prior plan-based dispatch, return it to RESOLVED
-// so the workflow path picks it up.
-func (srv *server) reconcileApplying(ctx context.Context, h *releaseHandle) {
-	log.Printf("%s %s: found stale APPLYING release, returning to RESOLVED for workflow execution",
-		h.ResourceType, h.Name)
-	h.PatchStatus(ctx, statusPatch{
-		Phase:                cluster_controllerpb.ReleasePhaseResolved,
-		LastTransitionUnixMs: time.Now().UnixMilli(),
-		TransitionReason:     "migrate_to_workflow",
-		SetFields:            "phase",
-	})
 }
 
 // reconcileAvailable is the shared AVAILABLE/DEGRADED phase: detect spec
@@ -381,10 +293,13 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 }
 
 // hasUnservedNodes checks if any eligible node has not successfully converged
-// for this release. A node counts as "served" only if its per-node release
-// status is AVAILABLE. Nodes that were attempted but FAILED, ROLLED_BACK, or
-// are still APPLYING from a stale attempt are treated as unserved — they need
-// a fresh plan dispatch.
+// for this release. A node counts as "served" if either:
+//   - its per-node release status is AVAILABLE (workflow wrote it), OR
+//   - its reported InstalledVersions already match this release's resolved
+//     version (node was already converged, workflow short-circuited).
+//
+// Nodes that were attempted but FAILED, ROLLED_BACK, or are still APPLYING
+// from a stale attempt are treated as unserved — they need a fresh dispatch.
 //
 // This is critical for Day 1 join: a node joins, gets dispatched, fails (e.g.
 // 503 during artifact fetch), and must be retried. Without this, the controller
@@ -395,14 +310,13 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 
-	// Only genuinely converged nodes count as served.
+	// Convergence signal #1: per-node release status written by workflow callbacks.
 	served := make(map[string]bool)
 	for _, nrs := range h.Nodes {
 		if nrs == nil {
 			continue
 		}
-		switch nrs.Phase {
-		case cluster_controllerpb.ReleasePhaseAvailable:
+		if nrs.Phase == cluster_controllerpb.ReleasePhaseAvailable {
 			served[nrs.NodeID] = true
 		}
 	}
@@ -420,6 +334,16 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 		if node.Status == "unreachable" || node.Status == "removed" {
 			continue
 		}
+		// Convergence signal #2: node reports the right version installed.
+		// This covers the "already installed, workflow short-circuited" case.
+		if h.InstalledStateName != "" && h.ResolvedVersion != "" && node.InstalledVersions != nil {
+			if node.InstalledVersions[h.InstalledStateName] == h.ResolvedVersion {
+				continue
+			}
+		}
+		log.Printf("hasUnservedNodes: release=%s node=%s unserved (installed_name=%q resolved_v=%q installed_v=%q)",
+			h.Name, id, h.InstalledStateName, h.ResolvedVersion,
+			node.InstalledVersions[h.InstalledStateName])
 		return true
 	}
 	return false
@@ -441,7 +365,6 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         appRepoAddr(rel.Spec),
-		LockKey:                fmt.Sprintf("application:%s", rel.Spec.AppName),
 		InstalledStateKind:     "APPLICATION",
 		InstalledStateName:     rel.Spec.AppName,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
@@ -476,7 +399,6 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         infraRepoAddr(rel.Spec),
-		LockKey:                fmt.Sprintf("infrastructure:%s", rel.Spec.Component),
 		InstalledStateKind:     "INFRASTRUCTURE",
 		InstalledStateName:     rel.Spec.Component,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
@@ -593,7 +515,6 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
 		Nodes:                  rel.Status.Nodes,
 		RepositoryAddr:         repositoryAddrForSpec(rel.Spec),
-		LockKey:                fmt.Sprintf("service:%s", canon),
 		InstalledStateKind:     "SERVICE",
 		InstalledStateName:     canon,
 		ResolverSpec:           rel.Spec,
@@ -615,6 +536,12 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 
 // applyPatchToSvcStatus applies a statusPatch to a ServiceReleaseStatus.
 func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statusPatch) {
+	if p.Phase == cluster_controllerpb.ReleasePhasePending {
+		buf := make([]byte, 2048)
+		n := runtime.Stack(buf, false)
+		log.Printf("DEBUG-APPLY-PATCH-PENDING: was=%q now=%q SetFields=%q reason=%q\nstack:\n%s",
+			s.Phase, p.Phase, p.SetFields, p.TransitionReason, buf[:n])
+	}
 	applyWorkflowFields := func() {
 		if p.WorkflowKind != "" {
 			s.WorkflowKind = p.WorkflowKind
@@ -652,10 +579,9 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 	}
 }
 
-// detectServiceDrift checks hash+health drift for a ServiceRelease.
+// detectServiceDrift checks version+health drift for a ServiceRelease.
 // Returns true if drift was detected and a re-plan was dispatched.
 func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controllerpb.ServiceRelease, h *releaseHandle) bool {
-	desiredHash := strings.ToLower(strings.TrimSpace(h.DesiredHash))
 	nodes := h.Nodes
 	total := len(nodes)
 	if total == 0 {
@@ -684,16 +610,19 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		node := srv.state.Nodes[nodeID]
 		srv.unlock()
 
-		applied := ""
+		versionMatch := false
 		healthy := false
 		serviceHealthy := false
-		if node != nil {
-			applied = strings.ToLower(strings.TrimSpace(node.AppliedServicesHash))
+		if node != nil && rel.Spec != nil {
 			healthy = strings.EqualFold(node.Status, "ready")
 			serviceHealthy = srv.serviceHealthyForRelease(node, rel)
+			if node.InstalledVersions != nil && h.ResolvedVersion != "" {
+				if node.InstalledVersions[rel.Spec.ServiceName] == h.ResolvedVersion {
+					versionMatch = true
+				}
+			}
 		}
-		hashMatch := desiredHash != "" && applied == desiredHash
-		if hashMatch && healthy && serviceHealthy {
+		if versionMatch && healthy && serviceHealthy {
 			ok++
 			nCopy.Phase = cluster_controllerpb.ReleasePhaseAvailable
 		} else {
@@ -703,7 +632,7 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 			// but the unit is failed/inactive, attempt a restart before dispatching
 			// a heavyweight reinstall plan.
 			restarted := false
-			if node != nil && hashMatch && !serviceHealthy {
+			if node != nil && versionMatch && !serviceHealthy {
 				canon := canonicalServiceName(rel.Spec.ServiceName)
 				unitName := serviceUnitForCanonical(canon)
 				unitState, unitSubState := srv.findUnitState(node, unitName)
@@ -790,26 +719,14 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 
 	log.Printf("%s %s: executing removal workflow across %d nodes", h.ResourceType, h.Name, len(nodeIDs))
 
-	run, err := srv.RunRemovePackageWorkflow(ctx, releaseID, h.InstalledStateName, pkgKind, nodeIDs)
+	_, err := srv.RunRemovePackageWorkflow(ctx, releaseID, h.InstalledStateName, pkgKind, nodeIDs)
 	nowMs := time.Now().UnixMilli()
 
+	// Per-node statuses are already written by the remove workflow's
+	// MarkNodeSucceeded / MarkNodeFailed callbacks. Controller only decides
+	// the release-level terminal phase (REMOVED vs FAILED).
 	if err != nil {
 		log.Printf("%s %s: removal workflow FAILED: %v", h.ResourceType, h.Name, err)
-		if run != nil {
-			nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
-			succeeded, failed := countNodeOutcomes(nodeStatuses)
-			if succeeded > 0 && failed > 0 {
-				h.PatchStatus(ctx, statusPatch{
-					Phase:                cluster_controllerpb.ReleasePhaseFailed,
-					Nodes:                nodeStatuses,
-					Message:              "removal failed on some nodes",
-					LastTransitionUnixMs: nowMs,
-					TransitionReason:     "partial_removal_failure",
-					SetFields:            "fail",
-				})
-				return
-			}
-		}
 		h.PatchStatus(ctx, statusPatch{
 			Phase:                cluster_controllerpb.ReleasePhaseFailed,
 			Message:              fmt.Sprintf("removal workflow failed: %v", err),
@@ -819,14 +736,11 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 		})
 		return
 	}
-
-	nodeStatuses := srv.buildNodeStatusesFromRun(run, nodeIDs, h)
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                ReleasePhaseRemoved,
-		Nodes:                nodeStatuses,
 		LastTransitionUnixMs: nowMs,
 		TransitionReason:     "workflow_succeeded",
-		SetFields:            "nodes",
+		SetFields:            "phase",
 	})
 }
 

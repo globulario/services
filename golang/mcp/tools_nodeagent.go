@@ -180,36 +180,7 @@ func registerNodeAgentTools(s *server) {
 		}, nil
 	})
 
-	// ── nodeagent_get_plan_status ───────────────────────────────────────────
-	s.register(toolDef{
-		Name:        "nodeagent_get_plan_status",
-		Description: "Get the execution status of a node plan (convergence operation). Returns plan state, step statuses, and events.",
-		InputSchema: inputSchema{
-			Type: "object",
-			Properties: map[string]propSchema{
-				"plan_id": {
-					Type:        "string",
-					Description: "Optional plan or operation ID. If omitted, returns the latest plan status.",
-				},
-			},
-		},
-	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
-		if err != nil {
-			return nil, err
-		}
-		client := node_agentpb.NewNodeAgentServiceClient(conn)
-
-		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
-		defer cancel()
-
-		// Plan status removed — plan system deleted.
-		_ = callCtx
-		_ = client
-		return map[string]interface{}{"status": "plan system removed — use workflow runs"}, nil
-	})
-
-	// ── nodeagent_get_installed_package ─────────────────────────────────────
+// ── nodeagent_get_installed_package ─────────────────────────────────────
 	s.register(toolDef{
 		Name:        "nodeagent_get_installed_package",
 		Description: "Get details of a specific installed package by name.",

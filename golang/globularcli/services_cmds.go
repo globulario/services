@@ -43,6 +43,10 @@ var (
 
 	// Hidden flag to allow legacy imperative behaviour.
 	svcDangerousImperative bool
+
+	// 'desired set' flags.
+	svcDesiredSetForce     bool
+	svcDesiredSetPublisher string
 )
 
 // ─── Parent command ──────────────────────────────────────────────────────────
@@ -188,6 +192,9 @@ func init() {
 	servicesApplyDesiredCmd.Flags().StringVar(&svcApplyPublisher, "publisher", "core@globular.io", "Publisher ID")
 	servicesApplyDesiredCmd.Flags().StringVar(&svcApplyRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	servicesApplyDesiredCmd.Flags().BoolVar(&svcApplyRepoInsec, "repository-insecure", false, "Use plaintext for repository connection")
+
+	servicesDesiredSetCmd.Flags().BoolVar(&svcDesiredSetForce, "force", false, "Bypass kind validation (allow COMMAND/INFRASTRUCTURE packages)")
+	servicesDesiredSetCmd.Flags().StringVar(&svcDesiredSetPublisher, "publisher", "core@globular.io", "Publisher ID for kind lookup")
 
 	servicesDesiredCmd.AddCommand(servicesDesiredSetCmd)
 	servicesDesiredCmd.AddCommand(servicesDesiredRemoveCmd)
@@ -496,6 +503,31 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 		version = cv
 	}
 
+	// Prevent polluting SERVICE desired-state with non-service packages
+	// (COMMAND, INFRASTRUCTURE). This is best-effort — if the repository
+	// can't be reached or the package isn't published yet, we skip the
+	// check rather than blocking the command. Use --force to bypass.
+	if !svcDesiredSetForce {
+		if kind, err := lookupArtifactKind(cmd, serviceID); err == nil && kind != 0 {
+			switch kind {
+			case repositorypb.ArtifactKind_COMMAND:
+				return fmt.Errorf(
+					"%s is a COMMAND package (e.g. CLI tool like claude/mc/yt-dlp), not a service.\n"+
+						"Services desired-state is only for SERVICE packages.\n"+
+						"Commands are installed directly via 'globular services apply-desired' when the\n"+
+						"spec is part of the package set, or you can scp/cp the binary manually.\n"+
+						"Use --force to override (not recommended).",
+					serviceID)
+			case repositorypb.ArtifactKind_INFRASTRUCTURE:
+				return fmt.Errorf(
+					"%s is an INFRASTRUCTURE package. Infrastructure releases use the\n"+
+						"InfrastructureRelease etcd key, not ServiceDesiredVersion.\n"+
+						"Use --force to override (not recommended).",
+					serviceID)
+			}
+		}
+	}
+
 	autoDiscoverController(cmd)
 
 	conn, err := controllerClient()
@@ -523,6 +555,57 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  • %s@%s\n", ds.GetServiceId(), ds.GetVersion())
 	}
 	return nil
+}
+
+// lookupArtifactKind asks the repository for any published version of the
+// named package and returns its ArtifactKind. Returns (0, nil) if the lookup
+// couldn't be performed or no artifact was found — callers should treat this
+// as "unknown kind" and proceed without enforcement.
+//
+// The lookup tries several package names and platforms because:
+//   - Repository names may use '_' (e.g. "yt_dlp") while CLI / desired-state
+//     typically uses '-' (e.g. "yt-dlp").
+//   - Platform-any packages exist, but some only publish per-OS/arch.
+func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactKind, error) {
+	resolveRepositoryAddr(cmd)
+	conn, err := dialRepository()
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Names to try — the package may have been published with '_' separators.
+	names := []string{name}
+	if alt := strings.ReplaceAll(name, "-", "_"); alt != name {
+		names = append(names, alt)
+	}
+	if alt := strings.ReplaceAll(name, "_", "-"); alt != name {
+		names = append(names, alt)
+	}
+	// Platforms to try — fall back to "" (any).
+	platforms := []string{runtime.GOOS + "_" + runtime.GOARCH, ""}
+
+	for _, n := range names {
+		for _, p := range platforms {
+			rsp, err := client.GetArtifactVersions(ctx, &repositorypb.GetArtifactVersionsRequest{
+				PublisherId: svcDesiredSetPublisher,
+				Name:        n,
+				Platform:    p,
+			})
+			if err != nil {
+				continue
+			}
+			for _, v := range rsp.GetVersions() {
+				if k := v.GetRef().GetKind(); k != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+					return k, nil
+				}
+			}
+		}
+	}
+	return 0, nil
 }
 
 // ─── desired remove ──────────────────────────────────────────────────────────

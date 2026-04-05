@@ -570,6 +570,128 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.setNode
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.SetNodeBootstrapPhaseRequest,
+ *   !proto.cluster_controller.SetNodeBootstrapPhaseResponse>}
+ */
+const methodDescriptor_ClusterControllerService_SetNodeBootstrapPhase = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.SetNodeBootstrapPhaseRequest,
+  proto.cluster_controller.SetNodeBootstrapPhaseResponse,
+  /**
+   * @param {!proto.cluster_controller.SetNodeBootstrapPhaseRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.SetNodeBootstrapPhaseResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.SetNodeBootstrapPhaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.SetNodeBootstrapPhaseResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.SetNodeBootstrapPhaseResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.setNodeBootstrapPhase =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetNodeBootstrapPhase,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.SetNodeBootstrapPhaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.SetNodeBootstrapPhaseResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.setNodeBootstrapPhase =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetNodeBootstrapPhase);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.EmitWorkflowEventRequest,
+ *   !proto.cluster_controller.EmitWorkflowEventResponse>}
+ */
+const methodDescriptor_ClusterControllerService_EmitWorkflowEvent = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/EmitWorkflowEvent',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.EmitWorkflowEventRequest,
+  proto.cluster_controller.EmitWorkflowEventResponse,
+  /**
+   * @param {!proto.cluster_controller.EmitWorkflowEventRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.EmitWorkflowEventResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.EmitWorkflowEventRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.EmitWorkflowEventResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.EmitWorkflowEventResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.emitWorkflowEvent =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/EmitWorkflowEvent',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_EmitWorkflowEvent,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.EmitWorkflowEventRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.EmitWorkflowEventResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.emitWorkflowEvent =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/EmitWorkflowEvent',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_EmitWorkflowEvent);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.cluster_controller.RemoveNodeRequest,
  *   !proto.cluster_controller.RemoveNodeResponse>}
  */

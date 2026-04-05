@@ -1288,5 +1288,920 @@ proto.workflow.WorkflowServicePromiseClient.prototype.diagnoseRun =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListWorkflowDefinitionsRequest,
+ *   !proto.workflow.ListWorkflowDefinitionsResponse>}
+ */
+const methodDescriptor_WorkflowService_ListWorkflowDefinitions = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListWorkflowDefinitions',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListWorkflowDefinitionsRequest,
+  proto.workflow.ListWorkflowDefinitionsResponse,
+  /**
+   * @param {!proto.workflow.ListWorkflowDefinitionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListWorkflowDefinitionsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListWorkflowDefinitionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListWorkflowDefinitionsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListWorkflowDefinitionsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listWorkflowDefinitions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListWorkflowDefinitions',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListWorkflowDefinitions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListWorkflowDefinitionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListWorkflowDefinitionsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listWorkflowDefinitions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListWorkflowDefinitions',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListWorkflowDefinitions);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.GetWorkflowDefinitionRequest,
+ *   !proto.workflow.GetWorkflowDefinitionResponse>}
+ */
+const methodDescriptor_WorkflowService_GetWorkflowDefinition = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/GetWorkflowDefinition',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.GetWorkflowDefinitionRequest,
+  proto.workflow.GetWorkflowDefinitionResponse,
+  /**
+   * @param {!proto.workflow.GetWorkflowDefinitionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.GetWorkflowDefinitionResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.GetWorkflowDefinitionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.GetWorkflowDefinitionResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.GetWorkflowDefinitionResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.getWorkflowDefinition =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/GetWorkflowDefinition',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_GetWorkflowDefinition,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.GetWorkflowDefinitionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.GetWorkflowDefinitionResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.getWorkflowDefinition =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/GetWorkflowDefinition',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_GetWorkflowDefinition);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.RecordOutcomeRequest,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_RecordOutcome = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/RecordOutcome',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.RecordOutcomeRequest,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.RecordOutcomeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.RecordOutcomeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.recordOutcome =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordOutcome',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordOutcome,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.RecordOutcomeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.recordOutcome =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordOutcome',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordOutcome);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListWorkflowSummariesRequest,
+ *   !proto.workflow.ListWorkflowSummariesResponse>}
+ */
+const methodDescriptor_WorkflowService_ListWorkflowSummaries = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListWorkflowSummaries',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListWorkflowSummariesRequest,
+  proto.workflow.ListWorkflowSummariesResponse,
+  /**
+   * @param {!proto.workflow.ListWorkflowSummariesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListWorkflowSummariesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListWorkflowSummariesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListWorkflowSummariesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListWorkflowSummariesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listWorkflowSummaries =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListWorkflowSummaries',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListWorkflowSummaries,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListWorkflowSummariesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListWorkflowSummariesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listWorkflowSummaries =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListWorkflowSummaries',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListWorkflowSummaries);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.RecordStepOutcomeRequest,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_RecordStepOutcome = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/RecordStepOutcome',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.RecordStepOutcomeRequest,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.RecordStepOutcomeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.RecordStepOutcomeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.recordStepOutcome =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordStepOutcome',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordStepOutcome,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.RecordStepOutcomeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.recordStepOutcome =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordStepOutcome',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordStepOutcome);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListStepOutcomesRequest,
+ *   !proto.workflow.ListStepOutcomesResponse>}
+ */
+const methodDescriptor_WorkflowService_ListStepOutcomes = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListStepOutcomes',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListStepOutcomesRequest,
+  proto.workflow.ListStepOutcomesResponse,
+  /**
+   * @param {!proto.workflow.ListStepOutcomesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListStepOutcomesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListStepOutcomesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListStepOutcomesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListStepOutcomesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listStepOutcomes =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListStepOutcomes',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListStepOutcomes,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListStepOutcomesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListStepOutcomesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listStepOutcomes =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListStepOutcomes',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListStepOutcomes);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.RecordPhaseTransitionRequest,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_RecordPhaseTransition = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/RecordPhaseTransition',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.RecordPhaseTransitionRequest,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.RecordPhaseTransitionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.RecordPhaseTransitionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.recordPhaseTransition =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordPhaseTransition',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordPhaseTransition,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.RecordPhaseTransitionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.recordPhaseTransition =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordPhaseTransition',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordPhaseTransition);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListPhaseTransitionsRequest,
+ *   !proto.workflow.ListPhaseTransitionsResponse>}
+ */
+const methodDescriptor_WorkflowService_ListPhaseTransitions = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListPhaseTransitions',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListPhaseTransitionsRequest,
+  proto.workflow.ListPhaseTransitionsResponse,
+  /**
+   * @param {!proto.workflow.ListPhaseTransitionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListPhaseTransitionsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListPhaseTransitionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListPhaseTransitionsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListPhaseTransitionsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listPhaseTransitions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListPhaseTransitions',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListPhaseTransitions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListPhaseTransitionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListPhaseTransitionsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listPhaseTransitions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListPhaseTransitions',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListPhaseTransitions);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.RecordDriftObservationRequest,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_RecordDriftObservation = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/RecordDriftObservation',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.RecordDriftObservationRequest,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.RecordDriftObservationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.RecordDriftObservationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.recordDriftObservation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordDriftObservation',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordDriftObservation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.RecordDriftObservationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.recordDriftObservation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/RecordDriftObservation',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_RecordDriftObservation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ClearDriftObservationRequest,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_ClearDriftObservation = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ClearDriftObservation',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ClearDriftObservationRequest,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.ClearDriftObservationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ClearDriftObservationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.clearDriftObservation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ClearDriftObservation',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ClearDriftObservation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ClearDriftObservationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.clearDriftObservation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ClearDriftObservation',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ClearDriftObservation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListDriftUnresolvedRequest,
+ *   !proto.workflow.ListDriftUnresolvedResponse>}
+ */
+const methodDescriptor_WorkflowService_ListDriftUnresolved = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListDriftUnresolved',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListDriftUnresolvedRequest,
+  proto.workflow.ListDriftUnresolvedResponse,
+  /**
+   * @param {!proto.workflow.ListDriftUnresolvedRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListDriftUnresolvedResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListDriftUnresolvedRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListDriftUnresolvedResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListDriftUnresolvedResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listDriftUnresolved =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListDriftUnresolved',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListDriftUnresolved,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListDriftUnresolvedRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListDriftUnresolvedResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listDriftUnresolved =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListDriftUnresolved',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListDriftUnresolved);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListIncidentsRequest,
+ *   !proto.workflow.ListIncidentsResponse>}
+ */
+const methodDescriptor_WorkflowService_ListIncidents = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListIncidents',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListIncidentsRequest,
+  proto.workflow.ListIncidentsResponse,
+  /**
+   * @param {!proto.workflow.ListIncidentsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListIncidentsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListIncidentsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListIncidentsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListIncidentsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listIncidents =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListIncidents',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListIncidents,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListIncidentsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListIncidentsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listIncidents =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListIncidents',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListIncidents);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.GetIncidentRequest,
+ *   !proto.workflow.Incident>}
+ */
+const methodDescriptor_WorkflowService_GetIncident = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/GetIncident',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.GetIncidentRequest,
+  proto.workflow.Incident,
+  /**
+   * @param {!proto.workflow.GetIncidentRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.Incident.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.GetIncidentRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.Incident)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.Incident>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.getIncident =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/GetIncident',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_GetIncident,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.GetIncidentRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.Incident>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.getIncident =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/GetIncident',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_GetIncident);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.IncidentAction,
+ *   !proto.google.protobuf.Empty>}
+ */
+const methodDescriptor_WorkflowService_ApplyIncidentAction = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ApplyIncidentAction',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.IncidentAction,
+  google_protobuf_empty_pb.Empty,
+  /**
+   * @param {!proto.workflow.IncidentAction} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  google_protobuf_empty_pb.Empty.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.IncidentAction} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.google.protobuf.Empty)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.google.protobuf.Empty>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.applyIncidentAction =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ApplyIncidentAction',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ApplyIncidentAction,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.IncidentAction} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.google.protobuf.Empty>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.applyIncidentAction =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ApplyIncidentAction',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ApplyIncidentAction);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.SubmitProposedFixRequest,
+ *   !proto.workflow.ProposedFix>}
+ */
+const methodDescriptor_WorkflowService_SubmitProposedFix = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/SubmitProposedFix',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.SubmitProposedFixRequest,
+  proto.workflow.ProposedFix,
+  /**
+   * @param {!proto.workflow.SubmitProposedFixRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ProposedFix.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.SubmitProposedFixRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ProposedFix)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ProposedFix>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.submitProposedFix =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/SubmitProposedFix',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_SubmitProposedFix,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.SubmitProposedFixRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ProposedFix>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.submitProposedFix =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/SubmitProposedFix',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_SubmitProposedFix);
+};
+
+
 module.exports = proto.workflow;
 

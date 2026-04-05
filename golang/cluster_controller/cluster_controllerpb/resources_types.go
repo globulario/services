@@ -58,7 +58,7 @@ const (
 	ReleasePhasePending    = "PENDING"     // Created/updated, awaiting resolution
 	ReleasePhaseResolved   = "RESOLVED"    // Exact version + artifact digest known
 	ReleasePhasePlanned    = "PLANNED"     // NodePlans written to plan store
-	ReleasePhaseApplying   = "APPLYING"    // At least one node plan in progress
+	ReleasePhaseApplying   = "APPLYING"    // LEGACY: workflow-native code no longer writes this; derive "is-applying" from workflow run state
 	ReleasePhaseAvailable  = "AVAILABLE"   // All target nodes at desired version
 	ReleasePhaseDegraded   = "DEGRADED"    // Some nodes failed; min replicas still met
 	ReleasePhaseFailed     = "FAILED"      // Cannot reach desired state; retries exhausted
@@ -102,7 +102,6 @@ type ReplicaSpec struct {
 // NodeReleaseStatus tracks per-node progress within a ServiceRelease rollout.
 type NodeReleaseStatus struct {
 	NodeID                string `json:"node_id,omitempty"`
-	PlanID                string `json:"plan_id,omitempty"`
 	Phase                 string `json:"phase,omitempty"` // ReleasePhase* constants
 	InstalledVersion      string `json:"installed_version,omitempty"`
 	InstalledBuildNumber  int64  `json:"installed_build_number,omitempty"` // build iteration on this node

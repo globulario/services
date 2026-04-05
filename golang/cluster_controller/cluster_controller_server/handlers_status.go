@@ -221,17 +221,15 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		go srv.triggerJoinWorkflow(nodeID, newEndpoint)
 	}
 
-	// Phase 4b: commit or discard pending rendered config hashes based on apply outcome.
-	// A report received after the plan was dispatched is our confirmation signal.
-	if len(node.PendingRenderedConfigHashes) > 0 && !node.LastPlanSentAt.IsZero() &&
-		reportedAt.After(node.LastPlanSentAt) {
+	// Commit or discard pending rendered config hashes based on node health:
+	// a healthy report confirms the rendered config is on disk; a failed report
+	// clears pending so the next reconcile cycle retries.
+	if len(node.PendingRenderedConfigHashes) > 0 {
 		if healthStatus == "ready" {
-			// Agent is healthy after plan dispatch — config files are on disk.
 			node.RenderedConfigHashes = node.PendingRenderedConfigHashes
 			node.PendingRenderedConfigHashes = nil
 			changed = true
 		} else if healthStatus == "error" || healthStatus == "failed" {
-			// Agent explicitly failed — clear pending so next cycle retries.
 			node.PendingRenderedConfigHashes = nil
 			changed = true
 		}
@@ -245,6 +243,20 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		if err := srv.persistStateLocked(false); err != nil {
 			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
 		}
+	}
+
+	// Update the node_identity projection after every ReportStatus so the
+	// scylla view tracks source-of-truth changes. Best-effort — any error
+	// here MUST NOT fail the handler (Clause 3: readers fall back).
+	if srv.nodeIdentityProj != nil {
+		id := nodeToIdentity(node)
+		go func() {
+			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := srv.nodeIdentityProj.Upsert(bg, *id); err != nil {
+				log.Printf("node_identity: upsert %s failed: %v", id.NodeID, err)
+			}
+		}()
 	}
 
 	// When the applied services hash changes, re-enqueue any ServiceReleases that

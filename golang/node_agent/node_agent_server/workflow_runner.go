@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -54,11 +55,39 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	// Wire controller actions (called remotely via the controller client).
 	engine.RegisterControllerActions(router, engine.ControllerConfig{
 		SetBootstrapPhase: func(ctx context.Context, nodeID, phase string) error {
-			log.Printf("workflow-runner: would set phase %s for %s (not yet wired)", phase, nodeID)
+			if err := srv.ensureControllerClient(ctx); err != nil {
+				return fmt.Errorf("controller client: %w", err)
+			}
+			rpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			_, err := srv.controllerClient.SetNodeBootstrapPhase(rpcCtx, &cluster_controllerpb.SetNodeBootstrapPhaseRequest{
+				NodeId: nodeID,
+				Phase:  phase,
+			})
+			if err != nil {
+				return fmt.Errorf("set bootstrap phase %s for %s: %w", phase, nodeID, err)
+			}
+			log.Printf("workflow-runner: set phase %s for %s", phase, nodeID)
 			return nil
 		},
 		EmitEvent: func(ctx context.Context, eventType string, data map[string]any) error {
-			log.Printf("workflow-runner: event %s %v", eventType, data)
+			if err := srv.ensureControllerClient(ctx); err != nil {
+				return fmt.Errorf("controller client: %w", err)
+			}
+			// Convert map[string]any → map[string]string (best-effort).
+			strData := make(map[string]string, len(data))
+			for k, v := range data {
+				strData[k] = fmt.Sprint(v)
+			}
+			rpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			_, err := srv.controllerClient.EmitWorkflowEvent(rpcCtx, &cluster_controllerpb.EmitWorkflowEventRequest{
+				EventType: eventType,
+				Data:      strData,
+			})
+			if err != nil {
+				return fmt.Errorf("emit event %s: %w", eventType, err)
+			}
 			return nil
 		},
 	})

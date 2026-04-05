@@ -18,7 +18,8 @@ const (
 //
 // NOTE: ReleasePhasePlanned ("PLANNED") is defined but intentionally excluded
 // from the transition map. It is reserved for future batch/canary rollouts.
-// Currently RESOLVED → APPLYING is atomic, so nothing produces PLANNED.
+// Currently the workflow-native path is RESOLVED → AVAILABLE/DEGRADED/FAILED,
+// and nothing produces PLANNED.
 var validPhaseTransitions = map[string]map[string]bool{
 	"": {
 		cluster_controllerpb.ReleasePhasePending:  true,
@@ -32,17 +33,21 @@ var validPhaseTransitions = map[string]map[string]bool{
 		ReleasePhaseRemoving:                      true,
 	},
 	cluster_controllerpb.ReleasePhaseResolved: {
-		cluster_controllerpb.ReleasePhaseApplying:  true,
-		cluster_controllerpb.ReleasePhaseAvailable: true, // all nodes already converged
-		cluster_controllerpb.ReleasePhaseFailed:    true,
-		ReleasePhaseRemoving:                       true,
+		cluster_controllerpb.ReleasePhaseAvailable:  true, // workflow finished: all nodes converged
+		cluster_controllerpb.ReleasePhaseDegraded:   true, // workflow finished: some nodes failed
+		cluster_controllerpb.ReleasePhaseFailed:     true, // workflow finished: failure
+		cluster_controllerpb.ReleasePhaseRolledBack: true,
+		ReleasePhaseRemoving:                        true,
 	},
+	// APPLYING is a legacy label kept only for API boundary compatibility.
+	// Internal code never writes this phase (use workflow run state instead).
+	// Transitions out exist for databases that still contain legacy APPLYING rows.
 	cluster_controllerpb.ReleasePhaseApplying: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true,
 		cluster_controllerpb.ReleasePhaseDegraded:   true,
 		cluster_controllerpb.ReleasePhaseFailed:     true,
 		cluster_controllerpb.ReleasePhaseRolledBack: true,
-		cluster_controllerpb.ReleasePhaseResolved:   true, // all plans lost → redispatch
+		cluster_controllerpb.ReleasePhaseResolved:   true,
 		ReleasePhaseRemoving:                        true,
 	},
 	cluster_controllerpb.ReleasePhaseAvailable: {

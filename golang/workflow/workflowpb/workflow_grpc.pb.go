@@ -20,26 +20,41 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkflowService_StartRun_FullMethodName              = "/workflow.WorkflowService/StartRun"
-	WorkflowService_UpdateRun_FullMethodName             = "/workflow.WorkflowService/UpdateRun"
-	WorkflowService_FinishRun_FullMethodName             = "/workflow.WorkflowService/FinishRun"
-	WorkflowService_RecordStep_FullMethodName            = "/workflow.WorkflowService/RecordStep"
-	WorkflowService_UpdateStep_FullMethodName            = "/workflow.WorkflowService/UpdateStep"
-	WorkflowService_FailStep_FullMethodName              = "/workflow.WorkflowService/FailStep"
-	WorkflowService_AddArtifactRef_FullMethodName        = "/workflow.WorkflowService/AddArtifactRef"
-	WorkflowService_AppendEvent_FullMethodName           = "/workflow.WorkflowService/AppendEvent"
-	WorkflowService_GetRun_FullMethodName                = "/workflow.WorkflowService/GetRun"
-	WorkflowService_ListRuns_FullMethodName              = "/workflow.WorkflowService/ListRuns"
-	WorkflowService_GetRunEvents_FullMethodName          = "/workflow.WorkflowService/GetRunEvents"
-	WorkflowService_GetCurrentRunsForNode_FullMethodName = "/workflow.WorkflowService/GetCurrentRunsForNode"
-	WorkflowService_GetComponentHistory_FullMethodName   = "/workflow.WorkflowService/GetComponentHistory"
-	WorkflowService_GetWorkflowGraph_FullMethodName      = "/workflow.WorkflowService/GetWorkflowGraph"
-	WorkflowService_WatchRun_FullMethodName              = "/workflow.WorkflowService/WatchRun"
-	WorkflowService_WatchNodeRuns_FullMethodName         = "/workflow.WorkflowService/WatchNodeRuns"
-	WorkflowService_RetryRun_FullMethodName              = "/workflow.WorkflowService/RetryRun"
-	WorkflowService_CancelRun_FullMethodName             = "/workflow.WorkflowService/CancelRun"
-	WorkflowService_AcknowledgeRun_FullMethodName        = "/workflow.WorkflowService/AcknowledgeRun"
-	WorkflowService_DiagnoseRun_FullMethodName           = "/workflow.WorkflowService/DiagnoseRun"
+	WorkflowService_StartRun_FullMethodName                = "/workflow.WorkflowService/StartRun"
+	WorkflowService_UpdateRun_FullMethodName               = "/workflow.WorkflowService/UpdateRun"
+	WorkflowService_FinishRun_FullMethodName               = "/workflow.WorkflowService/FinishRun"
+	WorkflowService_RecordStep_FullMethodName              = "/workflow.WorkflowService/RecordStep"
+	WorkflowService_UpdateStep_FullMethodName              = "/workflow.WorkflowService/UpdateStep"
+	WorkflowService_FailStep_FullMethodName                = "/workflow.WorkflowService/FailStep"
+	WorkflowService_AddArtifactRef_FullMethodName          = "/workflow.WorkflowService/AddArtifactRef"
+	WorkflowService_AppendEvent_FullMethodName             = "/workflow.WorkflowService/AppendEvent"
+	WorkflowService_GetRun_FullMethodName                  = "/workflow.WorkflowService/GetRun"
+	WorkflowService_ListRuns_FullMethodName                = "/workflow.WorkflowService/ListRuns"
+	WorkflowService_GetRunEvents_FullMethodName            = "/workflow.WorkflowService/GetRunEvents"
+	WorkflowService_GetCurrentRunsForNode_FullMethodName   = "/workflow.WorkflowService/GetCurrentRunsForNode"
+	WorkflowService_GetComponentHistory_FullMethodName     = "/workflow.WorkflowService/GetComponentHistory"
+	WorkflowService_GetWorkflowGraph_FullMethodName        = "/workflow.WorkflowService/GetWorkflowGraph"
+	WorkflowService_WatchRun_FullMethodName                = "/workflow.WorkflowService/WatchRun"
+	WorkflowService_WatchNodeRuns_FullMethodName           = "/workflow.WorkflowService/WatchNodeRuns"
+	WorkflowService_RetryRun_FullMethodName                = "/workflow.WorkflowService/RetryRun"
+	WorkflowService_CancelRun_FullMethodName               = "/workflow.WorkflowService/CancelRun"
+	WorkflowService_AcknowledgeRun_FullMethodName          = "/workflow.WorkflowService/AcknowledgeRun"
+	WorkflowService_DiagnoseRun_FullMethodName             = "/workflow.WorkflowService/DiagnoseRun"
+	WorkflowService_ListWorkflowDefinitions_FullMethodName = "/workflow.WorkflowService/ListWorkflowDefinitions"
+	WorkflowService_GetWorkflowDefinition_FullMethodName   = "/workflow.WorkflowService/GetWorkflowDefinition"
+	WorkflowService_RecordOutcome_FullMethodName           = "/workflow.WorkflowService/RecordOutcome"
+	WorkflowService_ListWorkflowSummaries_FullMethodName   = "/workflow.WorkflowService/ListWorkflowSummaries"
+	WorkflowService_RecordStepOutcome_FullMethodName       = "/workflow.WorkflowService/RecordStepOutcome"
+	WorkflowService_ListStepOutcomes_FullMethodName        = "/workflow.WorkflowService/ListStepOutcomes"
+	WorkflowService_RecordPhaseTransition_FullMethodName   = "/workflow.WorkflowService/RecordPhaseTransition"
+	WorkflowService_ListPhaseTransitions_FullMethodName    = "/workflow.WorkflowService/ListPhaseTransitions"
+	WorkflowService_RecordDriftObservation_FullMethodName  = "/workflow.WorkflowService/RecordDriftObservation"
+	WorkflowService_ClearDriftObservation_FullMethodName   = "/workflow.WorkflowService/ClearDriftObservation"
+	WorkflowService_ListDriftUnresolved_FullMethodName     = "/workflow.WorkflowService/ListDriftUnresolved"
+	WorkflowService_ListIncidents_FullMethodName           = "/workflow.WorkflowService/ListIncidents"
+	WorkflowService_GetIncident_FullMethodName             = "/workflow.WorkflowService/GetIncident"
+	WorkflowService_ApplyIncidentAction_FullMethodName     = "/workflow.WorkflowService/ApplyIncidentAction"
+	WorkflowService_SubmitProposedFix_FullMethodName       = "/workflow.WorkflowService/SubmitProposedFix"
 )
 
 // WorkflowServiceClient is the client API for WorkflowService service.
@@ -70,6 +85,25 @@ type WorkflowServiceClient interface {
 	CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AcknowledgeRun(ctx context.Context, in *AcknowledgeRunRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DiagnoseRun(ctx context.Context, in *DiagnoseRunRequest, opts ...grpc.CallOption) (*DiagnoseRunResponse, error)
+	// Definitions — workflow YAML definitions stored in MinIO (single source of truth)
+	ListWorkflowDefinitions(ctx context.Context, in *ListWorkflowDefinitionsRequest, opts ...grpc.CallOption) (*ListWorkflowDefinitionsResponse, error)
+	GetWorkflowDefinition(ctx context.Context, in *GetWorkflowDefinitionRequest, opts ...grpc.CallOption) (*GetWorkflowDefinitionResponse, error)
+	// Summaries — bounded per-workflow-name aggregates (dashboard view)
+	RecordOutcome(ctx context.Context, in *RecordOutcomeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListWorkflowSummaries(ctx context.Context, in *ListWorkflowSummariesRequest, opts ...grpc.CallOption) (*ListWorkflowSummariesResponse, error)
+	// Convergence telemetry — AI-facing diagnostic signals
+	RecordStepOutcome(ctx context.Context, in *RecordStepOutcomeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListStepOutcomes(ctx context.Context, in *ListStepOutcomesRequest, opts ...grpc.CallOption) (*ListStepOutcomesResponse, error)
+	RecordPhaseTransition(ctx context.Context, in *RecordPhaseTransitionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListPhaseTransitions(ctx context.Context, in *ListPhaseTransitionsRequest, opts ...grpc.CallOption) (*ListPhaseTransitionsResponse, error)
+	RecordDriftObservation(ctx context.Context, in *RecordDriftObservationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ClearDriftObservation(ctx context.Context, in *ClearDriftObservationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListDriftUnresolved(ctx context.Context, in *ListDriftUnresolvedRequest, opts ...grpc.CallOption) (*ListDriftUnresolvedResponse, error)
+	// Incidents — operator surface (see docs/incidents-design.md)
+	ListIncidents(ctx context.Context, in *ListIncidentsRequest, opts ...grpc.CallOption) (*ListIncidentsResponse, error)
+	GetIncident(ctx context.Context, in *GetIncidentRequest, opts ...grpc.CallOption) (*Incident, error)
+	ApplyIncidentAction(ctx context.Context, in *IncidentAction, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SubmitProposedFix(ctx context.Context, in *SubmitProposedFixRequest, opts ...grpc.CallOption) (*ProposedFix, error)
 }
 
 type workflowServiceClient struct {
@@ -298,6 +332,156 @@ func (c *workflowServiceClient) DiagnoseRun(ctx context.Context, in *DiagnoseRun
 	return out, nil
 }
 
+func (c *workflowServiceClient) ListWorkflowDefinitions(ctx context.Context, in *ListWorkflowDefinitionsRequest, opts ...grpc.CallOption) (*ListWorkflowDefinitionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkflowDefinitionsResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListWorkflowDefinitions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) GetWorkflowDefinition(ctx context.Context, in *GetWorkflowDefinitionRequest, opts ...grpc.CallOption) (*GetWorkflowDefinitionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWorkflowDefinitionResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_GetWorkflowDefinition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) RecordOutcome(ctx context.Context, in *RecordOutcomeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_RecordOutcome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListWorkflowSummaries(ctx context.Context, in *ListWorkflowSummariesRequest, opts ...grpc.CallOption) (*ListWorkflowSummariesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkflowSummariesResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListWorkflowSummaries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) RecordStepOutcome(ctx context.Context, in *RecordStepOutcomeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_RecordStepOutcome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListStepOutcomes(ctx context.Context, in *ListStepOutcomesRequest, opts ...grpc.CallOption) (*ListStepOutcomesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListStepOutcomesResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListStepOutcomes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) RecordPhaseTransition(ctx context.Context, in *RecordPhaseTransitionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_RecordPhaseTransition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListPhaseTransitions(ctx context.Context, in *ListPhaseTransitionsRequest, opts ...grpc.CallOption) (*ListPhaseTransitionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPhaseTransitionsResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListPhaseTransitions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) RecordDriftObservation(ctx context.Context, in *RecordDriftObservationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_RecordDriftObservation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ClearDriftObservation(ctx context.Context, in *ClearDriftObservationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_ClearDriftObservation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListDriftUnresolved(ctx context.Context, in *ListDriftUnresolvedRequest, opts ...grpc.CallOption) (*ListDriftUnresolvedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDriftUnresolvedResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListDriftUnresolved_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListIncidents(ctx context.Context, in *ListIncidentsRequest, opts ...grpc.CallOption) (*ListIncidentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListIncidentsResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListIncidents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) GetIncident(ctx context.Context, in *GetIncidentRequest, opts ...grpc.CallOption) (*Incident, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Incident)
+	err := c.cc.Invoke(ctx, WorkflowService_GetIncident_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ApplyIncidentAction(ctx context.Context, in *IncidentAction, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, WorkflowService_ApplyIncidentAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) SubmitProposedFix(ctx context.Context, in *SubmitProposedFixRequest, opts ...grpc.CallOption) (*ProposedFix, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProposedFix)
+	err := c.cc.Invoke(ctx, WorkflowService_SubmitProposedFix_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkflowServiceServer is the server API for WorkflowService service.
 // All implementations should embed UnimplementedWorkflowServiceServer
 // for forward compatibility.
@@ -326,6 +510,25 @@ type WorkflowServiceServer interface {
 	CancelRun(context.Context, *CancelRunRequest) (*emptypb.Empty, error)
 	AcknowledgeRun(context.Context, *AcknowledgeRunRequest) (*emptypb.Empty, error)
 	DiagnoseRun(context.Context, *DiagnoseRunRequest) (*DiagnoseRunResponse, error)
+	// Definitions — workflow YAML definitions stored in MinIO (single source of truth)
+	ListWorkflowDefinitions(context.Context, *ListWorkflowDefinitionsRequest) (*ListWorkflowDefinitionsResponse, error)
+	GetWorkflowDefinition(context.Context, *GetWorkflowDefinitionRequest) (*GetWorkflowDefinitionResponse, error)
+	// Summaries — bounded per-workflow-name aggregates (dashboard view)
+	RecordOutcome(context.Context, *RecordOutcomeRequest) (*emptypb.Empty, error)
+	ListWorkflowSummaries(context.Context, *ListWorkflowSummariesRequest) (*ListWorkflowSummariesResponse, error)
+	// Convergence telemetry — AI-facing diagnostic signals
+	RecordStepOutcome(context.Context, *RecordStepOutcomeRequest) (*emptypb.Empty, error)
+	ListStepOutcomes(context.Context, *ListStepOutcomesRequest) (*ListStepOutcomesResponse, error)
+	RecordPhaseTransition(context.Context, *RecordPhaseTransitionRequest) (*emptypb.Empty, error)
+	ListPhaseTransitions(context.Context, *ListPhaseTransitionsRequest) (*ListPhaseTransitionsResponse, error)
+	RecordDriftObservation(context.Context, *RecordDriftObservationRequest) (*emptypb.Empty, error)
+	ClearDriftObservation(context.Context, *ClearDriftObservationRequest) (*emptypb.Empty, error)
+	ListDriftUnresolved(context.Context, *ListDriftUnresolvedRequest) (*ListDriftUnresolvedResponse, error)
+	// Incidents — operator surface (see docs/incidents-design.md)
+	ListIncidents(context.Context, *ListIncidentsRequest) (*ListIncidentsResponse, error)
+	GetIncident(context.Context, *GetIncidentRequest) (*Incident, error)
+	ApplyIncidentAction(context.Context, *IncidentAction) (*emptypb.Empty, error)
+	SubmitProposedFix(context.Context, *SubmitProposedFixRequest) (*ProposedFix, error)
 }
 
 // UnimplementedWorkflowServiceServer should be embedded to have
@@ -394,6 +597,51 @@ func (UnimplementedWorkflowServiceServer) AcknowledgeRun(context.Context, *Ackno
 }
 func (UnimplementedWorkflowServiceServer) DiagnoseRun(context.Context, *DiagnoseRunRequest) (*DiagnoseRunResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DiagnoseRun not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListWorkflowDefinitions(context.Context, *ListWorkflowDefinitionsRequest) (*ListWorkflowDefinitionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkflowDefinitions not implemented")
+}
+func (UnimplementedWorkflowServiceServer) GetWorkflowDefinition(context.Context, *GetWorkflowDefinitionRequest) (*GetWorkflowDefinitionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorkflowDefinition not implemented")
+}
+func (UnimplementedWorkflowServiceServer) RecordOutcome(context.Context, *RecordOutcomeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordOutcome not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListWorkflowSummaries(context.Context, *ListWorkflowSummariesRequest) (*ListWorkflowSummariesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkflowSummaries not implemented")
+}
+func (UnimplementedWorkflowServiceServer) RecordStepOutcome(context.Context, *RecordStepOutcomeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordStepOutcome not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListStepOutcomes(context.Context, *ListStepOutcomesRequest) (*ListStepOutcomesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListStepOutcomes not implemented")
+}
+func (UnimplementedWorkflowServiceServer) RecordPhaseTransition(context.Context, *RecordPhaseTransitionRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordPhaseTransition not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListPhaseTransitions(context.Context, *ListPhaseTransitionsRequest) (*ListPhaseTransitionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPhaseTransitions not implemented")
+}
+func (UnimplementedWorkflowServiceServer) RecordDriftObservation(context.Context, *RecordDriftObservationRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordDriftObservation not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ClearDriftObservation(context.Context, *ClearDriftObservationRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearDriftObservation not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListDriftUnresolved(context.Context, *ListDriftUnresolvedRequest) (*ListDriftUnresolvedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDriftUnresolved not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListIncidents(context.Context, *ListIncidentsRequest) (*ListIncidentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListIncidents not implemented")
+}
+func (UnimplementedWorkflowServiceServer) GetIncident(context.Context, *GetIncidentRequest) (*Incident, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetIncident not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ApplyIncidentAction(context.Context, *IncidentAction) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyIncidentAction not implemented")
+}
+func (UnimplementedWorkflowServiceServer) SubmitProposedFix(context.Context, *SubmitProposedFixRequest) (*ProposedFix, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitProposedFix not implemented")
 }
 func (UnimplementedWorkflowServiceServer) testEmbeddedByValue() {}
 
@@ -761,6 +1009,276 @@ func _WorkflowService_DiagnoseRun_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkflowService_ListWorkflowDefinitions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkflowDefinitionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListWorkflowDefinitions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListWorkflowDefinitions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListWorkflowDefinitions(ctx, req.(*ListWorkflowDefinitionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_GetWorkflowDefinition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkflowDefinitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).GetWorkflowDefinition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_GetWorkflowDefinition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).GetWorkflowDefinition(ctx, req.(*GetWorkflowDefinitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_RecordOutcome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordOutcomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).RecordOutcome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_RecordOutcome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).RecordOutcome(ctx, req.(*RecordOutcomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListWorkflowSummaries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkflowSummariesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListWorkflowSummaries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListWorkflowSummaries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListWorkflowSummaries(ctx, req.(*ListWorkflowSummariesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_RecordStepOutcome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordStepOutcomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).RecordStepOutcome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_RecordStepOutcome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).RecordStepOutcome(ctx, req.(*RecordStepOutcomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListStepOutcomes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListStepOutcomesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListStepOutcomes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListStepOutcomes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListStepOutcomes(ctx, req.(*ListStepOutcomesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_RecordPhaseTransition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordPhaseTransitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).RecordPhaseTransition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_RecordPhaseTransition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).RecordPhaseTransition(ctx, req.(*RecordPhaseTransitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListPhaseTransitions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPhaseTransitionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListPhaseTransitions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListPhaseTransitions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListPhaseTransitions(ctx, req.(*ListPhaseTransitionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_RecordDriftObservation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordDriftObservationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).RecordDriftObservation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_RecordDriftObservation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).RecordDriftObservation(ctx, req.(*RecordDriftObservationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ClearDriftObservation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearDriftObservationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ClearDriftObservation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ClearDriftObservation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ClearDriftObservation(ctx, req.(*ClearDriftObservationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListDriftUnresolved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDriftUnresolvedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListDriftUnresolved(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListDriftUnresolved_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListDriftUnresolved(ctx, req.(*ListDriftUnresolvedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListIncidents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListIncidentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListIncidents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListIncidents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListIncidents(ctx, req.(*ListIncidentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_GetIncident_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetIncidentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).GetIncident(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_GetIncident_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).GetIncident(ctx, req.(*GetIncidentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ApplyIncidentAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IncidentAction)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ApplyIncidentAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ApplyIncidentAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ApplyIncidentAction(ctx, req.(*IncidentAction))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_SubmitProposedFix_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitProposedFixRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).SubmitProposedFix(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_SubmitProposedFix_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).SubmitProposedFix(ctx, req.(*SubmitProposedFixRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkflowService_ServiceDesc is the grpc.ServiceDesc for WorkflowService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -839,6 +1357,66 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DiagnoseRun",
 			Handler:    _WorkflowService_DiagnoseRun_Handler,
+		},
+		{
+			MethodName: "ListWorkflowDefinitions",
+			Handler:    _WorkflowService_ListWorkflowDefinitions_Handler,
+		},
+		{
+			MethodName: "GetWorkflowDefinition",
+			Handler:    _WorkflowService_GetWorkflowDefinition_Handler,
+		},
+		{
+			MethodName: "RecordOutcome",
+			Handler:    _WorkflowService_RecordOutcome_Handler,
+		},
+		{
+			MethodName: "ListWorkflowSummaries",
+			Handler:    _WorkflowService_ListWorkflowSummaries_Handler,
+		},
+		{
+			MethodName: "RecordStepOutcome",
+			Handler:    _WorkflowService_RecordStepOutcome_Handler,
+		},
+		{
+			MethodName: "ListStepOutcomes",
+			Handler:    _WorkflowService_ListStepOutcomes_Handler,
+		},
+		{
+			MethodName: "RecordPhaseTransition",
+			Handler:    _WorkflowService_RecordPhaseTransition_Handler,
+		},
+		{
+			MethodName: "ListPhaseTransitions",
+			Handler:    _WorkflowService_ListPhaseTransitions_Handler,
+		},
+		{
+			MethodName: "RecordDriftObservation",
+			Handler:    _WorkflowService_RecordDriftObservation_Handler,
+		},
+		{
+			MethodName: "ClearDriftObservation",
+			Handler:    _WorkflowService_ClearDriftObservation_Handler,
+		},
+		{
+			MethodName: "ListDriftUnresolved",
+			Handler:    _WorkflowService_ListDriftUnresolved_Handler,
+		},
+		{
+			MethodName: "ListIncidents",
+			Handler:    _WorkflowService_ListIncidents_Handler,
+		},
+		{
+			MethodName: "GetIncident",
+			Handler:    _WorkflowService_GetIncident_Handler,
+		},
+		{
+			MethodName: "ApplyIncidentAction",
+			Handler:    _WorkflowService_ApplyIncidentAction_Handler,
+		},
+		{
+			MethodName: "SubmitProposedFix",
+			Handler:    _WorkflowService_SubmitProposedFix_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

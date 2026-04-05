@@ -46,7 +46,13 @@ func (srv *server) formatPath(in string) string {
 	if in == "" {
 		return ""
 	}
-	p, _ := url.PathUnescape(in)
+	p, err := url.PathUnescape(in)
+	if err != nil {
+		// Input contains a literal '%' that isn't a valid percent-escape
+		// (e.g. filenames on disk like "core@globular.io%ai-executor%0.bin").
+		// Fall back to the raw input so storage routing still works.
+		p = in
+	}
 	p = strings.ReplaceAll(p, "\\", "/")
 	p = filepath.ToSlash(p)
 

@@ -13,9 +13,45 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
+
+// clientStreamInterceptor mirrors clientInterceptor for streaming RPCs. It
+// injects cluster_id and x-call-depth into the outgoing metadata before the
+// stream opens so the server-side interceptor can enforce cluster-membership
+// on streaming calls (e.g. package upload).
+func clientStreamInterceptor(_ Client) func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		// Propagate call depth (same logic as unary path).
+		depth := 0
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if vals := md.Get("x-call-depth"); len(vals) > 0 {
+				if d, err := strconv.Atoi(vals[0]); err == nil {
+					depth = d
+				}
+			}
+		}
+		if md, ok := metadata.FromOutgoingContext(ctx); ok {
+			if vals := md.Get("x-call-depth"); len(vals) > 0 {
+				if d, err := strconv.Atoi(vals[0]); err == nil && d > depth {
+					depth = d
+				}
+			}
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, "x-call-depth", strconv.Itoa(depth+1))
+
+		// Inject cluster_id if the caller hasn't already set one.
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
+			}
+		}
+
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
 
 // clientInterceptor adds:
 //   • Quieter logging during initial boot (configurable grace).
@@ -41,6 +77,17 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 			}
 		}
 		ctx = metadata.AppendToOutgoingContext(ctx, "x-call-depth", strconv.Itoa(depth+1))
+
+		// Ensure cluster_id is present in outgoing metadata so the server-side
+		// interceptor can enforce cluster-membership after initialization.
+		// Many call sites build their own metadata via NewOutgoingContext which
+		// would clobber upstream cluster_id; appending here guarantees presence
+		// without clobbering existing entries. Only add if not already set.
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
+			}
+		}
 
 		err := invoker(ctx, method, rqst, reply, cc, opts...)
 		if client_ != nil && err != nil {

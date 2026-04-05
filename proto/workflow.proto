@@ -26,8 +26,9 @@ enum WorkflowActor {
 enum WorkflowPhaseKind {
   PHASE_UNKNOWN   = 0;
   PHASE_DECISION  = 1;   // release evaluated, profile checked
-  PHASE_PLAN      = 2;   // plan generated, persisted
-  PHASE_DISPATCH  = 3;   // plan written to node slot, handoff to agent
+  // 2, 3 retired: PHASE_PLAN, PHASE_DISPATCH (plan-era).
+  reserved 2, 3;
+  reserved "PHASE_PLAN", "PHASE_DISPATCH";
   PHASE_FETCH     = 4;   // artifact download, checksum verify
   PHASE_INSTALL   = 5;   // package extract, OS install, spec steps
   PHASE_CONFIGURE = 6;   // config render, env patch, post-install script
@@ -37,20 +38,23 @@ enum WorkflowPhaseKind {
   PHASE_COMPLETE  = 10;  // terminal success
 }
 
-// RunStatus is the lifecycle state of a workflow run.
+// RunStatus is the lifecycle state of a workflow run. All workflow-native:
+// a run is created (pending), may wait (blocked/retrying), executes, and
+// ends in a single terminal state.
 enum RunStatus {
   RUN_STATUS_UNKNOWN          = 0;
   RUN_STATUS_PENDING          = 1;  // created, not yet started
-  RUN_STATUS_PLANNING         = 2;  // controller generating plan
-  RUN_STATUS_WAITING_FOR_SLOT = 3;  // plan ready but slot occupied
-  RUN_STATUS_DISPATCHED       = 4;  // plan written to node current plan slot
-  RUN_STATUS_EXECUTING        = 5;  // node-agent is running plan steps
-  RUN_STATUS_BLOCKED          = 6;  // waiting on dependency / operator
-  RUN_STATUS_RETRYING         = 7;  // auto-retry in progress
-  RUN_STATUS_SUCCEEDED        = 8;
-  RUN_STATUS_FAILED           = 9;
-  RUN_STATUS_CANCELED         = 10;
-  RUN_STATUS_ROLLED_BACK      = 11;
+  // 2, 3, 4 retired: PLANNING, WAITING_FOR_SLOT, DISPATCHED (plan-era).
+  reserved 2, 3, 4;
+  reserved "RUN_STATUS_PLANNING", "RUN_STATUS_WAITING_FOR_SLOT", "RUN_STATUS_DISPATCHED";
+  RUN_STATUS_EXECUTING        = 5;  // workflow engine is running steps
+  RUN_STATUS_BLOCKED          = 6;  // waiting on dependency/operator/node (see wait_reason)
+  RUN_STATUS_RETRYING         = 7;  // auto-retry in progress (see retry_attempt)
+  RUN_STATUS_SUCCEEDED        = 8;  // terminal
+  RUN_STATUS_FAILED           = 9;  // terminal
+  RUN_STATUS_CANCELED         = 10; // terminal, operator-initiated
+  RUN_STATUS_ROLLED_BACK      = 11; // terminal, rolled back to prior state
+  RUN_STATUS_SUPERSEDED       = 12; // terminal, replaced by newer run (see superseded_by)
 }
 
 // StepStatus is the lifecycle state of a workflow step.
@@ -100,7 +104,9 @@ enum TriggerReason {
 enum ArtifactKind {
   ARTIFACT_KIND_UNKNOWN     = 0;
   ARTIFACT_KIND_RELEASE     = 1;
-  ARTIFACT_KIND_PLAN        = 2;
+  // 2 retired: ARTIFACT_KIND_PLAN (plan-era).
+  reserved 2;
+  reserved "ARTIFACT_KIND_PLAN";
   ARTIFACT_KIND_PACKAGE     = 3;
   ARTIFACT_KIND_MANIFEST    = 4;
   ARTIFACT_KIND_SPEC        = 5;
@@ -126,8 +132,10 @@ message WorkflowContext {
   string release_kind       = 7;   // InfrastructureRelease, ServiceRelease
   string release_object_id  = 8;
   string desired_object_id  = 9;
-  string plan_id            = 10;
-  int32  plan_generation    = 11;
+  // Fields 10/11 retired: plan_id, plan_generation (plan-era).
+  // Use workflow run id + step id for correlation instead.
+  reserved 10, 11;
+  reserved "plan_id", "plan_generation";
 }
 
 // WorkflowRun represents one reconciliation attempt for a component on a node.
@@ -163,6 +171,23 @@ message WorkflowRun {
   google.protobuf.Timestamp started_at  = 15;
   google.protobuf.Timestamp updated_at  = 16;
   google.protobuf.Timestamp finished_at = 17;
+
+  // Workflow definition name (e.g. "day0.bootstrap", "release.apply.package")
+  string workflow_name = 18;
+
+  // Wait reason when status=BLOCKED (e.g. "waiting_on_dependency:verify_etcd",
+  // "waiting_on_node:globule-nuc", "waiting_on_slot").
+  string wait_reason = 19;
+
+  // Retry tracking: current attempt (1-indexed) and max allowed.
+  int32 retry_attempt = 20;
+  int32 max_retries   = 21;
+  // Unix millis: when retry backoff expires and next attempt can start.
+  int64 backoff_until_ms = 22;
+
+  // Supersession: when a newer run obsoletes this one for the same
+  // correlation_id. Both fields point to the replacement run id.
+  string superseded_by = 23;
 }
 
 // WorkflowStep represents a single action or transition within a run.
@@ -290,9 +315,10 @@ message UpdateRunRequest {
   string cluster_id = 2;
   RunStatus status  = 3;
   string summary    = 4;
-  string plan_id    = 5;
-  int32  plan_generation = 6;
+  reserved 5, 6;  // retired: plan_id, plan_generation
+  reserved "plan_id", "plan_generation";
   WorkflowActor current_actor = 7;
+  string wait_reason = 8;
 }
 
 message FinishRunRequest {
@@ -357,6 +383,7 @@ message ListRunsRequest {
   bool failed_only      = 7;
   int32 limit           = 8;   // default 50
   string page_token     = 9;   // opaque pagination cursor
+  string workflow_name  = 10;  // optional filter by definition name
 }
 
 message ListRunsResponse {
@@ -441,6 +468,341 @@ message DiagnoseRunResponse {
   string suggested_action = 4;
 }
 
+// ─── Summary messages ────────────────────────────────────────────────────────
+
+// WorkflowRunSummary is a bounded per-workflow-name aggregate. Used for
+// dashboards where full run detail would inflate storage (e.g. periodic
+// cluster.reconcile runs firing every 30s). One row per (cluster, workflow).
+message WorkflowRunSummary {
+  string cluster_id    = 1;
+  string workflow_name = 2;
+
+  int64 total_runs     = 3;
+  int64 success_runs   = 4;
+  int64 failure_runs   = 5;
+
+  // Last run (regardless of outcome)
+  string    last_run_id       = 6;
+  RunStatus last_run_status   = 7;
+  google.protobuf.Timestamp last_started_at  = 8;
+  google.protobuf.Timestamp last_finished_at = 9;
+  int64 last_duration_ms      = 10;
+
+  // Last success
+  string last_success_id = 11;
+  google.protobuf.Timestamp last_success_at = 12;
+
+  // Last failure (for forensic drill-down)
+  string last_failure_id     = 13;
+  google.protobuf.Timestamp last_failure_at = 14;
+  string last_failure_reason = 15;
+
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+message RecordOutcomeRequest {
+  string cluster_id       = 1;
+  string workflow_name    = 2;
+  string run_id           = 3;   // optional; empty for purely summary-only callers
+  RunStatus status        = 4;
+  google.protobuf.Timestamp started_at  = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  int64 duration_ms       = 7;
+  string failure_reason   = 8;   // set when status is FAILED/ROLLED_BACK
+}
+
+message ListWorkflowSummariesRequest {
+  string cluster_id    = 1;
+  string workflow_name = 2;  // optional filter
+}
+
+message ListWorkflowSummariesResponse {
+  repeated WorkflowRunSummary summaries = 1;
+}
+
+// ─── Convergence telemetry ───────────────────────────────────────────────────
+
+// Per-step aggregate for a workflow definition.
+message WorkflowStepOutcome {
+  string cluster_id         = 1;
+  string workflow_name      = 2;
+  string step_id            = 3;
+  int64  total_executions   = 4;
+  int64  success_count      = 5;
+  int64  failure_count      = 6;
+  int64  skipped_count      = 7;
+  StepStatus last_status    = 8;
+  google.protobuf.Timestamp last_started_at  = 9;
+  google.protobuf.Timestamp last_finished_at = 10;
+  int64  last_duration_ms   = 11;
+  string last_error_code    = 12;
+  string last_error_message = 13;
+  google.protobuf.Timestamp first_seen_at = 14;
+  google.protobuf.Timestamp updated_at    = 15;
+}
+
+message RecordStepOutcomeRequest {
+  string cluster_id    = 1;
+  string workflow_name = 2;
+  string step_id       = 3;
+  StepStatus status    = 4;
+  google.protobuf.Timestamp started_at  = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  int64  duration_ms   = 7;
+  string error_code    = 8;
+  string error_message = 9;
+}
+
+message ListStepOutcomesRequest {
+  string cluster_id    = 1;
+  string workflow_name = 2;  // optional filter
+}
+
+message ListStepOutcomesResponse {
+  repeated WorkflowStepOutcome outcomes = 1;
+}
+
+// Phase transition event (append-only, 7-day TTL).
+message PhaseTransitionEvent {
+  string cluster_id    = 1;
+  string resource_type = 2;
+  string resource_name = 3;
+  google.protobuf.Timestamp event_at = 4;
+  string event_id      = 5;
+  string from_phase    = 6;
+  string to_phase      = 7;
+  string reason        = 8;
+  string caller        = 9;
+  bool   blocked       = 10;  // true = rejected by invariant guard
+}
+
+message RecordPhaseTransitionRequest {
+  string cluster_id    = 1;
+  string resource_type = 2;
+  string resource_name = 3;
+  string from_phase    = 4;
+  string to_phase      = 5;
+  string reason        = 6;
+  string caller        = 7;
+  bool   blocked       = 8;
+}
+
+message ListPhaseTransitionsRequest {
+  string cluster_id    = 1;
+  string resource_type = 2;  // required
+  string resource_name = 3;  // required
+  int32  limit         = 4;  // default 100
+}
+
+message ListPhaseTransitionsResponse {
+  repeated PhaseTransitionEvent events = 1;
+}
+
+// Drift item that has been observed in at least one reconcile cycle and not
+// yet cleared. consecutive_cycles increments each cycle it reappears.
+message DriftUnresolved {
+  string cluster_id          = 1;
+  string drift_type          = 2;
+  string entity_ref          = 3;
+  int32  consecutive_cycles  = 4;
+  google.protobuf.Timestamp first_observed_at = 5;
+  google.protobuf.Timestamp last_observed_at  = 6;
+  string chosen_workflow     = 7;
+  string last_remediation_id = 8;
+}
+
+message RecordDriftObservationRequest {
+  string cluster_id      = 1;
+  string drift_type      = 2;
+  string entity_ref      = 3;
+  string chosen_workflow = 4;
+  string remediation_id  = 5;
+}
+
+message ClearDriftObservationRequest {
+  string cluster_id = 1;
+  string drift_type = 2;
+  string entity_ref = 3;
+}
+
+message ListDriftUnresolvedRequest {
+  string cluster_id = 1;
+  string drift_type = 2;  // optional filter
+  int32  min_cycles = 3;  // optional: only items observed >= N cycles
+}
+
+message ListDriftUnresolvedResponse {
+  repeated DriftUnresolved items = 1;
+}
+
+// ─── Incident model (operator surface for self-correcting control plane) ────
+//
+// See docs/incidents-design.md for the full specification. Incidents are
+// persistent, operator-visible aggregations of related signals pointing to
+// the same underlying root cause.
+
+enum IncidentStatus {
+  INCIDENT_STATUS_UNKNOWN   = 0;
+  INCIDENT_STATUS_OPEN      = 1;
+  INCIDENT_STATUS_RESOLVING = 2;
+  INCIDENT_STATUS_RESOLVED  = 3;
+  INCIDENT_STATUS_ACKED     = 4;
+}
+
+enum IncidentSeverity {
+  INCIDENT_SEVERITY_UNKNOWN  = 0;
+  INCIDENT_SEVERITY_INFO     = 1;
+  INCIDENT_SEVERITY_WARN     = 2;
+  INCIDENT_SEVERITY_ERROR    = 3;
+  INCIDENT_SEVERITY_CRITICAL = 4;
+}
+
+// Provenance layer — where a statement came from. See design doc §5.
+enum Provenance {
+  PROVENANCE_UNKNOWN     = 0;
+  PROVENANCE_OBSERVED    = 1;  // raw measurement from a single source
+  PROVENANCE_CORRELATED  = 2;  // joined from two or more Observed facts
+  PROVENANCE_DIAGNOSED   = 3;  // rule-based inference (cluster_doctor etc.)
+  PROVENANCE_AI_PROPOSED = 4;  // LLM-based inference with confidence
+}
+
+enum FixStatus {
+  FIX_STATUS_UNKNOWN  = 0;
+  FIX_STATUS_PROPOSED = 1;
+  FIX_STATUS_APPROVED = 2;
+  FIX_STATUS_APPLIED  = 3;
+  FIX_STATUS_REJECTED = 4;
+  FIX_STATUS_FAILED   = 5;
+}
+
+// EvidenceItem — "what was observed/correlated" (design §6).
+message EvidenceItem {
+  string id         = 1;
+  Provenance provenance = 2;  // OBSERVED or CORRELATED only
+  string source     = 3;      // "workflow.step_outcomes", "node_agent", …
+  string summary    = 4;
+  map<string, string> facts = 5;
+  google.protobuf.Timestamp observed_at = 6;
+}
+
+// DiagnosisItem — "what a rule inferred" (design §7). MUST cite evidence.
+message DiagnosisItem {
+  string id           = 1;
+  string source       = 2;       // "cluster_doctor", "workflow.invariants"
+  string invariant_id = 3;
+  string summary      = 4;
+  repeated string cited_evidence_ids = 5;
+  IncidentSeverity severity = 6;
+  google.protobuf.Timestamp diagnosed_at = 7;
+}
+
+// Concrete change types that a ProposedFix can carry.
+message CodePatch {
+  string file_path  = 1;
+  int32  line       = 2;
+  string old_text   = 3;
+  string new_text   = 4;
+  string repository = 5;
+}
+message ConfigPatch {
+  string target_path = 1;  // where the config lives (file / etcd key)
+  string old_value   = 2;
+  string new_value   = 3;
+  string format      = 4;  // "yaml" | "json" | "env"
+}
+message CommandList {
+  repeated string commands = 1;
+  string target_host       = 2;  // node to run on (empty = cluster-wide)
+}
+message RestartAction {
+  repeated string unit_names = 1;
+  string target_host         = 2;
+}
+
+// ProposedFix — "what AI suggested" (design §8). MUST cite evidence/diagnosis.
+message ProposedFix {
+  string id         = 1;
+  string proposer   = 2;       // "ai_executor" | "operator_suggestion"
+  string summary    = 3;
+  string confidence = 4;       // "high" | "medium" | "low"
+  string reasoning  = 5;
+  repeated string cited_evidence_ids  = 6;
+  repeated string cited_diagnosis_ids = 7;
+
+  CodePatch      code_patch     = 8;
+  ConfigPatch    config_patch   = 9;
+  CommandList    command_list   = 10;
+  RestartAction  restart_action = 11;
+
+  FixStatus status             = 12;
+  string    applied_by         = 13;
+  google.protobuf.Timestamp applied_at = 14;
+  string    application_result = 15;
+
+  google.protobuf.Timestamp proposed_at = 16;
+  string target_incident_id = 17;  // set by server from RPC ctx
+}
+
+message Incident {
+  string id          = 1;
+  string cluster_id  = 2;
+  string category    = 3;
+  string signature   = 4;
+  IncidentStatus   status   = 5;
+  IncidentSeverity severity = 6;
+
+  string headline          = 7;
+  int32  occurrence_count  = 8;
+  google.protobuf.Timestamp first_seen_at = 9;
+  google.protobuf.Timestamp last_seen_at  = 10;
+
+  repeated EvidenceItem  evidence       = 11;
+  repeated DiagnosisItem diagnoses      = 12;
+  repeated ProposedFix   proposed_fixes = 13;
+
+  bool   acknowledged    = 14;
+  string acknowledged_by = 15;
+  google.protobuf.Timestamp acknowledged_at = 16;
+  string assigned_to     = 17;
+
+  string entity_ref  = 18;
+  string entity_type = 19;
+
+  repeated string related_incident_ids = 20;
+}
+
+message IncidentAction {
+  string incident_id = 1;
+  string action      = 2;  // "ack" | "retry" | "apply_fix" | "reject_fix" | "assign" | "dismiss"
+  string actor       = 3;
+  string fix_id      = 4;
+  string comment     = 5;
+}
+
+// --- RPC request/response ---
+
+message ListIncidentsRequest {
+  string cluster_id     = 1;
+  IncidentStatus status = 2;  // 0 = all
+  int32  limit          = 3;
+  string page_token     = 4;
+}
+message ListIncidentsResponse {
+  repeated Incident incidents = 1;
+  string next_page_token      = 2;
+}
+
+message GetIncidentRequest {
+  string cluster_id  = 1;
+  string incident_id = 2;
+}
+
+message SubmitProposedFixRequest {
+  string cluster_id  = 1;
+  string incident_id = 2;
+  ProposedFix fix    = 3;
+}
+
 // ─── gRPC Service ────────────────────────────────────────────────────────────
 
 service WorkflowService {
@@ -471,4 +833,50 @@ service WorkflowService {
   rpc CancelRun(CancelRunRequest)           returns (google.protobuf.Empty);
   rpc AcknowledgeRun(AcknowledgeRunRequest) returns (google.protobuf.Empty);
   rpc DiagnoseRun(DiagnoseRunRequest)       returns (DiagnoseRunResponse);
+
+  // Definitions — workflow YAML definitions stored in MinIO (single source of truth)
+  rpc ListWorkflowDefinitions(ListWorkflowDefinitionsRequest) returns (ListWorkflowDefinitionsResponse);
+  rpc GetWorkflowDefinition(GetWorkflowDefinitionRequest)     returns (GetWorkflowDefinitionResponse);
+
+  // Summaries — bounded per-workflow-name aggregates (dashboard view)
+  rpc RecordOutcome(RecordOutcomeRequest)                       returns (google.protobuf.Empty);
+  rpc ListWorkflowSummaries(ListWorkflowSummariesRequest)       returns (ListWorkflowSummariesResponse);
+
+  // Convergence telemetry — AI-facing diagnostic signals
+  rpc RecordStepOutcome(RecordStepOutcomeRequest)               returns (google.protobuf.Empty);
+  rpc ListStepOutcomes(ListStepOutcomesRequest)                 returns (ListStepOutcomesResponse);
+  rpc RecordPhaseTransition(RecordPhaseTransitionRequest)       returns (google.protobuf.Empty);
+  rpc ListPhaseTransitions(ListPhaseTransitionsRequest)         returns (ListPhaseTransitionsResponse);
+  rpc RecordDriftObservation(RecordDriftObservationRequest)     returns (google.protobuf.Empty);
+  rpc ClearDriftObservation(ClearDriftObservationRequest)       returns (google.protobuf.Empty);
+  rpc ListDriftUnresolved(ListDriftUnresolvedRequest)           returns (ListDriftUnresolvedResponse);
+
+  // Incidents — operator surface (see docs/incidents-design.md)
+  rpc ListIncidents(ListIncidentsRequest)           returns (ListIncidentsResponse);
+  rpc GetIncident(GetIncidentRequest)               returns (Incident);
+  rpc ApplyIncidentAction(IncidentAction)           returns (google.protobuf.Empty);
+  rpc SubmitProposedFix(SubmitProposedFixRequest)   returns (ProposedFix);
+}
+
+// ─── Workflow Definition messages ─────────────────────────────────────────
+
+message ListWorkflowDefinitionsRequest {}
+
+message WorkflowDefinitionSummary {
+  string name = 1;             // e.g. "day0.bootstrap"
+  string display_name = 2;     // from metadata.displayName
+  string description = 3;      // from metadata.description
+}
+
+message ListWorkflowDefinitionsResponse {
+  repeated WorkflowDefinitionSummary definitions = 1;
+}
+
+message GetWorkflowDefinitionRequest {
+  string name = 1;             // e.g. "day0.bootstrap"
+}
+
+message GetWorkflowDefinitionResponse {
+  string name = 1;
+  string yaml_content = 2;     // raw YAML text
 }

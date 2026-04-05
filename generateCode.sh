@@ -74,6 +74,7 @@ TS_TARGETS=(
 "cluster_doctor"
 "backup_manager"
 "workflow"
+"ai_executor"
 )
 
 protoc_generate_go() {
