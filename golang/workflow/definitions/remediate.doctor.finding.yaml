@@ -4,65 +4,94 @@ metadata:
   name: remediate.doctor.finding
   displayName: Remediate a cluster-doctor finding
   description: >-
-    Executes a single structured RemediationAction carried on a cluster-doctor
-    Finding. Pipeline: resolve → assess → approve → execute → verify.
-    Wraps cluster_doctor.ExecuteRemediation (does not bypass it) and re-runs
-    the doctor to verify convergence. Scope: one finding, one remediation.
+    Executes one structured RemediationAction attached to a single
+    cluster-doctor Finding. Pipeline: resolve → assess → approve →
+    execute → verify. Wraps cluster_doctor.ExecuteRemediation without
+    bypassing it, then re-runs doctor checks to verify convergence.
+    Scope is strictly one finding and one remediation attempt.
 spec:
   inputSchema:
     type: object
     required:
       - finding_id
     properties:
-      finding_id: { type: string }
-      step_index: { type: integer, default: 0 }
-      approval_token: { type: string }
-      dry_run: { type: boolean, default: false }
-      verify_timeout: { type: string, default: 30s }
+      finding_id:
+        type: string
+      step_index:
+        type: integer
+        default: 0
+      approval_token:
+        type: string
+      dry_run:
+        type: boolean
+        default: false
+      verify_timeout:
+        type: string
+        default: 30s
+
   defaults:
     step_index: 0
     approval_token: ""
     dry_run: false
     verify_timeout: 30s
+
   strategy:
     mode: single
+
   steps:
     - id: resolve_finding
-      title: Resolve finding and pick remediation step
+      title: Resolve finding and select remediation step
       actor: cluster-controller
       action: controller.doctor.resolve_finding
       with:
         finding_id: $.finding_id
         step_index: $.step_index
-      # Handler writes resolved_finding directly to run outputs:
-      # { node_id, action_type, risk, idempotent, description }
+      # Expected run outputs written by handler:
+      # resolved_finding:
+      #   {
+      #     node_id,
+      #     action_type,
+      #     risk,
+      #     idempotent,
+      #     description
+      #   }
 
     - id: assess_risk
-      title: Classify risk of the remediation action
-      dependsOn: [resolve_finding]
+      title: Assess remediation risk
+      dependsOn:
+        - resolve_finding
       actor: cluster-controller
       action: controller.doctor.assess_risk
       with:
         resolved_finding: $.resolved_finding
-      # Handler writes risk_assessment directly to run outputs:
-      # { auto_executable: bool, requires_approval: bool, reason: string }
+      # Expected run outputs written by handler:
+      # risk_assessment:
+      #   {
+      #     auto_executable: bool,
+      #     requires_approval: bool,
+      #     reason: string
+      #   }
 
     - id: require_approval
-      title: Enforce approval token when risk assessment requires it
-      dependsOn: [assess_risk]
+      title: Require approval when remediation risk demands it
+      dependsOn:
+        - assess_risk
       actor: cluster-controller
       action: controller.doctor.require_approval
       with:
         risk_assessment: $.risk_assessment
         approval_token: $.approval_token
-      # Handler pass-through if auto-executable OR approval_token supplied;
-      # otherwise fails the step. The condition language in this engine
-      # does not support `&&` / dotted paths, so gating lives in the
-      # handler, not in a YAML `when` expression.
+      # Handler behavior:
+      # - pass through when action is auto-executable
+      # - pass through when approval_token is present and sufficient
+      # - fail step otherwise
+      # Gating lives in the handler because current condition expressions
+      # do not support the needed compound logic cleanly.
 
     - id: execute_remediation
-      title: Execute the structured action via cluster-doctor
-      dependsOn: [assess_risk, require_approval]
+      title: Execute remediation through cluster-doctor
+      dependsOn:
+        - require_approval
       actor: cluster-controller
       action: controller.doctor.execute_remediation
       with:
@@ -70,12 +99,20 @@ spec:
         step_index: $.step_index
         approval_token: $.approval_token
         dry_run: $.dry_run
-      # Handler writes execution_result directly to run outputs:
-      # { audit_id, status, executed, output, reason }
+      # Expected run outputs written by handler:
+      # execution_result:
+      #   {
+      #     audit_id,
+      #     status,
+      #     executed,
+      #     output,
+      #     reason
+      #   }
 
     - id: verify_convergence
-      title: Re-run doctor and confirm finding has cleared
-      dependsOn: [execute_remediation]
+      title: Re-run doctor and verify finding cleared
+      dependsOn:
+        - execute_remediation
       when:
         expr: inputs.dry_run == false
       actor: cluster-controller
@@ -84,8 +121,13 @@ spec:
         finding_id: $.finding_id
         node_id: $.resolved_finding.node_id
       timeout: $.verify_timeout
-      # Handler writes verification directly to run outputs:
-      # { converged: bool, finding_still_present: bool, remaining_related: int }
+      # Expected run outputs written by handler:
+      # verification:
+      #   {
+      #     converged: bool,
+      #     finding_still_present: bool,
+      #     remaining_related: int
+      #   }
 
   onFailure:
     actor: cluster-controller
