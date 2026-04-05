@@ -335,8 +335,27 @@ func (nodeAgentCrash) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 			continue // Don't flag unknown errors
 		}
 
+		findingID := FindingID("node.agent_crash", nodeID, severity)
+
+		// For "heartbeat" and "timeout" variants the fix is idempotent:
+		// restart globular-node-agent and let it re-establish contact.
+		// "permissions" needs manual chmod first — stay text-only.
+		// "connectivity" is ambiguous (could be etcd/controller too) —
+		// stay text-only to avoid masking upstream outages.
+		var step1 *cluster_doctorpb.RemediationStep
+		if severity == "heartbeat" || severity == "timeout" {
+			step1 = actionStep(
+				1,
+				hint,
+				fmt.Sprintf("globular doctor remediate %s --step 0", findingID),
+				systemctlRestartAction("globular-node-agent.service", nodeID),
+			)
+		} else {
+			step1 = step(1, hint, "")
+		}
+
 		findings = append(findings, Finding{
-			FindingID:   FindingID("node.agent_crash", nodeID, severity),
+			FindingID:   findingID,
 			InvariantID: "node.agent_crash",
 			Severity:    sev,
 			Category:    "systemd",
@@ -350,7 +369,7 @@ func (nodeAgentCrash) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, hint, ""),
+				step1,
 				step(2, "Check node-agent logs", "journalctl -u globular-node-agent.service -n 20 --no-pager"),
 			},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
