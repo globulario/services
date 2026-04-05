@@ -298,6 +298,125 @@ func (InvariantStatus) EnumDescriptor() ([]byte, []int) {
 	return file_cluster_doctor_proto_rawDescGZIP(), []int{4}
 }
 
+type ActionType int32
+
+const (
+	ActionType_ACTION_UNSPECIFIED ActionType = 0
+	ActionType_SYSTEMCTL_RESTART  ActionType = 1 // params: {unit, node_id}
+	ActionType_SYSTEMCTL_STOP     ActionType = 2 // params: {unit, node_id}
+	ActionType_SYSTEMCTL_START    ActionType = 3 // params: {unit, node_id}
+	ActionType_FILE_DELETE        ActionType = 4 // params: {path, node_id}
+	ActionType_ETCD_DELETE        ActionType = 5 // params: {key}  — hand grenade
+	ActionType_ETCD_PUT           ActionType = 6 // params: {key, value}  — hand grenade
+	ActionType_PACKAGE_REINSTALL  ActionType = 7 // params: {package, node_id, version}
+	ActionType_NODE_REMOVE        ActionType = 8 // params: {node_id}  — hand grenade
+)
+
+// Enum value maps for ActionType.
+var (
+	ActionType_name = map[int32]string{
+		0: "ACTION_UNSPECIFIED",
+		1: "SYSTEMCTL_RESTART",
+		2: "SYSTEMCTL_STOP",
+		3: "SYSTEMCTL_START",
+		4: "FILE_DELETE",
+		5: "ETCD_DELETE",
+		6: "ETCD_PUT",
+		7: "PACKAGE_REINSTALL",
+		8: "NODE_REMOVE",
+	}
+	ActionType_value = map[string]int32{
+		"ACTION_UNSPECIFIED": 0,
+		"SYSTEMCTL_RESTART":  1,
+		"SYSTEMCTL_STOP":     2,
+		"SYSTEMCTL_START":    3,
+		"FILE_DELETE":        4,
+		"ETCD_DELETE":        5,
+		"ETCD_PUT":           6,
+		"PACKAGE_REINSTALL":  7,
+		"NODE_REMOVE":        8,
+	}
+)
+
+func (x ActionType) Enum() *ActionType {
+	p := new(ActionType)
+	*p = x
+	return p
+}
+
+func (x ActionType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActionType) Descriptor() protoreflect.EnumDescriptor {
+	return file_cluster_doctor_proto_enumTypes[5].Descriptor()
+}
+
+func (ActionType) Type() protoreflect.EnumType {
+	return &file_cluster_doctor_proto_enumTypes[5]
+}
+
+func (x ActionType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActionType.Descriptor instead.
+func (ActionType) EnumDescriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{5}
+}
+
+type ActionRisk int32
+
+const (
+	ActionRisk_RISK_UNSPECIFIED ActionRisk = 0
+	ActionRisk_RISK_LOW         ActionRisk = 1 // idempotent, auto-executable (subject to allowlist)
+	ActionRisk_RISK_MEDIUM      ActionRisk = 2 // requires approval token
+	ActionRisk_RISK_HIGH        ActionRisk = 3 // CLI-only, human operator
+)
+
+// Enum value maps for ActionRisk.
+var (
+	ActionRisk_name = map[int32]string{
+		0: "RISK_UNSPECIFIED",
+		1: "RISK_LOW",
+		2: "RISK_MEDIUM",
+		3: "RISK_HIGH",
+	}
+	ActionRisk_value = map[string]int32{
+		"RISK_UNSPECIFIED": 0,
+		"RISK_LOW":         1,
+		"RISK_MEDIUM":      2,
+		"RISK_HIGH":        3,
+	}
+)
+
+func (x ActionRisk) Enum() *ActionRisk {
+	p := new(ActionRisk)
+	*p = x
+	return p
+}
+
+func (x ActionRisk) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActionRisk) Descriptor() protoreflect.EnumDescriptor {
+	return file_cluster_doctor_proto_enumTypes[6].Descriptor()
+}
+
+func (ActionRisk) Type() protoreflect.EnumType {
+	return &file_cluster_doctor_proto_enumTypes[6]
+}
+
+func (x ActionRisk) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActionRisk.Descriptor instead.
+func (ActionRisk) EnumDescriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{6}
+}
+
 type ReportHeader struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	GeneratedAt     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
@@ -456,8 +575,12 @@ type RemediationStep struct {
 	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	CliCommand     string                 `protobuf:"bytes,3,opt,name=cli_command,json=cliCommand,proto3" json:"cli_command,omitempty"`
 	FutureActionId string                 `protobuf:"bytes,4,opt,name=future_action_id,json=futureActionId,proto3" json:"future_action_id,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional structured action. When set, the step can be executed via
+	// ExecuteRemediation(finding_id, step_index) without shell interpolation.
+	// See projection-clauses.md (Clause 8) for the contract.
+	Action        *RemediationAction `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RemediationStep) Reset() {
@@ -518,6 +641,456 @@ func (x *RemediationStep) GetFutureActionId() string {
 	return ""
 }
 
+func (x *RemediationStep) GetAction() *RemediationAction {
+	if x != nil {
+		return x.Action
+	}
+	return nil
+}
+
+type RemediationAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ActionType    ActionType             `protobuf:"varint,1,opt,name=action_type,json=actionType,proto3,enum=cluster_doctor.ActionType" json:"action_type,omitempty"`
+	Risk          ActionRisk             `protobuf:"varint,2,opt,name=risk,proto3,enum=cluster_doctor.ActionRisk" json:"risk,omitempty"`
+	Params        map[string]string      `protobuf:"bytes,3,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Idempotent    bool                   `protobuf:"varint,4,opt,name=idempotent,proto3" json:"idempotent,omitempty"`  // safe to retry on transient failure
+	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"` // one-line human summary
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemediationAction) Reset() {
+	*x = RemediationAction{}
+	mi := &file_cluster_doctor_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemediationAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemediationAction) ProtoMessage() {}
+
+func (x *RemediationAction) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemediationAction.ProtoReflect.Descriptor instead.
+func (*RemediationAction) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RemediationAction) GetActionType() ActionType {
+	if x != nil {
+		return x.ActionType
+	}
+	return ActionType_ACTION_UNSPECIFIED
+}
+
+func (x *RemediationAction) GetRisk() ActionRisk {
+	if x != nil {
+		return x.Risk
+	}
+	return ActionRisk_RISK_UNSPECIFIED
+}
+
+func (x *RemediationAction) GetParams() map[string]string {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+func (x *RemediationAction) GetIdempotent() bool {
+	if x != nil {
+		return x.Idempotent
+	}
+	return false
+}
+
+func (x *RemediationAction) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type ExecuteRemediationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FindingId     string                 `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3" json:"finding_id,omitempty"`             // the finding this action belongs to
+	StepIndex     uint32                 `protobuf:"varint,2,opt,name=step_index,json=stepIndex,proto3" json:"step_index,omitempty"`            // which remediation step within the finding
+	ApprovalToken string                 `protobuf:"bytes,3,opt,name=approval_token,json=approvalToken,proto3" json:"approval_token,omitempty"` // required for MEDIUM+ risk
+	DryRun        bool                   `protobuf:"varint,4,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`                     // validate + resolve target, do not execute
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteRemediationRequest) Reset() {
+	*x = ExecuteRemediationRequest{}
+	mi := &file_cluster_doctor_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteRemediationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteRemediationRequest) ProtoMessage() {}
+
+func (x *ExecuteRemediationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteRemediationRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteRemediationRequest) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ExecuteRemediationRequest) GetFindingId() string {
+	if x != nil {
+		return x.FindingId
+	}
+	return ""
+}
+
+func (x *ExecuteRemediationRequest) GetStepIndex() uint32 {
+	if x != nil {
+		return x.StepIndex
+	}
+	return 0
+}
+
+func (x *ExecuteRemediationRequest) GetApprovalToken() string {
+	if x != nil {
+		return x.ApprovalToken
+	}
+	return ""
+}
+
+func (x *ExecuteRemediationRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+type ExecuteRemediationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Executed      bool                   `protobuf:"varint,1,opt,name=executed,proto3" json:"executed,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`                  // "executed" | "dry_run_ok" | "rejected"
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                  // non-empty on rejection
+	Output        string                 `protobuf:"bytes,4,opt,name=output,proto3" json:"output,omitempty"`                  // trimmed stdout/stderr or structured result
+	AuditId       string                 `protobuf:"bytes,5,opt,name=audit_id,json=auditId,proto3" json:"audit_id,omitempty"` // correlator into the audit log
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteRemediationResponse) Reset() {
+	*x = ExecuteRemediationResponse{}
+	mi := &file_cluster_doctor_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteRemediationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteRemediationResponse) ProtoMessage() {}
+
+func (x *ExecuteRemediationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteRemediationResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteRemediationResponse) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ExecuteRemediationResponse) GetExecuted() bool {
+	if x != nil {
+		return x.Executed
+	}
+	return false
+}
+
+func (x *ExecuteRemediationResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ExecuteRemediationResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ExecuteRemediationResponse) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
+func (x *ExecuteRemediationResponse) GetAuditId() string {
+	if x != nil {
+		return x.AuditId
+	}
+	return ""
+}
+
+// StartRemediationWorkflow runs the remediate.doctor.finding workflow
+// in-process: resolve → assess → approve → execute → verify. It wraps
+// ExecuteRemediation (does not bypass it) and re-runs the doctor scan to
+// confirm convergence.
+type StartRemediationWorkflowRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FindingId     string                 `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3" json:"finding_id,omitempty"`
+	StepIndex     uint32                 `protobuf:"varint,2,opt,name=step_index,json=stepIndex,proto3" json:"step_index,omitempty"`
+	ApprovalToken string                 `protobuf:"bytes,3,opt,name=approval_token,json=approvalToken,proto3" json:"approval_token,omitempty"`
+	DryRun        bool                   `protobuf:"varint,4,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartRemediationWorkflowRequest) Reset() {
+	*x = StartRemediationWorkflowRequest{}
+	mi := &file_cluster_doctor_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartRemediationWorkflowRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartRemediationWorkflowRequest) ProtoMessage() {}
+
+func (x *StartRemediationWorkflowRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartRemediationWorkflowRequest.ProtoReflect.Descriptor instead.
+func (*StartRemediationWorkflowRequest) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *StartRemediationWorkflowRequest) GetFindingId() string {
+	if x != nil {
+		return x.FindingId
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowRequest) GetStepIndex() uint32 {
+	if x != nil {
+		return x.StepIndex
+	}
+	return 0
+}
+
+func (x *StartRemediationWorkflowRequest) GetApprovalToken() string {
+	if x != nil {
+		return x.ApprovalToken
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+type StartRemediationWorkflowResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RunId     string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`             // engine-generated run identifier
+	RunStatus string                 `protobuf:"bytes,2,opt,name=run_status,json=runStatus,proto3" json:"run_status,omitempty"` // SUCCEEDED | FAILED
+	RunError  string                 `protobuf:"bytes,3,opt,name=run_error,json=runError,proto3" json:"run_error,omitempty"`    // non-empty when run_status=FAILED
+	// Pipeline outcomes — mirror the per-step run outputs.
+	ResolvedNodeId     string `protobuf:"bytes,4,opt,name=resolved_node_id,json=resolvedNodeId,proto3" json:"resolved_node_id,omitempty"`             // node_id extracted from the action
+	ResolvedActionType string `protobuf:"bytes,5,opt,name=resolved_action_type,json=resolvedActionType,proto3" json:"resolved_action_type,omitempty"` // e.g. SYSTEMCTL_RESTART
+	Risk               string `protobuf:"bytes,6,opt,name=risk,proto3" json:"risk,omitempty"`                                                         // RISK_LOW | RISK_MEDIUM | RISK_HIGH
+	AutoExecutable     bool   `protobuf:"varint,7,opt,name=auto_executable,json=autoExecutable,proto3" json:"auto_executable,omitempty"`
+	RequiresApproval   bool   `protobuf:"varint,8,opt,name=requires_approval,json=requiresApproval,proto3" json:"requires_approval,omitempty"`
+	// Mirrors ExecuteRemediationResponse for the wrapped call.
+	Executed      bool   `protobuf:"varint,9,opt,name=executed,proto3" json:"executed,omitempty"`
+	ExecuteStatus string `protobuf:"bytes,10,opt,name=execute_status,json=executeStatus,proto3" json:"execute_status,omitempty"` // "executed" | "dry_run_ok" | "rejected"
+	ExecuteOutput string `protobuf:"bytes,11,opt,name=execute_output,json=executeOutput,proto3" json:"execute_output,omitempty"`
+	AuditId       string `protobuf:"bytes,12,opt,name=audit_id,json=auditId,proto3" json:"audit_id,omitempty"`
+	// Verification outcome.
+	Converged           bool `protobuf:"varint,13,opt,name=converged,proto3" json:"converged,omitempty"`
+	FindingStillPresent bool `protobuf:"varint,14,opt,name=finding_still_present,json=findingStillPresent,proto3" json:"finding_still_present,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *StartRemediationWorkflowResponse) Reset() {
+	*x = StartRemediationWorkflowResponse{}
+	mi := &file_cluster_doctor_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartRemediationWorkflowResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartRemediationWorkflowResponse) ProtoMessage() {}
+
+func (x *StartRemediationWorkflowResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartRemediationWorkflowResponse.ProtoReflect.Descriptor instead.
+func (*StartRemediationWorkflowResponse) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *StartRemediationWorkflowResponse) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetRunStatus() string {
+	if x != nil {
+		return x.RunStatus
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetRunError() string {
+	if x != nil {
+		return x.RunError
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetResolvedNodeId() string {
+	if x != nil {
+		return x.ResolvedNodeId
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetResolvedActionType() string {
+	if x != nil {
+		return x.ResolvedActionType
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetRisk() string {
+	if x != nil {
+		return x.Risk
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetAutoExecutable() bool {
+	if x != nil {
+		return x.AutoExecutable
+	}
+	return false
+}
+
+func (x *StartRemediationWorkflowResponse) GetRequiresApproval() bool {
+	if x != nil {
+		return x.RequiresApproval
+	}
+	return false
+}
+
+func (x *StartRemediationWorkflowResponse) GetExecuted() bool {
+	if x != nil {
+		return x.Executed
+	}
+	return false
+}
+
+func (x *StartRemediationWorkflowResponse) GetExecuteStatus() string {
+	if x != nil {
+		return x.ExecuteStatus
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetExecuteOutput() string {
+	if x != nil {
+		return x.ExecuteOutput
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetAuditId() string {
+	if x != nil {
+		return x.AuditId
+	}
+	return ""
+}
+
+func (x *StartRemediationWorkflowResponse) GetConverged() bool {
+	if x != nil {
+		return x.Converged
+	}
+	return false
+}
+
+func (x *StartRemediationWorkflowResponse) GetFindingStillPresent() bool {
+	if x != nil {
+		return x.FindingStillPresent
+	}
+	return false
+}
+
 type Finding struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	FindingId       string                 `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3" json:"finding_id,omitempty"`
@@ -535,7 +1108,7 @@ type Finding struct {
 
 func (x *Finding) Reset() {
 	*x = Finding{}
-	mi := &file_cluster_doctor_proto_msgTypes[3]
+	mi := &file_cluster_doctor_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -547,7 +1120,7 @@ func (x *Finding) String() string {
 func (*Finding) ProtoMessage() {}
 
 func (x *Finding) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[3]
+	mi := &file_cluster_doctor_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -560,7 +1133,7 @@ func (x *Finding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Finding.ProtoReflect.Descriptor instead.
 func (*Finding) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{3}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Finding) GetFindingId() string {
@@ -634,7 +1207,7 @@ type ClusterReportRequest struct {
 
 func (x *ClusterReportRequest) Reset() {
 	*x = ClusterReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[4]
+	mi := &file_cluster_doctor_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -646,7 +1219,7 @@ func (x *ClusterReportRequest) String() string {
 func (*ClusterReportRequest) ProtoMessage() {}
 
 func (x *ClusterReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[4]
+	mi := &file_cluster_doctor_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -659,7 +1232,7 @@ func (x *ClusterReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterReportRequest.ProtoReflect.Descriptor instead.
 func (*ClusterReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{4}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{9}
 }
 
 type ClusterReport struct {
@@ -675,7 +1248,7 @@ type ClusterReport struct {
 
 func (x *ClusterReport) Reset() {
 	*x = ClusterReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[5]
+	mi := &file_cluster_doctor_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -687,7 +1260,7 @@ func (x *ClusterReport) String() string {
 func (*ClusterReport) ProtoMessage() {}
 
 func (x *ClusterReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[5]
+	mi := &file_cluster_doctor_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -700,7 +1273,7 @@ func (x *ClusterReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterReport.ProtoReflect.Descriptor instead.
 func (*ClusterReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{5}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ClusterReport) GetHeader() *ReportHeader {
@@ -747,7 +1320,7 @@ type NodeReportRequest struct {
 
 func (x *NodeReportRequest) Reset() {
 	*x = NodeReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[6]
+	mi := &file_cluster_doctor_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -759,7 +1332,7 @@ func (x *NodeReportRequest) String() string {
 func (*NodeReportRequest) ProtoMessage() {}
 
 func (x *NodeReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[6]
+	mi := &file_cluster_doctor_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -772,7 +1345,7 @@ func (x *NodeReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeReportRequest.ProtoReflect.Descriptor instead.
 func (*NodeReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{6}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *NodeReportRequest) GetNodeId() string {
@@ -795,7 +1368,7 @@ type NodeReport struct {
 
 func (x *NodeReport) Reset() {
 	*x = NodeReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[7]
+	mi := &file_cluster_doctor_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -807,7 +1380,7 @@ func (x *NodeReport) String() string {
 func (*NodeReport) ProtoMessage() {}
 
 func (x *NodeReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[7]
+	mi := &file_cluster_doctor_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -820,7 +1393,7 @@ func (x *NodeReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeReport.ProtoReflect.Descriptor instead.
 func (*NodeReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{7}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *NodeReport) GetHeader() *ReportHeader {
@@ -867,7 +1440,7 @@ type DriftReportRequest struct {
 
 func (x *DriftReportRequest) Reset() {
 	*x = DriftReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[8]
+	mi := &file_cluster_doctor_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -879,7 +1452,7 @@ func (x *DriftReportRequest) String() string {
 func (*DriftReportRequest) ProtoMessage() {}
 
 func (x *DriftReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[8]
+	mi := &file_cluster_doctor_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -892,7 +1465,7 @@ func (x *DriftReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftReportRequest.ProtoReflect.Descriptor instead.
 func (*DriftReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{8}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DriftReportRequest) GetNodeId() string {
@@ -916,7 +1489,7 @@ type DriftItem struct {
 
 func (x *DriftItem) Reset() {
 	*x = DriftItem{}
-	mi := &file_cluster_doctor_proto_msgTypes[9]
+	mi := &file_cluster_doctor_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -928,7 +1501,7 @@ func (x *DriftItem) String() string {
 func (*DriftItem) ProtoMessage() {}
 
 func (x *DriftItem) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[9]
+	mi := &file_cluster_doctor_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -941,7 +1514,7 @@ func (x *DriftItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftItem.ProtoReflect.Descriptor instead.
 func (*DriftItem) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{9}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DriftItem) GetNodeId() string {
@@ -997,7 +1570,7 @@ type DriftReport struct {
 
 func (x *DriftReport) Reset() {
 	*x = DriftReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[10]
+	mi := &file_cluster_doctor_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1009,7 +1582,7 @@ func (x *DriftReport) String() string {
 func (*DriftReport) ProtoMessage() {}
 
 func (x *DriftReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[10]
+	mi := &file_cluster_doctor_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1022,7 +1595,7 @@ func (x *DriftReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftReport.ProtoReflect.Descriptor instead.
 func (*DriftReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{10}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DriftReport) GetHeader() *ReportHeader {
@@ -1055,7 +1628,7 @@ type ExplainFindingRequest struct {
 
 func (x *ExplainFindingRequest) Reset() {
 	*x = ExplainFindingRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[11]
+	mi := &file_cluster_doctor_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1067,7 +1640,7 @@ func (x *ExplainFindingRequest) String() string {
 func (*ExplainFindingRequest) ProtoMessage() {}
 
 func (x *ExplainFindingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[11]
+	mi := &file_cluster_doctor_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1080,7 +1653,7 @@ func (x *ExplainFindingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExplainFindingRequest.ProtoReflect.Descriptor instead.
 func (*ExplainFindingRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{11}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ExplainFindingRequest) GetFindingId() string {
@@ -1105,7 +1678,7 @@ type FindingExplanation struct {
 
 func (x *FindingExplanation) Reset() {
 	*x = FindingExplanation{}
-	mi := &file_cluster_doctor_proto_msgTypes[12]
+	mi := &file_cluster_doctor_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1117,7 +1690,7 @@ func (x *FindingExplanation) String() string {
 func (*FindingExplanation) ProtoMessage() {}
 
 func (x *FindingExplanation) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[12]
+	mi := &file_cluster_doctor_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,7 +1703,7 @@ func (x *FindingExplanation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindingExplanation.ProtoReflect.Descriptor instead.
 func (*FindingExplanation) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{12}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *FindingExplanation) GetFindingId() string {
@@ -1205,13 +1778,63 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1a<\n" +
 	"\x0eKeyValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x94\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcf\x01\n" +
 	"\x0fRemediationStep\x12\x14\n" +
 	"\x05order\x18\x01 \x01(\rR\x05order\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1f\n" +
 	"\vcli_command\x18\x03 \x01(\tR\n" +
 	"cliCommand\x12(\n" +
-	"\x10future_action_id\x18\x04 \x01(\tR\x0efutureActionId\"\x9b\x03\n" +
+	"\x10future_action_id\x18\x04 \x01(\tR\x0efutureActionId\x129\n" +
+	"\x06action\x18\x05 \x01(\v2!.cluster_doctor.RemediationActionR\x06action\"\xc4\x02\n" +
+	"\x11RemediationAction\x12;\n" +
+	"\vaction_type\x18\x01 \x01(\x0e2\x1a.cluster_doctor.ActionTypeR\n" +
+	"actionType\x12.\n" +
+	"\x04risk\x18\x02 \x01(\x0e2\x1a.cluster_doctor.ActionRiskR\x04risk\x12E\n" +
+	"\x06params\x18\x03 \x03(\v2-.cluster_doctor.RemediationAction.ParamsEntryR\x06params\x12\x1e\n" +
+	"\n" +
+	"idempotent\x18\x04 \x01(\bR\n" +
+	"idempotent\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x1a9\n" +
+	"\vParamsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x99\x01\n" +
+	"\x19ExecuteRemediationRequest\x12\x1d\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tR\tfindingId\x12\x1d\n" +
+	"\n" +
+	"step_index\x18\x02 \x01(\rR\tstepIndex\x12%\n" +
+	"\x0eapproval_token\x18\x03 \x01(\tR\rapprovalToken\x12\x17\n" +
+	"\adry_run\x18\x04 \x01(\bR\x06dryRun\"\x9b\x01\n" +
+	"\x1aExecuteRemediationResponse\x12\x1a\n" +
+	"\bexecuted\x18\x01 \x01(\bR\bexecuted\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x16\n" +
+	"\x06output\x18\x04 \x01(\tR\x06output\x12\x19\n" +
+	"\baudit_id\x18\x05 \x01(\tR\aauditId\"\x9f\x01\n" +
+	"\x1fStartRemediationWorkflowRequest\x12\x1d\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tR\tfindingId\x12\x1d\n" +
+	"\n" +
+	"step_index\x18\x02 \x01(\rR\tstepIndex\x12%\n" +
+	"\x0eapproval_token\x18\x03 \x01(\tR\rapprovalToken\x12\x17\n" +
+	"\adry_run\x18\x04 \x01(\bR\x06dryRun\"\x92\x04\n" +
+	" StartRemediationWorkflowResponse\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1d\n" +
+	"\n" +
+	"run_status\x18\x02 \x01(\tR\trunStatus\x12\x1b\n" +
+	"\trun_error\x18\x03 \x01(\tR\brunError\x12(\n" +
+	"\x10resolved_node_id\x18\x04 \x01(\tR\x0eresolvedNodeId\x120\n" +
+	"\x14resolved_action_type\x18\x05 \x01(\tR\x12resolvedActionType\x12\x12\n" +
+	"\x04risk\x18\x06 \x01(\tR\x04risk\x12'\n" +
+	"\x0fauto_executable\x18\a \x01(\bR\x0eautoExecutable\x12+\n" +
+	"\x11requires_approval\x18\b \x01(\bR\x10requiresApproval\x12\x1a\n" +
+	"\bexecuted\x18\t \x01(\bR\bexecuted\x12%\n" +
+	"\x0eexecute_status\x18\n" +
+	" \x01(\tR\rexecuteStatus\x12%\n" +
+	"\x0eexecute_output\x18\v \x01(\tR\rexecuteOutput\x12\x19\n" +
+	"\baudit_id\x18\f \x01(\tR\aauditId\x12\x1c\n" +
+	"\tconverged\x18\r \x01(\bR\tconverged\x122\n" +
+	"\x15finding_still_present\x18\x0e \x01(\bR\x13findingStillPresent\"\x9b\x03\n" +
 	"\aFinding\x12\x1d\n" +
 	"\n" +
 	"finding_id\x18\x01 \x01(\tR\tfindingId\x12!\n" +
@@ -1302,7 +1925,24 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x11INVARIANT_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eINVARIANT_PASS\x10\x01\x12\x12\n" +
 	"\x0eINVARIANT_FAIL\x10\x02\x12\x15\n" +
-	"\x11INVARIANT_PENDING\x10\x032\xe0\x05\n" +
+	"\x11INVARIANT_PENDING\x10\x03*\xbc\x01\n" +
+	"\n" +
+	"ActionType\x12\x16\n" +
+	"\x12ACTION_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11SYSTEMCTL_RESTART\x10\x01\x12\x12\n" +
+	"\x0eSYSTEMCTL_STOP\x10\x02\x12\x13\n" +
+	"\x0fSYSTEMCTL_START\x10\x03\x12\x0f\n" +
+	"\vFILE_DELETE\x10\x04\x12\x0f\n" +
+	"\vETCD_DELETE\x10\x05\x12\f\n" +
+	"\bETCD_PUT\x10\x06\x12\x15\n" +
+	"\x11PACKAGE_REINSTALL\x10\a\x12\x0f\n" +
+	"\vNODE_REMOVE\x10\b*P\n" +
+	"\n" +
+	"ActionRisk\x12\x14\n" +
+	"\x10RISK_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bRISK_LOW\x10\x01\x12\x0f\n" +
+	"\vRISK_MEDIUM\x10\x02\x12\r\n" +
+	"\tRISK_HIGH\x10\x032\x93\t\n" +
 	"\x14ClusterDoctorService\x12\xaf\x01\n" +
 	"\x10GetClusterReport\x12$.cluster_doctor.ClusterReportRequest\x1a\x1d.cluster_doctor.ClusterReport\"V\x82\xb5\x18R\n" +
 	"\"cluster_doctor.cluster_report.read\x12\x04read\x1a\x1e/cluster_doctor/cluster/report*\x06viewer\x12\xab\x01\n" +
@@ -1311,7 +1951,11 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x0eGetDriftReport\x12\".cluster_doctor.DriftReportRequest\x1a\x1b.cluster_doctor.DriftReport\"[\x82\xb5\x18W\n" +
 	" cluster_doctor.drift_report.read\x12\x04read\x1a%/cluster_doctor/nodes/{node_id}/drift*\x06viewer\x12\xb6\x01\n" +
 	"\x0eExplainFinding\x12%.cluster_doctor.ExplainFindingRequest\x1a\".cluster_doctor.FindingExplanation\"Y\x82\xb5\x18U\n" +
-	"\x1ecluster_doctor.finding.explain\x12\x04read\x1a%/cluster_doctor/findings/{finding_id}*\x06viewerBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
+	"\x1ecluster_doctor.finding.explain\x12\x04read\x1a%/cluster_doctor/findings/{finding_id}*\x06viewer\x12\xca\x01\n" +
+	"\x12ExecuteRemediation\x12).cluster_doctor.ExecuteRemediationRequest\x1a*.cluster_doctor.ExecuteRemediationResponse\"]\x82\xb5\x18Y\n" +
+	"\"cluster_doctor.remediation.execute\x12\x05write\x1a%/cluster_doctor/findings/{finding_id}*\x05admin\x12\xe3\x01\n" +
+	"\x18StartRemediationWorkflow\x12/.cluster_doctor.StartRemediationWorkflowRequest\x1a0.cluster_doctor.StartRemediationWorkflowResponse\"d\x82\xb5\x18`\n" +
+	")cluster_doctor.remediation.workflow_start\x12\x05write\x1a%/cluster_doctor/findings/{finding_id}*\x05adminBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
 
 var (
 	file_cluster_doctor_proto_rawDescOnce sync.Once
@@ -1325,66 +1969,82 @@ func file_cluster_doctor_proto_rawDescGZIP() []byte {
 	return file_cluster_doctor_proto_rawDescData
 }
 
-var file_cluster_doctor_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_cluster_doctor_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_cluster_doctor_proto_goTypes = []any{
-	(Severity)(0),                 // 0: cluster_doctor.Severity
-	(ClusterStatus)(0),            // 1: cluster_doctor.ClusterStatus
-	(DriftCategory)(0),            // 2: cluster_doctor.DriftCategory
-	(PlanRisk)(0),                 // 3: cluster_doctor.PlanRisk
-	(InvariantStatus)(0),          // 4: cluster_doctor.InvariantStatus
-	(*ReportHeader)(nil),          // 5: cluster_doctor.ReportHeader
-	(*Evidence)(nil),              // 6: cluster_doctor.Evidence
-	(*RemediationStep)(nil),       // 7: cluster_doctor.RemediationStep
-	(*Finding)(nil),               // 8: cluster_doctor.Finding
-	(*ClusterReportRequest)(nil),  // 9: cluster_doctor.ClusterReportRequest
-	(*ClusterReport)(nil),         // 10: cluster_doctor.ClusterReport
-	(*NodeReportRequest)(nil),     // 11: cluster_doctor.NodeReportRequest
-	(*NodeReport)(nil),            // 12: cluster_doctor.NodeReport
-	(*DriftReportRequest)(nil),    // 13: cluster_doctor.DriftReportRequest
-	(*DriftItem)(nil),             // 14: cluster_doctor.DriftItem
-	(*DriftReport)(nil),           // 15: cluster_doctor.DriftReport
-	(*ExplainFindingRequest)(nil), // 16: cluster_doctor.ExplainFindingRequest
-	(*FindingExplanation)(nil),    // 17: cluster_doctor.FindingExplanation
-	nil,                           // 18: cluster_doctor.Evidence.KeyValuesEntry
-	nil,                           // 19: cluster_doctor.ClusterReport.CountsByCategoryEntry
-	(*timestamppb.Timestamp)(nil), // 20: google.protobuf.Timestamp
+	(Severity)(0),                            // 0: cluster_doctor.Severity
+	(ClusterStatus)(0),                       // 1: cluster_doctor.ClusterStatus
+	(DriftCategory)(0),                       // 2: cluster_doctor.DriftCategory
+	(PlanRisk)(0),                            // 3: cluster_doctor.PlanRisk
+	(InvariantStatus)(0),                     // 4: cluster_doctor.InvariantStatus
+	(ActionType)(0),                          // 5: cluster_doctor.ActionType
+	(ActionRisk)(0),                          // 6: cluster_doctor.ActionRisk
+	(*ReportHeader)(nil),                     // 7: cluster_doctor.ReportHeader
+	(*Evidence)(nil),                         // 8: cluster_doctor.Evidence
+	(*RemediationStep)(nil),                  // 9: cluster_doctor.RemediationStep
+	(*RemediationAction)(nil),                // 10: cluster_doctor.RemediationAction
+	(*ExecuteRemediationRequest)(nil),        // 11: cluster_doctor.ExecuteRemediationRequest
+	(*ExecuteRemediationResponse)(nil),       // 12: cluster_doctor.ExecuteRemediationResponse
+	(*StartRemediationWorkflowRequest)(nil),  // 13: cluster_doctor.StartRemediationWorkflowRequest
+	(*StartRemediationWorkflowResponse)(nil), // 14: cluster_doctor.StartRemediationWorkflowResponse
+	(*Finding)(nil),                          // 15: cluster_doctor.Finding
+	(*ClusterReportRequest)(nil),             // 16: cluster_doctor.ClusterReportRequest
+	(*ClusterReport)(nil),                    // 17: cluster_doctor.ClusterReport
+	(*NodeReportRequest)(nil),                // 18: cluster_doctor.NodeReportRequest
+	(*NodeReport)(nil),                       // 19: cluster_doctor.NodeReport
+	(*DriftReportRequest)(nil),               // 20: cluster_doctor.DriftReportRequest
+	(*DriftItem)(nil),                        // 21: cluster_doctor.DriftItem
+	(*DriftReport)(nil),                      // 22: cluster_doctor.DriftReport
+	(*ExplainFindingRequest)(nil),            // 23: cluster_doctor.ExplainFindingRequest
+	(*FindingExplanation)(nil),               // 24: cluster_doctor.FindingExplanation
+	nil,                                      // 25: cluster_doctor.Evidence.KeyValuesEntry
+	nil,                                      // 26: cluster_doctor.RemediationAction.ParamsEntry
+	nil,                                      // 27: cluster_doctor.ClusterReport.CountsByCategoryEntry
+	(*timestamppb.Timestamp)(nil),            // 28: google.protobuf.Timestamp
 }
 var file_cluster_doctor_proto_depIdxs = []int32{
-	20, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
-	6,  // 1: cluster_doctor.ReportHeader.data_errors:type_name -> cluster_doctor.Evidence
-	18, // 2: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
-	20, // 3: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
-	0,  // 4: cluster_doctor.Finding.severity:type_name -> cluster_doctor.Severity
-	6,  // 5: cluster_doctor.Finding.evidence:type_name -> cluster_doctor.Evidence
-	7,  // 6: cluster_doctor.Finding.remediation:type_name -> cluster_doctor.RemediationStep
-	4,  // 7: cluster_doctor.Finding.invariant_status:type_name -> cluster_doctor.InvariantStatus
-	5,  // 8: cluster_doctor.ClusterReport.header:type_name -> cluster_doctor.ReportHeader
-	1,  // 9: cluster_doctor.ClusterReport.overall_status:type_name -> cluster_doctor.ClusterStatus
-	8,  // 10: cluster_doctor.ClusterReport.findings:type_name -> cluster_doctor.Finding
-	19, // 11: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
-	5,  // 12: cluster_doctor.NodeReport.header:type_name -> cluster_doctor.ReportHeader
-	8,  // 13: cluster_doctor.NodeReport.findings:type_name -> cluster_doctor.Finding
-	2,  // 14: cluster_doctor.DriftItem.category:type_name -> cluster_doctor.DriftCategory
-	6,  // 15: cluster_doctor.DriftItem.evidence:type_name -> cluster_doctor.Evidence
-	5,  // 16: cluster_doctor.DriftReport.header:type_name -> cluster_doctor.ReportHeader
-	14, // 17: cluster_doctor.DriftReport.items:type_name -> cluster_doctor.DriftItem
-	7,  // 18: cluster_doctor.FindingExplanation.remediation:type_name -> cluster_doctor.RemediationStep
-	6,  // 19: cluster_doctor.FindingExplanation.evidence:type_name -> cluster_doctor.Evidence
-	3,  // 20: cluster_doctor.FindingExplanation.plan_risk:type_name -> cluster_doctor.PlanRisk
-	9,  // 21: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
-	11, // 22: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
-	13, // 23: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
-	16, // 24: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
-	10, // 25: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
-	12, // 26: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
-	15, // 27: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
-	17, // 28: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
-	25, // [25:29] is the sub-list for method output_type
-	21, // [21:25] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	28, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
+	8,  // 1: cluster_doctor.ReportHeader.data_errors:type_name -> cluster_doctor.Evidence
+	25, // 2: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
+	28, // 3: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
+	10, // 4: cluster_doctor.RemediationStep.action:type_name -> cluster_doctor.RemediationAction
+	5,  // 5: cluster_doctor.RemediationAction.action_type:type_name -> cluster_doctor.ActionType
+	6,  // 6: cluster_doctor.RemediationAction.risk:type_name -> cluster_doctor.ActionRisk
+	26, // 7: cluster_doctor.RemediationAction.params:type_name -> cluster_doctor.RemediationAction.ParamsEntry
+	0,  // 8: cluster_doctor.Finding.severity:type_name -> cluster_doctor.Severity
+	8,  // 9: cluster_doctor.Finding.evidence:type_name -> cluster_doctor.Evidence
+	9,  // 10: cluster_doctor.Finding.remediation:type_name -> cluster_doctor.RemediationStep
+	4,  // 11: cluster_doctor.Finding.invariant_status:type_name -> cluster_doctor.InvariantStatus
+	7,  // 12: cluster_doctor.ClusterReport.header:type_name -> cluster_doctor.ReportHeader
+	1,  // 13: cluster_doctor.ClusterReport.overall_status:type_name -> cluster_doctor.ClusterStatus
+	15, // 14: cluster_doctor.ClusterReport.findings:type_name -> cluster_doctor.Finding
+	27, // 15: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
+	7,  // 16: cluster_doctor.NodeReport.header:type_name -> cluster_doctor.ReportHeader
+	15, // 17: cluster_doctor.NodeReport.findings:type_name -> cluster_doctor.Finding
+	2,  // 18: cluster_doctor.DriftItem.category:type_name -> cluster_doctor.DriftCategory
+	8,  // 19: cluster_doctor.DriftItem.evidence:type_name -> cluster_doctor.Evidence
+	7,  // 20: cluster_doctor.DriftReport.header:type_name -> cluster_doctor.ReportHeader
+	21, // 21: cluster_doctor.DriftReport.items:type_name -> cluster_doctor.DriftItem
+	9,  // 22: cluster_doctor.FindingExplanation.remediation:type_name -> cluster_doctor.RemediationStep
+	8,  // 23: cluster_doctor.FindingExplanation.evidence:type_name -> cluster_doctor.Evidence
+	3,  // 24: cluster_doctor.FindingExplanation.plan_risk:type_name -> cluster_doctor.PlanRisk
+	16, // 25: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
+	18, // 26: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
+	20, // 27: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
+	23, // 28: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
+	11, // 29: cluster_doctor.ClusterDoctorService.ExecuteRemediation:input_type -> cluster_doctor.ExecuteRemediationRequest
+	13, // 30: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:input_type -> cluster_doctor.StartRemediationWorkflowRequest
+	17, // 31: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
+	19, // 32: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
+	22, // 33: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
+	24, // 34: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
+	12, // 35: cluster_doctor.ClusterDoctorService.ExecuteRemediation:output_type -> cluster_doctor.ExecuteRemediationResponse
+	14, // 36: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:output_type -> cluster_doctor.StartRemediationWorkflowResponse
+	31, // [31:37] is the sub-list for method output_type
+	25, // [25:31] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_cluster_doctor_proto_init() }
@@ -1397,8 +2057,8 @@ func file_cluster_doctor_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cluster_doctor_proto_rawDesc), len(file_cluster_doctor_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   15,
+			NumEnums:      7,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

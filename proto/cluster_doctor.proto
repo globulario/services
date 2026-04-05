@@ -72,6 +72,98 @@ message RemediationStep {
   string description      = 2;
   string cli_command      = 3;
   string future_action_id = 4;
+  // Optional structured action. When set, the step can be executed via
+  // ExecuteRemediation(finding_id, step_index) without shell interpolation.
+  // See projection-clauses.md (Clause 8) for the contract.
+  RemediationAction action = 5;
+}
+
+// ── Structured Remediation Actions ──────────────────────────────────────────
+//
+// Typed, bounded, risk-classified fixes that cluster-doctor rules can emit
+// and the ExecuteRemediation RPC can run. No free-form shell.
+//
+// Hand-grenade enforcement (server-side, non-overridable):
+//   - ETCD_PUT, ETCD_DELETE, NODE_REMOVE: ALWAYS require MEDIUM+ risk and
+//     approval_token, regardless of what the rule tagged.
+//   - FILE_DELETE: auto-executable only when path matches the safe-trash
+//     allowlist (/usr/lib/globular/bin/*.tmp, /usr/lib/globular/bin/*.bak).
+//     Otherwise require MEDIUM+ + approval.
+// Safe-by-default LOW (auto-executable with no approval token):
+//   - SYSTEMCTL_RESTART, SYSTEMCTL_START on units prefixed "globular-"
+//   - FILE_DELETE under the safe-trash allowlist
+
+enum ActionType {
+  ACTION_UNSPECIFIED     = 0;
+  SYSTEMCTL_RESTART      = 1;  // params: {unit, node_id}
+  SYSTEMCTL_STOP         = 2;  // params: {unit, node_id}
+  SYSTEMCTL_START        = 3;  // params: {unit, node_id}
+  FILE_DELETE            = 4;  // params: {path, node_id}
+  ETCD_DELETE            = 5;  // params: {key}  — hand grenade
+  ETCD_PUT               = 6;  // params: {key, value}  — hand grenade
+  PACKAGE_REINSTALL      = 7;  // params: {package, node_id, version}
+  NODE_REMOVE            = 8;  // params: {node_id}  — hand grenade
+}
+
+enum ActionRisk {
+  RISK_UNSPECIFIED = 0;
+  RISK_LOW         = 1;  // idempotent, auto-executable (subject to allowlist)
+  RISK_MEDIUM      = 2;  // requires approval token
+  RISK_HIGH        = 3;  // CLI-only, human operator
+}
+
+message RemediationAction {
+  ActionType action_type    = 1;
+  ActionRisk risk           = 2;
+  map<string, string> params = 3;
+  bool idempotent           = 4;   // safe to retry on transient failure
+  string description        = 5;   // one-line human summary
+}
+
+message ExecuteRemediationRequest {
+  string finding_id      = 1;  // the finding this action belongs to
+  uint32 step_index      = 2;  // which remediation step within the finding
+  string approval_token  = 3;  // required for MEDIUM+ risk
+  bool   dry_run         = 4;  // validate + resolve target, do not execute
+}
+
+message ExecuteRemediationResponse {
+  bool   executed        = 1;
+  string status          = 2;   // "executed" | "dry_run_ok" | "rejected"
+  string reason          = 3;   // non-empty on rejection
+  string output          = 4;   // trimmed stdout/stderr or structured result
+  string audit_id        = 5;   // correlator into the audit log
+}
+
+// StartRemediationWorkflow runs the remediate.doctor.finding workflow
+// in-process: resolve → assess → approve → execute → verify. It wraps
+// ExecuteRemediation (does not bypass it) and re-runs the doctor scan to
+// confirm convergence.
+message StartRemediationWorkflowRequest {
+  string finding_id     = 1;
+  uint32 step_index     = 2;
+  string approval_token = 3;
+  bool   dry_run        = 4;
+}
+
+message StartRemediationWorkflowResponse {
+  string run_id                = 1;  // engine-generated run identifier
+  string run_status            = 2;  // SUCCEEDED | FAILED
+  string run_error             = 3;  // non-empty when run_status=FAILED
+  // Pipeline outcomes — mirror the per-step run outputs.
+  string resolved_node_id      = 4;  // node_id extracted from the action
+  string resolved_action_type  = 5;  // e.g. SYSTEMCTL_RESTART
+  string risk                  = 6;  // RISK_LOW | RISK_MEDIUM | RISK_HIGH
+  bool   auto_executable       = 7;
+  bool   requires_approval     = 8;
+  // Mirrors ExecuteRemediationResponse for the wrapped call.
+  bool   executed              = 9;
+  string execute_status        = 10; // "executed" | "dry_run_ok" | "rejected"
+  string execute_output        = 11;
+  string audit_id              = 12;
+  // Verification outcome.
+  bool   converged             = 13;
+  bool   finding_still_present = 14;
 }
 
 message Finding {
@@ -182,6 +274,29 @@ service ClusterDoctorService {
       permission: "read"
       resource_template: "/cluster_doctor/findings/{finding_id}"
       default_role_hint: "viewer"
+    };
+  };
+  // ExecuteRemediation runs a structured RemediationAction attached to a
+  // finding. Never takes free-form shell — dispatches through typed handlers
+  // with hardcoded blocklists. See projection-clauses.md Clause 8.
+  rpc ExecuteRemediation(ExecuteRemediationRequest) returns (ExecuteRemediationResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.remediation.execute"
+      permission: "write"
+      resource_template: "/cluster_doctor/findings/{finding_id}"
+      default_role_hint: "admin"
+    };
+  };
+  // StartRemediationWorkflow runs the remediate.doctor.finding workflow:
+  // resolve → assess → approve → execute → verify. Wraps ExecuteRemediation
+  // and does not bypass its blocklist or approval gates. See
+  // docs/remediation_workflow.md.
+  rpc StartRemediationWorkflow(StartRemediationWorkflowRequest) returns (StartRemediationWorkflowResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.remediation.workflow_start"
+      permission: "write"
+      resource_template: "/cluster_doctor/findings/{finding_id}"
+      default_role_hint: "admin"
     };
   };
 }

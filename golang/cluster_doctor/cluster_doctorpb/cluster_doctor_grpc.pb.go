@@ -19,10 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClusterDoctorService_GetClusterReport_FullMethodName = "/cluster_doctor.ClusterDoctorService/GetClusterReport"
-	ClusterDoctorService_GetNodeReport_FullMethodName    = "/cluster_doctor.ClusterDoctorService/GetNodeReport"
-	ClusterDoctorService_GetDriftReport_FullMethodName   = "/cluster_doctor.ClusterDoctorService/GetDriftReport"
-	ClusterDoctorService_ExplainFinding_FullMethodName   = "/cluster_doctor.ClusterDoctorService/ExplainFinding"
+	ClusterDoctorService_GetClusterReport_FullMethodName         = "/cluster_doctor.ClusterDoctorService/GetClusterReport"
+	ClusterDoctorService_GetNodeReport_FullMethodName            = "/cluster_doctor.ClusterDoctorService/GetNodeReport"
+	ClusterDoctorService_GetDriftReport_FullMethodName           = "/cluster_doctor.ClusterDoctorService/GetDriftReport"
+	ClusterDoctorService_ExplainFinding_FullMethodName           = "/cluster_doctor.ClusterDoctorService/ExplainFinding"
+	ClusterDoctorService_ExecuteRemediation_FullMethodName       = "/cluster_doctor.ClusterDoctorService/ExecuteRemediation"
+	ClusterDoctorService_StartRemediationWorkflow_FullMethodName = "/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow"
 )
 
 // ClusterDoctorServiceClient is the client API for ClusterDoctorService service.
@@ -33,6 +35,15 @@ type ClusterDoctorServiceClient interface {
 	GetNodeReport(ctx context.Context, in *NodeReportRequest, opts ...grpc.CallOption) (*NodeReport, error)
 	GetDriftReport(ctx context.Context, in *DriftReportRequest, opts ...grpc.CallOption) (*DriftReport, error)
 	ExplainFinding(ctx context.Context, in *ExplainFindingRequest, opts ...grpc.CallOption) (*FindingExplanation, error)
+	// ExecuteRemediation runs a structured RemediationAction attached to a
+	// finding. Never takes free-form shell — dispatches through typed handlers
+	// with hardcoded blocklists. See projection-clauses.md Clause 8.
+	ExecuteRemediation(ctx context.Context, in *ExecuteRemediationRequest, opts ...grpc.CallOption) (*ExecuteRemediationResponse, error)
+	// StartRemediationWorkflow runs the remediate.doctor.finding workflow:
+	// resolve → assess → approve → execute → verify. Wraps ExecuteRemediation
+	// and does not bypass its blocklist or approval gates. See
+	// docs/remediation_workflow.md.
+	StartRemediationWorkflow(ctx context.Context, in *StartRemediationWorkflowRequest, opts ...grpc.CallOption) (*StartRemediationWorkflowResponse, error)
 }
 
 type clusterDoctorServiceClient struct {
@@ -83,6 +94,26 @@ func (c *clusterDoctorServiceClient) ExplainFinding(ctx context.Context, in *Exp
 	return out, nil
 }
 
+func (c *clusterDoctorServiceClient) ExecuteRemediation(ctx context.Context, in *ExecuteRemediationRequest, opts ...grpc.CallOption) (*ExecuteRemediationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteRemediationResponse)
+	err := c.cc.Invoke(ctx, ClusterDoctorService_ExecuteRemediation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterDoctorServiceClient) StartRemediationWorkflow(ctx context.Context, in *StartRemediationWorkflowRequest, opts ...grpc.CallOption) (*StartRemediationWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartRemediationWorkflowResponse)
+	err := c.cc.Invoke(ctx, ClusterDoctorService_StartRemediationWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterDoctorServiceServer is the server API for ClusterDoctorService service.
 // All implementations should embed UnimplementedClusterDoctorServiceServer
 // for forward compatibility.
@@ -91,6 +122,15 @@ type ClusterDoctorServiceServer interface {
 	GetNodeReport(context.Context, *NodeReportRequest) (*NodeReport, error)
 	GetDriftReport(context.Context, *DriftReportRequest) (*DriftReport, error)
 	ExplainFinding(context.Context, *ExplainFindingRequest) (*FindingExplanation, error)
+	// ExecuteRemediation runs a structured RemediationAction attached to a
+	// finding. Never takes free-form shell — dispatches through typed handlers
+	// with hardcoded blocklists. See projection-clauses.md Clause 8.
+	ExecuteRemediation(context.Context, *ExecuteRemediationRequest) (*ExecuteRemediationResponse, error)
+	// StartRemediationWorkflow runs the remediate.doctor.finding workflow:
+	// resolve → assess → approve → execute → verify. Wraps ExecuteRemediation
+	// and does not bypass its blocklist or approval gates. See
+	// docs/remediation_workflow.md.
+	StartRemediationWorkflow(context.Context, *StartRemediationWorkflowRequest) (*StartRemediationWorkflowResponse, error)
 }
 
 // UnimplementedClusterDoctorServiceServer should be embedded to have
@@ -111,6 +151,12 @@ func (UnimplementedClusterDoctorServiceServer) GetDriftReport(context.Context, *
 }
 func (UnimplementedClusterDoctorServiceServer) ExplainFinding(context.Context, *ExplainFindingRequest) (*FindingExplanation, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExplainFinding not implemented")
+}
+func (UnimplementedClusterDoctorServiceServer) ExecuteRemediation(context.Context, *ExecuteRemediationRequest) (*ExecuteRemediationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteRemediation not implemented")
+}
+func (UnimplementedClusterDoctorServiceServer) StartRemediationWorkflow(context.Context, *StartRemediationWorkflowRequest) (*StartRemediationWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartRemediationWorkflow not implemented")
 }
 func (UnimplementedClusterDoctorServiceServer) testEmbeddedByValue() {}
 
@@ -204,6 +250,42 @@ func _ClusterDoctorService_ExplainFinding_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterDoctorService_ExecuteRemediation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteRemediationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterDoctorServiceServer).ExecuteRemediation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterDoctorService_ExecuteRemediation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterDoctorServiceServer).ExecuteRemediation(ctx, req.(*ExecuteRemediationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterDoctorService_StartRemediationWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartRemediationWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterDoctorServiceServer).StartRemediationWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterDoctorService_StartRemediationWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterDoctorServiceServer).StartRemediationWorkflow(ctx, req.(*StartRemediationWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterDoctorService_ServiceDesc is the grpc.ServiceDesc for ClusterDoctorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -226,6 +308,14 @@ var ClusterDoctorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExplainFinding",
 			Handler:    _ClusterDoctorService_ExplainFinding_Handler,
+		},
+		{
+			MethodName: "ExecuteRemediation",
+			Handler:    _ClusterDoctorService_ExecuteRemediation_Handler,
+		},
+		{
+			MethodName: "StartRemediationWorkflow",
+			Handler:    _ClusterDoctorService_StartRemediationWorkflow_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

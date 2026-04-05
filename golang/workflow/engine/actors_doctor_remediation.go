@@ -88,12 +88,12 @@ type DoctorRemediationConfig struct {
 // for the remediate.doctor.finding workflow. Call this alongside
 // RegisterReconcileControllerActions at cluster-controller boot.
 func RegisterDoctorRemediationActions(router *Router, cfg DoctorRemediationConfig) {
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.resolve_finding", doctorResolveFinding(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.assess_risk", doctorAssessRisk())
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.require_approval", doctorRequireApproval())
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.execute_remediation", doctorExecuteRemediation(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.verify_convergence", doctorVerifyConvergence(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.doctor.mark_failed", doctorMarkFailed(cfg))
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.resolve_finding", doctorResolveFinding(cfg))
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.assess_risk", doctorAssessRisk())
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.require_approval", doctorRequireApproval())
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.execute_remediation", doctorExecuteRemediation(cfg))
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.verify_convergence", doctorVerifyConvergence(cfg))
+	router.Register(v1alpha1.ActorClusterDoctor, "doctor.mark_failed", doctorMarkFailed(cfg))
 }
 
 func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {

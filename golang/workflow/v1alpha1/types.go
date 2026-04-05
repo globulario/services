@@ -100,6 +100,7 @@ type ActorType string
 const (
 	ActorWorkflowService   ActorType = "workflow-service"
 	ActorClusterController ActorType = "cluster-controller"
+	ActorClusterDoctor     ActorType = "cluster-doctor"
 	ActorNodeAgent         ActorType = "node-agent"
 	ActorInstaller         ActorType = "installer"
 	ActorRepository        ActorType = "repository"

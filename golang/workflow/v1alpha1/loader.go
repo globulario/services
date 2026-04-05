@@ -17,7 +17,32 @@ type Loader struct{}
 
 func NewLoader() *Loader { return &Loader{} }
 
+// MinIOFetcher is an optional callback that loads a workflow definition
+// by name from MinIO (globular-config bucket). When set, LoadFile tries
+// MinIO first and falls back to disk if the definition isn't found.
+// This indirection avoids a hard dependency of v1alpha1 on the config package.
+var MinIOFetcher func(name string) ([]byte, error)
+
+// workflowNameFromPath extracts the workflow name from a disk path like
+// "/var/lib/globular/workflow/definitions/day0.bootstrap.yaml" → "day0.bootstrap"
+func workflowNameFromPath(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(strings.TrimSuffix(base, ".yaml"), ".yml")
+}
+
 func (l *Loader) LoadFile(path string) (*WorkflowDefinition, error) {
+	// Try MinIO first if a fetcher is configured (single source of truth)
+	if MinIOFetcher != nil {
+		name := workflowNameFromPath(path)
+		if b, err := MinIOFetcher(name); err == nil && len(b) > 0 {
+			def, derr := l.LoadBytes(b)
+			if derr == nil {
+				return def, nil
+			}
+			// MinIO returned bad data — fall through to disk
+		}
+	}
+	// Fallback: read from disk
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read workflow definition %q: %w", path, err)
@@ -259,7 +284,7 @@ func validateDurationScalar(field string, s *ScalarString) error {
 
 func validateActorAndAction(actor ActorType, action, loc string) error {
 	switch actor {
-	case ActorWorkflowService, ActorClusterController, ActorNodeAgent, ActorInstaller, ActorRepository, ActorOperator:
+	case ActorWorkflowService, ActorClusterController, ActorClusterDoctor, ActorNodeAgent, ActorInstaller, ActorRepository, ActorOperator:
 	default:
 		return fmt.Errorf("%s.actor %q is not supported", loc, actor)
 	}
