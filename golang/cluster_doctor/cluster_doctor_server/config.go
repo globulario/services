@@ -12,6 +12,8 @@ import (
 type clusterdoctorConfig struct {
 	Port                       int    `json:"port"`
 	ControllerEndpoint         string `json:"controller_endpoint"`
+	WorkflowEndpoint           string `json:"workflow_endpoint"`
+	ClusterID                  string `json:"cluster_id"`
 	SnapshotTTLSeconds         int    `json:"snapshot_ttl_seconds"`
 	NodeHeartbeatStaleSeconds  int    `json:"node_heartbeat_stale_seconds"`
 	UpstreamListTimeoutSeconds int    `json:"upstream_list_timeout_seconds"`
@@ -23,13 +25,18 @@ type clusterdoctorConfig struct {
 func defaultConfig() *clusterdoctorConfig {
 	return &clusterdoctorConfig{
 		Port:                       12100,
-		ControllerEndpoint:         "127.0.0.1:12000",
+		// Use "localhost" not "127.0.0.1": the service cert's SAN includes
+		// DNS:localhost but not the loopback IP literally, so a 127.0.0.1
+		// dial fails TLS verification. See services/docs/remediation_workflow.md.
+		ControllerEndpoint:         "localhost:12000",
+		WorkflowEndpoint:           "127.0.0.1:10220",
+		ClusterID:                  "",
 		SnapshotTTLSeconds:         5,
 		NodeHeartbeatStaleSeconds:  120,
 		UpstreamListTimeoutSeconds: 10,
 		UpstreamNodeTimeoutSeconds: 5,
 		UpstreamNodeConcurrency:    20,
-		EmitAuditEvents:            false,
+		EmitAuditEvents:            true,
 	}
 }
 
@@ -54,7 +61,32 @@ func loadConfig(path string) (*clusterdoctorConfig, error) {
 	if strings.TrimSpace(cfg.ControllerEndpoint) == "" {
 		cfg.ControllerEndpoint = defaultConfig().ControllerEndpoint
 	}
+	// Normalize loopback IP literals to "localhost" — the service cert's
+	// SAN covers DNS:localhost, not the IPs 127.0.0.1/::1. Existing deployed
+	// configs wrote "127.0.0.1:12000" which now fails TLS verify.
+	cfg.ControllerEndpoint = normalizeLoopback(cfg.ControllerEndpoint)
 	return cfg, nil
+}
+
+// normalizeLoopback rewrites a loopback IP host ("127.0.0.1" or "::1") to
+// "localhost" while preserving the port. Non-loopback hosts pass through
+// unchanged. Keeps TLS verification valid for the service cert SANs.
+func normalizeLoopback(endpoint string) string {
+	// Split host:port; naive but sufficient for "host:port" or "[ipv6]:port".
+	host, port := endpoint, ""
+	if i := strings.LastIndex(endpoint, ":"); i > 0 && !strings.HasSuffix(endpoint, "]") {
+		host = endpoint[:i]
+		port = endpoint[i+1:]
+	}
+	host = strings.TrimPrefix(host, "[")
+	host = strings.TrimSuffix(host, "]")
+	if host == "127.0.0.1" || host == "::1" {
+		if port == "" {
+			return "localhost"
+		}
+		return "localhost:" + port
+	}
+	return endpoint
 }
 
 func (c *clusterdoctorConfig) validate() error {
