@@ -847,10 +847,24 @@ func writePromTargetFile(serviceName string, port int) {
 	}
 	job = strings.ToLower(job)
 
+	// The metrics server binds on 127.0.0.1 (keeps /metrics — and pprof on
+	// some services — off the LAN), so we scrape via loopback. But we
+	// override the `instance` label with the node's routable IP so that
+	// multi-node observability can distinguish samples per host. Without
+	// this, every node's Prometheus records instance="127.0.0.1:<port>"
+	// and samples from different nodes collide when federated.
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		nodeIP = "127.0.0.1"
+	}
+	hostname, _ := os.Hostname()
+
 	content := fmt.Sprintf(`- targets: ["127.0.0.1:%d"]
   labels:
     job: %s
-`, port, job)
+    instance: %s:%d
+    node: %s
+`, port, job, nodeIP, port, hostname)
 
 	path := filepath.Join(promTargetsDir, job+".yaml")
 

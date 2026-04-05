@@ -22,12 +22,17 @@ import (
 	globular_service "github.com/globulario/services/golang/globular_service"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 func main() {
+	// Enable MinIO as the single source of truth for workflow definitions.
+	// Falls back to local disk if MinIO is unreachable (e.g. during bootstrap).
+	v1alpha1.EnableMinIOFetcher()
+
 	port := getEnv("NODE_AGENT_PORT", defaultPort)
 	address := fmt.Sprintf(":%s", port)
 
@@ -185,7 +190,14 @@ func startMetricsServer() {
 const promTargetsDir = "/var/lib/globular/prometheus/targets"
 
 func writePromTargetFile(job string, port int) {
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	// Scrape via loopback but override instance with node IP so multi-node
+	// observability can attribute samples to the correct host.
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		nodeIP = "127.0.0.1"
+	}
+	hostname, _ := os.Hostname()
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}

@@ -216,7 +216,14 @@ func startPprofServer() {
 const promTargetsDir = "/var/lib/globular/prometheus/targets"
 
 func writePromTargetFile(job string, port int) {
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	// Scrape via loopback but override instance with node IP so multi-node
+	// observability can attribute samples to the correct host.
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		nodeIP = "127.0.0.1"
+	}
+	hostname, _ := os.Hostname()
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}

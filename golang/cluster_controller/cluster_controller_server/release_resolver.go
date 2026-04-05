@@ -87,12 +87,31 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 				"channel", ch, "service", spec.ServiceName)
 		}
 		// Resolve latest PUBLISHED artifact: highest semver, then highest build_number.
-		resolved, err := r.getLatestPublished(authCtx, repoClient, spec)
+		resolved, err := r.getLatestPublished(authCtx, repoClient, spec, "")
 		if err != nil {
 			return nil, fmt.Errorf("resolve latest version for %s/%s: %w", spec.PublisherID, spec.ServiceName, err)
 		}
 		version = resolved.version
 		buildNumber = resolved.buildNumber
+	} else if buildNumber == 0 {
+		slog.Info("release-resolver: resolving latest build for pinned version",
+			"service", spec.ServiceName, "version", version)
+		// Version is pinned but build_number is unspecified — resolve to the
+		// highest published build_number for that version. Otherwise
+		// GetArtifactManifest would treat 0 as a literal lookup key and
+		// return the oldest (build-0) artifact, preventing rebuild rollouts.
+		// Normalize the version for comparison against artifact metadata.
+		targetVersion := version
+		if cv, err := versionutil.Canonical(targetVersion); err == nil {
+			targetVersion = cv
+		}
+		resolved, err := r.getLatestPublished(authCtx, repoClient, spec, targetVersion)
+		if err != nil {
+			return nil, fmt.Errorf("resolve latest build for %s/%s@%s: %w", spec.PublisherID, spec.ServiceName, version, err)
+		}
+		buildNumber = resolved.buildNumber
+		slog.Info("release-resolver: picked latest build",
+			"service", spec.ServiceName, "version", version, "build_number", buildNumber)
 	}
 
 	// Normalize version to canonical semver.
@@ -155,7 +174,11 @@ type artifactCandidate struct {
 // getLatestPublished resolves the latest PUBLISHED artifact for a service.
 // Filters by publish_state == PUBLISHED, then picks highest semver,
 // then highest build_number within that version.
-func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client repositorypb.PackageRepositoryClient, spec *cluster_controllerpb.ServiceReleaseSpec) (*artifactCandidate, error) {
+//
+// When versionFilter is non-empty, only candidates whose version matches
+// (canonically) are considered — used to pick the latest build_number for a
+// pinned version. When empty, all versions compete.
+func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client repositorypb.PackageRepositoryClient, spec *cluster_controllerpb.ServiceReleaseSpec, versionFilter string) (*artifactCandidate, error) {
 	resp, err := client.ListArtifacts(ctx, &repositorypb.ListArtifactsRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("list artifacts: %w", err)
@@ -237,6 +260,16 @@ func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client reposit
 		v := ref.GetVersion()
 		if v == "" {
 			continue
+		}
+		if versionFilter != "" {
+			// Compare canonically so "0.0.1" matches "v0.0.1".
+			cv := v
+			if norm, err := versionutil.Canonical(cv); err == nil {
+				cv = norm
+			}
+			if cv != versionFilter {
+				continue
+			}
 		}
 		candidates = append(candidates, artifactCandidate{
 			version:     v,

@@ -22,6 +22,7 @@ import (
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
@@ -58,6 +59,9 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 func main() {
+	// Enable MinIO as the single source of truth for workflow definitions.
+	v1alpha1.EnableMinIOFetcher()
+
 	// Define CLI flags
 	cfgPath := flag.String("config", "/var/lib/globular/cluster-controller/config.json", "cluster controller configuration file")
 	statePath := flag.String("state", defaultClusterStatePath, "cluster controller state file")
@@ -254,10 +258,34 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Load the authoritative state from etcd at startup so non-leader
+	// controllers can serve fresh read-only queries (e.g. ListNodes) without
+	// waiting to become leader. Leaders will reload again on campaign win.
+	srv.reloadStateFromEtcd()
+
 	// Bootstrap leader election
 	leaderAddr := resolveLeaderAddr(address)
 	logger.Info("bootstrapping leadership", "address", leaderAddr)
 	bootstrapLeadership(ctx, srv, etcdClient, leaderAddr)
+
+	// Periodic state refresh for non-leader controllers so their in-memory
+	// view of cluster state (read by ListNodes, GetHealth, etc.) doesn't
+	// diverge from etcd. Leaders refresh on heartbeat/reconcile; followers
+	// only have this periodic pull.
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !srv.isLeader() {
+					srv.reloadStateFromEtcd()
+				}
+			}
+		}
+	}()
 
 	// Start pprof server (debug endpoint)
 	go startPprofServer()
@@ -356,7 +384,15 @@ func startPprofServer() {
 const promTargetsDir = "/var/lib/globular/prometheus/targets"
 
 func writePromTargetFile(job string, port int) {
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n", port, job)
+	// Scrape via loopback (metrics + pprof are bound on 127.0.0.1 only) but
+	// override the `instance` label with the node IP so multi-node
+	// observability can attribute samples to the correct host.
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		nodeIP = "127.0.0.1"
+	}
+	hostname, _ := os.Hostname()
+	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}
