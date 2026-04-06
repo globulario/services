@@ -203,6 +203,18 @@ func (c *Collector) fetchWorkflowTelemetry(ctx context.Context, snap *Snapshot) 
 		snap.DriftUnresolved = driftResp.GetItems()
 		snap.addSource("workflow.ListDriftUnresolved")
 	}
+
+	// MC-4: Fetch blocked runs (paused for operator approval).
+	if blockedResp, err := c.workflowClient.ListRuns(wfCtx, &workflowpb.ListRunsRequest{
+		ClusterId: c.clusterID,
+		Status:    workflowpb.RunStatus_RUN_STATUS_BLOCKED,
+		Limit:     20,
+	}); err != nil {
+		snap.addError("workflow", "ListRuns(BLOCKED)", err)
+	} else {
+		snap.BlockedRuns = blockedResp.GetRuns()
+		snap.addSource("workflow.ListRuns(BLOCKED)")
+	}
 }
 
 func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {

@@ -37,6 +37,8 @@ func NewRegistry(cfg Config) *Registry {
 		workflowStepFailures{},
 		workflowDriftStuck{},
 		workflowNoActivity{},
+		// MC-4: Blocked workflow runs requiring operator approval
+		workflowBlockedRuns{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

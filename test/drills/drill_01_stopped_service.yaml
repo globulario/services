@@ -1,0 +1,76 @@
+# Convergence Drill 01 — Stopped Service
+#
+# Injects a fault (stop a service), validates the system detects it,
+# and verifies convergence after remediation.
+#
+# Run manually or via the chaos workflow.
+
+drill:
+  name: drill-01-stopped-service
+  description: Stop a non-critical service and verify the system self-heals
+
+steps:
+  - name: baseline
+    description: Record current cluster health
+    action: globular doctor cluster --json
+    expect:
+      overall_status: [healthy, degraded]
+
+  - name: inject_fault
+    description: Stop globular-torrent.service
+    action: sudo systemctl stop globular-torrent.service
+    expect:
+      service_state: inactive
+
+  - name: wait_detection
+    description: Wait for doctor to detect the stopped unit
+    action: globular doctor cluster --fresh --json
+    timeout: 60s
+    retry: 6
+    retry_interval: 10s
+    expect:
+      finding_match: "globular-torrent.service.*failed"
+
+  - name: verify_finding_type
+    description: Confirm the finding is a systemd unit issue
+    expect:
+      category: systemd
+      severity: error
+      has_structured_action: true
+      action_type: SYSTEMCTL_RESTART
+
+  - name: remediate
+    description: Execute the structured remediation action
+    action: globular doctor remediate <finding_id> --step 0
+    expect:
+      executed: true
+      status: executed
+
+  - name: verify_convergence
+    description: Confirm the finding is cleared
+    action: globular doctor cluster --fresh --json
+    timeout: 30s
+    retry: 3
+    retry_interval: 10s
+    expect:
+      finding_absent: "globular-torrent.service"
+
+  - name: verify_service
+    description: Confirm the service is running again
+    action: systemctl is-active globular-torrent.service
+    expect:
+      output: active
+
+pass_criteria:
+  - finding detected within 60s
+  - structured action available (SYSTEMCTL_RESTART)
+  - remediation executed successfully
+  - finding cleared after remediation
+  - service active after remediation
+
+fail_criteria:
+  - finding not detected within 60s
+  - no structured action available
+  - remediation rejected or failed
+  - finding persists after remediation
+  - service still inactive after remediation

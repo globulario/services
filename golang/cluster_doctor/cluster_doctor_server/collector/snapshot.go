@@ -32,6 +32,7 @@ type Snapshot struct {
 	StepOutcomes       []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries  []*workflowpb.WorkflowRunSummary
 	DriftUnresolved    []*workflowpb.DriftUnresolved
+	BlockedRuns        []*workflowpb.WorkflowRun // MC-4: runs paused for operator approval
 
 	mu sync.Mutex
 }
