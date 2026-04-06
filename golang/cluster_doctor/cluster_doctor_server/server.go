@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -27,6 +28,11 @@ import (
 // ClusterDoctorServer implements ClusterDoctorServiceServer.
 type ClusterDoctorServer struct {
 	cluster_doctorpb.UnimplementedClusterDoctorServiceServer
+
+	// isAuthoritative is true when this instance is the elected leader.
+	// Only the leader produces fresh findings. Followers serve cached data
+	// with source="follower" in freshness headers.
+	isAuthoritative atomic.Bool
 
 	mu           sync.Mutex
 	cfg          *clusterdoctorConfig
@@ -167,14 +173,22 @@ func resolveFreshnessMode(req cluster_doctorpb.FreshnessMode) cluster_doctorpb.F
 // takeSnapshot wraps the collector fetch so each handler uses identical
 // freshness-resolution logic. Returns the snapshot plus the Freshness
 // bundle the render layer stamps into ReportHeader.
+//
+// Followers never force-fresh — they always serve cached data to prevent
+// duplicate upstream scans. The freshness header discloses authority status.
 func (s *ClusterDoctorServer) takeSnapshot(ctx context.Context, requested cluster_doctorpb.FreshnessMode) (*collector.Snapshot, render.Freshness, error) {
 	mode := resolveFreshnessMode(requested)
-	forceFresh := mode == cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH
+	// Only the leader may force-fresh. Followers always serve cached.
+	forceFresh := mode == cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH && s.isAuthoritative.Load()
+	if !s.isAuthoritative.Load() {
+		mode = cluster_doctorpb.FreshnessMode_FRESHNESS_CACHED
+	}
 	res, err := s.collector.GetSnapshotWithFreshness(ctx, forceFresh)
 	fresh := render.Freshness{
-		CacheHit: res.CacheHit,
-		CacheTTL: res.CacheTTL,
-		Mode:     mode,
+		CacheHit:  res.CacheHit,
+		CacheTTL:  res.CacheTTL,
+		Mode:      mode,
+		Authority: s.authoritySource(),
 	}
 	return res.Snapshot, fresh, err
 }

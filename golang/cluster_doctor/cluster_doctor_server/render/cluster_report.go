@@ -22,9 +22,10 @@ const ReportSourceName = "cluster-doctor"
 // one-for-one so the render layer does not have to know about cache
 // internals. The server handler fills this from its collector call.
 type Freshness struct {
-	CacheHit bool
-	CacheTTL time.Duration
-	Mode     cluster_doctorpb.FreshnessMode
+	CacheHit  bool
+	CacheTTL  time.Duration
+	Mode      cluster_doctorpb.FreshnessMode
+	Authority string // "leader" or "follower" — HA authority disclosure
 }
 
 // ClusterReport builds a ClusterReport proto from a snapshot and findings.
@@ -63,7 +64,7 @@ func buildHeader(snap *collector.Snapshot, version string, fresh Freshness) *clu
 		GlobularVersion:    version,
 		DataSources:        snap.DataSources,
 		DataIncomplete:     snap.DataIncomplete,
-		Source:             ReportSourceName,
+		Source:             sourceWithAuthority(fresh.Authority),
 		ObservedAt:         timestamppb.New(snap.GeneratedAt),
 		SnapshotAgeSeconds: ageSeconds,
 		CacheHit:           fresh.CacheHit,
@@ -79,6 +80,16 @@ func buildHeader(snap *collector.Snapshot, version string, fresh Freshness) *clu
 		})
 	}
 	return h
+}
+
+// sourceWithAuthority returns the Source string with HA authority disclosure.
+// "cluster-doctor (leader)" or "cluster-doctor (follower)".
+// Empty authority (single-node mode) omits the suffix.
+func sourceWithAuthority(authority string) string {
+	if authority == "" {
+		return ReportSourceName
+	}
+	return ReportSourceName + " (" + authority + ")"
 }
 
 func toProtoFindings(findings []rules.Finding) []*cluster_doctorpb.Finding {

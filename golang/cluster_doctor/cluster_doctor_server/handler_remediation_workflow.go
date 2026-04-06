@@ -19,6 +19,10 @@ func (s *ClusterDoctorServer) StartRemediationWorkflow(
 	ctx context.Context,
 	req *cluster_doctorpb.StartRemediationWorkflowRequest,
 ) (*cluster_doctorpb.StartRemediationWorkflowResponse, error) {
+	// Workflow execution is a side-effecting operation — leader only.
+	if !s.isAuthoritative.Load() {
+		return nil, status.Error(codes.FailedPrecondition, "not leader: workflow execution requires the authoritative doctor instance")
+	}
 	if req.GetFindingId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "finding_id is required")
 	}

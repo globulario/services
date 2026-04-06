@@ -22,6 +22,10 @@ import (
 //  5. Execute (or dry-run) via the ActionExecutor.
 //  6. Write audit record.
 func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *cluster_doctorpb.ExecuteRemediationRequest) (*cluster_doctorpb.ExecuteRemediationResponse, error) {
+	// Remediation is a side-effecting operation — leader only.
+	if !s.isAuthoritative.Load() {
+		return nil, status.Error(codes.FailedPrecondition, "not leader: remediation requires the authoritative doctor instance")
+	}
 	findingID := req.GetFindingId()
 	if findingID == "" {
 		return nil, status.Error(codes.InvalidArgument, "finding_id is required")

@@ -172,6 +172,12 @@ func main() {
 
 	go startPprofServer()
 
+	// Start leader election for HA doctor authority.
+	// Only the elected leader produces fresh findings.
+	electionCtx, electionCancel := context.WithCancel(context.Background())
+	defer electionCancel()
+	startDoctorLeaderElection(electionCtx, srv)
+
 	logger.Info("cluster doctor ready",
 		"address", address,
 		"controller", cfg.ControllerEndpoint,
