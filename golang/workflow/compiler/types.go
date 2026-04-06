@@ -53,6 +53,37 @@ type CompiledStep struct {
 	OnFailure  *CompiledHook        `json:"on_failure,omitempty"` // per-item failure hook
 	Export     string               `json:"export,omitempty"`
 	When       *CompiledCondition   `json:"when,omitempty"`
+
+	// Workflow hardening (WH-1). Optional — nil means legacy behavior.
+	Execution    *CompiledExecution    `json:"execution,omitempty"`
+	Verification *CompiledVerification `json:"verification,omitempty"`
+	Compensation *CompiledCompensation `json:"compensation,omitempty"`
+}
+
+// ── Workflow hardening compiled types ─────────────────────────────────────────
+
+// CompiledExecution holds the resolved execution metadata for a step.
+type CompiledExecution struct {
+	Idempotency     string `json:"idempotency,omitempty"`
+	ResumePolicy    string `json:"resume_policy,omitempty"`
+	ReceiptKey      string `json:"receipt_key,omitempty"`
+	ReceiptRequired bool   `json:"receipt_required,omitempty"`
+}
+
+// CompiledVerification holds the resolved verification action for a step.
+type CompiledVerification struct {
+	Actor       string               `json:"actor"`
+	Action      string               `json:"action"`
+	With        map[string]ValueExpr `json:"with,omitempty"`
+	SuccessExpr string               `json:"success_expr"`
+}
+
+// CompiledCompensation holds the resolved compensation action for a step.
+type CompiledCompensation struct {
+	Enabled bool                 `json:"enabled"`
+	Actor   string               `json:"actor,omitempty"`
+	Action  string               `json:"action,omitempty"`
+	With    map[string]ValueExpr `json:"with,omitempty"`
 }
 
 // CompiledRetry holds resolved retry policy.

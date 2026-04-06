@@ -85,6 +85,31 @@ func Compile(ctx context.Context, def *v1alpha1.WorkflowDefinition) (*CompiledWo
 			cc := compileCondition(s.When)
 			cs.When = &cc
 		}
+		// Workflow hardening fields (WH-1) — pass through if present.
+		if s.Execution != nil {
+			cs.Execution = &CompiledExecution{
+				Idempotency:     s.Execution.Idempotency,
+				ResumePolicy:    s.Execution.ResumePolicy,
+				ReceiptKey:      s.Execution.ReceiptKey,
+				ReceiptRequired: s.Execution.ReceiptRequired,
+			}
+		}
+		if s.Verification != nil {
+			cs.Verification = &CompiledVerification{
+				Actor:       string(s.Verification.Actor),
+				Action:      s.Verification.Action,
+				With:        compileWith(s.Verification.With),
+				SuccessExpr: s.Verification.Success.Expr,
+			}
+		}
+		if s.Compensation != nil {
+			cs.Compensation = &CompiledCompensation{
+				Enabled: s.Compensation.Enabled,
+				Actor:   string(s.Compensation.Actor),
+				Action:  s.Compensation.Action,
+				With:    compileWith(s.Compensation.With),
+			}
+		}
 		cw.Steps[cs.ID] = cs
 	}
 

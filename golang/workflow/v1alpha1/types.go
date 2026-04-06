@@ -70,7 +70,91 @@ type WorkflowStepSpec struct {
 	OnFailure  *WorkflowHook  `json:"onFailure,omitempty" yaml:"onFailure,omitempty"` // per-item failure hook for foreach groups
 	Strategy   *ExecutionStrategy `json:"strategy,omitempty" yaml:"strategy,omitempty"` // per-step strategy override (foreach groups)
 	ItemName   *ScalarString  `json:"itemName,omitempty" yaml:"itemName,omitempty"` // variable name for foreach current item
+
+	// Workflow hardening fields (WH-1). Optional — steps without these
+	// fields behave exactly as before (backward compatible).
+	Execution    *StepExecution    `json:"execution,omitempty" yaml:"execution,omitempty"`
+	Verification *StepVerification `json:"verification,omitempty" yaml:"verification,omitempty"`
+	Compensation *StepCompensation `json:"compensation,omitempty" yaml:"compensation,omitempty"`
 }
+
+// ── Workflow hardening types (WH-1) ──────────────────────────────────────────
+//
+// These add engine-visible execution semantics to workflow steps:
+//   - Idempotency classifies the step's side-effect profile
+//   - Resume policy tells the engine what to do on crash recovery
+//   - Verification proves the effect already exists (tri-state: present/absent/inconclusive)
+//   - Compensation defines optional rollback actions
+//
+// See docs/architecture/workflow-hardening.md and workflow-hardening-implementation.md.
+
+// StepExecution describes how a step should be handled during normal
+// execution and on resume after executor crash.
+type StepExecution struct {
+	// Idempotency classifies the step's replay safety.
+	//   safe_retry:           replay is safe without checks
+	//   verify_then_continue: verify effect first, then decide
+	//   manual_approval:      require approval on uncertain resume
+	//   compensatable:        step can be rolled back via compensation
+	Idempotency string `json:"idempotency,omitempty" yaml:"idempotency,omitempty"`
+
+	// ResumePolicy tells the engine what to do when this step was in-progress
+	// and the executor crashed.
+	//   retry:               re-execute unconditionally
+	//   verify_effect:       run verification first
+	//   rerun_if_no_receipt: check receipt, verify if absent, then execute
+	//   pause_for_approval:  block run and wait for operator
+	//   fail:                fail the step conservatively
+	ResumePolicy string `json:"resume_policy,omitempty" yaml:"resume_policy,omitempty"`
+
+	// ReceiptKey is an optional durable breadcrumb key for ambiguous steps.
+	// When set, the engine stores a completion receipt after the step succeeds.
+	ReceiptKey string `json:"receipt_key,omitempty" yaml:"receipt_key,omitempty"`
+
+	// ReceiptRequired means the step should not be considered safely completed
+	// without a receipt present.
+	ReceiptRequired bool `json:"receipt_required,omitempty" yaml:"receipt_required,omitempty"`
+}
+
+// StepVerification defines how to prove a step's intended effect already
+// exists in the world. Used during resume to decide skip vs re-execute.
+type StepVerification struct {
+	Actor   ActorType      `json:"actor" yaml:"actor"`
+	Action  string         `json:"action" yaml:"action"`
+	With    map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
+	Success VerifySuccess  `json:"success" yaml:"success"`
+}
+
+// VerifySuccess defines the expression that proves the effect exists.
+// Evaluated against the verification action's result output.
+type VerifySuccess struct {
+	Expr string `json:"expr" yaml:"expr"`
+}
+
+// StepCompensation defines an optional rollback action for recoverable steps.
+type StepCompensation struct {
+	Enabled bool           `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Actor   ActorType      `json:"actor,omitempty" yaml:"actor,omitempty"`
+	Action  string         `json:"action,omitempty" yaml:"action,omitempty"`
+	With    map[string]any `json:"with,omitempty" yaml:"with,omitempty"`
+}
+
+// Idempotency class constants.
+const (
+	IdempotencySafeRetry           = "safe_retry"
+	IdempotencyVerifyThenContinue  = "verify_then_continue"
+	IdempotencyManualApproval      = "manual_approval"
+	IdempotencyCompensatable       = "compensatable"
+)
+
+// Resume policy constants.
+const (
+	ResumePolicyRetry            = "retry"
+	ResumePolicyVerifyEffect     = "verify_effect"
+	ResumePolicyRerunIfNoReceipt = "rerun_if_no_receipt"
+	ResumePolicyPauseForApproval = "pause_for_approval"
+	ResumePolicyFail             = "fail"
+)
 
 type StepCondition struct {
 	Expr  string          `json:"expr,omitempty" yaml:"expr,omitempty"`
