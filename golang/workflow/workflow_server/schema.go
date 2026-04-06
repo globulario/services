@@ -302,4 +302,5 @@ var schemaCQLStatements = []string{
 	createIncidentsTableCQL,
 	createIncidentActionsTableCQL,
 	createExecutorLeasesTableCQL,
+	createStepReceiptsTableCQL,
 }

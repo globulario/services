@@ -47,8 +47,10 @@ func (e *Engine) resolveResumeAction(ctx context.Context, run *Run, step *compil
 
 	switch policy {
 	case v1alpha1.ResumePolicyRetry:
-		// Re-execute unconditionally.
 		log.Printf("workflow: resume %s: policy=retry, re-executing", step.ID)
+		e.recordResumeDecision(run, step.ID, ResumeDecision{
+			Policy: policy, Verification: "none", Action: "execute", Reason: "retry policy: re-execute unconditionally",
+		})
 		return false
 
 	case v1alpha1.ResumePolicyVerifyEffect:
@@ -71,14 +73,25 @@ func (e *Engine) resolveResumeAction(ctx context.Context, run *Run, step *compil
 	case v1alpha1.ResumePolicyPauseForApproval:
 		log.Printf("workflow: resume %s: policy=pause_for_approval, blocking run", step.ID)
 		st.Status = StepFailed
-		st.Error = "step requires approval to resume after executor crash"
+		st.Error = "step blocked: requires approval to resume after executor crash"
+		// Mark the run itself as BLOCKED so operators/AI can find it.
+		run.BlockedStepID = step.ID
+		run.BlockedReason = "pause_for_approval: step " + step.ID + " requires operator approval to resume"
+		e.recordResumeDecision(run, step.ID, ResumeDecision{
+			Policy: policy, Verification: "none", Action: "block",
+			Reason: "pause_for_approval: requires operator approval to resume",
+		})
 		e.notifyStep(run, st)
-		return true // skip execution, step is FAILED → run will fail
+		return true
 
 	case v1alpha1.ResumePolicyFail:
 		log.Printf("workflow: resume %s: policy=fail, failing step conservatively", step.ID)
 		st.Status = StepFailed
 		st.Error = "step resume_policy=fail: conservative failure after executor crash"
+		e.recordResumeDecision(run, step.ID, ResumeDecision{
+			Policy: policy, Verification: "none", Action: "fail",
+			Reason: "fail policy: conservative failure after executor crash",
+		})
 		e.notifyStep(run, st)
 		return true
 
@@ -103,12 +116,20 @@ func (e *Engine) resumeWithVerification(ctx context.Context, run *Run, step *com
 	case VerifyPresent:
 		log.Printf("workflow: resume %s: verification=present, skipping re-execution", step.ID)
 		st.Status = StepSucceeded
-		st.Error = "" // clear any prior error
+		st.Error = ""
+		e.recordResumeDecision(run, step.ID, ResumeDecision{
+			Policy: "verify_effect", Verification: VerifyPresent, Action: "skip",
+			Reason: "verification proved effect exists — skipping re-execution",
+		})
 		e.notifyStep(run, st)
 		return true
 
 	case VerifyAbsent:
 		log.Printf("workflow: resume %s: verification=absent, executing", step.ID)
+		e.recordResumeDecision(run, step.ID, ResumeDecision{
+			Policy: "verify_effect", Verification: VerifyAbsent, Action: "execute",
+			Reason: "verification proved effect absent — re-executing",
+		})
 		return false
 
 	case VerifyInconclusive:
@@ -121,17 +142,30 @@ func (e *Engine) resumeWithVerification(ctx context.Context, run *Run, step *com
 		case v1alpha1.IdempotencySafeRetry, v1alpha1.IdempotencyVerifyThenContinue:
 			log.Printf("workflow: resume %s: verification=inconclusive, idempotency=%s → re-executing",
 				step.ID, idempotency)
+			e.recordResumeDecision(run, step.ID, ResumeDecision{
+				Policy: "verify_effect", Verification: VerifyInconclusive, Action: "execute",
+				Reason: fmt.Sprintf("inconclusive + %s → safe to re-execute", idempotency),
+			})
 			return false
 		case v1alpha1.IdempotencyManualApproval:
 			log.Printf("workflow: resume %s: verification=inconclusive, idempotency=manual_approval → blocking",
 				step.ID)
 			st.Status = StepFailed
-			st.Error = "verification inconclusive and step requires manual approval to resume"
+			st.Error = "verification inconclusive: step requires manual approval to resume"
+			run.BlockedStepID = step.ID
+			run.BlockedReason = "verification inconclusive + manual_approval: step " + step.ID
+			e.recordResumeDecision(run, step.ID, ResumeDecision{
+				Policy: "verify_effect", Verification: VerifyInconclusive, Action: "block",
+				Reason: "inconclusive + manual_approval → requires operator approval",
+			})
 			e.notifyStep(run, st)
 			return true
 		default:
-			// Conservative: re-execute for unknown idempotency class.
 			log.Printf("workflow: resume %s: verification=inconclusive, unknown idempotency → re-executing", step.ID)
+			e.recordResumeDecision(run, step.ID, ResumeDecision{
+				Policy: "verify_effect", Verification: VerifyInconclusive, Action: "execute",
+				Reason: "inconclusive + unknown idempotency → conservative re-execute",
+			})
 			return false
 		}
 
@@ -197,6 +231,27 @@ func (e *Engine) runVerification(ctx context.Context, run *Run, step *compiler.C
 		return VerifyPresent
 	}
 	return VerifyInconclusive
+}
+
+// recordResumeDecision stores the engine's resume decision in the run outputs
+// so it's visible in the operational timeline and step details_json.
+func (e *Engine) recordResumeDecision(run *Run, stepID string, decision ResumeDecision) {
+	key := "resume_decision." + stepID
+	run.Outputs[key] = map[string]any{
+		"policy":       decision.Policy,
+		"verification": string(decision.Verification),
+		"action":       decision.Action,
+		"reason":       decision.Reason,
+	}
+}
+
+// ResumeDecision describes what the engine decided during resume for a step.
+// Stored in step outputs and emitted as events for operational timeline.
+type ResumeDecision struct {
+	Policy       string              `json:"policy"`       // the resume_policy used
+	Verification VerificationOutcome `json:"verification"` // present/absent/inconclusive/none
+	Action       string              `json:"action"`       // skip/execute/block/fail
+	Reason       string              `json:"reason"`       // human-readable explanation
 }
 
 // _ ensures resolveCompiledWith is accessible (defined in engine.go).

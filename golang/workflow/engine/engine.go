@@ -166,6 +166,11 @@ type Run struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Error      string
+
+	// MC-3: Blocked-run fields. Set when a step hits pause_for_approval
+	// or inconclusive+manual_approval during resume.
+	BlockedStepID string // step that caused the block
+	BlockedReason string // human-readable reason
 }
 
 // --------------------------------------------------------------------------

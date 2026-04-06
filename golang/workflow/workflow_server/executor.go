@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/workflow/compiler"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -56,6 +57,12 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	def, err := loader.LoadBytes(defYAML)
 	if err != nil {
 		return nil, fmt.Errorf("parse definition %s: %w", req.WorkflowName, err)
+	}
+
+	// Pre-compile for receipt lookup in OnStepDone callback.
+	cw, _, compileErr := compiler.Compile(ctx, def)
+	if compileErr != nil {
+		return nil, fmt.Errorf("compile definition %s: %w", req.WorkflowName, compileErr)
 	}
 
 	// ── 2. Deserialize inputs ────────────────────────────────────────────
@@ -102,8 +109,16 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	eng := &engine.Engine{
-		Router:     router,
-		OnStepDone: recorder.onStepDone,
+		Router: router,
+		OnStepDone: func(run *engine.Run, step *engine.StepState) {
+			recorder.onStepDone(run, step)
+			// MC-1: Write receipt if step has a receipt_key and succeeded.
+			if step.Status == engine.StepSucceeded && cw != nil {
+				if cs, ok := cw.Steps[step.ID]; ok && cs.Execution != nil && cs.Execution.ReceiptKey != "" {
+					srv.writeStepReceipt(runID, step.ID, cs.Execution.ReceiptKey, step.Output)
+				}
+			}
+		},
 	}
 
 	// ── 5. Claim run ownership ───────────────────────────────────────────
@@ -146,7 +161,11 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	// ── 7. Record run finish ─────────────────────────────────────────────
 	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	var errMsg string
-	if execErr != nil {
+	if run != nil && run.BlockedStepID != "" {
+		// MC-3: Run is blocked waiting for operator approval.
+		status = workflowpb.RunStatus_RUN_STATUS_BLOCKED
+		errMsg = run.BlockedReason
+	} else if execErr != nil {
 		status = workflowpb.RunStatus_RUN_STATUS_FAILED
 		errMsg = execErr.Error()
 	}
