@@ -116,12 +116,15 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 		router.RegisterFallback(v1alpha1.ActorType(at), dispatcher.makeHandler(at))
 	}
 
-	// ── 5. Build engine with pre-completed steps ─────────────────────────
+	// ── 5. Build engine with pre-completed steps and resume mode ─────────
 	eng := &engine.Engine{
 		Router: router,
 		// PreCompleted tells the engine which steps are already done.
 		// The engine skips these during DAG execution.
 		PreCompleted: completedSteps,
+		// IsResume enables policy-driven resume: steps with resume_policy
+		// metadata are checked (verify_effect, pause, fail) before re-execution.
+		IsResume: true,
 		OnStepDone: func(r *engine.Run, step *engine.StepState) {
 			slog.Info("resume: step done",
 				"run_id", runID, "step", step.ID, "status", string(step.Status))

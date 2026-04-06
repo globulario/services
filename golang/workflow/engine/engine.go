@@ -178,6 +178,7 @@ type Engine struct {
 	EvalCond     ConditionFunc
 	OnStepDone   func(run *Run, step *StepState) // optional callback for observability
 	PreCompleted map[string]StepStatus            // steps already completed (for resume after crash)
+	IsResume     bool                             // true when re-executing after orphan claim (enables resume policies)
 }
 
 // Execute compiles a v1alpha1 definition and executes it. This is the
@@ -386,6 +387,15 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 			st.Status = StepSkipped
 			log.Printf("workflow: step %s skipped (condition not met)", step.ID)
 			e.notifyStep(run, st)
+			return nil
+		}
+	}
+
+	// Resume policy check: when running in resume mode, consult the step's
+	// resume_policy before re-executing. This may skip the step (effect
+	// already exists), block it (approval needed), or allow re-execution.
+	if e.IsResume && step.Execution != nil {
+		if skip := e.resolveResumeAction(ctx, run, step, st); skip {
 			return nil
 		}
 	}
