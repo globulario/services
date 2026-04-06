@@ -2,6 +2,7 @@ package render
 
 import (
 	"sort"
+	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -11,8 +12,23 @@ import (
 
 const topIssueCount = 5
 
+// ReportSourceName is the stable `source` string stamped into every
+// ReportHeader. Callers use this to tell cluster-doctor's reports apart
+// from other report-emitting surfaces (ai-watcher, workflow service).
+const ReportSourceName = "cluster-doctor"
+
+// Freshness bundles the provenance metadata that buildHeader stamps
+// into every report. It mirrors the ReportHeader freshness fields
+// one-for-one so the render layer does not have to know about cache
+// internals. The server handler fills this from its collector call.
+type Freshness struct {
+	CacheHit bool
+	CacheTTL time.Duration
+	Mode     cluster_doctorpb.FreshnessMode
+}
+
 // ClusterReport builds a ClusterReport proto from a snapshot and findings.
-func ClusterReport(snap *collector.Snapshot, findings []rules.Finding, version string) *cluster_doctorpb.ClusterReport {
+func ClusterReport(snap *collector.Snapshot, findings []rules.Finding, version string, fresh Freshness) *cluster_doctorpb.ClusterReport {
 	protoFindings := toProtoFindings(findings)
 	sortFindingsBySeverity(protoFindings)
 
@@ -21,7 +37,7 @@ func ClusterReport(snap *collector.Snapshot, findings []rules.Finding, version s
 	overall := overallStatus(protoFindings)
 
 	return &cluster_doctorpb.ClusterReport{
-		Header:             buildHeader(snap, version),
+		Header:             buildHeader(snap, version, fresh),
 		OverallStatus:      overall,
 		Findings:           protoFindings,
 		CountsByCategory:   counts,
@@ -29,13 +45,30 @@ func ClusterReport(snap *collector.Snapshot, findings []rules.Finding, version s
 	}
 }
 
-func buildHeader(snap *collector.Snapshot, version string) *cluster_doctorpb.ReportHeader {
+func buildHeader(snap *collector.Snapshot, version string, fresh Freshness) *cluster_doctorpb.ReportHeader {
+	// Age is computed server-side from the snapshot's own observed_at
+	// so callers do not have to reason about clock skew between their
+	// clock and the doctor's. If GeneratedAt is zero (shouldn't happen
+	// in practice) we report 0 rather than a giant wall-clock delta.
+	var ageSeconds int64
+	if !snap.GeneratedAt.IsZero() {
+		ageSeconds = int64(time.Since(snap.GeneratedAt).Seconds())
+		if ageSeconds < 0 {
+			ageSeconds = 0
+		}
+	}
 	h := &cluster_doctorpb.ReportHeader{
-		GeneratedAt:    timestamppb.New(snap.GeneratedAt),
-		SnapshotId:     snap.SnapshotID,
-		GlobularVersion: version,
-		DataSources:    snap.DataSources,
-		DataIncomplete: snap.DataIncomplete,
+		GeneratedAt:        timestamppb.New(snap.GeneratedAt),
+		SnapshotId:         snap.SnapshotID,
+		GlobularVersion:    version,
+		DataSources:        snap.DataSources,
+		DataIncomplete:     snap.DataIncomplete,
+		Source:             ReportSourceName,
+		ObservedAt:         timestamppb.New(snap.GeneratedAt),
+		SnapshotAgeSeconds: ageSeconds,
+		CacheHit:           fresh.CacheHit,
+		CacheTtlSeconds:    int64(fresh.CacheTTL.Seconds()),
+		FreshnessMode:      fresh.Mode,
 	}
 	for _, de := range snap.DataErrors {
 		h.DataErrors = append(h.DataErrors, &cluster_doctorpb.Evidence{

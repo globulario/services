@@ -523,12 +523,22 @@ func printVersion() {
 }
 
 // printDescribe prints service metadata as JSON.
+//
+// The output MUST include the standard fields the node-agent's install
+// pipeline expects: "Id", "Port", "Address" (see
+// node_agent_server/internal/actions/serviceports/config.go:describePayload).
+// Without these, the install step fails with "describe returned empty Id"
+// and the release workflow dies at apply_per_node.
 func printDescribe() {
 	metadata := map[string]interface{}{
-		"name":        "cluster-controller",
-		"version":     Version,
-		"description": "Globular cluster controller manages nodes and orchestrates service deployments",
-		"grpc_port":   12000,
+		// ── Standard fields (required by node-agent install pipeline) ──
+		"Id":      "cluster-controller",
+		"Port":    12000,
+		"Address": "localhost:12000",
+		// ── Extended fields (informational) ──
+		"Name":        "cluster-controller",
+		"Version":     Version,
+		"Description": "Globular cluster controller manages nodes and orchestrates service deployments",
 		"pprof_port":  6060,
 		"capabilities": []string{
 			"node-management",

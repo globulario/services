@@ -49,6 +49,23 @@ enum InvariantStatus {
   INVARIANT_PENDING = 3;
 }
 
+// FreshnessMode lets callers choose between a cached (fast) or freshly
+// collected (authoritative) view of cluster state. Cluster-doctor keeps
+// a short-TTL snapshot cache to absorb concurrent report requests; by
+// default that cache is honoured.
+//
+// Callers that need an authoritative read (e.g. immediately after
+// running a remediation, or before opening an incident) should pass
+// FRESHNESS_FRESH to bypass the cache. Every report response carries
+// `source`, `observed_at`, `snapshot_age_seconds`, `cache_hit`, and
+// `cache_ttl_seconds` on the ReportHeader so callers can reason about
+// staleness whichever mode they chose.
+enum FreshnessMode {
+  FRESHNESS_UNSPECIFIED = 0; // server default: CACHED
+  FRESHNESS_CACHED      = 1; // accept cached snapshot if within TTL
+  FRESHNESS_FRESH       = 2; // force a new snapshot regardless of cache
+}
+
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
 message ReportHeader {
@@ -58,6 +75,44 @@ message ReportHeader {
   repeated string data_sources           = 4;
   bool data_incomplete                   = 5;
   repeated Evidence data_errors          = 6;
+
+  // ── Freshness contract (see FreshnessMode) ─────────────────────────────────
+  // All five fields below describe the provenance and age of the
+  // snapshot that this report was rendered from. They are the single
+  // source of truth for "how fresh is this data?" — do NOT compute age
+  // from generated_at on the client, because clock skew between the
+  // caller and the doctor service will bias the answer.
+
+  // Stable identifier of the component that produced this report.
+  // Currently always "cluster-doctor" but recorded explicitly so that
+  // consumers can distinguish it from other report-emitting surfaces
+  // (ai-watcher, workflow service) without parsing the snapshot_id.
+  string source = 7;
+
+  // When the underlying snapshot was taken (wall clock at the doctor
+  // service). Equal to generated_at today, but carried separately so
+  // that future report types that re-use an old snapshot can keep
+  // generated_at = render time while observed_at = snapshot time.
+  google.protobuf.Timestamp observed_at = 8;
+
+  // Age of the snapshot at the moment this response was assembled
+  // (seconds). Computed server-side to avoid clock skew.
+  int64 snapshot_age_seconds = 9;
+
+  // True when this response was served from the cached snapshot
+  // (no upstream fetch was performed). False when a fresh fetch
+  // happened — either because the cache was expired, empty, or
+  // the caller requested FRESHNESS_FRESH.
+  bool cache_hit = 10;
+
+  // The cache TTL that was in effect at the time of this response.
+  // Tells callers the maximum staleness they can see on a CACHED
+  // read without needing to know the doctor service's config.
+  int64 cache_ttl_seconds = 11;
+
+  // The FreshnessMode that was honoured for this response (either
+  // because the caller asked for it, or because the server defaulted).
+  FreshnessMode freshness_mode = 12;
 }
 
 message Evidence {
@@ -180,7 +235,11 @@ message Finding {
 
 // ─── Cluster Report ───────────────────────────────────────────────────────────
 
-message ClusterReportRequest {}
+message ClusterReportRequest {
+  // Freshness mode for this read. Omit or set to FRESHNESS_UNSPECIFIED
+  // to accept the server default (cached). See FreshnessMode.
+  FreshnessMode freshness = 1;
+}
 
 message ClusterReport {
   ReportHeader header                    = 1;
@@ -194,6 +253,8 @@ message ClusterReport {
 
 message NodeReportRequest {
   string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  // See ClusterReportRequest.freshness.
+  FreshnessMode freshness = 2;
 }
 
 message NodeReport {
@@ -208,6 +269,8 @@ message NodeReport {
 
 message DriftReportRequest {
   string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
+  // See ClusterReportRequest.freshness.
+  FreshnessMode freshness = 2;
 }
 
 message DriftItem {

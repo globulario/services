@@ -45,31 +45,37 @@ type ClusterDoctorServer struct {
 	executor *ActionExecutor
 }
 
-// buildClientTLSCreds loads the cluster CA and returns gRPC transport credentials
-// for outgoing client connections. Falls back to system roots if CA is unavailable.
-func buildClientTLSCreds() credentials.TransportCredentials {
+// buildClientTLSCreds loads the cluster CA and returns gRPC transport
+// credentials for outgoing client connections, with ServerName pinned to
+// the cert-valid hostname chosen by config.ResolveDialTarget. Falls back
+// to system roots if CA is unavailable.
+//
+// The serverName argument must be the DialTarget.ServerName (never an
+// IP literal) — it is what TLS verifies the peer certificate against.
+func buildClientTLSCreds(serverName string) credentials.TransportCredentials {
+	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetTLSFile("", "", "ca.crt")
 	if caFile != "" {
 		if caData, err := os.ReadFile(caFile); err == nil {
 			pool := x509.NewCertPool()
 			if pool.AppendCertsFromPEM(caData) {
-				return credentials.NewTLS(&tls.Config{RootCAs: pool})
+				tlsCfg.RootCAs = pool
 			}
 		}
 	}
-	// Fallback: system CA pool (still TLS, just not pinned to cluster CA).
-	return credentials.NewTLS(&tls.Config{})
+	return credentials.NewTLS(tlsCfg)
 }
 
 func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, error) {
-	// Dial ClusterController with TLS.
-	creds := buildClientTLSCreds()
+	// Dial ClusterController with TLS. Endpoint resolution (loopback
+	// rewrite + SNI) happens once, here — not scattered across helpers.
+	ccTarget := config.ResolveDialTarget(cfg.ControllerEndpoint)
 	ccConn, err := grpc.NewClient(
-		cfg.ControllerEndpoint,
-		grpc.WithTransportCredentials(creds),
+		ccTarget.Address,
+		grpc.WithTransportCredentials(buildClientTLSCreds(ccTarget.ServerName)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("dial clustercontroller %s: %w", cfg.ControllerEndpoint, err)
+		return nil, fmt.Errorf("dial clustercontroller %s: %w", ccTarget.Address, err)
 	}
 
 	ccClient := cluster_controllerpb.NewClusterControllerServiceClient(ccConn)
@@ -83,7 +89,8 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 
 	// Attach workflow-service client for convergence telemetry (optional).
 	if cfg.WorkflowEndpoint != "" {
-		wfConn, wfErr := grpc.NewClient(cfg.WorkflowEndpoint, grpc.WithTransportCredentials(creds))
+		wfTarget := config.ResolveDialTarget(cfg.WorkflowEndpoint)
+		wfConn, wfErr := grpc.NewClient(wfTarget.Address, grpc.WithTransportCredentials(buildClientTLSCreds(wfTarget.ServerName)))
 		if wfErr == nil {
 			clusterID := cfg.ClusterID
 			if clusterID == "" {
@@ -115,10 +122,15 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// Event client for publishing finding deltas to ai-watcher (optional).
 	if cfg.EmitAuditEvents {
 		// Dial the local event service via its in-cluster address.
+		// Default to localhost (not 127.0.0.1) so the TLS cert's
+		// DNS:localhost SAN verifies; still run the env-provided
+		// value through the resolver in case someone sets it to a
+		// loopback IP literal.
 		addr := os.Getenv("EVENT_ADDRESS")
 		if addr == "" {
-			addr = "127.0.0.1:10102"
+			addr = "localhost:10102"
 		}
+		addr = config.NormalizeLoopback(addr)
 		if ec, err := event_client.NewEventService_Client(addr, "event.EventService"); err == nil {
 			s.eventClient = ec
 		} else {
@@ -131,8 +143,33 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 
 // ─── RPC Handlers ─────────────────────────────────────────────────────────────
 
-func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, _ *cluster_doctorpb.ClusterReportRequest) (*cluster_doctorpb.ClusterReport, error) {
-	snap, err := s.collector.GetSnapshot(ctx)
+// resolveFreshnessMode normalises a caller's FreshnessMode into the
+// effective mode honoured by the server. UNSPECIFIED defaults to
+// CACHED (the current behaviour before this contract existed).
+func resolveFreshnessMode(req cluster_doctorpb.FreshnessMode) cluster_doctorpb.FreshnessMode {
+	if req == cluster_doctorpb.FreshnessMode_FRESHNESS_UNSPECIFIED {
+		return cluster_doctorpb.FreshnessMode_FRESHNESS_CACHED
+	}
+	return req
+}
+
+// takeSnapshot wraps the collector fetch so each handler uses identical
+// freshness-resolution logic. Returns the snapshot plus the Freshness
+// bundle the render layer stamps into ReportHeader.
+func (s *ClusterDoctorServer) takeSnapshot(ctx context.Context, requested cluster_doctorpb.FreshnessMode) (*collector.Snapshot, render.Freshness, error) {
+	mode := resolveFreshnessMode(requested)
+	forceFresh := mode == cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH
+	res, err := s.collector.GetSnapshotWithFreshness(ctx, forceFresh)
+	fresh := render.Freshness{
+		CacheHit: res.CacheHit,
+		CacheTTL: res.CacheTTL,
+		Mode:     mode,
+	}
+	return res.Snapshot, fresh, err
+}
+
+func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster_doctorpb.ClusterReportRequest) (*cluster_doctorpb.ClusterReport, error) {
+	snap, fresh, err := s.takeSnapshot(ctx, req.GetFreshness())
 	if err != nil && snap == nil {
 		return nil, status.Errorf(codes.Internal, "snapshot fetch failed: %v", err)
 	}
@@ -140,7 +177,7 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, _ *cluster_d
 	findings := s.registry.EvaluateAll(snap)
 	s.cacheFindings(findings)
 
-	return render.ClusterReport(snap, findings, s.version), nil
+	return render.ClusterReport(snap, findings, s.version, fresh), nil
 }
 
 func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_doctorpb.NodeReportRequest) (*cluster_doctorpb.NodeReport, error) {
@@ -148,7 +185,7 @@ func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_do
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
 
-	snap, err := s.collector.GetSnapshot(ctx)
+	snap, fresh, err := s.takeSnapshot(ctx, req.GetFreshness())
 	if err != nil && snap == nil {
 		return nil, status.Errorf(codes.Internal, "snapshot fetch failed: %v", err)
 	}
@@ -156,16 +193,16 @@ func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_do
 	findings := s.registry.EvaluateForNode(snap, req.GetNodeId())
 	s.cacheFindings(findings)
 
-	return render.NodeReport(snap, req.GetNodeId(), findings, s.version), nil
+	return render.NodeReport(snap, req.GetNodeId(), findings, s.version, fresh), nil
 }
 
 func (s *ClusterDoctorServer) GetDriftReport(ctx context.Context, req *cluster_doctorpb.DriftReportRequest) (*cluster_doctorpb.DriftReport, error) {
-	snap, err := s.collector.GetSnapshot(ctx)
+	snap, fresh, err := s.takeSnapshot(ctx, req.GetFreshness())
 	if err != nil && snap == nil {
 		return nil, status.Errorf(codes.Internal, "snapshot fetch failed: %v", err)
 	}
 
-	return render.DriftReport(snap, req.GetNodeId(), s.version), nil
+	return render.DriftReport(snap, req.GetNodeId(), s.version, fresh), nil
 }
 
 func (s *ClusterDoctorServer) ExplainFinding(_ context.Context, req *cluster_doctorpb.ExplainFindingRequest) (*cluster_doctorpb.FindingExplanation, error) {

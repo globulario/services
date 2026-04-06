@@ -509,6 +509,67 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listNod
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ResolveNodeRequest,
+ *   !proto.cluster_controller.ResolveNodeResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ResolveNode = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ResolveNode',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ResolveNodeRequest,
+  proto.cluster_controller.ResolveNodeResponse,
+  /**
+   * @param {!proto.cluster_controller.ResolveNodeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ResolveNodeResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ResolveNodeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ResolveNodeResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ResolveNodeResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.resolveNode =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResolveNode',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResolveNode,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ResolveNodeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ResolveNodeResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.resolveNode =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResolveNode',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResolveNode);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.cluster_controller.SetNodeProfilesRequest,
  *   !proto.cluster_controller.SetNodeProfilesResponse>}
  */

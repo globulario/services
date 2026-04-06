@@ -497,6 +497,67 @@ proto.repository.PackageRepositoryPromiseClient.prototype.getArtifactVersions =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.DescribePackageRequest,
+ *   !proto.repository.DescribePackageResponse>}
+ */
+const methodDescriptor_PackageRepository_DescribePackage = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/DescribePackage',
+  grpc.web.MethodType.UNARY,
+  proto.repository.DescribePackageRequest,
+  proto.repository.DescribePackageResponse,
+  /**
+   * @param {!proto.repository.DescribePackageRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.DescribePackageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.DescribePackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.DescribePackageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.DescribePackageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.describePackage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/DescribePackage',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DescribePackage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.DescribePackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.DescribePackageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.describePackage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/DescribePackage',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DescribePackage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.repository.DeleteArtifactRequest,
  *   !proto.repository.DeleteArtifactResponse>}
  */

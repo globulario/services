@@ -11,7 +11,7 @@ import (
 
 // DriftReport builds a DriftReport proto from the snapshot.
 // nodeID filters to a single node; empty string = all nodes.
-func DriftReport(snap *collector.Snapshot, nodeID string, version string) *cluster_doctorpb.DriftReport {
+func DriftReport(snap *collector.Snapshot, nodeID string, version string, fresh Freshness) *cluster_doctorpb.DriftReport {
 	var items []*cluster_doctorpb.DriftItem
 
 	for _, node := range snap.Nodes {
@@ -127,7 +127,7 @@ func DriftReport(snap *collector.Snapshot, nodeID string, version string) *clust
 	}
 
 	return &cluster_doctorpb.DriftReport{
-		Header:          buildHeader(snap, version),
+		Header:          buildHeader(snap, version, fresh),
 		Items:           items,
 		TotalDriftCount: uint32(len(items)),
 	}

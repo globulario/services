@@ -30,6 +30,16 @@ func generateMinioCredentials() *minioCredentials {
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
 
+// controllerState is the in-memory cluster state that cluster-controller
+// persists to etcd (authoritative) and to a local JSON backup. It holds
+// join tokens, per-node identity/health, MinIO pool membership, and the
+// cluster network spec.
+//
+// +globular:schema:key="/globular/clustercontroller/state"
+// +globular:schema:writer="globular-cluster-controller"
+// +globular:schema:readers="globular-cluster-controller"
+// +globular:schema:description="Authoritative cluster state: nodes, join tokens, MinIO pool, network spec."
+// +globular:schema:invariants="Single-writer; local disk copy is a backup only; persistStateLocked is the ONLY write path."
 type controllerState struct {
 	JoinTokens           map[string]*joinTokenRecord             `json:"join_tokens"`
 	JoinRequests         map[string]*joinRequestRecord           `json:"join_requests"`

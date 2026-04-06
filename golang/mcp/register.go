@@ -85,5 +85,6 @@ func registerAllTools(s *server) {
 	registerLogRingTools(s)
 	registerPackageTools(s)
 	registerClusterConfigTools(s)
+	registerSchemaTools(s)
 	// Auth and DNS deferred to phase 2.
 }

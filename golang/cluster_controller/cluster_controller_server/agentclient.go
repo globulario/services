@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,12 +29,11 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 	opts := []grpc.DialOption{
 		grpc.WithBlock(),
 	}
+	// One canonical resolution step: loopback rewrite + SNI extraction.
+	target := config.ResolveDialTarget(endpoint)
 	serverName := serverNameOverride
 	if serverName == "" {
-		serverName = endpoint
-		if host, _, err := net.SplitHostPort(endpoint); err == nil {
-			serverName = host
-		}
+		serverName = target.ServerName
 	}
 	if insecureEnabled {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -48,12 +47,12 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(pool, serverName)))
 	}
-	conn, err := grpc.DialContext(dialCtx, endpoint, opts...)
+	conn, err := grpc.DialContext(dialCtx, target.Address, opts...)
 	if err != nil {
 		return nil, err
 	}
 	client := &agentClient{
-		endpoint: endpoint,
+		endpoint: target.Address,
 		conn:     conn,
 		client:   node_agentpb.NewNodeAgentServiceClient(conn),
 	}

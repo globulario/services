@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -451,7 +450,11 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	if srv.controllerEndpoint == "" {
 		return errors.New("controller endpoint is not configured")
 	}
-	opts, err := srv.controllerDialOptions()
+	// Canonical resolution: rewrite loopback IP literals to "localhost"
+	// so the controller's DNS:localhost SAN verifies, and derive the SNI
+	// from the same source. All other dialers use the same helper.
+	target := config.ResolveDialTarget(srv.controllerEndpoint)
+	opts, err := srv.controllerDialOptions(target)
 	if err != nil {
 		return err
 	}
@@ -466,7 +469,7 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	if dialer == nil {
 		dialer = grpc.DialContext
 	}
-	conn, err := dialer(dialCtx, srv.controllerEndpoint, opts...)
+	conn, err := dialer(dialCtx, target.Address, opts...)
 	if err != nil {
 		return err
 	}
@@ -479,8 +482,8 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	return nil
 }
 
-func (srv *NodeAgentServer) controllerDialOptions() ([]grpc.DialOption, error) {
-	if srv.controllerEndpoint == "" {
+func (srv *NodeAgentServer) controllerDialOptions(target config.DialTarget) ([]grpc.DialOption, error) {
+	if target.Address == "" {
 		return nil, errors.New("controller endpoint is not configured")
 	}
 	opts := []grpc.DialOption{grpc.WithBlock()}
@@ -513,13 +516,11 @@ func (srv *NodeAgentServer) controllerDialOptions() ([]grpc.DialOption, error) {
 		}
 		tlsConfig.RootCAs = pool
 	}
+	// Explicit override (NODE_AGENT_CONTROLLER_SNI) wins; otherwise use
+	// the cert-valid hostname from the shared resolver.
 	serverName := srv.controllerSNI
 	if serverName == "" {
-		if host, _, err := net.SplitHostPort(srv.controllerEndpoint); err == nil {
-			serverName = host
-		} else {
-			serverName = srv.controllerEndpoint
-		}
+		serverName = target.ServerName
 	}
 	if serverName != "" {
 		tlsConfig.ServerName = serverName

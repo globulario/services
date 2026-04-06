@@ -9,7 +9,7 @@ import (
 )
 
 // NodeReport builds a NodeReport proto for a single node.
-func NodeReport(snap *collector.Snapshot, nodeID string, findings []rules.Finding, version string) *cluster_doctorpb.NodeReport {
+func NodeReport(snap *collector.Snapshot, nodeID string, findings []rules.Finding, version string, fresh Freshness) *cluster_doctorpb.NodeReport {
 	protoFindings := toProtoFindings(findings)
 	sortFindingsBySeverity(protoFindings)
 
@@ -33,7 +33,7 @@ func NodeReport(snap *collector.Snapshot, nodeID string, findings []rules.Findin
 	}
 
 	return &cluster_doctorpb.NodeReport{
-		Header:             buildHeader(snap, version),
+		Header:             buildHeader(snap, version, fresh),
 		NodeId:             nodeID,
 		Reachable:          reachable,
 		HeartbeatAgeSeconds: heartbeatAge,

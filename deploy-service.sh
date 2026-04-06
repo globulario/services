@@ -30,7 +30,7 @@ SPECS_DIR="${GENERATED}/specs"
 VERSION="0.0.1"
 PUBLISHER="core@globular.io"
 PLATFORM="linux_amd64"
-REPOSITORY="127.0.0.1:10007"
+REPOSITORY="localhost:10007"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 

@@ -17,6 +17,12 @@ import (
 // Per projection-clauses.md this MUST NOT carry services, packages, metrics,
 // logs, health, or heartbeat age. If you're tempted to add a field here,
 // start a new projection instead.
+//
+// +globular:schema:key="scylla://globular_projections.node_identity/{node_id}"
+// +globular:schema:writer="globular-cluster-controller"
+// +globular:schema:readers="globular-cluster-controller,globular-mcp"
+// +globular:schema:description="Phase 1 projection: 'who is this node?' — minimal identity row derived from controllerState.Nodes."
+// +globular:schema:invariants="Best-effort projection (Clause 3 fallback); reverse-lookup tables (by_hostname/by_mac/by_ip) point at this row; reconciler rebuilds every 5 min."
 type NodeIdentity struct {
 	NodeID     string
 	Hostname   string

@@ -56,19 +56,60 @@ func (c *Collector) WithWorkflowClient(wf workflowpb.WorkflowServiceClient, clus
 	return c
 }
 
-// GetSnapshot returns a cached or freshly fetched Snapshot.
+// SnapshotResult carries the snapshot plus provenance telemetry the
+// report layer needs to populate the freshness fields in ReportHeader.
+// CacheHit is true when the cache already had a fresh entry and no
+// upstream fetch was performed for this call. CacheTTL is the TTL the
+// cache is currently configured with; callers surface it so operators
+// know the maximum staleness a cached response can have.
+type SnapshotResult struct {
+	Snapshot *Snapshot
+	CacheHit bool
+	CacheTTL time.Duration
+}
+
+// GetSnapshot returns a cached or freshly fetched Snapshot. Kept for
+// back-compat; new callers should prefer GetSnapshotWithFreshness,
+// which also reports whether the response was a cache hit.
 func (c *Collector) GetSnapshot(ctx context.Context) (*Snapshot, error) {
+	res, err := c.GetSnapshotWithFreshness(ctx, false)
+	if res.Snapshot != nil || err == nil {
+		return res.Snapshot, err
+	}
+	return nil, err
+}
+
+// GetSnapshotWithFreshness is the freshness-aware fetch entry point.
+// When forceFresh is true the cached snapshot is dropped before the
+// fetch so the caller is guaranteed an authoritative read — useful
+// right after running a remediation, or when opening an incident.
+//
+// The returned SnapshotResult always carries CacheTTL so callers can
+// communicate the staleness window to operators without reaching into
+// doctor's config. CacheHit is decided on THIS call's path, not on
+// any concurrent caller that may be waiting behind a singleflight.
+func (c *Collector) GetSnapshotWithFreshness(ctx context.Context, forceFresh bool) (SnapshotResult, error) {
+	res := SnapshotResult{CacheTTL: c.cache.ttlFor()}
+	if forceFresh {
+		c.cache.invalidate()
+	}
 	cached, waiter := c.cache.get()
 	if cached != nil {
-		return cached, nil
+		res.Snapshot = cached
+		res.CacheHit = true
+		return res, nil
 	}
 	if waiter != nil {
-		// Another goroutine is already fetching — wait for it.
+		// Another goroutine is already fetching — share its result.
+		// From this caller's point of view an upstream fetch DID
+		// happen (we did not return cached bytes without waiting),
+		// so CacheHit stays false.
 		select {
 		case snap := <-waiter:
-			return snap, nil
+			res.Snapshot = snap
+			return res, nil
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return res, ctx.Err()
 		}
 	}
 
@@ -82,7 +123,8 @@ func (c *Collector) GetSnapshot(ctx context.Context) (*Snapshot, error) {
 		}
 	}
 	c.cache.set(snap)
-	return snap, err
+	res.Snapshot = snap
+	return res, err
 }
 
 // fetch does the actual upstream calls.

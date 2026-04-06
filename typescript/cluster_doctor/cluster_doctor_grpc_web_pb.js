@@ -321,5 +321,127 @@ proto.cluster_doctor.ClusterDoctorServicePromiseClient.prototype.explainFinding 
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_doctor.ExecuteRemediationRequest,
+ *   !proto.cluster_doctor.ExecuteRemediationResponse>}
+ */
+const methodDescriptor_ClusterDoctorService_ExecuteRemediation = new grpc.web.MethodDescriptor(
+  '/cluster_doctor.ClusterDoctorService/ExecuteRemediation',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_doctor.ExecuteRemediationRequest,
+  proto.cluster_doctor.ExecuteRemediationResponse,
+  /**
+   * @param {!proto.cluster_doctor.ExecuteRemediationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_doctor.ExecuteRemediationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_doctor.ExecuteRemediationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_doctor.ExecuteRemediationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_doctor.ExecuteRemediationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_doctor.ClusterDoctorServiceClient.prototype.executeRemediation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/ExecuteRemediation',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_ExecuteRemediation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_doctor.ExecuteRemediationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_doctor.ExecuteRemediationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_doctor.ClusterDoctorServicePromiseClient.prototype.executeRemediation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/ExecuteRemediation',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_ExecuteRemediation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_doctor.StartRemediationWorkflowRequest,
+ *   !proto.cluster_doctor.StartRemediationWorkflowResponse>}
+ */
+const methodDescriptor_ClusterDoctorService_StartRemediationWorkflow = new grpc.web.MethodDescriptor(
+  '/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_doctor.StartRemediationWorkflowRequest,
+  proto.cluster_doctor.StartRemediationWorkflowResponse,
+  /**
+   * @param {!proto.cluster_doctor.StartRemediationWorkflowRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_doctor.StartRemediationWorkflowResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_doctor.StartRemediationWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_doctor.StartRemediationWorkflowResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_doctor.StartRemediationWorkflowResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_doctor.ClusterDoctorServiceClient.prototype.startRemediationWorkflow =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_StartRemediationWorkflow,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_doctor.StartRemediationWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_doctor.StartRemediationWorkflowResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_doctor.ClusterDoctorServicePromiseClient.prototype.startRemediationWorkflow =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_StartRemediationWorkflow);
+};
+
+
 module.exports = proto.cluster_doctor;
 

@@ -98,7 +98,20 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		componentKind = workflow.KindInfra
 	}
 	if srv.workflowRec != nil {
+		// For multi-node releases, record the first candidate as the
+		// run's NodeID so the workflow listing shows a concrete target
+		// instead of empty strings. Operators and AI see "no node id"
+		// on every release run and can't tell which node is affected.
+		// Single-node releases (len==1) are exact; multi-node ones
+		// record the first candidate — drill into steps for the rest.
+		var runNodeID, runNodeHostname string
+		if len(candidateNodes) > 0 {
+			runNodeID = candidateNodes[0]
+			runNodeHostname = srv.hostnameForNode(candidateNodes[0])
+		}
 		wfRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+			NodeID:           runNodeID,
+			NodeHostname:     runNodeHostname,
 			ComponentName:    pkgName,
 			ComponentKind:    componentKind,
 			ComponentVersion: version,
@@ -265,11 +278,55 @@ func releaseResourceType(pkgKind string) string {
 	return "ServiceRelease"
 }
 
+// hostnameForNode resolves a node_id to a human-readable hostname from
+// the in-memory state. Best-effort: returns "" if the node isn't found
+// or state is nil. Used to populate workflow run records with a
+// hostname operators can recognise at a glance.
+func (srv *server) hostnameForNode(nodeID string) string {
+	srv.lock("hostnameForNode")
+	defer srv.unlock()
+	if srv.state == nil {
+		return ""
+	}
+	if n, ok := srv.state.Nodes[nodeID]; ok {
+		return n.Identity.Hostname
+	}
+	return ""
+}
+
+// isSyntheticReleaseName reports whether releaseName was generated on the
+// fly by the cluster.reconcile drift-dispatch loop (reconcile_actions.go)
+// rather than being a persisted ServiceRelease/InfrastructureRelease
+// object. Synthetic names carry the "reconcile-" prefix and have no
+// backing resource in etcd — they exist only so the child release.apply
+// workflow has a stable identifier for its step inputs.
+//
+// Status patches against synthetic releases are meaningless (there's
+// nothing to patch), so the patch helpers treat them as no-ops rather
+// than errors. Without this, every drift-triggered child workflow
+// dies at its first step with "ServiceRelease reconcile-X: not found".
+func isSyntheticReleaseName(releaseName string) bool {
+	return strings.HasPrefix(releaseName, "reconcile-")
+}
+
 // patchReleasePhase updates the phase of a release resource (Service or Infrastructure).
 func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseName, newPhase, reason string) error {
+	if isSyntheticReleaseName(releaseName) {
+		// Synthetic release from cluster.reconcile dispatch — nothing
+		// to patch. Log so the transition is still observable.
+		log.Printf("release-workflow: skip %s phase patch on synthetic release %s (reconcile-dispatch)", newPhase, releaseName)
+		return nil
+	}
 	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
-	if err != nil || obj == nil {
+	if err != nil {
 		return fmt.Errorf("get %s %s: %w", resourceType, releaseName, err)
+	}
+	if obj == nil {
+		// Distinguish "not found" from a real error: wrapping nil with %w
+		// produces the uninterpretable "%!w(<nil>)" we were shipping in
+		// workflow run errors, making debugging much harder than it needed
+		// to be.
+		return fmt.Errorf("get %s %s: not found", resourceType, releaseName)
 	}
 	nowMs := time.Now().UnixMilli()
 
@@ -317,9 +374,16 @@ func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseN
 // patchReleaseNodeStatus updates (or inserts) a NodeReleaseStatus entry for the
 // given node on the release.
 func (srv *server) patchReleaseNodeStatus(ctx context.Context, resourceType, releaseName, nodeID string, update func(*cluster_controllerpb.NodeReleaseStatus)) error {
+	if isSyntheticReleaseName(releaseName) {
+		log.Printf("release-workflow: skip node-status patch on synthetic release %s (node=%s)", releaseName, nodeID)
+		return nil
+	}
 	obj, _, err := srv.resources.Get(ctx, resourceType, releaseName)
-	if err != nil || obj == nil {
+	if err != nil {
 		return fmt.Errorf("get %s %s: %w", resourceType, releaseName, err)
+	}
+	if obj == nil {
+		return fmt.Errorf("get %s %s: not found", resourceType, releaseName)
 	}
 
 	var nodes *[]*cluster_controllerpb.NodeReleaseStatus

@@ -1,0 +1,86 @@
+{
+  "source": "schema-extractor",
+  "generated_at_unix": 1775427258,
+  "entries": [
+    {
+      "key_pattern": "/globular/clustercontroller/state",
+      "writer": "globular-cluster-controller",
+      "readers": [
+        "globular-cluster-controller"
+      ],
+      "description": "Authoritative cluster state: nodes, join tokens, MinIO pool, network spec.",
+      "invariants": "Single-writer; local disk copy is a backup only; persistStateLocked is the ONLY write path.",
+      "type_name": "controllerState",
+      "source_file": "cluster_controller/cluster_controller_server/state.go",
+      "source_line": 38
+    },
+    {
+      "key_pattern": "/globular/nodes/{node_id}/packages/{kind}/{name}",
+      "writer": "globular-node-agent",
+      "readers": [
+        "globular-cluster-controller",
+        "globular-gateway",
+        "globular-cluster-doctor",
+        "globular-repository"
+      ],
+      "description": "Per-node installed-package record — one entry per (node, kind, name) tuple.",
+      "invariants": "Written only after a successful install/upgrade/remove lifecycle transition; deleted by DeleteInstalledPackage or node cleanup; kind MUST be one of SERVICE|INFRASTRUCTURE|COMMAND.",
+      "type_name": "InstalledPackageRecord",
+      "source_file": "installed_state/schema.go",
+      "source_line": 19
+    },
+    {
+      "key_pattern": "/globular/resources/InfrastructureRelease/{publisher}/{name}",
+      "writer": "globular-cluster-controller",
+      "readers": [
+        "globular-node-agent",
+        "globular-repository",
+        "globular-cluster-doctor"
+      ],
+      "description": "Cluster-wide desired version for an INFRASTRUCTURE-kind package (etcd, minio, scylla, etc.).",
+      "invariants": "Only set for packages with kind=INFRASTRUCTURE; publisher segment identifies the artifact namespace; status.phase drives the rollout workflow.",
+      "type_name": "InfrastructureRelease",
+      "source_file": "cluster_controller/cluster_controllerpb/resources_types.go",
+      "source_line": 225
+    },
+    {
+      "key_pattern": "/globular/resources/InstallPolicy/{name}",
+      "writer": "globular-cluster-controller",
+      "readers": [
+        "globular-cluster-controller"
+      ],
+      "description": "Cluster install policy: which publishers/namespaces are trusted for artifact resolution.",
+      "invariants": "Evaluated during release resolution; verified_publishers_only + allowed_namespaces AND-intersect.",
+      "type_name": "InstallPolicyResource",
+      "source_file": "cluster_controller/cluster_controllerpb/resources_types.go",
+      "source_line": 251
+    },
+    {
+      "key_pattern": "/globular/resources/ServiceDesiredVersion/{name}",
+      "writer": "globular-cluster-controller",
+      "readers": [
+        "globular-node-agent",
+        "globular-repository",
+        "globular-cluster-doctor"
+      ],
+      "description": "Cluster-wide desired version for a SERVICE-kind package.",
+      "invariants": "Only set for packages with kind=SERVICE; version MUST be present in the repository catalog; meta.generation monotonically increases.",
+      "type_name": "ServiceDesiredVersion",
+      "source_file": "cluster_controller/cluster_controllerpb/resources_types.go",
+      "source_line": 35
+    },
+    {
+      "key_pattern": "scylla://globular_projections.node_identity/{node_id}",
+      "writer": "globular-cluster-controller",
+      "readers": [
+        "globular-cluster-controller",
+        "globular-mcp"
+      ],
+      "description": "Phase 1 projection: 'who is this node?' — minimal identity row derived from controllerState.Nodes.",
+      "invariants": "Best-effort projection (Clause 3 fallback); reverse-lookup tables (by_hostname/by_mac/by_ip) point at this row; reconciler rebuilds every 5 min.",
+      "type_name": "NodeIdentity",
+      "source_file": "cluster_controller/cluster_controller_server/projections/node_identity.go",
+      "source_line": 21
+    }
+  ]
+}

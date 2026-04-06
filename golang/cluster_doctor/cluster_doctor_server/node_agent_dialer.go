@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc"
 )
@@ -66,11 +67,12 @@ func (d *controllerNodeAgentDialer) dialAgent(ctx context.Context, nodeID string
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.NewClient(endpoint,
-		grpc.WithTransportCredentials(buildClientTLSCreds()),
+	target := config.ResolveDialTarget(endpoint)
+	conn, err := grpc.NewClient(target.Address,
+		grpc.WithTransportCredentials(buildClientTLSCreds(target.ServerName)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("dial node-agent %s at %s: %w", nodeID, endpoint, err)
+		return nil, fmt.Errorf("dial node-agent %s at %s: %w", nodeID, target.Address, err)
 	}
 	return conn, nil
 }

@@ -97,6 +97,22 @@ func (c *SnapshotCache) get() (*Snapshot, chan *Snapshot) {
 	return nil, nil
 }
 
+// invalidate drops the cached snapshot so the next get() forces a
+// fresh fetch. Used to implement FreshnessMode.FRESHNESS_FRESH — the
+// caller asks for authoritative state, so we throw the cache away
+// before the collector runs its fetch cycle.
+func (c *SnapshotCache) invalidate() {
+	c.mu.Lock()
+	c.snapshot = nil
+	c.fetchedAt = time.Time{}
+	c.mu.Unlock()
+}
+
+// ttlFor returns the TTL the cache was configured with, so render
+// layers can expose it to callers without reaching into unexported
+// fields.
+func (c *SnapshotCache) ttlFor() time.Duration { return c.ttl }
+
 // set stores a freshly fetched snapshot and notifies waiters.
 func (c *SnapshotCache) set(snap *Snapshot) {
 	c.mu.Lock()

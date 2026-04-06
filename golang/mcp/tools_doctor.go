@@ -78,9 +78,17 @@ func registerDoctorTools(s *server) {
 
 	// ── cluster_get_doctor_report ───────────────────────────────────────
 	s.register(toolDef{
-		Name:        "cluster_get_doctor_report",
-		Description: "Runs a full cluster health analysis and returns findings with severity, category, and remediation steps. Use this as the primary diagnostic tool to identify issues across the cluster. Shows top issues first for triage.",
-		InputSchema: inputSchema{Type: "object"},
+		Name: "cluster_get_doctor_report",
+		Description: "Runs a full cluster health analysis and returns findings with severity, category, and remediation steps. Every response carries a 'freshness' block (source, observed_at, cache_hit, snapshot_age_seconds, freshness_mode) so callers can reason about staleness. Pass freshness=\"fresh\" to force a new snapshot (e.g. right after a remediation); default is cached.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"freshness": {
+					Type:        "string",
+					Description: "Snapshot mode: 'cached' (default — honour cache) or 'fresh' (bypass cache, force a new scan).",
+				},
+			},
+		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		conn, err := s.clients.get(ctx, doctorEndpoint())
 		if err != nil {
@@ -91,7 +99,9 @@ func registerDoctorTools(s *server) {
 		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
 		defer cancel()
 
-		report, err := client.GetClusterReport(callCtx, &cluster_doctorpb.ClusterReportRequest{})
+		report, err := client.GetClusterReport(callCtx, &cluster_doctorpb.ClusterReportRequest{
+			Freshness: freshnessArg(args),
+		})
 		if err != nil {
 			return nil, fmt.Errorf("GetClusterReport: %w", err)
 		}
@@ -124,17 +134,19 @@ func registerDoctorTools(s *server) {
 			"finding_count":  len(report.GetFindings()),
 			"findings":       findings,
 			"top_issues":     report.GetTopIssueIds(),
+			"freshness":      freshnessPayload(report.GetHeader()),
 		}, nil
 	})
 
 	// ── cluster_get_drift_report ────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "cluster_get_drift_report",
-		Description: "Returns all configuration drift items: differences between desired state and actual state on nodes. Optionally filter by node_id. Each item shows the entity, drift category, desired value, and actual value.",
+		Description: "Returns all configuration drift items: differences between desired state and actual state on nodes. Optionally filter by node_id. Response includes a 'freshness' block (see cluster_get_doctor_report) and accepts freshness='fresh' to bypass the snapshot cache.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
-				"node_id": {Type: "string", Description: "Optional node ID to filter drift items for a specific node"},
+				"node_id":   {Type: "string", Description: "Optional node ID to filter drift items for a specific node"},
+				"freshness": {Type: "string", Description: "Snapshot mode: 'cached' (default) or 'fresh' (force new scan)"},
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -148,7 +160,8 @@ func registerDoctorTools(s *server) {
 		defer cancel()
 
 		req := &cluster_doctorpb.DriftReportRequest{
-			NodeId: getStr(args, "node_id"),
+			NodeId:    getStr(args, "node_id"),
+			Freshness: freshnessArg(args),
 		}
 
 		report, err := client.GetDriftReport(callCtx, req)
@@ -170,6 +183,7 @@ func registerDoctorTools(s *server) {
 		return map[string]interface{}{
 			"total_drift_count": report.GetTotalDriftCount(),
 			"items":             items,
+			"freshness":         freshnessPayload(report.GetHeader()),
 		}, nil
 	})
 
@@ -239,4 +253,41 @@ func registerDoctorTools(s *server) {
 			"plan_risk":   planRiskStr(expl.GetPlanRisk()),
 		}, nil
 	})
+}
+
+// freshnessArg maps the string "freshness" input argument to the
+// FreshnessMode enum the proto request expects. Unspecified / invalid
+// values default to the server's own default (cached).
+func freshnessArg(args map[string]interface{}) cluster_doctorpb.FreshnessMode {
+	s, _ := args["freshness"].(string)
+	switch s {
+	case "fresh", "FRESH", "FRESHNESS_FRESH":
+		return cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH
+	case "cached", "CACHED", "FRESHNESS_CACHED":
+		return cluster_doctorpb.FreshnessMode_FRESHNESS_CACHED
+	}
+	return cluster_doctorpb.FreshnessMode_FRESHNESS_UNSPECIFIED
+}
+
+// freshnessPayload extracts the Clause 4 freshness fields from a
+// ReportHeader into a flat map. Every doctor MCP tool returns this
+// block verbatim so AI callers see the same shape everywhere.
+func freshnessPayload(h *cluster_doctorpb.ReportHeader) map[string]interface{} {
+	if h == nil {
+		return nil
+	}
+	var observedAt int64
+	if h.GetObservedAt() != nil {
+		observedAt = h.GetObservedAt().GetSeconds()
+	}
+	return map[string]interface{}{
+		"source":               h.GetSource(),
+		"observed_at":          observedAt,
+		"snapshot_age_seconds": h.GetSnapshotAgeSeconds(),
+		"cache_hit":            h.GetCacheHit(),
+		"cache_ttl_seconds":    h.GetCacheTtlSeconds(),
+		"freshness_mode":       h.GetFreshnessMode().String(),
+		"snapshot_id":          h.GetSnapshotId(),
+		"data_incomplete":      h.GetDataIncomplete(),
+	}
 }

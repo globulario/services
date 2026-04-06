@@ -28,6 +28,15 @@ type ServiceDesiredVersionSpec struct {
 	BuildNumber int64  `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 }
 
+// ServiceDesiredVersion is the cluster-wide desired version pointer for a
+// single SERVICE-kind package. It is the authoritative "which version
+// should be running?" for services across every node.
+//
+// +globular:schema:key="/globular/resources/ServiceDesiredVersion/{name}"
+// +globular:schema:writer="globular-cluster-controller"
+// +globular:schema:readers="globular-node-agent,globular-repository,globular-cluster-doctor"
+// +globular:schema:description="Cluster-wide desired version for a SERVICE-kind package."
+// +globular:schema:invariants="Only set for packages with kind=SERVICE; version MUST be present in the repository catalog; meta.generation monotonically increases."
 type ServiceDesiredVersion struct {
 	Meta   *ObjectMeta                `json:"meta,omitempty"`
 	Spec   *ServiceDesiredVersionSpec `json:"spec,omitempty"`
@@ -212,6 +221,12 @@ type InfrastructureReleaseStatus struct {
 }
 
 // InfrastructureRelease is the top-level desired-state object for infrastructure component lifecycle.
+//
+// +globular:schema:key="/globular/resources/InfrastructureRelease/{publisher}/{name}"
+// +globular:schema:writer="globular-cluster-controller"
+// +globular:schema:readers="globular-node-agent,globular-repository,globular-cluster-doctor"
+// +globular:schema:description="Cluster-wide desired version for an INFRASTRUCTURE-kind package (etcd, minio, scylla, etc.)."
+// +globular:schema:invariants="Only set for packages with kind=INFRASTRUCTURE; publisher segment identifies the artifact namespace; status.phase drives the rollout workflow."
 type InfrastructureRelease struct {
 	Meta   *ObjectMeta                  `json:"meta,omitempty"`
 	Spec   *InfrastructureReleaseSpec   `json:"spec,omitempty"`
@@ -232,6 +247,12 @@ type InstallPolicySpec struct {
 // InstallPolicyResource is the top-level desired-state object for consumer install policy.
 // Stored in etcd at /globular/resources/InstallPolicy/{name}.
 // Named "Resource" to avoid collision with the proto-generated InstallPolicy message.
+//
+// +globular:schema:key="/globular/resources/InstallPolicy/{name}"
+// +globular:schema:writer="globular-cluster-controller"
+// +globular:schema:readers="globular-cluster-controller"
+// +globular:schema:description="Cluster install policy: which publishers/namespaces are trusted for artifact resolution."
+// +globular:schema:invariants="Evaluated during release resolution; verified_publishers_only + allowed_namespaces AND-intersect."
 type InstallPolicyResource struct {
 	Meta   *ObjectMeta        `json:"meta,omitempty"`
 	Spec   *InstallPolicySpec `json:"spec,omitempty"`
