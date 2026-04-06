@@ -400,12 +400,13 @@ func (r *DNSReconciler) dialDNSDirect(ctx context.Context, endpoint string) (*gr
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(caPEM)
 
+	dt := config.ResolveDialTarget(endpoint)
 	tlsCfg := &tls.Config{
-		RootCAs:            pool,
-		InsecureSkipVerify: true, // DNS nodes use service certs with IP SANs, not the endpoint hostname
+		ServerName: dt.ServerName,
+		RootCAs:    pool,
 	}
 
-	return grpc.DialContext(ctx, endpoint,
+	return grpc.DialContext(ctx, dt.Address,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
 		grpc.WithBlock(),
 	)

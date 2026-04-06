@@ -25,6 +25,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -491,9 +492,9 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 		} else {
 			fmt.Printf("WARN artifact fetch: no client certs (%v), download may fail cluster_id check\n", err)
 		}
-		if host, _, err := net.SplitHostPort(addr); err == nil {
-			tlsCfg.ServerName = host
-		}
+		dt := config.ResolveDialTarget(addr)
+		tlsCfg.ServerName = dt.ServerName
+		addr = dt.Address
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

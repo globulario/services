@@ -412,20 +412,21 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(caPEM)
 
+	dt := config.ResolveDialTarget(addr)
 	tlsCfg := &tls.Config{
-		RootCAs:            pool,
-		InsecureSkipVerify: true, // service certs use IP SANs
+		ServerName: dt.ServerName,
+		RootCAs:    pool,
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	cc, err := grpc.DialContext(dialCtx, addr,
+	cc, err := grpc.DialContext(dialCtx, dt.Address,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
 		grpc.WithBlock(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("dial repository %s: %w", addr, err)
+		return nil, nil, fmt.Errorf("dial repository %s: %w", dt.Address, err)
 	}
 
 	return repositorypb.NewPackageRepositoryClient(cc), cc, nil

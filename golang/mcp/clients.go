@@ -72,20 +72,21 @@ func dial(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	var opts []grpc.DialOption
 
 	// Try TLS first (production), fall back to insecure (development).
-	if tlsCfg := buildTLSConfig(); tlsCfg != nil {
+	dt := config.ResolveDialTarget(endpoint)
+	if tlsCfg := buildTLSConfig(dt.ServerName); tlsCfg != nil {
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.DialContext(dialCtx, endpoint, opts...)
+	conn, err := grpc.DialContext(dialCtx, dt.Address, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("dial %s: %w", endpoint, err)
+		return nil, fmt.Errorf("dial %s: %w", dt.Address, err)
 	}
 	return conn, nil
 }
 
-func buildTLSConfig() *tls.Config {
+func buildTLSConfig(serverName string) *tls.Config {
 	// Use GetEtcdTLS which reads from canonical PKI paths
 	// (/var/lib/globular/pki/ca.crt + service certs).
 	// Don't rely on config.json fields which may be empty.
@@ -94,10 +95,7 @@ func buildTLSConfig() *tls.Config {
 		log.Printf("mcp: buildTLSConfig: %v (falling back to insecure)", err)
 		return nil
 	}
-	// The local Envoy gateway may serve a Let's Encrypt cert (for external
-	// domains) on its default filter chain instead of the internal PKI cert.
-	// Since the MCP server connects locally, skip hostname verification.
-	tlsCfg.InsecureSkipVerify = true
+	tlsCfg.ServerName = serverName
 	return tlsCfg
 }
 

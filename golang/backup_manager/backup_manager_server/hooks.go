@@ -346,7 +346,8 @@ func (srv *server) callHooksParallel(ctx context.Context, targets []HookTargetCo
 			hookCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
-			conn, err := grpc.DialContext(hookCtx, t.Address,
+			dt := config.ResolveDialTarget(t.Address)
+			conn, err := grpc.DialContext(hookCtx, dt.Address,
 				append(srv.hookDialOpts(t), grpc.WithBlock())...,
 			)
 			if err != nil {
@@ -429,14 +430,9 @@ func (srv *server) hookTLSConfig(address string) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to parse CA certificate %s", caFile)
 	}
 
-	// SNI: use the host portion of the target address
-	sni := address
-	if idx := strings.Index(sni, ":"); idx > 0 {
-		sni = sni[:idx]
-	}
-
+	dt := config.ResolveDialTarget(address)
 	cfg := &tls.Config{
-		ServerName: sni,
+		ServerName: dt.ServerName,
 		RootCAs:    pool,
 		MinVersion: tls.VersionTLS12,
 	}
