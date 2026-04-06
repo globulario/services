@@ -53,3 +53,30 @@ func (srv *server) loadDesiredServices(ctx context.Context) (map[string]string, 
 	}
 	return result, full, nil
 }
+
+// mergeInfraDesiredInto loads InfrastructureRelease resources and merges
+// them into the given desired map. This ensures infrastructure packages
+// participate in drift detection alongside services.
+func (srv *server) mergeInfraDesiredInto(ctx context.Context, desired map[string]string) {
+	if srv.resources == nil {
+		return
+	}
+	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return
+	}
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel.Spec == nil || rel.Spec.Component == "" {
+			continue
+		}
+		canon := canonicalServiceName(rel.Spec.Component)
+		if canon == "" {
+			continue
+		}
+		// Don't overwrite service desired if both exist — service takes priority.
+		if _, exists := desired[canon]; !exists {
+			desired[canon] = rel.Spec.Version
+		}
+	}
+}

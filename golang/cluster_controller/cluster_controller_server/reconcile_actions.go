@@ -166,21 +166,24 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		}
 
 		// Check for version drift and missing packages against desired state.
+		// Merge SERVICE (ServiceDesiredVersion) + INFRASTRUCTURE (InfrastructureRelease)
+		// into a single desired map so both kinds participate in drift detection.
 		desiredCanon, _, err := srv.loadDesiredServices(ctx)
 		if err != nil {
 			log.Printf("reconcile-workflow: scan_drift: load desired services failed: %v", err)
 			continue
 		}
+		// Merge infrastructure releases into the same desired map.
+		srv.mergeInfraDesiredInto(ctx, desiredCanon)
 
 		// Scope desired to this node's resolved intent.
 		intent, _ := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units)
 		desiredCanon = FilterDesiredByIntent(desiredCanon, intent)
 
 		for svc, desiredVer := range desiredCanon {
-			// Check installed state from etcd.
+			// Check installed state from etcd — try SERVICE first, then INFRASTRUCTURE.
 			pkg, err := installed_state.GetInstalledPackage(ctx, node.NodeID, "SERVICE", svc)
 			if err != nil || pkg == nil {
-				// Also try INFRASTRUCTURE kind.
 				pkg, err = installed_state.GetInstalledPackage(ctx, node.NodeID, "INFRASTRUCTURE", svc)
 			}
 			if err != nil || pkg == nil {
@@ -206,8 +209,12 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		}
 
 		// Check for unmanaged packages (installed but not desired).
-		allInstalled, err := installed_state.ListAllNodes(ctx, "SERVICE", "")
-		if err == nil {
+		// Scan both SERVICE and INFRASTRUCTURE kinds.
+		for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+			allInstalled, err := installed_state.ListAllNodes(ctx, kind, "")
+			if err != nil {
+				continue
+			}
 			for _, pkg := range allInstalled {
 				if pkg.GetNodeId() != node.NodeID {
 					continue
@@ -218,6 +225,7 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 						"type":         "unmanaged_package",
 						"node_id":      node.NodeID,
 						"package_name": canon,
+						"kind":         kind,
 						"version":      pkg.GetVersion(),
 						"hostname":     node.Identity.Hostname,
 					})
