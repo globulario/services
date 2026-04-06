@@ -154,6 +154,7 @@ type server struct {
 	leader               atomic.Bool
 	leaderID             atomic.Value
 	leaderAddr           atomic.Value
+	leaderEpoch          atomic.Int64
 	reconcileRunning     atomic.Bool
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
@@ -444,6 +445,9 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	srv.leader.Store(isLeader)
 	srv.leaderID.Store(id)
 	srv.leaderAddr.Store(addr)
+	if !isLeader {
+		srv.leaderEpoch.Store(0) // clear epoch on demotion
+	}
 	// When gaining leadership, update the service registry so Envoy routes
 	// to this node's controller (the leader). Without this, the registry
 	// points to whichever node last started — not necessarily the leader.
@@ -466,6 +470,9 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	}
 }
 
+// requireLeader returns nil if this instance is the active leader.
+// Returns FailedPrecondition with leader_addr metadata if not leader,
+// so callers can redirect to the actual leader.
 func (srv *server) requireLeader(ctx context.Context) error {
 	if srv.isLeader() {
 		return nil
@@ -477,7 +484,29 @@ func (srv *server) requireLeader(ctx context.Context) error {
 			srv.leaderAddr.Store(addr)
 		}
 	}
-	return status.Errorf(codes.FailedPrecondition, "not leader (leader_addr=%s)", addr)
+	return status.Errorf(codes.FailedPrecondition,
+		"not leader (leader_addr=%s, epoch=%d)", addr, srv.leaderEpoch.Load())
+}
+
+// requireLeaderEpoch checks that this instance is the leader AND the
+// fencing epoch matches. Used for state-mutating operations to prevent
+// stale-leader writes after lease loss.
+func (srv *server) requireLeaderEpoch(ctx context.Context) error {
+	if err := srv.requireLeader(ctx); err != nil {
+		return err
+	}
+	if srv.etcdClient == nil {
+		return nil // no etcd = single-node mode, no fencing needed
+	}
+	currentEpoch := readEpoch(ctx, srv.etcdClient)
+	myEpoch := srv.leaderEpoch.Load()
+	if currentEpoch != 0 && myEpoch != 0 && currentEpoch != myEpoch {
+		// Another leader has incremented the epoch — we're stale.
+		srv.setLeader(false, "", "")
+		return status.Errorf(codes.FailedPrecondition,
+			"stale leader: my_epoch=%d, current_epoch=%d — re-campaigning", myEpoch, currentEpoch)
+	}
+	return nil
 }
 
 func (srv *server) getAgentClient(ctx context.Context, endpoint string) (*agentClient, error) {

@@ -18,6 +18,7 @@ import (
 )
 
 const leaderElectionPrefix = "/globular/clustercontroller/leader"
+const leaderEpochKey = "/globular/clustercontroller/epoch"
 const publishAttemptTimeout = 2 * time.Second
 
 var seedRandOnce sync.Once
@@ -67,6 +68,14 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			// Gained leadership — reload authoritative state from etcd before
 			// enabling reconciliation, so we pick up state from the previous leader.
 			srv.reloadStateFromEtcd()
+
+			// Increment the fencing epoch. This prevents stale leaders (who
+			// lost their lease but haven't noticed yet) from making writes
+			// that conflict with the new leader.
+			epoch := incrementEpoch(ctx, cli)
+			srv.leaderEpoch.Store(epoch)
+			log.Printf("leader election: epoch incremented to %d", epoch)
+
 			srv.setLeader(true, candidateID, addr)
 			if err := publishLeaderAddr(ctx, cli, sess.Lease(), addr); err != nil {
 				log.Printf("leader election: publish addr failed: %v", err)
@@ -195,6 +204,63 @@ func sleepWithJitter(current, max time.Duration) time.Duration {
 		}
 	}
 	return next
+}
+
+// incrementEpoch atomically increments the fencing epoch in etcd.
+// Returns the new epoch value. If etcd is unavailable, returns 0
+// (the leader should still function; epoch is a safety net, not a gate).
+func incrementEpoch(ctx context.Context, cli *clientv3.Client) int64 {
+	epochCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// Read current epoch.
+	resp, err := cli.Get(epochCtx, leaderEpochKey)
+	if err != nil {
+		log.Printf("leader election: read epoch failed: %v", err)
+		return 0
+	}
+
+	var current int64
+	var modRev int64
+	if len(resp.Kvs) > 0 {
+		fmt.Sscanf(string(resp.Kvs[0].Value), "%d", &current)
+		modRev = resp.Kvs[0].ModRevision
+	}
+	next := current + 1
+
+	// CAS write: only succeed if nobody else incremented since our read.
+	txnResp, err := cli.Txn(epochCtx).
+		If(clientv3.Compare(clientv3.ModRevision(leaderEpochKey), "=", modRev)).
+		Then(clientv3.OpPut(leaderEpochKey, fmt.Sprintf("%d", next))).
+		Else(clientv3.OpGet(leaderEpochKey)).
+		Commit()
+	if err != nil {
+		log.Printf("leader election: increment epoch failed: %v", err)
+		return 0
+	}
+	if !txnResp.Succeeded {
+		// Someone else incremented — read their value.
+		if len(txnResp.Responses) > 0 {
+			rangeResp := txnResp.Responses[0].GetResponseRange()
+			if rangeResp != nil && len(rangeResp.Kvs) > 0 {
+				fmt.Sscanf(string(rangeResp.Kvs[0].Value), "%d", &next)
+			}
+		}
+	}
+	return next
+}
+
+// readEpoch reads the current fencing epoch from etcd.
+func readEpoch(ctx context.Context, cli *clientv3.Client) int64 {
+	epochCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := cli.Get(epochCtx, leaderEpochKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return 0
+	}
+	var epoch int64
+	fmt.Sscanf(string(resp.Kvs[0].Value), "%d", &epoch)
+	return epoch
 }
 
 func sleepWithCustomJitter(current, max, jitterMax time.Duration) time.Duration {
