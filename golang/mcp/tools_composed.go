@@ -19,7 +19,12 @@ func registerComposedTools(s *server) {
 	s.register(toolDef{
 		Name:        "cluster_get_operational_snapshot",
 		Description: "The highest-value diagnostic tool: returns a single combined view of cluster health, node list, doctor findings, and recent backup jobs. Aggregates data from 4 services in parallel; partial results are returned if any service is unavailable. Start here for a complete cluster overview.",
-		InputSchema: inputSchema{Type: "object"},
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"freshness": {Type: "string", Description: "Doctor data freshness: 'cached' (default, fast) or 'fresh' (forces new scan)"},
+			},
+		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		outerCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -150,7 +155,9 @@ func registerComposedTools(s *server) {
 			callCtx, callCancel := context.WithTimeout(authCtx(outerCtx), 10*time.Second)
 			defer callCancel()
 
-			report, err := client.GetClusterReport(callCtx, &cluster_doctorpb.ClusterReportRequest{})
+			report, err := client.GetClusterReport(callCtx, &cluster_doctorpb.ClusterReportRequest{
+				Freshness: freshnessArg(args),
+			})
 			if err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Sprintf("GetClusterReport: %v", err))
@@ -181,6 +188,7 @@ func registerComposedTools(s *server) {
 				"overall_status": statusName,
 				"finding_count":  len(report.GetFindings()),
 				"top_issues":     topIssues,
+				"freshness":      freshnessPayload(report.GetHeader()),
 			}
 			mu.Unlock()
 		}()
@@ -329,7 +337,8 @@ func registerComposedTools(s *server) {
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
-				"node_id": {Type: "string", Description: "The node ID to inspect"},
+				"node_id":   {Type: "string", Description: "The node ID to inspect"},
+				"freshness": {Type: "string", Description: "Doctor data freshness: 'cached' (default, fast) or 'fresh' (forces new scan)"},
 			},
 			Required: []string{"node_id"},
 		},
@@ -477,7 +486,8 @@ func registerComposedTools(s *server) {
 			defer callCancel()
 
 			report, err := client.GetNodeReport(callCtx, &cluster_doctorpb.NodeReportRequest{
-				NodeId: nodeID,
+				NodeId:    nodeID,
+				Freshness: freshnessArg(args),
 			})
 			if err != nil {
 				mu.Lock()
@@ -501,6 +511,7 @@ func registerComposedTools(s *server) {
 				"heartbeat_age_seconds":  report.GetHeartbeatAgeSeconds(),
 				"finding_count":          len(report.GetFindings()),
 				"findings":               findings,
+				"freshness":              freshnessPayload(report.GetHeader()),
 			}
 			mu.Unlock()
 		}()

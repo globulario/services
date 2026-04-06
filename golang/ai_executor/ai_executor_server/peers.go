@@ -142,8 +142,9 @@ func (pm *peerManager) discoverPeers() {
 
 // dialPeer creates a gRPC connection to a peer executor.
 func dialPeer(endpoint string) (*grpc.ClientConn, ai_executorpb.AiExecutorServiceClient, error) {
-	creds := buildPeerTLS()
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(creds))
+	dt := config.ResolveDialTarget(endpoint)
+	creds := buildPeerTLS(dt.ServerName)
+	conn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -168,17 +169,18 @@ func peerAuthContext(ctx context.Context) context.Context {
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-func buildPeerTLS() credentials.TransportCredentials {
+func buildPeerTLS(serverName string) credentials.TransportCredentials {
+	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetTLSFile("", "", "ca.crt")
 	if caFile != "" {
 		if caData, err := os.ReadFile(caFile); err == nil {
 			pool := x509.NewCertPool()
 			if pool.AppendCertsFromPEM(caData) {
-				return credentials.NewTLS(&tls.Config{RootCAs: pool})
+				tlsCfg.RootCAs = pool
 			}
 		}
 	}
-	return credentials.NewTLS(&tls.Config{})
+	return credentials.NewTLS(tlsCfg)
 }
 
 // getPeers returns a snapshot of connected peers.

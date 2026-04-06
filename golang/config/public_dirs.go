@@ -12,6 +12,7 @@ import (
 )
 
 // PublicDirEntry represents a single public directory registered in the cluster.
+//go:schemalint:ignore — schema owned by marker type in schema_annotations.go
 type PublicDirEntry struct {
 	Path        string `json:"path"`
 	Type        string `json:"type"` // "local", "minio", "external"

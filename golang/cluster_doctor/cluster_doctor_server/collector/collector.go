@@ -258,26 +258,28 @@ func (c *Collector) agentClient(endpoint string) (node_agentpb.NodeAgentServiceC
 		return node_agentpb.NewNodeAgentServiceClient(conn), nil
 	}
 
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(agentClientTLSCreds()))
+	dt := config.ResolveDialTarget(endpoint)
+	conn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(agentClientTLSCreds(dt.ServerName)))
 	if err != nil {
-		return nil, fmt.Errorf("dial node agent %s: %w", endpoint, err)
+		return nil, fmt.Errorf("dial node agent %s: %w", dt.Address, err)
 	}
 	c.agentConns[endpoint] = conn
 	return node_agentpb.NewNodeAgentServiceClient(conn), nil
 }
 
 // agentClientTLSCreds returns gRPC transport credentials for dialling node agents.
-func agentClientTLSCreds() credentials.TransportCredentials {
+func agentClientTLSCreds(serverName string) credentials.TransportCredentials {
+	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetTLSFile("", "", "ca.crt")
 	if caFile != "" {
 		if caData, err := os.ReadFile(caFile); err == nil {
 			pool := x509.NewCertPool()
 			if pool.AppendCertsFromPEM(caData) {
-				return credentials.NewTLS(&tls.Config{RootCAs: pool})
+				tlsCfg.RootCAs = pool
 			}
 		}
 	}
-	return credentials.NewTLS(&tls.Config{})
+	return credentials.NewTLS(tlsCfg)
 }
 
 // Close releases all agent connections.

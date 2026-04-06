@@ -20,6 +20,7 @@ const (
 )
 
 // ClusterLock holds the etcd mutex and session for a cluster-wide backup lock.
+//go:schemalint:ignore — implementation type, not schema owner
 type ClusterLock struct {
 	session *concurrency.Session
 	mutex   *concurrency.Mutex

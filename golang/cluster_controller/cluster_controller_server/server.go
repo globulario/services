@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,9 +24,12 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -189,6 +194,16 @@ type server struct {
 	// workflow trace recorder (fire-and-forget, nil-safe if unavailable)
 	workflowRec *workflow.Recorder
 
+	// workflowClient is used to delegate workflow execution to the
+	// centralized WorkflowService. Lazily connected via the same
+	// address resolver as workflowRec.
+	workflowClient workflowpb.WorkflowServiceClient
+
+	// actorServer handles workflow callbacks from the centralized
+	// WorkflowService. Per-run Routers are registered before each
+	// ExecuteWorkflow call.
+	actorServer *ControllerActorServer
+
 	// read-only projections over cluster-controller state. Best-effort:
 	// failures never propagate to the request path; missing data falls back
 	// to the in-memory srv.state. Governed by docs/architecture/projection-clauses.md.
@@ -200,6 +215,24 @@ type server struct {
 }
 
 var testHookBeforeReportNodeStatusApply func()
+
+// buildControllerClientTLSCreds loads the cluster CA and returns gRPC
+// transport credentials for outgoing client connections (workflow service,
+// etc). Uses config.ResolveDialTarget-provided serverName for TLS
+// verification.
+func buildControllerClientTLSCreds(serverName string) credentials.TransportCredentials {
+	tlsCfg := &tls.Config{ServerName: serverName}
+	caFile := config.GetLocalCACertificate()
+	if caFile != "" {
+		if caData, err := os.ReadFile(caFile); err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caData) {
+				tlsCfg.RootCAs = pool
+			}
+		}
+	}
+	return credentials.NewTLS(tlsCfg)
+}
 
 func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState, kv kvClient) *server {
 	if state == nil {
@@ -229,6 +262,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
 		workflowSem:      make(chan struct{}, 3), // max 3 concurrent release workflows
+		actorServer:      NewControllerActorServer(),
 	}
 	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
 		srv.enableServiceRemoval = true
@@ -256,7 +290,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
-	srv.workflowRec = workflow.NewRecorderWithResolver(func() string {
+	wfAddrResolver := func() string {
 		if env := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR")); env != "" {
 			return env
 		}
@@ -264,7 +298,21 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 			return addr // routes through Envoy service mesh (:443)
 		}
 		return ""
-	}, clusterID)
+	}
+	srv.workflowRec = workflow.NewRecorderWithResolver(wfAddrResolver, clusterID)
+
+	// Create a WorkflowService client for centralized execution.
+	// Uses the same address resolver as the Recorder.
+	if wfAddr := wfAddrResolver(); wfAddr != "" {
+		dt := config.ResolveDialTarget(wfAddr)
+		if wfConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
+			buildControllerClientTLSCreds(dt.ServerName),
+		)); err == nil {
+			srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
+		} else {
+			log.Printf("cluster-controller: workflow client unavailable: %v", err)
+		}
+	}
 
 	srv.setLeader(false, "", "")
 

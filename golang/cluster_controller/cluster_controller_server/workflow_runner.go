@@ -4,31 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
-	"os"
-
 	"github.com/globulario/services/golang/workflow/engine"
-	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
-// RunBootstrapWorkflow executes the node.bootstrap workflow definition to
-// advance a node from admitted → workload_ready. The controller actors
-// are wired to the in-memory node state map so that set_phase and
-// wait_condition operate on live state.
-func (srv *server) RunBootstrapWorkflow(ctx context.Context, nodeID string) (*engine.Run, error) {
-	defPath := resolveBootstrapDefinition()
-	if defPath == "" {
-		return nil, fmt.Errorf("node.bootstrap.yaml not found")
-	}
-
-	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile(defPath)
-	if err != nil {
-		return nil, fmt.Errorf("load workflow definition %s: %w", defPath, err)
-	}
-
+// RunBootstrapWorkflow delegates execution of the node.bootstrap workflow to
+// the centralized WorkflowService. The controller actors are wired to the
+// in-memory node state map so that set_phase and wait_condition operate on
+// live state — these are invoked via actor callbacks from the workflow service.
+func (srv *server) RunBootstrapWorkflow(ctx context.Context, nodeID string) (*workflowpb.ExecuteWorkflowResponse, error) {
 	// Snapshot node profiles under lock.
 	srv.lock("RunBootstrapWorkflow:snapshot")
 	node := srv.state.Nodes[nodeID]
@@ -61,41 +47,10 @@ func (srv *server) RunBootstrapWorkflow(ctx context.Context, nodeID string) (*en
 	})
 
 	// Condition evaluator for contains() expressions.
-	evalCond := func(ctx context.Context, expr string, inputs, outputs map[string]any) (bool, error) {
-		if strings.HasPrefix(expr, "contains(inputs.node_profiles,") {
-			nodeProfiles, ok := inputs["node_profiles"].([]any)
-			if !ok {
-				return false, nil
-			}
-			parts := strings.SplitN(expr, "'", 3)
-			if len(parts) < 2 {
-				return false, nil
-			}
-			target := parts[1]
-			for _, p := range nodeProfiles {
-				if fmt.Sprint(p) == target {
-					return true, nil
-				}
-			}
-			return false, nil
-		}
-		return true, nil
-	}
+	// NOTE: The centralized engine handles conditions, but the controller's
+	// actors need the profiles available via inputs. The contains() condition
+	// is evaluated by the engine's DefaultEvalCond.
 
-	eng := &engine.Engine{
-		Router:   router,
-		EvalCond: evalCond,
-		OnStepDone: func(run *engine.Run, step *engine.StepState) {
-			elapsed := time.Duration(0)
-			if !step.StartedAt.IsZero() && !step.FinishedAt.IsZero() {
-				elapsed = step.FinishedAt.Sub(step.StartedAt)
-			}
-			log.Printf("bootstrap-workflow: node %s step %s → %s (%s)",
-				nodeID, step.ID, step.Status, elapsed.Round(time.Millisecond))
-		},
-	}
-
-	// Convert profiles to []any for the condition evaluator.
 	profilesAny := make([]any, len(profiles))
 	for i, p := range profiles {
 		profilesAny[i] = p
@@ -107,6 +62,8 @@ func (srv *server) RunBootstrapWorkflow(ctx context.Context, nodeID string) (*en
 		"node_hostname": hostname,
 		"node_profiles": profilesAny,
 	}
+
+	correlationID := "bootstrap:" + nodeID
 
 	// Mark the node as workflow-driven so reconcileBootstrapPhases skips it.
 	srv.lock("RunBootstrapWorkflow:activate")
@@ -126,24 +83,24 @@ func (srv *server) RunBootstrapWorkflow(ctx context.Context, nodeID string) (*en
 		nodeID, hostname, profiles)
 
 	start := time.Now()
-	run, err := eng.Execute(ctx, def, inputs)
+	resp, err := srv.executeWorkflowCentralized(ctx, "node.bootstrap", correlationID, inputs, router)
 	elapsed := time.Since(start)
 
 	if err != nil {
 		log.Printf("bootstrap-workflow: node %s FAILED after %s: %v",
 			nodeID, elapsed.Round(time.Millisecond), err)
-	} else {
-		succeeded := 0
-		for _, st := range run.Steps {
-			if st.Status == engine.StepSucceeded {
-				succeeded++
-			}
-		}
-		log.Printf("bootstrap-workflow: node %s SUCCEEDED in %s (%d/%d steps)",
-			nodeID, elapsed.Round(time.Millisecond), succeeded, len(run.Steps))
+		return nil, err
 	}
 
-	return run, err
+	if resp.Status == "SUCCEEDED" {
+		log.Printf("bootstrap-workflow: node %s SUCCEEDED in %s",
+			nodeID, elapsed.Round(time.Millisecond))
+	} else {
+		log.Printf("bootstrap-workflow: node %s FAILED in %s: %s",
+			nodeID, elapsed.Round(time.Millisecond), resp.Error)
+	}
+
+	return resp, nil
 }
 
 // setBootstrapPhase updates a node's bootstrap phase under lock and emits
@@ -216,12 +173,10 @@ func (srv *server) waitBootstrapCondition(ctx context.Context, nodeID, condition
 		}
 	}
 
-	// Already satisfied?
 	if check() {
 		return nil
 	}
 
-	// Poll every 3 seconds until satisfied or context expires.
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -236,17 +191,10 @@ func (srv *server) waitBootstrapCondition(ctx context.Context, nodeID, condition
 	}
 }
 
-// resolveBootstrapDefinition finds the node.bootstrap.yaml file.
-func resolveBootstrapDefinition() string {
-	candidates := []string{
-		"/var/lib/globular/workflows/node.bootstrap.yaml",
-		"/usr/lib/globular/workflows/node.bootstrap.yaml",
-		"/tmp/node.bootstrap.yaml",
-	}
-	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	return ""
-}
+// resolveBootstrapDefinition is no longer needed — definitions are loaded
+// from MinIO by the centralized WorkflowService. Removed in Phase E.
+// The old filesystem resolution paths were:
+//   /var/lib/globular/workflows/node.bootstrap.yaml
+//   /usr/lib/globular/workflows/node.bootstrap.yaml
+//   /tmp/node.bootstrap.yaml
+

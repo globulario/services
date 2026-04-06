@@ -47,6 +47,7 @@ Returns the service's config (address, port, TLS, version) and runtime state (PI
 		}
 
 		// Build a map of service_id -> {config, runtime}
+		//go:schemalint:ignore — implementation type, not schema owner
 		type svcEntry struct {
 			id      string
 			config  map[string]interface{}
@@ -142,6 +143,7 @@ Returns the service's config (address, port, TLS, version) and runtime state (PI
 			return nil, fmt.Errorf("etcd list services: %w", err)
 		}
 
+		//go:schemalint:ignore — implementation type, not schema owner
 		type svcSummary struct {
 			config  map[string]interface{}
 			runtime map[string]interface{}

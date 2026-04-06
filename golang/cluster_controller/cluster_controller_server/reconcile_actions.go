@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/workflow/engine"
-	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
@@ -500,21 +498,10 @@ func (srv *server) reconcileEmitCompleted(ctx context.Context) error {
 	return nil
 }
 
-// RunClusterReconcileWorkflow executes the cluster.reconcile workflow to
-// detect drift and dispatch remediation workflows. This replaces the
-// direct ScyllaDB/MinIO join-phase calls that were in reconcileNodes().
-func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run, error) {
-	defPath := resolveWorkflowDefinition("cluster.reconcile")
-	if defPath == "" {
-		return nil, fmt.Errorf("cluster.reconcile.yaml not found")
-	}
-
-	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile(defPath)
-	if err != nil {
-		return nil, fmt.Errorf("load workflow definition %s: %w", defPath, err)
-	}
-
+// RunClusterReconcileWorkflow delegates execution of the cluster.reconcile
+// workflow to the centralized WorkflowService. The workflow detects drift
+// and dispatches child remediation workflows (which are also centralized).
+func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb.ExecuteWorkflowResponse, error) {
 	router := engine.NewRouter()
 
 	// Wire reconcile controller actions.
@@ -523,7 +510,6 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 	// Wire workflow-service actions for child workflow dispatch.
 	engine.RegisterWorkflowServiceActions(router, engine.WorkflowServiceConfig{
 		StartChild: func(ctx context.Context, workflowName string, inputs map[string]any) (string, error) {
-			// For "noop" workflows, just return immediately.
 			if workflowName == "noop" {
 				reason := ""
 				if inputs != nil {
@@ -533,7 +519,6 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 				return "noop-run", nil
 			}
 
-			// Delegate to the real workflow runner.
 			if workflowName == "release.apply.package" {
 				releaseID := fmt.Sprint(inputs["release_id"])
 				releaseName := fmt.Sprint(inputs["release_name"])
@@ -547,11 +532,11 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 					candidateStrs[i] = fmt.Sprint(c)
 				}
 
-				run, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, candidateStrs)
+				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, candidateStrs)
 				if err != nil {
 					return "", err
 				}
-				return run.ID, nil
+				return resp.RunId, nil
 			}
 
 			if workflowName == "release.remove.package" {
@@ -564,69 +549,38 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 					candidateStrs[i] = fmt.Sprint(c)
 				}
 
-				run, err := srv.RunRemovePackageWorkflow(ctx, releaseID, pkgName, pkgKind, candidateStrs)
+				resp, err := srv.RunRemovePackageWorkflow(ctx, releaseID, pkgName, pkgKind, candidateStrs)
 				if err != nil {
 					return "", err
 				}
-				return run.ID, nil
+				return resp.RunId, nil
 			}
 
 			return "", fmt.Errorf("unknown child workflow: %s", workflowName)
 		},
 		WaitChildTerminal: func(ctx context.Context, childRunID string) (map[string]any, error) {
-			// Child workflows run synchronously in RunPackageReleaseWorkflow,
+			// Child workflows run synchronously via ExecuteWorkflow,
 			// so by the time StartChild returns, the run is already terminal.
-			if strings.HasPrefix(childRunID, "noop") {
-				return map[string]any{"status": "SUCCEEDED", "run_id": childRunID}, nil
-			}
 			return map[string]any{"status": "SUCCEEDED", "run_id": childRunID}, nil
 		},
 	})
-
-	// Condition evaluator for len() expressions.
-	evalCond := func(ctx context.Context, expr string, inputs, outputs map[string]any) (bool, error) {
-		if strings.Contains(expr, "len(remediation_items)") {
-			items, _ := outputs["remediation_items"].([]any)
-			if strings.Contains(expr, "== 0") {
-				return len(items) == 0, nil
-			}
-			if strings.Contains(expr, "> 0") {
-				return len(items) > 0, nil
-			}
-		}
-		return true, nil
-	}
-
-	eng := &engine.Engine{
-		Router:   router,
-		EvalCond: evalCond,
-		OnStepDone: func(run *engine.Run, step *engine.StepState) {
-			log.Printf("reconcile-workflow: step %s -> %s", step.ID, step.Status)
-			if srv.workflowRec != nil {
-				srv.workflowRec.RecordStepOutcome(ctx, "cluster.reconcile", step.ID,
-					engineStepStatusToPB(step.Status),
-					step.StartedAt, step.FinishedAt,
-					"", step.Error)
-			}
-		},
-	}
 
 	inputs := map[string]any{
 		"cluster_id": srv.cfg.ClusterDomain,
 		"scope":      "cluster",
 	}
 
+	correlationID := fmt.Sprintf("reconcile:%d", time.Now().UnixMilli())
+
 	log.Printf("reconcile-workflow: starting cluster.reconcile")
 	startedAt := time.Now()
-	run, err := eng.Execute(ctx, def, inputs)
+	resp, err := srv.executeWorkflowCentralized(ctx, "cluster.reconcile", correlationID, inputs, router)
 	finishedAt := time.Now()
 
-	// Summary-only persistence: cluster.reconcile fires every 30s, so writing
-	// a full run + steps per cycle would inflate the workflow_runs table. We
-	// record only the outcome into workflow_run_summaries (bounded O(1) rows).
+	// Summary-only persistence for the bounded dashboard view.
 	runID := ""
-	if run != nil {
-		runID = run.ID
+	if resp != nil {
+		runID = resp.RunId
 	}
 	outcomeStatus := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	failureReason := ""
@@ -642,5 +596,5 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*engine.Run
 			outcomeStatus, startedAt, finishedAt, failureReason)
 	}
 
-	return run, err
+	return resp, err
 }

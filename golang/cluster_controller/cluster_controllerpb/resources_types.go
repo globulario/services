@@ -22,6 +22,7 @@ type ClusterNetwork struct {
 	Status *ObjectStatus       `json:"status,omitempty"`
 }
 
+//go:schemalint:ignore — implementation type, not schema owner
 type ServiceDesiredVersionSpec struct {
 	ServiceName string `json:"service_name,omitempty"`
 	Version     string `json:"version,omitempty"`
@@ -43,6 +44,7 @@ type ServiceDesiredVersion struct {
 	Status *ObjectStatus              `json:"status,omitempty"`
 }
 
+//go:schemalint:ignore — implementation type, not schema owner
 type NodeSpec struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	Roles  []string          `json:"roles,omitempty"`
@@ -236,6 +238,7 @@ type InfrastructureRelease struct {
 // ── Install Policy ──────────────────────────────────────────────────────────
 
 // InstallPolicySpec controls which artifacts a cluster will accept during resolution.
+//go:schemalint:ignore — implementation type, not schema owner
 type InstallPolicySpec struct {
 	VerifiedPublishersOnly bool     `json:"verified_publishers_only,omitempty"` // only allow artifacts from claimed namespaces
 	AllowedNamespaces      []string `json:"allowed_namespaces,omitempty"`       // whitelist (empty = allow all)
@@ -263,6 +266,7 @@ type InstallPolicyResource struct {
 
 // PackageAlignmentStatus describes the state alignment of a single package
 // across the 4 layers: artifact, desired release, installed observed, runtime.
+//go:schemalint:ignore — implementation type, not schema owner
 type PackageAlignmentStatus struct {
 	Name                string `json:"name"`
 	Kind                string `json:"kind"`                              // SERVICE, APPLICATION, INFRASTRUCTURE

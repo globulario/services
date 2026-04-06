@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -322,39 +322,25 @@ func (srv *server) convertAgentResult(
 
 // dialNodeAgent connects to a node-agent gRPC endpoint.
 // Uses TLS if the backup-manager has TLS configured, otherwise plaintext.
-// Loopback connections use TLS with InsecureSkipVerify since the server cert
-// SAN typically won't match 127.0.0.1.
+// dialNodeAgent creates a gRPC connection to a node-agent. Uses
+// config.ResolveDialTarget for canonical endpoint resolution — loopback
+// IPs are rewritten to "localhost" so the service cert SAN matches.
 func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	dt := config.ResolveDialTarget(endpoint)
+
 	var opts []grpc.DialOption
 
-	host, _, _ := net.SplitHostPort(endpoint)
-	isLoopback := host == "127.0.0.1" || host == "localhost" || host == "::1"
-
-	if srv.TLS && !isLoopback {
-		tlsCfg, err := srv.hookTLSConfig(endpoint)
+	if srv.TLS {
+		tlsCfg, err := srv.hookTLSConfig(dt.Address)
 		if err != nil {
 			slog.Warn("node-agent TLS config failed, falling back to insecure",
-				"endpoint", endpoint, "error", err)
+				"endpoint", dt.Address, "error", err)
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		} else {
-			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
-		}
-	} else if isLoopback {
-		// Node-agent requires TLS even on loopback. Use TLS with
-		// InsecureSkipVerify since the server cert SAN won't match 127.0.0.1.
-		// This matches the pattern used by other services (file, media, repository).
-		tlsCfg, err := srv.hookTLSConfig(endpoint)
-		if err != nil {
-			// hookTLSConfig may fail if CertAuthorityTrust is not set;
-			// fall back to skip-verify TLS without CA validation.
-			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(
-				&tls.Config{InsecureSkipVerify: true}, //nolint:gosec // loopback only
-			)))
-		} else {
-			tlsCfg.InsecureSkipVerify = true //nolint:gosec // loopback: cert SAN won't match 127.0.0.1
+			tlsCfg.ServerName = dt.ServerName
 			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 		}
 	} else {
@@ -362,7 +348,7 @@ func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.Cl
 	}
 	opts = append(opts, grpc.WithBlock())
 
-	return grpc.DialContext(dialCtx, endpoint, opts...)
+	return grpc.DialContext(dialCtx, dt.Address, opts...)
 }
 
 // nodeAgentEndpoint returns the gRPC endpoint for a node's agent.

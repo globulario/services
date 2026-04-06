@@ -19,6 +19,7 @@ const (
 )
 
 // jobStore persists remediation jobs in etcd so they survive restart.
+//go:schemalint:ignore — implementation type, not schema owner
 type jobStore struct {
 	mu   sync.RWMutex
 	jobs map[string]*ai_executorpb.Job // incident_id → job (in-memory cache)

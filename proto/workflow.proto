@@ -19,6 +19,8 @@ enum WorkflowActor {
   ACTOR_OPERATOR           = 6;
   ACTOR_AI_DIAGNOSER       = 7;
   ACTOR_AI_EXECUTOR        = 8;
+  ACTOR_CLUSTER_DOCTOR     = 9;
+  ACTOR_WORKFLOW_SERVICE   = 10;
 }
 
 // WorkflowPhaseKind is the coarse execution phase a step belongs to.
@@ -856,6 +858,11 @@ service WorkflowService {
   rpc GetIncident(GetIncidentRequest)               returns (Incident);
   rpc ApplyIncidentAction(IncidentAction)           returns (google.protobuf.Empty);
   rpc SubmitProposedFix(SubmitProposedFixRequest)   returns (ProposedFix);
+
+  // Centralized execution — WorkflowService drives the engine and dispatches
+  // steps to actor services via WorkflowActorService.ExecuteAction callbacks.
+  // See docs/centralized-workflow-execution.md.
+  rpc ExecuteWorkflow(ExecuteWorkflowRequest)       returns (ExecuteWorkflowResponse);
 }
 
 // ─── Workflow Definition messages ─────────────────────────────────────────
@@ -879,4 +886,59 @@ message GetWorkflowDefinitionRequest {
 message GetWorkflowDefinitionResponse {
   string name = 1;
   string yaml_content = 2;     // raw YAML text
+}
+
+// ─── Centralized execution ───────────────────────────────────────────────
+
+// ExecuteWorkflowRequest asks WorkflowService to load a definition from
+// MinIO, compile and execute it, dispatching steps to actor services via
+// their WorkflowActorService.ExecuteAction callbacks.
+message ExecuteWorkflowRequest {
+  string cluster_id     = 1;
+  string workflow_name  = 2;   // definition name in MinIO (e.g. "remediate.doctor.finding")
+  string inputs_json    = 3;   // JSON-encoded map[string]any — workflow inputs
+  // Actor endpoint map: actor_type → gRPC address.
+  // Only actors referenced by the workflow need entries.
+  // e.g. {"cluster-doctor": "localhost:10300"}
+  // All endpoints are resolved via config.ResolveDialTarget before dialing.
+  map<string, string> actor_endpoints = 4;
+  string correlation_id = 5;   // optional, for linking to existing workflow lineage
+}
+
+message ExecuteWorkflowResponse {
+  string run_id       = 1;
+  string status       = 2;   // terminal: "SUCCEEDED" or "FAILED"
+  string error        = 3;   // empty on success
+  string outputs_json = 4;   // JSON-encoded accumulated step outputs
+}
+
+// ─── Actor callback service ──────────────────────────────────────────────
+
+// WorkflowActorService is implemented by any service that acts as a workflow
+// actor (cluster-doctor, cluster-controller, node-agent). The workflow
+// service calls back into actors when executing steps assigned to them.
+//
+// Each actor resolves the action name against its local handler registry.
+// Unknown actions MUST return an error, never a silent no-op.
+service WorkflowActorService {
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+}
+
+// ExecuteActionRequest is the callback payload sent from WorkflowService
+// to an actor service when a workflow step targets that actor.
+message ExecuteActionRequest {
+  string run_id      = 1;   // workflow run ID (for correlation/logging)
+  string step_id     = 2;   // step ID within the workflow
+  string actor       = 3;   // actor type (e.g. "cluster-doctor")
+  string action      = 4;   // action name (e.g. "doctor.resolve_finding")
+  string with_json   = 5;   // JSON-encoded step.With (resolved expressions)
+  string inputs_json = 6;   // JSON-encoded workflow-level inputs
+  string outputs_json = 7;  // JSON-encoded accumulated step outputs (exports)
+}
+
+// ExecuteActionResponse is returned by the actor after executing an action.
+message ExecuteActionResponse {
+  bool   ok          = 1;   // true if the action succeeded
+  string output_json = 2;   // JSON-encoded action result (merged into step outputs)
+  string message     = 3;   // human-readable status or error description
 }

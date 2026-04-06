@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -77,16 +78,19 @@ func (srv *server) triggerBootstrapWorkflow(nodeID string) {
 	defer cancel()
 
 	log.Printf("workflow-trigger: starting bootstrap workflow for node %s", nodeID)
-	run, err := srv.RunBootstrapWorkflow(ctx, nodeID)
+	resp, err := srv.RunBootstrapWorkflow(ctx, nodeID)
 	if err != nil {
 		log.Printf("workflow-trigger: bootstrap workflow failed for node %s: %v", nodeID, err)
 		return
 	}
-	log.Printf("workflow-trigger: bootstrap workflow for node %s completed — status=%s", nodeID, run.Status)
+	log.Printf("workflow-trigger: bootstrap workflow for node %s completed — status=%s", nodeID, resp.Status)
 }
 
 // dialNodeAgent creates a direct gRPC connection to a node-agent.
+// Uses config.ResolveDialTarget for canonical endpoint resolution.
 func (srv *server) dialNodeAgent(endpoint string) (*grpc.ClientConn, error) {
+	dt := config.ResolveDialTarget(endpoint)
+
 	certFile := "/var/lib/globular/pki/issued/services/service.crt"
 	keyFile := "/var/lib/globular/pki/issued/services/service.key"
 	caFile := "/var/lib/globular/pki/ca.crt"
@@ -102,12 +106,10 @@ func (srv *server) dialNodeAgent(endpoint string) (*grpc.ClientConn, error) {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(caPEM)
 
-	// The node-agent's cert may have the node hostname as SAN, not the IP.
-	// Use InsecureSkipVerify with manual verification for cross-node calls.
 	creds := credentials.NewTLS(&tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            pool,
-		InsecureSkipVerify: true, // node cert SAN may not match endpoint IP
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+		ServerName:   dt.ServerName,
 	})
 
 	// Add node token as metadata for auth.
@@ -122,7 +124,7 @@ func (srv *server) dialNodeAgent(endpoint string) (*grpc.ClientConn, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return grpc.DialContext(ctx, endpoint, opts...)
+	return grpc.DialContext(ctx, dt.Address, opts...)
 }
 
 // tokenAuth implements grpc.PerRPCCredentials for bearer token auth.

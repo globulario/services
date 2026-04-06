@@ -19,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/netutil"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -132,7 +133,13 @@ func main() {
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	cluster_doctorpb.RegisterClusterDoctorServiceServer(grpcServer, srv)
-	logger.Debug("gRPC service registered")
+
+	// Register the WorkflowActorService so the centralized WorkflowService
+	// can dispatch step callbacks to this doctor. The actor router is wired
+	// to the doctor's local state (finding cache, remediation executor).
+	actorRouter := srv.buildDoctorActorRouter()
+	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, NewDoctorActorServer(actorRouter))
+	logger.Debug("gRPC services registered (doctor + workflow actor)")
 
 	// Register in Globular service registry so the xDS watcher creates an Envoy cluster.
 	// This makes the service reachable via serviceSubdomainUrl('clusterdoctor.ClusterDoctorService')

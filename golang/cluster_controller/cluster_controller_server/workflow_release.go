@@ -4,73 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/engine"
-	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 )
 
-// RunPackageReleaseWorkflow executes the release.apply.package workflow to
-// roll out any package (SERVICE, INFRASTRUCTURE, WORKLOAD, COMMAND) across
-// candidate nodes. The controller orchestrates; per-node steps call
-// node-agents via gRPC.
-func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash string, candidateNodes []string) (*engine.Run, error) {
-	defPath := resolveWorkflowDefinition("release.apply.package")
-	if defPath == "" {
-		return nil, fmt.Errorf("release.apply.package.yaml not found")
-	}
-
-	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile(defPath)
-	if err != nil {
-		return nil, fmt.Errorf("load workflow definition %s: %w", defPath, err)
-	}
-
+// RunPackageReleaseWorkflow delegates execution of the release.apply.package
+// workflow to the centralized WorkflowService. The controller orchestrates;
+// per-node steps call node-agents via gRPC actor callbacks.
+func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
 	router := engine.NewRouter()
-
-	// Wire release controller actions with real implementations.
 	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig(releaseName, pkgKind))
-
-	// Wire node-agent actions — each callback resolves the node's agent
-	// endpoint from the workflow's per-item inputs and calls via gRPC.
 	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
-
-	var wfRunID string // set after reportRunStart, captured by OnStepDone closure
-	workflowName := def.Metadata.Name
-	eng := &engine.Engine{
-		Router: router,
-		OnStepDone: func(run *engine.Run, step *engine.StepState) {
-			elapsed := time.Duration(0)
-			if !step.StartedAt.IsZero() && !step.FinishedAt.IsZero() {
-				elapsed = step.FinishedAt.Sub(step.StartedAt)
-			}
-			log.Printf("release-workflow: step %s → %s (%s)",
-				step.ID, step.Status, elapsed.Round(time.Millisecond))
-			// Report step failures to the workflow service (fires event for ai-watcher).
-			if step.Status == engine.StepFailed && wfRunID != "" {
-				srv.reportStepFailed(wfRunID, step.ID, step.Error)
-			}
-			// Record per-step outcome for AI diagnostics.
-			if srv.workflowRec != nil {
-				srv.workflowRec.RecordStepOutcome(ctx, workflowName, step.ID,
-					engineStepStatusToPB(step.Status),
-					step.StartedAt, step.FinishedAt,
-					"", step.Error)
-			}
-		},
-	}
 
 	nodesAny := make([]any, len(candidateNodes))
 	for i, n := range candidateNodes {
@@ -88,120 +40,47 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		"candidate_nodes":  nodesAny,
 	}
 
-	log.Printf("release-workflow: starting %s for release %s (%s:%s@%s) across %d nodes",
-		def.Metadata.Name, releaseName, pkgKind, pkgName, version, len(candidateNodes))
+	correlationID := releaseID
 
-	// Persist workflow run via recorder — release workflows are user-initiated
-	// and rare, so full run detail is valuable for drill-down.
-	componentKind := workflow.KindService
-	if strings.EqualFold(pkgKind, "INFRASTRUCTURE") {
-		componentKind = workflow.KindInfra
-	}
-	if srv.workflowRec != nil {
-		// For multi-node releases, record the first candidate as the
-		// run's NodeID so the workflow listing shows a concrete target
-		// instead of empty strings. Operators and AI see "no node id"
-		// on every release run and can't tell which node is affected.
-		// Single-node releases (len==1) are exact; multi-node ones
-		// record the first candidate — drill into steps for the rest.
-		var runNodeID, runNodeHostname string
-		if len(candidateNodes) > 0 {
-			runNodeID = candidateNodes[0]
-			runNodeHostname = srv.hostnameForNode(candidateNodes[0])
-		}
-		wfRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
-			NodeID:           runNodeID,
-			NodeHostname:     runNodeHostname,
-			ComponentName:    pkgName,
-			ComponentKind:    componentKind,
-			ComponentVersion: version,
-			ReleaseKind:      "ServiceRelease",
-			ReleaseObjectID:  releaseID,
-			TriggerReason:    workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT,
-			CorrelationID:    releaseID,
-			WorkflowName:     workflowName,
-		})
-	}
-	// Also publish legacy event for ai-watcher compatibility.
+	log.Printf("release-workflow: starting release.apply.package for %s (%s:%s@%s) across %d nodes",
+		releaseName, pkgKind, pkgName, version, len(candidateNodes))
+
+	// Publish legacy event for ai-watcher compatibility.
 	srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
 
 	start := time.Now()
-	run, err := eng.Execute(ctx, def, inputs)
+	resp, err := srv.executeWorkflowCentralized(ctx, "release.apply.package", correlationID, inputs, router)
 	elapsed := time.Since(start)
 
 	if err != nil {
 		log.Printf("release-workflow: %s FAILED after %s: %v",
 			releaseName, elapsed.Round(time.Millisecond), err)
-		if wfRunID != "" && srv.workflowRec != nil {
-			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Failed,
-				fmt.Sprintf("%s FAILED after %s", releaseName, elapsed.Round(time.Millisecond)),
-				err.Error(), workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN)
-		}
-		srv.reportRunDone(wfRunID, pkgName, true,
+		srv.reportRunDone("", pkgName, true,
 			fmt.Sprintf("%s FAILED after %s: %v", releaseName, elapsed.Round(time.Millisecond), err))
-	} else {
-		succeeded := 0
-		for _, st := range run.Steps {
-			if st.Status == engine.StepSucceeded {
-				succeeded++
-			}
-		}
-		log.Printf("release-workflow: %s SUCCEEDED in %s (%d/%d steps)",
-			releaseName, elapsed.Round(time.Millisecond), succeeded, len(run.Steps))
-		if wfRunID != "" && srv.workflowRec != nil {
-			srv.workflowRec.FinishRun(ctx, wfRunID, workflow.Succeeded,
-				fmt.Sprintf("%s@%s SUCCEEDED in %s (%d/%d steps)",
-					pkgName, version, elapsed.Round(time.Millisecond), succeeded, len(run.Steps)),
-				"", workflow.NoFailure)
-		}
-		srv.reportRunDone(wfRunID, pkgName, false,
-			fmt.Sprintf("%s@%s SUCCEEDED in %s (%d/%d steps)",
-				pkgName, version, elapsed.Round(time.Millisecond), succeeded, len(run.Steps)))
+		return nil, err
 	}
 
-	return run, err
+	failed := resp.Status != "SUCCEEDED"
+	log.Printf("release-workflow: %s finished in %s: %s",
+		releaseName, elapsed.Round(time.Millisecond), resp.Status)
+	srv.reportRunDone(resp.RunId, pkgName, failed,
+		fmt.Sprintf("%s@%s %s in %s", pkgName, version, resp.Status, elapsed.Round(time.Millisecond)))
+
+	return resp, nil
 }
 
 // RunInfraReleaseWorkflow executes the infrastructure-specific release workflow.
 // Delegates to RunPackageReleaseWorkflow with kind=INFRASTRUCTURE.
-func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash string, candidateNodes []string) (*engine.Run, error) {
+func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
 	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, candidateNodes)
 }
 
-// RunRemovePackageWorkflow executes the release.remove.package workflow
-// to uninstall a package from all target nodes.
-func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgName, pkgKind string, candidateNodes []string) (*engine.Run, error) {
-	defPath := resolveWorkflowDefinition("release.remove.package")
-	if defPath == "" {
-		return nil, fmt.Errorf("release.remove.package.yaml not found")
-	}
-
-	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadFile(defPath)
-	if err != nil {
-		return nil, fmt.Errorf("load workflow definition %s: %w", defPath, err)
-	}
-
+// RunRemovePackageWorkflow delegates execution of the release.remove.package
+// workflow to the centralized WorkflowService.
+func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgName, pkgKind string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
 	router := engine.NewRouter()
-	// releaseName == releaseID for remove workflow
 	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig(releaseID, pkgKind))
 	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
-
-	var rmRunID string
-	eng := &engine.Engine{
-		Router: router,
-		OnStepDone: func(run *engine.Run, step *engine.StepState) {
-			elapsed := time.Duration(0)
-			if !step.StartedAt.IsZero() && !step.FinishedAt.IsZero() {
-				elapsed = step.FinishedAt.Sub(step.StartedAt)
-			}
-			log.Printf("remove-workflow: step %s → %s (%s)",
-				step.ID, step.Status, elapsed.Round(time.Millisecond))
-			if step.Status == engine.StepFailed && rmRunID != "" {
-				srv.reportStepFailed(rmRunID, step.ID, step.Error)
-			}
-		},
-	}
 
 	nodesAny := make([]any, len(candidateNodes))
 	for i, n := range candidateNodes {
@@ -216,52 +95,31 @@ func (srv *server) RunRemovePackageWorkflow(ctx context.Context, releaseID, pkgN
 		"candidate_nodes": nodesAny,
 	}
 
+	correlationID := releaseID
+
 	log.Printf("remove-workflow: starting removal of %s (%s) across %d nodes",
 		pkgName, pkgKind, len(candidateNodes))
-
-	componentKind := workflow.KindService
-	if strings.EqualFold(pkgKind, "INFRASTRUCTURE") {
-		componentKind = workflow.KindInfra
-	}
-	if srv.workflowRec != nil {
-		rmRunID = srv.workflowRec.StartRun(ctx, &workflow.RunParams{
-			ComponentName:   pkgName,
-			ComponentKind:   componentKind,
-			ReleaseKind:     "ServiceRelease",
-			ReleaseObjectID: releaseID,
-			TriggerReason:   workflowpb.TriggerReason_TRIGGER_REASON_MANUAL,
-			CorrelationID:   releaseID,
-			WorkflowName:    "release.remove.package",
-		})
-	}
 	srv.reportRunStart(pkgName, pkgKind, "", releaseID, len(candidateNodes))
 
 	start := time.Now()
-	run, err := eng.Execute(ctx, def, inputs)
+	resp, err := srv.executeWorkflowCentralized(ctx, "release.remove.package", correlationID, inputs, router)
 	elapsed := time.Since(start)
 
 	if err != nil {
 		log.Printf("remove-workflow: %s FAILED after %s: %v",
 			pkgName, elapsed.Round(time.Millisecond), err)
-		if rmRunID != "" && srv.workflowRec != nil {
-			srv.workflowRec.FinishRun(ctx, rmRunID, workflow.Failed,
-				fmt.Sprintf("remove %s FAILED", pkgName), err.Error(), workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN)
-		}
-		srv.reportRunDone(rmRunID, pkgName, true,
+		srv.reportRunDone("", pkgName, true,
 			fmt.Sprintf("remove %s FAILED: %v", pkgName, err))
-	} else {
-		log.Printf("remove-workflow: %s SUCCEEDED in %s",
-			pkgName, elapsed.Round(time.Millisecond))
-		if rmRunID != "" && srv.workflowRec != nil {
-			srv.workflowRec.FinishRun(ctx, rmRunID, workflow.Succeeded,
-				fmt.Sprintf("remove %s SUCCEEDED in %s", pkgName, elapsed.Round(time.Millisecond)),
-				"", workflow.NoFailure)
-		}
-		srv.reportRunDone(rmRunID, pkgName, false,
-			fmt.Sprintf("remove %s SUCCEEDED in %s", pkgName, elapsed.Round(time.Millisecond)))
+		return nil, err
 	}
 
-	return run, err
+	failed := resp.Status != "SUCCEEDED"
+	log.Printf("remove-workflow: %s finished in %s: %s",
+		pkgName, elapsed.Round(time.Millisecond), resp.Status)
+	srv.reportRunDone(resp.RunId, pkgName, failed,
+		fmt.Sprintf("remove %s %s in %s", pkgName, resp.Status, elapsed.Round(time.Millisecond)))
+
+	return resp, nil
 }
 
 // --------------------------------------------------------------------------
@@ -935,79 +793,6 @@ func packageToUnit(name string) string {
 		return unit
 	}
 	return "globular-" + name + ".service"
-}
-
-// --------------------------------------------------------------------------
-// Workflow definition resolver
-// --------------------------------------------------------------------------
-
-var fetchControllerDefsDone int32 // atomic: 1 = successfully fetched
-
-// resolveWorkflowDefinition finds a workflow YAML by name.
-// On first miss it attempts to fetch all definitions from MinIO.
-// Unlike sync.Once, retries on failure so transient MinIO unavailability
-// during startup doesn't permanently prevent workflow resolution.
-func resolveWorkflowDefinition(name string) string {
-	candidates := []string{
-		"/var/lib/globular/workflows/" + name + ".yaml",
-		"/usr/lib/globular/workflows/" + name + ".yaml",
-		"/tmp/" + name + ".yaml",
-	}
-	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-
-	// Not found on disk — try fetching from MinIO (retry until success).
-	if atomic.LoadInt32(&fetchControllerDefsDone) == 0 {
-		fetchWorkflowDefsFromMinIO()
-	}
-
-	// Retry after fetch.
-	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	return ""
-}
-
-func fetchWorkflowDefsFromMinIO() {
-	destDir := "/var/lib/globular/workflows"
-	os.MkdirAll(destDir, 0o755)
-	knownDefs := []string{
-		"day0.bootstrap.yaml",
-		"node.bootstrap.yaml",
-		"node.join.yaml",
-		"node.repair.yaml",
-		"cluster.reconcile.yaml",
-		"release.apply.package.yaml",
-		"release.apply.infrastructure.yaml",
-		"release.remove.package.yaml",
-	}
-	fetched := 0
-	for _, defName := range knownDefs {
-		key := "workflows/" + defName
-		data, err := config.GetClusterConfig(key)
-		if err != nil {
-			log.Printf("workflow-resolver: fetch %s: %v", key, err)
-			continue
-		}
-		if data == nil {
-			continue
-		}
-		dest := filepath.Join(destDir, defName)
-		if err := os.WriteFile(dest, data, 0o644); err != nil {
-			log.Printf("workflow-resolver: write %s: %v", dest, err)
-			continue
-		}
-		fetched++
-	}
-	if fetched > 0 {
-		log.Printf("workflow-resolver: fetched %d workflow definitions from MinIO", fetched)
-		atomic.StoreInt32(&fetchControllerDefsDone, 1)
-	}
 }
 
 // ---------------------------------------------------------------------------

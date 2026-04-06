@@ -49,6 +49,7 @@ const (
 // ============================================================================
 // Addressing / Identity
 // ============================================================================
+//go:schemalint:ignore — implementation type, not schema owner
 type PortAllocator struct {
 	from, to int
 	mu       sync.Mutex

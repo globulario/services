@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -153,15 +154,17 @@ func (r *Recorder) ensureConnected() bool {
 		return true
 	}
 
-	addr := ""
+	rawAddr := ""
 	if r.addrResolver != nil {
-		addr = r.addrResolver()
+		rawAddr = r.addrResolver()
 	}
-	if addr == "" {
+	if rawAddr == "" {
 		return false
 	}
 
-	creds, err := loadRecorderTLS()
+	dt := resolveRecorderTarget(rawAddr)
+
+	creds, err := loadRecorderTLS(dt.serverName)
 	if err != nil {
 		// TLS not ready yet (certs may not be installed) — try again later.
 		return false
@@ -180,9 +183,9 @@ func (r *Recorder) ensureConnected() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
+	conn, err := grpc.DialContext(ctx, dt.address, dialOpts...)
 	if err != nil {
-		log.Printf("workflow recorder: connect to %s failed: %v", addr, err)
+		log.Printf("workflow recorder: connect to %s failed: %v", dt.address, err)
 		return false
 	}
 	r.conn = conn
@@ -191,7 +194,7 @@ func (r *Recorder) ensureConnected() bool {
 	if token != "" {
 		authMethod = "mTLS+token"
 	}
-	log.Printf("workflow recorder: connected to %s (%s)", addr, authMethod)
+	log.Printf("workflow recorder: connected to %s (%s)", dt.address, authMethod)
 	return true
 }
 
@@ -262,7 +265,7 @@ func tokenInjector(token, clusterID string) grpc.UnaryClientInterceptor {
 }
 
 // loadRecorderTLS loads the node's service certificates for mTLS.
-func loadRecorderTLS() (credentials.TransportCredentials, error) {
+func loadRecorderTLS(serverName string) (credentials.TransportCredentials, error) {
 	cert, err := tls.LoadX509KeyPair(DefaultCertFile, DefaultKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("load client cert: %w", err)
@@ -279,10 +282,38 @@ func loadRecorderTLS() (credentials.TransportCredentials, error) {
 	}
 
 	return credentials.NewTLS(&tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            pool,
-		InsecureSkipVerify: true, // needed when routing through envoy gateway
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+		ServerName:   serverName,
 	}), nil
+}
+
+// recorderDialTarget mirrors config.ResolveDialTarget without importing config
+// (the workflow package must not depend on config to avoid circular imports).
+type recorderDialTarget struct {
+	address    string
+	serverName string
+}
+
+func resolveRecorderTarget(endpoint string) recorderDialTarget {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return recorderDialTarget{}
+	}
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		// No port — treat entire string as host.
+		host = endpoint
+		port = ""
+	}
+	if host == "127.0.0.1" || host == "::1" {
+		host = "localhost"
+	}
+	addr := host
+	if port != "" {
+		addr = net.JoinHostPort(host, port)
+	}
+	return recorderDialTarget{address: addr, serverName: host}
 }
 
 // Close releases the gRPC connection.

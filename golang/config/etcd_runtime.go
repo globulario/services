@@ -17,6 +17,7 @@ var (
 	liveLeases = map[string]*LiveLease{}
 )
 
+//go:schemalint:ignore — implementation type, not schema owner
 type LiveLease struct {
 	LeaseID clientv3.LeaseID
 	cancel  context.CancelFunc
@@ -153,6 +154,7 @@ func StopLive(id string) {
 	}
 }
 
+//go:schemalint:ignore — implementation type, not schema owner
 type RuntimeEvent struct {
 	ID      string
 	Runtime map[string]interface{}

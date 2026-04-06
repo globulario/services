@@ -54,7 +54,8 @@ func newEventPublisher(nodeID string) *eventPublisher {
 // On Day 1 nodes the event service is on the control-plane node, so we
 // route through the gateway (same host as controller, port 443).
 func (ep *eventPublisher) connect() error {
-	addr := discoverServiceAddr(10010) // event.EventService default port
+	rawAddr := discoverServiceAddr(10010) // event.EventService default port
+	dt := config.ResolveDialTarget(rawAddr)
 
 	// Try TLS first (production), fall back to insecure (development).
 	var creds grpc.DialOption
@@ -63,6 +64,7 @@ func (ep *eventPublisher) connect() error {
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caData)
 		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			ServerName: dt.ServerName,
 			RootCAs:    pool,
 			MinVersion: tls.VersionTLS12,
 		}))
@@ -70,9 +72,9 @@ func (ep *eventPublisher) connect() error {
 		creds = grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
 	}
 
-	conn, err := grpc.Dial(addr, creds,
-		grpc.WithTimeout(5*time.Second),
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, dt.Address, creds)
 	if err != nil {
 		return err
 	}

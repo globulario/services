@@ -109,6 +109,19 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node profiles: %v", err)
 	}
+	// Update the node_identity projection so labels reflect the new profiles.
+	// Best-effort — must not fail the handler (Clause 3).
+	if srv.nodeIdentityProj != nil {
+		id := nodeToIdentity(node)
+		go func() {
+			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := srv.nodeIdentityProj.Upsert(bg, *id); err != nil {
+				log.Printf("node_identity: upsert %s after SetNodeProfiles failed: %v", id.NodeID, err)
+			}
+		}()
+	}
+
 	if srv.enqueueReconcile != nil {
 		srv.enqueueReconcile()
 	}

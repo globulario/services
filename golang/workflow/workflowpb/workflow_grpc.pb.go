@@ -55,6 +55,7 @@ const (
 	WorkflowService_GetIncident_FullMethodName             = "/workflow.WorkflowService/GetIncident"
 	WorkflowService_ApplyIncidentAction_FullMethodName     = "/workflow.WorkflowService/ApplyIncidentAction"
 	WorkflowService_SubmitProposedFix_FullMethodName       = "/workflow.WorkflowService/SubmitProposedFix"
+	WorkflowService_ExecuteWorkflow_FullMethodName         = "/workflow.WorkflowService/ExecuteWorkflow"
 )
 
 // WorkflowServiceClient is the client API for WorkflowService service.
@@ -104,6 +105,10 @@ type WorkflowServiceClient interface {
 	GetIncident(ctx context.Context, in *GetIncidentRequest, opts ...grpc.CallOption) (*Incident, error)
 	ApplyIncidentAction(ctx context.Context, in *IncidentAction, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	SubmitProposedFix(ctx context.Context, in *SubmitProposedFixRequest, opts ...grpc.CallOption) (*ProposedFix, error)
+	// Centralized execution — WorkflowService drives the engine and dispatches
+	// steps to actor services via WorkflowActorService.ExecuteAction callbacks.
+	// See docs/centralized-workflow-execution.md.
+	ExecuteWorkflow(ctx context.Context, in *ExecuteWorkflowRequest, opts ...grpc.CallOption) (*ExecuteWorkflowResponse, error)
 }
 
 type workflowServiceClient struct {
@@ -482,6 +487,16 @@ func (c *workflowServiceClient) SubmitProposedFix(ctx context.Context, in *Submi
 	return out, nil
 }
 
+func (c *workflowServiceClient) ExecuteWorkflow(ctx context.Context, in *ExecuteWorkflowRequest, opts ...grpc.CallOption) (*ExecuteWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteWorkflowResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ExecuteWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkflowServiceServer is the server API for WorkflowService service.
 // All implementations should embed UnimplementedWorkflowServiceServer
 // for forward compatibility.
@@ -529,6 +544,10 @@ type WorkflowServiceServer interface {
 	GetIncident(context.Context, *GetIncidentRequest) (*Incident, error)
 	ApplyIncidentAction(context.Context, *IncidentAction) (*emptypb.Empty, error)
 	SubmitProposedFix(context.Context, *SubmitProposedFixRequest) (*ProposedFix, error)
+	// Centralized execution — WorkflowService drives the engine and dispatches
+	// steps to actor services via WorkflowActorService.ExecuteAction callbacks.
+	// See docs/centralized-workflow-execution.md.
+	ExecuteWorkflow(context.Context, *ExecuteWorkflowRequest) (*ExecuteWorkflowResponse, error)
 }
 
 // UnimplementedWorkflowServiceServer should be embedded to have
@@ -642,6 +661,9 @@ func (UnimplementedWorkflowServiceServer) ApplyIncidentAction(context.Context, *
 }
 func (UnimplementedWorkflowServiceServer) SubmitProposedFix(context.Context, *SubmitProposedFixRequest) (*ProposedFix, error) {
 	return nil, status.Error(codes.Unimplemented, "method SubmitProposedFix not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ExecuteWorkflow(context.Context, *ExecuteWorkflowRequest) (*ExecuteWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteWorkflow not implemented")
 }
 func (UnimplementedWorkflowServiceServer) testEmbeddedByValue() {}
 
@@ -1279,6 +1301,24 @@ func _WorkflowService_SubmitProposedFix_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkflowService_ExecuteWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ExecuteWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ExecuteWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ExecuteWorkflow(ctx, req.(*ExecuteWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkflowService_ServiceDesc is the grpc.ServiceDesc for WorkflowService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1418,6 +1458,10 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SubmitProposedFix",
 			Handler:    _WorkflowService_SubmitProposedFix_Handler,
 		},
+		{
+			MethodName: "ExecuteWorkflow",
+			Handler:    _WorkflowService_ExecuteWorkflow_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1431,5 +1475,119 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+	Metadata: "workflow.proto",
+}
+
+const (
+	WorkflowActorService_ExecuteAction_FullMethodName = "/workflow.WorkflowActorService/ExecuteAction"
+)
+
+// WorkflowActorServiceClient is the client API for WorkflowActorService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// WorkflowActorService is implemented by any service that acts as a workflow
+// actor (cluster-doctor, cluster-controller, node-agent). The workflow
+// service calls back into actors when executing steps assigned to them.
+//
+// Each actor resolves the action name against its local handler registry.
+// Unknown actions MUST return an error, never a silent no-op.
+type WorkflowActorServiceClient interface {
+	ExecuteAction(ctx context.Context, in *ExecuteActionRequest, opts ...grpc.CallOption) (*ExecuteActionResponse, error)
+}
+
+type workflowActorServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewWorkflowActorServiceClient(cc grpc.ClientConnInterface) WorkflowActorServiceClient {
+	return &workflowActorServiceClient{cc}
+}
+
+func (c *workflowActorServiceClient) ExecuteAction(ctx context.Context, in *ExecuteActionRequest, opts ...grpc.CallOption) (*ExecuteActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteActionResponse)
+	err := c.cc.Invoke(ctx, WorkflowActorService_ExecuteAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WorkflowActorServiceServer is the server API for WorkflowActorService service.
+// All implementations should embed UnimplementedWorkflowActorServiceServer
+// for forward compatibility.
+//
+// WorkflowActorService is implemented by any service that acts as a workflow
+// actor (cluster-doctor, cluster-controller, node-agent). The workflow
+// service calls back into actors when executing steps assigned to them.
+//
+// Each actor resolves the action name against its local handler registry.
+// Unknown actions MUST return an error, never a silent no-op.
+type WorkflowActorServiceServer interface {
+	ExecuteAction(context.Context, *ExecuteActionRequest) (*ExecuteActionResponse, error)
+}
+
+// UnimplementedWorkflowActorServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedWorkflowActorServiceServer struct{}
+
+func (UnimplementedWorkflowActorServiceServer) ExecuteAction(context.Context, *ExecuteActionRequest) (*ExecuteActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteAction not implemented")
+}
+func (UnimplementedWorkflowActorServiceServer) testEmbeddedByValue() {}
+
+// UnsafeWorkflowActorServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkflowActorServiceServer will
+// result in compilation errors.
+type UnsafeWorkflowActorServiceServer interface {
+	mustEmbedUnimplementedWorkflowActorServiceServer()
+}
+
+func RegisterWorkflowActorServiceServer(s grpc.ServiceRegistrar, srv WorkflowActorServiceServer) {
+	// If the following call panics, it indicates UnimplementedWorkflowActorServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&WorkflowActorService_ServiceDesc, srv)
+}
+
+func _WorkflowActorService_ExecuteAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowActorServiceServer).ExecuteAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowActorService_ExecuteAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowActorServiceServer).ExecuteAction(ctx, req.(*ExecuteActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// WorkflowActorService_ServiceDesc is the grpc.ServiceDesc for WorkflowActorService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var WorkflowActorService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "workflow.WorkflowActorService",
+	HandlerType: (*WorkflowActorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ExecuteAction",
+			Handler:    _WorkflowActorService_ExecuteAction_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "workflow.proto",
 }

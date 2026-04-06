@@ -36,20 +36,24 @@ const (
 	WorkflowActor_ACTOR_OPERATOR           WorkflowActor = 6
 	WorkflowActor_ACTOR_AI_DIAGNOSER       WorkflowActor = 7
 	WorkflowActor_ACTOR_AI_EXECUTOR        WorkflowActor = 8
+	WorkflowActor_ACTOR_CLUSTER_DOCTOR     WorkflowActor = 9
+	WorkflowActor_ACTOR_WORKFLOW_SERVICE   WorkflowActor = 10
 )
 
 // Enum value maps for WorkflowActor.
 var (
 	WorkflowActor_name = map[int32]string{
-		0: "ACTOR_UNKNOWN",
-		1: "ACTOR_CLUSTER_CONTROLLER",
-		2: "ACTOR_REPOSITORY",
-		3: "ACTOR_NODE_AGENT",
-		4: "ACTOR_INSTALLER",
-		5: "ACTOR_RUNTIME",
-		6: "ACTOR_OPERATOR",
-		7: "ACTOR_AI_DIAGNOSER",
-		8: "ACTOR_AI_EXECUTOR",
+		0:  "ACTOR_UNKNOWN",
+		1:  "ACTOR_CLUSTER_CONTROLLER",
+		2:  "ACTOR_REPOSITORY",
+		3:  "ACTOR_NODE_AGENT",
+		4:  "ACTOR_INSTALLER",
+		5:  "ACTOR_RUNTIME",
+		6:  "ACTOR_OPERATOR",
+		7:  "ACTOR_AI_DIAGNOSER",
+		8:  "ACTOR_AI_EXECUTOR",
+		9:  "ACTOR_CLUSTER_DOCTOR",
+		10: "ACTOR_WORKFLOW_SERVICE",
 	}
 	WorkflowActor_value = map[string]int32{
 		"ACTOR_UNKNOWN":            0,
@@ -61,6 +65,8 @@ var (
 		"ACTOR_OPERATOR":           6,
 		"ACTOR_AI_DIAGNOSER":       7,
 		"ACTOR_AI_EXECUTOR":        8,
+		"ACTOR_CLUSTER_DOCTOR":     9,
+		"ACTOR_WORKFLOW_SERVICE":   10,
 	}
 )
 
@@ -6153,6 +6159,312 @@ func (x *GetWorkflowDefinitionResponse) GetYamlContent() string {
 	return ""
 }
 
+// ExecuteWorkflowRequest asks WorkflowService to load a definition from
+// MinIO, compile and execute it, dispatching steps to actor services via
+// their WorkflowActorService.ExecuteAction callbacks.
+type ExecuteWorkflowRequest struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId    string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	WorkflowName string                 `protobuf:"bytes,2,opt,name=workflow_name,json=workflowName,proto3" json:"workflow_name,omitempty"` // definition name in MinIO (e.g. "remediate.doctor.finding")
+	InputsJson   string                 `protobuf:"bytes,3,opt,name=inputs_json,json=inputsJson,proto3" json:"inputs_json,omitempty"`       // JSON-encoded map[string]any — workflow inputs
+	// Actor endpoint map: actor_type → gRPC address.
+	// Only actors referenced by the workflow need entries.
+	// e.g. {"cluster-doctor": "localhost:10300"}
+	// All endpoints are resolved via config.ResolveDialTarget before dialing.
+	ActorEndpoints map[string]string `protobuf:"bytes,4,rep,name=actor_endpoints,json=actorEndpoints,proto3" json:"actor_endpoints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	CorrelationId  string            `protobuf:"bytes,5,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"` // optional, for linking to existing workflow lineage
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ExecuteWorkflowRequest) Reset() {
+	*x = ExecuteWorkflowRequest{}
+	mi := &file_workflow_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteWorkflowRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteWorkflowRequest) ProtoMessage() {}
+
+func (x *ExecuteWorkflowRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteWorkflowRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteWorkflowRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *ExecuteWorkflowRequest) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowRequest) GetWorkflowName() string {
+	if x != nil {
+		return x.WorkflowName
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowRequest) GetInputsJson() string {
+	if x != nil {
+		return x.InputsJson
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowRequest) GetActorEndpoints() map[string]string {
+	if x != nil {
+		return x.ActorEndpoints
+	}
+	return nil
+}
+
+func (x *ExecuteWorkflowRequest) GetCorrelationId() string {
+	if x != nil {
+		return x.CorrelationId
+	}
+	return ""
+}
+
+type ExecuteWorkflowResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`                              // terminal: "SUCCEEDED" or "FAILED"
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`                                // empty on success
+	OutputsJson   string                 `protobuf:"bytes,4,opt,name=outputs_json,json=outputsJson,proto3" json:"outputs_json,omitempty"` // JSON-encoded accumulated step outputs
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteWorkflowResponse) Reset() {
+	*x = ExecuteWorkflowResponse{}
+	mi := &file_workflow_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteWorkflowResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteWorkflowResponse) ProtoMessage() {}
+
+func (x *ExecuteWorkflowResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteWorkflowResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteWorkflowResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *ExecuteWorkflowResponse) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowResponse) GetOutputsJson() string {
+	if x != nil {
+		return x.OutputsJson
+	}
+	return ""
+}
+
+// ExecuteActionRequest is the callback payload sent from WorkflowService
+// to an actor service when a workflow step targets that actor.
+type ExecuteActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`                   // workflow run ID (for correlation/logging)
+	StepId        string                 `protobuf:"bytes,2,opt,name=step_id,json=stepId,proto3" json:"step_id,omitempty"`                // step ID within the workflow
+	Actor         string                 `protobuf:"bytes,3,opt,name=actor,proto3" json:"actor,omitempty"`                                // actor type (e.g. "cluster-doctor")
+	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`                              // action name (e.g. "doctor.resolve_finding")
+	WithJson      string                 `protobuf:"bytes,5,opt,name=with_json,json=withJson,proto3" json:"with_json,omitempty"`          // JSON-encoded step.With (resolved expressions)
+	InputsJson    string                 `protobuf:"bytes,6,opt,name=inputs_json,json=inputsJson,proto3" json:"inputs_json,omitempty"`    // JSON-encoded workflow-level inputs
+	OutputsJson   string                 `protobuf:"bytes,7,opt,name=outputs_json,json=outputsJson,proto3" json:"outputs_json,omitempty"` // JSON-encoded accumulated step outputs (exports)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteActionRequest) Reset() {
+	*x = ExecuteActionRequest{}
+	mi := &file_workflow_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteActionRequest) ProtoMessage() {}
+
+func (x *ExecuteActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteActionRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteActionRequest) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *ExecuteActionRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetStepId() string {
+	if x != nil {
+		return x.StepId
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetWithJson() string {
+	if x != nil {
+		return x.WithJson
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetInputsJson() string {
+	if x != nil {
+		return x.InputsJson
+	}
+	return ""
+}
+
+func (x *ExecuteActionRequest) GetOutputsJson() string {
+	if x != nil {
+		return x.OutputsJson
+	}
+	return ""
+}
+
+// ExecuteActionResponse is returned by the actor after executing an action.
+type ExecuteActionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`                                  // true if the action succeeded
+	OutputJson    string                 `protobuf:"bytes,2,opt,name=output_json,json=outputJson,proto3" json:"output_json,omitempty"` // JSON-encoded action result (merged into step outputs)
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`                         // human-readable status or error description
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteActionResponse) Reset() {
+	*x = ExecuteActionResponse{}
+	mi := &file_workflow_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteActionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteActionResponse) ProtoMessage() {}
+
+func (x *ExecuteActionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workflow_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteActionResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteActionResponse) Descriptor() ([]byte, []int) {
+	return file_workflow_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *ExecuteActionResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ExecuteActionResponse) GetOutputJson() string {
+	if x != nil {
+		return x.OutputJson
+	}
+	return ""
+}
+
+func (x *ExecuteActionResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_workflow_proto protoreflect.FileDescriptor
 
 const file_workflow_proto_rawDesc = "" +
@@ -6708,7 +7020,37 @@ const file_workflow_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"V\n" +
 	"\x1dGetWorkflowDefinitionResponse\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
-	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent*\xd7\x01\n" +
+	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent\"\xc6\x02\n" +
+	"\x16ExecuteWorkflowRequest\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
+	"\rworkflow_name\x18\x02 \x01(\tR\fworkflowName\x12\x1f\n" +
+	"\vinputs_json\x18\x03 \x01(\tR\n" +
+	"inputsJson\x12]\n" +
+	"\x0factor_endpoints\x18\x04 \x03(\v24.workflow.ExecuteWorkflowRequest.ActorEndpointsEntryR\x0eactorEndpoints\x12%\n" +
+	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\x1aA\n" +
+	"\x13ActorEndpointsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x81\x01\n" +
+	"\x17ExecuteWorkflowResponse\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\x12!\n" +
+	"\foutputs_json\x18\x04 \x01(\tR\voutputsJson\"\xd5\x01\n" +
+	"\x14ExecuteActionRequest\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
+	"\astep_id\x18\x02 \x01(\tR\x06stepId\x12\x14\n" +
+	"\x05actor\x18\x03 \x01(\tR\x05actor\x12\x16\n" +
+	"\x06action\x18\x04 \x01(\tR\x06action\x12\x1b\n" +
+	"\twith_json\x18\x05 \x01(\tR\bwithJson\x12\x1f\n" +
+	"\vinputs_json\x18\x06 \x01(\tR\n" +
+	"inputsJson\x12!\n" +
+	"\foutputs_json\x18\a \x01(\tR\voutputsJson\"b\n" +
+	"\x15ExecuteActionResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x1f\n" +
+	"\voutput_json\x18\x02 \x01(\tR\n" +
+	"outputJson\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage*\x8d\x02\n" +
 	"\rWorkflowActor\x12\x11\n" +
 	"\rACTOR_UNKNOWN\x10\x00\x12\x1c\n" +
 	"\x18ACTOR_CLUSTER_CONTROLLER\x10\x01\x12\x14\n" +
@@ -6718,7 +7060,10 @@ const file_workflow_proto_rawDesc = "" +
 	"\rACTOR_RUNTIME\x10\x05\x12\x12\n" +
 	"\x0eACTOR_OPERATOR\x10\x06\x12\x16\n" +
 	"\x12ACTOR_AI_DIAGNOSER\x10\a\x12\x15\n" +
-	"\x11ACTOR_AI_EXECUTOR\x10\b*\xe5\x01\n" +
+	"\x11ACTOR_AI_EXECUTOR\x10\b\x12\x18\n" +
+	"\x14ACTOR_CLUSTER_DOCTOR\x10\t\x12\x1a\n" +
+	"\x16ACTOR_WORKFLOW_SERVICE\x10\n" +
+	"*\xe5\x01\n" +
 	"\x11WorkflowPhaseKind\x12\x11\n" +
 	"\rPHASE_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0ePHASE_DECISION\x10\x01\x12\x0f\n" +
@@ -6812,7 +7157,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\x13FIX_STATUS_APPROVED\x10\x02\x12\x16\n" +
 	"\x12FIX_STATUS_APPLIED\x10\x03\x12\x17\n" +
 	"\x13FIX_STATUS_REJECTED\x10\x04\x12\x15\n" +
-	"\x11FIX_STATUS_FAILED\x10\x052\xef\x15\n" +
+	"\x11FIX_STATUS_FAILED\x10\x052\xc7\x16\n" +
 	"\x0fWorkflowService\x12<\n" +
 	"\bStartRun\x12\x19.workflow.StartRunRequest\x1a\x15.workflow.WorkflowRun\x12?\n" +
 	"\tUpdateRun\x12\x1a.workflow.UpdateRunRequest\x1a\x16.google.protobuf.Empty\x12?\n" +
@@ -6850,7 +7195,10 @@ const file_workflow_proto_rawDesc = "" +
 	"\rListIncidents\x12\x1e.workflow.ListIncidentsRequest\x1a\x1f.workflow.ListIncidentsResponse\x12?\n" +
 	"\vGetIncident\x12\x1c.workflow.GetIncidentRequest\x1a\x12.workflow.Incident\x12G\n" +
 	"\x13ApplyIncidentAction\x12\x18.workflow.IncidentAction\x1a\x16.google.protobuf.Empty\x12N\n" +
-	"\x11SubmitProposedFix\x12\".workflow.SubmitProposedFixRequest\x1a\x15.workflow.ProposedFixB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
+	"\x11SubmitProposedFix\x12\".workflow.SubmitProposedFixRequest\x1a\x15.workflow.ProposedFix\x12V\n" +
+	"\x0fExecuteWorkflow\x12 .workflow.ExecuteWorkflowRequest\x1a!.workflow.ExecuteWorkflowResponse2h\n" +
+	"\x14WorkflowActorService\x12P\n" +
+	"\rExecuteAction\x12\x1e.workflow.ExecuteActionRequest\x1a\x1f.workflow.ExecuteActionResponseB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
 
 var (
 	file_workflow_proto_rawDescOnce sync.Once
@@ -6865,7 +7213,7 @@ func file_workflow_proto_rawDescGZIP() []byte {
 }
 
 var file_workflow_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
+var file_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 74)
 var file_workflow_proto_goTypes = []any{
 	(WorkflowActor)(0),                      // 0: workflow.WorkflowActor
 	(WorkflowPhaseKind)(0),                  // 1: workflow.WorkflowPhaseKind
@@ -6947,9 +7295,14 @@ var file_workflow_proto_goTypes = []any{
 	(*ListWorkflowDefinitionsResponse)(nil), // 77: workflow.ListWorkflowDefinitionsResponse
 	(*GetWorkflowDefinitionRequest)(nil),    // 78: workflow.GetWorkflowDefinitionRequest
 	(*GetWorkflowDefinitionResponse)(nil),   // 79: workflow.GetWorkflowDefinitionResponse
-	nil,                                     // 80: workflow.EvidenceItem.FactsEntry
-	(*timestamppb.Timestamp)(nil),           // 81: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                   // 82: google.protobuf.Empty
+	(*ExecuteWorkflowRequest)(nil),          // 80: workflow.ExecuteWorkflowRequest
+	(*ExecuteWorkflowResponse)(nil),         // 81: workflow.ExecuteWorkflowResponse
+	(*ExecuteActionRequest)(nil),            // 82: workflow.ExecuteActionRequest
+	(*ExecuteActionResponse)(nil),           // 83: workflow.ExecuteActionResponse
+	nil,                                     // 84: workflow.EvidenceItem.FactsEntry
+	nil,                                     // 85: workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
+	(*timestamppb.Timestamp)(nil),           // 86: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                   // 87: google.protobuf.Empty
 }
 var file_workflow_proto_depIdxs = []int32{
 	5,   // 0: workflow.WorkflowContext.component_kind:type_name -> workflow.ComponentKind
@@ -6958,22 +7311,22 @@ var file_workflow_proto_depIdxs = []int32{
 	2,   // 3: workflow.WorkflowRun.status:type_name -> workflow.RunStatus
 	0,   // 4: workflow.WorkflowRun.current_actor:type_name -> workflow.WorkflowActor
 	4,   // 5: workflow.WorkflowRun.failure_class:type_name -> workflow.FailureClass
-	81,  // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
-	81,  // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
-	81,  // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
-	81,  // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 6: workflow.WorkflowRun.acknowledged_at:type_name -> google.protobuf.Timestamp
+	86,  // 7: workflow.WorkflowRun.started_at:type_name -> google.protobuf.Timestamp
+	86,  // 8: workflow.WorkflowRun.updated_at:type_name -> google.protobuf.Timestamp
+	86,  // 9: workflow.WorkflowRun.finished_at:type_name -> google.protobuf.Timestamp
 	0,   // 10: workflow.WorkflowStep.actor:type_name -> workflow.WorkflowActor
 	1,   // 11: workflow.WorkflowStep.phase:type_name -> workflow.WorkflowPhaseKind
 	3,   // 12: workflow.WorkflowStep.status:type_name -> workflow.StepStatus
-	81,  // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
-	81,  // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
-	81,  // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 13: workflow.WorkflowStep.created_at:type_name -> google.protobuf.Timestamp
+	86,  // 14: workflow.WorkflowStep.started_at:type_name -> google.protobuf.Timestamp
+	86,  // 15: workflow.WorkflowStep.finished_at:type_name -> google.protobuf.Timestamp
 	0,   // 16: workflow.WorkflowStep.source_actor:type_name -> workflow.WorkflowActor
 	0,   // 17: workflow.WorkflowStep.target_actor:type_name -> workflow.WorkflowActor
 	7,   // 18: workflow.WorkflowArtifactRef.kind:type_name -> workflow.ArtifactKind
-	81,  // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
+	86,  // 19: workflow.WorkflowArtifactRef.created_at:type_name -> google.protobuf.Timestamp
 	0,   // 20: workflow.WorkflowEvent.actor:type_name -> workflow.WorkflowActor
-	81,  // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
+	86,  // 21: workflow.WorkflowEvent.created_at:type_name -> google.protobuf.Timestamp
 	1,   // 22: workflow.WorkflowPhase.kind:type_name -> workflow.WorkflowPhaseKind
 	3,   // 23: workflow.WorkflowPhase.status:type_name -> workflow.StepStatus
 	14,  // 24: workflow.WorkflowPhase.steps:type_name -> workflow.WorkflowStep
@@ -7005,128 +7358,133 @@ var file_workflow_proto_depIdxs = []int32{
 	16,  // 50: workflow.WorkflowEventEnvelope.event:type_name -> workflow.WorkflowEvent
 	2,   // 51: workflow.WorkflowEventEnvelope.run_status:type_name -> workflow.RunStatus
 	2,   // 52: workflow.WorkflowRunSummary.last_run_status:type_name -> workflow.RunStatus
-	81,  // 53: workflow.WorkflowRunSummary.last_started_at:type_name -> google.protobuf.Timestamp
-	81,  // 54: workflow.WorkflowRunSummary.last_finished_at:type_name -> google.protobuf.Timestamp
-	81,  // 55: workflow.WorkflowRunSummary.last_success_at:type_name -> google.protobuf.Timestamp
-	81,  // 56: workflow.WorkflowRunSummary.last_failure_at:type_name -> google.protobuf.Timestamp
-	81,  // 57: workflow.WorkflowRunSummary.updated_at:type_name -> google.protobuf.Timestamp
+	86,  // 53: workflow.WorkflowRunSummary.last_started_at:type_name -> google.protobuf.Timestamp
+	86,  // 54: workflow.WorkflowRunSummary.last_finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 55: workflow.WorkflowRunSummary.last_success_at:type_name -> google.protobuf.Timestamp
+	86,  // 56: workflow.WorkflowRunSummary.last_failure_at:type_name -> google.protobuf.Timestamp
+	86,  // 57: workflow.WorkflowRunSummary.updated_at:type_name -> google.protobuf.Timestamp
 	2,   // 58: workflow.RecordOutcomeRequest.status:type_name -> workflow.RunStatus
-	81,  // 59: workflow.RecordOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
-	81,  // 60: workflow.RecordOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 59: workflow.RecordOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	86,  // 60: workflow.RecordOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
 	45,  // 61: workflow.ListWorkflowSummariesResponse.summaries:type_name -> workflow.WorkflowRunSummary
 	3,   // 62: workflow.WorkflowStepOutcome.last_status:type_name -> workflow.StepStatus
-	81,  // 63: workflow.WorkflowStepOutcome.last_started_at:type_name -> google.protobuf.Timestamp
-	81,  // 64: workflow.WorkflowStepOutcome.last_finished_at:type_name -> google.protobuf.Timestamp
-	81,  // 65: workflow.WorkflowStepOutcome.first_seen_at:type_name -> google.protobuf.Timestamp
-	81,  // 66: workflow.WorkflowStepOutcome.updated_at:type_name -> google.protobuf.Timestamp
+	86,  // 63: workflow.WorkflowStepOutcome.last_started_at:type_name -> google.protobuf.Timestamp
+	86,  // 64: workflow.WorkflowStepOutcome.last_finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 65: workflow.WorkflowStepOutcome.first_seen_at:type_name -> google.protobuf.Timestamp
+	86,  // 66: workflow.WorkflowStepOutcome.updated_at:type_name -> google.protobuf.Timestamp
 	3,   // 67: workflow.RecordStepOutcomeRequest.status:type_name -> workflow.StepStatus
-	81,  // 68: workflow.RecordStepOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
-	81,  // 69: workflow.RecordStepOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
+	86,  // 68: workflow.RecordStepOutcomeRequest.started_at:type_name -> google.protobuf.Timestamp
+	86,  // 69: workflow.RecordStepOutcomeRequest.finished_at:type_name -> google.protobuf.Timestamp
 	49,  // 70: workflow.ListStepOutcomesResponse.outcomes:type_name -> workflow.WorkflowStepOutcome
-	81,  // 71: workflow.PhaseTransitionEvent.event_at:type_name -> google.protobuf.Timestamp
+	86,  // 71: workflow.PhaseTransitionEvent.event_at:type_name -> google.protobuf.Timestamp
 	53,  // 72: workflow.ListPhaseTransitionsResponse.events:type_name -> workflow.PhaseTransitionEvent
-	81,  // 73: workflow.DriftUnresolved.first_observed_at:type_name -> google.protobuf.Timestamp
-	81,  // 74: workflow.DriftUnresolved.last_observed_at:type_name -> google.protobuf.Timestamp
+	86,  // 73: workflow.DriftUnresolved.first_observed_at:type_name -> google.protobuf.Timestamp
+	86,  // 74: workflow.DriftUnresolved.last_observed_at:type_name -> google.protobuf.Timestamp
 	57,  // 75: workflow.ListDriftUnresolvedResponse.items:type_name -> workflow.DriftUnresolved
 	10,  // 76: workflow.EvidenceItem.provenance:type_name -> workflow.Provenance
-	80,  // 77: workflow.EvidenceItem.facts:type_name -> workflow.EvidenceItem.FactsEntry
-	81,  // 78: workflow.EvidenceItem.observed_at:type_name -> google.protobuf.Timestamp
+	84,  // 77: workflow.EvidenceItem.facts:type_name -> workflow.EvidenceItem.FactsEntry
+	86,  // 78: workflow.EvidenceItem.observed_at:type_name -> google.protobuf.Timestamp
 	9,   // 79: workflow.DiagnosisItem.severity:type_name -> workflow.IncidentSeverity
-	81,  // 80: workflow.DiagnosisItem.diagnosed_at:type_name -> google.protobuf.Timestamp
+	86,  // 80: workflow.DiagnosisItem.diagnosed_at:type_name -> google.protobuf.Timestamp
 	64,  // 81: workflow.ProposedFix.code_patch:type_name -> workflow.CodePatch
 	65,  // 82: workflow.ProposedFix.config_patch:type_name -> workflow.ConfigPatch
 	66,  // 83: workflow.ProposedFix.command_list:type_name -> workflow.CommandList
 	67,  // 84: workflow.ProposedFix.restart_action:type_name -> workflow.RestartAction
 	11,  // 85: workflow.ProposedFix.status:type_name -> workflow.FixStatus
-	81,  // 86: workflow.ProposedFix.applied_at:type_name -> google.protobuf.Timestamp
-	81,  // 87: workflow.ProposedFix.proposed_at:type_name -> google.protobuf.Timestamp
+	86,  // 86: workflow.ProposedFix.applied_at:type_name -> google.protobuf.Timestamp
+	86,  // 87: workflow.ProposedFix.proposed_at:type_name -> google.protobuf.Timestamp
 	8,   // 88: workflow.Incident.status:type_name -> workflow.IncidentStatus
 	9,   // 89: workflow.Incident.severity:type_name -> workflow.IncidentSeverity
-	81,  // 90: workflow.Incident.first_seen_at:type_name -> google.protobuf.Timestamp
-	81,  // 91: workflow.Incident.last_seen_at:type_name -> google.protobuf.Timestamp
+	86,  // 90: workflow.Incident.first_seen_at:type_name -> google.protobuf.Timestamp
+	86,  // 91: workflow.Incident.last_seen_at:type_name -> google.protobuf.Timestamp
 	62,  // 92: workflow.Incident.evidence:type_name -> workflow.EvidenceItem
 	63,  // 93: workflow.Incident.diagnoses:type_name -> workflow.DiagnosisItem
 	68,  // 94: workflow.Incident.proposed_fixes:type_name -> workflow.ProposedFix
-	81,  // 95: workflow.Incident.acknowledged_at:type_name -> google.protobuf.Timestamp
+	86,  // 95: workflow.Incident.acknowledged_at:type_name -> google.protobuf.Timestamp
 	8,   // 96: workflow.ListIncidentsRequest.status:type_name -> workflow.IncidentStatus
 	69,  // 97: workflow.ListIncidentsResponse.incidents:type_name -> workflow.Incident
 	68,  // 98: workflow.SubmitProposedFixRequest.fix:type_name -> workflow.ProposedFix
 	76,  // 99: workflow.ListWorkflowDefinitionsResponse.definitions:type_name -> workflow.WorkflowDefinitionSummary
-	21,  // 100: workflow.WorkflowService.StartRun:input_type -> workflow.StartRunRequest
-	22,  // 101: workflow.WorkflowService.UpdateRun:input_type -> workflow.UpdateRunRequest
-	23,  // 102: workflow.WorkflowService.FinishRun:input_type -> workflow.FinishRunRequest
-	24,  // 103: workflow.WorkflowService.RecordStep:input_type -> workflow.RecordStepRequest
-	25,  // 104: workflow.WorkflowService.UpdateStep:input_type -> workflow.UpdateStepRequest
-	26,  // 105: workflow.WorkflowService.FailStep:input_type -> workflow.FailStepRequest
-	27,  // 106: workflow.WorkflowService.AddArtifactRef:input_type -> workflow.AddArtifactRefRequest
-	28,  // 107: workflow.WorkflowService.AppendEvent:input_type -> workflow.AppendEventRequest
-	29,  // 108: workflow.WorkflowService.GetRun:input_type -> workflow.GetRunRequest
-	30,  // 109: workflow.WorkflowService.ListRuns:input_type -> workflow.ListRunsRequest
-	32,  // 110: workflow.WorkflowService.GetRunEvents:input_type -> workflow.GetRunEventsRequest
-	34,  // 111: workflow.WorkflowService.GetCurrentRunsForNode:input_type -> workflow.GetCurrentRunsForNodeRequest
-	35,  // 112: workflow.WorkflowService.GetComponentHistory:input_type -> workflow.GetComponentHistoryRequest
-	36,  // 113: workflow.WorkflowService.GetWorkflowGraph:input_type -> workflow.GetWorkflowGraphRequest
-	37,  // 114: workflow.WorkflowService.WatchRun:input_type -> workflow.WatchRunRequest
-	38,  // 115: workflow.WorkflowService.WatchNodeRuns:input_type -> workflow.WatchNodeRunsRequest
-	40,  // 116: workflow.WorkflowService.RetryRun:input_type -> workflow.RetryRunRequest
-	41,  // 117: workflow.WorkflowService.CancelRun:input_type -> workflow.CancelRunRequest
-	42,  // 118: workflow.WorkflowService.AcknowledgeRun:input_type -> workflow.AcknowledgeRunRequest
-	43,  // 119: workflow.WorkflowService.DiagnoseRun:input_type -> workflow.DiagnoseRunRequest
-	75,  // 120: workflow.WorkflowService.ListWorkflowDefinitions:input_type -> workflow.ListWorkflowDefinitionsRequest
-	78,  // 121: workflow.WorkflowService.GetWorkflowDefinition:input_type -> workflow.GetWorkflowDefinitionRequest
-	46,  // 122: workflow.WorkflowService.RecordOutcome:input_type -> workflow.RecordOutcomeRequest
-	47,  // 123: workflow.WorkflowService.ListWorkflowSummaries:input_type -> workflow.ListWorkflowSummariesRequest
-	50,  // 124: workflow.WorkflowService.RecordStepOutcome:input_type -> workflow.RecordStepOutcomeRequest
-	51,  // 125: workflow.WorkflowService.ListStepOutcomes:input_type -> workflow.ListStepOutcomesRequest
-	54,  // 126: workflow.WorkflowService.RecordPhaseTransition:input_type -> workflow.RecordPhaseTransitionRequest
-	55,  // 127: workflow.WorkflowService.ListPhaseTransitions:input_type -> workflow.ListPhaseTransitionsRequest
-	58,  // 128: workflow.WorkflowService.RecordDriftObservation:input_type -> workflow.RecordDriftObservationRequest
-	59,  // 129: workflow.WorkflowService.ClearDriftObservation:input_type -> workflow.ClearDriftObservationRequest
-	60,  // 130: workflow.WorkflowService.ListDriftUnresolved:input_type -> workflow.ListDriftUnresolvedRequest
-	71,  // 131: workflow.WorkflowService.ListIncidents:input_type -> workflow.ListIncidentsRequest
-	73,  // 132: workflow.WorkflowService.GetIncident:input_type -> workflow.GetIncidentRequest
-	70,  // 133: workflow.WorkflowService.ApplyIncidentAction:input_type -> workflow.IncidentAction
-	74,  // 134: workflow.WorkflowService.SubmitProposedFix:input_type -> workflow.SubmitProposedFixRequest
-	13,  // 135: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
-	82,  // 136: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
-	82,  // 137: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
-	14,  // 138: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
-	82,  // 139: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
-	82,  // 140: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
-	82,  // 141: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
-	82,  // 142: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
-	20,  // 143: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
-	31,  // 144: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
-	33,  // 145: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
-	31,  // 146: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
-	31,  // 147: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
-	19,  // 148: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
-	39,  // 149: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
-	39,  // 150: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
-	13,  // 151: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
-	82,  // 152: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
-	82,  // 153: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
-	44,  // 154: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
-	77,  // 155: workflow.WorkflowService.ListWorkflowDefinitions:output_type -> workflow.ListWorkflowDefinitionsResponse
-	79,  // 156: workflow.WorkflowService.GetWorkflowDefinition:output_type -> workflow.GetWorkflowDefinitionResponse
-	82,  // 157: workflow.WorkflowService.RecordOutcome:output_type -> google.protobuf.Empty
-	48,  // 158: workflow.WorkflowService.ListWorkflowSummaries:output_type -> workflow.ListWorkflowSummariesResponse
-	82,  // 159: workflow.WorkflowService.RecordStepOutcome:output_type -> google.protobuf.Empty
-	52,  // 160: workflow.WorkflowService.ListStepOutcomes:output_type -> workflow.ListStepOutcomesResponse
-	82,  // 161: workflow.WorkflowService.RecordPhaseTransition:output_type -> google.protobuf.Empty
-	56,  // 162: workflow.WorkflowService.ListPhaseTransitions:output_type -> workflow.ListPhaseTransitionsResponse
-	82,  // 163: workflow.WorkflowService.RecordDriftObservation:output_type -> google.protobuf.Empty
-	82,  // 164: workflow.WorkflowService.ClearDriftObservation:output_type -> google.protobuf.Empty
-	61,  // 165: workflow.WorkflowService.ListDriftUnresolved:output_type -> workflow.ListDriftUnresolvedResponse
-	72,  // 166: workflow.WorkflowService.ListIncidents:output_type -> workflow.ListIncidentsResponse
-	69,  // 167: workflow.WorkflowService.GetIncident:output_type -> workflow.Incident
-	82,  // 168: workflow.WorkflowService.ApplyIncidentAction:output_type -> google.protobuf.Empty
-	68,  // 169: workflow.WorkflowService.SubmitProposedFix:output_type -> workflow.ProposedFix
-	135, // [135:170] is the sub-list for method output_type
-	100, // [100:135] is the sub-list for method input_type
-	100, // [100:100] is the sub-list for extension type_name
-	100, // [100:100] is the sub-list for extension extendee
-	0,   // [0:100] is the sub-list for field type_name
+	85,  // 100: workflow.ExecuteWorkflowRequest.actor_endpoints:type_name -> workflow.ExecuteWorkflowRequest.ActorEndpointsEntry
+	21,  // 101: workflow.WorkflowService.StartRun:input_type -> workflow.StartRunRequest
+	22,  // 102: workflow.WorkflowService.UpdateRun:input_type -> workflow.UpdateRunRequest
+	23,  // 103: workflow.WorkflowService.FinishRun:input_type -> workflow.FinishRunRequest
+	24,  // 104: workflow.WorkflowService.RecordStep:input_type -> workflow.RecordStepRequest
+	25,  // 105: workflow.WorkflowService.UpdateStep:input_type -> workflow.UpdateStepRequest
+	26,  // 106: workflow.WorkflowService.FailStep:input_type -> workflow.FailStepRequest
+	27,  // 107: workflow.WorkflowService.AddArtifactRef:input_type -> workflow.AddArtifactRefRequest
+	28,  // 108: workflow.WorkflowService.AppendEvent:input_type -> workflow.AppendEventRequest
+	29,  // 109: workflow.WorkflowService.GetRun:input_type -> workflow.GetRunRequest
+	30,  // 110: workflow.WorkflowService.ListRuns:input_type -> workflow.ListRunsRequest
+	32,  // 111: workflow.WorkflowService.GetRunEvents:input_type -> workflow.GetRunEventsRequest
+	34,  // 112: workflow.WorkflowService.GetCurrentRunsForNode:input_type -> workflow.GetCurrentRunsForNodeRequest
+	35,  // 113: workflow.WorkflowService.GetComponentHistory:input_type -> workflow.GetComponentHistoryRequest
+	36,  // 114: workflow.WorkflowService.GetWorkflowGraph:input_type -> workflow.GetWorkflowGraphRequest
+	37,  // 115: workflow.WorkflowService.WatchRun:input_type -> workflow.WatchRunRequest
+	38,  // 116: workflow.WorkflowService.WatchNodeRuns:input_type -> workflow.WatchNodeRunsRequest
+	40,  // 117: workflow.WorkflowService.RetryRun:input_type -> workflow.RetryRunRequest
+	41,  // 118: workflow.WorkflowService.CancelRun:input_type -> workflow.CancelRunRequest
+	42,  // 119: workflow.WorkflowService.AcknowledgeRun:input_type -> workflow.AcknowledgeRunRequest
+	43,  // 120: workflow.WorkflowService.DiagnoseRun:input_type -> workflow.DiagnoseRunRequest
+	75,  // 121: workflow.WorkflowService.ListWorkflowDefinitions:input_type -> workflow.ListWorkflowDefinitionsRequest
+	78,  // 122: workflow.WorkflowService.GetWorkflowDefinition:input_type -> workflow.GetWorkflowDefinitionRequest
+	46,  // 123: workflow.WorkflowService.RecordOutcome:input_type -> workflow.RecordOutcomeRequest
+	47,  // 124: workflow.WorkflowService.ListWorkflowSummaries:input_type -> workflow.ListWorkflowSummariesRequest
+	50,  // 125: workflow.WorkflowService.RecordStepOutcome:input_type -> workflow.RecordStepOutcomeRequest
+	51,  // 126: workflow.WorkflowService.ListStepOutcomes:input_type -> workflow.ListStepOutcomesRequest
+	54,  // 127: workflow.WorkflowService.RecordPhaseTransition:input_type -> workflow.RecordPhaseTransitionRequest
+	55,  // 128: workflow.WorkflowService.ListPhaseTransitions:input_type -> workflow.ListPhaseTransitionsRequest
+	58,  // 129: workflow.WorkflowService.RecordDriftObservation:input_type -> workflow.RecordDriftObservationRequest
+	59,  // 130: workflow.WorkflowService.ClearDriftObservation:input_type -> workflow.ClearDriftObservationRequest
+	60,  // 131: workflow.WorkflowService.ListDriftUnresolved:input_type -> workflow.ListDriftUnresolvedRequest
+	71,  // 132: workflow.WorkflowService.ListIncidents:input_type -> workflow.ListIncidentsRequest
+	73,  // 133: workflow.WorkflowService.GetIncident:input_type -> workflow.GetIncidentRequest
+	70,  // 134: workflow.WorkflowService.ApplyIncidentAction:input_type -> workflow.IncidentAction
+	74,  // 135: workflow.WorkflowService.SubmitProposedFix:input_type -> workflow.SubmitProposedFixRequest
+	80,  // 136: workflow.WorkflowService.ExecuteWorkflow:input_type -> workflow.ExecuteWorkflowRequest
+	82,  // 137: workflow.WorkflowActorService.ExecuteAction:input_type -> workflow.ExecuteActionRequest
+	13,  // 138: workflow.WorkflowService.StartRun:output_type -> workflow.WorkflowRun
+	87,  // 139: workflow.WorkflowService.UpdateRun:output_type -> google.protobuf.Empty
+	87,  // 140: workflow.WorkflowService.FinishRun:output_type -> google.protobuf.Empty
+	14,  // 141: workflow.WorkflowService.RecordStep:output_type -> workflow.WorkflowStep
+	87,  // 142: workflow.WorkflowService.UpdateStep:output_type -> google.protobuf.Empty
+	87,  // 143: workflow.WorkflowService.FailStep:output_type -> google.protobuf.Empty
+	87,  // 144: workflow.WorkflowService.AddArtifactRef:output_type -> google.protobuf.Empty
+	87,  // 145: workflow.WorkflowService.AppendEvent:output_type -> google.protobuf.Empty
+	20,  // 146: workflow.WorkflowService.GetRun:output_type -> workflow.WorkflowRunDetail
+	31,  // 147: workflow.WorkflowService.ListRuns:output_type -> workflow.ListRunsResponse
+	33,  // 148: workflow.WorkflowService.GetRunEvents:output_type -> workflow.GetRunEventsResponse
+	31,  // 149: workflow.WorkflowService.GetCurrentRunsForNode:output_type -> workflow.ListRunsResponse
+	31,  // 150: workflow.WorkflowService.GetComponentHistory:output_type -> workflow.ListRunsResponse
+	19,  // 151: workflow.WorkflowService.GetWorkflowGraph:output_type -> workflow.WorkflowGraph
+	39,  // 152: workflow.WorkflowService.WatchRun:output_type -> workflow.WorkflowEventEnvelope
+	39,  // 153: workflow.WorkflowService.WatchNodeRuns:output_type -> workflow.WorkflowEventEnvelope
+	13,  // 154: workflow.WorkflowService.RetryRun:output_type -> workflow.WorkflowRun
+	87,  // 155: workflow.WorkflowService.CancelRun:output_type -> google.protobuf.Empty
+	87,  // 156: workflow.WorkflowService.AcknowledgeRun:output_type -> google.protobuf.Empty
+	44,  // 157: workflow.WorkflowService.DiagnoseRun:output_type -> workflow.DiagnoseRunResponse
+	77,  // 158: workflow.WorkflowService.ListWorkflowDefinitions:output_type -> workflow.ListWorkflowDefinitionsResponse
+	79,  // 159: workflow.WorkflowService.GetWorkflowDefinition:output_type -> workflow.GetWorkflowDefinitionResponse
+	87,  // 160: workflow.WorkflowService.RecordOutcome:output_type -> google.protobuf.Empty
+	48,  // 161: workflow.WorkflowService.ListWorkflowSummaries:output_type -> workflow.ListWorkflowSummariesResponse
+	87,  // 162: workflow.WorkflowService.RecordStepOutcome:output_type -> google.protobuf.Empty
+	52,  // 163: workflow.WorkflowService.ListStepOutcomes:output_type -> workflow.ListStepOutcomesResponse
+	87,  // 164: workflow.WorkflowService.RecordPhaseTransition:output_type -> google.protobuf.Empty
+	56,  // 165: workflow.WorkflowService.ListPhaseTransitions:output_type -> workflow.ListPhaseTransitionsResponse
+	87,  // 166: workflow.WorkflowService.RecordDriftObservation:output_type -> google.protobuf.Empty
+	87,  // 167: workflow.WorkflowService.ClearDriftObservation:output_type -> google.protobuf.Empty
+	61,  // 168: workflow.WorkflowService.ListDriftUnresolved:output_type -> workflow.ListDriftUnresolvedResponse
+	72,  // 169: workflow.WorkflowService.ListIncidents:output_type -> workflow.ListIncidentsResponse
+	69,  // 170: workflow.WorkflowService.GetIncident:output_type -> workflow.Incident
+	87,  // 171: workflow.WorkflowService.ApplyIncidentAction:output_type -> google.protobuf.Empty
+	68,  // 172: workflow.WorkflowService.SubmitProposedFix:output_type -> workflow.ProposedFix
+	81,  // 173: workflow.WorkflowService.ExecuteWorkflow:output_type -> workflow.ExecuteWorkflowResponse
+	83,  // 174: workflow.WorkflowActorService.ExecuteAction:output_type -> workflow.ExecuteActionResponse
+	138, // [138:175] is the sub-list for method output_type
+	101, // [101:138] is the sub-list for method input_type
+	101, // [101:101] is the sub-list for extension type_name
+	101, // [101:101] is the sub-list for extension extendee
+	0,   // [0:101] is the sub-list for field type_name
 }
 
 func init() { file_workflow_proto_init() }
@@ -7140,9 +7498,9 @@ func file_workflow_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workflow_proto_rawDesc), len(file_workflow_proto_rawDesc)),
 			NumEnums:      12,
-			NumMessages:   69,
+			NumMessages:   74,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_workflow_proto_goTypes,
 		DependencyIndexes: file_workflow_proto_depIdxs,

@@ -26,6 +26,7 @@ type KV interface {
 	GetBundleGeneration(ctx context.Context, domain string) (uint64, error)
 }
 
+//go:schemalint:ignore — implementation type, not schema owner
 type etcdKV struct {
 	client *clientv3.Client
 }

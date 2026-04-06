@@ -13,6 +13,7 @@ import (
 )
 
 // NodeStatus represents the ingress status for a single node
+//go:schemalint:ignore — implementation type, not schema owner
 type NodeStatus struct {
 	NodeID    string `json:"node_id"`
 	Phase     string `json:"phase"`       // "Ready" | "Error"

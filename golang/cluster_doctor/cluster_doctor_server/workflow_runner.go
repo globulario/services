@@ -2,53 +2,41 @@ package main
 
 import (
 	"context"
-	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	"github.com/globulario/services/golang/workflow/engine"
-	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
-// remediateDoctorFindingYAML is the embedded workflow definition. Shipping
-// it inside the binary avoids a separate distribution step; the workflow
-// runs from whatever doctor binary you deploy.
-//
-// Kept in sync manually with services/golang/workflow/definitions/
-// remediate.doctor.finding.yaml. A compile-time test asserts the file
-// loads cleanly on every build.
-//
-//go:embed workflow_remediate_doctor_finding.yaml
-var remediateDoctorFindingYAML []byte
+// remediationWorkflowName is the canonical definition name stored in MinIO
+// under workflows/remediate.doctor.finding.yaml.
+const remediationWorkflowName = "remediate.doctor.finding"
 
-// RunRemediationWorkflow executes the remediate.doctor.finding workflow
-// in-process. All side-effects go through the existing ExecuteRemediation
-// handler — the workflow wraps it, never bypasses it.
+// RunRemediationWorkflow delegates execution to the centralized
+// WorkflowService. The workflow service loads the definition from MinIO,
+// runs the engine, and dispatches steps back to this doctor via the
+// WorkflowActorService.ExecuteAction callback.
 //
-// Returns the engine.Run so callers can inspect outputs per step
-// (resolved_finding, risk_assessment, execution_result, verification).
+// All side-effects still go through the existing ExecuteRemediation
+// handler (called back via the actor service) — behavioral semantics
+// are unchanged.
 func (s *ClusterDoctorServer) RunRemediationWorkflow(
 	ctx context.Context,
 	findingID string,
 	stepIndex uint32,
 	approvalToken string,
 	dryRun bool,
-) (*engine.Run, error) {
+) (*workflowpb.ExecuteWorkflowResponse, error) {
 	if findingID == "" {
 		return nil, fmt.Errorf("finding_id is required")
 	}
-
-	loader := v1alpha1.NewLoader()
-	def, err := loader.LoadBytes(remediateDoctorFindingYAML)
-	if err != nil {
-		return nil, fmt.Errorf("load embedded workflow: %w", err)
+	if s.workflowClient == nil {
+		return nil, fmt.Errorf("workflow service not configured (workflow_endpoint not set)")
 	}
-
-	router := engine.NewRouter()
-	engine.RegisterDoctorRemediationActions(router, s.buildDoctorRemediationConfig())
-	eng := &engine.Engine{Router: router}
 
 	inputs := map[string]any{
 		"finding_id":     findingID,
@@ -56,17 +44,43 @@ func (s *ClusterDoctorServer) RunRemediationWorkflow(
 		"approval_token": approvalToken,
 		"dry_run":        dryRun,
 	}
-	run, _ := eng.Execute(ctx, def, inputs)
-	if run == nil {
-		return nil, fmt.Errorf("workflow engine returned nil run")
+	inputsJSON, err := json.Marshal(inputs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
-	return run, nil
+
+	// The doctor's own gRPC address is the callback endpoint for the
+	// workflow service to dispatch doctor actions back to.
+	doctorEndpoint := fmt.Sprintf("localhost:%d", s.cfg.Port)
+
+	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
+		ClusterId:    s.clusterID,
+		WorkflowName: remediationWorkflowName,
+		InputsJson:   string(inputsJSON),
+		ActorEndpoints: map[string]string{
+			"cluster-doctor": doctorEndpoint,
+		},
+		CorrelationId: fmt.Sprintf("remediation/%s/%d", findingID, stepIndex),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("execute workflow via WorkflowService: %w", err)
+	}
+
+	return resp, nil
+}
+
+// buildDoctorActorRouter creates a Router with the doctor's remediation
+// action handlers wired to local state. This Router is used by the
+// DoctorActorServer to handle callbacks from the workflow service.
+func (s *ClusterDoctorServer) buildDoctorActorRouter() *engine.Router {
+	router := engine.NewRouter()
+	engine.RegisterDoctorRemediationActions(router, s.buildDoctorRemediationConfig())
+	return router
 }
 
 // buildDoctorRemediationConfig wires the five pipeline callbacks the
-// workflow engine invokes. All callbacks stay in-process — no extra gRPC
-// hops. This keeps the wrapped ExecuteRemediation semantics identical to
-// the direct RPC path.
+// workflow engine invokes via actor callbacks. All callbacks access
+// in-process state (finding cache, ExecuteRemediation, collector).
 func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemediationConfig {
 	return engine.DoctorRemediationConfig{
 		ResolveFinding: func(ctx context.Context, findingID string, stepIndex uint32) (*engine.ResolvedFinding, error) {
@@ -87,7 +101,7 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 			if action == nil {
 				return &engine.ResolvedFinding{
 					FindingID: findingID, StepIndex: stepIndex,
-					HasAction: false,
+					HasAction:   false,
 					Description: step.GetDescription(),
 				}, nil
 			}
@@ -124,7 +138,6 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 		},
 
 		VerifyConvergence: func(ctx context.Context, findingID, nodeID string) (*engine.Verification, error) {
-			// Re-run a targeted scan. If the finding clears, converged.
 			snap, err := s.collector.GetSnapshot(ctx)
 			if err != nil && snap == nil {
 				return nil, fmt.Errorf("verify snapshot fetch: %w", err)
@@ -135,8 +148,6 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 			} else {
 				findings = s.registry.EvaluateAll(snap)
 			}
-			// Refresh cache so a follow-up ExecuteRemediation call still
-			// finds its anchor even if the verify ran a node-only scan.
 			s.cacheFindings(findings)
 
 			stillPresent := false

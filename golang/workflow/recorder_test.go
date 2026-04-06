@@ -229,7 +229,7 @@ func TestIntegrationWorkflowThroughEnvoy(t *testing.T) {
 	t.Logf("finished workflow run: %s", runID)
 
 	// Verify we can read it back via a direct gRPC call.
-	creds, err := loadRecorderTLS()
+	creds, err := loadRecorderTLS("localhost")
 	if err != nil {
 		t.Fatalf("loadRecorderTLS: %v", err)
 	}

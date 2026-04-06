@@ -20,6 +20,7 @@ const (
 
 // DomainStore provides storage operations for domain specs and status, with separation
 // to prevent concurrent updates from overwriting user intent.
+//go:schemalint:ignore — implementation type, not schema owner
 type DomainStore interface {
 	// Spec operations (user intent)
 	ListSpecs(ctx context.Context) ([]*ExternalDomainSpec, error)

@@ -2203,5 +2203,179 @@ proto.workflow.WorkflowServicePromiseClient.prototype.submitProposedFix =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ExecuteWorkflowRequest,
+ *   !proto.workflow.ExecuteWorkflowResponse>}
+ */
+const methodDescriptor_WorkflowService_ExecuteWorkflow = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ExecuteWorkflow',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ExecuteWorkflowRequest,
+  proto.workflow.ExecuteWorkflowResponse,
+  /**
+   * @param {!proto.workflow.ExecuteWorkflowRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ExecuteWorkflowResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ExecuteWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ExecuteWorkflowResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ExecuteWorkflowResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.executeWorkflow =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ExecuteWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ExecuteWorkflow,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ExecuteWorkflowRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ExecuteWorkflowResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.executeWorkflow =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ExecuteWorkflow',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ExecuteWorkflow);
+};
+
+
+/**
+ * @param {string} hostname
+ * @param {?Object} credentials
+ * @param {?grpc.web.ClientOptions} options
+ * @constructor
+ * @struct
+ * @final
+ */
+proto.workflow.WorkflowActorServiceClient =
+    function(hostname, credentials, options) {
+  if (!options) options = {};
+  options.format = 'text';
+
+  /**
+   * @private @const {!grpc.web.GrpcWebClientBase} The client
+   */
+  this.client_ = new grpc.web.GrpcWebClientBase(options);
+
+  /**
+   * @private @const {string} The hostname
+   */
+  this.hostname_ = hostname.replace(/\/+$/, '');
+
+};
+
+
+/**
+ * @param {string} hostname
+ * @param {?Object} credentials
+ * @param {?grpc.web.ClientOptions} options
+ * @constructor
+ * @struct
+ * @final
+ */
+proto.workflow.WorkflowActorServicePromiseClient =
+    function(hostname, credentials, options) {
+  if (!options) options = {};
+  options.format = 'text';
+
+  /**
+   * @private @const {!grpc.web.GrpcWebClientBase} The client
+   */
+  this.client_ = new grpc.web.GrpcWebClientBase(options);
+
+  /**
+   * @private @const {string} The hostname
+   */
+  this.hostname_ = hostname.replace(/\/+$/, '');
+
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ExecuteActionRequest,
+ *   !proto.workflow.ExecuteActionResponse>}
+ */
+const methodDescriptor_WorkflowActorService_ExecuteAction = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowActorService/ExecuteAction',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ExecuteActionRequest,
+  proto.workflow.ExecuteActionResponse,
+  /**
+   * @param {!proto.workflow.ExecuteActionRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ExecuteActionResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ExecuteActionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ExecuteActionResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ExecuteActionResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowActorServiceClient.prototype.executeAction =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowActorService/ExecuteAction',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowActorService_ExecuteAction,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ExecuteActionRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ExecuteActionResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowActorServicePromiseClient.prototype.executeAction =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowActorService/ExecuteAction',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowActorService_ExecuteAction);
+};
+
+
 module.exports = proto.workflow;
 

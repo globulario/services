@@ -31,6 +31,7 @@ const (
 )
 
 // MinIOConfig holds connection info for the shared MinIO instance.
+//go:schemalint:ignore — schema owned by marker type in schema_annotations.go
 type MinIOConfig struct {
 	Endpoint  string
 	AccessKey string

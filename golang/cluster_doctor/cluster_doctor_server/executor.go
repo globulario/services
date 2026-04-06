@@ -228,7 +228,12 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 	return audit.AuditID
 }
 
-// RemediationAudit is the forensics record written per execution attempt.
+// +globular:schema:key="/globular/cluster_doctor/audit/{audit_id}"
+// +globular:schema:writer="cluster-doctor"
+// +globular:schema:readers="ai-watcher,ai-executor"
+// +globular:schema:description="Remediation audit trail. One record per execution attempt with action type, risk, outcome, and subject. TTL 30 days."
+// +globular:schema:invariants="Immutable after write; TTL-leased in etcd (30 days); never blocked by audit write failure"
+// +globular:schema:since_version="0.0.1"
 type RemediationAudit struct {
 	AuditID    string `json:"audit_id"`
 	Timestamp  int64  `json:"timestamp"`

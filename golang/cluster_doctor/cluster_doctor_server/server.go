@@ -43,6 +43,12 @@ type ClusterDoctorServer struct {
 	// executor runs structured RemediationActions with hardcoded blocklists.
 	// Optional: nil means ExecuteRemediation returns a not-configured error.
 	executor *ActionExecutor
+
+	// workflowClient is used to delegate workflow execution to the
+	// centralized WorkflowService. Set during newServer() if
+	// WorkflowEndpoint is configured.
+	workflowClient workflowpb.WorkflowServiceClient
+	clusterID      string
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport
@@ -87,12 +93,14 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		SnapshotTTL: cfg.snapshotTTL(),
 	}, ccClient)
 
-	// Attach workflow-service client for convergence telemetry (optional).
+	// Attach workflow-service client for convergence telemetry and
+	// centralized workflow execution (optional).
+	var wfClient workflowpb.WorkflowServiceClient
+	clusterID := cfg.ClusterID
 	if cfg.WorkflowEndpoint != "" {
 		wfTarget := config.ResolveDialTarget(cfg.WorkflowEndpoint)
 		wfConn, wfErr := grpc.NewClient(wfTarget.Address, grpc.WithTransportCredentials(buildClientTLSCreds(wfTarget.ServerName)))
 		if wfErr == nil {
-			clusterID := cfg.ClusterID
 			if clusterID == "" {
 				// Auto-discover cluster_id from the controller so operators
 				// don't have to duplicate it in the doctor config.
@@ -102,7 +110,8 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 				}
 				cancel()
 			}
-			col.WithWorkflowClient(workflowpb.NewWorkflowServiceClient(wfConn), clusterID)
+			wfClient = workflowpb.NewWorkflowServiceClient(wfConn)
+			col.WithWorkflowClient(wfClient, clusterID)
 		}
 	}
 
@@ -112,11 +121,13 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	})
 
 	s := &ClusterDoctorServer{
-		cfg:       cfg,
-		collector: col,
-		registry:  reg,
-		version:   version,
-		executor:  &ActionExecutor{nodeAgentDialer: newControllerNodeAgentDialer(ccClient)},
+		cfg:            cfg,
+		collector:      col,
+		registry:       reg,
+		version:        version,
+		executor:       &ActionExecutor{nodeAgentDialer: newControllerNodeAgentDialer(ccClient)},
+		workflowClient: wfClient,
+		clusterID:      clusterID,
 	}
 
 	// Event client for publishing finding deltas to ai-watcher (optional).

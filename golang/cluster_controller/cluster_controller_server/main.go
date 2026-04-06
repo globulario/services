@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
@@ -252,7 +253,8 @@ func main() {
 	// Register gRPC services
 	cluster_controllerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
 	cluster_controllerpb.RegisterResourcesServiceServer(grpcServer, srv)
-	logger.Debug("gRPC services registered")
+	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, srv.actorServer)
+	logger.Debug("gRPC services registered (controller + resources + workflow actor)")
 
 	// Create background context
 	ctx, cancel := context.WithCancel(context.Background())

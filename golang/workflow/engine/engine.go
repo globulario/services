@@ -46,12 +46,16 @@ type ActionHandler func(ctx context.Context, req ActionRequest) (*ActionResult, 
 
 // Router maps (actor, action) pairs to handlers.
 type Router struct {
-	mu       sync.RWMutex
-	handlers map[string]ActionHandler // key: "actor::action"
+	mu        sync.RWMutex
+	handlers  map[string]ActionHandler // key: "actor::action"
+	fallbacks map[string]ActionHandler // key: actor — transport-only dispatch
 }
 
 func NewRouter() *Router {
-	return &Router{handlers: make(map[string]ActionHandler)}
+	return &Router{
+		handlers:  make(map[string]ActionHandler),
+		fallbacks: make(map[string]ActionHandler),
+	}
 }
 
 func (r *Router) Register(actor v1alpha1.ActorType, action string, h ActionHandler) {
@@ -60,11 +64,46 @@ func (r *Router) Register(actor v1alpha1.ActorType, action string, h ActionHandl
 	r.handlers[string(actor)+"::"+action] = h
 }
 
+// RegisterFallback sets a transport-only fallback handler for an actor type.
+// Resolve checks exact (actor, action) matches first; only if no exact match
+// is found does it try the fallback. This is used by WorkflowService to route
+// actions for remote actors through a single gRPC dispatch handler.
+//
+// Fallback handlers are transport mechanisms, not semantic handlers. The actor
+// callback must reject unknown actions — the fallback must not silently accept
+// them. See docs/centralized-workflow-execution.md §4.
+func (r *Router) RegisterFallback(actor v1alpha1.ActorType, h ActionHandler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fallbacks[string(actor)] = h
+}
+
 func (r *Router) Resolve(actor v1alpha1.ActorType, action string) (ActionHandler, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	h, ok := r.handlers[string(actor)+"::"+action]
-	return h, ok
+	if h, ok := r.handlers[string(actor)+"::"+action]; ok {
+		return h, true
+	}
+	if h, ok := r.fallbacks[string(actor)]; ok {
+		return h, true
+	}
+	return nil, false
+}
+
+// RegisteredActions returns all explicitly registered (actor, action) pairs.
+// Used by tests to verify actor capability parity — each actor's local Router
+// must cover the same actions the central registry declares.
+func (r *Router) RegisteredActions() map[string][]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make(map[string][]string)
+	for key := range r.handlers {
+		parts := strings.SplitN(key, "::", 2)
+		if len(parts) == 2 {
+			result[parts[0]] = append(result[parts[0]], parts[1])
+		}
+	}
+	return result
 }
 
 func (r *Router) resolveByName(actor, action string) (ActionHandler, bool) {

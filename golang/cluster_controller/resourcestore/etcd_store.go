@@ -12,6 +12,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
 
+//go:schemalint:ignore — implementation type, not schema owner
 type etcdStore struct {
 	cli *clientv3.Client
 }
