@@ -106,7 +106,18 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		OnStepDone: recorder.onStepDone,
 	}
 
-	// ── 5. Record run start ──────────────────────────────────────────────
+	// ── 5. Claim run ownership ───────────────────────────────────────────
+	if srv.leaseManager != nil {
+		claimed, err := srv.leaseManager.ClaimRun(ctx, runID)
+		if err != nil {
+			logger.Warn("executor: lease claim failed (proceeding anyway)", "run_id", runID, "err", err)
+		} else if !claimed {
+			return nil, fmt.Errorf("run %s already owned by another executor", runID)
+		}
+		defer srv.leaseManager.ReleaseRun(runID)
+	}
+
+	// ── 6. Record run start ──────────────────────────────────────────────
 	now := timestamppb.Now()
 	startRun := &workflowpb.WorkflowRun{
 		Id:            runID,

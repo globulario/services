@@ -1,0 +1,229 @@
+// executor_lease.go implements durable run ownership for centralized
+// workflow execution. Each active run is owned by exactly one executor
+// instance via a ScyllaDB lease. Heartbeats keep the lease alive;
+// orphan detection claims stale leases for resumption.
+//
+// See docs/architecture/HA-control-plane-design.md §Class C.
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"sync"
+	"time"
+)
+
+// ── Schema ───────────────────────────────────────────────────────────────────
+
+const createExecutorLeasesTableCQL = `
+CREATE TABLE IF NOT EXISTS workflow.executor_leases (
+    run_id       text PRIMARY KEY,
+    executor_id  text,
+    heartbeat_at bigint,
+    started_at   bigint
+)`
+
+// ── Lease Manager ────────────────────────────────────────────────────────────
+
+// executorLeaseManager manages run ownership leases. It provides claim,
+// heartbeat, release, and orphan scanning operations.
+type executorLeaseManager struct {
+	srv        *server
+	executorID string
+
+	mu        sync.Mutex
+	ownedRuns map[string]context.CancelFunc // run_id → heartbeat cancel
+}
+
+func newExecutorLeaseManager(srv *server) *executorLeaseManager {
+	hostname, _ := os.Hostname()
+	return &executorLeaseManager{
+		srv:        srv,
+		executorID: fmt.Sprintf("executor:%s:%d", hostname, os.Getpid()),
+		ownedRuns:  make(map[string]context.CancelFunc),
+	}
+}
+
+// ClaimRun attempts to claim ownership of a run via ScyllaDB LWT.
+// Returns true if the claim succeeded (this executor now owns the run).
+// Returns false if another executor already owns it.
+func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool, error) {
+	if m.srv.session == nil {
+		return true, nil // no ScyllaDB = single-node mode, always succeed
+	}
+
+	now := time.Now().UnixMilli()
+
+	// LWT: INSERT IF NOT EXISTS — only succeeds if no current owner.
+	applied, err := m.srv.session.Query(`
+		INSERT INTO workflow.executor_leases (run_id, executor_id, heartbeat_at, started_at)
+		VALUES (?, ?, ?, ?)
+		IF NOT EXISTS`,
+		runID, m.executorID, now, now,
+	).ScanCAS(nil, nil, nil, nil)
+
+	if err != nil {
+		return false, fmt.Errorf("claim run %s: %w", runID, err)
+	}
+
+	if applied {
+		// Start heartbeat goroutine.
+		hbCtx, cancel := context.WithCancel(context.Background())
+		m.mu.Lock()
+		m.ownedRuns[runID] = cancel
+		m.mu.Unlock()
+		go m.heartbeatLoop(hbCtx, runID)
+		return true, nil
+	}
+
+	return false, nil // another executor owns it
+}
+
+// ReleaseRun removes the lease for a completed run and stops its heartbeat.
+func (m *executorLeaseManager) ReleaseRun(runID string) {
+	m.mu.Lock()
+	if cancel, ok := m.ownedRuns[runID]; ok {
+		cancel()
+		delete(m.ownedRuns, runID)
+	}
+	m.mu.Unlock()
+
+	if m.srv.session == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	m.srv.session.Query(`DELETE FROM workflow.executor_leases WHERE run_id = ?`, runID).
+		WithContext(ctx).Exec()
+}
+
+// heartbeatLoop updates the heartbeat_at timestamp every 10 seconds.
+// Stops when the context is cancelled (run completed or released).
+func (m *executorLeaseManager) heartbeatLoop(ctx context.Context, runID string) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if m.srv.session == nil {
+				continue
+			}
+			now := time.Now().UnixMilli()
+			if err := m.srv.session.Query(`
+				UPDATE workflow.executor_leases SET heartbeat_at = ?
+				WHERE run_id = ?
+				IF executor_id = ?`,
+				now, runID, m.executorID,
+			).Exec(); err != nil {
+				slog.Warn("executor lease: heartbeat failed",
+					"run_id", runID, "err", err)
+			}
+		}
+	}
+}
+
+// ── Orphan Scanner ───────────────────────────────────────────────────────────
+
+const (
+	orphanHeartbeatTimeout = 30 * time.Second
+	orphanScanInterval     = 15 * time.Second
+)
+
+// StartOrphanScanner runs a background goroutine that periodically scans
+// for orphaned runs (heartbeat older than orphanHeartbeatTimeout) and
+// attempts to claim them for resumption.
+func (m *executorLeaseManager) StartOrphanScanner(ctx context.Context) {
+	if m.srv.session == nil {
+		return // no ScyllaDB = single-node mode
+	}
+
+	go func() {
+		ticker := time.NewTicker(orphanScanInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				m.scanAndClaimOrphans(ctx)
+			}
+		}
+	}()
+}
+
+func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
+	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cutoff := time.Now().Add(-orphanHeartbeatTimeout).UnixMilli()
+
+	iter := m.srv.session.Query(`
+		SELECT run_id, executor_id, heartbeat_at FROM workflow.executor_leases`,
+	).WithContext(scanCtx).Iter()
+
+	var runID, executorID string
+	var heartbeatAt int64
+
+	for iter.Scan(&runID, &executorID, &heartbeatAt) {
+		if heartbeatAt < cutoff && executorID != m.executorID {
+			// Stale lease — attempt to claim via LWT.
+			slog.Info("executor lease: orphan detected",
+				"run_id", runID,
+				"stale_executor", executorID,
+				"heartbeat_age_ms", time.Now().UnixMilli()-heartbeatAt)
+
+			claimed, err := m.claimOrphan(ctx, runID, heartbeatAt)
+			if err != nil {
+				slog.Warn("executor lease: claim orphan failed",
+					"run_id", runID, "err", err)
+				continue
+			}
+			if claimed {
+				slog.Info("executor lease: claimed orphan for resumption",
+					"run_id", runID)
+				// TODO(HA-4): trigger ResumeWorkflow for this run.
+				// For now, just log. Full resume logic requires loading
+				// run state from workflow_runs + workflow_steps.
+			}
+		}
+	}
+
+	if err := iter.Close(); err != nil {
+		slog.Warn("executor lease: orphan scan iteration error", "err", err)
+	}
+}
+
+func (m *executorLeaseManager) claimOrphan(ctx context.Context, runID string, staleHeartbeat int64) (bool, error) {
+	now := time.Now().UnixMilli()
+
+	// LWT: only succeed if heartbeat hasn't changed (no one else claimed it).
+	applied, err := m.srv.session.Query(`
+		UPDATE workflow.executor_leases
+		SET executor_id = ?, heartbeat_at = ?
+		WHERE run_id = ?
+		IF heartbeat_at = ?`,
+		m.executorID, now, runID, staleHeartbeat,
+	).ScanCAS(nil, nil)
+
+	if err != nil {
+		return false, fmt.Errorf("claim orphan %s: %w", runID, err)
+	}
+
+	if applied {
+		// Start heartbeat for the claimed run.
+		hbCtx, cancel := context.WithCancel(context.Background())
+		m.mu.Lock()
+		m.ownedRuns[runID] = cancel
+		m.mu.Unlock()
+		go m.heartbeatLoop(hbCtx, runID)
+	}
+
+	return applied, nil
+}

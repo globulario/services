@@ -95,6 +95,9 @@ type server struct {
 	watchersMu sync.RWMutex
 	watchers   map[string][]chan *workflowpb.WorkflowEventEnvelope // run_id → channels
 	nodeWatch  map[string][]chan *workflowpb.WorkflowEventEnvelope // node_id → channels
+
+	// Executor lease manager for HA run ownership (HA-4).
+	leaseManager *executorLeaseManager
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +326,10 @@ func (srv *server) Init() error {
 	if err := srv.connectScylla(); err != nil {
 		return fmt.Errorf("scylla init: %w", err)
 	}
+
+	// Initialize executor lease manager for HA run ownership.
+	srv.leaseManager = newExecutorLeaseManager(srv)
+	srv.leaseManager.StartOrphanScanner(context.Background())
 
 	// Import Day-0 install trace if the JSON log exists (idempotent).
 	srv.importDay0Trace()
