@@ -67,3 +67,47 @@ func TestIsLoopbackEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestMustResolveDialTarget(t *testing.T) {
+	// Valid endpoints succeed.
+	dt, err := MustResolveDialTarget("localhost:12000")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if dt.Address != "localhost:12000" {
+		t.Errorf("Address = %q, want localhost:12000", dt.Address)
+	}
+
+	dt, err = MustResolveDialTarget("10.0.0.63:12000")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if dt.ServerName != "10.0.0.63" {
+		t.Errorf("ServerName = %q, want 10.0.0.63", dt.ServerName)
+	}
+
+	// Empty endpoint fails.
+	_, err = MustResolveDialTarget("")
+	if err == nil {
+		t.Error("expected error for empty endpoint")
+	}
+
+	// Whitespace-only fails.
+	_, err = MustResolveDialTarget("   ")
+	if err == nil {
+		t.Error("expected error for whitespace endpoint")
+	}
+
+	// Error is an *EndpointError with explicit message.
+	var epErr *EndpointError
+	if err != nil {
+		var ok bool
+		epErr, ok = err.(*EndpointError)
+		if !ok {
+			t.Fatalf("expected *EndpointError, got %T", err)
+		}
+		if epErr.Reason == "" {
+			t.Error("EndpointError.Reason should not be empty")
+		}
+	}
+}

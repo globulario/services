@@ -107,6 +107,33 @@ func splitHostPortLoose(s string) (host, port string) {
 	return s, ""
 }
 
+// MustResolveDialTarget is like ResolveDialTarget but returns an error
+// when the endpoint is empty or produces an ambiguous/invalid result.
+// Use this at service startup to fail fast on misconfiguration instead
+// of discovering the problem at runtime.
+func MustResolveDialTarget(endpoint string) (DialTarget, error) {
+	dt := ResolveDialTarget(endpoint)
+	if dt.Address == "" {
+		return dt, &EndpointError{Endpoint: endpoint, Reason: "empty or whitespace-only endpoint"}
+	}
+	if dt.ServerName == "" {
+		return dt, &EndpointError{Endpoint: endpoint, Reason: "could not extract hostname for TLS verification"}
+	}
+	return dt, nil
+}
+
+// EndpointError is returned when an endpoint string cannot be resolved
+// to a valid DialTarget. The error message is explicit about what went
+// wrong so operators can fix configuration without guessing.
+type EndpointError struct {
+	Endpoint string
+	Reason   string
+}
+
+func (e *EndpointError) Error() string {
+	return "endpoint resolution failed: " + e.Reason + " (endpoint=" + e.Endpoint + ")"
+}
+
 func isLoopbackLiteral(host string) bool {
 	if host == "" {
 		return false
