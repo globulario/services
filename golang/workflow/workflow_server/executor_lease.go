@@ -186,11 +186,21 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 				continue
 			}
 			if claimed {
-				slog.Info("executor lease: claimed orphan for resumption",
+				slog.Info("executor lease: claimed orphan, resuming",
 					"run_id", runID)
-				// TODO(HA-4): trigger ResumeWorkflow for this run.
-				// For now, just log. Full resume logic requires loading
-				// run state from workflow_runs + workflow_steps.
+				// Resume the orphaned run. Best-effort — errors are logged
+				// but do not stop the scanner from processing other orphans.
+				go func(rID string) {
+					resumeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+					defer cancel()
+					// Load cluster_id from the run record.
+					// For now, use a scan to find the cluster_id.
+					if err := m.srv.resumeOrphanedRun(resumeCtx, rID); err != nil {
+						slog.Warn("executor lease: resume failed",
+							"run_id", rID, "err", err)
+					}
+					m.ReleaseRun(rID)
+				}(runID)
 			}
 		}
 	}

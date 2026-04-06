@@ -174,9 +174,10 @@ type Run struct {
 
 // Engine executes compiled workflows to completion.
 type Engine struct {
-	Router     *Router
-	EvalCond   ConditionFunc
-	OnStepDone func(run *Run, step *StepState) // optional callback for observability
+	Router       *Router
+	EvalCond     ConditionFunc
+	OnStepDone   func(run *Run, step *StepState) // optional callback for observability
+	PreCompleted map[string]StepStatus            // steps already completed (for resume after crash)
 }
 
 // Execute compiles a v1alpha1 definition and executes it. This is the
@@ -221,6 +222,18 @@ func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkf
 		run.Steps[id] = &StepState{ID: id, Status: StepPending}
 	}
 
+	// For resume after crash: pre-populate steps that are already complete.
+	// The DAG walker skips these because depsReady considers them satisfied,
+	// and they are never in StepPending state so they won't be re-dispatched.
+	if len(e.PreCompleted) > 0 {
+		for stepID, status := range e.PreCompleted {
+			if st, ok := run.Steps[stepID]; ok {
+				st.Status = status
+				log.Printf("workflow: step %s pre-completed (%s) from prior execution", stepID, status)
+			}
+		}
+	}
+
 	// Execute DAG using compiled topo order.
 	err := e.executeDAG(ctx, run, cw)
 
@@ -256,12 +269,18 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, cw *compiler.Compiled
 
 		var ready []*compiler.CompiledStep
 		allDone := true
+		hasBlockedByFailure := false
 		for _, id := range cw.TopoOrder {
 			st := run.Steps[id]
 			if st.Status == StepPending {
 				allDone = false
 				if depsReady(run, cw.Steps[id].DependsOn) {
 					ready = append(ready, cw.Steps[id])
+				} else if depsFailed(run, cw.Steps[id].DependsOn) {
+					// This step is blocked by a failed dependency — it
+					// will never become ready. Mark it so the DAG walker
+					// can exit instead of looping forever.
+					hasBlockedByFailure = true
 				}
 			} else if st.Status == StepRunning {
 				allDone = false
@@ -272,6 +291,12 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, cw *compiler.Compiled
 			break
 		}
 		if len(ready) == 0 {
+			if hasBlockedByFailure {
+				// All remaining pending steps are blocked by failed deps.
+				// Exit the DAG loop — the failed-step check below will
+				// produce the appropriate error.
+				break
+			}
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -307,6 +332,21 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, cw *compiler.Compiled
 		}
 	}
 	return nil
+}
+
+// depsFailed returns true if any dependency is in FAILED state, meaning
+// the dependent step can never become ready.
+func depsFailed(run *Run, deps []string) bool {
+	for _, dep := range deps {
+		st, ok := run.Steps[dep]
+		if !ok {
+			continue
+		}
+		if st.Status == StepFailed {
+			return true
+		}
+	}
+	return false
 }
 
 func depsReady(run *Run, deps []string) bool {
