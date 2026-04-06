@@ -49,6 +49,9 @@ spec:
         maxAttempts: 30
         backoff: 5s
       timeout: 3m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: verify_scylla_healthy
       title: Verify ScyllaDB is accepting CQL connections
@@ -60,6 +63,9 @@ spec:
         maxAttempts: 60
         backoff: 10s
       timeout: 12m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: verify_minio_healthy
       title: Verify MinIO is healthy (HTTP health endpoint)
@@ -71,6 +77,9 @@ spec:
         maxAttempts: 30
         backoff: 5s
       timeout: 3m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     # ── Tier 1: Configure shared storage ────────────────────────────────
     - id: configure_shared_storage
@@ -78,12 +87,18 @@ spec:
       dependsOn: [verify_etcd_healthy, verify_scylla_healthy, verify_minio_healthy]
       actor: installer
       action: installer.configure_shared_storage
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: write_bootstrap_credentials
       title: Write bootstrap superuser credentials
       dependsOn: [verify_etcd_healthy, verify_scylla_healthy, verify_minio_healthy]
       actor: installer
       action: installer.write_bootstrap_credentials
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 2: Data layer ──────────────────────────────────────────────
     - id: install_persistence
@@ -94,6 +109,9 @@ spec:
       with:
         package: persistence
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 3: Mesh + proxy ────────────────────────────────────────────
     - id: install_mesh_services
@@ -104,6 +122,9 @@ spec:
       with:
         packages: [xds, envoy, gateway]
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 4: Core infrastructure ─────────────────────────────────────
     - id: install_infra_services
@@ -114,6 +135,9 @@ spec:
       with:
         packages: [cluster-controller, cluster-doctor]
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 5: Control plane ───────────────────────────────────────────
     - id: install_control_plane
@@ -124,6 +148,9 @@ spec:
       with:
         packages: [resource, rbac, authentication, discovery, dns, repository]
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 6: DNS bootstrap ───────────────────────────────────────────
     - id: bootstrap_dns
@@ -131,6 +158,9 @@ spec:
       dependsOn: [install_control_plane]
       actor: installer
       action: installer.bootstrap_dns
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 7: Ops services ────────────────────────────────────────────
     - id: install_ops_services
@@ -156,6 +186,9 @@ spec:
           - scylla-manager-agent
           - scylla-manager
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 8: Workload services (parallel with CLI tools) ─────────────
     - id: install_workload_services
@@ -171,6 +204,9 @@ spec:
           - title
           - torrent
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: install_cli_tools
       title: Install CLI tools (mc, globular-cli, etcdctl, restic, etc.)
@@ -189,6 +225,9 @@ spec:
           - yt-dlp
           - ffmpeg
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     # ── Tier 9: Post-install ────────────────────────────────────────────
     - id: validate_cluster_health
@@ -197,12 +236,18 @@ spec:
       actor: installer
       action: installer.validate_cluster_health
       timeout: $.health_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: generate_join_token
       title: Generate shared join token and write controller config
       dependsOn: [validate_cluster_health]
       actor: installer
       action: installer.generate_join_token
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: restart_for_join_token
       title: Restart controller and node-agent after join token wiring
@@ -211,12 +256,18 @@ spec:
       action: installer.restart_bootstrap_services
       with:
         services: [cluster-controller, node-agent]
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: bootstrap_first_node
       title: Register first node and seed cluster desired state
       dependsOn: [restart_for_join_token]
       actor: installer
       action: installer.cluster_bootstrap
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: publish_bootstrap_artifacts
       title: Publish local bootstrap artifacts to repository
@@ -225,12 +276,18 @@ spec:
       action: repository.publish_bootstrap_artifacts
       with:
         source: local-bootstrap-cache
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: import_installed_into_desired
       title: Import installed packages into desired state
       dependsOn: [publish_bootstrap_artifacts]
       actor: cluster-controller
       action: controller.seed_desired_from_installed
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: stabilize
       title: Final reconciliation stabilization pass
@@ -240,12 +297,18 @@ spec:
       retry:
         maxAttempts: 12
         backoff: 10s
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
     - id: cleanup_bootstrap
       title: Disable bootstrap mode and remove temporary credentials
       dependsOn: [stabilize]
       actor: installer
       action: installer.disable_bootstrap_window
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
 
   onFailure:
     actor: installer

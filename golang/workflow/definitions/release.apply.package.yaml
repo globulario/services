@@ -48,6 +48,17 @@ spec:
       title: Mark release resolved
       actor: cluster-controller
       action: controller.release.mark_resolved
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.release.verify_status
+        with:
+          release_id: $.release_id
+          expected_status: RESOLVED
+        success:
+          expr: status_matches == true
 
     - id: select_targets
       title: Select eligible package targets
@@ -61,6 +72,9 @@ spec:
         desired_hash: $.desired_hash
       # Handler writes selected_targets directly to run outputs
       # (array, not wrapped map) for foreach consumption.
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: short_circuit_if_no_targets
       title: Finalize immediately when all targets are already converged
@@ -71,6 +85,17 @@ spec:
       action: controller.release.finalize_noop
       with:
         status: AVAILABLE
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.release.verify_status
+        with:
+          release_id: $.release_id
+          expected_status: AVAILABLE
+        success:
+          expr: status_matches == true
 
     - id: mark_applying
       title: Mark release applying
@@ -79,6 +104,17 @@ spec:
         expr: len(selected_targets) > 0
       actor: cluster-controller
       action: controller.release.mark_applying
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.release.verify_status
+        with:
+          release_id: $.release_id
+          expected_status: APPLYING
+        success:
+          expr: status_matches == true
 
     - id: apply_per_node
       title: Apply package per target node
@@ -96,6 +132,18 @@ spec:
           action: controller.release.mark_node_started
           with:
             node_id: $.target.node_id
+          execution:
+            idempotency: safe_retry
+            resume_policy: verify_effect
+          verification:
+            actor: cluster-controller
+            action: controller.release.verify_node_status
+            with:
+              release_id: $.release_id
+              node_id: $.target.node_id
+              expected_status: APPLYING
+            success:
+              expr: status_matches == true
 
         - id: install_package
           dependsOn: [mark_node_started]
@@ -108,6 +156,20 @@ spec:
             desired_hash: $.desired_hash
             kind: $.package_kind
           timeout: $.execute_timeout
+          execution:
+            idempotency: verify_then_continue
+            resume_policy: verify_effect
+            receipt_key: install_package
+          verification:
+            actor: node-agent
+            action: node.verify_installed_package_state
+            with:
+              node_id: $.target.node_id
+              package_name: $.package_name
+              version: $.resolved_version
+              desired_hash: $.desired_hash
+            success:
+              expr: installed == true
 
         - id: verify_installed
           dependsOn: [install_package]
@@ -122,6 +184,9 @@ spec:
             maxAttempts: 20
             backoff: 5s
           timeout: $.verify_timeout
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: maybe_restart
           dependsOn: [verify_installed]
@@ -134,6 +199,10 @@ spec:
             package_name: $.package_name
             package_kind: $.package_kind
             restart_policy: $.restart_policy
+          execution:
+            idempotency: verify_then_continue
+            resume_policy: verify_effect
+            receipt_key: restart_package_service
 
         - id: verify_runtime
           dependsOn: [verify_installed, maybe_restart]
@@ -148,6 +217,9 @@ spec:
             maxAttempts: 60
             backoff: 5s
           timeout: $.verify_timeout
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: sync_installed_state
           dependsOn: [verify_runtime]
@@ -159,6 +231,20 @@ spec:
             version: $.resolved_version
             desired_hash: $.desired_hash
             package_kind: $.package_kind
+          execution:
+            idempotency: verify_then_continue
+            resume_policy: verify_effect
+            receipt_key: sync_installed_package_state
+          verification:
+            actor: node-agent
+            action: node.verify_installed_package_state
+            with:
+              node_id: $.target.node_id
+              package_name: $.package_name
+              version: $.resolved_version
+              desired_hash: $.desired_hash
+            success:
+              expr: installed == true
 
         - id: mark_node_succeeded
           dependsOn: [sync_installed_state]
@@ -168,6 +254,18 @@ spec:
             node_id: $.target.node_id
             version: $.resolved_version
             desired_hash: $.desired_hash
+          execution:
+            idempotency: safe_retry
+            resume_policy: verify_effect
+          verification:
+            actor: cluster-controller
+            action: controller.release.verify_node_status
+            with:
+              release_id: $.release_id
+              node_id: $.target.node_id
+              expected_status: SUCCEEDED
+            success:
+              expr: status_matches == true
 
       onFailure:
         actor: cluster-controller
@@ -186,6 +284,9 @@ spec:
         release_id: $.release_id
         package_name: $.package_name
       export: aggregate
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: finalize_release
       dependsOn: [aggregate_outcome]
@@ -195,6 +296,16 @@ spec:
       action: controller.release.finalize_direct_apply
       with:
         aggregate: $.aggregate
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.release.verify_terminal_status
+        with:
+          release_id: $.release_id
+        success:
+          expr: terminal == true
 
   onFailure:
     actor: cluster-controller

@@ -34,6 +34,17 @@ spec:
       action: controller.bootstrap.set_phase
       with:
         phase: infra_preparing
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.bootstrap.verify_phase
+        with:
+          node_id: $.node_id
+          phase: infra_preparing
+        success:
+          expr: phase_matches == true
 
     - id: maybe_wait_etcd_unit
       title: Wait for etcd package or systemd unit
@@ -50,6 +61,9 @@ spec:
         maxAttempts: 60
         backoff: 5s
       timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: maybe_wait_etcd_join
       title: Wait for etcd join to be verified
@@ -67,6 +81,9 @@ spec:
         maxAttempts: 60
         backoff: 5s
       timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: maybe_wait_xds
       title: Wait for xDS to be active
@@ -85,6 +102,9 @@ spec:
         maxAttempts: 60
         backoff: 5s
       timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: maybe_wait_envoy
       title: Wait for Envoy to be active
@@ -103,6 +123,9 @@ spec:
         maxAttempts: 60
         backoff: 5s
       timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: maybe_wait_storage
       title: Wait for storage subsystems to be verified
@@ -121,6 +144,9 @@ spec:
         maxAttempts: 60
         backoff: 5s
       timeout: 10m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: mark_workload_ready
       title: Mark node as workload_ready
@@ -133,6 +159,17 @@ spec:
       action: controller.bootstrap.set_phase
       with:
         phase: workload_ready
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.bootstrap.verify_phase
+        with:
+          node_id: $.node_id
+          phase: workload_ready
+        success:
+          expr: phase_matches == true
 
   onFailure:
     actor: cluster-controller

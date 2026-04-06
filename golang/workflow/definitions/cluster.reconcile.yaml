@@ -38,6 +38,9 @@ spec:
         cluster_id: $.cluster_id
       # Drives the ScyllaDB/etcd/MinIO join state machines and recovers
       # any stuck bootstrap workflows. Makes infra orchestration visible.
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: scan_drift
       title: Scan cluster drift
@@ -50,6 +53,9 @@ spec:
         include_nodes: $.include_nodes
       timeout: $.drift_scan_timeout
       # Handler writes drift_report directly to run outputs.
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: classify_drift
       title: Classify drift items
@@ -60,6 +66,9 @@ spec:
         drift_report: $.drift_report
         max_remediations: $.max_remediations
       # Handler writes remediation_items directly to run outputs.
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: short_circuit_clean
       title: Finish when no remediation is needed
@@ -68,6 +77,9 @@ spec:
         expr: len(remediation_items) == 0
       actor: cluster-controller
       action: controller.reconcile.finalize_clean
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: dispatch_remediations
       title: Dispatch remediation workflows
@@ -86,6 +98,9 @@ spec:
           action: controller.reconcile.mark_item_started
           with:
             item: $.item
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: choose_workflow
           title: Choose remediation workflow
@@ -95,6 +110,9 @@ spec:
           with:
             item: $.item
           # Handler writes workflow_choice directly to run outputs.
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: launch_remediation
           title: Launch selected remediation workflow
@@ -105,6 +123,9 @@ spec:
             workflow_name: $.workflow_choice.workflow_name
             inputs: $.workflow_choice.inputs
           # Handler writes child_run directly to run outputs.
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: wait_child_terminal
           title: Wait for child remediation run
@@ -114,6 +135,9 @@ spec:
           with:
             child_run_id: $.child_run.run_id
           # Handler writes child_result directly to run outputs.
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
         - id: mark_item_terminal
           title: Persist remediation item terminal state
@@ -123,6 +147,9 @@ spec:
           with:
             item: $.item
             child_result: $.child_result
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
 
       onFailure:
         actor: cluster-controller
@@ -136,6 +163,9 @@ spec:
       actor: cluster-controller
       action: controller.reconcile.aggregate_results
       export: aggregate
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
     - id: finalize_reconcile
       title: Finalize reconcile pass
@@ -144,6 +174,9 @@ spec:
       action: controller.reconcile.finalize
       with:
         aggregate: $.aggregate
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
 
   onFailure:
     actor: cluster-controller
