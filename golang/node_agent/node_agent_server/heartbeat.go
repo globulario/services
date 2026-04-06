@@ -396,8 +396,19 @@ func leaderAddrFromError(err error) string {
 	if idx < 0 {
 		return ""
 	}
-	addr := strings.TrimSpace(msg[idx+len(marker):])
-	addr = strings.Trim(addr, ")")
+	addr := msg[idx+len(marker):]
+	// Stop at first comma, closing paren, or space.
+	for i, ch := range addr {
+		if ch == ',' || ch == ')' || ch == ' ' {
+			addr = addr[:i]
+			break
+		}
+	}
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	log.Printf("node-agent: leader redirect → %s", addr)
 	return addr
 }
 
