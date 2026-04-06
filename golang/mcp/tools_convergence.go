@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -174,35 +176,58 @@ func registerConvergenceTools(s *server) {
 			}
 		}
 
-		// If a specific node is requested, do per-service diff for that node
-		if nodeID != "" {
-			return convergenceForNode(nodeID, desiredMap, healthNodes, installedPkgs, errors), nil
+		// Fetch repository catalog (4th layer) for full status vocabulary.
+		repoArtifacts := make(map[string]bool) // lowercase name → exists
+		if conn, err := s.clients.get(outerCtx, repositoryEndpoint()); err == nil {
+			repoClient := repositorypb.NewPackageRepositoryClient(conn)
+			repoCtx, repoCancel := context.WithTimeout(authCtx(outerCtx), 5*time.Second)
+			defer repoCancel()
+			if resp, err := repoClient.ListArtifacts(repoCtx, &repositorypb.ListArtifactsRequest{}); err == nil {
+				for _, a := range resp.GetArtifacts() {
+					if ref := a.GetRef(); ref != nil {
+						repoArtifacts[strings.ToLower(strings.ReplaceAll(ref.GetName(), "_", "-"))] = true
+					}
+				}
+			}
 		}
 
-		// Cluster-wide: per-node convergence summary
+		// If a specific node is requested, do per-service diff for that node
+		if nodeID != "" {
+			return convergenceForNode(nodeID, desiredMap, repoArtifacts, healthNodes, installedPkgs, errors), nil
+		}
+
+		// Cluster-wide: per-node convergence summary using frozen 7-status vocabulary.
+		// See CLAUDE.md for vocabulary: Installed, Planned, Available, Drifted, Unmanaged, Missing in repo, Orphaned.
 		nodeSummaries := make([]map[string]interface{}, 0, len(healthNodes))
 		for _, n := range healthNodes {
-			converged := 0
-			drifted := 0
-			missing := 0
-			unmanaged := 0
+			installed := 0 // desired == installed, converged
+			planned := 0   // desired set, not yet installed
+			drifted := 0   // installed version differs from desired
+			unmanaged := 0 // installed without desired-state entry
+			missingInRepo := 0 // desired/installed but artifact not in repository
 
-			installed := n.GetInstalledVersions()
+			instVersions := n.GetInstalledVersions()
 			seen := make(map[string]bool)
 
 			for sid, desiredVer := range desiredMap {
-				installedVer, ok := installed[sid]
+				installedVer, ok := instVersions[sid]
 				if !ok {
-					missing++
+					// Desired but not installed
+					planned++
 				} else if installedVer != desiredVer {
 					drifted++
 				} else {
-					converged++
+					// Check repository layer
+					if len(repoArtifacts) > 0 && !repoArtifacts[strings.ToLower(strings.ReplaceAll(sid, "_", "-"))] {
+						missingInRepo++
+					} else {
+						installed++
+					}
 				}
 				seen[sid] = true
 			}
 
-			for sid := range installed {
+			for sid := range instVersions {
 				if !seen[sid] {
 					unmanaged++
 				}
@@ -210,12 +235,13 @@ func registerConvergenceTools(s *server) {
 
 			hashMatch := n.GetDesiredServicesHash() == n.GetAppliedServicesHash()
 			nodeSummaries = append(nodeSummaries, map[string]interface{}{
-				"node_id":    n.GetNodeId(),
-				"hash_match": hashMatch,
-				"converged":  converged,
-				"drifted":    drifted,
-				"missing":    missing,
-				"unmanaged":  unmanaged,
+				"node_id":         n.GetNodeId(),
+				"hash_match":      hashMatch,
+				"installed":       installed,
+				"planned":         planned,
+				"drifted":         drifted,
+				"unmanaged":       unmanaged,
+				"missing_in_repo": missingInRepo,
 			})
 		}
 
@@ -318,7 +344,8 @@ func registerConvergenceTools(s *server) {
 }
 
 // convergenceForNode computes per-service convergence detail for a specific node.
-func convergenceForNode(nodeID string, desiredMap map[string]string, healthNodes []*cluster_controllerpb.NodeHealth, installedPkgs []*node_agentpb.InstalledPackage, errors []string) map[string]interface{} {
+// Uses the frozen 7-status vocabulary from CLAUDE.md.
+func convergenceForNode(nodeID string, desiredMap map[string]string, repoArtifacts map[string]bool, healthNodes []*cluster_controllerpb.NodeHealth, installedPkgs []*node_agentpb.InstalledPackage, errors []string) map[string]interface{} {
 	// Build installed map from packages
 	installedMap := make(map[string]map[string]interface{})
 	for _, p := range installedPkgs {
@@ -346,10 +373,12 @@ func convergenceForNode(nodeID string, desiredMap map[string]string, healthNodes
 	services := make([]map[string]interface{}, 0)
 	seen := make(map[string]bool)
 
-	convergedCount := 0
-	driftedCount := 0
-	missingCount := 0
-	unmanagedCount := 0
+	// Frozen 7-status vocabulary counters.
+	installedCount := 0  // desired == installed, converged
+	plannedCount := 0    // desired set, not yet installed
+	driftedCount := 0    // installed version differs from desired
+	unmanagedCount := 0  // installed without desired-state entry
+	missingInRepoCount := 0 // desired/installed but not in repository
 
 	for sid, desiredVer := range desiredMap {
 		seen[sid] = true
@@ -364,17 +393,17 @@ func convergenceForNode(nodeID string, desiredMap map[string]string, healthNodes
 			if healthVer, ok := healthInstalledVersions[sid]; ok {
 				entry["installed_version"] = healthVer
 				if healthVer == desiredVer {
-					entry["status"] = "converged"
-					convergedCount++
+					entry["status"] = "installed"
+					installedCount++
 				} else {
 					entry["status"] = "drifted"
 					entry["drift"] = fmt.Sprintf("desired %s, installed %s", desiredVer, healthVer)
 					driftedCount++
 				}
 			} else {
-				entry["status"] = "missing"
+				entry["status"] = "planned"
 				entry["installed_version"] = ""
-				missingCount++
+				plannedCount++
 			}
 		} else {
 			instVer, _ := inst["version"].(string)
@@ -383,8 +412,14 @@ func convergenceForNode(nodeID string, desiredMap map[string]string, healthNodes
 			entry["checksum"], _ = inst["checksum"].(string)
 
 			if instVer == desiredVer {
-				entry["status"] = "converged"
-				convergedCount++
+				// Check repository layer
+				if len(repoArtifacts) > 0 && !repoArtifacts[strings.ToLower(strings.ReplaceAll(sid, "_", "-"))] {
+					entry["status"] = "missing_in_repo"
+					missingInRepoCount++
+				} else {
+					entry["status"] = "installed"
+					installedCount++
+				}
 			} else {
 				entry["status"] = "drifted"
 				entry["drift"] = fmt.Sprintf("desired %s, installed %s", desiredVer, instVer)
@@ -415,10 +450,11 @@ func convergenceForNode(nodeID string, desiredMap map[string]string, healthNodes
 		"desired_hash":  desiredHash,
 		"applied_hash":  appliedHash,
 		"hash_match":    desiredHash == appliedHash && desiredHash != "",
-		"converged":     convergedCount,
-		"drifted":       driftedCount,
-		"missing":       missingCount,
-		"unmanaged":     unmanagedCount,
+		"installed":       installedCount,
+		"planned":         plannedCount,
+		"drifted":         driftedCount,
+		"unmanaged":       unmanagedCount,
+		"missing_in_repo": missingInRepoCount,
 		"total_desired": len(desiredMap),
 		"services":      services,
 		"errors":        errors,

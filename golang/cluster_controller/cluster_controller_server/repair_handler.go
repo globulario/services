@@ -162,7 +162,7 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 			entry.Message = fmt.Sprintf("installed %s (build %d) differs from desired %s (build %d)", pkg.version, pkg.buildNumber, desiredDV.version, desiredDV.buildNumber)
 			report.Drifted++
 		default:
-			entry.Status = "aligned"
+			entry.Status = "installed"
 			report.Aligned++
 		}
 
@@ -185,10 +185,10 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 			DesiredBuildNum: dv.buildNumber,
 			RepoVersion:     repo.version,
 			RepoBuildNum:    repo.buildNumber,
-			Status:          "drifted",
+			Status:          "planned",
 			Message:         "desired release exists but not installed on any node",
 		}
-		report.Drifted++
+		report.Drifted++ // planned counts toward drift for repair purposes
 		report.Packages = append(report.Packages, entry)
 	}
 
