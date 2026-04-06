@@ -29,7 +29,6 @@ spec:
     mode: single
   steps:
     # ── Tier 0: Verify join-script prerequisites ────────────────────────
-    # etcd and node-agent are pre-installed by the join script.
     - id: verify_prerequisites
       title: Verify join-script prerequisites are running
       actor: node-agent
@@ -40,6 +39,16 @@ spec:
         maxAttempts: 6
         backoff: 5s
       timeout: 1m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      verification:
+        actor: node-agent
+        action: node.verify_services_active
+        with:
+          services: [etcd, node-agent]
+        success:
+          expr: ok == true
 
     # ── Tier 1: Storage + mesh infrastructure (parallel) ──────────────
     - id: install_mesh
@@ -55,6 +64,23 @@ spec:
           - { name: prometheus, kind: INFRASTRUCTURE }
           - { name: xds, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_mesh
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: minio, kind: INFRASTRUCTURE }
+            - { name: sidekick, kind: INFRASTRUCTURE }
+            - { name: node-exporter, kind: INFRASTRUCTURE }
+            - { name: prometheus, kind: INFRASTRUCTURE }
+            - { name: xds, kind: INFRASTRUCTURE }
+        success:
+          expr: all_installed == true
 
     - id: install_envoy
       title: Install Envoy proxy
@@ -65,6 +91,19 @@ spec:
         packages:
           - { name: envoy, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_envoy
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: envoy, kind: INFRASTRUCTURE }
+        success:
+          expr: all_installed == true
 
     - id: install_gateway
       title: Install gateway
@@ -75,6 +114,19 @@ spec:
         packages:
           - { name: gateway, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_gateway
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: gateway, kind: INFRASTRUCTURE }
+        success:
+          expr: all_installed == true
 
     # ── Tier 2: Storage (ScyllaDB needs Envoy for cluster comms) ──────────
     - id: install_scylladb
@@ -89,6 +141,19 @@ spec:
         maxAttempts: 2
         backoff: 30s
       timeout: 10m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_scylladb
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: scylladb, kind: INFRASTRUCTURE }
+        success:
+          expr: all_installed == true
 
     - id: wait_scylladb_ready
       title: Wait for ScyllaDB to accept CQL connections
@@ -101,6 +166,16 @@ spec:
         maxAttempts: 60
         backoff: 10s
       timeout: 15m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      verification:
+        actor: node-agent
+        action: node.probe_infra_health
+        with:
+          probe: probe-scylla-health
+        success:
+          expr: healthy == true
 
     - id: install_scylla_tools
       title: Install ScyllaDB manager and agent
@@ -112,6 +187,20 @@ spec:
           - { name: scylla-manager, kind: INFRASTRUCTURE }
           - { name: scylla-manager-agent, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_scylla_tools
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: scylla-manager, kind: INFRASTRUCTURE }
+            - { name: scylla-manager-agent, kind: INFRASTRUCTURE }
+        success:
+          expr: all_installed == true
 
     # ── Tier 3: Foundational services (parallel, need ScyllaDB) ───────────
     - id: install_foundational
@@ -130,6 +219,26 @@ spec:
           - { name: repository, kind: SERVICE }
           - { name: monitoring, kind: SERVICE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_foundational
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: dns, kind: SERVICE }
+            - { name: event, kind: SERVICE }
+            - { name: rbac, kind: SERVICE }
+            - { name: resource, kind: SERVICE }
+            - { name: authentication, kind: SERVICE }
+            - { name: discovery, kind: SERVICE }
+            - { name: repository, kind: SERVICE }
+            - { name: monitoring, kind: SERVICE }
+        success:
+          expr: all_installed == true
 
     # ── Tier 4: All remaining workloads (parallel) ────────────────────────
     - id: install_workloads
@@ -156,6 +265,34 @@ spec:
           - { name: ai-watcher, kind: SERVICE }
           - { name: ai-router, kind: SERVICE }
       timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: file, kind: SERVICE }
+            - { name: log, kind: SERVICE }
+            - { name: search, kind: SERVICE }
+            - { name: title, kind: SERVICE }
+            - { name: media, kind: SERVICE }
+            - { name: torrent, kind: SERVICE }
+            - { name: persistence, kind: SERVICE }
+            - { name: backup-manager, kind: SERVICE }
+            - { name: workflow, kind: SERVICE }
+            - { name: cluster-controller, kind: SERVICE }
+            - { name: cluster-doctor, kind: SERVICE }
+            - { name: mcp, kind: SERVICE }
+            - { name: ai-memory, kind: SERVICE }
+            - { name: ai-executor, kind: SERVICE }
+            - { name: ai-watcher, kind: SERVICE }
+            - { name: ai-router, kind: SERVICE }
+        success:
+          expr: all_installed == true
 
     # ── Tier 5: Command-line tools (parallel, no systemd) ─────────────────
     - id: install_commands
@@ -170,6 +307,22 @@ spec:
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
       timeout: 2m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_commands
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: globular-cli, kind: COMMAND }
+            - { name: etcdctl, kind: COMMAND }
+            - { name: mc, kind: COMMAND }
+            - { name: sctool, kind: COMMAND }
+        success:
+          expr: all_installed == true
 
     # ── Final: Report convergence ─────────────────────────────────────────
     - id: report_installed
@@ -177,6 +330,17 @@ spec:
       dependsOn: [install_workloads, install_scylla_tools, install_commands]
       actor: node-agent
       action: node.sync_installed_state
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: report_installed_state
+      verification:
+        actor: node-agent
+        action: node.verify_installed_state_synced
+        with:
+          node_id: $.node_id
+        success:
+          expr: synced == true
 
     - id: mark_converged
       title: Mark node as converged
@@ -185,6 +349,17 @@ spec:
       action: controller.bootstrap.set_phase
       with:
         phase: workload_ready
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.bootstrap.verify_phase
+        with:
+          node_id: $.node_id
+          phase: workload_ready
+        success:
+          expr: phase_matches == true
 
   onFailure:
     actor: cluster-controller
