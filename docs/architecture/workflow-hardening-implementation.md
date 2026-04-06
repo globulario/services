@@ -113,7 +113,17 @@ For each step that was in-progress when executor crashed:
 1. Engine looks up `step.Verification.Actor` + `step.Verification.Action` in the Router
 2. Dispatches the verification action (same as a regular step but isolated)
 3. Evaluates `success.expr` against the result output (using `DefaultEvalCond`)
-4. Returns bool: true = effect exists, false = needs re-execution
+4. Returns tri-state: `present` / `absent` / `inconclusive`
+
+**Tri-state verification outcome:**
+
+| Outcome | Meaning | Resume action |
+|---------|---------|---------------|
+| `present` | Effect exists, proof is clear | Mark step SUCCEEDED, skip |
+| `absent` | Effect does not exist, safe to execute | Re-execute the step |
+| `inconclusive` | Cannot determine — partial state, timeout, error | Depends on `idempotency`: `safe_retry` → re-execute; `verify_then_continue` → re-execute; `manual_approval` → pause for approval; `compensatable` → attempt compensation |
+
+The engine MUST NOT treat inconclusive as present. Inconclusive means "the mirror is foggy" — the safe default is to be conservative based on the step's idempotency class.
 
 **Important:** Verification actions are dispatched to the same actor endpoints as regular step actions. No new callback path needed — the existing `WorkflowActorService.ExecuteAction` handles them.
 
@@ -140,7 +150,24 @@ For each step that was in-progress when executor crashed:
 | `controller.release.verify_terminal_status` | controller | Check release is in terminal state | Read release, check AVAILABLE/FAILED |
 | `controller.bootstrap.verify_phase` | controller | Check node bootstrap phase | Read in-memory node state |
 
-**Implementation pattern:** Each verification handler is a read-only check — no mutations. It reads authoritative state and returns `{ok: true/false}` or `{installed: true, version: "0.0.1"}`.
+**Implementation pattern:** Each verification handler is a read-only check — no mutations. Returns `{status: "present"/"absent"/"inconclusive", ...detail}`.
+
+**Dual-source verification for install/sync steps:**
+
+Install and sync verification handlers MUST check both:
+1. **Local reality** — package files present, systemd unit exists, service active/healthy
+2. **Authoritative state** — etcd installed_state record matches expected version/hash
+
+This prevents the exact failure class we care about: "side effect happened on node but sync to authoritative state didn't complete." Single-source verification (etcd only) would miss this gap.
+
+Result matrix for install verification:
+
+| Local reality | etcd state | Verdict |
+|--------------|------------|---------|
+| Package present + healthy | Synced at correct version | `present` |
+| Package present + healthy | Not synced or wrong version | `inconclusive` (effect happened, sync pending) |
+| Package absent | Any | `absent` |
+| Package present + unhealthy | Any | `inconclusive` (partial install) |
 
 **These handlers serve dual purpose:**
 1. Resume verification during orphan recovery
@@ -227,6 +254,24 @@ CREATE TABLE IF NOT EXISTS workflow.step_receipts (
 7. **WH-8 (receipts)** — optional but valuable durability upgrade
 
 Each phase has its own commit point. No giant batches.
+
+---
+
+## Step Classification Matrix (for workflow authors)
+
+| Step type | Idempotency | Resume policy | Verification |
+|-----------|-------------|---------------|--------------|
+| Read-only probe | `safe_retry` | `retry` | Health/status check |
+| Package install | `verify_then_continue` | `verify_effect` | Local package + runtime + sync state (dual-source) |
+| Status mark/update | `safe_retry` | `verify_effect` | Authoritative phase/status |
+| State sync | `verify_then_continue` | `verify_effect` | Local reality + authoritative (dual-source) |
+| Service restart | `verify_then_continue` | `verify_effect` | Runtime health probe |
+| Destructive removal | `manual_approval` | `pause_for_approval` | Confirm target removed |
+| External publish/bootstrap | `verify_then_continue` | `verify_effect` | Repo/object/state proof |
+| Aggregation/classification | `safe_retry` | `retry` | None needed |
+
+This prevents every step from getting the same metadata pasted on it.
+Use this table as the authority when annotating workflow YAMLs.
 
 ---
 
