@@ -137,6 +137,9 @@ func registerAllActorsWithStubs(router *Router) {
 	RegisterDoctorRemediationActions(router, DoctorRemediationConfig{})
 	RegisterNodeRepairControllerActions(router, NodeRepairControllerConfig{})
 	RegisterNodeRepairAgentActions(router, NodeRepairAgentConfig{})
+	// WH-4: verification handlers for resume-policy dispatch.
+	RegisterNodeVerificationActions(router, NodeVerificationConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 }
 
 // --------------------------------------------------------------------------
@@ -165,6 +168,7 @@ var actorRegistrationSet = map[string]func(r *Router){
 		RegisterReleaseControllerActions(r, ReleaseControllerConfig{})
 		RegisterReconcileControllerActions(r, ReconcileControllerConfig{})
 		RegisterNodeRepairControllerActions(r, NodeRepairControllerConfig{})
+		RegisterControllerVerificationActions(r, ControllerVerificationConfig{})
 		// installer and repository are controller-owned actors but register
 		// under their own actor type — tested separately below.
 	},
@@ -172,6 +176,7 @@ var actorRegistrationSet = map[string]func(r *Router){
 		RegisterNodeAgentActions(r, NodeAgentConfig{})
 		RegisterNodeDirectApplyActions(r, NodeDirectApplyConfig{})
 		RegisterNodeRepairAgentActions(r, NodeRepairAgentConfig{})
+		RegisterNodeVerificationActions(r, NodeVerificationConfig{})
 	},
 	string(v1alpha1.ActorWorkflowService): func(r *Router) {
 		RegisterWorkflowServiceActions(r, WorkflowServiceConfig{})
