@@ -196,6 +196,11 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			resp.OutputsJson = string(b)
 		}
 	}
+
+	// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
+	// Fire-and-forget — learning must never block workflow response.
+	go srv.projectIncident(context.Background(), req, resp)
+
 	return resp, nil
 }
 

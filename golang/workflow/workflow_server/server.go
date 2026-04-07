@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"crypto/tls"
+	"crypto/x509"
+
+	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -22,6 +26,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -98,6 +103,11 @@ type server struct {
 
 	// Executor lease manager for HA run ownership (HA-4).
 	leaseManager *executorLeaseManager
+
+	// AI-memory client for incident projection (AL-1).
+	aiMemoryClient ai_memorypb.AiMemoryServiceClient
+	incidentDedupeMu sync.RWMutex
+	incidentDedupeMap map[string]time.Time
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +340,23 @@ func (srv *server) Init() error {
 	// Initialize executor lease manager for HA run ownership.
 	srv.leaseManager = newExecutorLeaseManager(srv)
 	srv.leaseManager.StartOrphanScanner(context.Background())
+
+	// AL-1: Connect to ai-memory for incident projection.
+	// Best-effort — if ai-memory is unavailable, incidents are skipped.
+	if memAddr := config.ResolveLocalServiceAddr("ai_memory.AiMemoryService"); memAddr != "" {
+		dt := config.ResolveDialTarget(memAddr)
+		if memConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
+			credentials.NewTLS(&tls.Config{
+				ServerName: dt.ServerName,
+				RootCAs:    srv.loadCAPool(),
+			}),
+		)); err == nil {
+			srv.aiMemoryClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
+			logger.Info("incident projection: ai-memory connected", "addr", dt.Address)
+		} else {
+			logger.Warn("incident projection: ai-memory unavailable", "err", err)
+		}
+	}
 
 	// Import Day-0 install trace if the JSON log exists (idempotent).
 	srv.importDay0Trace()
@@ -2252,4 +2279,19 @@ func main() {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+}
+
+// loadCAPool returns the cluster CA certificate pool for TLS connections.
+func (srv *server) loadCAPool() *x509.CertPool {
+	caFile := config.GetLocalCACertificate()
+	if caFile == "" {
+		return nil
+	}
+	caData, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(caData)
+	return pool
 }
