@@ -50,3 +50,15 @@
 2026-04-05T08:32:53Z | title | v0.0.1+2 | per-node prometheus instance labels
 2026-04-05T08:55:36Z | cluster_controller | v0.0.2+1 | resolver fix + prometheus labels
 2026-04-05T09:00:16Z | cluster_controller | v0.0.2+0 | force build_number=0 for resolver compat
+2026-04-05T22:21:20Z | cluster_controller | v0.0.1+15 | session: endpoint resolver + schema pragmas + NodeIdentity tests
+2026-04-05T22:22:31Z | cluster_doctor | v0.0.1+4 | session: freshness contracts (FreshnessMode enum + ReportHeader fields)
+2026-04-05T22:23:00Z | node_agent | v0.0.1+3 | session: heartbeat dialer uses canonical endpoint resolver
+2026-04-05T22:29:31Z | cluster_controller | v0.0.1+16 | fix(reconcile): distinguish not-found from wrapped-nil in patchReleasePhase
+2026-04-05T22:32:05Z | cluster_doctor | v0.0.1+5 | fix: default WorkflowEndpoint/EVENT_ADDRESS to localhost not 127.0.0.1
+2026-04-05T22:37:22Z | cluster_controller | v0.0.1+17 | fix(reconcile): skip status patches on synthetic release names
+2026-04-05T22:40:19Z | cluster_controller | v0.0.2+1 | fix(reconcile): skip status patches on synthetic release names + %!w(nil) formatting
+2026-04-05T23:59:06Z | cluster_controller | v0.0.2+2 | fix(describe): emit Id/Port/Address for node-agent install pipeline
+2026-04-06T00:08:46Z | cluster_controller | v0.0.2+3 | fix: populate node_id/hostname on release workflow runs + describe Id/Port/Address
+2026-04-06T00:30:05Z | ai_memory | v0.0.1+2 | fix: WorkingDirectory permissive prefix for missing dir on fresh nodes
+2026-04-06T00:30:20Z | ai_router | v0.0.1+2 | fix: WorkingDirectory permissive prefix for missing dir on fresh nodes
+2026-04-06T00:30:32Z | ai_watcher | v0.0.1+2 | fix: WorkingDirectory permissive prefix for missing dir on fresh nodes

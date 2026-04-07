@@ -3,12 +3,165 @@ package main
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
+
+// tokenPatterns matches sensitive values commonly found in service logs.
+var tokenPatterns = []*regexp.Regexp{
+	// JWT tokens (header.payload.signature)
+	regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`),
+	// Bearer <token>
+	regexp.MustCompile(`(?i)(bearer\s+)\S+`),
+	// Authorization header values
+	regexp.MustCompile(`(?i)(authorization[=:]\s*)\S+`),
+	// key=value for sensitive keys (token, password, secret, api_key, etc.)
+	regexp.MustCompile(`(?i)((?:token|password|passwd|secret|api_key|apikey|access_key|private_key|refresh_token|session_token|auth_token)[=:]\s*)\S+`),
+}
+
+// tokenReplacements are the corresponding replacement strings.
+var tokenReplacements = []string{
+	"[REDACTED_JWT]",
+	"${1}[REDACTED]",
+	"${1}[REDACTED]",
+	"${1}[REDACTED]",
+}
+
+// journalPrefix matches the typical journalctl default output prefix:
+//   "Apr 07 14:23:01 globule-ryzen globular-gateway[12345]: actual message"
+// We capture: (1) timestamp, (2) the rest after stripping host+unit+PID.
+var journalPrefix = regexp.MustCompile(
+	`^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+\S+\[\d+\]:\s*(.*)$`,
+)
+
+// noisePatterns strips verbose, low-value fragments from log messages.
+var noisePatterns = []*regexp.Regexp{
+	// Go source locations: server.go:123
+	regexp.MustCompile(`\s+\S+\.go:\d+`),
+	// Full goroutine IDs, thread IDs
+	regexp.MustCompile(`(?i)\s*goroutine\s+\d+`),
+	// Repeated "level=info", "level=debug" etc. (structured loggers)
+	regexp.MustCompile(`(?i)\blevel=\w+\s*`),
+	// "ts=2026-04-07T..." redundant structured timestamp
+	regexp.MustCompile(`\bts=\S+\s*`),
+	// "caller=xxx.go:nn" structured caller field
+	regexp.MustCompile(`\bcaller=\S+\s*`),
+	// Consecutive spaces left behind by stripping
+	regexp.MustCompile(`\s{2,}`),
+}
+
+// msgFingerprint extracts a canonical key from a log line for dedup.
+// Strips the leading HH:MM:SS timestamp and any hex IDs / UUIDs / numbers
+// so lines differing only by request-id or counter are grouped.
+var (
+	fpTimestamp = regexp.MustCompile(`^\d{2}:\d{2}:\d{2}\s+`)
+	fpHexIDs    = regexp.MustCompile(`\b[0-9a-fA-F]{8,}\b`)
+	fpUUIDs     = regexp.MustCompile(`\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b`)
+	fpNumbers   = regexp.MustCompile(`\b\d{2,}\b`)
+)
+
+func msgFingerprint(line string) string {
+	s := fpTimestamp.ReplaceAllString(line, "")
+	s = fpUUIDs.ReplaceAllString(s, "_")
+	s = fpHexIDs.ReplaceAllString(s, "_")
+	s = fpNumbers.ReplaceAllString(s, "_")
+	return s
+}
+
+// compactLogLines redacts secrets, strips journalctl noise, deduplicates by
+// message fingerprint, and shortens timestamps.
+// Returns compressed lines + a count of suppressed duplicates.
+func compactLogLines(raw []string) ([]string, int) {
+	// Phase 1: redact + strip prefix + strip noise
+	type entry struct {
+		ts  string // "HH:MM:SS" or ""
+		msg string // cleaned message body
+	}
+	cleaned := make([]entry, 0, len(raw))
+	for _, line := range raw {
+		if line == "" || line == "-- No entries --" {
+			continue
+		}
+		s := line
+		// Redact tokens
+		for j, pat := range tokenPatterns {
+			s = pat.ReplaceAllString(s, tokenReplacements[j])
+		}
+		// Strip journalctl prefix → "HH:MM:SS message"
+		ts := ""
+		if m := journalPrefix.FindStringSubmatch(s); m != nil {
+			raw := m[1]
+			if idx := strings.LastIndex(raw, " "); idx >= 0 {
+				ts = raw[idx+1:]
+			}
+			s = m[2]
+		}
+		// Strip verbose noise fragments
+		for _, np := range noisePatterns {
+			s = np.ReplaceAllString(s, " ")
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		cleaned = append(cleaned, entry{ts: ts, msg: s})
+	}
+
+	// Phase 2: deduplicate by message fingerprint (preserves first occurrence order)
+	type group struct {
+		first int // index of first occurrence
+		count int
+		tsMin string // earliest timestamp
+		tsMax string // latest timestamp
+	}
+	seen := make(map[string]*group)
+	order := make([]string, 0, len(cleaned))
+
+	for i, e := range cleaned {
+		fp := msgFingerprint(e.msg)
+		if g, ok := seen[fp]; ok {
+			g.count++
+			if e.ts != "" {
+				g.tsMax = e.ts
+			}
+		} else {
+			g := &group{first: i, count: 1, tsMin: e.ts, tsMax: e.ts}
+			seen[fp] = g
+			order = append(order, fp)
+		}
+	}
+
+	// Phase 3: emit compact output
+	out := make([]string, 0, len(order))
+	suppressed := 0
+	for _, fp := range order {
+		g := seen[fp]
+		e := cleaned[g.first]
+		var line string
+		if g.count > 1 {
+			suppressed += g.count - 1
+			timeRange := ""
+			if g.tsMin != "" && g.tsMax != "" && g.tsMin != g.tsMax {
+				timeRange = g.tsMin + ".." + g.tsMax + " "
+			} else if g.tsMin != "" {
+				timeRange = g.tsMin + " "
+			}
+			line = fmt.Sprintf("%s%s (×%d)", timeRange, e.msg, g.count)
+		} else {
+			if e.ts != "" {
+				line = e.ts + " " + e.msg
+			} else {
+				line = e.msg
+			}
+		}
+		out = append(out, line)
+	}
+	return out, suppressed
+}
 
 // resolveNodeAgentEndpoint returns the gRPC endpoint for a node's agent.
 // If nodeID is empty, returns the local node-agent endpoint.
@@ -323,12 +476,12 @@ func registerNodeAgentTools(s *server) {
 	// ── nodeagent_get_service_logs ─────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "nodeagent_get_service_logs",
-		Description: "Read recent journalctl log output for a Globular systemd service. Unit name must start with 'globular-'. Returns up to 200 lines. Use this to investigate service failures, startup errors, or runtime issues without SSH access.",
+		Description: "Read recent journalctl log output for a Globular systemd service. Unit name must start with 'globular-'. Returns compact, deduplicated output. Start with the default (10 lines) and only increase if a summary tool shows more context is needed.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
 				"unit":    {Type: "string", Description: "Systemd unit name (must start with 'globular-', e.g. 'globular-gateway.service')"},
-				"lines":   {Type: "number", Description: "Number of log lines to return (default 50, max 200)"},
+				"lines":   {Type: "number", Description: "Number of raw lines to fetch (default 10, max 50). Output may be fewer after dedup."},
 				"node_id": {Type: "string", Description: "Optional: query a remote node's logs by node ID. If omitted, reads from the local node."},
 				"priority": {
 					Type:        "string",
@@ -347,7 +500,10 @@ func registerNodeAgentTools(s *server) {
 			return nil, fmt.Errorf("unit must start with 'globular-'")
 		}
 
-		lines := getInt(args, "lines", 50)
+		lines := getInt(args, "lines", 10)
+		if lines > 50 {
+			lines = 50
+		}
 		priority := getStr(args, "priority")
 		nodeID := getStr(args, "node_id")
 
@@ -374,22 +530,27 @@ func registerNodeAgentTools(s *server) {
 			return nil, fmt.Errorf("GetServiceLogs: %w", err)
 		}
 
-		return map[string]interface{}{
+		compact, suppressed := compactLogLines(resp.GetLines())
+		result := map[string]interface{}{
 			"unit":       resp.GetUnit(),
-			"line_count": resp.GetLineCount(),
-			"lines":      resp.GetLines(),
-		}, nil
+			"line_count": len(compact),
+			"lines":      compact,
+		}
+		if suppressed > 0 {
+			result["duplicates_collapsed"] = suppressed
+		}
+		return result, nil
 	})
 
 	// ── nodeagent_search_logs ──────────────────────────────────────────────
 	s.register(toolDef{
 		Name: "nodeagent_search_logs",
-		Description: `Search service logs by time range, pattern, and severity. Uses journalctl under the hood with regex grep support.
+		Description: `Search service logs by time range, pattern, and severity. Returns compact, deduplicated output with secrets redacted. Always use filters to narrow results.
 
 Examples:
-- Search for errors in the last hour: unit="globular-gateway", since="1h ago", priority="err"
-- Find TLS issues: unit="globular-dns", pattern="tls|certificate|cert", since="30m ago"
-- Search all severity in a time window: unit="globular-rbac", since="2026-03-25 00:00:00", until="2026-03-25 01:00:00"`,
+- Errors in the last hour: unit="globular-gateway", since="1h ago", priority="err"
+- TLS issues: unit="globular-dns", pattern="tls|certificate|cert", since="30m ago"
+- Time window: unit="globular-rbac", since="2026-03-25 00:00:00", until="2026-03-25 01:00:00"`,
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -399,7 +560,7 @@ Examples:
 				"since":    {Type: "string", Description: "Start of time range (e.g. '5m ago', '1h ago', '2026-03-25 00:00:00')"},
 				"until":    {Type: "string", Description: "End of time range (optional, e.g. '30m ago', '2026-03-25 01:00:00')"},
 				"priority": {Type: "string", Description: "Severity filter", Enum: []string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}},
-				"limit":    {Type: "number", Description: "Max lines to return (default 100, max 500)"},
+				"limit":    {Type: "number", Description: "Max lines to fetch (default 50, max 200). Output may be fewer after dedup."},
 				"case_sensitive": {Type: "boolean", Description: "Case-sensitive pattern matching (default: false)"},
 			},
 			Required: []string{"unit"},
@@ -425,23 +586,32 @@ Examples:
 		callCtx, cancel := context.WithTimeout(authCtx(ctx), 30*time.Second)
 		defer cancel()
 
+		limit := getInt(args, "limit", 50)
+		if limit > 200 {
+			limit = 200
+		}
+
 		resp, err := client.SearchServiceLogs(callCtx, &node_agentpb.SearchServiceLogsRequest{
 			Unit:          unit,
 			Pattern:       getStr(args, "pattern"),
 			Since:         getStr(args, "since"),
 			Until:         getStr(args, "until"),
 			Priority:      getStr(args, "priority"),
-			Limit:         int32(getInt(args, "limit", 100)),
+			Limit:         int32(limit),
 			CaseSensitive: getBool(args, "case_sensitive", false),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("SearchServiceLogs: %w", err)
 		}
 
+		compact, suppressed := compactLogLines(resp.GetLines())
 		result := map[string]interface{}{
 			"unit":        resp.GetUnit(),
 			"match_count": resp.GetMatchCount(),
-			"lines":       resp.GetLines(),
+			"lines":       compact,
+		}
+		if suppressed > 0 {
+			result["duplicates_collapsed"] = suppressed
 		}
 		if resp.GetSince() != "" {
 			result["since"] = resp.GetSince()

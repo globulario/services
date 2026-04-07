@@ -36,6 +36,7 @@ const (
 	NodeAgentService_SearchServiceLogs_FullMethodName     = "/node_agent.NodeAgentService/SearchServiceLogs"
 	NodeAgentService_GetCertificateStatus_FullMethodName  = "/node_agent.NodeAgentService/GetCertificateStatus"
 	NodeAgentService_RunWorkflow_FullMethodName           = "/node_agent.NodeAgentService/RunWorkflow"
+	NodeAgentService_ApplyPackageRelease_FullMethodName   = "/node_agent.NodeAgentService/ApplyPackageRelease"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -68,6 +69,9 @@ type NodeAgentServiceClient interface {
 	GetCertificateStatus(ctx context.Context, in *GetCertificateStatusRequest, opts ...grpc.CallOption) (*GetCertificateStatusResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error)
+	// Remote package apply: fetch from repository, install, restart, health check.
+	// This is the reusable primitive for leader-aware control-plane deployments.
+	ApplyPackageRelease(ctx context.Context, in *ApplyPackageReleaseRequest, opts ...grpc.CallOption) (*ApplyPackageReleaseResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -257,6 +261,16 @@ func (c *nodeAgentServiceClient) RunWorkflow(ctx context.Context, in *RunWorkflo
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) ApplyPackageRelease(ctx context.Context, in *ApplyPackageReleaseRequest, opts ...grpc.CallOption) (*ApplyPackageReleaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyPackageReleaseResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_ApplyPackageRelease_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -287,6 +301,9 @@ type NodeAgentServiceServer interface {
 	GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error)
+	// Remote package apply: fetch from repository, install, restart, health check.
+	// This is the reusable primitive for leader-aware control-plane deployments.
+	ApplyPackageRelease(context.Context, *ApplyPackageReleaseRequest) (*ApplyPackageReleaseResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -346,6 +363,9 @@ func (UnimplementedNodeAgentServiceServer) GetCertificateStatus(context.Context,
 }
 func (UnimplementedNodeAgentServiceServer) RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunWorkflow not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) ApplyPackageRelease(context.Context, *ApplyPackageReleaseRequest) (*ApplyPackageReleaseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyPackageRelease not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -666,6 +686,24 @@ func _NodeAgentService_RunWorkflow_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_ApplyPackageRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyPackageReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).ApplyPackageRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_ApplyPackageRelease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).ApplyPackageRelease(ctx, req.(*ApplyPackageReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -736,6 +774,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunWorkflow",
 			Handler:    _NodeAgentService_RunWorkflow_Handler,
+		},
+		{
+			MethodName: "ApplyPackageRelease",
+			Handler:    _NodeAgentService_ApplyPackageRelease_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

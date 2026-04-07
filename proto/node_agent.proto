@@ -339,6 +339,17 @@ service NodeAgentService {
       default_role_hint: "admin"
     };
   };
+
+  // Remote package apply: fetch from repository, install, restart, health check.
+  // This is the reusable primitive for leader-aware control-plane deployments.
+  rpc ApplyPackageRelease(ApplyPackageReleaseRequest) returns (ApplyPackageReleaseResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.package_release.apply"
+      permission: "admin"
+      resource_template: "/node_agent/packages/{package_name}"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ── Node identity token rotation (Phase 2) ──
@@ -438,5 +449,31 @@ message RunWorkflowResponse {
   int32 steps_total = 5;
   string error = 6;
   int64 duration_ms = 7;
+}
+
+// ── Remote package apply ──
+
+message ApplyPackageReleaseRequest {
+  string package_name = 1;       // e.g. "cluster-controller", "dns"
+  string package_kind = 2;       // "SERVICE" or "INFRASTRUCTURE"
+  string version = 3;            // e.g. "0.0.2"
+  string publisher = 4;          // e.g. "core@globular.io" (default if empty)
+  string platform = 5;           // e.g. "linux_amd64" (auto-detected if empty)
+  bool force = 6;                // skip idempotency check (same version already installed)
+  string expected_sha256 = 7;    // optional: verify artifact checksum
+  string operation_id = 8;       // caller-provided correlation ID
+  string repository_addr = 9;    // gRPC address of repository (auto-discovered if empty)
+  int64 build_number = 10;       // build iteration within version
+}
+
+message ApplyPackageReleaseResponse {
+  bool ok = 1;
+  string message = 2;
+  string package_name = 3;
+  string version = 4;
+  string status = 5;             // "installed", "failed", "skipped"
+  string error_detail = 6;       // non-empty on failure
+  string checksum = 7;           // SHA256 of installed artifact
+  string operation_id = 8;
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/projections"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -155,6 +157,7 @@ type server struct {
 	leaderID             atomic.Value
 	leaderAddr           atomic.Value
 	leaderEpoch          atomic.Int64
+	resignCh             chan struct{} // signal leader election to resign
 	reconcileRunning     atomic.Bool
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
@@ -176,6 +179,14 @@ type server struct {
 	// workflowSem limits concurrent release workflows to prevent systemd
 	// overload on target nodes. Defaults to 3 concurrent workflows.
 	workflowSem chan struct{}
+
+	// inflightWorkflows tracks release IDs that have an active workflow
+	// goroutine. Prevents reconcileResolved from dispatching duplicate
+	// goroutines for the same release, which would cause a router
+	// registration race (the second goroutine overwrites + deletes the
+	// first's router on lease contention failure).
+	inflightMu        sync.Mutex
+	inflightWorkflows map[string]struct{}
 
 	// etcd cluster membership manager (for multi-node expansion)
 	etcdMembers *etcdMemberManager
@@ -217,10 +228,10 @@ type server struct {
 
 var testHookBeforeReportNodeStatusApply func()
 
-// buildControllerClientTLSCreds loads the cluster CA and returns gRPC
-// transport credentials for outgoing client connections (workflow service,
-// etc). Uses config.ResolveDialTarget-provided serverName for TLS
-// verification.
+// buildControllerClientTLSCreds loads the cluster CA and the node's service
+// certificate for mTLS, then returns gRPC transport credentials for outgoing
+// client connections (workflow service, etc). Uses config.ResolveDialTarget-
+// provided serverName for TLS verification.
 func buildControllerClientTLSCreds(serverName string) credentials.TransportCredentials {
 	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetLocalCACertificate()
@@ -230,9 +241,131 @@ func buildControllerClientTLSCreds(serverName string) credentials.TransportCrede
 			if pool.AppendCertsFromPEM(caData) {
 				tlsCfg.RootCAs = pool
 			}
+		} else {
+			log.Printf("cluster-controller: WARN failed to read CA %s: %v", caFile, err)
 		}
+	} else {
+		log.Printf("cluster-controller: WARN no CA certificate path configured")
+	}
+	// Load client certificate for mTLS (same certs the workflow Recorder uses).
+	certFile := "/var/lib/globular/pki/issued/services/service.crt"
+	keyFile := "/var/lib/globular/pki/issued/services/service.key"
+	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	} else {
+		log.Printf("cluster-controller: WARN failed to load client cert %s: %v", certFile, err)
 	}
 	return credentials.NewTLS(tlsCfg)
+}
+
+// loadControllerToken reads or generates a node identity token for outgoing gRPC calls.
+// Tries, in order: explicit node_token file, any *_token file in the tokens dir,
+// cached MAC-based token, and finally generates a fresh "sa" token.
+// cachedToken holds a recently generated token to avoid regeneration on
+// every RPC call. The interceptor calls loadControllerToken() per-request;
+// without caching, every workflow dispatch would hit the keystore.
+var (
+	cachedToken       string
+	cachedTokenExpiry time.Time
+	cachedTokenMu     sync.Mutex
+)
+
+func loadControllerToken() string {
+	// Fast path: return cached token if still valid (>20% TTL remaining).
+	cachedTokenMu.Lock()
+	if cachedToken != "" && time.Now().Before(cachedTokenExpiry) {
+		t := cachedToken
+		cachedTokenMu.Unlock()
+		return t
+	}
+	cachedTokenMu.Unlock()
+
+	token := loadControllerTokenUncached()
+
+	// Cache the token with 80% of its 300s TTL = 240s.
+	if token != "" {
+		cachedTokenMu.Lock()
+		cachedToken = token
+		cachedTokenExpiry = time.Now().Add(240 * time.Second)
+		cachedTokenMu.Unlock()
+	}
+	return token
+}
+
+func loadControllerTokenUncached() string {
+	// 1. Explicit node token file.
+	tokenFile := "/var/lib/globular/tokens/node_token"
+	if data, err := os.ReadFile(tokenFile); err == nil {
+		if t := strings.TrimSpace(string(data)); t != "" {
+			if _, err := security.ValidateToken(t); err == nil {
+				return t
+			}
+			log.Printf("cluster-controller: node_token exists but is invalid/expired, trying fallbacks")
+		}
+	}
+	// 2. Scan tokens directory for any valid token.
+	dir := "/var/lib/globular/tokens"
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), "_token") {
+				continue
+			}
+			if data, err := os.ReadFile(dir + "/" + e.Name()); err == nil {
+				if t := strings.TrimSpace(string(data)); t != "" {
+					if _, err := security.ValidateToken(t); err == nil {
+						return t
+					}
+				}
+			}
+		}
+	}
+	// 3. Cached MAC-based token (may refresh if recently expired).
+	if mac, err := config.GetMacAddress(); err == nil && mac != "" {
+		if token, err := security.GetLocalToken(mac); err == nil && token != "" {
+			log.Printf("cluster-controller: using cached MAC token for auth")
+			return token
+		}
+	}
+	// 4. Generate a fresh service-account token. This works on any node
+	//    that has access to the signing keystore (all cluster members).
+	//    TTL=300s: the interceptor calls loadControllerToken() per-RPC,
+	//    so we regenerate often. Longer TTL reduces generation overhead.
+	mac, _ := config.GetMacAddress()
+	if token, err := security.GenerateToken(300, mac, "sa", "sa", ""); err == nil {
+		return token
+	} else {
+		log.Printf("cluster-controller: WARN token generation failed: %v", err)
+	}
+	return ""
+}
+
+// controllerTokenInterceptor returns a gRPC unary interceptor that attaches
+// a fresh token and cluster_id as metadata on every outgoing call.
+//
+// IMPORTANT: The token is resolved lazily on every call via loadControllerToken(),
+// NOT captured once at startup. Static token capture was the root cause of
+// recurring Unauthenticated errors — GenerateToken produces 60-second TTL tokens
+// that expire long before the controller process restarts.
+func controllerTokenInterceptor(clusterID string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{},
+		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		token := loadControllerToken()
+		if token == "" {
+			// Proceed without token — let the server reject if it requires auth.
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if !ok {
+			md = metadata.New(nil)
+		} else {
+			md = md.Copy()
+		}
+		md.Set("token", token)
+		if clusterID != "" {
+			md.Set("cluster_id", clusterID)
+		}
+		return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
+	}
 }
 
 func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState, kv kvClient) *server {
@@ -262,8 +395,10 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		agentServerName:  serverName,
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
-		workflowSem:      make(chan struct{}, 3), // max 3 concurrent release workflows
-		actorServer:      NewControllerActorServer(),
+		workflowSem:       make(chan struct{}, 3), // max 3 concurrent release workflows
+		inflightWorkflows: make(map[string]struct{}),
+		resignCh:          make(chan struct{}, 1),
+		actorServer:       NewControllerActorServer(),
 	}
 	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
 		srv.enableServiceRemoval = true
@@ -286,7 +421,8 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 
 	// Connect to WorkflowService for reconciliation workflow tracing.
-	// Route through the Envoy gateway so it works on any node.
+	// Prefer the LOCAL workflow service (same as workflowClient) so the
+	// call carries mTLS + token auth directly, without Envoy stripping it.
 	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
 	if clusterID == "" {
 		clusterID = "globular.internal"
@@ -295,8 +431,13 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		if env := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR")); env != "" {
 			return env
 		}
+		// Resolve local workflow service from etcd — runs on every node.
+		if addr := config.ResolveLocalServiceAddr("workflow.WorkflowService"); addr != "" {
+			return addr
+		}
+		// Fallback: mesh address (gateway) if local not yet registered.
 		if addr, err := config.GetMeshAddress(); err == nil {
-			return addr // routes through Envoy service mesh (:443)
+			return addr
 		}
 		return ""
 	}
@@ -314,9 +455,13 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	if wfDirectAddr != "" {
 		dt := config.ResolveDialTarget(wfDirectAddr)
 		log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfDirectAddr)
-		if wfConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
-			buildControllerClientTLSCreds(dt.ServerName),
-		)); err == nil {
+		dialOpts := []grpc.DialOption{
+			grpc.WithTransportCredentials(buildControllerClientTLSCreds(dt.ServerName)),
+		}
+		// Token is resolved lazily on every call — never captured at startup.
+		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)))
+		log.Printf("cluster-controller: workflow client using mTLS+lazy-token auth")
+		if wfConn, err := grpc.NewClient(dt.Address, dialOpts...); err == nil {
 			srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
 			log.Printf("cluster-controller: workflow client connected")
 		} else {

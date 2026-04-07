@@ -48,7 +48,10 @@ func (srv *server) executeWorkflowCentralized(
 	// Callback endpoint: the workflow service calls back to THIS controller
 	// for actor dispatch. Use our real address from the service registry,
 	// not localhost — the workflow service may be on another node.
-	controllerEndpoint := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService")
+	controllerEndpoint := srv.resolveControllerEndpoint()
+	if controllerEndpoint == "" {
+		return nil, fmt.Errorf("cannot resolve controller callback endpoint — service registry may not have this node's controller address")
+	}
 
 	log.Printf("workflow %s: dispatching to workflow service (callback=%s, correlation=%s)",
 		workflowName, controllerEndpoint, correlationID)
@@ -104,7 +107,10 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
 
-	controllerEndpoint := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService")
+	controllerEndpoint := srv.resolveControllerEndpoint()
+	if controllerEndpoint == "" {
+		return nil, fmt.Errorf("cannot resolve controller callback endpoint")
+	}
 
 	srv.actorServer.RegisterRouter(correlationID, router)
 	defer srv.actorServer.UnregisterRouter(correlationID)
@@ -127,4 +133,30 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 	}
 
 	return resp, nil
+}
+
+// resolveControllerEndpoint returns the callback address for this controller
+// instance. It tries multiple sources to be resilient to service registry
+// timing issues during leadership changes.
+//
+// Resolution order:
+//  1. etcd service registry (canonical, written by setLeader)
+//  2. server config Port + local routable IP (always available)
+func (srv *server) resolveControllerEndpoint() string {
+	// 1. Service registry — canonical source.
+	if addr := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService"); addr != "" {
+		return addr
+	}
+	// 2. Fallback: build from known port + local IP.
+	localIP := config.GetRoutableIPv4()
+	if localIP != "" {
+		port := 12000
+		if srv.cfg != nil && srv.cfg.Port > 0 {
+			port = srv.cfg.Port
+		}
+		addr := fmt.Sprintf("%s:%d", localIP, port)
+		log.Printf("workflow: controller endpoint fallback to %s (registry empty)", addr)
+		return addr
+	}
+	return ""
 }

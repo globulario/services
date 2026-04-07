@@ -216,6 +216,20 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 
 	releaseID := fmt.Sprintf("%s/%s", h.ResourceType, h.Name)
 
+	// Guard: skip dispatch if a workflow goroutine is already running for
+	// this release. Without this, the work queue re-enters reconcileResolved
+	// (the release stays RESOLVED during execution) and a second goroutine
+	// overwrites + deletes the actor router, causing "no router registered"
+	// errors on the first workflow's callbacks.
+	srv.inflightMu.Lock()
+	if _, running := srv.inflightWorkflows[releaseID]; running {
+		srv.inflightMu.Unlock()
+		log.Printf("%s %s: workflow already in-flight, skipping dispatch", h.ResourceType, h.Name)
+		return
+	}
+	srv.inflightWorkflows[releaseID] = struct{}{}
+	srv.inflightMu.Unlock()
+
 	// Execute the release workflow asynchronously so the work queue worker
 	// is not blocked. This prevents gRPC server deadlocks when multiple
 	// workflows try to acquire srv.lock concurrently with gRPC handlers.
@@ -223,6 +237,12 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
 	go func() {
+		defer func() {
+			srv.inflightMu.Lock()
+			delete(srv.inflightWorkflows, releaseID)
+			srv.inflightMu.Unlock()
+		}()
+
 		// Acquire semaphore to limit concurrent workflows and prevent
 		// systemd overload on target nodes from too many parallel restarts.
 		srv.workflowSem <- struct{}{}

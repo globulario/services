@@ -411,7 +411,17 @@ func GetLocalToken(mac string) (string, error) {
 	// 2) Try file
 	token, err := readTokenFromFile(mac)
 	if err != nil || token == "" {
-		return "", fmt.Errorf("get local token: no token found for mac %s", mac)
+		// No token on disk — generate a service-account token so internal
+		// service-to-service calls don't fail with "no token found".
+		logger.Info("get local token: none on disk, generating service-account token", "mac", mac)
+		if gErr := SetLocalToken(mac, "sa", "sa", "", 0); gErr != nil {
+			return "", fmt.Errorf("get local token: auto-generate failed: %w", gErr)
+		}
+		// Re-read the freshly written token.
+		token, err = readTokenFromFile(mac)
+		if err != nil || token == "" {
+			return "", fmt.Errorf("get local token: generated but unreadable for mac %s", mac)
+		}
 	}
 
 	// 3) Validate or refresh

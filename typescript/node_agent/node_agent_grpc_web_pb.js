@@ -1111,5 +1111,66 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.runWorkflow =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.ApplyPackageReleaseRequest,
+ *   !proto.node_agent.ApplyPackageReleaseResponse>}
+ */
+const methodDescriptor_NodeAgentService_ApplyPackageRelease = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/ApplyPackageRelease',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.ApplyPackageReleaseRequest,
+  proto.node_agent.ApplyPackageReleaseResponse,
+  /**
+   * @param {!proto.node_agent.ApplyPackageReleaseRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.ApplyPackageReleaseResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.ApplyPackageReleaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.ApplyPackageReleaseResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.ApplyPackageReleaseResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.applyPackageRelease =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ApplyPackageRelease',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ApplyPackageRelease,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.ApplyPackageReleaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.ApplyPackageReleaseResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.applyPackageRelease =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/ApplyPackageRelease',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ApplyPackageRelease);
+};
+
+
 module.exports = proto.node_agent;
 

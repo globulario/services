@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/globulario/services/golang/workflow/engine"
@@ -63,6 +64,14 @@ func (s *ControllerActorServer) resolveRouter(runID string) *engine.Router {
 	defer s.mu.RUnlock()
 	if r, ok := s.routers[runID]; ok {
 		return r
+	}
+	// Foreach sub-steps use suffixed run IDs like "parent-id[0]", "parent-id[1]".
+	// Fall back to the parent ID by stripping the bracket suffix.
+	if idx := strings.LastIndex(runID, "["); idx > 0 {
+		parent := runID[:idx]
+		if r, ok := s.routers[parent]; ok {
+			return r
+		}
 	}
 	return nil
 }

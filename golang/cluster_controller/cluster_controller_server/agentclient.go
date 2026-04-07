@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type agentClient struct {
@@ -46,6 +47,20 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 			return nil, err
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(pool, serverName)))
+	}
+	// Inject node token so calls are authenticated on the remote node-agent.
+	if token := loadControllerToken(); token != "" {
+		opts = append(opts, grpc.WithUnaryInterceptor(func(ctx context.Context, method string, req, reply interface{},
+			cc *grpc.ClientConn, invoker grpc.UnaryInvoker, callOpts ...grpc.CallOption) error {
+			md, ok := metadata.FromOutgoingContext(ctx)
+			if !ok {
+				md = metadata.New(nil)
+			} else {
+				md = md.Copy()
+			}
+			md.Set("token", token)
+			return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, callOpts...)
+		}))
 	}
 	conn, err := grpc.DialContext(dialCtx, target.Address, opts...)
 	if err != nil {

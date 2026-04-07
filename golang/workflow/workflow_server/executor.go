@@ -111,6 +111,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 
 	eng := &engine.Engine{
 		Router: router,
+		RunID:  runID, // match the executor's run ID so actor callbacks can find the registered Router
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
 			recorder.onStepDone(run, step)
 			// MC-1: Write receipt if step has a receipt_key and succeeded.
@@ -141,6 +142,14 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	if compName == "" {
 		compName, _ = inputs["component_name"].(string)
 	}
+	// Fallback: derive service name from the release_name (e.g. "core@globular.io/dns" → "dns")
+	if compName == "" {
+		if rn, _ := inputs["release_name"].(string); rn != "" {
+			if idx := strings.LastIndex(rn, "/"); idx >= 0 {
+				compName = rn[idx+1:]
+			}
+		}
+	}
 	compVersion, _ := inputs["resolved_version"].(string)
 	if compVersion == "" {
 		compVersion, _ = inputs["version"].(string)
@@ -154,9 +163,48 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			compKind = workflowpb.ComponentKind_COMPONENT_KIND_INFRASTRUCTURE
 		}
 	}
-	triggerReason := workflowpb.TriggerReason_TRIGGER_REASON_MANUAL
-	if _, hasDrift := inputs["desired_hash"]; hasDrift {
+
+	// Trigger reason: infer from inputs.
+	triggerReason := workflowpb.TriggerReason_TRIGGER_REASON_UNKNOWN
+	switch {
+	case inputs["desired_hash"] != nil:
 		triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT
+	case inputs["scope"] == "cluster":
+		// cluster.reconcile workflows are drift-repair driven
+		triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_REPAIR
+	case inputs["trigger_reason"] != nil:
+		// Explicit trigger from caller
+		if tr, ok := inputs["trigger_reason"].(string); ok {
+			switch strings.ToUpper(tr) {
+			case "BOOTSTRAP":
+				triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_BOOTSTRAP
+			case "REPAIR":
+				triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_REPAIR
+			case "UPGRADE":
+				triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_UPGRADE
+			case "RETRY":
+				triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_RETRY
+			case "MANUAL":
+				triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_MANUAL
+			}
+		}
+	}
+
+	// Extract node context from inputs when available.
+	nodeID, _ := inputs["node_id"].(string)
+	nodeHostname, _ := inputs["node_hostname"].(string)
+	// For release workflows, extract from candidate_nodes.
+	if nodeID == "" {
+		if nodes, ok := inputs["candidate_nodes"].([]any); ok {
+			if len(nodes) == 1 {
+				if n, ok := nodes[0].(string); ok {
+					nodeID = n
+				}
+			} else if len(nodes) > 1 {
+				// Multi-node: store count as hostname hint for the UI.
+				nodeHostname = fmt.Sprintf("%d nodes", len(nodes))
+			}
+		}
 	}
 
 	startRun := &workflowpb.WorkflowRun{
@@ -164,6 +212,8 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		CorrelationId: req.CorrelationId,
 		Context: &workflowpb.WorkflowContext{
 			ClusterId:        req.ClusterId,
+			NodeId:           nodeID,
+			NodeHostname:     nodeHostname,
 			ComponentName:    compName,
 			ComponentVersion: compVersion,
 			ComponentKind:    compKind,

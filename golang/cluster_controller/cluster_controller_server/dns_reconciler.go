@@ -405,11 +405,27 @@ func (r *DNSReconciler) dialDNSDirect(ctx context.Context, endpoint string) (*gr
 		ServerName: dt.ServerName,
 		RootCAs:    pool,
 	}
+	// Load client certificate for mTLS so the server can identify us.
+	certFile := "/var/lib/globular/pki/issued/services/service.crt"
+	keyFile := "/var/lib/globular/pki/issued/services/service.key"
+	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	}
 
-	return grpc.DialContext(ctx, dt.Address,
+	dialOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
 		grpc.WithBlock(),
-	)
+	}
+	// Inject token for authentication (required for mutating RPCs).
+	clusterID := ""
+	r.srv.lock("dns-reconciler:cluster-id")
+	if r.srv.state != nil {
+		clusterID = r.srv.state.ClusterId
+	}
+	r.srv.unlock()
+	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)))
+
+	return grpc.DialContext(ctx, dt.Address, dialOpts...)
 }
 
 // applyToDNSInstance applies state to a single DNS instance using direct gRPC (PR7).

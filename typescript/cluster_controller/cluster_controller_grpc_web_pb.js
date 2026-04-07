@@ -1782,5 +1782,127 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.preview
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ResignLeadershipRequest,
+ *   !proto.cluster_controller.ResignLeadershipResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ResignLeadership = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ResignLeadership',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ResignLeadershipRequest,
+  proto.cluster_controller.ResignLeadershipResponse,
+  /**
+   * @param {!proto.cluster_controller.ResignLeadershipRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ResignLeadershipResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ResignLeadershipRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ResignLeadershipResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ResignLeadershipResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.resignLeadership =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResignLeadership',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResignLeadership,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ResignLeadershipRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ResignLeadershipResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.resignLeadership =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResignLeadership',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResignLeadership);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.DeployControlPlanePackageRequest,
+ *   !proto.cluster_controller.DeployControlPlanePackageResponse>}
+ */
+const methodDescriptor_ClusterControllerService_DeployControlPlanePackage = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/DeployControlPlanePackage',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.DeployControlPlanePackageRequest,
+  proto.cluster_controller.DeployControlPlanePackageResponse,
+  /**
+   * @param {!proto.cluster_controller.DeployControlPlanePackageRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.DeployControlPlanePackageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.DeployControlPlanePackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.DeployControlPlanePackageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.DeployControlPlanePackageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.deployControlPlanePackage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/DeployControlPlanePackage',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_DeployControlPlanePackage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.DeployControlPlanePackageRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.DeployControlPlanePackageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.deployControlPlanePackage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/DeployControlPlanePackage',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_DeployControlPlanePackage);
+};
+
+
 module.exports = proto.cluster_controller;
 

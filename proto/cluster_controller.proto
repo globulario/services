@@ -645,6 +645,30 @@ service ClusterControllerService {
 
   // PlanServiceUpgrades, ApplyServiceUpgrades, ReportPlanRejection removed —
   // workflow-native release pipeline replaces plan-based upgrades.
+
+  // ResignLeadership causes the current leader to resign the etcd election lease,
+  // allowing a different controller instance to become leader. Used by leader-aware
+  // deploy workflows to safely update control-plane binaries.
+  rpc ResignLeadership(ResignLeadershipRequest) returns (ResignLeadershipResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.leadership.resign"
+      permission: "admin"
+      resource_template: "/cluster_controller/leadership"
+      default_role_hint: "admin"
+    };
+  };
+
+  // DeployControlPlanePackage triggers a leader-aware rolling update for a
+  // control-plane service. Updates followers first, transfers leadership,
+  // then updates the old leader. Returns the workflow run ID on acceptance.
+  rpc DeployControlPlanePackage(DeployControlPlanePackageRequest) returns (DeployControlPlanePackageResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.deploy.control_plane"
+      permission: "admin"
+      resource_template: "/cluster_controller/deploy"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 message DesiredNetwork {
@@ -835,4 +859,41 @@ message InstallPolicy {
   repeated string blocked_namespaces = 4;   // blacklist (checked after allowed)
   bool block_deprecated = 5;           // skip DEPRECATED artifacts in resolution
   bool block_yanked = 6;               // true by default in resolution logic
+}
+
+// ── Leadership management ──
+
+message ResignLeadershipRequest {
+  string reason = 1;             // human-readable reason for resignation
+}
+
+message ResignLeadershipResponse {
+  bool ok = 1;
+  string message = 2;
+  string former_leader_id = 3;   // ID of the leader that resigned
+}
+
+// ── Control-plane deployment ──
+
+message DeployControlPlanePackageRequest {
+  string cluster_id = 1;         // e.g. "globular.internal"
+  string package_name = 2;       // e.g. "cluster-controller"
+  string package_kind = 3;       // "SERVICE" or "INFRASTRUCTURE"
+  string version = 4;            // e.g. "0.0.2"
+  int64 build_number = 5;        // build iteration within version
+  string publisher = 6;          // e.g. "core@globular.io"
+  string repository_addr = 7;    // auto-discovered if empty
+  bool force = 8;                // skip idempotency check
+  string resign_reason = 9;      // reason for leadership handoff
+}
+
+message DeployControlPlanePackageResponse {
+  bool accepted = 1;             // true if workflow was dispatched
+  string run_id = 2;             // workflow run ID (for tracking)
+  string status = 3;             // "ACCEPTED", "REJECTED", "FAILED"
+  string error = 4;              // non-empty on rejection/failure
+  string message = 5;            // human-readable summary
+  string workflow_name = 6;      // "release.apply.controller"
+  string accepted_by_node_id = 7;  // node that accepted the deploy
+  string current_leader_node_id = 8; // leader at time of acceptance
 }

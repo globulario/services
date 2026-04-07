@@ -151,58 +151,82 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 	return key, state, m, nil
 }
 
-// readManifestWithFallback tries the 5-field key. For build_number=0 (legacy),
-// also tries the legacy 4-field key to support pre-build-number artifacts.
-// This legacy fallback exists only for backward compatibility with artifacts
-// created before build_number was introduced; new artifacts always use the 5-field key.
+// readManifestWithFallback tries to find the best manifest for the given ref.
+// When buildNumber=0 (unspecified), it resolves to the latest published build
+// first, then falls back to the literal %0 key and legacy 4-field key.
+// Non-zero build numbers must match exactly — no silent collapse.
 func (srv *server) readManifestWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (*repopb.ArtifactManifest, error) {
-	key := artifactKeyWithBuild(ref, buildNumber)
-	m, err := srv.readManifestByKey(ctx, key)
-	if err == nil {
-		return m, nil
-	}
-	// Legacy fallback ONLY for build_number=0 (pre-build-number artifacts).
-	// Non-zero build numbers must match exactly — no silent collapse.
 	if buildNumber == 0 {
+		// Resolve to the latest (highest) PUBLISHED build number first.
+		if latest := srv.resolveLatestBuildNumber(ctx, ref); latest > 0 {
+			latestKey := artifactKeyWithBuild(ref, latest)
+			if lm, lerr := srv.readManifestByKey(ctx, latestKey); lerr == nil {
+				return lm, nil
+			}
+		}
+		// Fall back to literal %0 key (artifact actually uploaded as build 0).
+		key := artifactKeyWithBuild(ref, 0)
+		if m, err := srv.readManifestByKey(ctx, key); err == nil {
+			return m, nil
+		}
+		// Legacy fallback for pre-build-number artifacts (4-field key).
 		legacyKey := artifactKeyLegacy(ref)
 		if lm, lerr := srv.readManifestByKey(ctx, legacyKey); lerr == nil {
 			return lm, nil
 		}
+		return nil, fmt.Errorf("artifact %s not found (tried latest, build-0, legacy)", artifactKeyWithBuild(ref, 0))
 	}
-	return nil, err
+	key := artifactKeyWithBuild(ref, buildNumber)
+	m, err := srv.readManifestByKey(ctx, key)
+	return m, err
 }
 
-// readBinaryWithFallback tries the new 5-field key, then legacy 4-field key.
+// readBinaryWithFallback resolves the binary for the given ref.
+// When buildNumber=0, resolves latest published build first, then literal %0, then legacy key.
 func (srv *server) readBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) ([]byte, error) {
-	key := artifactKeyWithBuild(ref, buildNumber)
-	data, err := srv.Storage().ReadFile(ctx, binaryStorageKey(key))
-	if err == nil {
-		return data, nil
-	}
 	if buildNumber == 0 {
+		if latest := srv.resolveLatestBuildNumber(ctx, ref); latest > 0 {
+			latestKey := artifactKeyWithBuild(ref, latest)
+			if ld, lerr := srv.Storage().ReadFile(ctx, binaryStorageKey(latestKey)); lerr == nil {
+				return ld, nil
+			}
+		}
+		key := artifactKeyWithBuild(ref, 0)
+		if data, err := srv.Storage().ReadFile(ctx, binaryStorageKey(key)); err == nil {
+			return data, nil
+		}
 		legacyKey := artifactKeyLegacy(ref)
 		if ld, lerr := srv.Storage().ReadFile(ctx, binaryStorageKey(legacyKey)); lerr == nil {
 			return ld, nil
 		}
+		return nil, fmt.Errorf("binary not found for %s", artifactKeyWithBuild(ref, 0))
 	}
-	return nil, err
+	key := artifactKeyWithBuild(ref, buildNumber)
+	return srv.Storage().ReadFile(ctx, binaryStorageKey(key))
 }
 
-// openBinaryWithFallback returns a streaming reader for the artifact binary,
-// trying the current key format first, then the legacy format.
+// openBinaryWithFallback returns a streaming reader for the artifact binary.
+// When buildNumber=0, resolves latest published build first, then literal %0, then legacy key.
 func (srv *server) openBinaryWithFallback(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) (io.ReadCloser, error) {
-	key := artifactKeyWithBuild(ref, buildNumber)
-	rc, err := srv.Storage().Open(ctx, binaryStorageKey(key))
-	if err == nil {
-		return rc, nil
-	}
 	if buildNumber == 0 {
+		if latest := srv.resolveLatestBuildNumber(ctx, ref); latest > 0 {
+			latestKey := artifactKeyWithBuild(ref, latest)
+			if lrc, lerr := srv.Storage().Open(ctx, binaryStorageKey(latestKey)); lerr == nil {
+				return lrc, nil
+			}
+		}
+		key := artifactKeyWithBuild(ref, 0)
+		if rc, err := srv.Storage().Open(ctx, binaryStorageKey(key)); err == nil {
+			return rc, nil
+		}
 		legacyKey := artifactKeyLegacy(ref)
 		if lrc, lerr := srv.Storage().Open(ctx, binaryStorageKey(legacyKey)); lerr == nil {
 			return lrc, nil
 		}
+		return nil, fmt.Errorf("binary not found for %s", artifactKeyWithBuild(ref, 0))
 	}
-	return nil, err
+	key := artifactKeyWithBuild(ref, buildNumber)
+	return srv.Storage().Open(ctx, binaryStorageKey(key))
 }
 
 // ── sorting helpers ──────────────────────────────────────────────────────
@@ -225,6 +249,48 @@ func sortManifestsByVersionDesc(ms []*repopb.ArtifactManifest) {
 		// Same semver → higher build_number first.
 		return ms[i].GetBuildNumber() > ms[j].GetBuildNumber()
 	})
+}
+
+// ── build resolution helpers ─────────────────────────────────────────────
+
+// resolveLatestBuildNumber scans the artifacts directory for all builds of the
+// given artifact (publisher, name, version, platform) and returns the highest
+// build_number found. Returns 0 if no builds are found.
+func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.ArtifactRef) int64 {
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		return 0
+	}
+
+	// Build the prefix that all builds of this artifact share:
+	// {publisherID}%{name}%{version}%{platform}%
+	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+	suffix := ".manifest.json"
+
+	var best int64
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		// Extract build number from between prefix and suffix.
+		numStr := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+		bn, err := strconv.ParseInt(numStr, 10, 64)
+		if err != nil || bn <= 0 {
+			continue
+		}
+		// Only consider PUBLISHED artifacts for latest-build resolution.
+		key := strings.TrimSuffix(name, suffix)
+		if _, state, _, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
+			if state != repopb.PublishState_PUBLISHED {
+				continue
+			}
+		}
+		if bn > best {
+			best = bn
+		}
+	}
+	return best
 }
 
 // ── package.json extraction ───────────────────────────────────────────────
@@ -478,17 +544,26 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// If an artifact with this exact identity already exists:
 	//   - same checksum = idempotent (skip)
 	//   - different checksum = overwrite (rebuild at same version)
-	if existing, err := srv.readManifestByKey(ctx, key); err == nil {
-		if existing.GetChecksum() == newChecksum {
-			// Idempotent re-upload — return success without overwriting.
-			slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
+	if _, existingState, existingManifest, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
+		if existingManifest.GetChecksum() == newChecksum {
+			// Idempotent re-upload — but if publish pipeline didn't complete
+			// (artifact stuck in VERIFIED), retry completePublish now.
+			if existingState != repopb.PublishState_PUBLISHED {
+				slog.Info("artifact re-upload: retrying publish pipeline (stuck in "+existingState.String()+")", "key", key)
+				prov := buildProvenanceRecord(ctx, existingManifest)
+				if err := srv.completePublish(ctx, existingManifest, key, prov); err != nil {
+					slog.Warn("retry publish pipeline failed", "key", key, "err", err)
+				}
+			} else {
+				slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
+			}
 			return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
 		}
 		// Different content at same version — overwrite. This happens when
 		// the binary is rebuilt without a version bump (bug fixes, Day-0 rebuilds).
 		slog.Warn("artifact overwrite (same version, different content)",
 			"key", key,
-			"old_checksum", existing.GetChecksum(),
+			"old_checksum", existingManifest.GetChecksum(),
 			"new_checksum", newChecksum)
 	}
 
@@ -1075,6 +1150,14 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 	// unless the caller is the namespace owner or admin.
 	canonVer := ref.GetVersion()
 	buildNumber := req.GetBuildNumber()
+
+	// When build_number=0 (unspecified), resolve to the latest published build.
+	if buildNumber == 0 {
+		if latest := srv.resolveLatestBuildNumber(stream.Context(), ref); latest > 0 {
+			buildNumber = latest
+		}
+	}
+
 	key := artifactKeyWithBuild(ref, buildNumber)
 	if _, state, _, readErr := srv.readManifestAndStateByKey(stream.Context(), key); readErr == nil {
 		if repopb.IsDownloadBlocked(state) {

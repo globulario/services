@@ -1,0 +1,219 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: release.apply.controller
+  displayName: Leader-aware controller rollout
+  description: >-
+    Rolling update for control-plane services (cluster-controller).
+    Updates non-leader replicas first, verifies health, transfers
+    leadership to an upgraded follower, then updates the old leader.
+    Ensures at least one healthy upgraded controller exists before
+    any leadership change. Fail-closed on incomplete discovery or
+    inconclusive health checks.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - package_name
+      - package_kind
+      - version
+    properties:
+      cluster_id: { type: string }
+      package_name: { type: string }
+      package_kind: { type: string, default: SERVICE }
+      version: { type: string }
+      build_number: { type: integer, default: 0 }
+      publisher: { type: string, default: "core@globular.io" }
+      repository_addr: { type: string, default: "" }
+      force: { type: boolean, default: false }
+      resign_reason: { type: string, default: "leader-aware rolling update" }
+  defaults:
+    package_kind: SERVICE
+    build_number: 0
+    publisher: "core@globular.io"
+    force: false
+
+  strategy:
+    mode: single
+
+  steps:
+    # ── Step 1: Discover controller replicas and identify leader ──
+    - id: discover_replicas
+      title: Discover controller replicas and current leader
+      actor: cluster-controller
+      action: controller.deploy.discover_replicas
+      with:
+        cluster_id: $.cluster_id
+      export: discovery
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 2: Safety gate — fail if discovery is incomplete ──
+    - id: validate_discovery
+      title: Validate discovery completeness
+      dependsOn: [discover_replicas]
+      actor: cluster-controller
+      action: controller.deploy.validate_discovery
+      with:
+        replicas: $.discovery.replicas
+        leader_node_id: $.discovery.leader_node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 3: Apply to non-leader replicas (one at a time) ──
+    - id: apply_followers
+      title: Apply package to non-leader replicas
+      dependsOn: [validate_discovery]
+      foreach: $.discovery.followers
+      itemName: follower
+      strategy:
+        mode: parallel
+        concurrency: 1
+      steps:
+        - id: apply_to_follower
+          actor: node-agent
+          action: node.apply_package_release
+          with:
+            node_id: $.follower.node_id
+            agent_endpoint: $.follower.agent_endpoint
+            package_name: $.package_name
+            package_kind: $.package_kind
+            version: $.version
+            build_number: $.build_number
+            publisher: $.publisher
+            repository_addr: $.repository_addr
+            force: $.force
+          timeout: 5m
+          execution:
+            idempotency: verify_then_continue
+            resume_policy: verify_effect
+            receipt_key: apply_follower
+
+        - id: verify_follower_health
+          dependsOn: [apply_to_follower]
+          actor: cluster-controller
+          action: controller.deploy.verify_replica_health
+          with:
+            node_id: $.follower.node_id
+            package_name: $.package_name
+            version: $.version
+          retry:
+            maxAttempts: 30
+            backoff: 5s
+          timeout: 3m
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
+
+      onFailure:
+        actor: cluster-controller
+        action: controller.deploy.mark_follower_failed
+        with:
+          node_id: $.follower.node_id
+          package_name: $.package_name
+
+    # ── Step 4: Safety gate — at least one upgraded follower must be healthy ──
+    - id: verify_upgraded_follower_exists
+      title: Verify at least one healthy upgraded follower
+      dependsOn: [apply_followers]
+      actor: cluster-controller
+      action: controller.deploy.verify_upgraded_follower_exists
+      with:
+        followers: $.discovery.followers
+        version: $.version
+        build_number: $.build_number
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 5: Resign leadership ──
+    - id: resign_leadership
+      title: Resign leadership to upgraded follower
+      dependsOn: [verify_upgraded_follower_exists]
+      actor: cluster-controller
+      action: controller.deploy.resign_leadership
+      with:
+        reason: $.resign_reason
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 6: Confirm leadership moved ──
+    - id: confirm_leadership_moved
+      title: Confirm new leader elected from upgraded followers
+      dependsOn: [resign_leadership]
+      actor: cluster-controller
+      action: controller.deploy.confirm_leadership_moved
+      with:
+        old_leader_node_id: $.discovery.leader_node_id
+      retry:
+        maxAttempts: 30
+        backoff: 2s
+      timeout: 2m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 7: Apply to old leader ──
+    - id: apply_old_leader
+      title: Apply package to old leader node
+      dependsOn: [confirm_leadership_moved]
+      actor: node-agent
+      action: node.apply_package_release
+      with:
+        node_id: $.discovery.leader_node_id
+        agent_endpoint: $.discovery.leader_endpoint
+        package_name: $.package_name
+        package_kind: $.package_kind
+        version: $.version
+        build_number: $.build_number
+        publisher: $.publisher
+        repository_addr: $.repository_addr
+        force: $.force
+      timeout: 5m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: apply_old_leader
+
+    # ── Step 8: Verify old leader health ──
+    - id: verify_old_leader_health
+      title: Verify old leader node healthy after update
+      dependsOn: [apply_old_leader]
+      actor: cluster-controller
+      action: controller.deploy.verify_replica_health
+      with:
+        node_id: $.discovery.leader_node_id
+        package_name: $.package_name
+        version: $.version
+      retry:
+        maxAttempts: 30
+        backoff: 5s
+      timeout: 3m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 9: Final cluster health check ──
+    - id: final_health_check
+      title: Verify all controller replicas healthy
+      dependsOn: [verify_old_leader_health]
+      actor: cluster-controller
+      action: controller.deploy.final_health_check
+      with:
+        cluster_id: $.cluster_id
+        package_name: $.package_name
+        version: $.version
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.deploy.mark_rollout_failed
+    with:
+      package_name: $.package_name
+      version: $.version

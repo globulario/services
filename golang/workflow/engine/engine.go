@@ -180,6 +180,7 @@ type Run struct {
 // Engine executes compiled workflows to completion.
 type Engine struct {
 	Router       *Router
+	RunID        string                           // if set, overrides the auto-generated run ID (allows caller to match callbacks)
 	EvalCond     ConditionFunc
 	OnStepDone   func(run *Run, step *StepState) // optional callback for observability
 	PreCompleted map[string]StepStatus            // steps already completed (for resume after crash)
@@ -215,8 +216,12 @@ func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkf
 		merged[k] = v
 	}
 
+	runID := e.RunID
+	if runID == "" {
+		runID = fmt.Sprintf("run-%d", time.Now().UnixMilli())
+	}
 	run := &Run{
-		ID:         fmt.Sprintf("run-%d", time.Now().UnixMilli()),
+		ID:         runID,
 		Definition: cw.Name,
 		Status:     RunRunning,
 		Inputs:     merged,

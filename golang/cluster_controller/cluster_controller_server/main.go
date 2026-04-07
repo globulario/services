@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/recovery"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/domain"
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/policy"
@@ -532,9 +533,14 @@ func printVersion() {
 // Without these, the install step fails with "describe returned empty Id"
 // and the release workflow dies at apply_per_node.
 func printDescribe() {
+	// Deterministic ID: UUID5 from "Name:Version:MAC" — same scheme as all
+	// Globular services. Each node gets a unique Id (different MAC).
+	mac, _ := config.GetMacAddress()
+	id := Utility.GenerateUUID("cluster_controller.ClusterControllerService:" + Version + ":" + mac)
+
 	metadata := map[string]interface{}{
 		// ── Standard fields (required by node-agent install pipeline) ──
-		"Id":      "cluster-controller",
+		"Id":      id,
 		"Port":    12000,
 		"Address": "localhost:12000",
 		// ── Extended fields (informational) ──
