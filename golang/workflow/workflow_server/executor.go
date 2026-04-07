@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,13 +135,40 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 
 	// ── 6. Record run start ──────────────────────────────────────────────
 	now := timestamppb.Now()
+	// Extract context fields from workflow inputs so runs are searchable
+	// by component, node, and trigger reason in the admin UI.
+	compName, _ := inputs["package_name"].(string)
+	if compName == "" {
+		compName, _ = inputs["component_name"].(string)
+	}
+	compVersion, _ := inputs["resolved_version"].(string)
+	if compVersion == "" {
+		compVersion, _ = inputs["version"].(string)
+	}
+	compKind := workflowpb.ComponentKind_COMPONENT_KIND_UNKNOWN
+	if k, _ := inputs["package_kind"].(string); k != "" {
+		switch strings.ToUpper(k) {
+		case "SERVICE":
+			compKind = workflowpb.ComponentKind_COMPONENT_KIND_SERVICE
+		case "INFRASTRUCTURE":
+			compKind = workflowpb.ComponentKind_COMPONENT_KIND_INFRASTRUCTURE
+		}
+	}
+	triggerReason := workflowpb.TriggerReason_TRIGGER_REASON_MANUAL
+	if _, hasDrift := inputs["desired_hash"]; hasDrift {
+		triggerReason = workflowpb.TriggerReason_TRIGGER_REASON_DESIRED_DRIFT
+	}
+
 	startRun := &workflowpb.WorkflowRun{
 		Id:            runID,
 		CorrelationId: req.CorrelationId,
 		Context: &workflowpb.WorkflowContext{
-			ClusterId: req.ClusterId,
+			ClusterId:        req.ClusterId,
+			ComponentName:    compName,
+			ComponentVersion: compVersion,
+			ComponentKind:    compKind,
 		},
-		TriggerReason: workflowpb.TriggerReason_TRIGGER_REASON_MANUAL,
+		TriggerReason: triggerReason,
 		Status:        workflowpb.RunStatus_RUN_STATUS_EXECUTING,
 		CurrentActor:  workflowpb.WorkflowActor_ACTOR_WORKFLOW_SERVICE,
 		StartedAt:     now,
