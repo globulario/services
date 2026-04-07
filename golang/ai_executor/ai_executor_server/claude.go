@@ -124,10 +124,7 @@ func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, e
 	cmd.Env = os.Environ()
 
 	// Set working directory so Claude picks up MCP configuration.
-	workDir := os.Getenv("GLOBULAR_SERVICES_DIR")
-	if workDir == "" {
-		workDir = "/home/dave/Documents/github.com/globulario/services"
-	}
+	workDir := "/var/lib/globular/services"
 	if _, err := os.Stat(workDir); err == nil {
 		cmd.Dir = workDir
 	}

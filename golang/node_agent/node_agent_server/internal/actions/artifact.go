@@ -154,8 +154,10 @@ func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (s
 		return "", fmt.Errorf("artifact missing: %w", err)
 	}
 	if expected == "" {
-		// No pre-computed digest available (resolver couldn't look it up).
-		// Compute the hash for audit logging but allow the install to proceed.
+		if !allowMissingSHA256() {
+			return "", fmt.Errorf("expected_sha256 is required (set AllowMissingSHA256 for dev bypass)")
+		}
+		// Dev bypass: compute hash for audit logging but allow the install to proceed.
 		f, err := os.Open(path)
 		if err != nil {
 			return "", fmt.Errorf("open artifact: %w", err)
@@ -166,7 +168,7 @@ func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (s
 			return "", fmt.Errorf("hash artifact: %w", err)
 		}
 		got := hex.EncodeToString(h.Sum(nil))
-		return fmt.Sprintf("artifact verified (no expected digest, computed sha256=%s)", got), nil
+		return fmt.Sprintf("artifact verified (dev bypass, no expected digest, computed sha256=%s)", got), nil
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -201,13 +203,9 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if artifact == "" {
 		return "", fmt.Errorf("artifact_path is required")
 	}
-	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
-	if stateRoot == "" {
-		stateRoot = "/var/lib/globular"
-	}
-	stagingRoot := filepath.Join(stateRoot, "staging", service)
-	if testRoot := os.Getenv("GLOBULAR_STAGING_ROOT"); testRoot != "" {
-		stagingRoot = filepath.Join(testRoot, service)
+	stagingRoot := filepath.Join(ActionStateDir, "staging", service)
+	if ActionStagingRoot != "" {
+		stagingRoot = filepath.Join(ActionStagingRoot, service)
 	}
 	if err := os.MkdirAll(stagingRoot, 0o755); err != nil {
 		return "", fmt.Errorf("create staging dir: %w", err)
@@ -258,10 +256,10 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		case strings.HasPrefix(name, "scripts/"):
 			dest = filepath.Join(scriptsDir, filepath.Base(name))
 		case strings.HasPrefix(name, "data/"):
-			// Data files are extracted to stateRoot preserving subdirectory structure.
+			// Data files are extracted to ActionStateDir preserving subdirectory structure.
 			// e.g. data/workflows/day0.bootstrap.yaml → /var/lib/globular/workflows/day0.bootstrap.yaml
 			rel := strings.TrimPrefix(name, "data/")
-			dest = filepath.Join(stateRoot, rel)
+			dest = filepath.Join(ActionStateDir, rel)
 		default:
 			// ignore unsupported paths
 			continue
@@ -293,7 +291,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		}
 		// Render template variables in systemd unit and config files.
 		if strings.HasPrefix(name, "systemd/") || strings.HasPrefix(name, "units/") || strings.HasPrefix(name, "config/") {
-			if err := renderTemplateVars(tmp, stateRoot, binDir); err != nil {
+			if err := renderTemplateVars(tmp, ActionStateDir, binDir); err != nil {
 				os.Remove(tmp)
 				return "", fmt.Errorf("render template %s: %w", dest, err)
 			}
@@ -306,7 +304,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 
 	// Ensure the service working directory exists (systemd units reference
 	// WorkingDirectory=/var/lib/globular/<service> which must be created).
-	svcWorkDir := filepath.Join(stateRoot, service)
+	svcWorkDir := filepath.Join(ActionStateDir, service)
 	if err := os.MkdirAll(svcWorkDir, 0o755); err != nil {
 		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
 	}
@@ -332,7 +330,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	// Run post-install script if bundled in the artifact.
 	// Infrastructure packages (scylladb, etc.) use this to generate config
 	// files that depend on runtime state (node IP, seed discovery, etc.).
-	if err := runPostInstallScript(ctx, scriptsDir, stateRoot); err != nil {
+	if err := runPostInstallScript(ctx, scriptsDir, ActionStateDir); err != nil {
 		return "", fmt.Errorf("post-install script: %w", err)
 	}
 
@@ -401,11 +399,7 @@ func (serviceWriteVersionMarkerAction) Apply(ctx context.Context, args *structpb
 // REPOSITORY_ADDRESS configuration on joining nodes.
 func discoverRepositoryViaGateway() string {
 	// Try node-agent state file first.
-	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
-	if stateRoot == "" {
-		stateRoot = "/var/lib/globular"
-	}
-	statePath := filepath.Join(stateRoot, "nodeagent", "state.json")
+	statePath := filepath.Join(ActionStateDir, "nodeagent", "state.json")
 	if data, err := os.ReadFile(statePath); err == nil {
 		var state struct {
 			ControllerEndpoint string `json:"controller_endpoint"`
@@ -420,21 +414,11 @@ func discoverRepositoryViaGateway() string {
 		}
 	}
 
-	// Fall back to NODE_AGENT_CONTROLLER_ENDPOINT env var.
-	if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
-		host, _, err := net.SplitHostPort(ep)
-		if err == nil && host != "" {
-			return net.JoinHostPort(host, "443")
-		}
-	}
 	return ""
 }
 
 func resolveArtifactPath(service, version, platform string) string {
-	root := strings.TrimSpace(os.Getenv("GLOBULAR_ARTIFACT_REPO_ROOT"))
-	if root == "" {
-		root = "/var/lib/globular/repository/artifacts"
-	}
+	root := ActionArtifactRepoRoot
 	filename := fmt.Sprintf("%s.%s.%s.tgz", service, version, platform)
 	return filepath.Join(root, service, version, platform, filename)
 }
@@ -611,6 +595,20 @@ func executableForService(svc string) string {
 	return strings.ReplaceAll(name, "-", "_") + "_server"
 }
 
+// resolveServiceId returns the gRPC FQN for a service using the identity registry.
+func resolveServiceId(svc string) string {
+	name := normalizeServiceName(svc)
+	if name == "" {
+		return ""
+	}
+	if key, ok := identity.NormalizeServiceKey(name); ok {
+		if id, ok := identity.IdentityByKey(key); ok && id.GrpcFull != "" {
+			return id.GrpcFull
+		}
+	}
+	return ""
+}
+
 func normalizeServiceName(svc string) string {
 	s := strings.ToLower(strings.TrimSpace(svc))
 	s = strings.TrimPrefix(s, "globular-")
@@ -685,21 +683,10 @@ func renderTemplateVars(path, stateRoot, binDir string) error {
 }
 
 func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {
-	binDir = os.Getenv("GLOBULAR_INSTALL_BIN_DIR")
-	if binDir == "" {
-		binDir = "/usr/lib/globular/bin"
-	}
-	systemdDir = os.Getenv("GLOBULAR_INSTALL_SYSTEMD_DIR")
-	if systemdDir == "" {
-		systemdDir = "/etc/systemd/system"
-	}
-	configDir = os.Getenv("GLOBULAR_INSTALL_CONFIG_DIR")
-	if configDir == "" {
-		configDir = "/etc/globular"
-	}
-	// Default: enable systemd writes — the node-agent runs as root.
-	// Set GLOBULAR_SKIP_SYSTEMD=1 to disable systemd unit installation.
-	skipSystemd = os.Getenv("GLOBULAR_SKIP_SYSTEMD") == "1"
+	binDir = ActionBinDir
+	systemdDir = ActionSystemdDir
+	configDir = ActionConfigDir
+	skipSystemd = ActionSkipSystemd
 	return
 }
 
@@ -721,10 +708,10 @@ func verifyFileSHA256(path, expected string) error {
 	return nil
 }
 
-// allowMissingSHA256 returns true only when the non-default dev flag is set.
-// Production systems must always provide SHA256 for artifact verification.
+// allowMissingSHA256 returns AllowMissingSHA256. Production default is false;
+// tests may set AllowMissingSHA256 = true for dev bypass scenarios.
 func allowMissingSHA256() bool {
-	return strings.EqualFold(os.Getenv("GLOBULAR_ALLOW_MISSING_SHA256"), "true")
+	return AllowMissingSHA256
 }
 
 func init() {

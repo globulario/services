@@ -825,10 +825,10 @@ const (
 // This allows the command to run as a regular user who has TLS certificates,
 // escalating only for file installs and systemctl.
 func installServiceTgz(tgzPath, service string) (unitName string, err error) {
-	binDir := envOr("GLOBULAR_INSTALL_BIN_DIR", defaultBinDir)
-	systemdDir := envOr("GLOBULAR_INSTALL_SYSTEMD_DIR", defaultSystemdDir)
-	configDir := envOr("GLOBULAR_INSTALL_CONFIG_DIR", defaultConfigDir)
-	stateDir := envOr("GLOBULAR_STATE_DIR", "/var/lib/globular")
+	binDir := defaultBinDir
+	systemdDir := defaultSystemdDir
+	configDir := defaultConfigDir
+	stateDir := "/var/lib/globular"
 	prefix := filepath.Dir(binDir) // e.g. /usr/lib/globular
 
 	// Template variables for systemd unit files shipped as Go templates.
@@ -1088,8 +1088,7 @@ type nodeState struct {
 }
 
 func readNodeState() (*nodeState, error) {
-	stateDir := envOr("GLOBULAR_STATE_DIR", "/var/lib/globular")
-	path := filepath.Join(stateDir, "nodeagent", "state.json")
+	path := filepath.Join("/var/lib/globular", "nodeagent", "state.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
@@ -1185,13 +1184,6 @@ func isNodeAgentInsecureFromSystemd() bool {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
 
 func orDash(s string) string {
 	if s == "" {

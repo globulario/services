@@ -472,9 +472,6 @@ func loadInitOptionsFromEnv() initOptions {
 // It uses the normalized control address host; if that equals the bare domain
 // but a peer entry has Hostname, it returns "hostname.domain". Env override wins.
 func resolveEffectiveHost(normalizedAddr, bareDomain string, localCfg map[string]interface{}) string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_HOST_OVERRIDE")); v != "" {
-		return v
-	}
 	host, _ := splitHostPort(normalizedAddr)
 	// If we already have an FQDN not equal to bare domain, keep it.
 	if strings.Contains(host, ".") && !strings.EqualFold(host, bareDomain) {
@@ -604,15 +601,8 @@ func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal b
 	}
 }
 
-// pickTLSBaseDir chooses a writable base dir.
-// Order: $GLOBULAR_TLS_DIR > ~/.config/globular/tls
-// INV-PKI-1: Removed obsolete config/tls fallback - client certs should be in user's home directory
+// pickTLSBaseDir chooses a writable base dir (~/.config/globular/tls).
 func pickTLSBaseDir() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_DIR")); v != "" {
-		_ = os.MkdirAll(v, 0o755)
-		return v
-	}
-	// Skip obsolete /var/lib/globular/config/tls fallback - go directly to user home
 	home := os.Getenv("XDG_CONFIG_HOME")
 	if home == "" {
 		home = filepath.Join(os.Getenv("HOME"), ".config")
@@ -735,12 +725,7 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 		}
 	}
 
-	// 3) Optionally skip install if tests provide certs
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_TLS_INSTALL")), "0") {
-		return fmt.Errorf("TLS install disabled and no existing client certs at %s", filepath.Join(base, effectiveHost))
-	}
-
-	// 4) Install into base/effectiveHost (not into a bare cluster domain)
+	// 3) Install into base/effectiveHost (not into a bare cluster domain)
 	// Certificate operations are Gateway-aware and do NOT use gRPC service ports
 	path := filepath.Join(base, effectiveHost)
 
@@ -896,11 +881,7 @@ func resolveFromEtcdRuntimeWithWait(ctx context.Context, service, id string, gra
 }
 
 func runtimePrefix() string {
-	pfx := strings.TrimRight(os.Getenv("GLOBULAR_RUNTIME_PREFIX"), "/")
-	if pfx == "" {
-		pfx = "/globular/runtime"
-	}
-	return pfx
+	return "/globular/runtime"
 }
 
 // resolveFromEtcdRuntime reads /<prefix>/<service>/<id>. If missing, it falls
@@ -986,9 +967,6 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 
     // Build base config (server-auth)
     sni := strings.Split(client.GetAddress(), ":")[0]
-    if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_SERVERNAME")); v != "" {
-        sni = v
-    }
     cfg := &tls.Config{
         ServerName: sni,
         RootCAs:    root,
@@ -1425,10 +1403,6 @@ func populateClientTLS(c Client) error {
 		c.SetCertFile(cfile)
 		c.SetCaFile(caf)
 		return nil
-	}
-
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_TLS_INSTALL")), "0") {
-		return fmt.Errorf("TLS install disabled and no existing client certs at %s", filepath.Join(base, host))
 	}
 
 	// Need to install; derive control port from address

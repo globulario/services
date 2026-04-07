@@ -21,68 +21,95 @@ import (
 // EnsureServicePortConfig normalizes (or creates) the runtime config for a service,
 // guaranteeing the port is inside range, not reserved by another service config,
 // and not currently in use. It is safe to call before install/start/restart.
+//
+// Source of truth for the service Id: identity registry (GrpcFull).
+// Source of truth for the port: etcd → disk config → --describe (last resort).
 func EnsureServicePortConfig(ctx context.Context, service, binDir string) error {
 	exe := executableForService(service)
 	if exe == "" {
 		return nil
 	}
-	binPath := filepath.Join(binDir, exe)
 
-	alloc, err := ports.NewFromEnv()
-	if err != nil {
-		return err
+	// ── 1. Resolve service Id from the identity registry ──
+	serviceId := resolveServiceId(service)
+	if serviceId == "" {
+		// Unknown service — fall back to --describe as last resort.
+		binPath := filepath.Join(binDir, exe)
+		desc, err := runDescribe(ctx, binPath)
+		if err != nil {
+			return fmt.Errorf("unknown service %q and describe failed: %w", service, err)
+		}
+		if desc.Id == "" {
+			return fmt.Errorf("unknown service %q and describe returned empty Id", service)
+		}
+		serviceId = desc.Id
 	}
 
-	stateRoot := stateRoot()
-	servicesDir := filepath.Join(stateRoot, "services")
+	root := stateRoot()
+	servicesDir := filepath.Join(root, "services")
+	cfgPath := filepath.Join(servicesDir, serviceId+".json")
 
-	// Seed allocator with existing configs to avoid duplicate allocations for stopped services.
-	seedReservations(alloc, servicesDir)
-
-	desc, err := runDescribe(ctx, binPath)
-	if err != nil {
-		return err
-	}
-	if desc.Id == "" {
-		return fmt.Errorf("describe %s returned empty Id", binPath)
-	}
-
-	cfgPath := filepath.Join(servicesDir, desc.Id+".json")
-
-	// Prefer etcd (source of truth) for the port. Services read their port
-	// from etcd on startup, so using the etcd value prevents drift between
-	// the config file and what the service actually binds to.
-	etcdPort := etcdPortForService(desc.Id)
-
-	cfg, _ := readServiceConfig(cfgPath)
-	hasFile := cfg != nil
-	if cfg == nil {
-		cfg = desc
-	}
-
-	currentPort := firstPort(etcdPort, cfg.Port, portFromAddress(cfg.Address), desc.Port)
-	start, end := alloc.Range()
-
-	// Allocate (may return same port if in-range, free, and owned by same Id).
-	newPort, err := alloc.Reserve(desc.Id, currentPort)
-	if err != nil {
-		return err
-	}
-
-	if currentPort == newPort && currentPort >= start && currentPort <= end && hasFile {
-		// Already valid and exists; nothing to rewrite.
+	// ── 2. Resolve port: etcd is the source of truth ──
+	etcdPort := etcdPortForService(serviceId)
+	if etcdPort > 0 {
+		// etcd has this service's port — write config and done. No allocator needed.
+		cfg, _ := readServiceConfig(cfgPath)
+		if cfg != nil && cfg.Port == etcdPort {
+			return nil // already correct
+		}
+		out := &describePayload{
+			Id:      serviceId,
+			Port:    etcdPort,
+			Address: fmt.Sprintf("%s:%d", routeableHost(), etcdPort),
+		}
+		if err := writeServiceConfig(cfgPath, out); err != nil {
+			return err
+		}
+		fmt.Printf("INFO service %s port %d (from etcd) config=%s\n", service, etcdPort, cfgPath)
 		return nil
 	}
 
-	cfg.Port = newPort
-	cfg.Address = fmt.Sprintf("localhost:%d", newPort)
-	cfg.Id = desc.Id
+	// ── 3. No port in etcd — check disk config ──
+	cfg, _ := readServiceConfig(cfgPath)
+	hasFile := cfg != nil
+	diskPort := 0
+	if cfg != nil {
+		diskPort = firstPort(cfg.Port, portFromAddress(cfg.Address))
+	}
+	if diskPort > 0 && hasFile {
+		// Disk config exists with a port — keep it.
+		return nil
+	}
 
-	if err := writeServiceConfig(cfgPath, cfg); err != nil {
+	// ── 4. No port anywhere — allocate from range ──
+	alloc, err := ports.New(getPortsRange())
+	if err != nil {
+		return err
+	}
+	seedReservations(alloc, servicesDir)
+
+	// Try --describe for a hint.
+	hintPort := 0
+	binPath := filepath.Join(binDir, exe)
+	if desc, err := runDescribe(ctx, binPath); err == nil && desc != nil {
+		hintPort = firstPort(desc.Port, portFromAddress(desc.Address))
+	}
+
+	newPort, err := alloc.Reserve(serviceId, hintPort)
+	if err != nil {
 		return err
 	}
 
-	fmt.Printf("INFO service %s port normalized %d->%d range=%d-%d config=%s\n", service, currentPort, newPort, start, end, cfgPath)
+	out := &describePayload{
+		Id:      serviceId,
+		Port:    newPort,
+		Address: fmt.Sprintf("%s:%d", routeableHost(), newPort),
+	}
+	if err := writeServiceConfig(cfgPath, out); err != nil {
+		return err
+	}
+	start, end := alloc.Range()
+	fmt.Printf("INFO service %s port allocated %d range=%d-%d config=%s\n", service, newPort, start, end, cfgPath)
 	return nil
 }
 
@@ -95,18 +122,11 @@ func EnsureServicePortReady(ctx context.Context, service, unit string) error {
 	}
 
 	// After config normalization, re-open to ensure port not currently in use (non-globular).
-	desc, err := runDescribe(ctx, filepath.Join(binDir, executableForService(service)))
-	if err != nil || desc == nil || desc.Id == "" {
-		if preflightStrict() {
-			if err == nil {
-				return fmt.Errorf("describe missing id for service %s", service)
-			}
-			return err
-		}
-		return nil // best-effort
+	serviceId := resolveServiceId(service)
+	if serviceId == "" {
+		return nil // unknown service, best-effort
 	}
-	state := stateRoot()
-	cfgPath := filepath.Join(state, "services", desc.Id+".json")
+	cfgPath := filepath.Join(stateRoot(), "services", serviceId+".json")
 	cfg, err := readServiceConfig(cfgPath)
 	if err != nil {
 		if preflightStrict() {
@@ -119,12 +139,12 @@ func EnsureServicePortReady(ctx context.Context, service, unit string) error {
 		return nil
 	}
 
-	alloc, err := ports.NewFromEnv()
+	alloc, err := ports.New(getPortsRange())
 	if err != nil {
 		return err
 	}
 	servicesDir := filepath.Join(stateRoot(), "services")
-	seedReservationsExcept(alloc, servicesDir, desc.Id)
+	seedReservationsExcept(alloc, servicesDir, serviceId)
 
 	start, end := alloc.Range()
 	// Prevent allocator from handing back the known-in-use port.
@@ -141,7 +161,7 @@ func EnsureServicePortReady(ctx context.Context, service, unit string) error {
 	}
 
 	cfg.Port = newPort
-	cfg.Address = fmt.Sprintf("localhost:%d", newPort)
+	cfg.Address = fmt.Sprintf("%s:%d", routeableHost(), newPort)
 	fmt.Printf("INFO unit=%s service=%s port healed %d->%d range=%d-%d config=%s\n", unit, cfg.Id, oldPort, newPort, start, end, cfgPath)
 	return writeServiceConfig(cfgPath, cfg)
 }
@@ -174,6 +194,21 @@ func seedReservationsExcept(alloc *ports.Allocator, servicesDir, skipId string) 
 		port := firstPort(cfg.Port, portFromAddress(cfg.Address))
 		alloc.Mark(id, port)
 	}
+}
+
+// resolveServiceId returns the gRPC FQN (e.g. "cluster_controller.ClusterControllerService")
+// for a service name using the identity registry. Returns "" if the service is unknown.
+func resolveServiceId(service string) string {
+	name := normalizeServiceName(service)
+	if name == "" {
+		return ""
+	}
+	if key, ok := identity.NormalizeServiceKey(name); ok {
+		if id, ok := identity.IdentityByKey(key); ok && id.GrpcFull != "" {
+			return id.GrpcFull
+		}
+	}
+	return ""
 }
 
 // etcdPortForService does a best-effort lookup of the service's configured port
@@ -300,6 +335,19 @@ func writeServiceConfig(path string, cfg *describePayload) error {
 	return os.Rename(tmp, path)
 }
 
+// routeableHost returns the node's routable IP for service addresses.
+// Services must be reachable from other nodes — never localhost.
+func routeableHost() string {
+	if ip, err := config.GetRoutableIP(); err == nil && ip != "" {
+		return ip
+	}
+	// Fallback: hostname (might resolve via DNS in the cluster).
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	return "0.0.0.0"
+}
+
 func firstPort(values ...int) int {
 	for _, v := range values {
 		if v > 0 {
@@ -309,19 +357,23 @@ func firstPort(values ...int) int {
 	return 0
 }
 
-func installBinDir() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_INSTALL_BIN_DIR")); v != "" {
-		return v
-	}
-	return "/usr/lib/globular/bin"
-}
+// BinDir and StateDir are package-level defaults. Tests may override these
+// before calling EnsureServicePortConfig.
+var (
+	BinDir   = "/usr/lib/globular/bin"
+	StateDir = "/var/lib/globular"
 
-func stateRoot() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR")); v != "" {
-		return v
-	}
-	return "/var/lib/globular"
-}
+	// PortRange overrides config.GetPortsRange() when non-empty.
+	// Tests set this to avoid reading etcd.
+	PortRange = ""
+
+	// PreflightStrict controls whether EnsureServicePortReady returns
+	// errors on non-critical failures. Tests may set this to true.
+	PreflightStrict bool
+)
+
+func installBinDir() string { return BinDir }
+func stateRoot() string     { return StateDir }
 
 func idFromUnit(unit, svc string) string {
 	// fallback to svc; configs are named by Id, so this is best-effort only
@@ -356,7 +408,14 @@ func portFree(port int) bool {
 }
 
 func preflightStrict() bool {
-	return strings.TrimSpace(os.Getenv("GLOBULAR_PORT_PREFLIGHT_STRICT")) == "1"
+	return PreflightStrict
+}
+
+func getPortsRange() string {
+	if PortRange != "" {
+		return PortRange
+	}
+	return config.GetPortsRange()
 }
 
 // ReconcilePortAfterRestart synchronizes the config file port with the
@@ -368,21 +427,19 @@ func ReconcilePortAfterRestart(ctx context.Context, service string) {
 	if exe == "" {
 		return
 	}
-	binDir := installBinDir()
-	desc, err := runDescribe(ctx, filepath.Join(binDir, exe))
-	if err != nil || desc.Id == "" {
+	serviceId := resolveServiceId(service)
+	if serviceId == "" {
 		return
 	}
 
-	state := stateRoot()
-	cfgPath := filepath.Join(state, "services", desc.Id+".json")
+	cfgPath := filepath.Join(stateRoot(), "services", serviceId+".json")
 	cfg, err := readServiceConfig(cfgPath)
 	if err != nil {
 		return
 	}
 
 	// Prefer etcd (source of truth), fall back to probing the listening port.
-	actualPort := etcdPortForService(desc.Id)
+	actualPort := etcdPortForService(serviceId)
 	if actualPort <= 0 {
 		unit := "globular-" + strings.ReplaceAll(service, "_", "-") + ".service"
 		actualPort = probeListeningPort(ctx, exe, unit)
@@ -397,7 +454,7 @@ func ReconcilePortAfterRestart(ctx context.Context, service string) {
 	}
 
 	cfg.Port = actualPort
-	cfg.Address = fmt.Sprintf("localhost:%d", actualPort)
+	cfg.Address = fmt.Sprintf("%s:%d", routeableHost(), actualPort)
 	if err := writeServiceConfig(cfgPath, cfg); err != nil {
 		fmt.Printf("WARN reconcile-port: failed to update config %s: %v\n", cfgPath, err)
 		return
@@ -423,7 +480,7 @@ func probeListeningPort(ctx context.Context, binary, unit string) int {
 
 	// Match lines like: LISTEN ... :10101 ... users:(("authentication_server",pid=123,fd=8))
 	// Extract ports where the process name matches our binary.
-	alloc, err := ports.NewFromEnv()
+	alloc, err := ports.New(getPortsRange())
 	if err != nil {
 		return 0
 	}

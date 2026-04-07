@@ -23,16 +23,21 @@ func TestServiceUninstall_RemovesBinaryAndConfig(t *testing.T) {
 	os.MkdirAll(versionsDir, 0o755)
 
 	// Create fake binary, config, systemd unit, and version marker.
-	os.WriteFile(filepath.Join(binDir, "gateway_server"), []byte("binary"), 0o755)
+	os.WriteFile(filepath.Join(binDir, "gateway"), []byte("binary"), 0o755)
 	os.WriteFile(filepath.Join(configDir, "gateway", "config.yaml"), []byte("config"), 0o644)
 	os.WriteFile(filepath.Join(systemdDir, "globular-gateway.service"), []byte("[Unit]"), 0o644)
 	os.WriteFile(filepath.Join(versionsDir, "version"), []byte("1.0.0"), 0o644)
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", configDir)
-	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", systemdDir)
-	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
-	t.Setenv("GLOBULAR_STATE_DIR", stDir)
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStateDir = stDir
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "gateway",
@@ -53,7 +58,7 @@ func TestServiceUninstall_RemovesBinaryAndConfig(t *testing.T) {
 	}
 
 	// Verify binary removed.
-	if _, err := os.Stat(filepath.Join(binDir, "gateway_server")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(binDir, "gateway")); !os.IsNotExist(err) {
 		t.Error("binary should have been removed")
 	}
 
@@ -84,11 +89,16 @@ func TestServiceUninstall_CustomUnit(t *testing.T) {
 	os.WriteFile(filepath.Join(binDir, "rbac_server"), []byte("binary"), 0o755)
 	os.WriteFile(filepath.Join(systemdDir, "custom-rbac.service"), []byte("[Unit]"), 0o644)
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", systemdDir)
-	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", filepath.Join(dir, "config"))
-	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
-	t.Setenv("GLOBULAR_STATE_DIR", filepath.Join(dir, "state"))
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = filepath.Join(dir, "config")
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStateDir = filepath.Join(dir, "state")
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "rbac",
@@ -114,11 +124,16 @@ func TestServiceUninstall_CustomUnit(t *testing.T) {
 func TestServiceUninstall_Idempotent(t *testing.T) {
 	dir := t.TempDir()
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", filepath.Join(dir, "bin"))
-	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", filepath.Join(dir, "config"))
-	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", filepath.Join(dir, "systemd"))
-	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
-	t.Setenv("GLOBULAR_STATE_DIR", filepath.Join(dir, "state"))
+	ActionBinDir = filepath.Join(dir, "bin")
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionConfigDir = filepath.Join(dir, "config")
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSystemdDir = filepath.Join(dir, "systemd")
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStateDir = filepath.Join(dir, "state")
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "nonexistent",
@@ -133,7 +148,8 @@ func TestServiceUninstall_Idempotent(t *testing.T) {
 }
 
 func TestApplicationUninstall_Idempotent(t *testing.T) {
-	t.Setenv("GLOBULAR_STATE_DIR", t.TempDir())
+	ActionStateDir = t.TempDir()
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "nonexistent-app",

@@ -249,10 +249,7 @@ func (packageVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (st
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 func stateDir() string {
-	if d := os.Getenv("GLOBULAR_STATE_DIR"); d != "" {
-		return d
-	}
-	return "/var/lib/globular"
+	return ActionStateDir
 }
 
 func appsDir() string {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -14,9 +13,6 @@ import (
 
 // memoryEndpoint returns the AI memory service endpoint.
 func memoryEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_MEMORY_ENDPOINT"); ep != "" {
-		return ep
-	}
 	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", gatewayEndpoint())
 	return addr
 }

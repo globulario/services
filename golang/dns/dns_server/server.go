@@ -301,10 +301,7 @@ func (srv *server) ensureDefaultInternalZone() error {
 	}
 
 	// Determine internal domain name
-	internalDomain := os.Getenv("GLOBULAR_INTERNAL_DOMAIN")
-	if internalDomain == "" {
-		internalDomain = netutil.DefaultClusterDomain()
-	}
+	internalDomain := netutil.DefaultClusterDomain()
 	if !strings.HasSuffix(internalDomain, ".") {
 		internalDomain += "."
 	}

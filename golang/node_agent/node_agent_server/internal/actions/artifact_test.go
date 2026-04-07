@@ -24,7 +24,8 @@ func TestArtifactFetchResolvesRepoRoot(t *testing.T) {
 	if err := os.WriteFile(artifact, []byte("data"), 0o644); err != nil {
 		t.Fatalf("write artifact: %v", err)
 	}
-	t.Setenv("GLOBULAR_ARTIFACT_REPO_ROOT", repo)
+	ActionArtifactRepoRoot = repo
+	t.Cleanup(func() { ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts" })
 
 	dest := filepath.Join(t.TempDir(), "out.tgz")
 	args, _ := structpb.NewStruct(map[string]interface{}{
@@ -51,14 +52,26 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 	systemdDir := filepath.Join(t.TempDir(), "systemd")
 	configDir := filepath.Join(t.TempDir(), "config")
 	stagingRoot := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", systemdDir)
-	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", configDir)
-	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
-	t.Setenv("GLOBULAR_STAGING_ROOT", stagingRoot)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "62001-62005")
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	serviceports.PortRange = "62001-62005"
+	t.Cleanup(func() { serviceports.PortRange = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+	serviceports.StateDir = sr
+	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
 
 	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
 	createTestArchive(t, artifactPath)
@@ -83,8 +96,10 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 		}
 	}
 
-	checkFile(filepath.Join(binDir, "testsvc"), "bin")
-	checkFile(filepath.Join(systemdDir, "testsvc.service"), "unit")
+	// Verify extracted files exist (systemd files skipped because ActionSkipSystemd=true).
+	if _, err := os.Stat(filepath.Join(binDir, "svc_server")); err != nil {
+		t.Fatalf("binary not extracted: %v", err)
+	}
 	checkFile(filepath.Join(configDir, "svc", "app.yaml"), "cfg")
 
 	// Port config should be generated for known services (none for generic svc)
@@ -95,14 +110,26 @@ func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 	systemdDir := filepath.Join(t.TempDir(), "systemd")
 	configDir := filepath.Join(t.TempDir(), "config")
 	stagingRoot := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", systemdDir)
-	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", configDir)
-	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
-	t.Setenv("GLOBULAR_STAGING_ROOT", stagingRoot)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "63001-63003")
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	serviceports.PortRange = "63001-63003"
+	t.Cleanup(func() { serviceports.PortRange = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+	serviceports.StateDir = sr
+	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
 
 	artifactPath := filepath.Join(t.TempDir(), "rbac.tgz")
 	createDescribeArchive(t, artifactPath, "rbac_server", `{"Id":"rbac-id","Address":"localhost:63001"}`)
@@ -117,7 +144,7 @@ func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 		t.Fatalf("apply install: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(sr, "services", "rbac-id.json")
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		t.Fatalf("read cfg: %v", err)
@@ -135,13 +162,23 @@ func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 // start action re-validates and rewrites invalid configs before systemctl
 func TestServiceStartPreflightRewritesOutOfRange(t *testing.T) {
 	binDir := filepath.Join(t.TempDir(), "bin")
-	stateRoot := t.TempDir()
+	sr := t.TempDir()
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "65001-65002")
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	serviceports.PortRange = "65001-65002"
+	t.Cleanup(func() { serviceports.PortRange = "" })
+
+	// Also set serviceports BinDir/StateDir since EnsureServicePortReady uses them.
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+	serviceports.StateDir = sr
+	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
 
 	binPath := filepath.Join(binDir, "resource_server")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"resource-id\",\"Address\":\"localhost:65001\"}'; fi\n"
@@ -149,7 +186,7 @@ func TestServiceStartPreflightRewritesOutOfRange(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "resource-id.json")
+	cfgPath := filepath.Join(sr, "services", "resource-id.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -197,7 +234,7 @@ func createTestArchive(t *testing.T, dest string) {
 		}
 	}
 
-	addFile("bin/testsvc", "bin", 0o755)
+	addFile("bin/svc_server", "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"svc-id\",\"Address\":\"localhost:62001\"}'; fi", 0o755)
 	addFile("systemd/testsvc.service", "unit", 0o644)
 	addFile("config/app.yaml", "cfg", 0o644)
 

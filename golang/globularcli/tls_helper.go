@@ -57,18 +57,7 @@ func userPKIPath(name string) (string, error) {
 //
 // Permission errors are never silently ignored.
 func resolveCAPath() (string, error) {
-	// Priority 1: explicit env var override
-	if v := os.Getenv("GLOBULAR_CA_CERT"); v != "" {
-		if _, err := os.Stat(v); err != nil {
-			if os.IsPermission(err) {
-				return "", fmt.Errorf("GLOBULAR_CA_CERT: permission denied: %s", v)
-			}
-			return "", fmt.Errorf("GLOBULAR_CA_CERT: %w", err)
-		}
-		return v, nil
-	}
-
-	// Priority 2: user PKI directory
+	// Priority 1: user PKI directory
 	if p, err := userPKIPath("ca.crt"); err == nil {
 		if _, statErr := os.Stat(p); statErr == nil {
 			return p, nil
@@ -111,14 +100,12 @@ func resolveCAPath() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("CA certificate not found (set GLOBULAR_CA_CERT or run 'globular auth install-certs')")
+	return "", fmt.Errorf("CA certificate not found (run 'globular auth install-certs')")
 }
 
 // resolveClientKeypair returns the resolved user client certificate and key paths.
 //
-// Priority order:
-//  1. GLOBULAR_CLIENT_CERT and GLOBULAR_CLIENT_KEY environment variables (must both be set)
-//  2. ~/.config/globular/pki/client.crt and ~/.config/globular/pki/client.key
+// Looks in ~/.config/globular/pki/client.crt and ~/.config/globular/pki/client.key.
 //
 // Permission errors are never collapsed into "not found" – they are returned
 // as explicit errors so the caller can surface the right diagnostic message.
@@ -126,29 +113,7 @@ func resolveCAPath() (string, error) {
 // If requireClientCert is true and no keypair can be located, ErrNeedInstallCerts
 // is returned. If false, nil is returned (caller proceeds without client cert).
 func resolveClientKeypair(requireClientCert bool) (*clientKeypair, error) {
-	// Priority 1: explicit env vars
-	certEnv := os.Getenv("GLOBULAR_CLIENT_CERT")
-	keyEnv := os.Getenv("GLOBULAR_CLIENT_KEY")
-	if certEnv != "" || keyEnv != "" {
-		if certEnv == "" || keyEnv == "" {
-			return nil, errors.New("GLOBULAR_CLIENT_CERT and GLOBULAR_CLIENT_KEY must both be set")
-		}
-		if _, err := os.Stat(certEnv); err != nil {
-			if os.IsPermission(err) {
-				return nil, fmt.Errorf("GLOBULAR_CLIENT_CERT: permission denied: %s", certEnv)
-			}
-			return nil, fmt.Errorf("GLOBULAR_CLIENT_CERT: %w", err)
-		}
-		if _, err := os.Stat(keyEnv); err != nil {
-			if os.IsPermission(err) {
-				return nil, fmt.Errorf("GLOBULAR_CLIENT_KEY: permission denied: %s", keyEnv)
-			}
-			return nil, fmt.Errorf("GLOBULAR_CLIENT_KEY: %w", err)
-		}
-		return &clientKeypair{certFile: certEnv, keyFile: keyEnv}, nil
-	}
-
-	// Priority 2: user PKI directory
+	// User PKI directory
 	certPath, cerr := userPKIPath("client.crt")
 	keyPath, kerr := userPKIPath("client.key")
 	if cerr == nil && kerr == nil {

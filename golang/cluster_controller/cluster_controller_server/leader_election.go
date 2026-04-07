@@ -93,6 +93,26 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 					break loop
 				case <-sess.Done():
 					break loop
+				case <-srv.resignCh:
+					log.Printf("leader election: resign requested via RPC — backing off before re-campaign")
+					rctx, rcancel := context.WithTimeout(context.Background(), 2*time.Second)
+					_ = election.Resign(rctx)
+					rcancel()
+					// After an RPC resign (deploy workflow), wait long enough for
+					// a follower to win the election before we re-campaign. The
+					// workflow still needs this process alive to execute the
+					// "apply old leader" step, so we can't block forever.
+					refreshTicker.Stop()
+					srv.setLeader(false, "", "")
+					_ = sess.Close()
+					log.Printf("leader election: backing off 60s to let followers campaign first")
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(60 * time.Second):
+						log.Printf("leader election: resign backoff expired, resuming campaign")
+					}
+					break loop
 				case <-refreshTicker.C:
 					if err := publishLeaderAddr(ctx, cli, sess.Lease(), addr); err != nil {
 						log.Printf("leader election: refresh publish failed: %v", err)

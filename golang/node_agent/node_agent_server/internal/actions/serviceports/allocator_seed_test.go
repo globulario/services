@@ -11,10 +11,13 @@ import (
 // Two services both describe the same port; second gets rewritten.
 func TestInstallPayloadDuplicatePortGetsRewritten(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "64001-64003")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "64001-64003"
+	t.Cleanup(func() { PortRange = "" })
 
 	// service A
 	binA := filepath.Join(binDir, "rbac_server")
@@ -36,7 +39,7 @@ func TestInstallPayloadDuplicatePortGetsRewritten(t *testing.T) {
 		t.Fatalf("ensure B: %v", err)
 	}
 
-	cfgBPath := filepath.Join(stateRoot, "services", "resource-id.json")
+	cfgBPath := filepath.Join(stateDir, "services", "resource-id.json")
 	b, err := os.ReadFile(cfgBPath)
 	if err != nil {
 		t.Fatalf("read cfgB: %v", err)

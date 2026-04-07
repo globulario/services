@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -14,9 +13,6 @@ import (
 // ── Endpoint resolution ─────────────────────────────────────────────────────
 
 func rbacEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_RBAC_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,22 +25,12 @@ var infraReservedPorts = map[int]string{
 	19042: "scylla-alt",
 }
 
-// NewFromEnv constructs an Allocator using environment variables.
-// Preferred: GLOBULAR_PORT_RANGE="start-end". Fallback: GLOBULAR_PORT_RANGE_START/END.
-// Default range: 10000-20000.
-func NewFromEnv() (*Allocator, error) {
-	rangeStr := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE"))
-	if rangeStr == "" {
-		a := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_START"))
-		b := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_END"))
-		if a != "" && b != "" {
-			rangeStr = a + "-" + b
-		}
-	}
+// New constructs an Allocator from a "start-end" range string (e.g. "10000-20000").
+// Callers should read the range from config.GetPortsRange().
+func New(rangeStr string) (*Allocator, error) {
 	if rangeStr == "" {
 		rangeStr = "10000-20000"
 	}
-
 	parts := strings.Split(rangeStr, "-")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid port range %q", rangeStr)

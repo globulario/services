@@ -13,10 +13,13 @@ import (
 
 func TestEnsureServicePortReadyHealsConflict(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "61001-61006")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "61001-61006"
+	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:61001\"}'; else exit 0; fi\n"
@@ -24,7 +27,7 @@ func TestEnsureServicePortReadyHealsConflict(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -60,13 +63,16 @@ func TestEnsureServicePortReadyHealsConflict(t *testing.T) {
 
 func TestEnsureServicePortReadyAvoidsOtherConfigPorts(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "61001-61003")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "61001-61003"
+	t.Cleanup(func() { PortRange = "" })
 
 	// Existing stopped service with port 61002
-	otherCfg := filepath.Join(stateRoot, "services", "other.json")
+	otherCfg := filepath.Join(stateDir, "services", "other.json")
 	if err := os.MkdirAll(filepath.Dir(otherCfg), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -83,7 +89,7 @@ func TestEnsureServicePortReadyAvoidsOtherConfigPorts(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
 	initial := map[string]any{"Id": "rbac-id", "Address": "localhost:61001", "Port": 61001}
 	b, _ = json.Marshal(initial)
 	if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
@@ -116,10 +122,13 @@ func TestEnsureServicePortReadyAvoidsOtherConfigPorts(t *testing.T) {
 
 func TestEnsureServicePortReadyLogsHealOldToNew(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "71001-71002")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "71001-71002"
+	t.Cleanup(func() { PortRange = "" })
 
 	// binary
 	binPath := filepath.Join(binDir, "rbac_server")
@@ -128,7 +137,7 @@ func TestEnsureServicePortReadyLogsHealOldToNew(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -172,10 +181,13 @@ func TestEnsureServicePortReadyLogsHealOldToNew(t *testing.T) {
 
 func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "10000-10002")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "10000-10002"
+	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:10000\",\"Port\":10000}'; fi\n"
@@ -183,7 +195,7 @@ func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
@@ -214,10 +226,13 @@ func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
 
 func TestEnsureServicePortConfigRewritesInUsePort(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "12000-12002")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "12000-12002"
+	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:12001\",\"Port\":12001}'; fi\n"
@@ -225,7 +240,7 @@ func TestEnsureServicePortConfigRewritesInUsePort(t *testing.T) {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
@@ -278,7 +293,8 @@ func TestPortFromAddressFallbackFormats(t *testing.T) {
 }
 
 func TestEnsureServicePortReadyStrictMode(t *testing.T) {
-	t.Setenv("GLOBULAR_PORT_PREFLIGHT_STRICT", "1")
+	PreflightStrict = true
+	t.Cleanup(func() { PreflightStrict = false })
 	// Missing binary triggers describe error
 	if err := EnsureServicePortReady(context.Background(), "rbac", "globular-rbac.service"); err == nil {
 		t.Fatalf("expected error in strict mode for missing binary")
@@ -287,10 +303,13 @@ func TestEnsureServicePortReadyStrictMode(t *testing.T) {
 
 func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "62001-62004")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "62001-62004"
+	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "xds")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"xds.XdsService\",\"Address\":\"localhost:62001\",\"Port\":62001}'; fi\n"
@@ -298,7 +317,7 @@ func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
 		t.Fatalf("write xds bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "xds.XdsService.json")
+	cfgPath := filepath.Join(stateDir, "services", "xds.XdsService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
@@ -335,10 +354,13 @@ func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
 
 func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "63001-63002")
+	stateDir := t.TempDir()
+	BinDir = binDir
+	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
+	StateDir = stateDir
+	t.Cleanup(func() { StateDir = "/var/lib/globular" })
+	PortRange = "63001-63002"
+	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "gateway")
 	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"gateway.GatewayService\",\"Address\":\"localhost:80\",\"Port\":80}'; fi\n"
@@ -346,7 +368,7 @@ func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 		t.Fatalf("write gateway bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateRoot, "services", "gateway.GatewayService.json")
+	cfgPath := filepath.Join(stateDir, "services", "gateway.GatewayService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}

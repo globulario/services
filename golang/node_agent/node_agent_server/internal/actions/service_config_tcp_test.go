@@ -7,15 +7,20 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestServiceConfigTCPProbe(t *testing.T) {
 	binDir := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
-	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
-	t.Setenv("GLOBULAR_PORT_RANGE", "72001-72002")
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	serviceports.PortRange = "72001-72002"
+	t.Cleanup(func() { serviceports.PortRange = "" })
 
 	// fake binary
 	binPath := filepath.Join(binDir, "rbac_server")
@@ -25,7 +30,7 @@ func TestServiceConfigTCPProbe(t *testing.T) {
 	}
 
 	// config file
-	cfgPath := filepath.Join(stateRoot, "services")
+	cfgPath := filepath.Join(sr, "services")
 	if err := os.MkdirAll(cfgPath, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

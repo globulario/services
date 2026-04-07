@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -13,9 +12,6 @@ import (
 // ── Title service endpoint ──────────────────────────────────────────────────
 
 func titleEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_TITLE_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 

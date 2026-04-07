@@ -36,24 +36,18 @@ var rootCmd = &cobra.Command{
 		// service client code (InitClient → GetEtcdTLS → GetCACertificatePath)
 		// finds the right CA regardless of install layout.
 		//
-		// Priority: --ca flag → GLOBULAR_CA_CERT env → user PKI → legacy tls/ path → system CA.
+		// Priority: --ca flag → user PKI → legacy tls/ path → system CA.
 		if rootCfg.caFile != "" {
 			if _, err := os.Stat(rootCfg.caFile); err != nil {
 				return fmt.Errorf("--ca: %w", err)
 			}
-			_ = os.Setenv("GLOBULAR_CA_CERT", rootCfg.caFile)
-		} else if os.Getenv("GLOBULAR_CA_CERT") == "" {
-			// Not explicitly provided — try to resolve automatically and export
-			// so downstream library code (config.GetCACertificatePath) can use it.
+		} else {
+			// Not explicitly provided — try to resolve automatically.
 			if caPath, err := resolveCAPath(); err == nil {
-				_ = os.Setenv("GLOBULAR_CA_CERT", caPath)
+				rootCfg.caFile = caPath
 			}
 			// Failure is non-fatal here; individual commands will surface the error
 			// when they actually attempt a TLS connection.
-		}
-
-		if rootCfg.token == "" {
-			rootCfg.token = strings.TrimSpace(os.Getenv("GLOBULAR_TOKEN"))
 		}
 		if rootCfg.token == "" {
 			home := os.Getenv("HOME")

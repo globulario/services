@@ -97,20 +97,10 @@ func CloneStringSlice(src []string) []string {
 	return append([]string(nil), src...)
 }
 
-// GetDefaultDomainAddress returns default domain and address values from environment.
+// GetDefaultDomainAddress returns default domain and address values.
 // Services use this in their DefaultConfig() functions.
 func GetDefaultDomainAddress(port int) (domain string, address string) {
-	if v := os.Getenv("GLOBULAR_DOMAIN"); v != "" {
-		domain = v
-	} else {
-		domain = netutil.DefaultClusterDomain()
-	}
-
-	if v := os.Getenv("GLOBULAR_ADDRESS"); v != "" {
-		address = v
-	} else {
-		address = fmt.Sprintf("%s:%d", domain, port)
-	}
-
+	domain = netutil.DefaultClusterDomain()
+	address = fmt.Sprintf("%s:%d", domain, port)
 	return domain, address
 }

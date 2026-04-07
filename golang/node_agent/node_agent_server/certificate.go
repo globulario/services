@@ -381,10 +381,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 			Email:    strings.TrimSpace(spec.GetAdminEmail()),
 			Domain:   domain,
 			Provider: "globular",
-			DNS:      strings.TrimSpace(os.Getenv("GLOBULAR_DNS_ADDR")),
-		}
-		if opts.ACME.DNS == "" {
-			opts.ACME.DNS = config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006))
+			DNS:      config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006)),
 		}
 	}
 
@@ -454,9 +451,14 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 }
 
 func (srv *NodeAgentServer) isIssuerNode() bool {
-	issuer := strings.TrimSpace(os.Getenv("GLOBULAR_CERT_ISSUER_NODE"))
-	if issuer == "" {
-		issuer = "node-0"
+	// Read issuer identity from cluster config; fallback to "node-0".
+	issuer := "node-0"
+	if gc, err := config.GetLocalConfig(true); err == nil && gc != nil {
+		if v, ok := gc["CertIssuerNode"]; ok {
+			if s := strings.TrimSpace(fmt.Sprintf("%v", v)); s != "" {
+				issuer = s
+			}
+		}
 	}
 	if srv == nil || strings.TrimSpace(srv.nodeID) == "" {
 		return true

@@ -245,10 +245,7 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 		}
 	case "COMMAND":
 		// Commands have no systemd unit — just remove the binary and markers.
-		binDir := os.Getenv("GLOBULAR_INSTALL_BIN_DIR")
-		if binDir == "" {
-			binDir = "/usr/lib/globular/bin"
-		}
+		binDir := "/usr/lib/globular/bin"
 		binPath := filepath.Join(binDir, pkgName)
 		_ = os.Remove(binPath)
 

@@ -629,13 +629,6 @@ func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig 
 	return cfg
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultValue
-}
-
 // Storage returns the configured backend (defaulting to local filesystem).
 func (srv *server) Storage() storage_backend.Storage {
 	if srv.storage == nil {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -24,11 +23,6 @@ import (
 // 2. Use --describe from service binary (if ServicesRoot configured)
 // 3. Fall back to provided default
 func resolveDnsGrpcEndpoint(fallback string) string {
-	// Skip etcd discovery if explicitly disabled (useful for Day-0 when etcd may not be ready)
-	if os.Getenv("GLOBULAR_SKIP_ETCD_DISCOVERY") == "1" {
-		return fallback
-	}
-
 	// Method 1: Try to resolve from etcd service configuration
 	svc, err := config.ResolveService("dns.DnsService")
 	if err == nil && svc != nil {
@@ -81,11 +75,6 @@ func resolveDnsGrpcEndpoint(fallback string) string {
 func resolveDnsResolverEndpoint() string {
 	// Default fallback - standard DNS port
 	fallback := "127.0.0.1:53"
-
-	// Check environment variable first
-	if dnsPort := os.Getenv("GLOB_DNS_PORT"); dnsPort != "" {
-		return fmt.Sprintf("127.0.0.1:%s", dnsPort)
-	}
 
 	// Try to read DNS service configuration
 	root := config.GetServicesRoot()

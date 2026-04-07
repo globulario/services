@@ -270,10 +270,7 @@ func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
 		if strings.Contains(host, ":") {
 			host, _, _ = net.SplitHostPort(p.addr)
 		}
-		udpAddr := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_UDP_ADDR"))
-		if udpAddr == "" {
-			udpAddr = net.JoinHostPort(host, "53")
-		}
+		udpAddr := net.JoinHostPort(host, "53")
 		r := &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {

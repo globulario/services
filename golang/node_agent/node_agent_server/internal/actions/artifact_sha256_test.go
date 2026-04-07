@@ -15,7 +15,8 @@ import (
 
 func TestArtifactVerify_MissingSHA256_Rejects(t *testing.T) {
 	// Ensure dev bypass is off.
-	t.Setenv("GLOBULAR_ALLOW_MISSING_SHA256", "")
+	AllowMissingSHA256 = false
+	t.Cleanup(func() { AllowMissingSHA256 = false })
 
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "test.tgz")
@@ -38,7 +39,8 @@ func TestArtifactVerify_MissingSHA256_Rejects(t *testing.T) {
 }
 
 func TestArtifactVerify_MissingSHA256_DevBypass(t *testing.T) {
-	t.Setenv("GLOBULAR_ALLOW_MISSING_SHA256", "true")
+	AllowMissingSHA256 = true
+	t.Cleanup(func() { AllowMissingSHA256 = false })
 
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "test.tgz")
@@ -60,7 +62,8 @@ func TestArtifactVerify_MissingSHA256_DevBypass(t *testing.T) {
 }
 
 func TestArtifactVerify_MismatchedSHA256_Rejects(t *testing.T) {
-	t.Setenv("GLOBULAR_ALLOW_MISSING_SHA256", "")
+	AllowMissingSHA256 = false
+	t.Cleanup(func() { AllowMissingSHA256 = false })
 
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "test.tgz")
@@ -83,7 +86,8 @@ func TestArtifactVerify_MismatchedSHA256_Rejects(t *testing.T) {
 }
 
 func TestArtifactVerify_ValidSHA256_Succeeds(t *testing.T) {
-	t.Setenv("GLOBULAR_ALLOW_MISSING_SHA256", "")
+	AllowMissingSHA256 = false
+	t.Cleanup(func() { AllowMissingSHA256 = false })
 
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "test.tgz")
@@ -110,7 +114,8 @@ func TestArtifactVerify_ValidSHA256_Succeeds(t *testing.T) {
 }
 
 func TestArtifactFetch_ExistingCorruptFile_ReDownloads(t *testing.T) {
-	t.Setenv("GLOBULAR_ALLOW_MISSING_SHA256", "")
+	AllowMissingSHA256 = false
+	t.Cleanup(func() { AllowMissingSHA256 = false })
 
 	repo := t.TempDir()
 	service, version, platform := "svc", "2.0.0", "linux_amd64"
@@ -133,7 +138,9 @@ func TestArtifactFetch_ExistingCorruptFile_ReDownloads(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("GLOBULAR_ARTIFACT_REPO_ROOT", repo)
+	ActionArtifactRepoRoot = repo
+	t.Cleanup(func() { ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts" })
+
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"service":         service,
 		"version":         version,

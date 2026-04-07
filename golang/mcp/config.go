@@ -161,7 +161,6 @@ func loadConfig() *MCPConfig {
 	cfg := defaultConfig()
 
 	paths := []string{
-		os.Getenv("GLOBULAR_MCP_CONFIG"),
 		"/var/lib/globular/mcp/config.json",
 		filepath.Join(os.Getenv("HOME"), ".config/globular/mcp.json"),
 	}

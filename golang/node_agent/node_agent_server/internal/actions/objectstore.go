@@ -154,12 +154,6 @@ func parseEnsureObjectstoreArgs(args *structpb.Struct) ensureObjectstoreLayoutAr
 }
 
 func resolveContractPath() string {
-	if env := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_CONTRACT_PATH")); env != "" {
-		return env
-	}
-	if env := strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT")); env != "" {
-		return env
-	}
 	return defaultMinioContractPath
 }
 
@@ -215,27 +209,11 @@ func deriveMinioLayoutForNodeAgent(cfg *config.MinioProxyConfig, domain string) 
 		return strings.Join(segments, "/")
 	}
 
-	usersBucket := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_USERS_BUCKET"))
-	if usersBucket == "" {
-		usersBucket = cfg.Bucket
-	}
-	webrootBucket := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_WEBROOT_BUCKET"))
-	if webrootBucket == "" {
-		webrootBucket = cfg.Bucket
-	}
+	usersBucket := cfg.Bucket
+	webrootBucket := cfg.Bucket
 
-	usersPrefix := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_USERS_PREFIX"))
-	if usersPrefix == "" {
-		usersPrefix = join(basePrefix, domain, "users")
-	} else {
-		usersPrefix = strings.Trim(usersPrefix, "/")
-	}
-	webrootPrefix := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_WEBROOT_PREFIX"))
-	if webrootPrefix == "" {
-		webrootPrefix = join(basePrefix, domain, "webroot")
-	} else {
-		webrootPrefix = strings.Trim(webrootPrefix, "/")
-	}
+	usersPrefix := join(basePrefix, domain, "users")
+	webrootPrefix := join(basePrefix, domain, "webroot")
 
 	return objectstoreLayout{
 		usersBucket:   usersBucket,

@@ -387,17 +387,8 @@ func ResolveDNSGrpcEndpoint(fallback string) string {
 //
 // Returns the DNS resolver endpoint as "ip:port".
 func ResolveDNSResolverEndpoint() string {
-	// Default: standard DNS port
-	fallback := "127.0.0.1:53"
-
-	// Check environment variable first
-	if dnsPort := strings.TrimSpace(os.Getenv("GLOB_DNS_PORT")); dnsPort != "" {
-		return fmt.Sprintf("127.0.0.1:%s", dnsPort)
-	}
-
-	// TODO: Could query DNS service config for actual resolver port
-	// For now, standard port 53 is the correct default
-	return fallback
+	// Standard DNS port — the DNS service always listens on :53.
+	return "127.0.0.1:53"
 }
 
 // svcPort extracts the Port field from a service config map.

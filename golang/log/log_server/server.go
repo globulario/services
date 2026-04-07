@@ -582,7 +582,11 @@ func main() {
 		srv.Domain = "localhost"
 	}
 	if srv.Address == "" {
-		srv.Address = fmt.Sprintf("localhost:%d", srv.Port)
+		host := "0.0.0.0"
+		if ip, err := Utility.GetPrimaryIPAddress(); err == nil && ip != "" {
+			host = ip
+		}
+		srv.Address = fmt.Sprintf("%s:%d", host, srv.Port)
 	}
 
 	// Fix up CacheAddress: if empty or "localhost", use local IP (like title service)

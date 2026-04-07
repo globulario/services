@@ -893,9 +893,6 @@ var upgradeCmd = &cobra.Command{
 		}
 		targetPath := strings.TrimSpace(upgradeTarget)
 		if targetPath == "" {
-			targetPath = os.Getenv("GLOBULAR_BINARY_PATH")
-		}
-		if targetPath == "" {
 			targetPath = defaultUpgradeTargetPath
 		}
 		data, err := ioutil.ReadFile(args[0])

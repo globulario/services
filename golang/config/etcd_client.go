@@ -225,19 +225,10 @@ func normalizeEndpoints(raw []string) []string {
 // of all etcd member endpoints. Each line is a URL like "https://10.0.0.63:2379".
 const etcdEndpointsFile = "/var/lib/globular/config/etcd_endpoints"
 
-// etcdEndpointsFromEnv: prefer HTTPS if TLS exists, else HTTP. Always emit scheme.
+// etcdEndpointsFromEnv resolves etcd endpoints from on-disk config only.
+// Environment variables are NOT consulted — the endpoints file and local
+// config are the sole sources of truth.
 func etcdEndpointsFromEnv() []string {
-	// explicit env (may include scheme) wins
-	if s := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); s != "" {
-		return mapSanitized(splitCSV(s))
-	}
-	if s := os.Getenv("ETCD_ENDPOINTS"); s != "" {
-		return mapSanitized(splitCSV(s))
-	}
-	if s := os.Getenv("ETCDCTL_ENDPOINTS"); s != "" {
-		return mapSanitized(splitCSV(s))
-	}
-
 	// Read cluster-rendered endpoints file (written by controller reconciliation).
 	// This file contains all etcd member URLs, one per line.
 	if eps := readEndpointsFile(etcdEndpointsFile); len(eps) > 0 {
@@ -326,7 +317,7 @@ func readEndpointsFile(path string) []string {
 func GetEtcdTLS() (*tls.Config, error) {
 	caPath := GetCACertificatePath()
 	if !fileExists(caPath) {
-		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): CA certificate not found at canonical location: %s (hint: pass --ca or set GLOBULAR_CA_CERT)", caPath)
+		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): CA certificate not found at canonical location: %s", caPath)
 	}
 
 	caData, err := os.ReadFile(caPath)

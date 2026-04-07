@@ -376,11 +376,11 @@ func main() {
 		} else {
 			srv.Domain = "localhost"
 		}
-		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-			srv.Address = strings.ToLower(v)
-		} else {
-			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		host := "0.0.0.0"
+		if ip, err := Utility.GetPrimaryIPAddress(); err == nil && ip != "" {
+			host = ip
 		}
+		srv.Address = fmt.Sprintf("%s:%d", host, srv.Port)
 		if srv.Id == "" {
 			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
 		}

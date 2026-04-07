@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
@@ -14,9 +13,6 @@ import (
 const defaultConnectionID = "local_prometheus"
 
 func monitoringEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_MONITORING_ENDPOINT"); ep != "" {
-		return ep
-	}
 	// Monitoring service listens on port 10009 (gRPC with TLS).
 	// It is not always routed through Envoy, so connect directly.
 	return "localhost:10009"

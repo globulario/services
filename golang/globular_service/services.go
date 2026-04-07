@@ -256,10 +256,7 @@ func InitService(s Service) error {
 	// Never default to 127.0.0.1 — services must be reachable from other nodes.
 	address := "0.0.0.0"
 
-	// Check environment variable first (allows override)
-	if envAddr := os.Getenv("GLOBULAR_SERVICE_ADDRESS"); envAddr != "" {
-		address = envAddr
-	} else if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
+	if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
 		address = ip
 	}
 	s.SetAddress(address)
@@ -292,10 +289,7 @@ func InitService(s Service) error {
 	// Local file fallback: installer writes a seed config to <servicesDir>/<id>.json
 	// before starting systemd. On first boot this avoids the "no config in etcd" path.
 	if cfg == nil {
-		servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
-		if servicesDir == "" {
-			servicesDir = "/var/lib/globular/services"
-		}
+		servicesDir := "/var/lib/globular/services"
 		if data, err := os.ReadFile(filepath.Join(servicesDir, s.GetId()+".json")); err == nil {
 			var m map[string]interface{}
 			if jsonErr := json.Unmarshal(data, &m); jsonErr == nil && m != nil {
@@ -891,29 +885,7 @@ func isAddrInUse(err error) bool {
 // reallocatePort attempts to allocate a new port for the service when the current port is in use.
 // It updates the service's Port and Address fields and persists the change to disk.
 func reallocatePort(s Service, oldPort int) (int, error) {
-	// Get port allocator from environment
-	servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
-	if servicesDir == "" {
-		servicesDir = "/var/lib/globular/services"
-	}
-
-	// Parse port range from environment
-	rangeStr := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE"))
-	if rangeStr == "" {
-		a := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_START"))
-		b := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_END"))
-		if a != "" && b != "" {
-			rangeStr = a + "-" + b
-		}
-	}
-	if rangeStr == "" {
-		rangeStr = "10000-20000"
-	}
-
-	parts := strings.Split(rangeStr, "-")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid port range %q", rangeStr)
-	}
+	parts := strings.Split(config.GetPortsRange(), "-")
 	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
 		return 0, fmt.Errorf("invalid port range start: %w", err)
@@ -1033,14 +1005,7 @@ func StopService(s Service, srv *grpc.Server) error {
 	s.SetLastError("")
 	_ = putRuntimeClosed(s, "")
 	if srv != nil {
-		// env-tunable grace; default ~5s is usually plenty
-		d := 5 * time.Second
-		if v := strings.TrimSpace(os.Getenv("GLOBULAR_GRACEFUL_STOP")); v != "" {
-			if dd, err := time.ParseDuration(v); err == nil && dd > 0 {
-				d = dd
-			}
-		}
-		gracefulStopWithTimeout(srv, d)
+		gracefulStopWithTimeout(srv, 5*time.Second)
 	}
 	slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
 	return nil

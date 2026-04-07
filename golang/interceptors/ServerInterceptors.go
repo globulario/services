@@ -118,19 +118,22 @@ var (
 	// Phase 4: Deny-by-default enforcement for unmapped methods
 	// When true, methods without RBAC mappings are DENIED (secure default)
 	// When false, methods without RBAC mappings are ALLOWED with warning (permissive mode)
-	// Set via GLOBULAR_DENY_UNMAPPED=1 environment variable
-	DenyUnmappedMethods = false
+	// Read from cluster config key "DenyUnmappedMethods" (bool); default false.
+	DenyUnmappedMethods = readDenyUnmapped()
 )
 
-// init configures interceptor behavior from environment variables
-func init() {
-	// Phase 4: Check if deny-by-default should be enforced
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DENY_UNMAPPED")); v != "" {
-		if v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes") {
-			DenyUnmappedMethods = true
-			slog.Info("deny-by-default mode enabled for unmapped methods", "env", "GLOBULAR_DENY_UNMAPPED="+v)
-		}
+func readDenyUnmapped() bool {
+	gc, err := config.GetLocalConfig(true)
+	if err != nil || gc == nil {
+		return false
 	}
+	switch v := gc["DenyUnmappedMethods"].(type) {
+	case bool:
+		return v
+	case string:
+		return v == "1" || strings.EqualFold(v, "true")
+	}
+	return false
 }
 
 // ---- unauthenticated allowlist ----------------------------------------------

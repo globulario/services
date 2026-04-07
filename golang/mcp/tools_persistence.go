@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,9 +18,6 @@ import (
 // ── Endpoint helpers ─────────────────────────────────────────────────────────
 
 func persistenceEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_PERSISTENCE_ENDPOINT"); ep != "" {
-		return ep
-	}
 	if cfg, err := config.GetServiceConfigurationById("persistence.PersistenceService"); err == nil {
 		if port, ok := cfg["Port"].(float64); ok {
 			addr := "localhost"
@@ -35,9 +31,6 @@ func persistenceEndpoint() string {
 }
 
 func storageEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_STORAGE_ENDPOINT"); ep != "" {
-		return ep
-	}
 	if cfg, err := config.GetServiceConfigurationById("storage.StorageService"); err == nil {
 		if port, ok := cfg["Port"].(float64); ok {
 			addr := "localhost"

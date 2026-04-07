@@ -442,7 +442,11 @@ func main() {
 		s.Domain = "localhost"
 	}
 	if s.Address == "" {
-		s.Address = fmt.Sprintf("localhost:%d", s.Port)
+		host := "0.0.0.0"
+		if ip, err := Utility.GetPrimaryIPAddress(); err == nil && ip != "" {
+			host = ip
+		}
+		s.Address = fmt.Sprintf("%s:%d", host, s.Port)
 	}
 
 	logger.Info("starting ldap service", "service", s.Name, "version", s.Version, "domain", s.Domain)

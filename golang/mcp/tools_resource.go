@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
@@ -13,9 +12,6 @@ import (
 // ── Resource service endpoint ───────────────────────────────────────────────
 
 func resourceEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_RESOURCE_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 

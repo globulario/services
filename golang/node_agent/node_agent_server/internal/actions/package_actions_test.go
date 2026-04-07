@@ -16,9 +16,10 @@ func TestPackageVerify_FileExists(t *testing.T) {
 	dir := t.TempDir()
 	binDir := filepath.Join(dir, "bin")
 	os.MkdirAll(binDir, 0o755)
-	os.WriteFile(filepath.Join(binDir, "gateway_server"), []byte("fake-binary"), 0o755)
+	os.WriteFile(filepath.Join(binDir, "gateway"), []byte("fake-binary"), 0o755)
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "gateway",
@@ -36,7 +37,8 @@ func TestPackageVerify_FileExists(t *testing.T) {
 }
 
 func TestPackageVerify_FileNotFound(t *testing.T) {
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", t.TempDir())
+	ActionBinDir = t.TempDir()
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "nonexistent",
@@ -57,7 +59,8 @@ func TestPackageVerify_ChecksumMatch(t *testing.T) {
 	content := []byte("test-binary-content")
 	os.WriteFile(filepath.Join(binDir, "test_server"), content, 0o755)
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	// Compute expected checksum.
 	expected, _ := fileSHA256(filepath.Join(binDir, "test_server"))
@@ -81,7 +84,8 @@ func TestPackageVerify_ChecksumMismatch(t *testing.T) {
 	os.MkdirAll(binDir, 0o755)
 	os.WriteFile(filepath.Join(binDir, "test_server"), []byte("content"), 0o755)
 
-	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name":              "test",
@@ -98,7 +102,8 @@ func TestPackageVerify_ChecksumMismatch(t *testing.T) {
 
 func TestApplicationInstall(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("GLOBULAR_STATE_DIR", dir)
+	ActionStateDir = dir
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	// Create a test archive with some web content.
 	archivePath := filepath.Join(dir, "app.tar.gz")
@@ -126,7 +131,8 @@ func TestApplicationInstall(t *testing.T) {
 
 func TestApplicationUninstall(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("GLOBULAR_STATE_DIR", dir)
+	ActionStateDir = dir
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	// Create app directory.
 	appDir := filepath.Join(dir, "applications", "testapp")
@@ -150,7 +156,8 @@ func TestApplicationUninstall(t *testing.T) {
 }
 
 func TestApplicationUninstall_AlreadyRemoved(t *testing.T) {
-	t.Setenv("GLOBULAR_STATE_DIR", t.TempDir())
+	ActionStateDir = t.TempDir()
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"name": "nonexistent",

@@ -978,7 +978,7 @@ func printUsage() {
 	fmt.Println("  GLOBULAR_ADDRESS         Override service address")
 	fmt.Println("  GLOBULAR_BOOTSTRAP       Enable bootstrap mode (1=enabled)")
 	fmt.Println("  GLOBULAR_SCYLLA_HOST     Scylla backend host")
-	fmt.Println("  GLOBULAR_SERVICES_DIR    Services configuration directory")
+	// GLOBULAR_SERVICES_DIR removed — hardcoded to /var/lib/globular/services
 	fmt.Println()
 	fmt.Println("EXAMPLES:")
 	fmt.Println("  # Start with auto-generated ID and default config")
@@ -1043,10 +1043,7 @@ func computeBackendConfig(s *server, scyllaDetected bool) {
 
 // resolveRbacEndpoint finds the rbac service address from service configs.
 func resolveRbacEndpoint(bootstrap bool) (string, error) {
-	servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
-	if servicesDir == "" {
-		servicesDir = "/var/lib/globular/services"
-	}
+	servicesDir := "/var/lib/globular/services"
 	entries, err := os.ReadDir(servicesDir)
 	if err != nil {
 		return "", err

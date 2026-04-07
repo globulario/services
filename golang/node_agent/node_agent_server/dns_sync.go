@@ -249,9 +249,6 @@ func dialDNSWithRetry(ctx context.Context, endpoint string) (*dns_client.Dns_Cli
 }
 
 func resolveDNSEndpoint(spec *cluster_controllerpb.ClusterNetworkSpec) string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_ENDPOINT")); v != "" {
-		return v
-	}
 	// spec override can be added later
 	return config.ResolveDNSGrpcEndpoint(discoverServiceAddr(10006))
 }
@@ -490,9 +487,6 @@ func makeDNSToken(nodeID string, client *dns_client.Dns_Client, spec *cluster_co
 	domain := normalizeDomain(spec.GetClusterDomain())
 	if domain == "" {
 		return "", fmt.Errorf("dns: empty cluster domain")
-	}
-	if envTk := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_TOKEN")); envTk != "" {
-		return envTk, nil
 	}
 	id := strings.TrimSpace(nodeID)
 	if id == "" {

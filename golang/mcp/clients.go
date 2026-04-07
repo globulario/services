@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -128,47 +127,29 @@ func saToken() string {
 // (repository, backup-manager, cluster-doctor, rbac, resource, …) are routed
 // through Envoy via gRPC path-prefix matching — no per-service port needed.
 func gatewayEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_GATEWAY_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return "localhost:443"
 }
 
 // controllerEndpoint routes through Envoy like all other registered services.
 func controllerEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_CONTROLLER_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 
 // nodeAgentEndpoint routes through Envoy like all other registered services.
 func nodeAgentEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_NODEAGENT_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 
 // Envoy-routed service endpoints — all go through the gateway.
 func repositoryEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_REPOSITORY_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 
 func backupManagerEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_BACKUP_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 
 func doctorEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_DOCTOR_ENDPOINT"); ep != "" {
-		return ep
-	}
 	return gatewayEndpoint()
 }
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -344,5 +343,4 @@ func endpointFromConfig(svc map[string]interface{}) string {
 }
 
 // Ensure imports are used
-var _ = os.Getenv
 var _ = strings.TrimSpace

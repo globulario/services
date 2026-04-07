@@ -575,13 +575,6 @@ func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig 
 	return cfg
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultValue
-}
-
 func (srv *server) initStorage() error {
 	if srv.minioEnabled() {
 		if err := srv.ensureMinioClient(); err != nil {

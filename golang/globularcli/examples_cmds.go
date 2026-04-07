@@ -567,9 +567,6 @@ func writeRouteConfig(config GatewayRouteConfig) error {
 	// In production, this would use proper route registration API
 
 	routesDir := "/var/lib/globular/routes"
-	if testDir := os.Getenv("GLOBULAR_ROUTES_DIR"); testDir != "" {
-		routesDir = testDir
-	}
 
 	if err := os.MkdirAll(routesDir, 0755); err != nil {
 		return fmt.Errorf("create routes dir: %w", err)
@@ -645,9 +642,6 @@ func createDNSRecord(ctx context.Context, serviceType string) DeploymentStepResu
 
 	// Connect to DNS server
 	dnsAddr := "localhost:10006"
-	if addr := os.Getenv("GLOBULAR_DNS_ENDPOINT"); addr != "" {
-		dnsAddr = addr
-	}
 
 	conn, err := dialGRPC(dnsAddr)
 	if err != nil {
@@ -906,9 +900,6 @@ func stopService(ctx context.Context, unitName string) error {
 func removeDNSRecord(ctx context.Context, fqdn string) error {
 	// Connect to DNS server
 	dnsAddr := "localhost:10006"
-	if addr := os.Getenv("GLOBULAR_DNS_ENDPOINT"); addr != "" {
-		dnsAddr = addr
-	}
 
 	conn, err := dialGRPC(dnsAddr)
 	if err != nil {

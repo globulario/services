@@ -79,9 +79,6 @@ func splitCSV(s string) []string {
 func requirePolicyToken() (string, error) {
 	token := rootCfg.token
 	if token == "" {
-		token = os.Getenv("GLOBULAR_TOKEN")
-	}
-	if token == "" {
 		return "", fmt.Errorf("authentication required for policy operations: run 'globular auth login' or provide --token")
 	}
 	return token, nil

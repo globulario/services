@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -37,17 +36,12 @@ func (serviceConfigTCPProbe) Apply(ctx context.Context, args *structpb.Struct) (
 		return "", fmt.Errorf("unknown service %s", svc)
 	}
 
-	binDir := installBinDir()
-	desc, err := runDescribe(ctx, filepath.Join(binDir, exe))
-	if err != nil {
-		return "", err
-	}
-	if desc == nil || desc.Id == "" {
-		return "", fmt.Errorf("describe missing Id for %s", svc)
+	serviceId := resolveServiceId(svc)
+	if serviceId == "" {
+		return "", fmt.Errorf("unknown service %s (not in identity registry)", svc)
 	}
 
-	state := stateRoot()
-	cfgPath := filepath.Join(state, "services", desc.Id+".json")
+	cfgPath := filepath.Join(stateRoot(), "services", serviceId+".json")
 	cfg, err := readServiceConfig(cfgPath)
 	if err != nil {
 		// Config file missing or unreadable — skip probe with warning.
@@ -55,7 +49,7 @@ func (serviceConfigTCPProbe) Apply(ctx context.Context, args *structpb.Struct) (
 		return fmt.Sprintf("skipped: config unreadable for %s (%v)", svc, err), nil
 	}
 
-	port := firstPort(cfg.Port, portFromAddress(cfg.Address), desc.Port)
+	port := firstPort(cfg.Port, portFromAddress(cfg.Address))
 	if port <= 0 {
 		fmt.Printf("WARN probe.service_config_tcp: no port in config %s for %s (incomplete config?)\n", cfgPath, svc)
 		return fmt.Sprintf("skipped: no port in config for %s", svc), nil
@@ -85,19 +79,36 @@ func init() {
 	Register(serviceConfigTCPProbe{})
 }
 
-func installBinDir() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_INSTALL_BIN_DIR")); v != "" {
-		return v
-	}
-	return "/usr/lib/globular/bin"
-}
+// ActionBinDir and ActionStateDir are package-level defaults.
+// Tests may override before calling actions.
+var (
+	ActionBinDir   = "/usr/lib/globular/bin"
+	ActionStateDir = "/var/lib/globular"
 
-func stateRoot() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR")); v != "" {
-		return v
-	}
-	return "/var/lib/globular"
-}
+	// ActionStagingRoot overrides the staging root used by service.install_payload.
+	// When non-empty, staging goes to filepath.Join(ActionStagingRoot, service)
+	// instead of filepath.Join(ActionStateDir, "staging", service).
+	ActionStagingRoot string
+
+	// ActionSkipSystemd skips systemd unit installation when true.
+	ActionSkipSystemd bool
+
+	// ActionConfigDir is the base directory for service configuration files.
+	ActionConfigDir = "/etc/globular"
+
+	// ActionSystemdDir is the directory for systemd unit files.
+	ActionSystemdDir = "/etc/systemd/system"
+
+	// AllowMissingSHA256 controls whether artifact verification accepts
+	// missing SHA256 digests. Default false (production).
+	AllowMissingSHA256 bool
+
+	// ActionArtifactRepoRoot is the root directory for local artifact resolution.
+	ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts"
+)
+
+func installBinDir() string { return ActionBinDir }
+func stateRoot() string     { return ActionStateDir }
 
 func firstPort(values ...int) int {
 	for _, v := range values {

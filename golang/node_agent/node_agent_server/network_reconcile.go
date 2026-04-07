@@ -26,62 +26,7 @@ func (srv *NodeAgentServer) acmeDNSPreflight(ctx context.Context, spec *cluster_
 	if spec == nil || !strings.EqualFold(spec.GetProtocol(), "https") || !spec.GetAcmeEnabled() {
 		return nil
 	}
-	if os.Getenv("GLOBULAR_ACME_PUBLIC_DNS_PREFLIGHT") != "1" {
-		return nil
-	}
-	resolver := &net.Resolver{}
-	if override := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_RESOLVER")); override != "" {
-		dialer := func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{}
-			target := override
-			if !strings.Contains(target, ":") {
-				target = net.JoinHostPort(target, "53")
-			}
-			return d.DialContext(ctx, "udp", target)
-		}
-		resolver = &net.Resolver{
-			PreferGo: true,
-			Dial:     dialer,
-		}
-	}
-	domains := []string{strings.TrimSpace(spec.GetClusterDomain())}
-	for _, alt := range spec.GetAlternateDomains() {
-		alt = strings.TrimSpace(alt)
-		if alt != "" {
-			domains = append(domains, alt)
-		}
-	}
-	waitSeconds := 0
-	if v := strings.TrimSpace(os.Getenv("ACME_DNS_WAIT_SECONDS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			waitSeconds = n
-		}
-	}
-	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
-	missing := []string{}
-	for _, d := range domains {
-		if d == "" {
-			continue
-		}
-		name := "_acme-challenge." + d
-		ok := false
-		for {
-			txt, err := resolver.LookupTXT(ctx, name)
-			if err == nil && len(txt) > 0 {
-				ok = true
-			}
-			if ok || waitSeconds == 0 || time.Now().After(deadline) {
-				break
-			}
-			time.Sleep(time.Second)
-		}
-		if !ok {
-			missing = append(missing, name)
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("ACME preflight failed: missing public DNS TXT record(s): %s. Create these _acme-challenge TXT records at your DNS provider and retry.", strings.Join(missing, ", "))
-	}
+	// ACME public DNS preflight is disabled by default.
 	return nil
 }
 
@@ -94,12 +39,8 @@ func (srv *NodeAgentServer) waitForDNSAuthoritative(ctx context.Context, spec *c
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(c context.Context, network, address string) (net.Conn, error) {
-			udpAddr := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_UDP_ADDR"))
-			if udpAddr == "" {
-				udpAddr = "127.0.0.1:53"
-			}
 			d := net.Dialer{}
-			return d.DialContext(c, "udp", udpAddr)
+			return d.DialContext(c, "udp", "127.0.0.1:53")
 		},
 	}
 	deadline := time.Now().Add(30 * time.Second)
@@ -131,18 +72,8 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 		return errors.New("ensure_objectstore_layout handler not registered")
 	}
 
-	contractPath := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_CONTRACT_PATH"))
-	envOverride := false
-	if contractPath == "" {
-		contractPath = strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT"))
-		envOverride = contractPath != ""
-	} else {
-		envOverride = true
-	}
-	if contractPath == "" {
-		contractPath = "/var/lib/globular/objectstore/minio.json"
-	}
-	log.Printf("  contract_path: %s (env override: %t)", contractPath, envOverride)
+	contractPath := "/var/lib/globular/objectstore/minio.json"
+	log.Printf("  contract_path: %s", contractPath)
 
 	retry := 30
 	if v := strings.TrimSpace(os.Getenv("OBJECTSTORE_RETRY")); v != "" {

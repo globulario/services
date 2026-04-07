@@ -70,17 +70,6 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 		Verbose:    true,
 	}
 
-	// Inherit paths from environment if set, matching legacy behavior.
-	if v := os.Getenv("GLOBULAR_INSTALL_PREFIX"); v != "" {
-		opts.Prefix = v
-	}
-	if v := os.Getenv("GLOBULAR_STATE_DIR"); v != "" {
-		opts.StateDir = v
-	}
-	if v := os.Getenv("GLOBULAR_INSTALL_CONFIG_DIR"); v != "" {
-		opts.ConfigDir = v
-	}
-
 	ictx, err := installer.NewContext(opts)
 	if err != nil {
 		return "", fmt.Errorf("infrastructure.install: create installer context: %w", err)

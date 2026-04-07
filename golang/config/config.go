@@ -58,15 +58,10 @@ type PortAllocator struct {
 
 // GetPortsRange returns the configured ports range as "from-to".
 // Order of precedence:
-//  1. env GLOB_PORTS_RANGE (e.g. "10020-10199")
-//  2. global config key "PortsRange" (if you store it there; optional hook shown below)
-//  3. fallback default "10000-20000"
+//  1. global config key "PortsRange"
+//  2. fallback default "10000-20000"
 func GetPortsRange() string {
-	if v := strings.TrimSpace(os.Getenv("GLOB_PORTS_RANGE")); v != "" {
-		return v
-	}
-
-	// OPTIONAL: if your global config has it; ignore errors silently.
+	// If global config has it; ignore errors silently.
 	if gc, err := GetLocalConfig(true); err == nil && gc != nil {
 		if pr, ok := gc["PortsRange"]; ok {
 			if s := strings.TrimSpace(Utility.ToString(pr)); s != "" {
@@ -515,10 +510,7 @@ func GetGatewayEndpoint() (string, string, error) {
 // state file and returns the host portion (e.g. "10.0.0.63"). Returns ""
 // if the state file is missing or unparseable.
 func controllerGatewayHost() string {
-	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
-	if stateRoot == "" {
-		stateRoot = "/var/lib/globular"
-	}
+	stateRoot := "/var/lib/globular"
 	data, err := os.ReadFile(filepath.Join(stateRoot, "nodeagent", "state.json"))
 	if err != nil {
 		return ""
@@ -589,9 +581,6 @@ func GetRoutableIPv4() string {
 // GetCACertificatePath returns the ONLY canonical location for the system CA.
 // INV-PKI-1: CA only at /var/lib/globular/pki/
 func GetCACertificatePath() string {
-	if p := strings.TrimSpace(os.Getenv("GLOBULAR_CA_CERT")); p != "" {
-		return p
-	}
 	return filepath.Join(GetStateRootDir(), "pki", "ca.crt")
 }
 
@@ -893,19 +882,12 @@ func GetStateRootDir() string {
 		}
 		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular"
 	}
-	if dir := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR")); dir != "" {
-		return dir
-	}
 	return "/var/lib/globular"
 }
 
 // GetServicesConfigDir returns the directory where service configs are stored.
 // Services store their configs as <uuid>.json files in this directory.
-// This can be overridden via the GLOBULAR_SERVICES_DIR environment variable.
 func GetServicesConfigDir() string {
-	if dir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR")); dir != "" {
-		return dir
-	}
 	return filepath.Join(GetStateRootDir(), "services")
 }
 
@@ -1257,9 +1239,7 @@ func isLoopbackHost(addr string) bool {
 }
 
 func resolveAdvertiseAddress() string {
-	explicit := strings.TrimSpace(os.Getenv("GLOBULAR_ADVERTISE_ADDRESS"))
-	preferred := strings.TrimSpace(os.Getenv("GLOBULAR_PREFERRED_IFACE"))
-	if ip, err := netutil.ResolveAdvertiseIP(preferred, explicit); err == nil && ip != nil {
+	if ip, err := netutil.ResolveAdvertiseIP("", ""); err == nil && ip != nil {
 		return ip.String()
 	}
 	return ""
@@ -1286,9 +1266,6 @@ func buildMinimalLocalConfig() map[string]interface{} {
 }
 
 func installerDefaultDomain() string {
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DOMAIN")); v != "" {
-		return netutil.NormalizeDomain(v)
-	}
 	localConf := filepath.Join(GetRuntimeConfigDir(), "local.conf")
 	if domain := readConfKey(localConf, "GLOBULAR_DOMAIN"); domain != "" {
 		return netutil.NormalizeDomain(domain)

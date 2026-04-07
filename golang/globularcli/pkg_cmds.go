@@ -369,9 +369,6 @@ func runPkgDescribe(cmd *cobra.Command, args []string) error {
 func runPkgRegister(cmd *cobra.Command, args []string) error {
 	token := rootCfg.token
 	if token == "" {
-		token = os.Getenv("GLOBULAR_TOKEN")
-	}
-	if token == "" {
 		return errors.New("authentication required: run 'globular auth login' or provide --token")
 	}
 
@@ -439,9 +436,6 @@ func runPkgPublish(cmd *cobra.Command, args []string) error {
 	}
 
 	token := rootCfg.token
-	if token == "" {
-		token = os.Getenv("GLOBULAR_TOKEN")
-	}
 	if token == "" && !pkgPublishDryRun {
 		fmt.Fprintln(os.Stderr, "Error: authentication required: run 'globular auth login' or provide --token")
 		os.Exit(exitAuthRBAC)

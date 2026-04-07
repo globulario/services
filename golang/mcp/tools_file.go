@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,9 +17,6 @@ import (
 // ── File service endpoint ────────────────────────────────────────────────────
 
 func fileEndpoint() string {
-	if ep := os.Getenv("GLOBULAR_FILE_ENDPOINT"); ep != "" {
-		return ep
-	}
 	if cfg, err := config.GetServiceConfigurationById("file.FileService"); err == nil {
 		if port, ok := cfg["Port"].(float64); ok {
 			addr := "localhost"
