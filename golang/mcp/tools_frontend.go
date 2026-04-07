@@ -71,6 +71,12 @@ Use this to find services that need Vite proxy entries or are down.`,
 				"vite_proxy_path": "/" + name,
 			}
 
+			// Strip any existing port from address to avoid "host:port:port".
+			if host, _, err := net.SplitHostPort(addr); err == nil && host != "" {
+				addr = host
+				entry["address"] = addr
+			}
+
 			// Quick TCP reachability check
 			endpoint := fmt.Sprintf("%s:%d", addr, int(port))
 			conn, dialErr := net.DialTimeout("tcp", endpoint, 2*time.Second)

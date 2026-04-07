@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -331,6 +332,10 @@ func endpointFromConfig(svc map[string]interface{}) string {
 	addr, _ := svc["Address"].(string)
 	if addr == "" {
 		addr = "localhost"
+	}
+	// Strip any existing port from address to avoid "host:port:port".
+	if host, _, err := net.SplitHostPort(addr); err == nil && host != "" {
+		addr = host
 	}
 	if port > 0 {
 		return fmt.Sprintf("%s:%d", addr, int(port))
