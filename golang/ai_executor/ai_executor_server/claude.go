@@ -98,17 +98,28 @@ func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, e
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	cmd := exec.CommandContext(ctx, c.cliBinary,
+	// Resolve MCP config path for the globular user.
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "/var/lib/globular"
+	}
+	mcpConfig := filepath.Join(home, ".claude", ".mcp.json")
+
+	args := []string{
 		"--print",
 		"--output-format", "json",
 		"--permission-mode", "bypassPermissions",
 		"--no-session-persistence",
 		"--model", "sonnet",
-		"--system-prompt", "You are the AI operations engine for a Globular cluster. "+
-			"You have MCP tools available to query cluster health, memory, node status, and RBAC. "+
-			"Always respond with structured JSON analysis when asked to diagnose incidents. "+
+		"--system-prompt", "You are the AI operations engine for a Globular cluster. " +
+			"You have MCP tools available to query cluster health, memory, node status, and RBAC. " +
+			"Always respond with structured JSON analysis when asked to diagnose incidents. " +
 			"Safety first — when uncertain, recommend observe_and_record.",
-	)
+	}
+	if _, err := os.Stat(mcpConfig); err == nil {
+		args = append(args, "--mcp-config", mcpConfig)
+	}
+	cmd := exec.CommandContext(ctx, c.cliBinary, args...)
 
 	cmd.Env = os.Environ()
 

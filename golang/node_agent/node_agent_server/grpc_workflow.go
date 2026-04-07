@@ -168,7 +168,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	log.Printf("grpc-workflow: install-package %s (%s)", pkgName, pkgKind)
 	start := time.Now()
 
-	err := srv.InstallPackage(ctx, pkgName, pkgKind, "")
+	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion)
 	elapsed := time.Since(start)
 
 	resp := &node_agentpb.RunWorkflowResponse{

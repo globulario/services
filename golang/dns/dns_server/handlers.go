@@ -2210,6 +2210,13 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if err != nil && srv.Logger != nil {
 			srv.Logger.Debug("dns:get A failed", "domain", domain, "err", err)
 		}
+		if len(addresses) == 0 && !srv.isManaged(domain) {
+			// Forward to upstream for non-managed domains.
+			if fwd := srv.forwardToUpstream(r); fwd != nil {
+				_ = w.WriteMsg(fwd)
+				return
+			}
+		}
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.A{
 				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: ttl},
@@ -2228,6 +2235,13 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		addresses, ttl, err := srv.get_ipv6(domain)
 		if err != nil && srv.Logger != nil {
 			srv.Logger.Debug("dns:get AAAA failed", "domain", domain, "err", err)
+		}
+		if len(addresses) == 0 && !srv.isManaged(domain) {
+			// Forward to upstream for non-managed domains.
+			if fwd := srv.forwardToUpstream(r); fwd != nil {
+				_ = w.WriteMsg(fwd)
+				return
+			}
 		}
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.AAAA{
@@ -2437,6 +2451,31 @@ func ServeDns(port int) error {
 	}
 	if srv != nil && srv.Logger != nil {
 		srv.Logger.Info("dns:udp server stopped", "port", port)
+	}
+	return nil
+}
+
+// ---------------
+// Upstream forwarding
+// ---------------
+
+// upstreamResolvers are public DNS servers used when forwarding queries for
+// domains not managed by this server.
+var upstreamResolvers = []string{"8.8.8.8:53", "1.1.1.1:53"}
+
+// forwardToUpstream forwards a DNS query to upstream resolvers and returns
+// the first successful response. Returns nil if all upstreams fail.
+func (srv *server) forwardToUpstream(r *dns.Msg) *dns.Msg {
+	c := &dns.Client{Timeout: 3 * time.Second}
+	for _, upstream := range upstreamResolvers {
+		resp, _, err := c.Exchange(r, upstream)
+		if err == nil && resp != nil {
+			resp.Id = r.Id
+			return resp
+		}
+	}
+	if srv.Logger != nil {
+		srv.Logger.Warn("dns:forward failed", "domain", r.Question[0].Name, "qtype", r.Question[0].Qtype)
 	}
 	return nil
 }

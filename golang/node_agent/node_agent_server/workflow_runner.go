@@ -35,7 +35,7 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr)
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "")
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)

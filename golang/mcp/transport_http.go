@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -271,6 +272,9 @@ func extractCallerFromToken(token string) string {
 // port in any that point to localhost/127.0.0.1 with a different port. This
 // allows Claude Code to reconnect after the MCP server restarts on a new port
 // without requiring a full reboot.
+//
+// It also ensures ~/.claude/.mcp.json exists for all user home directories
+// so Claude Code can discover the MCP server without manual configuration.
 func updateMCPJsonFiles(actualPort int) {
 	candidates := []string{}
 
@@ -307,6 +311,11 @@ func updateMCPJsonFiles(actualPort int) {
 		}
 	}
 
+	// Ensure ~/.claude/.mcp.json exists for all user home directories.
+	// This allows Claude Code to discover the MCP server automatically.
+	ensuredPaths := ensureClaudeMCPConfigs(actualPort)
+	candidates = append(candidates, ensuredPaths...)
+
 	// Deduplicate.
 	seen := map[string]bool{}
 	for _, p := range candidates {
@@ -320,6 +329,67 @@ func updateMCPJsonFiles(actualPort int) {
 		seen[abs] = true
 		patchMCPJson(abs, actualPort)
 	}
+}
+
+// ensureClaudeMCPConfigs ensures ~/.claude/.mcp.json exists in all user home
+// directories under /home/ (and /root/). If the file doesn't exist, it creates
+// it with the correct MCP server URL. Returns paths that were created or
+// already existed for further patching.
+func ensureClaudeMCPConfigs(port int) []string {
+	var paths []string
+
+	homeDirs := []string{"/root", "/var/lib/globular"}
+	if entries, err := os.ReadDir("/home"); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				homeDirs = append(homeDirs, filepath.Join("/home", e.Name()))
+			}
+		}
+	}
+
+	mcpJSON := fmt.Sprintf(`{
+  "mcpServers": {
+    "globular": {
+      "type": "http",
+      "url": "http://127.0.0.1:%d/mcp"
+    }
+  }
+}
+`, port)
+
+	for _, home := range homeDirs {
+		claudeDir := filepath.Join(home, ".claude")
+		mcpPath := filepath.Join(claudeDir, ".mcp.json")
+
+		if _, err := os.Stat(mcpPath); err == nil {
+			// File exists — add to patch candidates.
+			paths = append(paths, mcpPath)
+			continue
+		}
+
+		// Create ~/.claude/ if needed, preserving ownership of the home dir.
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			continue
+		}
+		if err := os.WriteFile(mcpPath, []byte(mcpJSON), 0644); err != nil {
+			log.Printf("mcp: failed to create %s: %v", mcpPath, err)
+			continue
+		}
+
+		// Fix ownership: match the home directory owner so Claude Code
+		// (running as the user) can read/write the file.
+		if info, err := os.Stat(home); err == nil {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				_ = os.Chown(claudeDir, int(stat.Uid), int(stat.Gid))
+				_ = os.Chown(mcpPath, int(stat.Uid), int(stat.Gid))
+			}
+		}
+
+		log.Printf("mcp: created %s (port %d)", mcpPath, port)
+		paths = append(paths, mcpPath)
+	}
+
+	return paths
 }
 
 // patchMCPJson reads a .mcp.json file, updates any localhost MCP server URL to

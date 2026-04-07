@@ -1,8 +1,12 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,9 +34,12 @@ var localPackageDirs = []string{
 	"/var/lib/globular/staging/local",
 }
 
-func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr string) error {
+func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
-	version := resolvePackageVersion(name)
+	version := desiredVersion
+	if version == "" {
+		version = resolvePackageVersion(name)
+	}
 
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
 		defaultPublisherID, name)
@@ -90,14 +97,25 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		}
 	}
 
+	// Try to read the real version from the artifact manifest (package.json).
+	// This covers Day0/bootstrap paths that don't pass a desired version,
+	// ensuring the correct version is written to the marker file.
+	if manifestVer := readArtifactManifestVersion(artifactPath); manifestVer != "" {
+		if version == "" || version == resolvePackageVersion(name) {
+			// Only override if we're using the hardcoded fallback.
+			log.Printf("installer-api: resolved %s version from manifest: %s → %s", name, version, manifestVer)
+			version = manifestVer
+		}
+	}
+
 	// Install.
 	switch strings.ToUpper(kind) {
 	case "INFRASTRUCTURE":
-		return srv.installInfra(ctx, name, artifactPath)
+		return srv.installInfra(ctx, name, version, artifactPath)
 	case "COMMAND":
-		return srv.installPayload(ctx, name, artifactPath)
+		return srv.installPayload(ctx, name, version, artifactPath)
 	default:
-		return srv.installPayload(ctx, name, artifactPath)
+		return srv.installPayload(ctx, name, version, artifactPath)
 	}
 }
 
@@ -121,14 +139,14 @@ func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) str
 	return ""
 }
 
-func (srv *NodeAgentServer) installPayload(ctx context.Context, name, artifactPath string) error {
+func (srv *NodeAgentServer) installPayload(ctx context.Context, name, version, artifactPath string) error {
 	handler := actions.Get("service.install_payload")
 	if handler == nil {
 		return fmt.Errorf("action service.install_payload not registered")
 	}
 	args, err := structpb.NewStruct(map[string]any{
 		"service":       name,
-		"version":       resolvePackageVersion(name),
+		"version":       version,
 		"artifact_path": artifactPath,
 	})
 	if err != nil {
@@ -137,17 +155,17 @@ func (srv *NodeAgentServer) installPayload(ctx context.Context, name, artifactPa
 	if _, err := handler.Apply(ctx, args); err != nil {
 		return fmt.Errorf("install %s: %w", name, err)
 	}
-	return srv.writeMarker(name, resolvePackageVersion(name))
+	return srv.writeMarker(name, version)
 }
 
-func (srv *NodeAgentServer) installInfra(ctx context.Context, name, artifactPath string) error {
+func (srv *NodeAgentServer) installInfra(ctx context.Context, name, version, artifactPath string) error {
 	handler := actions.Get("infrastructure.install")
 	if handler == nil {
 		return fmt.Errorf("action infrastructure.install not registered")
 	}
 	args, err := structpb.NewStruct(map[string]any{
 		"name":          name,
-		"version":       resolvePackageVersion(name),
+		"version":       version,
 		"artifact_path": artifactPath,
 	})
 	if err != nil {
@@ -156,7 +174,7 @@ func (srv *NodeAgentServer) installInfra(ctx context.Context, name, artifactPath
 	if _, err := handler.Apply(ctx, args); err != nil {
 		return fmt.Errorf("install infra %s: %w", name, err)
 	}
-	return srv.writeMarker(name, resolvePackageVersion(name))
+	return srv.writeMarker(name, version)
 }
 
 func (srv *NodeAgentServer) writeMarker(name, version string) error {
@@ -207,5 +225,46 @@ func resolvePackageVersion(name string) string {
 		return "0.0.2"
 	default:
 		return "0.0.1"
+	}
+}
+
+// readArtifactManifestVersion reads the version from a staged artifact's
+// package.json manifest. The artifact is a .tgz containing a top-level
+// package.json with at least {"version": "..."}.
+// Returns empty string if the version cannot be determined.
+func readArtifactManifestVersion(artifactPath string) string {
+	f, err := os.Open(artifactPath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return ""
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return ""
+		}
+		// Match package.json at the root of the archive.
+		name := filepath.Clean(hdr.Name)
+		if name == "package.json" || name == "./package.json" {
+			data, err := io.ReadAll(io.LimitReader(tr, 32*1024))
+			if err != nil {
+				return ""
+			}
+			var manifest struct {
+				Version string `json:"version"`
+			}
+			if err := json.Unmarshal(data, &manifest); err != nil {
+				return ""
+			}
+			return strings.TrimSpace(manifest.Version)
+		}
 	}
 }

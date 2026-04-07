@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
@@ -90,6 +91,12 @@ func registerAIExecutorTools(s *server) {
 			port := Utility.ToInt(svc["Port"])
 			if addr == "" || port == 0 {
 				continue
+			}
+			// Strip any existing port from address — service configs sometimes
+			// store "host:port" in the Address field, which would produce
+			// "host:port:port" when combined with Port below.
+			if host, _, err := net.SplitHostPort(addr); err == nil && host != "" {
+				addr = host
 			}
 			endpoint := fmt.Sprintf("%s:%d", addr, port)
 

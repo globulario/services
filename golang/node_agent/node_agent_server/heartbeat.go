@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,6 +47,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// Initial sync: populate installed-state etcd records for packages
 	// installed by the Day-0 installer (which doesn't go through plan execution).
 	srv.syncInstalledStateToEtcd(ctx)
+	srv.syncEtcHosts(ctx)
 
 	heartbeat := time.NewTicker(30 * time.Second)
 	defer heartbeat.Stop()
@@ -63,6 +66,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			return
 		case <-syncTicker.C:
 			srv.syncInstalledStateToEtcd(ctx)
+			srv.syncEtcHosts(ctx)
 		case <-heartbeat.C:
 		}
 	}
@@ -108,6 +112,22 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			}
 			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 			if existing != nil {
+				// Update existing record if version changed (e.g. after apply-desired).
+				if info.Version != "" && info.Version != existing.GetVersion() {
+					oldVer := existing.GetVersion()
+					existing.Version = info.Version
+					existing.UpdatedUnix = now
+					existing.Status = "installed"
+					if info.PublisherID != "" {
+						existing.PublisherId = info.PublisherID
+					}
+					if err := installed_state.WriteInstalledPackage(ctx, existing); err != nil {
+						log.Printf("nodeagent: update installed-state %s/%s to %s: %v", kind, name, info.Version, err)
+					} else {
+						log.Printf("nodeagent: updated installed-state %s/%s: %s → %s", kind, name, oldVer, info.Version)
+						synced++
+					}
+				}
 				continue
 			}
 			pkg := &node_agentpb.InstalledPackage{
@@ -163,6 +183,41 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 					_ = installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
 					log.Printf("nodeagent: removed stale installed-state SERVICE/%s (no unit file, no version marker)", name)
 				}
+			}
+		}
+	}
+
+	// Phase 4: Backfill missing version markers from etcd records.
+	// Packages installed by bootstrap, manual deploy, or other tools may
+	// exist in etcd installed_state but lack a local version marker. Without
+	// the marker, loadMarkers() won't discover them on the next heartbeat,
+	// causing the package to appear as "not installed" in health checks.
+	if srv.nodeID != "" {
+		for _, kind := range []string{"SERVICE", "COMMAND", "INFRASTRUCTURE"} {
+			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
+			if err != nil {
+				continue
+			}
+			for _, pkg := range pkgs {
+				name := pkg.GetName()
+				ver := pkg.GetVersion()
+				if name == "" || ver == "" || ver == "0.0.1" {
+					continue // skip unknown/fallback versions
+				}
+				markerPath := versionutil.MarkerPath(name)
+				if _, err := os.Stat(markerPath); err == nil {
+					continue // marker already exists
+				}
+				// Create the missing marker directory and file.
+				if err := os.MkdirAll(filepath.Dir(markerPath), 0o755); err != nil {
+					continue
+				}
+				if err := os.WriteFile(markerPath, []byte(ver+"\n"), 0o644); err != nil {
+					log.Printf("nodeagent: backfill marker %s: %v", markerPath, err)
+					continue
+				}
+				log.Printf("nodeagent: backfilled version marker %s/%s → %s", kind, name, ver)
+				synced++
 			}
 		}
 	}
@@ -536,4 +591,107 @@ func (srv *NodeAgentServer) controllerDialOptions(target config.DialTarget) ([]g
 	}
 	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	return opts, nil
+}
+
+// syncEtcHosts ensures /etc/hosts contains entries for all cluster nodes.
+// This enables hostname-based peer discovery (e.g. ai-executor peer proxying)
+// without depending on reverse DNS, which the internal DNS doesn't support.
+func (srv *NodeAgentServer) syncEtcHosts(ctx context.Context) {
+	if srv.controllerEndpoint == "" {
+		return
+	}
+
+	// Query the cluster controller for the node list.
+	target := config.ResolveDialTarget(srv.controllerEndpoint)
+	opts, err := srv.controllerDialOptions(target)
+	if err != nil {
+		return
+	}
+	conn, err := grpc.NewClient(target.Address, opts...)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := client.ListNodes(callCtx, &cluster_controllerpb.ListNodesRequest{})
+	if err != nil {
+		return
+	}
+
+	// Build the set of hostname→IP mappings from cluster nodes.
+	clusterEntries := make(map[string]string) // ip -> hostname
+	for _, node := range resp.GetNodes() {
+		hostname := node.GetIdentity().GetHostname()
+		ips := node.GetIdentity().GetIps()
+		if hostname == "" || len(ips) == 0 {
+			continue
+		}
+		// Use the first non-loopback IP.
+		for _, ip := range ips {
+			if ip != "127.0.0.1" && ip != "::1" {
+				clusterEntries[ip] = hostname
+				break
+			}
+		}
+	}
+	if len(clusterEntries) == 0 {
+		return
+	}
+
+	// Read current /etc/hosts and check what's missing.
+	hostsFile := "/etc/hosts"
+	existing := make(map[string]bool) // IPs already in /etc/hosts
+	f, err := os.Open(hostsFile)
+	if err != nil {
+		return
+	}
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		lines = append(lines, line)
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			existing[fields[0]] = true
+		}
+	}
+	f.Close()
+
+	// Append missing entries.
+	var added []string
+	// Sort IPs for deterministic order.
+	ips := make([]string, 0, len(clusterEntries))
+	for ip := range clusterEntries {
+		ips = append(ips, ip)
+	}
+	sort.Strings(ips)
+
+	for _, ip := range ips {
+		hostname := clusterEntries[ip]
+		if existing[ip] {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s\t%s", ip, hostname))
+		added = append(added, hostname)
+	}
+
+	if len(added) == 0 {
+		return // nothing to add
+	}
+
+	// Write back atomically.
+	content := strings.Join(lines, "\n") + "\n"
+	tmp := hostsFile + ".tmp"
+	if err := os.WriteFile(tmp, []byte(content), 0644); err != nil {
+		return
+	}
+	if err := os.Rename(tmp, hostsFile); err != nil {
+		os.Remove(tmp)
+		return
+	}
+	log.Printf("nodeagent: added %d node(s) to /etc/hosts: %v", len(added), added)
 }

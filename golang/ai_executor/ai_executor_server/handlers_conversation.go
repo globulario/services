@@ -272,7 +272,9 @@ func (srv *server) proxyPromptToPeer(req *ai_executorpb.SendPromptRequest, strea
 	}
 
 	// Call the peer's SendPrompt and relay the stream.
-	peerStream, err := peer.Client.SendPrompt(stream.Context(), req)
+	// Inject auth metadata so the peer's interceptor accepts the proxied call.
+	peerCtx := peerAuthContext(stream.Context())
+	peerStream, err := peer.Client.SendPrompt(peerCtx, req)
 	if err != nil {
 		return status.Errorf(codes.Internal, "proxy to peer %s: %v", req.TargetNode, err)
 	}

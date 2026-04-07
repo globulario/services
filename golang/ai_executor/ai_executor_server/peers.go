@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +19,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"crypto/tls"
 	"crypto/x509"
-	"os"
 )
 
 // peerManager discovers and communicates with ai-executor instances on other nodes.
@@ -57,20 +58,20 @@ func (pm *peerManager) discoverPeers() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	// Resolve local IPs so we can skip our own instance in the service list.
+	localIPs := make(map[string]bool)
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, a := range addrs {
+			if ipNet, ok := a.(*net.IPNet); ok {
+				localIPs[ipNet.IP.String()] = true
+			}
+		}
+	}
+
 	found := make(map[string]bool)
 	for _, svc := range services {
 		name, _ := svc["Name"].(string)
 		if !strings.Contains(name, "ai_executor.AiExecutorService") {
-			continue
-		}
-		// Identify each peer by Mac (instance identifier). Id in the service
-		// config is the service type ID and is shared across all instances.
-		id, _ := svc["Mac"].(string)
-		if id == "" {
-			// Fall back to Id if Mac is missing (legacy / non-instanced svc).
-			id, _ = svc["Id"].(string)
-		}
-		if id == "" || id == pm.localNodeID {
 			continue
 		}
 
@@ -87,11 +88,18 @@ func (pm *peerManager) discoverPeers() {
 			address = host
 		}
 
+		// Skip our own instance by checking if the address is local.
+		if localIPs[address] || address == "localhost" || address == "127.0.0.1" {
+			continue
+		}
+
+		// Use address:port as the unique peer identifier since the service
+		// Id/Mac fields are shared across all instances.
 		endpoint := fmt.Sprintf("%s:%d", address, int(port))
-		found[id] = true
+		found[endpoint] = true
 
 		// Already connected?
-		if p, ok := pm.peers[id]; ok {
+		if p, ok := pm.peers[endpoint]; ok {
 			p.LastSeen = time.Now()
 			continue
 		}
@@ -119,8 +127,18 @@ func (pm *peerManager) discoverPeers() {
 			logger.Warn("peer: ping failed", "endpoint", endpoint, "err", err)
 		}
 
-		pm.peers[id] = &peerConn{
-			NodeID:   id,
+		// Fall back to /etc/hosts if Ping didn't return a hostname.
+		// We avoid net.LookupAddr because PTR queries to our internal DNS
+		// time out, blocking discovery for 15+ seconds.
+		if hostname == "" {
+			hostname = resolveHostnameFromHosts(address)
+		}
+		if hostname == "" {
+			hostname = address // last resort: use IP as identifier
+		}
+
+		pm.peers[endpoint] = &peerConn{
+			NodeID:   endpoint,
 			Hostname: hostname,
 			Endpoint: endpoint,
 			Client:   client,
@@ -179,6 +197,13 @@ func buildPeerTLS(serverName string) credentials.TransportCredentials {
 				tlsCfg.RootCAs = pool
 			}
 		}
+	}
+	// Include client certificate for mTLS — peers require mutual TLS
+	// to authenticate inter-node calls.
+	certFile := "/var/lib/globular/pki/issued/services/service.crt"
+	keyFile := "/var/lib/globular/pki/issued/services/service.key"
+	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
 	}
 	return credentials.NewTLS(tlsCfg)
 }
@@ -349,6 +374,35 @@ func (pm *peerManager) close() {
 		p.Conn.Close()
 	}
 	pm.peers = make(map[string]*peerConn)
+}
+
+// resolveHostnameFromHosts parses /etc/hosts and returns the short hostname
+// for the given IP address. Returns empty string if not found.
+func resolveHostnameFromHosts(ip string) string {
+	f, err := os.Open("/etc/hosts")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != ip {
+			continue
+		}
+		// Return the short hostname (first name, stripped of domain).
+		name := fields[1]
+		if idx := strings.Index(name, "."); idx > 0 {
+			name = name[:idx]
+		}
+		return name
+	}
+	return ""
 }
 
 // Suppress unused import warning for slog.

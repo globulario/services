@@ -93,14 +93,14 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		},
 
 		InstallPackage: func(ctx context.Context, name string) error {
-			return srv.InstallPackage(ctx, name, "SERVICE", repoAddr)
+			return srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "")
 		},
 
 		InstallPackageSet: func(ctx context.Context, packages []string) error {
 			var errs []string
 			for _, pkg := range packages {
 				kind := inferPackageKind(pkg)
-				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr); err != nil {
+				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
 				}
 			}
@@ -330,7 +330,7 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr)
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "")
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)
