@@ -15,9 +15,11 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/eventpb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	grpcInsecure "google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // serviceState tracks the last known state of a systemd service.
@@ -58,24 +60,53 @@ func (ep *eventPublisher) connect() error {
 	rawAddr := config.ResolveLocalServiceAddr("event.EventService")
 	dt := config.ResolveDialTarget(rawAddr)
 
-	// Try TLS first (production), fall back to insecure (development).
+	// mTLS: client cert for authentication + CA for server verification.
 	var creds grpc.DialOption
+	certFile := config.GetLocalServerCertificatePath()
+	keyFile := config.GetLocalServerKeyPath()
 	caPath := config.GetCACertificatePath()
-	if caData, err := os.ReadFile(caPath); err == nil {
-		pool := x509.NewCertPool()
-		pool.AppendCertsFromPEM(caData)
-		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-			ServerName: dt.ServerName,
-			RootCAs:    pool,
-			MinVersion: tls.VersionTLS12,
-		}))
+	if certFile != "" && keyFile != "" && caPath != "" {
+		cert, certErr := tls.LoadX509KeyPair(certFile, keyFile)
+		caData, caErr := os.ReadFile(caPath)
+		if certErr == nil && caErr == nil {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(caData)
+			creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+				Certificates: []tls.Certificate{cert},
+				ServerName:   dt.ServerName,
+				RootCAs:      pool,
+				MinVersion:   tls.VersionTLS12,
+			}))
+		} else {
+			creds = grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
+		}
 	} else {
 		creds = grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
 	}
 
+	// Load node token for authentication metadata.
+	mac, _ := config.GetMacAddress()
+	token, _ := security.GetLocalToken(mac)
+
+	dialOpts := []grpc.DialOption{creds}
+	if token != "" {
+		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(
+			func(ctx context.Context, method string, req, reply interface{},
+				cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+				md, _ := metadata.FromOutgoingContext(ctx)
+				if md == nil {
+					md = metadata.New(nil)
+				} else {
+					md = md.Copy()
+				}
+				md.Set("token", token)
+				return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
+			}))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, dt.Address, creds)
+	conn, err := grpc.DialContext(ctx, dt.Address, dialOpts...)
 	if err != nil {
 		return err
 	}
