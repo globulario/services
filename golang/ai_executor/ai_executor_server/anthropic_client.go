@@ -212,11 +212,16 @@ func (c *anthropicClient) ensureValidToken() error {
 	return c.refreshAccessToken()
 }
 
+// claudeOAuthClientID is the public OAuth client ID used by Claude Code.
+// Required for the token refresh endpoint.
+const claudeOAuthClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+
 // refreshAccessToken calls the Anthropic OAuth token refresh endpoint.
 func (c *anthropicClient) refreshAccessToken() error {
 	reqBody, _ := json.Marshal(map[string]string{
 		"grant_type":    "refresh_token",
 		"refresh_token": c.refreshToken,
+		"client_id":     claudeOAuthClientID,
 	})
 
 	resp, err := c.http.Post(
