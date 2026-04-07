@@ -2205,7 +2205,6 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		msg := dns.Msg{}
 		msg.SetReply(r)
 		domain := msg.Question[0].Name
-		msg.Authoritative = true
 		addresses, ttl, err := srv.get_ipv4(domain)
 		if err != nil && srv.Logger != nil {
 			srv.Logger.Debug("dns:get A failed", "domain", domain, "err", err)
@@ -2217,6 +2216,8 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				return
 			}
 		}
+		// Only claim authority for domains we actually manage.
+		msg.Authoritative = srv.isManaged(domain)
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.A{
 				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: ttl},
@@ -2230,7 +2231,6 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	case dns.TypeAAAA:
 		msg := dns.Msg{}
 		msg.SetReply(r)
-		msg.Authoritative = true
 		domain := msg.Question[0].Name
 		addresses, ttl, err := srv.get_ipv6(domain)
 		if err != nil && srv.Logger != nil {
@@ -2243,6 +2243,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				return
 			}
 		}
+		msg.Authoritative = srv.isManaged(domain)
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.AAAA{
 				Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: ttl},
