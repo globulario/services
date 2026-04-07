@@ -34,7 +34,12 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 	hostname, _ := os.Hostname()
 
 	// Route to a specific peer if requested.
+	// Ensure the user ID is on the request so the peer stores the
+	// conversation under the correct user (not "anonymous").
 	if req.TargetNode != "" && req.TargetNode != hostname {
+		if req.UserId == "" {
+			req.UserId = userID
+		}
 		return srv.proxyPromptToPeer(req, stream)
 	}
 
