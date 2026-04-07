@@ -98,6 +98,16 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 	log.Printf("deploy-control-plane: accepted %s/%s@%s (requested_build=%d resolved_build=%d digest=%s) node=%s",
 		pkgKind, pkgName, version, requestedBuild, resolvedBuild, resolved.Digest, acceptedByNodeID)
 
+	// ── Set desired version in etcd so the controller tracks this as the intended state ──
+	if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
+		ServiceId:   pkgName,
+		Version:     version,
+		BuildNumber: resolvedBuild,
+	}); err != nil {
+		log.Printf("deploy-control-plane: WARNING failed to set desired version: %v", err)
+		// Non-fatal — the deploy still proceeds, operator can fix desired state later.
+	}
+
 	// ── Dispatch async — don't block the RPC ──
 	go func() {
 		err := srv.RunControllerDeployWorkflow(context.Background(), pkgName, pkgKind, version, resolvedBuild)
