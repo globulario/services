@@ -563,15 +563,15 @@ func ResolveServiceAddrs(serviceName string) []string {
 	return nil
 }
 
-// ResolveLocalServiceAddr resolves the local instance of a service.
-// Unlike ResolveServiceAddr which may return any node's endpoint,
-// this returns only the instance running on the local node — identified
-// by matching the service's registered address against this node's IP.
-// Returns the address exactly as registered in etcd (source of truth).
-func ResolveLocalServiceAddr(serviceName, fallback string) string {
+// ResolveLocalServiceAddr resolves the local instance of a service from etcd.
+// Returns the address exactly as registered — the source of truth for both
+// the hostname and the port. No hardcoded fallbacks.
+//
+// Returns empty string if the service is not found or not running locally.
+func ResolveLocalServiceAddr(serviceName string) string {
 	svcs, err := GetServicesConfigurationsByName(serviceName)
 	if err != nil || len(svcs) == 0 {
-		return fallback
+		return ""
 	}
 	localIP := GetRoutableIPv4()
 	for _, s := range svcs {
@@ -584,7 +584,7 @@ func ResolveLocalServiceAddr(serviceName, fallback string) string {
 			return fmt.Sprintf("%s:%d", host, port)
 		}
 	}
-	return fallback
+	return ""
 }
 
 // meshRouteAddrs rewrites resolved addresses so that gRPC traffic goes through

@@ -1,30 +1,32 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"strings"
-	"sync"
 	"time"
+
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/netutil"
 )
 
 // discoverServiceAddr returns the address for a gRPC service.
 //
-// On Day 0 / control-plane nodes where the service runs locally, it returns
-// localhost:<port>. On Day 1 joining nodes where the service isn't local,
-// it returns the gateway address (<controller-host>:8443). Envoy on the
-// gateway routes gRPC by service path (e.g. /event.EventService/* →
-// event_EventService_cluster) so any service is reachable through one address.
+// When the service is running locally, it returns the node's cert-valid
+// FQDN with the service port (e.g. globule-nuc.globular.internal:10002).
+// This ensures TLS verification succeeds — the cert SAN covers the FQDN,
+// NOT localhost.
 //
-// This replaces all hardcoded localhost:<port> addresses in the node-agent.
+// When the service is not local, it returns the gateway address for mesh routing.
+//
+// All discovery uses etcd (via config package) as the source of truth.
+// No environment variables, no hardcoded fallbacks.
 func discoverServiceAddr(defaultLocalPort int) string {
-	localAddr := fmt.Sprintf("localhost:%d", defaultLocalPort)
-
-	// Fast check: is the service running locally?
+	// Fast check: is the service running locally on this port?
 	if isLocalPortOpen(defaultLocalPort) {
-		return localAddr
+		// Return FQDN-based address that matches the cert SAN.
+		host := localCertHostname()
+		return fmt.Sprintf("%s:%d", host, defaultLocalPort)
 	}
 
 	// Not local — route through the gateway.
@@ -32,77 +34,50 @@ func discoverServiceAddr(defaultLocalPort int) string {
 		return gw
 	}
 
-	// Last resort — return localhost and let the caller handle the error.
-	return localAddr
+	// Last resort — use FQDN, never localhost.
+	host := localCertHostname()
+	return fmt.Sprintf("%s:%d", host, defaultLocalPort)
 }
 
-// discoverGatewayAddr returns <controller-host>:8443 for remote service access.
-// The gateway (Envoy) proxies all gRPC traffic to backend services based on the
-// service path prefix, so one address handles every service.
+// localCertHostname returns the FQDN that matches this node's service
+// certificate SAN: <hostname>.<domain> (e.g. globule-nuc.globular.internal).
 //
-// Discovery order:
-//  1. Cached value (gateway doesn't move during a session)
-//  2. Node-agent state file (controller_endpoint → same host, port 443)
-//  3. NODE_AGENT_CONTROLLER_ENDPOINT env var
-//  4. DNS: controller.<domain>:8443
+// Domain is read from etcd via config.GetDomain() — the source of truth.
+func localCertHostname() string {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "localhost"
+	}
+	domain, err := config.GetDomain()
+	if err != nil || domain == "" {
+		domain = netutil.DefaultClusterDomain()
+	}
+	return hostname + "." + domain
+}
+
+// discoverGatewayAddr returns <controller-host>:443 for remote service access.
+// The gateway (Envoy) proxies all gRPC traffic to backend services based on
+// the service path prefix.
+//
+// Discovery uses etcd service registry (source of truth):
+//  1. Resolve controller address from etcd
+//  2. Use DNS-based discovery as fallback
 func discoverGatewayAddr() string {
-	gatewayCache.mu.RLock()
-	if gatewayCache.addr != "" {
-		defer gatewayCache.mu.RUnlock()
-		return gatewayCache.addr
-	}
-	gatewayCache.mu.RUnlock()
-
-	addr := resolveGatewayAddr()
+	// Try etcd: resolve the controller's registered address.
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
 	if addr != "" {
-		gatewayCache.mu.Lock()
-		gatewayCache.addr = addr
-		gatewayCache.mu.Unlock()
-	}
-	return addr
-}
-
-var gatewayCache struct {
-	mu   sync.RWMutex
-	addr string
-}
-
-func resolveGatewayAddr() string {
-	// 1. State file
-	stateRoot := os.Getenv("GLOBULAR_STATE_DIR")
-	if stateRoot == "" {
-		stateRoot = "/var/lib/globular"
-	}
-	// Try both possible state file locations.
-	for _, rel := range []string{"node_agent/state.json", "nodeagent/state.json"} {
-		statePath := stateRoot + "/" + rel
-		if data, err := os.ReadFile(statePath); err == nil {
-			var state struct {
-				ControllerEndpoint string `json:"controller_endpoint"`
-			}
-			if json.Unmarshal(data, &state) == nil && state.ControllerEndpoint != "" {
-				if host := hostFromEndpoint(state.ControllerEndpoint); host != "" {
-					return net.JoinHostPort(host, "443")
-				}
-			}
-		}
-	}
-
-	// 2. Env var
-	if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
-		if host := hostFromEndpoint(ep); host != "" {
+		if host := hostFromEndpoint(addr); host != "" {
 			return net.JoinHostPort(host, "443")
 		}
 	}
 
-	// 3. DNS-based: try controller.<domain>:8443
-	domain := strings.TrimSpace(os.Getenv("GLOBULAR_DOMAIN"))
+	// Fallback: DNS-based discovery.
+	domain, _ := config.GetDomain()
 	if domain == "" {
-		domain = "globular.internal"
+		domain = netutil.DefaultClusterDomain()
 	}
 	candidate := fmt.Sprintf("controller.%s:443", domain)
 	if host := hostFromEndpoint(candidate); host != "" {
-		// Verify DNS resolves.
 		if addrs, err := net.LookupHost(host); err == nil && len(addrs) > 0 {
 			return candidate
 		}
@@ -123,7 +98,7 @@ func hostFromEndpoint(ep string) string {
 }
 
 func isLocalPortOpen(port int) bool {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 300*time.Millisecond)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 300*time.Millisecond)
 	if err != nil {
 		return false
 	}

@@ -182,10 +182,8 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 //   - Creates records ONLY for INFRASTRUCTURE/COMMAND packages that have a
 //     matching systemd unit running (verified via systemctl)
 func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int64, platform string, synced *int) {
-	repoAddr := strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
-	if repoAddr == "" {
-		repoAddr = discoverServiceAddr(10008) // repository.PackageRepository default port
-	}
+	// Resolve repository address from etcd — source of truth for address and port.
+	repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
 
 	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
 	if err != nil {

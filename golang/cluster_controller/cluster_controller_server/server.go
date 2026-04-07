@@ -307,8 +307,11 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// The workflow service runs on every node — we always use the local
 	// instance so execution stays on this node. HA durability is handled by
 	// executor leases and orphan recovery, not by routing to remote instances.
-	wfDirectAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService", "localhost:10004")
-	{
+	wfDirectAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
+	if wfDirectAddr == "" {
+		log.Printf("cluster-controller: workflow service not found in registry — centralized execution unavailable")
+	}
+	if wfDirectAddr != "" {
 		dt := config.ResolveDialTarget(wfDirectAddr)
 		log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfDirectAddr)
 		if wfConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(

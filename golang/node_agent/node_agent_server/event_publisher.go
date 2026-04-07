@@ -54,7 +54,8 @@ func newEventPublisher(nodeID string) *eventPublisher {
 // On Day 1 nodes the event service is on the control-plane node, so we
 // route through the gateway (same host as controller, port 443).
 func (ep *eventPublisher) connect() error {
-	rawAddr := discoverServiceAddr(10010) // event.EventService default port
+	// Resolve event service from etcd — source of truth for address and port.
+	rawAddr := config.ResolveLocalServiceAddr("event.EventService")
 	dt := config.ResolveDialTarget(rawAddr)
 
 	// Try TLS first (production), fall back to insecure (development).

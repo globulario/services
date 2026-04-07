@@ -48,10 +48,7 @@ func (srv *server) executeWorkflowCentralized(
 	// Callback endpoint: the workflow service calls back to THIS controller
 	// for actor dispatch. Use our real address from the service registry,
 	// not localhost — the workflow service may be on another node.
-	controllerEndpoint := config.ResolveLocalServiceAddr(
-		"cluster_controller.ClusterControllerService",
-		fmt.Sprintf("%s:%d", config.GetRoutableIPv4(), srv.cfg.Port),
-	)
+	controllerEndpoint := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService")
 
 	log.Printf("workflow %s: dispatching to workflow service (callback=%s, correlation=%s)",
 		workflowName, controllerEndpoint, correlationID)
@@ -107,10 +104,7 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
 
-	controllerEndpoint := config.ResolveLocalServiceAddr(
-		"cluster_controller.ClusterControllerService",
-		fmt.Sprintf("%s:%d", config.GetRoutableIPv4(), srv.cfg.Port),
-	)
+	controllerEndpoint := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService")
 
 	srv.actorServer.RegisterRouter(correlationID, router)
 	defer srv.actorServer.UnregisterRouter(correlationID)

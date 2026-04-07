@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular_client "github.com/globulario/services/golang/globular_client"
@@ -36,7 +37,13 @@ func (eh *eventHandler) run(ctx context.Context) {
 		}
 
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-		c, err := globular_client.GetClient(discoverServiceAddr(10010), "event.EventService", "NewEventService_Client")
+		eventAddr := config.ResolveLocalServiceAddr("event.EventService")
+		if eventAddr == "" {
+			log.Printf("event-handler: event service not found in registry, retrying in 10s")
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		c, err := globular_client.GetClient(eventAddr, "event.EventService", "NewEventService_Client")
 		if err != nil {
 			log.Printf("event-handler: event service unavailable, retrying in 10s: %v", err)
 			time.Sleep(10 * time.Second)
