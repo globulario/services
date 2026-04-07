@@ -563,6 +563,30 @@ func ResolveServiceAddrs(serviceName string) []string {
 	return nil
 }
 
+// ResolveLocalServiceAddr resolves the local instance of a service.
+// Unlike ResolveServiceAddr which may return any node's endpoint,
+// this returns only the instance running on the local node — identified
+// by matching the service's registered address against this node's IP.
+// Returns the address exactly as registered in etcd (source of truth).
+func ResolveLocalServiceAddr(serviceName, fallback string) string {
+	svcs, err := GetServicesConfigurationsByName(serviceName)
+	if err != nil || len(svcs) == 0 {
+		return fallback
+	}
+	localIP := GetRoutableIPv4()
+	for _, s := range svcs {
+		host := svcHost(s)
+		port := svcPort(s)
+		if port == 0 {
+			continue
+		}
+		if host == localIP {
+			return fmt.Sprintf("%s:%d", host, port)
+		}
+	}
+	return fallback
+}
+
 // meshRouteAddrs rewrites resolved addresses so that gRPC traffic goes through
 // the Envoy service mesh on port 443 instead of hitting direct service ports.
 // Envoy uses gRPC path-based routing (e.g. /authentication.AuthenticationService/*)

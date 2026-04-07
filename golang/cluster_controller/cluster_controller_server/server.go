@@ -303,13 +303,19 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	srv.workflowRec = workflow.NewRecorderWithResolver(wfAddrResolver, clusterID)
 
 	// Create a WorkflowService client for centralized execution.
-	// Uses the same address resolver as the Recorder.
-	if wfAddr := wfAddrResolver(); wfAddr != "" {
-		dt := config.ResolveDialTarget(wfAddr)
+	// Resolve the LOCAL workflow service from etcd registry (source of truth).
+	// The workflow service runs on every node — we always use the local
+	// instance so execution stays on this node. HA durability is handled by
+	// executor leases and orphan recovery, not by routing to remote instances.
+	wfDirectAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService", "localhost:10004")
+	{
+		dt := config.ResolveDialTarget(wfDirectAddr)
+		log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfDirectAddr)
 		if wfConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
 			buildControllerClientTLSCreds(dt.ServerName),
 		)); err == nil {
 			srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
+			log.Printf("cluster-controller: workflow client connected")
 		} else {
 			log.Printf("cluster-controller: workflow client unavailable: %v", err)
 		}

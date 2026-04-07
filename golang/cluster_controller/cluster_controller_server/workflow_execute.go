@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -31,7 +32,7 @@ func (srv *server) executeWorkflowCentralized(
 	router *engine.Router,
 ) (*workflowpb.ExecuteWorkflowResponse, error) {
 	if srv.workflowClient == nil {
-		return nil, fmt.Errorf("workflow service not configured")
+		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil — check CLUSTER_WORKFLOW_SERVICE_ADDR or etcd service registry)")
 	}
 
 	inputsJSON, err := json.Marshal(inputs)
@@ -44,7 +45,16 @@ func (srv *server) executeWorkflowCentralized(
 	srv.actorServer.RegisterRouter(correlationID, router)
 	defer srv.actorServer.UnregisterRouter(correlationID)
 
-	controllerEndpoint := fmt.Sprintf("localhost:%d", srv.cfg.Port)
+	// Callback endpoint: the workflow service calls back to THIS controller
+	// for actor dispatch. Use our real address from the service registry,
+	// not localhost — the workflow service may be on another node.
+	controllerEndpoint := config.ResolveLocalServiceAddr(
+		"cluster_controller.ClusterControllerService",
+		fmt.Sprintf("%s:%d", config.GetRoutableIPv4(), srv.cfg.Port),
+	)
+
+	log.Printf("workflow %s: dispatching to workflow service (callback=%s, correlation=%s)",
+		workflowName, controllerEndpoint, correlationID)
 
 	resp, err := srv.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		ClusterId:    srv.cfg.ClusterDomain,
@@ -59,11 +69,15 @@ func (srv *server) executeWorkflowCentralized(
 		CorrelationId: correlationID,
 	})
 	if err != nil {
+		log.Printf("workflow %s (correlation=%s): RPC failed: %v", workflowName, correlationID, err)
 		return nil, fmt.Errorf("ExecuteWorkflow %s: %w", workflowName, err)
 	}
 
-	log.Printf("workflow %s (correlation=%s) finished: status=%s",
-		workflowName, correlationID, resp.Status)
+	if resp.Status == "FAILED" {
+		log.Printf("workflow %s (correlation=%s): FAILED — %s", workflowName, correlationID, resp.Error)
+	} else {
+		log.Printf("workflow %s (correlation=%s): %s", workflowName, correlationID, resp.Status)
+	}
 
 	return resp, nil
 }
@@ -85,7 +99,7 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 	router *engine.Router,
 ) (*workflowpb.ExecuteWorkflowResponse, error) {
 	if srv.workflowClient == nil {
-		return nil, fmt.Errorf("workflow service not configured")
+		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil)")
 	}
 
 	inputsJSON, err := json.Marshal(inputs)
@@ -93,15 +107,11 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
 
-	controllerEndpoint := fmt.Sprintf("localhost:%d", srv.cfg.Port)
+	controllerEndpoint := config.ResolveLocalServiceAddr(
+		"cluster_controller.ClusterControllerService",
+		fmt.Sprintf("%s:%d", config.GetRoutableIPv4(), srv.cfg.Port),
+	)
 
-	// We need the run_id BEFORE execution starts so the actor service
-	// can route callbacks. The workflow service assigns the run_id, so
-	// we register with the correlation_id and the executor's auto-generated
-	// run_id will be available in the callbacks via req.RunId.
-	//
-	// Register with a wildcard approach: register with correlation_id,
-	// and have the actor service check both run_id and correlation_id.
 	srv.actorServer.RegisterRouter(correlationID, router)
 	defer srv.actorServer.UnregisterRouter(correlationID)
 
@@ -118,6 +128,7 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 		CorrelationId: correlationID,
 	})
 	if err != nil {
+		log.Printf("workflow %s (correlation=%s): RPC failed: %v", workflowName, correlationID, err)
 		return nil, fmt.Errorf("ExecuteWorkflow %s: %w", workflowName, err)
 	}
 
