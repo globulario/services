@@ -6,8 +6,51 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
+
+// resolveNodeAgentEndpoint returns the gRPC endpoint for a node's agent.
+// If nodeID is empty, returns the local node-agent endpoint.
+// If nodeID is provided, queries the cluster-controller for the node's
+// agent endpoint and returns it for direct dial.
+func (s *server) resolveNodeAgentEndpoint(ctx context.Context, nodeID string) (string, error) {
+	if nodeID == "" {
+		return nodeAgentEndpoint(), nil
+	}
+
+	// Query the controller for the node's agent endpoint.
+	conn, err := s.clients.get(ctx, controllerEndpoint())
+	if err != nil {
+		return "", fmt.Errorf("connect to controller: %w", err)
+	}
+	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+
+	callCtx, cancel := context.WithTimeout(authCtx(ctx), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.ListNodes(callCtx, &cluster_controllerpb.ListNodesRequest{})
+	if err != nil {
+		return "", fmt.Errorf("ListNodes: %w", err)
+	}
+
+	for _, node := range resp.GetNodes() {
+		if node.GetNodeId() == nodeID {
+			ep := node.GetAgentEndpoint()
+			if ep != "" {
+				return ep, nil
+			}
+			// Fallback: use node IP + default agent port
+			if node.GetIdentity() != nil {
+				for _, ip := range node.GetIdentity().GetIps() {
+					return fmt.Sprintf("%s:11000", ip), nil
+				}
+			}
+			return "", fmt.Errorf("node %s has no agent endpoint", nodeID)
+		}
+	}
+	return "", fmt.Errorf("node %s not found", nodeID)
+}
 
 func registerNodeAgentTools(s *server) {
 
@@ -284,8 +327,9 @@ func registerNodeAgentTools(s *server) {
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
-				"unit": {Type: "string", Description: "Systemd unit name (must start with 'globular-', e.g. 'globular-gateway.service')"},
-				"lines": {Type: "number", Description: "Number of log lines to return (default 50, max 200)"},
+				"unit":    {Type: "string", Description: "Systemd unit name (must start with 'globular-', e.g. 'globular-gateway.service')"},
+				"lines":   {Type: "number", Description: "Number of log lines to return (default 50, max 200)"},
+				"node_id": {Type: "string", Description: "Optional: query a remote node's logs by node ID. If omitted, reads from the local node."},
 				"priority": {
 					Type:        "string",
 					Description: "Optional journalctl priority filter",
@@ -305,8 +349,14 @@ func registerNodeAgentTools(s *server) {
 
 		lines := getInt(args, "lines", 50)
 		priority := getStr(args, "priority")
+		nodeID := getStr(args, "node_id")
 
-		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
+		endpoint, err := s.resolveNodeAgentEndpoint(ctx, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve node agent: %w", err)
+		}
+
+		conn, err := s.clients.get(ctx, endpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -344,6 +394,7 @@ Examples:
 			Type: "object",
 			Properties: map[string]propSchema{
 				"unit":     {Type: "string", Description: "Systemd unit name (e.g. 'globular-gateway.service', 'globular-dns', 'scylla-server')"},
+				"node_id":  {Type: "string", Description: "Optional: query a remote node's logs by node ID. If omitted, reads from the local node."},
 				"pattern":  {Type: "string", Description: "Regex pattern to search for (e.g. 'error|fail|timeout', 'tls.*cert')"},
 				"since":    {Type: "string", Description: "Start of time range (e.g. '5m ago', '1h ago', '2026-03-25 00:00:00')"},
 				"until":    {Type: "string", Description: "End of time range (optional, e.g. '30m ago', '2026-03-25 01:00:00')"},
@@ -359,7 +410,13 @@ Examples:
 			return nil, fmt.Errorf("unit is required")
 		}
 
-		conn, err := s.clients.get(ctx, nodeAgentEndpoint())
+		nodeID := getStr(args, "node_id")
+		endpoint, err := s.resolveNodeAgentEndpoint(ctx, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve node agent: %w", err)
+		}
+
+		conn, err := s.clients.get(ctx, endpoint)
 		if err != nil {
 			return nil, err
 		}
