@@ -8,7 +8,6 @@ import (
 	"time"
 
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/titlepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -55,9 +54,6 @@ type Title_Client struct {
 
 	// certificate authority file
 	caFile string
-
-	// The client context
-	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -108,15 +104,7 @@ func (client *Title_Client) Invoke(method string, rqst interface{}, ctx context.
 }
 
 func (client *Title_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 // Return the domain

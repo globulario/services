@@ -9,7 +9,6 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -114,34 +113,7 @@ func (client *Authentication_Client) Invoke(method string, rqst interface{}, ctx
 }
 
 func (client *Authentication_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-
-	// Prefer an explicit in-memory token set via SetToken.
-	if client.token != "" {
-		md := metadata.New(map[string]string{
-			"token":   client.token,
-			"domain":  client.domain,
-			"mac":     client.GetMac(),
-			"address": client.GetAddress(),
-		})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-		return client.ctx
-	}
-
-	// Otherwise, fall back to any locally-persisted token (if present).
-	if token, err := security.GetLocalToken(client.GetMac()); err == nil && len(token) > 0 {
-		md := metadata.New(map[string]string{
-			"token":   string(token),
-			"domain":  client.domain,
-			"mac":     client.GetMac(),
-			"address": client.GetAddress(),
-		})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 // Return the domain

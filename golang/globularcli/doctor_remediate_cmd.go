@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -62,7 +63,10 @@ func runDoctorRemediate(cmd *cobra.Command, args []string) error {
 	}
 	endpoint := doctorRemediateEndpoint
 	if endpoint == "" {
-		endpoint = "localhost:10080" // cluster-doctor default
+		endpoint = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
+	}
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("%s:10080", config.GetRoutableIPv4())
 	}
 
 	conn, err := grpc.NewClient(

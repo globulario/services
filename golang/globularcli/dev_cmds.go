@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
 
@@ -56,7 +57,13 @@ type mcpServerConf struct {
 	Args    []string `json:"args,omitempty"`
 }
 
-const defaultMCPURL = "http://localhost:10050/mcp"
+// defaultMCPURL returns the MCP URL, resolving from etcd if available.
+func defaultMCPURL() string {
+	if addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", ""); addr != "" {
+		return fmt.Sprintf("http://%s/mcp", addr)
+	}
+	return fmt.Sprintf("http://%s:10050/mcp", config.GetRoutableIPv4())
+}
 
 // proposedSettings returns the recommended Claude Code settings for Globular dev.
 func proposedSettings() *claudeSettings {
@@ -293,7 +300,7 @@ func ensureMCPConfig(projectSettingsPath string) bool {
 		var servers map[string]json.RawMessage
 		if json.Unmarshal(raw, &servers) == nil {
 			if _, hasGlobular := servers["globular"]; hasGlobular {
-				fmt.Println("MCP server: already configured (globular → " + defaultMCPURL + ")")
+				fmt.Println("MCP server: already configured (globular → " + defaultMCPURL() + ")")
 				return true
 			}
 		}
@@ -302,7 +309,7 @@ func ensureMCPConfig(projectSettingsPath string) bool {
 	// MCP not configured — add it
 	fmt.Println("MCP server: adding Globular MCP server config")
 	mcpServers := map[string]*mcpServerConf{
-		"globular": {URL: defaultMCPURL},
+		"globular": {URL: defaultMCPURL()},
 	}
 	mcpData, _ := json.Marshal(mcpServers)
 	projectSettings["mcpServers"] = mcpData

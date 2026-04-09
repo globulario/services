@@ -14,7 +14,7 @@ package repositorypb
 // | ORPHANED      | no     | no             | no       | no          | no       | no         | none          | system                      |
 // | FAILED        | no     | no             | no       | no          | no       | no         | none          | system                      |
 // | STAGING       | no     | no             | no       | no          | no       | no         | none          | system                      |
-// | VERIFIED      | no     | no             | yes      | no          | no       | no         | none          | system                      |
+// | VERIFIED      | no     | no             | yes      | no          | no       | no         | none          | system (auto-promote)       |
 //
 // "Owner-Only" means visible/accessible only to namespace owners and admins.
 //
@@ -137,7 +137,7 @@ func IsDiscoveryHidden(s PublishState) bool {
 	switch s {
 	case PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED:
 		return true
-	case PublishState_ORPHANED, PublishState_FAILED, PublishState_STAGING:
+	case PublishState_ORPHANED, PublishState_FAILED, PublishState_STAGING, PublishState_VERIFIED:
 		return true
 	default:
 		return false
@@ -147,8 +147,10 @@ func IsDiscoveryHidden(s PublishState) bool {
 // IsEligibleForLatestResolve returns true if an artifact in this state can be picked
 // by the "latest published" resolver. Only PUBLISHED qualifies.
 // DEPRECATED is explicitly excluded from latest resolution (must be pinned explicitly).
+// PUBLISH_STATE_UNSPECIFIED is no longer accepted — the migration
+// (migration.go) promotes legacy manifests to PUBLISHED on first startup.
 func IsEligibleForLatestResolve(s PublishState) bool {
-	return s == PublishState_PUBLISHED || s == PublishState_PUBLISH_STATE_UNSPECIFIED
+	return s == PublishState_PUBLISHED
 }
 
 // IsInstallableByPin returns true if an artifact in this state can be installed
@@ -156,7 +158,7 @@ func IsEligibleForLatestResolve(s PublishState) bool {
 // (with warning), but YANKED/QUARANTINED/REVOKED are not.
 func IsInstallableByPin(s PublishState) bool {
 	switch s {
-	case PublishState_PUBLISHED, PublishState_PUBLISH_STATE_UNSPECIFIED:
+	case PublishState_PUBLISHED:
 		return true
 	case PublishState_DEPRECATED:
 		return true // installable but should emit warning

@@ -81,7 +81,7 @@ func runArtifactStateChange(targetState repopb.PublishState) func(cmd *cobra.Com
 
 		address, _ := config.GetAddress()
 		if address == "" {
-			address = "localhost"
+			address = config.GetRoutableIPv4()
 		}
 
 		client, err := repository_client.NewRepositoryService_Client(address, "repository.PackageRepository")

@@ -85,7 +85,7 @@ func ResolveEndpoint(serviceKey string, fallback Endpoint) (Endpoint, error) {
 					resolved.Scheme = desc.Protocol
 				}
 				if resolved.Host == "" {
-					resolved.Host = "127.0.0.1"
+					resolved.Host = config.GetRoutableIPv4()
 				}
 				// Copy path from fallback if it was set (for envoy admin)
 				resolved.Path = fallback.Path
@@ -320,7 +320,7 @@ func loadNetworkSpec() (*cluster_controllerpb.ClusterNetworkSpec, error) {
 func checkEtcd(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "etcd"}
 
-	fallback := Endpoint{Host: "127.0.0.1", Port: 2379, Scheme: "tcp"}
+	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 2379, Scheme: "tcp"}
 	endpoint, _ := ResolveEndpoint("etcd", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
@@ -338,7 +338,7 @@ func checkEtcd(ctx context.Context) HealthCheckResult {
 func checkScylla(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "scylla"}
 
-	fallback := Endpoint{Host: "127.0.0.1", Port: 9042, Scheme: "tcp"}
+	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 9042, Scheme: "tcp"}
 	endpoint, _ := ResolveEndpoint("scylla", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
@@ -356,7 +356,7 @@ func checkScylla(ctx context.Context) HealthCheckResult {
 func checkMinio(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "minio"}
 
-	fallback := Endpoint{Host: "127.0.0.1", Port: 9000, Scheme: "tcp"}
+	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 9000, Scheme: "tcp"}
 	endpoint, _ := ResolveEndpoint("minio", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
@@ -374,7 +374,7 @@ func checkMinio(ctx context.Context) HealthCheckResult {
 func checkEnvoy(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "envoy"}
 
-	fallback := Endpoint{Host: "127.0.0.1", Port: 9901, Scheme: "http", Path: "/ready"}
+	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 9901, Scheme: "http", Path: "/ready"}
 	endpoint, _ := ResolveEndpoint("envoy-admin", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
@@ -402,7 +402,7 @@ func checkGateway(ctx context.Context, spec *cluster_controllerpb.ClusterNetwork
 		port = 80 // default
 	}
 
-	endpoint := Endpoint{Host: "127.0.0.1", Port: int(port), Scheme: "tcp"}
+	endpoint := Endpoint{Host: config.GetRoutableIPv4(), Port: int(port), Scheme: "tcp"}
 	if err := tcpProbe(ctx, endpoint); err != nil {
 		result.OK = false
 		result.Details = fmt.Sprintf("gateway unreachable on port %d", port)
@@ -418,7 +418,7 @@ func checkGateway(ctx context.Context, spec *cluster_controllerpb.ClusterNetwork
 func checkDNS(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "dns"}
 
-	fallback := Endpoint{Host: "localhost", Port: 10006, Scheme: "grpc"}
+	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 10006, Scheme: "grpc"}
 	endpoint, _ := ResolveEndpoint("dns", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)

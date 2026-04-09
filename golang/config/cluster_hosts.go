@@ -13,8 +13,9 @@ import (
 // Stored as plain JSON arrays of IPv4 addresses. Services read these lists to
 // reach DNS / Scylla / etcd without any env vars or hardcoded addresses.
 const (
-	EtcdKeyClusterDNSHosts   = "/globular/cluster/dns/hosts"   // DNS resolver IPs
+	EtcdKeyClusterDNSHosts    = "/globular/cluster/dns/hosts"    // DNS resolver IPs
 	EtcdKeyClusterScyllaHosts = "/globular/cluster/scylla/hosts" // Scylla seed IPs
+	EtcdKeyClusterMinioHosts  = "/globular/cluster/minio/hosts"  // MinIO endpoint IPs
 )
 
 // LoadClusterHostList reads a JSON IP list from etcd at the given key.
@@ -103,4 +104,11 @@ func GetDNSHosts() ([]string, error) {
 // DNS stores its records in Scylla, so Scylla cannot be addressed via DNS.
 func GetScyllaHosts() ([]string, error) {
 	return LoadClusterHostList(EtcdKeyClusterScyllaHosts)
+}
+
+// GetMinioHosts returns the list of MinIO endpoint IPs (Tier-0).
+// The repository and backup-manager use these IPs to reach MinIO without
+// depending on DNS resolution (MinIO starts before DNS).
+func GetMinioHosts() ([]string, error) {
+	return LoadClusterHostList(EtcdKeyClusterMinioHosts)
 }

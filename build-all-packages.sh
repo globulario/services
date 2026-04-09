@@ -85,6 +85,7 @@ copy_go_bin "${SERVICES_STAGE}/globularcli" "globularcli" "globularcli"
 ENVOY_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/envoy_service.yaml")
 ETCD_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/etcd_service.yaml")
 PROMETHEUS_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/prometheus_service.yaml")
+ALERTMANAGER_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/alertmanager_service.yaml")
 NODE_EXPORTER_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/node_exporter_service.yaml")
 SIDEKICK_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/sidekick_service.yaml")
 RESTIC_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/restic_cmd.yaml")
@@ -95,7 +96,7 @@ COREUTILS_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/sha256sum_cmd.yaml")
 
 echo ""
 echo "→ Third-party binary versions (from spec metadata):"
-echo "  envoy=${ENVOY_VERSION} etcd=${ETCD_VERSION} prometheus=${PROMETHEUS_VERSION}"
+echo "  envoy=${ENVOY_VERSION} etcd=${ETCD_VERSION} prometheus=${PROMETHEUS_VERSION} alertmanager=${ALERTMANAGER_VERSION}"
 echo "  node_exporter=${NODE_EXPORTER_VERSION} sidekick=${SIDEKICK_VERSION}"
 echo "  restic=${RESTIC_VERSION} rclone=${RCLONE_VERSION} yt-dlp=${YT_DLP_VERSION}"
 echo "  ffmpeg=${FFMPEG_VERSION} sha256sum/coreutils=${COREUTILS_VERSION}"
@@ -121,6 +122,13 @@ PROMETHEUS_BIN="${PACKAGES_ROOT}/bin/prometheus"
 ensure_binary "${PROMETHEUS_BIN}" "${PROMETHEUS_VERSION}" \
     "${PROMETHEUS_BIN} --version 2>&1 | grep -oP 'version \K[0-9.]+'" \
     "cd /tmp && curl -sL 'https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz' -o prom.tgz && tar xzf prom.tgz && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus '${PACKAGES_ROOT}/bin/prometheus' && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool '${PACKAGES_ROOT}/bin/promtool' && chmod +x '${PACKAGES_ROOT}/bin/prometheus' '${PACKAGES_ROOT}/bin/promtool' && rm -rf prometheus-${PROMETHEUS_VERSION}.linux-amd64 prom.tgz && cd ->/dev/null"
+
+# Alertmanager + amtool
+echo "→ Alertmanager ${ALERTMANAGER_VERSION}..."
+ALERTMANAGER_BIN="${PACKAGES_ROOT}/bin/alertmanager"
+ensure_binary "${ALERTMANAGER_BIN}" "${ALERTMANAGER_VERSION}" \
+    "${ALERTMANAGER_BIN} --version 2>&1 | grep -oP 'version \K[0-9.]+'" \
+    "cd /tmp && curl -sL 'https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz' -o am.tgz && tar xzf am.tgz && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/alertmanager '${PACKAGES_ROOT}/bin/alertmanager' && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool '${PACKAGES_ROOT}/bin/amtool' && chmod +x '${PACKAGES_ROOT}/bin/alertmanager' '${PACKAGES_ROOT}/bin/amtool' && rm -rf alertmanager-${ALERTMANAGER_VERSION}.linux-amd64 am.tgz && cd ->/dev/null"
 
 # Node exporter
 echo "→ node_exporter ${NODE_EXPORTER_VERSION}..."
@@ -222,8 +230,38 @@ echo "  ✓ ${SERVICE_COUNT} service packages built"
 
 echo ""
 
-# ── Step 4: Copy all packages to installer assets ─────────────────────────
-echo "━━━ Step 4: Copy Packages to Installer Assets ━━━"
+# ── Step 4: Publish packages to repository (if running) ───────────────────
+echo "━━━ Step 4: Publish Packages to Repository ━━━"
+echo ""
+
+REPO_ADDR="${GLOBULAR_REPO_ADDR:-localhost:443}"
+GLOBULARCLI="${SERVICES_STAGE}/globularcli"
+PUBLISHED=0
+
+if [[ -x "${GLOBULARCLI}" ]]; then
+    echo "→ Publishing ${DIST_DIR}/*.tgz to repository at ${REPO_ADDR}..."
+    for pkg in "${DIST_DIR}"/*.tgz; do
+        if [[ -f "${pkg}" ]]; then
+            name=$(basename "${pkg}")
+            if "${GLOBULARCLI}" pkg publish --repository "${REPO_ADDR}" --file "${pkg}" --force >/dev/null 2>&1; then
+                echo "  ✓ ${name}"
+                PUBLISHED=$((PUBLISHED + 1))
+            else
+                echo "  ✗ ${name} (publish failed — repository may be unavailable)"
+            fi
+        fi
+    done
+    echo ""
+    echo "  ✓ ${PUBLISHED} packages published to repository"
+else
+    echo "  ⚠ globularcli not found — skipping repository publish"
+    echo "  → Packages are in ${DIST_DIR}/ for manual publish"
+fi
+
+echo ""
+
+# ── Step 5: Copy all packages to installer assets ─────────────────────────
+echo "━━━ Step 5: Copy Packages to Installer Assets ━━━"
 echo ""
 
 echo "→ Syncing dist/ to installer assets..."
@@ -244,8 +282,8 @@ echo "  ✓ ${TOTAL} packages copied to installer"
 
 echo ""
 
-# ── Step 5: Summary ───────────────────────────────────────────────────────
-echo "━━━ Step 5: Package Summary ━━━"
+# ── Step 6: Summary ───────────────────────────────────────────────────────
+echo "━━━ Step 6: Package Summary ━━━"
 echo ""
 
 echo "Packages in dist/:"

@@ -45,8 +45,9 @@ var (
 	svcDangerousImperative bool
 
 	// 'desired set' flags.
-	svcDesiredSetForce     bool
-	svcDesiredSetPublisher string
+	svcDesiredSetForce       bool
+	svcDesiredSetPublisher   string
+	svcDesiredSetBuildNumber int64
 )
 
 // ─── Parent command ──────────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ func init() {
 
 	servicesDesiredSetCmd.Flags().BoolVar(&svcDesiredSetForce, "force", false, "Bypass kind validation (allow COMMAND/INFRASTRUCTURE packages)")
 	servicesDesiredSetCmd.Flags().StringVar(&svcDesiredSetPublisher, "publisher", "core@globular.io", "Publisher ID for kind lookup")
+	servicesDesiredSetCmd.Flags().Int64Var(&svcDesiredSetBuildNumber, "build-number", 0, "Pin to a specific build (0 = latest)")
 
 	servicesDesiredCmd.AddCommand(servicesDesiredSetCmd)
 	servicesDesiredCmd.AddCommand(servicesDesiredRemoveCmd)
@@ -448,7 +450,7 @@ func runServicesRepair(cmd *cobra.Command, args []string) error {
 
 	report, err := client.RepairStateAlignment(ctx, &cluster_controllerpb.RepairStateAlignmentRequest{
 		DryRun: servicesRepairDryRun,
-	})
+	}, jsonCallOption())
 	if err != nil {
 		return fmt.Errorf("RepairStateAlignment: %w", err)
 	}
@@ -542,8 +544,9 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 
 	resp, err := cc.UpsertDesiredService(ctx, &cluster_controllerpb.UpsertDesiredServiceRequest{
 		Service: &cluster_controllerpb.DesiredService{
-			ServiceId: serviceID,
-			Version:   version,
+			ServiceId:   serviceID,
+			Version:     version,
+			BuildNumber: svcDesiredSetBuildNumber,
 		},
 	})
 	if err != nil {
@@ -552,7 +555,11 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("OK: desired state updated (revision %s)\n", resp.GetRevision())
 	for _, ds := range resp.GetServices() {
-		fmt.Printf("  • %s@%s\n", ds.GetServiceId(), ds.GetVersion())
+		if ds.GetBuildNumber() > 0 {
+			fmt.Printf("  • %s@%s+%d\n", ds.GetServiceId(), ds.GetVersion(), ds.GetBuildNumber())
+		} else {
+			fmt.Printf("  • %s@%s\n", ds.GetServiceId(), ds.GetVersion())
+		}
 	}
 	return nil
 }
@@ -725,7 +732,7 @@ func resolveRepositoryAddr(cmd *cobra.Command) {
 		fmt.Printf("Auto-discovered repository: %s\n", svcApplyRepoAddr)
 	}
 	if svcApplyRepoAddr == "" {
-		svcApplyRepoAddr = "localhost:10007" // common default
+		svcApplyRepoAddr = fmt.Sprintf("%s:10007", config.GetRoutableIPv4()) // common default
 	}
 }
 
@@ -1106,7 +1113,7 @@ func readNodeState() (*nodeState, error) {
 // Discovery sources (in priority order):
 //  1. node-agent state.json (controller_endpoint + controller_insecure)
 //  2. NODE_AGENT_CONTROLLER_ENDPOINT environment variable
-//  3. Default controller port on localhost ("localhost:12000")
+//  3. Default controller port on routable IP (via config.GetRoutableIPv4())
 //
 // The insecure flag is inferred from:
 //  1. --insecure flag explicitly set by the user (never overridden)
@@ -1119,7 +1126,6 @@ func autoDiscoverController(cmd *cobra.Command) {
 
 	var discovered string
 	var source string
-	isInsecure := false
 
 	// Priority 1: node-agent state file
 	if ns, err := readNodeState(); err == nil && ns.ControllerEndpoint != "" {
@@ -1127,60 +1133,24 @@ func autoDiscoverController(cmd *cobra.Command) {
 		// Reject unroutable bind addresses — 0.0.0.0 is not a valid client endpoint.
 		if !strings.HasPrefix(ep, "0.0.0.0:") {
 			discovered = ep
-			isInsecure = ns.ControllerInsecure
 			source = "node-agent state"
 		}
 	}
 
-	// Priority 2: environment variable (same as node-agent uses)
+	// Priority 2: resolve cluster controller from etcd, fall back to routable IP
 	if discovered == "" {
-		if ep := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT")); ep != "" {
-			discovered = ep
-			source = "NODE_AGENT_CONTROLLER_ENDPOINT"
+		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+			discovered = addr
+			source = "etcd service discovery"
+		} else {
+			discovered = fmt.Sprintf("%s:12000", config.GetRoutableIPv4())
+			source = "default controller port"
 		}
 	}
 
-	// Priority 3: cluster controller is running locally on the well-known port
-	if discovered == "" {
-		discovered = "localhost:12000"
-		source = "default controller port"
-	}
-
-	// Infer insecure from env or node-agent systemd drop-in
-	if !isInsecure {
-		if strings.EqualFold(os.Getenv("NODE_AGENT_INSECURE"), "true") {
-			isInsecure = true
-		} else if isNodeAgentInsecureFromSystemd() {
-			isInsecure = true
-		}
-	}
-
+	// Always use mTLS — no insecure fallback from environment.
 	rootCfg.controllerAddr = discovered
-	if isInsecure && !cmd.Flags().Changed("insecure") {
-		rootCfg.insecure = true
-	}
 	fmt.Printf("Auto-discovered controller: %s (%s)\n", rootCfg.controllerAddr, source)
-}
-
-// isNodeAgentInsecureFromSystemd checks the node-agent systemd drop-in for
-// NODE_AGENT_INSECURE=true. This covers the case where the CLI user's shell
-// doesn't have the env var set but the node-agent service does.
-func isNodeAgentInsecureFromSystemd() bool {
-	paths := []string{
-		"/etc/systemd/system/globular-node-agent.service.d/insecure.conf",
-		"/etc/systemd/system/globular-node-agent.service.d/override.conf",
-	}
-	for _, p := range paths {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		if strings.Contains(string(b), "NODE_AGENT_INSECURE=true") ||
-			strings.Contains(string(b), `NODE_AGENT_INSECURE="true"`) {
-			return true
-		}
-	}
-	return false
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

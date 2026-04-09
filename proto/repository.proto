@@ -526,4 +526,38 @@ service PackageRepository {
       default_role_hint: "viewer"
     };
   };
+
+  // Updates only the binary of an existing artifact, creating a new build entry.
+  // The repository copies the manifest from the latest build, updates checksum/size,
+  // assigns the next build_number, and promotes to PUBLISHED.
+  // This enables delta deploys where only the binary changed.
+  rpc UpdateArtifactBinary(stream UpdateArtifactBinaryRequest) returns(UpdateArtifactBinaryResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.write"
+      permission: "write"
+      collection_template: "/repository/namespaces/{header.ref.publisher_id}/artifacts"
+      default_role_hint: "editor"
+    };
+  };
+}
+
+// ── UpdateArtifactBinary (delta deploy) ─────────────────────────────────────
+
+message UpdateArtifactBinaryRequest {
+  oneof payload {
+    UpdateArtifactBinaryHeader header = 1;
+    bytes chunk = 2;
+  }
+}
+
+message UpdateArtifactBinaryHeader {
+  ArtifactRef ref = 1;       // publisher, name, version, platform, kind
+  string checksum = 2;       // expected SHA256 of the new binary ("sha256:<hex>")
+  int64 size_bytes = 3;      // expected size of the new binary
+}
+
+message UpdateArtifactBinaryResponse {
+  int64 build_number = 1;    // assigned by repository (max + 1)
+  string checksum = 2;       // verified checksum
+  string status = 3;         // "published" | "error"
 }

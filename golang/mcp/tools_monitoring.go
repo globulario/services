@@ -7,15 +7,14 @@ import (
 	"io"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 )
 
 const defaultConnectionID = "local_prometheus"
 
 func monitoringEndpoint() string {
-	// Monitoring service listens on port 10009 (gRPC with TLS).
-	// It is not always routed through Envoy, so connect directly.
-	return "localhost:10009"
+	return config.ResolveServiceAddr("monitoring.MonitoringService", "")
 }
 
 // ensureConnection creates the default local Prometheus connection if it
@@ -45,10 +44,11 @@ func ensureConnection(ctx context.Context, s *server) error {
 	callCtx2, cancel2 := context.WithTimeout(authCtx(ctx), 10*time.Second)
 	defer cancel2()
 
+	promHost := config.GetRoutableIPv4()
 	_, err = client.CreateConnection(callCtx2, &monitoringpb.CreateConnectionRqst{
 		Connection: &monitoringpb.Connection{
 			Id:    defaultConnectionID,
-			Host:  "127.0.0.1",
+			Host:  promHost,
 			Port:  9090,
 			Store: monitoringpb.StoreType_PROMETHEUS,
 		},

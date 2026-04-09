@@ -18,6 +18,9 @@ import (
 )
 
 func (srv *server) reconcileNodes(ctx context.Context) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if !srv.reconcileRunning.CompareAndSwap(false, true) {
 		return
 	}
@@ -197,12 +200,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			desiredCanon = map[string]string{}
 		}
 
-		// Retry FAILED infra releases and re-enqueue AVAILABLE ones so the
-		// release pipeline re-checks for unserved nodes (Day 1 join).
-		if srv.resources != nil {
-			srv.retryFailedInfraReleases(ctx)
-			srv.enqueueInfraReleases()
-		}
+		// Infra release retry/enqueue moved outside the per-node loop to avoid
+		// re-enqueuing all 16 infra releases once per node. See post-loop block.
 
 		// Day 1 infra materialization: if the node's resolved intent requires
 		// components not in desired state, create them now.
@@ -405,6 +404,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		_ = op
 		log.Printf("reconcile: service %s on %s — handled by release pipeline workflow", svcName, node.NodeID)
 	}
+
+	// Infra release retry/enqueue: run once after the per-node loop with a
+	// cooldown to avoid re-enqueuing all infra releases every 30 seconds.
+	if srv.resources != nil {
+		srv.infraRetryOnce(ctx)
+	}
+
 	if stateDirty {
 		srv.lock("reconcile:persist")
 		func() {
@@ -586,11 +592,28 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 	return "", "unresolved"
 }
 
+// infraRetryOnce runs retryFailedInfraReleases + enqueueInfraReleases at most
+// once per 60-second window. Prevents the per-reconcile-cycle call from
+// flooding the work queue with all 16 infra releases every 30 seconds.
+func (srv *server) infraRetryOnce(ctx context.Context) {
+	const infraRetryCooldown = 60 * time.Second
+	now := time.Now()
+	if now.Sub(srv.lastInfraRetry) < infraRetryCooldown {
+		return
+	}
+	srv.lastInfraRetry = now
+	srv.retryFailedInfraReleases(ctx)
+	srv.enqueueInfraReleases()
+}
+
 // retryFailedInfraReleases scans InfrastructureRelease objects and resets any
-// in FAILED status back to PENDING, bumping the generation so the release
-// pipeline retries resolution. This handles transient failures like TLS errors
-// during repository lookup that would otherwise leave infra stuck forever.
+// in FAILED status back to PENDING, but only if there are unserved nodes that
+// still need the package. This avoids blindly resetting all FAILED releases
+// which amplifies the reconcile storm.
 func (srv *server) retryFailedInfraReleases(ctx context.Context) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
 	if err != nil {
 		return
@@ -603,10 +626,24 @@ func (srv *server) retryFailedInfraReleases(ctx context.Context) {
 		if rel.Status.Phase != cluster_controllerpb.ReleasePhaseFailed {
 			continue
 		}
+		// Respect backoff: only retry if enough time has passed since the
+		// last transition. Without this, every reconcile cycle resets FAILED
+		// infra releases immediately.
+		if rel.Status.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(rel.Status.LastTransitionUnixMs))
+			if elapsed < releaseRetryBackoff {
+				continue
+			}
+		}
+		// Only retry if there are unserved nodes that need this package.
+		h := srv.infraReleaseHandle(rel)
+		if !srv.hasUnservedNodes(h) {
+			continue
+		}
 		// Bump generation to trigger FAILED → PENDING transition.
 		rel.Meta.Generation++
 		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
-		rel.Status.Message = "retrying after failure"
+		rel.Status.Message = "retrying after failure (unserved nodes)"
 		rel.Status.TransitionReason = "auto_retry"
 		if _, err := srv.resources.Apply(ctx, "InfrastructureRelease", rel); err != nil {
 			log.Printf("retryFailedInfraReleases: failed to reset %s: %v", rel.Meta.Name, err)
@@ -616,9 +653,16 @@ func (srv *server) retryFailedInfraReleases(ctx context.Context) {
 	}
 }
 
-// enqueueInfraReleases triggers re-processing of all InfrastructureRelease
-// objects so the release pipeline can detect new unserved nodes and dispatch
-// plans. Called from reconcileNodes when a node is in a pre-ready phase.
+// enqueueInfraReleases triggers re-processing of InfrastructureRelease objects
+// so the release pipeline can detect new unserved nodes and dispatch plans.
+//
+// Releases are enqueued in priority order from the service catalog:
+//   - Critical control plane (etcd, xds, workflow, event, repository) first
+//   - Foundational infra (minio, scylladb, gateway, envoy) second
+//   - Everything else last
+//
+// Not all infrastructure has equal blast radius — etcd must converge before
+// gateway, and gateway before workloads.
 func (srv *server) enqueueInfraReleases() {
 	if srv.resources == nil || srv.infraReleaseEnqueue == nil {
 		return
@@ -627,10 +671,33 @@ func (srv *server) enqueueInfraReleases() {
 	if err != nil {
 		return
 	}
+
+	// Collect releases with their catalog priority for sorting.
+	type prioritizedRelease struct {
+		name     string
+		priority int
+	}
+	releases := make([]prioritizedRelease, 0, len(items))
 	for _, obj := range items {
-		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-			srv.infraReleaseEnqueue(rel.Meta.Name)
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel.Meta == nil {
+			continue
 		}
+		pri := 999 // default: lowest priority
+		if rel.Spec != nil {
+			if entry := CatalogByName(rel.Spec.Component); entry != nil {
+				pri = entry.Priority
+			}
+		}
+		releases = append(releases, prioritizedRelease{name: rel.Meta.Name, priority: pri})
+	}
+
+	sort.Slice(releases, func(i, j int) bool {
+		return releases[i].priority < releases[j].priority
+	})
+
+	for _, r := range releases {
+		srv.infraReleaseEnqueue(r.name)
 	}
 }
 

@@ -59,7 +59,7 @@ Use this to find services that need Vite proxy entries or are down.`,
 			proto, _ := cfg["Protocol"].(string)
 
 			if addr == "" {
-				addr = "localhost"
+				addr = config.GetRoutableIPv4()
 			}
 
 			entry := map[string]interface{}{

@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/globulario/services/golang/config"
 )
 
 func registerPackageTools(s *server) {
@@ -102,7 +104,9 @@ If you get AlreadyExists error, rebuild with a higher build_number using package
 
 		repository := getStr(args, "repository")
 		if repository == "" {
-			repository = "localhost:443"
+			if mesh, err := config.GetMeshAddress(); err == nil {
+				repository = mesh
+			}
 		}
 
 		cmdArgs := []string{"pkg", "publish", "--repository", repository}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
 
@@ -71,6 +72,25 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// Serialize concurrent applies to prevent conflicts.
 	applyMu.Lock()
 	defer applyMu.Unlock()
+
+	// Publish guard (Law 8): verify the artifact is PUBLISHED before installing.
+	// This is the final safety boundary — even if the controller dispatches an
+	// install for a non-PUBLISHED artifact, the node-agent must reject it.
+	if repoAddr != "" {
+		if err := actions.CheckArtifactPublished(ctx, repoAddr,
+			defaultPublisherID, name, version, platform, kind, req.GetBuildNumber()); err != nil {
+			log.Printf("apply-package: REJECTED %s/%s@%s — %v", kind, name, version, err)
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          false,
+				Message:     fmt.Sprintf("publish guard: artifact not PUBLISHED: %v", err),
+				PackageName: name,
+				Version:     version,
+				Status:      "rejected",
+				ErrorDetail: err.Error(),
+				OperationId: operationID,
+			}, nil
+		}
+	}
 
 	log.Printf("apply-package: starting %s/%s@%s (build %d, repo=%s, op=%s)",
 		kind, name, version, req.GetBuildNumber(), repoAddr, operationID)
@@ -137,6 +157,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		OperationId: operationID,
 		BuildNumber: req.GetBuildNumber(),
 		Platform:    platform,
+		Checksum:    req.GetExpectedSha256(), // store artifact checksum for build-aware readiness
 	})
 
 	// Defer the restart so the RPC response reaches the caller before

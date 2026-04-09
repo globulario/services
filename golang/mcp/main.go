@@ -11,10 +11,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/globulario/services/golang/config"
 )
 
 func main() {
@@ -44,7 +47,14 @@ func main() {
 	case "http":
 		addr := cfg.HTTPListenAddr
 		if addr == "" {
-			addr = "127.0.0.1:10050"
+			// Resolve port from etcd; bind to all interfaces.
+			port := 10050
+			if sc, err := config.GetServiceConfigurationById("mcp.McpService"); err == nil {
+				if p, ok := sc["Port"].(float64); ok && p > 0 {
+					port = int(p)
+				}
+			}
+			addr = fmt.Sprintf("0.0.0.0:%d", port)
 		}
 		if err := srv.serveHTTP(ctx, addr); err != nil {
 			log.Fatalf("globular-mcp-server: %v", err)

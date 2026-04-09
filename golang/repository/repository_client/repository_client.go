@@ -111,19 +111,7 @@ func (client *Repository_Service_Client) Invoke(method string, rqst interface{},
 }
 
 func (client *Repository_Service_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular_client.GetClientContext(client)
-	}
-	if token, err := security.GetLocalToken(client.GetMac()); err == nil {
-		md := metadata.New(map[string]string{
-			"token":   string(token),
-			"domain":  client.domain,
-			"mac":     client.GetMac(),
-			"address": client.GetAddress(),
-		})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular_client.GetClientContext(client)
 }
 
 // SetToken overrides the client context with an explicit bearer token.

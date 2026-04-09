@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 )
 
@@ -202,7 +203,11 @@ func consistencyFromString(s string) gocql.Consistency {
 
 func (s *ScyllaStore) buildCluster(opts OpenOptions) (*gocql.ClusterConfig, error) {
 	if len(opts.Hosts) == 0 {
-		opts.Hosts = []string{"127.0.0.1"}
+		if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+			opts.Hosts = hosts
+		} else if ip := config.GetRoutableIPv4(); ip != "" {
+			opts.Hosts = []string{ip}
+		}
 	}
 
 	hosts := make([]string, 0, len(opts.Hosts))

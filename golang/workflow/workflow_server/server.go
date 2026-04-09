@@ -327,7 +327,7 @@ func (srv *server) Init() error {
 			if h, _, ok := strings.Cut(host, ":"); ok && h != "" {
 				host = h
 			}
-			if host != "" && host != "127.0.0.1" && host != "localhost" {
+			if host != "" {
 				srv.ScyllaHosts = []string{host}
 			}
 		}
@@ -2195,10 +2195,22 @@ func initializeServerDefaults() *server {
 		Discoveries:     make([]string, 0),
 		Dependencies:    []string{},
 		Permissions:     make([]interface{}, 0),
-		ScyllaHosts:     []string{"127.0.0.1"},
+		ScyllaHosts:     scyllaHostsOrRoutable(),
 		ScyllaPort:      9042,
 		ScyllaReplicationFactor: 1,
 	}
+}
+
+// scyllaHostsOrRoutable resolves ScyllaDB hosts from etcd, falling back to the
+// node's routable IP so we never hard-code 127.0.0.1.
+func scyllaHostsOrRoutable() []string {
+	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+		return hosts
+	}
+	if ip := config.GetRoutableIPv4(); ip != "" {
+		return []string{ip}
+	}
+	return nil
 }
 
 func setupGrpcService(s *server) {

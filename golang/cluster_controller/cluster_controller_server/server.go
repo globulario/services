@@ -52,7 +52,7 @@ const (
 	defaultTargetPublisher   = "globular"
 	defaultTargetName        = "globular"
 	upgradeDiskMinBytes      = 1 << 30
-	repositoryAddressEnv     = "REPOSITORY_ADDRESS"
+	repositoryServiceName    = "repository.PackageRepository"
 
 	// Health monitoring constants
 	healthCheckInterval     = 30 * time.Second // How often to check node health
@@ -60,6 +60,8 @@ const (
 	recoveryAttemptInterval = 5 * time.Minute  // How often to attempt recovery
 	maxRecoveryAttempts     = 3                // Max recovery attempts before giving up
 )
+
+const heartbeatStaleThreshold = 5 * time.Minute
 
 // filterVersionsForNode returns all desired services with canonical names.
 // It includes services whose unit does not yet exist on the node so that
@@ -158,6 +160,7 @@ type server struct {
 	leaderAddr           atomic.Value
 	leaderEpoch          atomic.Int64
 	resignCh             chan struct{} // signal leader election to resign
+	lastHeartbeatProcessed atomic.Int64 // UnixNano of last successful ReportNodeStatus
 	reconcileRunning     atomic.Bool
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
@@ -179,6 +182,14 @@ type server struct {
 	// workflowSem limits concurrent release workflows to prevent systemd
 	// overload on target nodes. Defaults to 3 concurrent workflows.
 	workflowSem chan struct{}
+
+	// resolveSem limits concurrent repository resolve calls during the
+	// PENDING phase to avoid saturating the repository gRPC endpoint.
+	resolveSem chan struct{}
+
+	// lastInfraRetry tracks when retryFailedInfraReleases + enqueueInfraReleases
+	// last ran, enforcing a 60-second cooldown.
+	lastInfraRetry time.Time
 
 	// inflightWorkflows tracks release IDs that have an active workflow
 	// goroutine. Prevents reconcileResolved from dispatching duplicate
@@ -375,12 +386,9 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	if statePath == "" {
 		statePath = defaultClusterStatePath
 	}
-	agentCAPath := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_CA"))
-	if agentCAPath == "" {
-		// Default to the standard cluster CA path.
-		agentCAPath = config.GetTLSFile("", "", "ca.crt")
-	}
-	serverName := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_SERVER_NAME"))
+	// TLS paths come from the config layer, not env vars.
+	agentCAPath := config.GetTLSFile("", "", "ca.crt")
+	serverName := ""
 	srv := &server{
 		cfg:              cfg,
 		cfgPath:          cfgPath,
@@ -389,29 +397,27 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		kv:               kv,
 		agentClients:     make(map[string]*agentClient),
 		serviceBlock:     make(map[string]time.Time),
-		agentInsecure:    strings.EqualFold(os.Getenv("CLUSTER_INSECURE_AGENT_GRPC"), "true"),
+		agentInsecure:    false, // always mTLS in production
 		agentIdleTimeout: agentIdleTimeoutDefault,
 		agentCAPath:      agentCAPath,
 		agentServerName:  serverName,
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
 		workflowSem:       make(chan struct{}, 3), // max 3 concurrent release workflows
+		resolveSem:        make(chan struct{}, 2), // max 2 concurrent repository resolve calls
 		inflightWorkflows: make(map[string]struct{}),
 		resignCh:          make(chan struct{}, 1),
 		actorServer:       NewControllerActorServer(),
 	}
-	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
-		srv.enableServiceRemoval = true
-	}
+	// Service removal is controlled by the config file, not env vars.
+	// Disabled by default for safety.
 
 	// Connect to EventService for reconciliation event publishing.
 	// Route through the Envoy gateway so it works on any node.
-	eventAddr := strings.TrimSpace(os.Getenv("CLUSTER_EVENT_SERVICE_ADDR"))
+	eventAddr := config.ResolveServiceAddr("event.EventService", "")
 	if eventAddr == "" {
 		if addr, err := config.GetMeshAddress(); err == nil {
 			eventAddr = addr // routes through Envoy service mesh (:443)
-		} else {
-			eventAddr = "localhost:10050"
 		}
 	}
 	if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
@@ -423,14 +429,11 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// Connect to WorkflowService for reconciliation workflow tracing.
 	// Prefer the LOCAL workflow service (same as workflowClient) so the
 	// call carries mTLS + token auth directly, without Envoy stripping it.
-	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
+	clusterID := cfg.ClusterDomain
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
 	wfAddrResolver := func() string {
-		if env := strings.TrimSpace(os.Getenv("CLUSTER_WORKFLOW_SERVICE_ADDR")); env != "" {
-			return env
-		}
 		// Resolve local workflow service from etcd — runs on every node.
 		if addr := config.ResolveLocalServiceAddr("workflow.WorkflowService"); addr != "" {
 			return addr
@@ -508,19 +511,48 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	return srv
 }
 
+// eventCircuitBreaker prevents flooding the EventService when it is down.
+// When a publish fails, the circuit opens for a cooldown period during which
+// events are silently dropped. This avoids burning CPU on auth evaluation +
+// error logging for dozens of RPCs per second that will all fail.
+var eventCircuitBreaker struct {
+	openUntil atomic.Int64 // UnixNano; 0 = closed (healthy)
+	dropped   atomic.Int64 // events dropped during current open window
+}
+
+const eventCircuitCooldown = 30 * time.Second
+
 // emitClusterEvent publishes an event to the EventService (fire-and-forget).
-// Safe to call when eventClient is nil.
+// Safe to call when eventClient is nil. Uses a circuit breaker to avoid
+// flooding the event service when it is down.
 func (srv *server) emitClusterEvent(name string, payload map[string]interface{}) {
 	if srv.eventClient == nil {
 		return
 	}
+
+	// Circuit breaker: if open, silently drop until cooldown expires.
+	if openUntil := eventCircuitBreaker.openUntil.Load(); openUntil > 0 {
+		if time.Now().UnixNano() < openUntil {
+			eventCircuitBreaker.dropped.Add(1)
+			return
+		}
+		// Cooldown expired — close circuit and log how many were dropped.
+		dropped := eventCircuitBreaker.dropped.Swap(0)
+		eventCircuitBreaker.openUntil.Store(0)
+		if dropped > 0 {
+			log.Printf("cluster-controller: event circuit breaker closed (dropped %d events during cooldown)", dropped)
+		}
+	}
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
 	go func() {
 		if err := srv.eventClient.Publish(name, data); err != nil {
-			log.Printf("cluster-controller: publish %q failed: %v", name, err)
+			// Open the circuit breaker on failure.
+			eventCircuitBreaker.openUntil.Store(time.Now().Add(eventCircuitCooldown).UnixNano())
+			log.Printf("cluster-controller: publish %q failed, circuit breaker open for %s: %v", name, eventCircuitCooldown, err)
 		}
 	}()
 }
@@ -621,6 +653,49 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 		} else {
 			log.Printf("leader: updated service registry to %s:%d", config.GetRoutableIPv4(), srv.cfg.Port)
 		}
+
+		// Signal routing refresh: write a generation key to etcd so xDS
+		// (and any other routing-aware component) can detect leader changes
+		// and rebuild routing tables immediately.
+		//
+		// Mechanism (Phase 1): controller writes to this well-known key on
+		//   every leadership acquisition. xDS discovers the change on its
+		//   next 5-second poll cycle (max 5s latency).
+		//
+		// Mechanism (Phase 2 — future xDS work): xDS adds an etcd Watch on
+		//   /globular/routing/refresh-generation to get immediate push
+		//   notification, eliminating the polling latency entirely.
+		srv.writeRoutingRefresh()
+	}
+}
+
+// routingRefreshKey is the well-known etcd key that signals routing-aware
+// components (xDS, Envoy, gateway) to rebuild their routing tables.
+// Written by the controller on every leadership acquisition.
+//
+// Contract:
+//   - Value: JSON {"epoch": N, "leader_addr": "host:port", "timestamp": "RFC3339"}
+//   - Writers: cluster-controller (on leader change)
+//   - Readers: xDS watcher (poll or watch), gateway, admin UI
+const routingRefreshKey = "/globular/routing/refresh-generation"
+
+// writeRoutingRefresh writes a routing refresh signal to etcd so that
+// xDS and other routing-aware components can detect leader changes.
+func (srv *server) writeRoutingRefresh() {
+	if srv.etcdClient == nil {
+		return
+	}
+	epoch := srv.leaderEpoch.Load()
+	addr := fmt.Sprintf("%s:%d", config.GetRoutableIPv4(), srv.cfg.Port)
+	value := fmt.Sprintf(`{"epoch":%d,"leader_addr":"%s","timestamp":"%s"}`,
+		epoch, addr, time.Now().UTC().Format(time.RFC3339))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := srv.etcdClient.Put(ctx, routingRefreshKey, value); err != nil {
+		log.Printf("leader: failed to write routing refresh: %v", err)
+	} else {
+		log.Printf("leader: wrote routing refresh (epoch=%d)", epoch)
 	}
 }
 

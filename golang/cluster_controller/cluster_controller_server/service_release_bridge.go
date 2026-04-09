@@ -12,6 +12,9 @@ import (
 // Idempotent: if a ServiceRelease already exists with the same version and
 // build number, it is left unchanged.
 func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, version string, buildNumber int64) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if srv.resources == nil {
 		return
 	}
@@ -33,12 +36,25 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 			if existing.Status != nil {
 				existingPhase = existing.Status.Phase
 				needsRecreate = needsRecreate ||
-					existingPhase == ReleasePhaseRemoving || existingPhase == ReleasePhaseRemoved ||
-					existingPhase == cluster_controllerpb.ReleasePhaseFailed ||
-					existingPhase == cluster_controllerpb.ReleasePhaseRolledBack
+					existingPhase == ReleasePhaseRemoving || existingPhase == ReleasePhaseRemoved
+				// Only recreate FAILED/ROLLED_BACK releases if the desired version
+				// actually changed. Otherwise, respect the 5-minute backoff in the
+				// reconciler — the bridge must not reset FAILED releases, which
+				// causes a tight FAILED→PENDING→FAILED loop.
+				if (existingPhase == cluster_controllerpb.ReleasePhaseFailed ||
+					existingPhase == cluster_controllerpb.ReleasePhaseRolledBack) &&
+					existing.Spec.Version != version {
+					needsRecreate = true
+				}
 			}
 			if !needsRecreate && existing.Spec.Version == version && existing.Spec.BuildNumber == buildNumber {
 				return // already up-to-date and in a healthy state
+			}
+			// If the release is FAILED/ROLLED_BACK but version hasn't changed,
+			// let the reconciler handle retry via backoff — don't recreate.
+			if !needsRecreate && (existingPhase == cluster_controllerpb.ReleasePhaseFailed ||
+				existingPhase == cluster_controllerpb.ReleasePhaseRolledBack) {
+				return
 			}
 			log.Printf("ensureServiceRelease: %s: recreating (phase=%s removing=%v needsRecreate=%v)",
 				releaseName, existingPhase, existing.Spec.Removing, needsRecreate)
@@ -72,6 +88,9 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, versio
 // creates corresponding ServiceRelease objects for any that are missing.
 // Safe to call periodically — only creates releases, does not clean up infra.
 func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if srv.resources == nil {
 		return
 	}
@@ -122,9 +141,12 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 }
 
 // retryStuckReleases finds ServiceRelease objects stuck in RESOLVED and
-// re-triggers reconciliation so the workflow path picks them up again.
+// re-enqueues them through the work queue so the workflow path picks them up
+// again. Unlike the previous implementation, this does NOT call
+// reconcileRelease directly — doing so bypassed the work queue's dedup and
+// rate limiting, amplifying the reconcile storm.
 func (srv *server) retryStuckReleases(ctx context.Context) {
-	if srv.resources == nil {
+	if srv.resources == nil || srv.releaseEnqueue == nil {
 		return
 	}
 	releases, _, err := srv.resources.List(ctx, "ServiceRelease", "")
@@ -137,7 +159,7 @@ func (srv *server) retryStuckReleases(ctx context.Context) {
 			continue
 		}
 		if rel.Status.Phase == cluster_controllerpb.ReleasePhaseResolved {
-			srv.reconcileRelease(ctx, rel.Meta.Name)
+			srv.releaseEnqueue(rel.Meta.Name)
 		}
 	}
 }

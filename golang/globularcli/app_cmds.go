@@ -139,7 +139,7 @@ func runAppDeploy(cmd *cobra.Command, args []string) error {
 
 	resp, err := rc.ApplyApplicationRelease(ctx, &cluster_controllerpb.ApplyApplicationReleaseRequest{
 		Object: release,
-	})
+	}, jsonCallOption())
 	if err != nil {
 		return fmt.Errorf("deploy application: %w", err)
 	}
@@ -179,7 +179,7 @@ func runAppUndeploy(cmd *cobra.Command, args []string) error {
 
 	_, err = rc.DeleteApplicationRelease(ctx, &cluster_controllerpb.DeleteApplicationReleaseRequest{
 		Name: releaseName,
-	})
+	}, jsonCallOption())
 	if err != nil {
 		return fmt.Errorf("undeploy application: %w", err)
 	}
@@ -208,7 +208,7 @@ func runAppStatus(cmd *cobra.Command, args []string) error {
 
 	rel, err := rc.GetApplicationRelease(ctx, &cluster_controllerpb.GetApplicationReleaseRequest{
 		Name: releaseName,
-	})
+	}, jsonCallOption())
 	if err != nil {
 		return fmt.Errorf("get application status: %w", err)
 	}
@@ -258,7 +258,7 @@ func runAppList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	resp, err := rc.ListApplicationReleases(ctx, &cluster_controllerpb.ListApplicationReleasesRequest{})
+	resp, err := rc.ListApplicationReleases(ctx, &cluster_controllerpb.ListApplicationReleasesRequest{}, jsonCallOption())
 	if err != nil {
 		return fmt.Errorf("list applications: %w", err)
 	}

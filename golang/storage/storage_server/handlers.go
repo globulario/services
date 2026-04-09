@@ -9,6 +9,7 @@ import (
 
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
 	Utility "github.com/globulario/utility"
@@ -283,7 +284,11 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 	case storagepb.StoreType_BADGER_DB:
 		store = storage_store.NewBadger_store()
 	case storagepb.StoreType_SCYLLA_DB:
-		store = storage_store.NewScylla_store("127.0.0.1", "", 3)
+		scyllaHost := config.GetRoutableIPv4()
+		if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+			scyllaHost = hosts[0]
+		}
+		store = storage_store.NewScylla_store(scyllaHost, "", 3)
 	default:
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("open: unsupported store type for connection id "+rqst.GetId())))

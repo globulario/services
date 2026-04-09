@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,9 +58,40 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	syncTicker := time.NewTicker(5 * time.Minute)
 	defer syncTicker.Stop()
 
+	// Attempt controller endpoint recovery every 2 minutes when missing.
+	rediscoverTicker := time.NewTicker(2 * time.Minute)
+	defer rediscoverTicker.Stop()
+
+	// Track whether we've already logged the missing-endpoint state to
+	// avoid repeating the same message every 30 seconds.
+	loggedMissingEndpoint := false
+
 	for {
 		if err := srv.reportStatus(ctx); err != nil {
-			log.Printf("node heartbeat failed: %v", err)
+			srv.consecutiveHeartbeatFail++
+			switch {
+			case srv.controllerEndpoint == "":
+				srv.controllerConnState = ConnStateRediscovering
+			case srv.consecutiveHeartbeatFail >= 3:
+				srv.controllerConnState = ConnStateUnreachable
+			default:
+				srv.controllerConnState = ConnStateDegraded
+			}
+			// Rate-limit: only log missing-endpoint once until it changes.
+			if srv.controllerEndpoint == "" {
+				if !loggedMissingEndpoint {
+					log.Printf("node heartbeat failed (state=%s): %v", srv.controllerConnState, err)
+					loggedMissingEndpoint = true
+				}
+			} else {
+				log.Printf("node heartbeat failed (state=%s): %v", srv.controllerConnState, err)
+				loggedMissingEndpoint = false
+			}
+		} else {
+			srv.controllerConnState = ConnStateConnected
+			srv.lastControllerContact = time.Now()
+			srv.consecutiveHeartbeatFail = 0
+			loggedMissingEndpoint = false
 		}
 		select {
 		case <-ctx.Done():
@@ -67,6 +99,19 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		case <-syncTicker.C:
 			srv.syncInstalledStateToEtcd(ctx)
 			srv.syncEtcHosts(ctx)
+		case <-rediscoverTicker.C:
+			if srv.controllerEndpoint == "" {
+				if ep := srv.rediscoverControllerEndpoint(); ep != "" {
+					srv.controllerEndpoint = ep
+					srv.resetControllerClient()
+					// Persist recovered endpoint to state file.
+					if err := srv.saveState(); err != nil {
+						log.Printf("node-agent: failed to persist recovered controller endpoint: %v", err)
+					}
+					log.Printf("node-agent: controller endpoint recovered: %s", ep)
+					loggedMissingEndpoint = false
+				}
+			}
 		case <-heartbeat.C:
 		}
 	}
@@ -366,14 +411,48 @@ func commandBinaryExists(name string) bool {
 	return false
 }
 
+// rediscoverControllerEndpoint attempts to resolve the controller endpoint
+// using the same 3-step discovery order as node-agent startup (server.go):
+//  1. etcd service registry (config.ResolveServiceAddr)
+//  2. DNS form: controller.<clusterDomain>:<port>
+//  3. persisted state fallback
+func (srv *NodeAgentServer) rediscoverControllerEndpoint() string {
+	// Step 1: etcd service registry — same call used at startup.
+	if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+		return addr
+	}
+
+	// Step 2: DNS-based discovery — same as startup when clusterDomain is set.
+	clusterDomain := ""
+	if srv.state != nil {
+		clusterDomain = strings.TrimSpace(srv.state.ClusterDomain)
+	}
+	if clusterDomain != "" {
+		controllerPort := "12000"
+		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+			if _, p, err := net.SplitHostPort(addr); err == nil && p != "" {
+				controllerPort = p
+			}
+		}
+		return fmt.Sprintf("controller.%s:%s", clusterDomain, controllerPort)
+	}
+
+	// Step 3: persisted state fallback.
+	if srv.state != nil && srv.state.ControllerEndpoint != "" {
+		return srv.state.ControllerEndpoint
+	}
+
+	return ""
+}
+
 func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	if srv.controllerEndpoint == "" {
-		return nil
+		return fmt.Errorf("controller endpoint not configured — heartbeat skipped")
 	}
 	if srv.nodeID == "" {
-		return nil
+		return fmt.Errorf("node ID not assigned — heartbeat skipped")
 	}
-	identity := buildNodeIdentity()
+	identity := srv.buildNodeIdentity()
 	units := convertNodeAgentUnits(detectUnits(ctx))
 	statusReq := &cluster_controllerpb.NodeStatus{
 		NodeId:            srv.nodeID,

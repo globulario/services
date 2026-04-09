@@ -59,6 +59,7 @@ func TestIsDownloadBlocked_StatesCorrect(t *testing.T) {
 
 func TestIsDiscoveryHidden_IncludesStagingOrphaned(t *testing.T) {
 	// All hidden states per the behavior semantics table.
+	// VERIFIED is now hidden — it is not deployable and must not leak into search.
 	hidden := []PublishState{
 		PublishState_YANKED,
 		PublishState_QUARANTINED,
@@ -66,6 +67,7 @@ func TestIsDiscoveryHidden_IncludesStagingOrphaned(t *testing.T) {
 		PublishState_ORPHANED,
 		PublishState_FAILED,
 		PublishState_STAGING,
+		PublishState_VERIFIED,
 	}
 	for _, s := range hidden {
 		if !IsDiscoveryHidden(s) {
@@ -77,7 +79,6 @@ func TestIsDiscoveryHidden_IncludesStagingOrphaned(t *testing.T) {
 	visible := []PublishState{
 		PublishState_PUBLISHED,
 		PublishState_DEPRECATED,
-		PublishState_VERIFIED,
 	}
 	for _, s := range visible {
 		if IsDiscoveryHidden(s) {

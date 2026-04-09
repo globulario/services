@@ -10,12 +10,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -227,6 +229,19 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	} else {
 		version = cv
 	}
+	// Version regression guard: if healthy nodes are running a newer version,
+	// auto-correct the desired version upward instead of allowing a downgrade.
+	// This prevents the 4-layer model from drifting backward when a deploy
+	// script or operator accidentally sets an older version.
+	if highVer := srv.highestHealthyInstalledVersion(canon); highVer != "" {
+		cmp, err := versionutil.Compare(version, highVer)
+		if err == nil && cmp < 0 {
+			log.Printf("desired-state: version regression blocked for %s: requested %s but healthy nodes run %s — auto-correcting to %s",
+				canon, version, highVer, highVer)
+			version = highVer
+		}
+	}
+
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
@@ -245,6 +260,39 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	srv.ensureServiceRelease(ctx, canon, version, svc.BuildNumber)
 
 	return nil
+}
+
+// highestHealthyInstalledVersion returns the highest version of a service
+// that is installed on any node with a recent heartbeat (< 10 minutes).
+// Returns "" if no healthy nodes have the service installed.
+func (srv *server) highestHealthyInstalledVersion(serviceName string) string {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	var best string
+	staleThreshold := 10 * time.Minute
+
+	for _, node := range srv.state.Nodes {
+		// Only consider nodes with recent heartbeats.
+		if time.Since(node.LastSeen) > staleThreshold {
+			continue
+		}
+		if node.InstalledVersions == nil {
+			continue
+		}
+		ver, ok := node.InstalledVersions[serviceName]
+		if !ok || ver == "" || ver == "0.0.1" {
+			continue
+		}
+		if best == "" {
+			best = ver
+			continue
+		}
+		if cmp, err := versionutil.Compare(ver, best); err == nil && cmp > 0 {
+			best = ver
+		}
+	}
+	return best
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -738,10 +786,7 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	}
 
 	// Resolve repository address: env var → default.
-	addr := strings.TrimSpace(os.Getenv(repositoryAddressEnv))
-	if addr == "" {
-		addr = "localhost:10101"
-	}
+	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 
 	repoClient, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
 	if err != nil {
@@ -964,10 +1009,7 @@ func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_contro
 	preview := &cluster_controllerpb.ServiceChangePreview{}
 
 	// Query repository for artifact validation (best-effort; degraded if unreachable).
-	addr := strings.TrimSpace(os.Getenv(repositoryAddressEnv))
-	if addr == "" {
-		addr = "localhost:10101"
-	}
+	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 
 	// Build a unified package index from both artifact manifests and bundle summaries.
 	pkgIndex := make(map[string]resolvedPkg)

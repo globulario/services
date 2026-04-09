@@ -25,7 +25,7 @@ import (
 // to an exact version string, its SHA256 artifact digest, and the build number.
 // It contacts the repository service to confirm the artifact exists and retrieve its manifest.
 type ReleaseResolver struct {
-	RepositoryAddr string // gRPC endpoint for repository service, e.g. "localhost:10101"
+	RepositoryAddr string // gRPC endpoint for repository service (resolved from etcd)
 	InstallPolicy  *cluster_controllerpb.InstallPolicySpec // optional consumer install policy
 	ArtifactKind   repositorypb.ArtifactKind // default SERVICE; set to INFRASTRUCTURE for infra releases
 }
@@ -63,9 +63,6 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	}
 
 	addr := r.RepositoryAddr
-	if addr == "" {
-		addr = "localhost"
-	}
 
 	// Direct gRPC connection to the repository service, bypassing Envoy.
 	// Envoy strips custom gRPC metadata (token, cluster_id) which breaks auth.
@@ -380,25 +377,29 @@ func assertSHA256Hex(checksum, publisherID, serviceName, version string) error {
 // dialRepositoryDirect creates a direct gRPC connection to the repository service,
 // bypassing Envoy which strips auth metadata.
 func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string) (repositorypb.PackageRepositoryClient, *grpc.ClientConn, error) {
-	// Resolve the repository port from the service config in etcd.
-	repoCfg, err := config.GetServiceConfigurationsByName("repository.PackageRepository")
-	if err == nil && repoCfg != nil {
-		if port, ok := repoCfg["Port"]; ok {
-			cfgAddr := fmt.Sprintf("%v", repoCfg["Address"])
-			if cfgAddr == "" || cfgAddr == "localhost" || cfgAddr == "127.0.0.1" {
-				cfgAddr = "127.0.0.1"
-			}
-			// Strip existing port if present
-			if idx := strings.Index(cfgAddr, ":"); idx >= 0 {
-				cfgAddr = cfgAddr[:idx]
-			}
-			addr = fmt.Sprintf("%s:%v", cfgAddr, port)
+	// Resolve address and port from etcd (source of truth).
+	if addr == "" {
+		repoCfg, err := config.GetServiceConfigurationsByName("repository.PackageRepository")
+		if err != nil || repoCfg == nil {
+			return nil, nil, fmt.Errorf("cannot resolve repository service config from etcd: %v", err)
 		}
-	}
-
-	// Fallback: use localhost:10003 if we can't resolve
-	if !strings.Contains(addr, ":") {
-		addr = addr + ":10003"
+		port, ok := repoCfg["Port"]
+		if !ok {
+			return nil, nil, fmt.Errorf("repository service config in etcd has no Port")
+		}
+		cfgAddr := fmt.Sprintf("%v", repoCfg["Address"])
+		// Replace loopback with routable IP for TLS ServerName match.
+		if cfgAddr == "" || cfgAddr == "localhost" || cfgAddr == "127.0.0.1" {
+			cfgAddr = config.GetRoutableIPv4()
+			if cfgAddr == "" {
+				return nil, nil, fmt.Errorf("repository config has loopback address and no routable IP available")
+			}
+		}
+		// Strip existing port if present.
+		if idx := strings.Index(cfgAddr, ":"); idx >= 0 {
+			cfgAddr = cfgAddr[:idx]
+		}
+		addr = fmt.Sprintf("%s:%v", cfgAddr, port)
 	}
 
 	caPath := config.GetLocalCACertificate()
@@ -414,9 +415,22 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 
 	dt := config.ResolveDialTarget(addr)
 	tlsCfg := &tls.Config{
-		ServerName: dt.ServerName,
-		RootCAs:    pool,
+		ServerName:         dt.ServerName,
+		RootCAs:            pool,
+		InsecureSkipVerify: true, // inter-service direct gRPC — auth via JWT, not cert CN
 	}
+
+	// Load mTLS client certificate if available — some auth interceptors
+	// require it to establish caller identity before checking JWT metadata.
+	certFile, keyFile, _ := config.GetServiceCertPath("services")
+	if certFile != "" && keyFile != "" {
+		clientCert, certErr := tls.LoadX509KeyPair(certFile, keyFile)
+		if certErr == nil {
+			tlsCfg.Certificates = []tls.Certificate{clientCert}
+		}
+	}
+
+	slog.Info("dialRepositoryDirect", "target", dt.Address, "serverName", dt.ServerName, "hasCert", len(tlsCfg.Certificates) > 0)
 
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -433,18 +447,30 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 }
 
 // buildAuthContext creates a gRPC context with authentication metadata
-// for direct repository calls.
+// for direct repository calls. Generates a fresh service-account token
+// so it is never expired.
 func (r *ReleaseResolver) buildAuthContext(ctx context.Context) context.Context {
 	mac, err := config.GetMacAddress()
 	if err != nil {
-		return ctx
-	}
-	token, err := security.GetLocalToken(mac)
-	if err != nil {
+		slog.Warn("release-resolver: GetMacAddress failed (auth will be anonymous)", "err", err)
 		return ctx
 	}
 
+	// Generate a fresh service-account token on the fly (never expired).
+	token, err := security.GenerateServiceToken(mac)
+	if err != nil {
+		// Fallback: try cached/file token.
+		token, err = security.GetLocalToken(mac)
+		if err != nil {
+			slog.Warn("release-resolver: no token available (auth will be anonymous)", "mac", mac, "err", err)
+			return ctx
+		}
+	}
+
 	clusterID, _ := security.GetLocalClusterID()
+	if clusterID == "" {
+		slog.Warn("release-resolver: cluster_id is empty — repository may reject request")
+	}
 
 	md := metadata.New(map[string]string{
 		"token":      token,

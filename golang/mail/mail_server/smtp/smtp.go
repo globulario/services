@@ -280,11 +280,13 @@ func StartSmtp(
 	// keep validateRcpt for compatibility even if not used explicitly
 	validateRcpt = make(chan map[string]interface{})
 
-	// Use configured domain if backend address is local
+	// Use configured domain if backend address is local.
 	addr := backendAddress
-	if addr == "0.0.0.0" || addr == "localhost" {
+	if addr == "0.0.0.0" || addr == "localhost" || addr == "127.0.0.1" {
 		if d, err := config.GetDomain(); err == nil && d != "" {
 			addr = d
+		} else if ip := config.GetRoutableIPv4(); ip != "" {
+			addr = ip
 		}
 	}
 

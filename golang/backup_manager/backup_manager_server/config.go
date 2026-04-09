@@ -92,6 +92,9 @@ type Config struct {
 	ScyllaCluster    string `json:"ScyllaCluster"`    // cluster name in scylla-manager
 	ScyllaLocation   string `json:"ScyllaLocation"`   // backup location, e.g. "s3:scylla-backups"
 
+	// Recovery mode: when true and a valid seed exists, apply it on startup.
+	RecoveryMode bool `json:"RecoveryMode"`
+
 	// Scheduled backups
 	ScheduleInterval string `json:"ScheduleInterval"` // e.g. "6h", "24h", "daily", "weekly", "0"=disabled
 

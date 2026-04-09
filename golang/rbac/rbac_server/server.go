@@ -965,7 +965,7 @@ func main() {
 		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
 			srv.Address = strings.ToLower(v)
 		} else {
-			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+			srv.Address = "0.0.0.0:" + Utility.ToString(srv.Port)
 		}
 
 		b, err := globular.DescribeJSON(srv)
@@ -1036,7 +1036,11 @@ func main() {
 		logger.Debug("loaded address from config", "address", a)
 	}
 	if srv.CacheAddress == "localhost" || srv.CacheAddress == "" {
-		srv.CacheAddress = srv.Address
+		if ip := config.GetRoutableIPv4(); ip != "" {
+			srv.CacheAddress = ip
+		} else {
+			srv.CacheAddress = srv.Address
+		}
 	}
 
 	// Open in-memory cache store

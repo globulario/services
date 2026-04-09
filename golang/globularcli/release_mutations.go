@@ -10,7 +10,7 @@ import (
 
 // fetchRelease retrieves a ServiceRelease by name.
 func fetchRelease(ctx context.Context, name string, client releaseResourcesClient) (*cluster_controllerpb.ServiceRelease, error) {
-	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name}, jsonCallOption())
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ func fetchRelease(ctx context.Context, name string, client releaseResourcesClien
 
 // applyRelease writes the ServiceRelease back via ApplyServiceRelease.
 func applyRelease(ctx context.Context, rel *cluster_controllerpb.ServiceRelease, client releaseResourcesClient) (*cluster_controllerpb.ServiceRelease, error) {
-	return client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
+	return client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel}, jsonCallOption())
 }
 
 // patchSpec merges fields from patch into rel.Spec (shallow, JSON merge semantics).

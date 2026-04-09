@@ -9,17 +9,20 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/globulario/services/golang/config"
 )
 
 // collector gathers endpoint metrics from Prometheus for scoring.
 type collector struct {
-	promURL string // e.g. "http://127.0.0.1:9090"
+	promURL string // e.g. "http://<routable-ip>:9090"
 	client  *http.Client
 }
 
 func newCollector() *collector {
+	promHost := config.GetRoutableIPv4()
 	return &collector{
-		promURL: "http://127.0.0.1:9090",
+		promURL: fmt.Sprintf("http://%s:9090", promHost),
 		client:  &http.Client{Timeout: 2 * time.Second},
 	}
 }

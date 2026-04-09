@@ -866,7 +866,11 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				slog.Info("grpcwebproxy exited immediately without error (unexpected)", "service", name, "id", id, "pid", pid)
 				return nil, errors.New("grpcwebproxy exited immediately")
 			default:
-				hp4 := net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))
+				probeHost := config.GetRoutableIPv4()
+				if probeHost == "" {
+					probeHost = "0.0.0.0"
+				}
+				hp4 := net.JoinHostPort(probeHost, strconv.Itoa(proxyPort))
 				hp6 := net.JoinHostPort("::1", strconv.Itoa(proxyPort))
 				if waitTcpOpen(hp4, 150*time.Millisecond) || waitTcpOpen(hp6, 150*time.Millisecond) {
 					return &started{cmd: proxy, pid: pid, readyCh: ready}, nil
@@ -1297,9 +1301,13 @@ func StartEtcdServer() error {
 	if advHost == "" {
 		return errors.New("cannot determine etcd advertised hostname")
 	}
-	if advHost == "127.0.0.1" || advHost == "0.0.0.0" {
-		slog.Warn("etcd advertised hostname resolves to localhost; this is not suitable for clustering")
-		advHost = "localhost"
+	if advHost == "127.0.0.1" || advHost == "0.0.0.0" || advHost == "localhost" {
+		if routable := config.GetRoutableIPv4(); routable != "" {
+			slog.Warn("etcd advertised hostname was loopback; using routable IP instead", "routable", routable)
+			advHost = routable
+		} else {
+			slog.Warn("etcd advertised hostname resolves to localhost; this is not suitable for clustering")
+		}
 	}
 
 	tlsDir, _, _, _ := runtimeTLSPaths()
@@ -1487,11 +1495,11 @@ func StartEtcdServer() error {
 	nodeCfg["data-dir"] = dataDir
 
 	if wantTLS {
-		// Serve TLS on LAN *and* TLS on loopback for local tools
-		nodeCfg["listen-client-urls"] = listenClientURLs + "," + ("https://127.0.0.1:" + clientPort)
+		// Serve TLS on all interfaces (0.0.0.0 covers both LAN and loopback)
+		nodeCfg["listen-client-urls"] = listenClientURLs + "," + ("https://0.0.0.0:" + clientPort)
 	} else {
-		// In insecure mode, keep plaintext loopback
-		nodeCfg["listen-client-urls"] = "http://127.0.0.1:" + clientPort + "," + listenClientURLs
+		// In insecure mode, listen on all interfaces
+		nodeCfg["listen-client-urls"] = "http://0.0.0.0:" + clientPort + "," + listenClientURLs
 	}
 	// ================================================================
 

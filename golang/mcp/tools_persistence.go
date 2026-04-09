@@ -18,29 +18,11 @@ import (
 // ── Endpoint helpers ─────────────────────────────────────────────────────────
 
 func persistenceEndpoint() string {
-	if cfg, err := config.GetServiceConfigurationById("persistence.PersistenceService"); err == nil {
-		if port, ok := cfg["Port"].(float64); ok {
-			addr := "localhost"
-			if a, ok := cfg["Address"].(string); ok && a != "" {
-				addr = a
-			}
-			return fmt.Sprintf("%s:%d", addr, int(port))
-		}
-	}
-	return "localhost:10007"
+	return config.ResolveServiceAddr("persistence.PersistenceService", "")
 }
 
 func storageEndpoint() string {
-	if cfg, err := config.GetServiceConfigurationById("storage.StorageService"); err == nil {
-		if port, ok := cfg["Port"].(float64); ok {
-			addr := "localhost"
-			if a, ok := cfg["Address"].(string); ok && a != "" {
-				addr = a
-			}
-			return fmt.Sprintf("%s:%d", addr, int(port))
-		}
-	}
-	return "localhost:10013"
+	return config.ResolveServiceAddr("storage.StorageService", "")
 }
 
 // ── Security: sensitive field redaction ──────────────────────────────────────

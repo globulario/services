@@ -146,7 +146,7 @@ func runReleaseApply(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	resp, err := client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel})
+	resp, err := client.ApplyServiceRelease(ctx, &cluster_controllerpb.ApplyServiceReleaseRequest{Object: rel}, jsonCallOption())
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func runReleaseShow(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name}, jsonCallOption())
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func runReleaseStatus(cmd *cobra.Command, args []string) error {
 	client := resourcesClientFactory(conn)
 	ctx, cancel := ctxWithCLITimeout(context.Background())
 	defer cancel()
-	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name})
+	rel, err := client.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: name}, jsonCallOption())
 	if err != nil {
 		return err
 	}
@@ -386,7 +386,7 @@ func runReleaseWatch(cmd *cobra.Command, args []string) error {
 func watchReleaseOnce(ctx context.Context, name string, client releaseWatchClient, asJSON bool) error {
 	wctx, cancel := ctxWithCLITimeout(ctx)
 	defer cancel()
-	stream, err := client.Watch(wctx, &cluster_controllerpb.WatchRequest{Type: "ServiceRelease", Prefix: name})
+	stream, err := client.Watch(wctx, &cluster_controllerpb.WatchRequest{Type: "ServiceRelease", Prefix: name}, jsonCallOption())
 	if err != nil {
 		return err
 	}

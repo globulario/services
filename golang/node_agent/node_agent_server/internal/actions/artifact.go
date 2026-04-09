@@ -96,7 +96,7 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 
 	// Fall back to remote repository download.
 	if repositoryAddr == "" {
-		repositoryAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
+		repositoryAddr = config.ResolveServiceAddr("repository.PackageRepository", "")
 	}
 	// Auto-discover repository via gateway: same host as the controller, port 443.
 	// The gateway (Envoy) routes gRPC to the repository service transparently.
@@ -104,7 +104,7 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 		repositoryAddr = discoverRepositoryViaGateway()
 	}
 	if repositoryAddr == "" {
-		return "", fmt.Errorf("artifact not found locally and REPOSITORY_ADDRESS is not set")
+		return "", fmt.Errorf("artifact not found locally and repository address could not be resolved")
 	}
 	if service == "" || version == "" || platform == "" {
 		return "", fmt.Errorf("service, version, and platform are required for remote fetch")
@@ -423,6 +423,113 @@ func resolveArtifactPath(service, version, platform string) string {
 	return filepath.Join(root, service, version, platform, filename)
 }
 
+// CheckArtifactPublished verifies that the artifact identified by the given parameters
+// is in PUBLISHED state in the repository. This is the node-agent's final guardrail:
+// even if the controller dispatches an install for a non-PUBLISHED artifact, the
+// node-agent must reject it. Returns nil if PUBLISHED, error otherwise.
+func CheckArtifactPublished(ctx context.Context, repoAddr, publisherID, name, version, platform, kind string, buildNumber int64) error {
+	if repoAddr == "" {
+		// No repository available — skip check (local/bootstrap installs).
+		return nil
+	}
+
+	conn, resolvedAddr, err := dialRepository(ctx, repoAddr)
+	if err != nil {
+		return fmt.Errorf("publish guard: dial repository %s: %w", repoAddr, err)
+	}
+	defer conn.Close()
+	_ = resolvedAddr
+
+	authCtx := ctx
+	if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		authCtx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	artifactKind := repositorypb.ArtifactKind_SERVICE
+	switch strings.ToUpper(kind) {
+	case "INFRASTRUCTURE":
+		artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	case "APPLICATION":
+		artifactKind = repositorypb.ArtifactKind_APPLICATION
+	case "COMMAND":
+		artifactKind = repositorypb.ArtifactKind_COMMAND
+	}
+
+	ref := &repositorypb.ArtifactRef{
+		PublisherId: publisherID,
+		Name:        name,
+		Version:     version,
+		Platform:    platform,
+		Kind:        artifactKind,
+	}
+
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	resp, err := client.GetArtifactManifest(authCtx, &repositorypb.GetArtifactManifestRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+	})
+	if err != nil {
+		return fmt.Errorf("publish guard: get manifest for %s/%s@%s build %d: %w",
+			publisherID, name, version, buildNumber, err)
+	}
+	manifest := resp.GetManifest()
+	if manifest == nil {
+		return fmt.Errorf("publish guard: no manifest returned for %s/%s@%s build %d",
+			publisherID, name, version, buildNumber)
+	}
+
+	ps := manifest.GetPublishState()
+	if ps != repositorypb.PublishState_PUBLISHED {
+		return fmt.Errorf("publish guard: artifact %s/%s@%s build %d is %s, not PUBLISHED — rejecting install",
+			publisherID, name, version, buildNumber, ps)
+	}
+	return nil
+}
+
+// dialRepository creates a gRPC connection to the repository service.
+// Returns the connection and the resolved address.
+func dialRepository(ctx context.Context, addr string) (*grpc.ClientConn, string, error) {
+	var opts []grpc.DialOption
+
+	// Always use mTLS — no insecure fallback.
+	{
+		caPath := "/var/lib/globular/pki/ca.pem"
+		if _, err := os.Stat(caPath); err != nil {
+			caPath = "" // CA not found on disk; proceed without pinned CA
+		}
+		tlsCfg := &tls.Config{}
+		if caPath != "" {
+			data, err := os.ReadFile(caPath)
+			if err != nil {
+				return nil, addr, fmt.Errorf("read repository CA %s: %w", caPath, err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(data) {
+				return nil, addr, fmt.Errorf("parse repository CA %s: no certificates found", caPath)
+			}
+			tlsCfg.RootCAs = pool
+		}
+		clientCert := "/var/lib/globular/pki/issued/services/service.crt"
+		clientKey := "/var/lib/globular/pki/issued/services/service.key"
+		if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+		dt := config.ResolveDialTarget(addr)
+		tlsCfg.ServerName = dt.ServerName
+		addr = dt.Address
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(dialCtx, addr, opts...)
+	if err != nil {
+		return nil, addr, err
+	}
+	return conn, addr, nil
+}
+
 // downloadArtifactFromRepository fetches an artifact from a remote repository gRPC endpoint
 // via streaming DownloadArtifact RPC and writes it atomically to dest.
 //
@@ -431,22 +538,14 @@ func resolveArtifactPath(service, version, platform string) string {
 // accept a corrupted artifact).
 //
 // TLS configuration uses:
-//   - REPOSITORY_CA_PATH env var for the CA certificate (required unless REPOSITORY_INSECURE=true)
-//   - REPOSITORY_INSECURE=true disables TLS (development only)
+//   - caPathFromPlan for the CA certificate if provided in the plan
+//   - Falls back to the canonical CA location /var/lib/globular/pki/ca.pem
 func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repositorypb.ArtifactRef, dest, expectedSHA256 string, insecureFromPlan bool, caPathFromPlan string, buildNumber int64) error {
 	var opts []grpc.DialOption
 
-	insecure := insecureFromPlan || strings.EqualFold(os.Getenv("REPOSITORY_INSECURE"), "true")
-	if insecure {
-		opts = append(opts, grpc.WithInsecure()) //nolint:staticcheck // plaintext for non-TLS repos
-	} else {
+	// Always use mTLS — no insecure fallback.
+	{
 		caPath := caPathFromPlan
-		if caPath == "" {
-			caPath = strings.TrimSpace(os.Getenv("REPOSITORY_CA_PATH"))
-		}
-		if caPath == "" {
-			caPath = strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA"))
-		}
 		// Fall back to canonical CA location (always present on joined nodes).
 		if caPath == "" {
 			candidate := "/var/lib/globular/pki/ca.pem"

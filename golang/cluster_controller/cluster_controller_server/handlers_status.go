@@ -103,6 +103,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.AgentEndpoint = newEndpoint
 	node.ReportedAt = reportedAt
 	node.LastSeen = reportedAt
+	changed = true // LastSeen must always persist so followers see fresh heartbeats
 
 	if !unitsEqual(node.Units, units) {
 		// Detect units that transitioned from active to non-active (crash/stop).
@@ -239,6 +240,14 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	if oldEndpoint != "" && oldEndpoint != newEndpoint {
 		endpointToClose = oldEndpoint
 	}
+
+	// Stamp leader liveness signal: heartbeat was successfully processed
+	// (all in-memory state mutations complete). This is intentionally BEFORE
+	// persistStateLocked — liveness measures "did I process heartbeats?", not
+	// "did etcd persist succeed?". A temporary etcd issue must not make a
+	// healthy leader look dead.
+	srv.lastHeartbeatProcessed.Store(time.Now().UnixNano())
+
 	if changed {
 		if err := srv.persistStateLocked(false); err != nil {
 			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
@@ -293,7 +302,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// empty, auto-import from installed. This catches the case where a node
 	// joins or reports before the startup auto-import has run.
 	// Debounced by autoImportDone to avoid running on every heartbeat.
-	if len(installedVersions) > 0 && srv.resources != nil && !srv.autoImportDone.Load() {
+	if len(installedVersions) > 0 && srv.resources != nil && !srv.autoImportDone.Load() && srv.mustBeLeader() {
 		resources := srv.resources
 		safeGo("report-node-auto-import", func() {
 			items, _, err := resources.List(context.Background(), "ServiceDesiredVersion", "")

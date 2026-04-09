@@ -16,7 +16,92 @@ import (
 // releaseRetryBackoff is the minimum time to wait before auto-retrying a
 // FAILED release. Without this, resolve errors (e.g. "cluster_id required")
 // create a tight FAILED→PENDING→FAILED loop that starves other handlers.
-const releaseRetryBackoff = 30 * time.Second
+const releaseRetryBackoff = 5 * time.Minute
+
+// isServiceConverged checks whether a service is already installed at the
+// desired version on all eligible nodes. Used to suppress unnecessary release
+// creation and enqueue during startup — a restart must not become a full-
+// cluster apply storm.
+//
+// "Eligible" is defined by the same rules as reconcileResolved/hasUnservedNodes:
+//   - Bootstrap phase: must be past "admitted" and workload-ready for services
+//   - Catalog profile rules: service may only target nodes with matching profiles
+//   - Excluded nodes: unreachable, removed, blocked, or draining nodes are skipped
+//
+// Without profile filtering, a service targeting only "core" nodes would
+// require all nodes (including "gateway-only") to have it installed — causing
+// false drift and unnecessary work.
+func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64) bool {
+	if serviceName == "" || desiredVersion == "" {
+		return false
+	}
+	canon := canonicalServiceName(serviceName)
+
+	// Check installed-state registry across all nodes.
+	pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", canon)
+	if err != nil || len(pkgs) == 0 {
+		return false // can't verify → treat as unconverged
+	}
+
+	// Build a set of node IDs that have the package installed at the right version.
+	installedNodes := make(map[string]bool)
+	for _, pkg := range pkgs {
+		nodeID := pkg.GetNodeId()
+		if nodeID == "" {
+			continue
+		}
+		if pkg.GetVersion() == desiredVersion &&
+			(desiredBuildNumber == 0 || pkg.GetBuildNumber() == desiredBuildNumber) {
+			installedNodes[nodeID] = true
+		}
+	}
+
+	// Look up catalog entry for profile-based placement rules.
+	catalogEntry := CatalogByName(canon)
+
+	// Check that all eligible nodes are covered.
+	srv.lock("isServiceConverged")
+	defer srv.unlock()
+
+	eligibleCount := 0
+	for id, node := range srv.state.Nodes {
+		// Same filtering as reconcileResolved / hasUnservedNodes:
+
+		// 1. Bootstrap phase gating.
+		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
+			continue
+		}
+		if !bootstrapPhaseReady(node.BootstrapPhase) {
+			continue
+		}
+
+		// 2. Excluded/drained nodes — not candidates for this service.
+		if node.Status == "unreachable" || node.Status == "removed" ||
+			node.Status == "blocked" || node.Status == "draining" {
+			continue
+		}
+
+		// 3. Catalog profile placement rules — skip nodes whose profiles
+		//    don't overlap with the service's required profiles.
+		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
+			expandedProfiles := normalizeProfiles(node.Profiles)
+			if !profilesOverlap(catalogEntry.Profiles, expandedProfiles) {
+				continue
+			}
+		}
+
+		// This node is eligible — it must have the package installed.
+		eligibleCount++
+		if !installedNodes[id] {
+			return false
+		}
+	}
+
+	// If no nodes are eligible, don't claim convergence — there's nothing
+	// to converge against (cold start, or service restricted to a profile
+	// that no node has yet).
+	return eligibleCount > 0
+}
 
 // releaseHandle is a type-erased view of a release object (ServiceRelease,
 // ApplicationRelease, or InfrastructureRelease) that the unified pipeline
@@ -106,6 +191,9 @@ func computeWorkflowKind(h *releaseHandle) string {
 // reconcilePending is the shared PENDING phase: resolve version and artifact
 // digest via ReleaseResolver, compute desired hash, transition to RESOLVED.
 func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	nowMs := time.Now().UnixMilli()
 	wfKind := computeWorkflowKind(h)
 
@@ -122,6 +210,14 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
+	// Acquire resolve semaphore to limit concurrent repository calls.
+	select {
+	case srv.resolveSem <- struct{}{}:
+	case <-ctx.Done():
+		return
+	}
+	defer func() { <-srv.resolveSem }()
+
 	artifactKind := repositorypb.ArtifactKind_SERVICE
 	if h.ResourceType == "InfrastructureRelease" {
 		artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
@@ -129,12 +225,16 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		artifactKind = repositorypb.ArtifactKind_APPLICATION
 	}
 	resolver := &ReleaseResolver{RepositoryAddr: h.RepositoryAddr, ArtifactKind: artifactKind}
+	resolveStart := time.Now()
 	resolved, err := resolver.Resolve(ctx, h.ResolverSpec)
+	releaseResolveDuration.Observe(time.Since(resolveStart).Seconds())
+	releasePhaseTransitions.WithLabelValues(h.ResourceType, "RESOLVED").Inc()
 	if err != nil {
 		log.Printf("%s %s: resolve failed: %v", h.ResourceType, h.Name, err)
 		h.PatchStatus(ctx, statusPatch{
 			Phase:                cluster_controllerpb.ReleasePhaseFailed,
 			Message:              fmt.Sprintf("resolve: %v", err),
+			ObservedGeneration:   h.Generation,
 			LastTransitionUnixMs: nowMs,
 			TransitionReason:     "resolve_failed",
 			WorkflowKind:         wfKind,
@@ -167,6 +267,9 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 // workflow execution. The workflow handles per-node install/verify/restart/
 // sync through foreach sub-steps with gRPC callbacks to node-agents.
 func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	srv.lock("release-pipeline:snapshot")
 	// Collect eligible nodes — same filtering as before.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
@@ -233,6 +336,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Execute the release workflow asynchronously so the work queue worker
 	// is not blocked. This prevents gRPC server deadlocks when multiple
 	// workflows try to acquire srv.lock concurrently with gRPC handlers.
+	workflowDispatchTotal.WithLabelValues(computeWorkflowKind(h)).Inc()
 	log.Printf("%s %s: dispatching release workflow across %d nodes (v=%s)",
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
@@ -475,6 +579,9 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 		s.Phase = p.Phase
 		s.Message = p.Message
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		if p.ObservedGeneration > 0 {
+			s.ObservedGeneration = p.ObservedGeneration
+		}
 		applyWorkflowFields()
 	}
 }
@@ -513,6 +620,9 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 		s.Phase = p.Phase
 		s.Message = p.Message
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		if p.ObservedGeneration > 0 {
+			s.ObservedGeneration = p.ObservedGeneration
+		}
 		applyWorkflowFields()
 	}
 }
@@ -595,6 +705,9 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 		s.Phase = p.Phase
 		s.Message = p.Message
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
+		if p.ObservedGeneration > 0 {
+			s.ObservedGeneration = p.ObservedGeneration
+		}
 		applyWorkflowFields()
 	}
 }
@@ -714,6 +827,9 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 // reconcileRemoving dispatches uninstall plans and polls for completion,
 // then transitions to REMOVED or FAILED.
 func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	srv.lock("release-pipeline:snapshot")
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
 	for id := range srv.state.Nodes {
@@ -807,6 +923,34 @@ func (srv *server) tryLightweightRestart(ctx context.Context, node *nodeState, n
 		return false
 	}
 
+	// If service is blocked due to repeated precondition failures, check if
+	// the blocking condition has cleared before allowing restart.
+	if attempt.BlockedReason != "" {
+		// Re-check: can we reach the agent and verify cert status?
+		if node.AgentEndpoint == "" {
+			return false
+		}
+		agent, err := srv.getAgentClient(ctx, node.AgentEndpoint)
+		if err != nil {
+			return false
+		}
+		certResp, certErr := agent.GetCertificateStatus(ctx)
+		if certErr == nil && certResp.GetServerCert() != nil &&
+			!strings.HasPrefix(certResp.GetServerCert().GetSubject(), "error") {
+			// Precondition recovered — clear the block.
+			log.Printf("release %s: node %s service %s block cleared — cert available again",
+				releaseName, nodeID, serviceName)
+			attempt.BlockedReason = ""
+			attempt.BlockedSince = time.Time{}
+			attempt.ConsecutivePrecondFail = 0
+		} else {
+			log.Printf("release %s: node %s service %s still blocked: %s (since %s)",
+				releaseName, nodeID, serviceName, attempt.BlockedReason,
+				attempt.BlockedSince.Format(time.RFC3339))
+			return false
+		}
+	}
+
 	// Check budget: 3 attempts within 10 minutes → escalate.
 	if attempt.Count >= restartMaxAttempts && time.Since(attempt.LastAt) < restartBudgetWindow {
 		// Budget exhausted — emit event and escalate.
@@ -841,6 +985,86 @@ func (srv *server) tryLightweightRestart(ctx context.Context, node *nodeState, n
 		return false
 	}
 
+	// Dependency check: don't restart if a required dependency on this node
+	// is inactive or blocked — restarting a leaf on a dead branch is pointless.
+	if deps := RuntimeDependenciesFor(serviceName); len(deps) > 0 {
+		for _, dep := range deps {
+			depUnit := "globular-" + dep + ".service"
+			for _, u := range node.Units {
+				if strings.EqualFold(u.Name, depUnit) && strings.ToLower(u.State) != "active" {
+					blockedBy := ""
+					if node.RestartAttempts != nil {
+						if depAttempt := node.RestartAttempts[dep]; depAttempt != nil && depAttempt.BlockedReason != "" {
+							blockedBy = fmt.Sprintf(" (blocked: %s)", depAttempt.BlockedReason)
+						}
+					}
+					log.Printf("release %s: node %s restart SKIPPED for %s — dependency %s is %s%s",
+						releaseName, nodeID, serviceName, dep, u.State, blockedBy)
+					srv.emitClusterEvent("service.restart_skipped", map[string]interface{}{
+						"severity":       "WARNING",
+						"node_id":        nodeID,
+						"unit":           unitName,
+						"service":        serviceName,
+						"reason":         "dependency_not_active",
+						"blocked_by":     dep,
+						"dep_state":      u.State,
+						"correlation_id": "node:" + nodeID + ":unit:" + unitName,
+					})
+					attempt.FailureClass = FailClassDependencyBlocked
+					return false
+				}
+			}
+		}
+	}
+
+	// Pre-condition: verify TLS certificate is present before restarting.
+	// If the cert is missing/broken, restarting will just hit ExecStartPre
+	// timeout again — skip and don't consume budget.
+	certResp, certErr := agent.GetCertificateStatus(ctx)
+	if certErr != nil {
+		// RPC failed — log and proceed with restart as best-effort.
+		log.Printf("release %s: node %s cert precheck RPC failed for %s: %v (proceeding with restart)",
+			releaseName, nodeID, serviceName, certErr)
+	} else if certResp.GetServerCert() == nil || strings.HasPrefix(certResp.GetServerCert().GetSubject(), "error") {
+		reason := "server certificate missing"
+		if certResp.GetServerCert() != nil {
+			reason = "server certificate error: " + certResp.GetServerCert().GetSubject()
+		}
+		log.Printf("release %s: node %s restart SKIPPED for %s — %s",
+			releaseName, nodeID, serviceName, reason)
+		// Fetch short recent logs for immediate diagnostic visibility.
+		srv.fetchAndLogUnitTail(ctx, agent, unitName, releaseName, nodeID, serviceName)
+		// Track precondition failure classification.
+		attempt.FailureClass = FailClassPreconditionFail
+		attempt.ConsecutivePrecondFail++
+		if attempt.ConsecutivePrecondFail >= maxConsecutivePrecondFail {
+			attempt.BlockedReason = reason
+			attempt.BlockedSince = time.Now()
+			log.Printf("release %s: node %s service %s BLOCKED after %d consecutive precondition failures: %s",
+				releaseName, nodeID, serviceName, attempt.ConsecutivePrecondFail, reason)
+			srv.emitClusterEvent("service.blocked", map[string]interface{}{
+				"severity":       "ERROR",
+				"node_id":        nodeID,
+				"unit":           unitName,
+				"service":        serviceName,
+				"reason":         reason,
+				"consecutive":    attempt.ConsecutivePrecondFail,
+				"correlation_id": "node:" + nodeID + ":unit:" + unitName,
+			})
+		} else {
+			srv.emitClusterEvent("service.restart_skipped", map[string]interface{}{
+				"severity":       "WARNING",
+				"node_id":        nodeID,
+				"unit":           unitName,
+				"service":        serviceName,
+				"reason":         reason,
+				"correlation_id": "node:" + nodeID + ":unit:" + unitName,
+			})
+		}
+		// Do NOT consume restart budget — this is a hard precondition failure.
+		return false
+	}
+
 	resp, err := agent.ControlService(ctx, unitName, "restart")
 	if err != nil {
 		// RPC error (agent unreachable) — do NOT consume budget.
@@ -861,9 +1085,13 @@ func (srv *server) tryLightweightRestart(ctx context.Context, node *nodeState, n
 		attempt.LastError = resp.GetMessage()
 		log.Printf("release %s: node %s restart %s attempt %d failed: %s",
 			releaseName, nodeID, serviceName, attempt.Count, resp.GetMessage())
+		// Fetch short recent logs for immediate diagnostic visibility.
+		srv.fetchAndLogUnitTail(ctx, agent, unitName, releaseName, nodeID, serviceName)
 	} else {
 		log.Printf("release %s: node %s restart %s attempt %d succeeded (state=%s)",
 			releaseName, nodeID, serviceName, attempt.Count, resp.GetState())
+		attempt.ConsecutivePrecondFail = 0
+		attempt.FailureClass = ""
 	}
 
 	srv.emitClusterEvent("service.restart_attempted", map[string]interface{}{
@@ -878,4 +1106,26 @@ func (srv *server) tryLightweightRestart(ctx context.Context, node *nodeState, n
 	})
 
 	return true
+}
+
+// fetchAndLogUnitTail retrieves a short tail of recent journal logs from the
+// node agent for the given unit and logs them. This provides immediate
+// diagnostic visibility for ExecStartPre timeouts and other startup failures
+// without waiting for unit template regeneration.
+func (srv *server) fetchAndLogUnitTail(ctx context.Context, agent *agentClient, unitName, releaseName, nodeID, serviceName string) {
+	logResp, logErr := agent.GetServiceLogs(ctx, unitName, 20)
+	if logErr != nil {
+		log.Printf("release %s: node %s could not fetch logs for %s: %v",
+			releaseName, nodeID, serviceName, logErr)
+		return
+	}
+	lines := logResp.GetLines()
+	if len(lines) == 0 {
+		return
+	}
+	log.Printf("release %s: node %s recent logs for %s (%d lines):",
+		releaseName, nodeID, serviceName, len(lines))
+	for _, line := range lines {
+		log.Printf("  | %s", line)
+	}
 }

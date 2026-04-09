@@ -102,6 +102,46 @@ func (a *agentClient) ControlService(ctx context.Context, unit, action string) (
 	return resp, nil
 }
 
+// GetCertificateStatus retrieves the node's TLS certificate status.
+func (a *agentClient) GetCertificateStatus(ctx context.Context) (*node_agentpb.GetCertificateStatusResponse, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := a.client.GetCertificateStatus(reqCtx, &node_agentpb.GetCertificateStatusRequest{})
+	if err != nil {
+		return nil, err
+	}
+	a.touch()
+	return resp, nil
+}
+
+// ApplyPackageRelease tells the node-agent to download and install a specific
+// package version+build from the repository.
+func (a *agentClient) ApplyPackageRelease(ctx context.Context, req *node_agentpb.ApplyPackageReleaseRequest) (*node_agentpb.ApplyPackageReleaseResponse, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	resp, err := a.client.ApplyPackageRelease(reqCtx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.touch()
+	return resp, nil
+}
+
+// GetServiceLogs retrieves recent journal logs for a systemd unit.
+func (a *agentClient) GetServiceLogs(ctx context.Context, unit string, lines int32) (*node_agentpb.GetServiceLogsResponse, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := a.client.GetServiceLogs(reqCtx, &node_agentpb.GetServiceLogsRequest{
+		Unit:  unit,
+		Lines: lines,
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.touch()
+	return resp, nil
+}
+
 func (a *agentClient) touch() {
 	a.mu.Lock()
 	a.lastUsed = time.Now()

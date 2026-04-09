@@ -545,9 +545,7 @@ import (
 
 	"{{.GoPackage}}"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // {{.ServiceName}}_Client wraps the gRPC client for {{.ServiceName}}.
@@ -566,7 +564,6 @@ type {{.ServiceName}}_Client struct {
 	keyFile  string
 	certFile string
 	caFile   string
-	ctx     context.Context
 }
 
 // New{{.ServiceName}}_Client creates a new client connection.
@@ -606,15 +603,7 @@ func (client *{{.ServiceName}}_Client) Invoke(method string, rqst interface{}, c
 }
 
 func (client *{{.ServiceName}}_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 func (client *{{.ServiceName}}_Client) GetDomain() string   { return client.domain }

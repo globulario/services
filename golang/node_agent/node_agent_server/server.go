@@ -17,11 +17,12 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
-	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
+	"github.com/globulario/services/golang/workflow"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/pki"
 	"google.golang.org/grpc"
@@ -35,6 +36,43 @@ var (
 	networkPKIManager = func(opts pki.Options) pki.Manager {
 		return pki.NewFileManager(opts)
 	}
+)
+
+// NodeAgentConfig holds all bootstrap-time configuration for the node agent.
+// Values come from CLI flags or the persisted state file — never from os.Getenv.
+type NodeAgentConfig struct {
+	Port                    string
+	AdvertiseAddr           string
+	AdvertiseIP             string
+	ClusterMode             bool
+	Insecure                bool
+	ClusterDomain           string
+	ControllerEndpoint      string
+	NodeID                  string
+	NodeName                string
+	JoinToken               string
+	BootstrapToken          string
+	AgentVersion            string
+	ControllerCAPath        string
+	ControllerSNI           string
+	ControllerUseSystemRoots bool
+	Labels                  map[string]string
+	Domain                  string // node domain for FQDN construction
+
+	// DNS overrides (optional, for multi-NIC nodes)
+	DNSIPv4 string
+	DNSIPv6 string
+	DNSIface string
+}
+
+// ControllerConnState tracks the node-agent's connectivity to the cluster controller.
+type ControllerConnState string
+
+const (
+	ConnStateConnected     ControllerConnState = "connected"
+	ConnStateDegraded      ControllerConnState = "degraded"
+	ConnStateRediscovering ControllerConnState = "rediscovering"
+	ConnStateUnreachable   ControllerConnState = "unreachable"
 )
 
 // NodeAgentServer implements the simplified node executor API.
@@ -64,6 +102,9 @@ type NodeAgentServer struct {
 	controllerCAPath         string
 	controllerSNI            string
 	controllerUseSystemRoots bool
+	controllerConnState      ControllerConnState
+	lastControllerContact    time.Time
+	consecutiveHeartbeatFail int
 	lastNetworkGeneration    uint64
 	controllerDialer         func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	controllerClientFactory  func(conn grpc.ClientConnInterface) cluster_controllerpb.ClusterControllerServiceClient
@@ -84,27 +125,33 @@ type NodeAgentServer struct {
 	// Workflow tracing (nil-safe, fire-and-forget)
 	workflowRec *workflow.Recorder
 	clusterID   string
+
+	// Bootstrap-time config passed from CLI flags (no os.Getenv at runtime)
+	cfg NodeAgentConfig
 }
 
-func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServer {
+func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentConfig) *NodeAgentServer {
 	if state == nil {
 		state = newNodeAgentState()
 	}
-	port := getEnv("NODE_AGENT_PORT", defaultPort)
-	advertised := strings.TrimSpace(os.Getenv("NODE_AGENT_ADVERTISE_ADDR"))
-	clusterMode := getEnv("NODE_AGENT_CLUSTER_MODE", "true") != "false"
+	port := cfg.Port
+	if port == "" {
+		port = defaultPort
+	}
+	advertised := strings.TrimSpace(cfg.AdvertiseAddr)
+	clusterMode := cfg.ClusterMode
 
 	if advertised == "" {
 		// Determine advertise IP using validated selection
-		advertiseIP, err := identity.SelectAdvertiseIP(os.Getenv("NODE_AGENT_ADVERTISE_IP"))
+		advertiseIP, err := identity.SelectAdvertiseIP(cfg.AdvertiseIP)
 		if err != nil {
 			if clusterMode {
 				// In cluster mode, FAIL FAST if no valid IP
 				log.Fatalf("node-agent: cannot determine advertise IP in cluster mode: %v", err)
 			}
-			// Development/single-node mode: allow localhost
-			log.Printf("node-agent: warning: no advertise IP, using localhost (development mode)")
-			advertiseIP = "127.0.0.1"
+			// Development/single-node mode: use 0.0.0.0 (bind-all)
+			log.Printf("node-agent: warning: no advertise IP, using 0.0.0.0 (development mode)")
+			advertiseIP = "0.0.0.0"
 		}
 		advertised = fmt.Sprintf("%s:%s", advertiseIP, port)
 	}
@@ -113,16 +160,22 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 	if err := identity.ValidateAdvertiseEndpoint(advertised, clusterMode); err != nil {
 		log.Fatalf("node-agent: invalid advertise endpoint: %v", err)
 	}
-	useInsecure := strings.EqualFold(getEnv("NODE_AGENT_INSECURE", "false"), "true")
+	useInsecure := cfg.Insecure
 
 	// Determine cluster domain early for controller discovery (PR3)
-	clusterDomain := getEnv("CLUSTER_DOMAIN", "")
+	clusterDomain := cfg.ClusterDomain
 
 	// Controller endpoint discovery (PR3: prefer DNS in cluster mode)
-	controllerEndpoint := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT"))
+	controllerEndpoint := strings.TrimSpace(cfg.ControllerEndpoint)
 	if controllerEndpoint == "" && clusterDomain != "" && clusterMode {
-		// In cluster mode with domain configured, use DNS-based discovery
-		controllerPort := getEnv("CLUSTER_CONTROLLER_PORT", "12000")
+		// In cluster mode with domain configured, use DNS-based discovery.
+		// Controller port resolved from etcd; fall back to default 12000.
+		controllerPort := "12000"
+		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+			if _, p, err := net.SplitHostPort(addr); err == nil && p != "" {
+				controllerPort = p
+			}
+		}
 		controllerEndpoint = fmt.Sprintf("controller.%s:%s", clusterDomain, controllerPort)
 		log.Printf("node-agent: using DNS-based controller discovery: %s", controllerEndpoint)
 	}
@@ -142,7 +195,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 
 	nodeID := state.NodeID
 	if nodeID == "" {
-		nodeID = strings.TrimSpace(os.Getenv("NODE_AGENT_NODE_ID"))
+		nodeID = strings.TrimSpace(cfg.NodeID)
 		state.NodeID = nodeID
 	}
 
@@ -159,7 +212,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 	}
 
 	// Node name selection (PR1)
-	nodeName := getEnv("NODE_AGENT_NODE_NAME", "")
+	nodeName := cfg.NodeName
 	if nodeName == "" {
 		hostname, _ := os.Hostname()
 		if hostname != "" {
@@ -179,10 +232,10 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 
 	return &NodeAgentServer{
 		operations:               make(map[string]*operation),
-		joinToken:                strings.TrimSpace(os.Getenv("NODE_AGENT_JOIN_TOKEN")),
-		bootstrapToken:           strings.TrimSpace(os.Getenv("NODE_AGENT_BOOTSTRAP_TOKEN")),
+		joinToken:                strings.TrimSpace(cfg.JoinToken),
+		bootstrapToken:           strings.TrimSpace(cfg.BootstrapToken),
 		controllerEndpoint:       controllerEndpoint,
-		agentVersion:             getEnv("NODE_AGENT_VERSION", "0.0.1"),
+		agentVersion:             cfg.AgentVersion,
 		bootstrapPlan:            nil,
 		nodeID:                   nodeID,
 		statePath:                statePath,
@@ -191,12 +244,13 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		advertisedAddr:           advertised,
 		useInsecure:              useInsecure,
 		etcdMode:                 "managed",
-		controllerCAPath:         strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA")),
-		controllerSNI:            strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_SNI")),
-		controllerUseSystemRoots: strings.EqualFold(os.Getenv("NODE_AGENT_CONTROLLER_USE_SYSTEM_ROOTS"), "true"),
+		controllerCAPath:         strings.TrimSpace(cfg.ControllerCAPath),
+		controllerSNI:            strings.TrimSpace(cfg.ControllerSNI),
+		controllerUseSystemRoots: cfg.ControllerUseSystemRoots,
 		lastNetworkGeneration:    state.NetworkGeneration,
 		controllerDialer:         grpc.DialContext,
 		controllerClientFactory:  cluster_controllerpb.NewClusterControllerServiceClient,
+		cfg:                      cfg,
 	}
 }
 
@@ -247,12 +301,17 @@ func (srv *NodeAgentServer) BootstrapIfNeeded(ctx context.Context) error {
 	return nil
 }
 
-// nodeRoutableIP returns this node's best routable IP, or "127.0.0.1" as a last resort.
+// nodeRoutableIP returns this node's best routable IP.
+// Falls back to config.GetRoutableIPv4() which scans interfaces.
+// Never returns localhost — callers must handle the empty-string case.
 func nodeRoutableIP() string {
 	if ip, err := identity.SelectAdvertiseIP(""); err == nil {
 		return ip
 	}
-	return "127.0.0.1"
+	if ip := config.GetRoutableIPv4(); ip != "" {
+		return ip
+	}
+	return ""
 }
 
 func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthchecks.Check {
@@ -326,7 +385,7 @@ func runSupplementalChecks(ctx context.Context, spec *cluster_controllerpb.Clust
 	if domain == "" {
 		errs = append(errs, "dns: empty domain")
 	} else {
-		dnsAddr := "127.0.0.1:53"
+		dnsAddr := nodeRoutableIP() + ":53"
 		resolver := &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -647,9 +706,9 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-func buildNodeIdentity() *cluster_controllerpb.NodeIdentity {
+func (srv *NodeAgentServer) buildNodeIdentity() *cluster_controllerpb.NodeIdentity {
 	hostname, _ := os.Hostname()
-	domain := os.Getenv("NODE_AGENT_DOMAIN")
+	domain := srv.cfg.Domain
 	// Build an advertise FQDN so other nodes can resolve this host without
 	// relying on bare-hostname DNS (which only works with /etc/hosts or
 	// search-domain config). Prefer hostname.domain; fall back to hostname.
@@ -664,7 +723,7 @@ func buildNodeIdentity() *cluster_controllerpb.NodeIdentity {
 		Ips:           gatherIPs(),
 		Os:            runtime.GOOS,
 		Arch:          runtime.GOARCH,
-		AgentVersion:  getEnv("NODE_AGENT_VERSION", "0.0.1"),
+		AgentVersion:  srv.agentVersion,
 	}
 }
 
@@ -883,8 +942,8 @@ func (srv *NodeAgentServer) storeNodeToken(token, principal string) error {
 	return nil
 }
 
-func parseNodeAgentLabels() map[string]string {
-	raw := strings.TrimSpace(os.Getenv("NODE_AGENT_LABELS"))
+func parseNodeAgentLabels(raw string) map[string]string {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
 	}
@@ -929,10 +988,3 @@ func convertNodeAgentUnits(units []*node_agentpb.UnitStatus) []*cluster_controll
 	return out
 }
 
-func getEnv(key, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	return value
-}

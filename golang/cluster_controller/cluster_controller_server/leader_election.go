@@ -6,8 +6,6 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -42,12 +40,7 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			default:
 			}
 
-			ttl := 15
-			if env := strings.TrimSpace(os.Getenv("CLUSTER_CONTROLLER_LEASE_TTL_SECONDS")); env != "" {
-				if v, err := strconv.Atoi(env); err == nil && v > 0 {
-					ttl = v
-				}
-			}
+			ttl := 15 // default lease TTL in seconds
 			sess, err := concurrency.NewSession(cli, concurrency.WithTTL(ttl))
 			if err != nil {
 				log.Printf("leader election: create session failed: %v", err)

@@ -82,7 +82,7 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 
 // runProbeEtcdHealth checks whether etcd is healthy on this node.
 //
-// Runs: etcdctl endpoint health --endpoints=https://127.0.0.1:2379 ... -w json
+// Runs: etcdctl endpoint health --endpoints=https://<routable-ip>:2379 ... -w json
 // Expects JSON output containing {"health":true}.
 func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
@@ -95,9 +95,14 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	// Use the node's routable IP for etcd health check — never localhost.
+	etcdIP := config.GetRoutableIPv4()
+	if etcdIP == "" {
+		return probeFail(start, "cannot determine routable IP for etcd health check"), nil
+	}
 	cmd := exec.CommandContext(cmdCtx, etcdctl,
 		"endpoint", "health",
-		"--endpoints=https://127.0.0.1:2379",
+		fmt.Sprintf("--endpoints=https://%s:2379", etcdIP),
 		"--cert=/var/lib/globular/pki/issued/etcd/client.crt",
 		"--key=/var/lib/globular/pki/issued/etcd/client.key",
 		"--cacert=/var/lib/globular/pki/ca.crt",

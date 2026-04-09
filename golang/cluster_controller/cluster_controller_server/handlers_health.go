@@ -110,10 +110,8 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		serviceOnlyDesired[k] = v
 	}
 	// Merge InfrastructureRelease entries so infrastructure daemons
-	// (etcd, minio, prometheus, etc.) appear in the health summary
-	// alongside gRPC services. Without this they show as "unmanaged".
-	// Track infra names so we can set the Kind field on summaries.
-	infraNames := make(map[string]bool)
+	// (etcd, minio, prometheus, etc.) appear in the hash computation
+	// alongside gRPC services.
 	if srv.resources != nil {
 		if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 			for _, obj := range items {
@@ -123,7 +121,6 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 						canon = canonicalServiceName(rel.Meta.Name)
 					}
 					if canon != "" {
-						infraNames[canon] = true
 						if _, exists := desiredCanon[canon]; !exists {
 							desiredCanon[canon] = rel.Spec.Version
 						}
@@ -140,9 +137,6 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 	srv.unlock()
 
 	var nodeHealths []*cluster_controllerpb.NodeHealth
-	serviceCounts := make(map[string]int)
-	serviceAtDesired := make(map[string]int)
-	serviceUpgrading := make(map[string]int)
 
 	for _, node := range nodes {
 		if node == nil {
@@ -152,18 +146,14 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 		filtered := filterVersionsForNode(desiredCanon, node)
 		desiredSvcHash := stableServiceDesiredHash(filtered)
 		appliedSvcHash, _ := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
-		// Plan system removed — no plan phase or error to display.
-		// Determine whether the node can perform privileged operations.
 		canPriv := false
 		if node.Capabilities != nil {
 			canPriv = node.Capabilities.CanApplyPrivileged
 		}
 
-		// Only show PLAN_AWAITING_PRIVILEGED_APPLY when at least one desired
-		// SERVICE-kind package is genuinely missing or at the wrong version
-		// AND the node cannot self-apply. Infrastructure packages (envoy,
-		// etcd, minio, etc.) are managed by bootstrap and must not trigger
-		// this state — they don't flow through the convergence loop.
+		// Stamp the applied service hash when all desired services are
+		// already installed at the correct version but the hash was never
+		// written (e.g. services installed externally via bootstrap/CLI).
 		svcOnlyFiltered := filterVersionsForNode(serviceOnlyDesired, node)
 		if desiredSvcHash != "" {
 			hasMissing := false
@@ -185,10 +175,6 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 					break
 				}
 			}
-			// Plan status check removed — no active plan to check.
-			// Stamp the applied service hash when all desired services are
-			// already installed at the correct version but the hash was never
-			// written (e.g. services installed externally via bootstrap/CLI).
 			if !hasMissing && appliedSvcHash != desiredSvcHash && len(svcOnlyFiltered) > 0 && len(node.InstalledVersions) > 0 {
 				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, desiredSvcHash); err != nil {
 					log.Printf("health: stamp applied service hash for %s: %v", node.NodeID, err)
@@ -205,58 +191,23 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			AppliedNetworkHash:  appliedNet,
 			DesiredServicesHash: desiredSvcHash,
 			AppliedServicesHash: appliedSvcHash,
-			// Plan fields removed from proto (reserved 6,7,8).
 			LastError:           "",
 			CanApplyPrivileged:  canPriv,
 			InstalledVersions:   node.InstalledVersions,
 		})
-
-		for svc, desiredVer := range filtered {
-			serviceCounts[svc]++
-			// Per-service convergence: compare installed version against
-			// the desired version for THIS service, not the global hash.
-			// Use canonicalized fuzzy matching because InstalledVersions
-			// keys may include publisher prefix ("pub/service") or use
-			// different casing/separators than the desired-state key.
-			installedVer := ""
-			if v, ok := node.InstalledVersions[svc]; ok {
-				installedVer = v
-			} else {
-				// Fuzzy match: strip publisher prefix and canonicalize.
-				for k, v := range node.InstalledVersions {
-					parts := strings.SplitN(k, "/", 2)
-					candidate := k
-					if len(parts) == 2 {
-						candidate = parts[1]
-					}
-					if canonicalServiceName(candidate) == canonicalServiceName(svc) {
-						installedVer = v
-						break
-					}
-				}
-			}
-			if installedVer == desiredVer {
-				serviceAtDesired[svc]++
-			}
-		}
 	}
 
+	// LAW 9: Compute service summaries using pure projection (Desired vs Installed only).
+	// No workflow state, no runtime health, no cached counters.
+	projections := srv.ComputeClusterProjection(ctx)
 	var summaries []*cluster_controllerpb.ServiceSummary
-	for svc, ver := range desiredCanon {
-		total := int32(serviceCounts[svc])
-		at := int32(serviceAtDesired[svc])
-		up := int32(serviceUpgrading[svc])
-		kind := "SERVICE"
-		if infraNames[svc] {
-			kind = "INFRASTRUCTURE"
-		}
+	for _, p := range projections {
 		summaries = append(summaries, &cluster_controllerpb.ServiceSummary{
-			ServiceName:    svc,
-			DesiredVersion: ver,
-			NodesAtDesired: at,
-			NodesTotal:     total,
-			Upgrading:      up,
-			Kind:           kind,
+			ServiceName:    p.ServiceName,
+			DesiredVersion: p.DesiredVersion,
+			NodesAtDesired: int32(p.NodesAtDesired),
+			NodesTotal:     int32(p.NodesTotal),
+			Kind:           p.Kind,
 		})
 	}
 
@@ -283,15 +234,22 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	var checks []*cluster_controllerpb.NodeHealthCheck
 
 	// 1. Heartbeat check
-	heartbeatOK := !node.LastSeen.IsZero() && time.Since(node.LastSeen) < unhealthyThreshold
+	heartbeatAge := time.Since(node.LastSeen)
+	heartbeatOK := !node.LastSeen.IsZero() && heartbeatAge < unhealthyThreshold
 	hbReason := ""
+	hashIsStale := false
 	if !heartbeatOK {
 		if node.LastSeen.IsZero() {
 			hbReason = "never seen"
+		} else if heartbeatAge > heartbeatStaleThreshold {
+			hbReason = fmt.Sprintf("unreachable — last seen %s ago, applied hash is stale",
+				heartbeatAge.Truncate(time.Second))
+			hashIsStale = true
 		} else {
-			hbReason = fmt.Sprintf("last seen %s ago", time.Since(node.LastSeen).Truncate(time.Second))
+			hbReason = fmt.Sprintf("last seen %s ago", heartbeatAge.Truncate(time.Second))
 		}
 	}
+	_ = hashIsStale // used by future hash comparison logic
 	checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
 		Subsystem: "heartbeat",
 		Ok:        heartbeatOK,
@@ -337,10 +295,16 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		}(),
 	})
 
-	// 4. Version checks — compare installed vs desired
+	// 4. Version checks — compare installed vs desired, filtered by node profile.
 	desiredCanon, _, _ := srv.loadDesiredServices(ctx)
 	filtered := filterVersionsForNode(desiredCanon, node)
+	assignedServices := ServicesForProfiles(node.Profiles)
 	for svc, desiredVer := range filtered {
+		// Skip services not assigned to this node's profiles.
+		// Infrastructure/command packages are always checked; only workloads are filtered.
+		if comp, ok := catalogIndex[svc]; ok && comp.Kind == KindWorkload && !assignedServices[svc] {
+			continue
+		}
 		installedVer, found := node.InstalledVersions[svc]
 		ok := found && installedVer == desiredVer
 		reason := ""
@@ -417,11 +381,15 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 		if timeSinceSeen > unhealthyThreshold {
 			currentNode.FailedHealthChecks++
 
-			if currentNode.Status != "unhealthy" {
-				currentNode.Status = "unhealthy"
+			newStatus := "unhealthy"
+		if timeSinceSeen > heartbeatStaleThreshold {
+			newStatus = "unreachable"
+		}
+		if currentNode.Status != newStatus {
+				currentNode.Status = newStatus
 				currentNode.MarkedUnhealthySince = now
 				currentNode.LastError = fmt.Sprintf("no contact for %v", timeSinceSeen.Round(time.Second))
-				log.Printf("node %s marked unhealthy: %s", node.NodeID, currentNode.LastError)
+				log.Printf("node %s marked %s: %s", node.NodeID, newStatus, currentNode.LastError)
 				srv.emitClusterEvent("cluster.health.degraded", map[string]interface{}{
 					"severity":       "WARNING",
 					"node_id":        node.NodeID,
@@ -456,7 +424,8 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 				}
 				continue
 			}
-		} else if currentNode.Status == "unhealthy" && previousStatus == "unhealthy" {
+		} else if (currentNode.Status == "unhealthy" || currentNode.Status == "unreachable") &&
+		(previousStatus == "unhealthy" || previousStatus == "unreachable") {
 			// Node came back online - reset recovery counters
 			currentNode.Status = "healthy"
 			currentNode.FailedHealthChecks = 0
@@ -539,6 +508,11 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	if node == nil {
 		return "degraded", "missing node record"
 	}
+	// Unreachable: no heartbeat beyond stale threshold.
+	if !node.LastSeen.IsZero() && time.Since(node.LastSeen) > heartbeatStaleThreshold {
+		return "unreachable", fmt.Sprintf("no heartbeat for %s",
+			time.Since(node.LastSeen).Truncate(time.Second))
+	}
 	plan, _ := srv.computeNodePlan(node)
 	required := requiredUnitsFromPlan(plan)
 	if len(required) == 0 {
@@ -585,6 +559,8 @@ func (srv *server) startHealthMonitorLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				// Controller self-update runs on all instances (followers and leader).
+				srv.reconcileControllerSelfUpdate(ctx)
 				if !srv.isLeader() {
 					continue
 				}

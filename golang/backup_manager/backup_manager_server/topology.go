@@ -115,8 +115,11 @@ func (srv *server) discoverNodes() []TopologyNode {
 func (srv *server) listNodesFromController() ([]TopologyNode, error) {
 	addr := config.ResolveServiceAddr(
 		"cluster_controller.ClusterControllerService",
-		"localhost:12000",
+		"",
 	)
+	if addr == "" {
+		return nil, fmt.Errorf("cluster controller address not found in etcd")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

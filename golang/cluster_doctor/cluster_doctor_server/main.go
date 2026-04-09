@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	grpchealth "google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"path/filepath"
 )
@@ -139,7 +141,20 @@ func main() {
 	// to the doctor's local state (finding cache, remediation executor).
 	actorRouter := srv.buildDoctorActorRouter()
 	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, NewDoctorActorServer(actorRouter))
-	logger.Debug("gRPC services registered (doctor + workflow actor)")
+
+	// Register gRPC health server so load balancers and probes can check liveness.
+	grpc_health_v1.RegisterHealthServer(grpcServer, grpchealth.NewServer())
+	logger.Debug("gRPC services registered (doctor + workflow actor + health)")
+
+	// Start serving gRPC in a goroutine BEFORE any potentially-blocking
+	// startup operations (etcd registration, leader election) so the
+	// health endpoint is reachable immediately.
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("grpc serve failed", "error", err)
+			os.Exit(1)
+		}
+	}()
 
 	// Register in Globular service registry so the xDS watcher creates an Envoy cluster.
 	// This makes the service reachable via serviceSubdomainUrl('clusterdoctor.ClusterDoctorService')
@@ -184,22 +199,12 @@ func main() {
 		"version", Version,
 	)
 
-	// Graceful shutdown on SIGTERM / SIGINT
+	// Graceful shutdown on SIGTERM / SIGINT — block main here.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
-	go func() {
-		<-stop
-		logger.Info("shutting down")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = ctx
-		grpcServer.GracefulStop()
-	}()
-
-	if err := grpcServer.Serve(lis); err != nil {
-		logger.Error("grpc serve failed", "error", err)
-		os.Exit(1)
-	}
+	<-stop
+	logger.Info("shutting down")
+	grpcServer.GracefulStop()
 }
 
 func startPprofServer() {
@@ -212,7 +217,7 @@ func startPprofServer() {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	// Bind to :0 so we get a free port, then register with Prometheus.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		logger.Error("metrics/pprof: listen failed", "error", err)
 		return
@@ -231,12 +236,12 @@ const promTargetsDir = "/var/lib/globular/prometheus/targets"
 func writePromTargetFile(job string, port int) {
 	// Scrape via loopback but override instance with node IP so multi-node
 	// observability can attribute samples to the correct host.
-	nodeIP, ipErr := config.GetRoutableIP()
-	if ipErr != nil || nodeIP == "" {
-		nodeIP = "127.0.0.1"
+	nodeIP := config.GetRoutableIPv4()
+	if nodeIP == "" {
+		nodeIP, _ = config.GetRoutableIP()
 	}
 	hostname, _ := os.Hostname()
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
+	content := fmt.Sprintf("- targets: [\"%s:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", nodeIP, port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}

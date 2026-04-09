@@ -2,25 +2,42 @@ package security
 
 import (
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/globulario/services/golang/config"
 )
 
 // Node identity enforcement flags (Gap 2+3).
 //
-// DEPRECATE_SA_NODE_AUTH=true  → warn when sa principal calls node-agent paths
-// REQUIRE_NODE_IDENTITY=true  → reject unless principal matches node_<uuid>
+// These flags are read from the local config (etcd-synced) under keys
+// "DeprecateSANodeAuth" and "RequireNodeIdentity".
 
 // DeprecateSANodeAuth returns true if the system should warn when the legacy
 // "sa" service account is used for node-agent-specific cluster paths.
 func DeprecateSANodeAuth() bool {
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("DEPRECATE_SA_NODE_AUTH")), "true")
+	return configBool("DeprecateSANodeAuth")
 }
 
 // RequireNodeIdentity returns true if the system must reject requests where
 // the caller principal does not match node_<uuid> on node-agent paths.
 func RequireNodeIdentity() bool {
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("REQUIRE_NODE_IDENTITY")), "true")
+	return configBool("RequireNodeIdentity")
+}
+
+// configBool reads a boolean flag from the local config (etcd-synced).
+func configBool(key string) bool {
+	cfg, err := config.GetLocalConfig(true)
+	if err != nil {
+		return false
+	}
+	switch v := cfg[key].(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "true")
+	default:
+		return false
+	}
 }
 
 // IsNodePrincipal returns true if the subject follows the node_<uuid> pattern.

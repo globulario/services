@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 )
 
@@ -260,7 +261,8 @@ func (c *supportBundleCollector) collectConfigs(rootDir string) error {
 
 func (c *supportBundleCollector) collectEnvoyConfig(rootDir string) error {
 	// Try to fetch envoy config dump from admin interface
-	output, err := exec.Command("curl", "-s", "http://localhost:9901/config_dump").CombinedOutput()
+	envoyHost := config.GetRoutableIPv4()
+	output, err := exec.Command("curl", "-s", fmt.Sprintf("http://%s:9901/config_dump", envoyHost)).CombinedOutput()
 	if err != nil {
 		errNote := fmt.Sprintf("Error fetching envoy config: %v\n", err)
 		return c.addFileFromBytes(filepath.Join(rootDir, "envoy", "config_dump.error"), []byte(errNote))

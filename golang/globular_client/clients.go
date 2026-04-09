@@ -1211,26 +1211,23 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 // GetClientContext returns a metadata-enriched context (token/domain/mac).
 func GetClientContext(client Client) context.Context {
-	_ = Utility.CreateDirIfNotExist(tokensPath)
-	token, err := security.GetLocalToken(client.GetMac())
+	mac := client.GetMac()
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
-	var md metadata.MD
-	if err == nil {
-		md = metadata.New(map[string]string{
-			"token":  string(token),
-			"domain": address,
-			"mac":    client.GetMac(),
-		})
-	} else {
-		md = metadata.New(map[string]string{
-			"token":  "",
-			"domain": address,
-			"mac":    client.GetMac(),
-		})
-	}
+
+	// Generate a fresh service-account token on the fly so it is never expired.
+	token, _ := security.GenerateServiceToken(mac)
+
+	clusterID, _ := security.GetLocalClusterID()
+
+	md := metadata.New(map[string]string{
+		"token":      token,
+		"domain":     address,
+		"mac":        mac,
+		"cluster_id": clusterID,
+	})
 	return metadata.NewOutgoingContext(context.Background(), md)
 }
 

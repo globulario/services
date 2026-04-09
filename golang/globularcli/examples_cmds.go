@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -498,7 +499,8 @@ func registerWithDiscovery(ctx context.Context, serviceType string) DeploymentSt
 
 func resolveServiceEndpointForDiscovery(ctx context.Context, serviceType string) (*Endpoint, error) {
 	// Use the endpoint resolver from health checks
-	fallback := Endpoint{Host: "127.0.0.1", Port: 10000, Scheme: "grpc"}
+	host := config.GetRoutableIPv4()
+	fallback := Endpoint{Host: host, Port: 10000, Scheme: "grpc"}
 	endpoint, _ := ResolveEndpoint(serviceType, fallback)
 	return &endpoint, nil
 }
@@ -510,7 +512,8 @@ func exposeViaGateway(ctx context.Context, serviceType string) DeploymentStepRes
 	serviceFQDN := fmt.Sprintf("%s.%s", examplesDeployName, examplesDeployDomain)
 
 	// Resolve the actual upstream endpoint
-	fallback := Endpoint{Host: "127.0.0.1", Port: 10000, Scheme: "grpc"}
+	host := config.GetRoutableIPv4()
+	fallback := Endpoint{Host: host, Port: 10000, Scheme: "grpc"}
 	endpoint, _ := ResolveEndpoint(serviceType, fallback)
 
 	// Get the node's IP if multi-node (for now use resolved host)
@@ -641,7 +644,7 @@ func createDNSRecord(ctx context.Context, serviceType string) DeploymentStepResu
 	}
 
 	// Connect to DNS server
-	dnsAddr := "localhost:10006"
+	dnsAddr := getEffectiveDnsGrpcAddr()
 
 	conn, err := dialGRPC(dnsAddr)
 	if err != nil {
@@ -710,9 +713,8 @@ func getGatewayIP() (string, error) {
 		}
 	}
 
-	// Fallback: use localhost for single-node development
-	// In production, this should come from cluster configuration
-	return "127.0.0.1", nil
+	// Fallback: use routable IP for single-node development
+	return config.GetRoutableIPv4(), nil
 }
 
 func isIPv4(ip string) bool {
@@ -899,7 +901,7 @@ func stopService(ctx context.Context, unitName string) error {
 
 func removeDNSRecord(ctx context.Context, fqdn string) error {
 	// Connect to DNS server
-	dnsAddr := "localhost:10006"
+	dnsAddr := getEffectiveDnsGrpcAddr()
 
 	conn, err := dialGRPC(dnsAddr)
 	if err != nil {

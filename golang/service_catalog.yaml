@@ -1,0 +1,186 @@
+# service_catalog.yaml — Declarative metadata for all Globular services.
+#
+# Implicit rules applied in Go code (not repeated per-service):
+#   - Every non-tier-0 service depends on event
+#   - Default profiles: [core, compute]
+#   - Default priority: 1000
+#   - Default user/group: globular/globular
+#   - Default address_host: auto
+#
+# Dependencies listed here are explicit runtime client dependencies.
+# Systemd unit names are derived: globular-<name_with_dashes>.service
+
+services:
+  # ── Tier 0: Infrastructure (no globular service deps) ──────────────────
+  event:
+    profiles: [core, compute]
+    priority: 4
+    tier: 0
+    dependencies: []
+
+  persistence:
+    profiles: [core, compute]
+    priority: 1000
+    tier: 0
+    dependencies: []
+
+  # ── Tier 1: Core (depend on tier 0 only) ───────────────────────────────
+  resource:
+    profiles: [core, compute]
+    priority: 1000
+    tier: 1
+    dependencies: [event]
+
+  rbac:
+    profiles: [core, compute]
+    priority: 5
+    tier: 1
+    dependencies: [event, resource]
+    needs_scylla: true
+
+  # ── Tier 2: Application services ───────────────────────────────────────
+  authentication:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [ldap, rbac, resource]
+
+  ai_executor:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [ai_memory, cluster_controller]
+
+  ai_memory:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+    needs_scylla: true
+
+  ai_router:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+
+  ai_watcher:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [ai_executor, event, resource]
+
+  backup_manager:
+    profiles: [core, compute, storage]
+    priority: 1000
+    dependencies: [resource]
+    extra_path: true
+
+  blog:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, resource]
+
+  catalog:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, persistence, resource]
+
+  cluster_controller:
+    profiles: [control-plane]
+    priority: 1000
+    dependencies: [event]
+
+  cluster_doctor:
+    profiles: [control-plane]
+    priority: 1000
+    dependencies: [cluster_controller]
+
+  conversation:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, rbac, resource]
+
+  discovery:
+    profiles: [core, compute, control-plane]
+    priority: 3
+    dependencies: [event, rbac, resource]
+
+  dns:
+    profiles: [core, compute, control-plane]
+    priority: 2
+    dependencies: [rbac, resource]
+    needs_scylla: true
+    capabilities: [CAP_NET_BIND_SERVICE]
+
+  echo:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+
+  file:
+    profiles: [core, compute, storage]
+    priority: 7
+    dependencies: [event, media, rbac, resource, search, title]
+
+  ldap:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+
+  log:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, resource]
+
+  mail:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [persistence]
+
+  media:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [authentication, event, rbac, resource, title]
+
+  monitoring:
+    profiles: [core, compute, control-plane]
+    priority: 8
+    dependencies: [resource]
+
+  node_agent:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [cluster_controller]
+    run_as_root: true
+
+  repository:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+
+  search:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [resource]
+
+  sql:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: []
+
+  storage:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: []
+
+  title:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, rbac, resource]
+
+  torrent:
+    profiles: [core, compute]
+    priority: 1000
+    dependencies: [event, rbac]
+
+  workflow:
+    profiles: [core, compute]
+    priority: 900
+    dependencies: [event]
+    needs_scylla: true

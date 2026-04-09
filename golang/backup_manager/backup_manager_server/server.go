@@ -135,6 +135,9 @@ type server struct {
 	ScyllaCluster    string `json:"ScyllaCluster"`
 	ScyllaLocation   string `json:"ScyllaLocation"`
 
+	// Recovery mode: when true and a valid seed exists, apply it on startup.
+	RecoveryMode bool `json:"RecoveryMode"`
+
 	// Scheduled backups
 	ScheduleInterval string         `json:"ScheduleInterval"`
 	stopScheduler    context.CancelFunc
@@ -348,10 +351,10 @@ func (srv *server) Init() error {
 	// Persist current settings to backup dir so they survive a cluster wipe.
 	srv.saveSettingsToBackupDir()
 
-	// Recovery mode: if BACKUP_MANAGER_RECOVERY_MODE=true and a valid seed exists,
+	// Recovery mode: if RecoveryMode is true in config and a valid seed exists,
 	// apply it to inject the recovery destination into runtime config.
 	// This is the explicit entry point for Day 0 / bootstrap recovery.
-	if os.Getenv("BACKUP_MANAGER_RECOVERY_MODE") == "true" {
+	if srv.RecoveryMode {
 		seed, seedErr := loadRecoverySeed()
 		if seedErr != nil {
 			slog.Warn("recovery mode enabled but no valid seed found", "error", seedErr)

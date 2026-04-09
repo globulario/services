@@ -19656,7 +19656,10 @@ accepted: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
 runId: jspb.Message.getFieldWithDefault(msg, 2, ""),
 status: jspb.Message.getFieldWithDefault(msg, 3, ""),
 error: jspb.Message.getFieldWithDefault(msg, 4, ""),
-message: jspb.Message.getFieldWithDefault(msg, 5, "")
+message: jspb.Message.getFieldWithDefault(msg, 5, ""),
+workflowName: jspb.Message.getFieldWithDefault(msg, 6, ""),
+acceptedByNodeId: jspb.Message.getFieldWithDefault(msg, 7, ""),
+currentLeaderNodeId: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -19712,6 +19715,18 @@ proto.cluster_controller.DeployControlPlanePackageResponse.deserializeBinaryFrom
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setMessage(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setWorkflowName(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAcceptedByNodeId(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCurrentLeaderNodeId(value);
       break;
     default:
       reader.skipField();
@@ -19774,6 +19789,27 @@ proto.cluster_controller.DeployControlPlanePackageResponse.serializeBinaryToWrit
   if (f.length > 0) {
     writer.writeString(
       5,
+      f
+    );
+  }
+  f = message.getWorkflowName();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getAcceptedByNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getCurrentLeaderNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -19867,6 +19903,60 @@ proto.cluster_controller.DeployControlPlanePackageResponse.prototype.getMessage 
  */
 proto.cluster_controller.DeployControlPlanePackageResponse.prototype.setMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string workflow_name = 6;
+ * @return {string}
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.getWorkflowName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DeployControlPlanePackageResponse} returns this
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.setWorkflowName = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string accepted_by_node_id = 7;
+ * @return {string}
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.getAcceptedByNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DeployControlPlanePackageResponse} returns this
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.setAcceptedByNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string current_leader_node_id = 8;
+ * @return {string}
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.getCurrentLeaderNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DeployControlPlanePackageResponse} returns this
+ */
+proto.cluster_controller.DeployControlPlanePackageResponse.prototype.setCurrentLeaderNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

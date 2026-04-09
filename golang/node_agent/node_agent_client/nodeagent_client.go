@@ -6,9 +6,7 @@ import (
 
 	globular "github.com/globulario/services/golang/globular_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // NodeAgentClient wraps the gRPC stub and keeps client metadata in sync with Globular expectations.
@@ -28,8 +26,6 @@ type NodeAgentClient struct {
 	keyFile  string
 	certFile string
 	caFile   string
-
-	ctx context.Context
 }
 
 // NewNodeAgentClient builds and connects a Globular-friendly node agent client.
@@ -72,20 +68,7 @@ func (client *NodeAgentClient) Invoke(method string, rqst interface{}, ctx conte
 }
 
 func (client *NodeAgentClient) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{
-			"token":   string(token),
-			"domain":  client.domain,
-			"mac":     client.mac,
-			"address": client.address,
-		})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 func (client *NodeAgentClient) GetDomain() string {

@@ -140,18 +140,14 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	if cfg.EmitAuditEvents {
 		// Dial the local event service via its in-cluster address.
 		// Default to localhost (not 127.0.0.1) so the TLS cert's
-		// DNS:localhost SAN verifies; still run the env-provided
-		// value through the resolver in case someone sets it to a
-		// loopback IP literal.
-		addr := os.Getenv("EVENT_ADDRESS")
-		if addr == "" {
-			addr = "localhost:10102"
-		}
-		addr = config.NormalizeLoopback(addr)
-		if ec, err := event_client.NewEventService_Client(addr, "event.EventService"); err == nil {
-			s.eventClient = ec
-		} else {
-			logger.Warn("event client init failed (finding events disabled)", "err", err)
+		// Resolve event service from etcd (source of truth).
+		addr := config.ResolveServiceAddr("event.EventService", "")
+		if addr != "" {
+			if ec, err := event_client.NewEventService_Client(addr, "event.EventService"); err == nil {
+				s.eventClient = ec
+			} else {
+				logger.Warn("event client init failed (finding events disabled)", "err", err)
+			}
 		}
 	}
 

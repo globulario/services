@@ -71,6 +71,7 @@ func (q *workQueue) Enqueue(key string) {
 	q.pending[key] = struct{}{}
 	select {
 	case q.ch <- key:
+		reconcileQueueDepth.Set(float64(len(q.pending)))
 	default:
 		// best effort drop if queue full
 		delete(q.pending, key)
@@ -91,7 +92,9 @@ func (q *workQueue) Get(ctx context.Context) (string, bool) {
 		q.mu.Lock()
 		delete(q.pending, key)
 		q.inFlight[key] = struct{}{}
+		reconcileQueueDepth.Set(float64(len(q.pending)))
 		q.mu.Unlock()
+		reconcileProcessedTotal.Inc()
 		return key, true
 	}
 }

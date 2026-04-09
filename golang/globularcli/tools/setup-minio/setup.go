@@ -16,13 +16,17 @@ import (
 )
 
 func main() {
-	endpoint := flag.String("endpoint", "localhost:9000", "MinIO endpoint")
+	endpoint := flag.String("endpoint", "", "MinIO endpoint (required, e.g. host:9000)")
 	accessKey := flag.String("access-key", "minioadmin", "MinIO access key")
 	secretKey := flag.String("secret-key", "minioadmin", "MinIO secret key")
 	useSSL := flag.Bool("ssl", false, "Use SSL")
 	caCert := flag.String("ca-cert", "", "Path to CA certificate for TLS verification")
 	workflowDir := flag.String("workflow-dir", "", "Directory containing workflow definition YAML files to upload to globular-config/workflows/")
 	flag.Parse()
+
+	if *endpoint == "" {
+		log.Fatal("--endpoint is required (e.g. --endpoint host:9000)")
+	}
 
 	// Initialize MinIO client
 	opts := &minio.Options{

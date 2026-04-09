@@ -95,7 +95,7 @@ func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profi
 		return fmt.Errorf("no join token configured (set NODE_AGENT_JOIN_TOKEN env var or ensure controller seeds a Day-0 token)")
 	}
 
-	labels := parseNodeAgentLabels()
+	labels := srv.cfg.Labels
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -105,7 +105,7 @@ func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profi
 	}
 	joinResp, err := srv.controllerClient.RequestJoin(ctx, &cluster_controllerpb.RequestJoinRequest{
 		JoinToken:    srv.joinToken,
-		Identity:     buildNodeIdentity(),
+		Identity:     srv.buildNodeIdentity(),
 		Labels:       labels,
 		Capabilities: buildNodeCapabilities(),
 	})

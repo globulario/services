@@ -9,10 +9,8 @@ import (
 
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,9 +53,6 @@ type Event_Client struct {
 
 	// certificate authority file
 	caFile string
-
-	// The client context
-	ctx context.Context
 
 	// the client uuid.
 	uuid string
@@ -241,15 +236,7 @@ func (client *Event_Client) Invoke(method string, rqst interface{}, ctx context.
 }
 
 func (client *Event_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.mac})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 // Return the domain
@@ -383,8 +370,24 @@ func (client *Event_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &eventpb.StopRequest{})
 }
 
+// publishCircuitOpenUntil is a per-process circuit breaker for event publishing.
+// When a Publish call fails, the circuit opens for 30 seconds. During that
+// window all Publish calls return immediately without making an RPC, preventing
+// CPU starvation from auth evaluation + error logging on the event service.
+// This protects ALL callers of the event client, not just individual services.
+var publishCircuitOpenUntil atomic.Int64
+
+const publishCircuitCooldown = 30 * time.Second
+
 // Publish and event over the network
 func (client *Event_Client) Publish(name string, data []byte) error {
+	// Circuit breaker: skip RPC if recently failed.
+	if openUntil := publishCircuitOpenUntil.Load(); openUntil > 0 {
+		if time.Now().UnixNano() < openUntil {
+			return errors.New("event publish circuit breaker open")
+		}
+		publishCircuitOpenUntil.Store(0)
+	}
 
 	rqst := &eventpb.PublishRequest{
 		Evt: &eventpb.Event{
@@ -393,8 +396,12 @@ func (client *Event_Client) Publish(name string, data []byte) error {
 		},
 	}
 
-	_, err := client.c.Publish(client.GetCtx(), rqst)
+	ctx, cancel := context.WithTimeout(client.GetCtx(), 5*time.Second)
+	defer cancel()
+
+	_, err := client.c.Publish(ctx, rqst)
 	if err != nil {
+		publishCircuitOpenUntil.Store(time.Now().Add(publishCircuitCooldown).UnixNano())
 		return err
 	}
 	return nil

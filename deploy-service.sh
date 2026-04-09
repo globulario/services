@@ -27,10 +27,11 @@ GOLANG_DIR="${SERVICES_ROOT}/golang"
 STAGE_BIN="${GOLANG_DIR}/tools/stage/linux-amd64/usr/local/bin"
 GENERATED="${SERVICES_ROOT}/generated"
 SPECS_DIR="${GENERATED}/specs"
-VERSION="0.0.1"
+VERSION="0.0.2"
 PUBLISHER="core@globular.io"
 PLATFORM="linux_amd64"
-REPOSITORY="localhost:10007"
+# Repository address: resolve from etcd via the CLI, fall back to mesh routing.
+REPOSITORY=""
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 
@@ -123,41 +124,31 @@ if [[ -n "$COMMENT" ]]; then
     echo ""
 fi
 
-echo "→ Step 1: Building binary..."
-GO_PKG_REL="./${GO_PKG_DIR#${GOLANG_DIR}/}"
-(cd "${GOLANG_DIR}" && go build -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
-echo "  ✓ Built ${EXEC_NAME}"
+echo "→ Step 1: Determining build number..."
 
-# Copy to payload
-mkdir -p "${PAYLOAD_DIR}/bin"
-cp "${STAGE_BIN}/${EXEC_NAME}" "${PAYLOAD_DIR}/bin/${EXEC_NAME}"
-echo "  ✓ Staged to payload"
-
-# ── Step 2: Determine next build number ───────────────────────────────────────
-
-echo ""
-echo "→ Step 2: Querying current build number..."
-
-# Query via globular CLI publish --dry-run or parse existing packages.
-# The repository tracks build numbers per (publisher, name, version, platform).
-# We query by checking what's already published.
 CURRENT_BUILD=0
-
-# Try to get current build number from the repository via the CLI.
-# The pkg describe on existing packages in the dist or by querying the repo.
-# Since direct gRPC query is complex, we use a build-number tracking file.
 BUILD_TRACKER="${SERVICES_ROOT}/.build-numbers"
 touch "${BUILD_TRACKER}"
-
-# Read last known build number for this service+version
 TRACKER_KEY="${SERVICE}:${VERSION}:${PLATFORM}"
 CURRENT_BUILD=$(grep "^${TRACKER_KEY}=" "${BUILD_TRACKER}" 2>/dev/null | tail -1 | cut -d= -f2 || echo "0")
 if [[ -z "$CURRENT_BUILD" ]]; then
     CURRENT_BUILD=0
 fi
-
 NEXT_BUILD=$((CURRENT_BUILD + 1))
 echo "  Current: ${CURRENT_BUILD} → Next: ${NEXT_BUILD}"
+
+echo ""
+echo "→ Step 2: Building binary..."
+GO_PKG_REL="./${GO_PKG_DIR#${GOLANG_DIR}/}"
+# Inject version and build number via ldflags so the binary knows its identity at runtime.
+LDFLAGS="-X main.Version=${VERSION} -X main.BuildNumberStr=${NEXT_BUILD}"
+(cd "${GOLANG_DIR}" && go build -ldflags "${LDFLAGS}" -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
+echo "  ✓ Built ${EXEC_NAME} (version=${VERSION}, build=${NEXT_BUILD})"
+
+# Copy to payload
+mkdir -p "${PAYLOAD_DIR}/bin"
+cp "${STAGE_BIN}/${EXEC_NAME}" "${PAYLOAD_DIR}/bin/${EXEC_NAME}"
+echo "  ✓ Staged to payload"
 
 # ── Step 3: Build the package ─────────────────────────────────────────────────
 
@@ -206,6 +197,41 @@ echo "  ✓ Package: $(basename "${ACTUAL_PKG}")"
 
 # ── Step 4: Publish ───────────────────────────────────────────────────────────
 
+# Resolve repository address from etcd if not set via --repository flag.
+if [[ -z "$REPOSITORY" ]]; then
+    ETCD_EP="https://$(hostname -I | awk '{print $1}'):2379"
+    ETCD_CERTS=(
+        --cacert=/var/lib/globular/pki/ca.crt
+        --cert=/var/lib/globular/pki/issued/services/service.crt
+        --key=/var/lib/globular/pki/issued/services/service.key
+    )
+    # Service configs are keyed by UUID under /globular/services/. Scan for
+    # the repository service by matching its Name field in the JSON value.
+    while IFS= read -r key; do
+        [[ -z "$key" ]] && continue
+        VAL=$(etcdctl get "$key" --endpoints="$ETCD_EP" "${ETCD_CERTS[@]}" --print-value-only 2>/dev/null || true)
+        if echo "$VAL" | grep -q '"repository.PackageRepository"'; then
+            REPOSITORY=$(echo "$VAL" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+addr=d.get('Address','')
+port=d.get('Port','')
+if ':' in str(addr):
+    print(addr)
+elif addr and port:
+    print(f'{addr}:{port}')
+" 2>/dev/null || true)
+            [[ -n "$REPOSITORY" ]] && break
+        fi
+    done < <(etcdctl get --prefix /globular/services/ --keys-only \
+        --endpoints="$ETCD_EP" "${ETCD_CERTS[@]}" 2>/dev/null | grep '/config$')
+fi
+if [[ -z "$REPOSITORY" ]]; then
+    echo "ERROR: could not resolve repository address from etcd" >&2
+    echo "  Use --repository <host:port> to specify manually" >&2
+    exit 1
+fi
+
 echo ""
 echo "→ Step 4: Publishing to repository (${REPOSITORY})..."
 
@@ -220,7 +246,6 @@ PUBLISH_ARGS=(
     --file "${ACTUAL_PKG}"
     --repository "${REPOSITORY}"
     --force
-    --insecure
     --output json
 )
 if [[ -n "$CACHED_TOKEN" ]]; then
@@ -256,7 +281,58 @@ else
     echo "${TRACKER_KEY}=${NEXT_BUILD}" >> "${BUILD_TRACKER}"
 fi
 
-# ── Step 5: Record the deployment ─────────────────────────────────────────────
+# ── Step 5: Set desired state ─────────────────────────────────────────────────
+
+echo ""
+echo "→ Step 5: Setting desired state..."
+
+# Normalize service name for desired-state (underscores → dashes)
+DESIRED_NAME="${SERVICE//_/-}"
+
+DESIRED_ARGS=(services desired set "${DESIRED_NAME}" "${VERSION}")
+if [[ -n "$CACHED_TOKEN" ]]; then
+    DESIRED_ARGS+=(--token "$CACHED_TOKEN")
+fi
+
+if "${GLOBULAR_CLI}" "${DESIRED_ARGS[@]}" >/dev/null 2>&1; then
+    echo "  ✓ Desired state set: ${DESIRED_NAME} → ${VERSION}"
+else
+    echo "  ⚠ Could not set desired state (controller may be unavailable)"
+    echo "    Run manually: globular services desired set ${DESIRED_NAME} ${VERSION}"
+fi
+
+# ── Step 6: Set controller target-build (controller packages only) ────────────
+
+if [[ "${SERVICE}" == "cluster_controller" || "${SERVICE}" == "cluster-controller" ]]; then
+    echo ""
+    echo "→ Step 6: Setting controller target-build in etcd..."
+
+    # Compute checksum of the actual published artifact package.
+    ARTIFACT_SHA256=$(sha256sum "${ACTUAL_PKG}" 2>/dev/null | cut -d' ' -f1)
+    if [[ -n "$ARTIFACT_SHA256" ]]; then
+        PKG_CHECKSUM="sha256:${ARTIFACT_SHA256}"
+    else
+        PKG_CHECKSUM=""
+    fi
+
+    TARGET_JSON="{\"version\":\"${VERSION}\",\"build_number\":${NEXT_BUILD},\"checksum\":\"${PKG_CHECKSUM}\",\"set_at\":$(date +%s)}"
+    ETCD_EP="https://$(hostname -I | awk '{print $1}'):2379"
+    ETCD_CERTS=(
+        --cacert=/var/lib/globular/pki/ca.crt
+        --cert=/var/lib/globular/pki/issued/services/service.crt
+        --key=/var/lib/globular/pki/issued/services/service.key
+    )
+
+    if etcdctl put /globular/system/controller-target-build "${TARGET_JSON}" \
+        --endpoints="${ETCD_EP}" "${ETCD_CERTS[@]}" >/dev/null 2>&1; then
+        echo "  ✓ Controller target-build: ${VERSION}+${NEXT_BUILD} (checksum=${PKG_CHECKSUM:0:20}...)"
+    else
+        echo "  ⚠ Could not set controller target-build in etcd"
+        echo "    etcdctl put /globular/system/controller-target-build '${TARGET_JSON}'"
+    fi
+fi
+
+# ── Step 7: Record the deployment ─────────────────────────────────────────────
 
 echo ""
 echo "━━━ Deployed ━━━"

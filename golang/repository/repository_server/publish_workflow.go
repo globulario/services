@@ -66,21 +66,19 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 	durationMs := int64(time.Since(start).Milliseconds())
 
 	if regErr != nil {
+		// Descriptor registration is best-effort — it populates the catalog/search
+		// index but is NOT required for the release pipeline to find the artifact.
+		// Promote to PUBLISHED regardless so the release resolver can proceed.
 		srv.workflowRec.FailStep(ctx, runID, regStep,
 			"repository.register_descriptor_failed",
 			regErr.Error(),
 			"Check Resource/Discovery service availability",
 			workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY, true)
-		srv.workflowRec.FinishRun(ctx, runID, workflow.Failed,
-			fmt.Sprintf("descriptor registration failed: %v", regErr),
-			regErr.Error(),
-			workflowpb.FailureClass_FAILURE_CLASS_DEPENDENCY)
-
-		slog.Warn("publish workflow: descriptor registration failed (artifact stays VERIFIED)",
+		slog.Warn("publish workflow: descriptor registration failed (continuing to promote)",
 			"key", key, "err", regErr)
-		return regErr
+	} else {
+		srv.workflowRec.CompleteStep(ctx, runID, regStep, "descriptor registered", durationMs)
 	}
-	srv.workflowRec.CompleteStep(ctx, runID, regStep, "descriptor registered", durationMs)
 
 	// ── Step 2: Promote to PUBLISHED ─────────────────────────────────────
 	promStep := srv.workflowRec.RecordStep(ctx, runID, &workflow.StepParams{
@@ -105,6 +103,14 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 			fmt.Sprintf("promote to PUBLISHED failed: %v", promErr),
 			promErr.Error(),
 			workflowpb.FailureClass_FAILURE_CLASS_REPOSITORY)
+		slog.Error("publish promotion failed: artifact stuck in VERIFIED state",
+			"key", key,
+			"publisher", publisherID,
+			"name", name,
+			"version", version,
+			"step", "promote_published",
+			"err", promErr,
+		)
 		return promErr
 	}
 	srv.workflowRec.CompleteStep(ctx, runID, promStep, "promoted to PUBLISHED", durationMs)

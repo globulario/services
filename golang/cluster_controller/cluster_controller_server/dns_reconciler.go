@@ -56,10 +56,14 @@ func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
 		// Discover DNS endpoints from cluster membership: all nodes with DNS profiles.
 		dnsEndpoints = discoverDNSEndpoints(srv)
 		if len(dnsEndpoints) == 0 {
-			// Fallback to local discovery
-			discovered := config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
-			dnsEndpoints = []string{discovered}
-			log.Printf("DNS reconciler: fallback to local DNS endpoint: %s", discovered)
+			// Fallback to local discovery from etcd
+			discovered := config.ResolveDNSGrpcEndpoint("")
+			if discovered == "" {
+				log.Printf("DNS reconciler: no DNS endpoint found in etcd or cluster membership")
+			} else {
+				dnsEndpoints = []string{discovered}
+				log.Printf("DNS reconciler: fallback to local DNS endpoint: %s", discovered)
+			}
 		} else {
 			log.Printf("DNS reconciler: discovered %d DNS endpoints from cluster membership: %v", len(dnsEndpoints), dnsEndpoints)
 		}
@@ -79,12 +83,26 @@ func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
 	}
 }
 
-// discoverDNSEndpoints builds the list of DNS gRPC endpoints (IP:10006) from
+// discoverDNSEndpoints builds the list of DNS gRPC endpoints from
 // all cluster nodes that have a DNS-eligible profile.
+// Port is resolved from etcd (source of truth), not hardcoded.
 func discoverDNSEndpoints(srv *server) []string {
 	if srv == nil {
 		return nil
 	}
+
+	// Resolve DNS service port from etcd.
+	dnsPort := 0
+	if dnsCfg, err := config.GetServiceConfigurationsByName("dns.DnsService"); err == nil && dnsCfg != nil {
+		if p, ok := dnsCfg["Port"]; ok {
+			dnsPort = Utility.ToInt(p)
+		}
+	}
+	if dnsPort == 0 {
+		log.Printf("DNS reconciler: cannot resolve dns.DnsService port from etcd")
+		return nil
+	}
+
 	srv.lock("dns-discover-endpoints")
 	defer srv.unlock()
 
@@ -101,7 +119,7 @@ func discoverDNSEndpoints(srv *server) []string {
 		if ip == "" {
 			continue
 		}
-		endpoints = append(endpoints, fmt.Sprintf("%s:10006", ip))
+		endpoints = append(endpoints, fmt.Sprintf("%s:%d", ip, dnsPort))
 	}
 	return endpoints
 }

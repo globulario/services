@@ -93,7 +93,7 @@ func init() {
 func getRbacClient() (*rbac_client.Rbac_Client, error) {
 	address, _ := config.GetAddress()
 	if address == "" {
-		address = "localhost"
+		address = config.GetRoutableIPv4()
 	}
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
@@ -364,7 +364,7 @@ func runNamespaceList(cmd *cobra.Command, args []string) error {
 	// Source 2: Repository artifact publishers (may include unclaimed namespaces).
 	address, _ := config.GetAddress()
 	if address == "" {
-		address = "localhost"
+		address = config.GetRoutableIPv4()
 	}
 	repoClient, err := repository_client.NewRepositoryService_Client(address, "repository.PackageRepository")
 	if err == nil {
@@ -466,7 +466,7 @@ func runNamespaceInfo(cmd *cobra.Command, args []string) error {
 	// Package count from repository
 	address, _ := config.GetAddress()
 	if address == "" {
-		address = "localhost"
+		address = config.GetRoutableIPv4()
 	}
 	repoClient, err := repository_client.NewRepositoryService_Client(address, "repository.PackageRepository")
 	if err == nil {

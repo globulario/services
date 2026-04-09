@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
@@ -13,6 +14,11 @@ import (
 	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// busDisconnectLogLimiter rate-limits the "ScyllaDB bus not connected" error
+// log to once per 30 seconds. Without this, a flood of Publish calls when the
+// bus is down burns CPU on logging alone.
+var busDisconnectLogLimiter atomic.Int64 // UnixNano of next allowed log
 
 var (
 	errMissingStream   = errors.New("event service: missing stream")
@@ -118,6 +124,8 @@ func (srv *server) run() {
 				if err := b.connect(); err == nil {
 					srv.logger.Info("ScyllaDB event bus reconnected")
 					srv.bus = b
+				} else {
+					srv.logger.Warn("ScyllaDB event bus reconnect failed", "err", err)
 				}
 			}
 
@@ -367,7 +375,12 @@ func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*
 		return &eventpb.PublishResponse{Result: false}, errMissingChanName
 	}
 	if srv.bus == nil {
-		srv.logger.Error("Publish: ScyllaDB bus not connected")
+		// Rate-limit this log to avoid CPU burn from flood of publish calls.
+		now := time.Now().UnixNano()
+		if next := busDisconnectLogLimiter.Load(); now >= next {
+			busDisconnectLogLimiter.Store(time.Now().Add(30 * time.Second).UnixNano())
+			srv.logger.Error("Publish: ScyllaDB bus not connected (suppressing further logs for 30s)")
+		}
 		return &eventpb.PublishResponse{Result: false}, errors.New("event bus not connected")
 	}
 	if err := srv.bus.publish(rqst.Evt.Name, rqst.Evt.Data); err != nil {

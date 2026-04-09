@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 
@@ -87,46 +88,33 @@ type repositoryInfo struct {
 	CAPath  string
 }
 
-// resolveRepositoryInfo returns the repository address.
+// resolveRepositoryInfo returns the repository address from etcd (source of truth).
 func resolveRepositoryInfo() repositoryInfo {
-	if lanAddr, _ := config.GetAddress(); lanAddr != "" {
-		host := lanAddr
-		if h, _, err := net.SplitHostPort(lanAddr); err == nil {
-			host = h
+	// Direct gRPC connection to the repository, bypassing Envoy.
+	// Envoy strips custom gRPC metadata (token, cluster_id) which breaks auth.
+	// Query etcd for ALL repository instances, pick the first healthy one.
+	cfgs, err := config.GetServicesConfigurationsByName("repository.PackageRepository")
+	if err == nil && len(cfgs) > 0 {
+		for _, cfg := range cfgs {
+			port := Utility.ToInt(cfg["Port"])
+			host := strings.TrimSpace(Utility.ToString(cfg["Address"]))
+			// Strip port if already embedded in the address field.
+			if h, _, err := net.SplitHostPort(host); err == nil {
+				host = h
+			}
+			if host == "" || host == "localhost" || host == "127.0.0.1" {
+				host = config.GetRoutableIPv4()
+			}
+			if host != "" && port > 0 {
+				addr := net.JoinHostPort(host, Utility.ToString(port))
+				slog.Info("resolveRepositoryInfo: resolved", "addr", addr, "host", host, "port", port)
+				return repositoryInfo{
+					Address: addr,
+					TLS:     true,
+					CAPath:  "/var/lib/globular/pki/ca.pem",
+				}
+			}
 		}
-		return repositoryInfo{
-			Address: net.JoinHostPort(host, "443"),
-			TLS:     true,
-			CAPath:  "/var/lib/globular/pki/ca.pem",
-		}
 	}
-	cfg, err := config.GetServiceConfigurationById("repository.PackageRepository")
-	if err != nil || cfg == nil {
-		return repositoryInfo{Address: makeRoutable("localhost:10008")}
-	}
-	port := Utility.ToInt(cfg["Port"])
-	host := strings.TrimSpace(Utility.ToString(cfg["Address"]))
-	if host == "" {
-		host = "localhost"
-	}
-	var addr string
-	if strings.Contains(host, ":") {
-		addr = host
-	} else if port <= 0 {
-		addr = makeRoutable("localhost:10008")
-	} else {
-		addr = makeRoutable(net.JoinHostPort(host, Utility.ToString(port)))
-	}
-	return repositoryInfo{Address: addr}
-}
-
-func makeRoutable(addr string) string {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		return net.JoinHostPort("127.0.0.1", port)
-	}
-	return addr
+	return repositoryInfo{} // caller must handle empty Address
 }

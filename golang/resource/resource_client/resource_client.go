@@ -110,15 +110,7 @@ func (client *Resource_Client) Invoke(method string, rqst interface{}, ctx conte
 }
 
 func (client *Resource_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 // Return the ipv4 address

@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -327,12 +326,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		defer release()
 	}
 
-	waitTimeout := 60 * time.Second
-	if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			waitTimeout = time.Duration(n) * time.Second
-		}
-	}
+	const waitTimeout = 60 * time.Second
 
 	if kv == nil && !srv.isIssuerNode() {
 		if err := waitForFiles([]string{keyDst, fullchainDst, caDst}, waitTimeout); err != nil {

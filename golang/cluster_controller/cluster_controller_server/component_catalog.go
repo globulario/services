@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"sort"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -150,6 +150,35 @@ func init() {
 
 	// Derive backward-compat maps used by plan.go, service_config.go, bootstrap_phases.go.
 	rebuildDerivedMaps()
+}
+
+// ServicesForProfiles returns the set of service names assigned to any of the given profiles.
+func ServicesForProfiles(profiles []string) map[string]bool {
+	result := make(map[string]bool)
+	profileSet := make(map[string]bool, len(profiles))
+	for _, p := range profiles {
+		profileSet[p] = true
+	}
+	for _, comp := range catalog {
+		if comp.Kind != KindWorkload {
+			continue
+		}
+		for _, p := range comp.Profiles {
+			if profileSet[p] {
+				result[comp.Name] = true
+				break
+			}
+		}
+	}
+	return result
+}
+
+// RuntimeDependenciesFor returns the RuntimeLocalDependencies for a service name.
+func RuntimeDependenciesFor(serviceName string) []string {
+	if comp, ok := catalogIndex[serviceName]; ok {
+		return comp.RuntimeLocalDependencies
+	}
+	return nil
 }
 
 func buildCatalog() []*Component {
@@ -537,6 +566,14 @@ func buildCatalog() []*Component {
 			HealthCheck: &HealthCheckHintC{Unit: "globular-prometheus.service", Port: 9090},
 		},
 		{
+			Name:        "alertmanager",
+			Unit:        "globular-alertmanager.service",
+			Kind:        KindInfrastructure,
+			Priority:    11,
+			Profiles:    []string{"core", "compute", "control-plane"},
+			HealthCheck: &HealthCheckHintC{Unit: "globular-alertmanager.service", Port: 9093},
+		},
+		{
 			Name:        "node-exporter",
 			Unit:        "globular-node-exporter.service",
 			Kind:        KindInfrastructure,
@@ -808,9 +845,9 @@ func checkCycle(name string, path []string) error {
 // fall back to static entries from buildCatalog().
 func LoadCatalogFromRepository(repoAddr string) error {
 	if repoAddr == "" {
-		repoAddr = strings.TrimSpace(os.Getenv("REPOSITORY_ADDRESS"))
+		repoAddr = config.ResolveServiceAddr("repository.PackageRepository", "")
 		if repoAddr == "" {
-			repoAddr = "localhost:10101"
+			return fmt.Errorf("cannot resolve repository service address from etcd")
 		}
 	}
 

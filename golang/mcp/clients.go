@@ -127,7 +127,10 @@ func saToken() string {
 // (repository, backup-manager, cluster-doctor, rbac, resource, …) are routed
 // through Envoy via gRPC path-prefix matching — no per-service port needed.
 func gatewayEndpoint() string {
-	return "localhost:443"
+	if mesh, err := config.GetMeshAddress(); err == nil {
+		return mesh
+	}
+	return ""
 }
 
 // controllerEndpoint routes through Envoy like all other registered services.

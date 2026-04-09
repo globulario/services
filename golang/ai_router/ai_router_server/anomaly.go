@@ -64,7 +64,7 @@ func (at *anomalyTracker) start() {
 	// Give services time to start.
 	time.Sleep(20 * time.Second)
 
-	addr := config.ResolveServiceAddr("event.EventService", "localhost:10010")
+	addr := config.ResolveServiceAddr("event.EventService", "")
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
 	if err != nil {

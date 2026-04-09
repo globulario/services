@@ -257,11 +257,24 @@ type nodeState struct {
 // restartAttempt tracks lightweight restart attempts for a single service.
 // Lives in-memory only — resets on controller restart (acceptable for v1).
 type restartAttempt struct {
-	Count        int       `json:"-"` // not persisted
-	LastAt       time.Time `json:"-"`
-	LastError    string    `json:"-"`
-	BackoffUntil time.Time `json:"-"`
+	Count                  int       `json:"-"`
+	LastAt                 time.Time `json:"-"`
+	LastError              string    `json:"-"`
+	BackoffUntil           time.Time `json:"-"`
+	FailureClass           string    `json:"-"` // "process_crash", "startup_timeout", "precondition_failed", "dependency_blocked"
+	ConsecutivePrecondFail int       `json:"-"` // consecutive precondition failures
+	BlockedReason          string    `json:"-"` // non-empty = service is blocked, skip restarts
+	BlockedSince           time.Time `json:"-"`
 }
+
+const (
+	FailClassProcessCrash      = "process_crash"
+	FailClassStartupTimeout    = "startup_timeout"
+	FailClassPreconditionFail  = "precondition_failed"
+	FailClassDependencyBlocked = "dependency_blocked"
+
+	maxConsecutivePrecondFail = 3
+)
 
 // storedCapabilities is the JSON-serializable form of NodeCapabilities.
 type storedCapabilities struct {

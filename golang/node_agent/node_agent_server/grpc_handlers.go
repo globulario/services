@@ -46,8 +46,8 @@ func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *node_agentpb.J
 
 	resp, err := srv.controllerClient.RequestJoin(ctx, &cluster_controllerpb.RequestJoinRequest{
 		JoinToken:    token,
-		Identity:     buildNodeIdentity(),
-		Labels:       parseNodeAgentLabels(),
+		Identity:     srv.buildNodeIdentity(),
+		Labels:       srv.cfg.Labels,
 		Capabilities: buildNodeCapabilities(),
 	})
 	if err != nil {
@@ -86,7 +86,7 @@ func (srv *NodeAgentServer) GetInventory(ctx context.Context, _ *node_agentpb.Ge
 
 	resp := &node_agentpb.GetInventoryResponse{
 		Inventory: &node_agentpb.Inventory{
-			Identity:   buildNodeIdentity(),
+			Identity:   srv.buildNodeIdentity(),
 			UnixTime:   timestamppb.Now(),
 			Components: components,
 			Units:      detectUnits(ctx),

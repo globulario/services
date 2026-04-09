@@ -8,7 +8,7 @@ import (
 )
 
 func TestEnsureObjectstoreLayoutMissingContract(t *testing.T) {
-	srv := NewNodeAgentServer("", nil)
+	srv := NewNodeAgentServer("", nil, NodeAgentConfig{})
 	tmp := t.TempDir()
 	missing := filepath.Join(tmp, "minio.json")
 	t.Setenv("NODE_AGENT_MINIO_CONTRACT", missing)

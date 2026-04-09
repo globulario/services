@@ -252,7 +252,11 @@ func (s *server) StartLDAPFacade() error {
 	}
 	addr, err := config.GetAddress()
 	if err != nil || addr == "" {
-		addr = "localhost:80"
+		if ip := config.GetRoutableIPv4(); ip != "" {
+			addr = ip + ":80"
+		} else {
+			addr = "0.0.0.0:80"
+		}
 	}
 
 	lf := &ldapFacade{

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/globulario/services/golang/config"
 	logpb "github.com/globulario/services/golang/log/logpb"
 )
 
@@ -57,9 +58,11 @@ func runLogs(cmd *cobra.Command, args []string) error {
 }
 
 func tryLogServerRPC(serviceName string) error {
-	// Try to connect to log_server (default port might be different, check your setup)
-	// For now, assume it's on localhost:10030 or similar
-	logServerAddr := getEnv("LOG_SERVER_ADDR", "localhost:10030")
+	// Resolve log_server address from etcd, fall back to routable IP
+	logServerAddr := config.ResolveServiceAddr("log.LogService", "")
+	if logServerAddr == "" {
+		logServerAddr = fmt.Sprintf("%s:10030", config.GetRoutableIPv4())
+	}
 
 	cc, err := dialGRPC(logServerAddr)
 	if err != nil {
@@ -183,9 +186,3 @@ func mapServiceToUnit(serviceName string) string {
 	return serviceName
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}

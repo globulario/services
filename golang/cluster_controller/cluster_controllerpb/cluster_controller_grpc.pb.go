@@ -425,7 +425,7 @@ func (c *clusterControllerServiceClient) DeployControlPlanePackage(ctx context.C
 }
 
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
-// All implementations must embed UnimplementedClusterControllerServiceServer
+// All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
 type ClusterControllerServiceServer interface {
 	GetClusterInfo(context.Context, *timestamppb.Timestamp) (*ClusterInfo, error)
@@ -476,10 +476,9 @@ type ClusterControllerServiceServer interface {
 	// control-plane service. Updates followers first, transfers leadership,
 	// then updates the old leader. Returns the workflow run ID on acceptance.
 	DeployControlPlanePackage(context.Context, *DeployControlPlanePackageRequest) (*DeployControlPlanePackageResponse, error)
-	mustEmbedUnimplementedClusterControllerServiceServer()
 }
 
-// UnimplementedClusterControllerServiceServer must be embedded to have
+// UnimplementedClusterControllerServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -575,8 +574,6 @@ func (UnimplementedClusterControllerServiceServer) ResignLeadership(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) DeployControlPlanePackage(context.Context, *DeployControlPlanePackageRequest) (*DeployControlPlanePackageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeployControlPlanePackage not implemented")
-}
-func (UnimplementedClusterControllerServiceServer) mustEmbedUnimplementedClusterControllerServiceServer() {
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 

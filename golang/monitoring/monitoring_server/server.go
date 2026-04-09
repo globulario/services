@@ -544,7 +544,7 @@ func main() {
 			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
 				srv.Address = strings.ToLower(v)
 			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
+				srv.Address = "0.0.0.0:" + Utility.ToString(srv.Port)
 			}
 
 			b, err := globular.DescribeJSON(srv)

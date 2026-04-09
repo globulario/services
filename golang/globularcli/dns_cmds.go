@@ -38,7 +38,7 @@ func resolveDnsGrpcEndpoint(fallback string) string {
 		}
 
 		if port > 0 {
-			host := "localhost"
+			host := config.GetRoutableIPv4()
 			if addr, ok := svc["Address"].(string); ok && addr != "" {
 				// Check if address already contains port
 				if strings.Contains(addr, ":") {
@@ -57,7 +57,7 @@ func resolveDnsGrpcEndpoint(fallback string) string {
 		if err == nil {
 			desc, err := config.RunDescribe(binPath, 3*time.Second, nil)
 			if err == nil && desc.Port > 0 {
-				host := "localhost"
+				host := config.GetRoutableIPv4()
 				if desc.Address != "" {
 					host = desc.Address
 				}
@@ -74,7 +74,7 @@ func resolveDnsGrpcEndpoint(fallback string) string {
 // It reads the DNS service configuration to get the actual DNS port (typically 53).
 func resolveDnsResolverEndpoint() string {
 	// Default fallback - standard DNS port
-	fallback := "127.0.0.1:53"
+	fallback := config.GetRoutableIPv4() + ":53"
 
 	// Try to read DNS service configuration
 	root := config.GetServicesRoot()
@@ -95,13 +95,14 @@ func resolveDnsResolverEndpoint() string {
 // getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint to use,
 // preferring user-specified flag over dynamic discovery.
 func getEffectiveDnsGrpcAddr() string {
-	// If user explicitly set --dns flag, use it
-	if rootCfg.dnsAddr != "localhost:10006" {
+	// If user explicitly set --dns flag, use it (check for non-default value)
+	if rootCfg.dnsAddr != "" && rootCfg.dnsAddr != "localhost:10006" {
 		return rootCfg.dnsAddr
 	}
 
-	// Otherwise, try to discover it
-	discovered := resolveDnsGrpcEndpoint("localhost:10006")
+	// Otherwise, try to discover it from etcd, then fallback to routable IP
+	fallback := fmt.Sprintf("%s:10006", config.GetRoutableIPv4())
+	discovered := resolveDnsGrpcEndpoint(fallback)
 	return discovered
 }
 

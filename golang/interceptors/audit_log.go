@@ -188,8 +188,9 @@ func LogAuthzDecision(
 	}
 
 	// Security Fix #10: ALL denials logged at WARN (never sampled)
-	// Allowed decisions logged at INFO (can be sampled if volume too high)
-	level := slog.LevelInfo
+	// Allowed decisions logged at DEBUG to reduce log volume during normal
+	// operation. Retrievable via --log-level debug when forensics are needed.
+	level := slog.LevelDebug
 	if !allowed {
 		// CRITICAL: Denied decisions MUST NEVER be sampled
 		// These are security-relevant events that indicate:

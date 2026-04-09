@@ -426,6 +426,10 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 		return &repopb.ListArtifactsResponse{}, nil
 	}
 
+	// Determine if caller is admin/owner for visibility of hidden artifacts.
+	authCtx := security.FromContext(ctx)
+	isAdmin := authCtx != nil && authCtx.Subject == "sa"
+
 	var manifests []*repopb.ArtifactManifest
 	for _, e := range entries {
 		name := e.Name()
@@ -433,11 +437,19 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 			continue
 		}
 		key := strings.TrimSuffix(name, ".manifest.json")
-		m, err := srv.readManifestByKey(ctx, key)
+		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
 		if err != nil {
 			slog.Warn("skipping unreadable manifest", "key", key, "err", err)
 			continue
 		}
+
+		// Law 4: Hide VERIFIED/YANKED/QUARANTINED/etc. from non-admin catalog views.
+		if repopb.IsDiscoveryHidden(state) && !isAdmin {
+			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
+				continue
+			}
+		}
+
 		manifests = append(manifests, m)
 	}
 
@@ -1204,4 +1216,173 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		}
 	}
 	return nil
+}
+
+// UpdateArtifactBinary implements the delta-deploy RPC. It receives a new binary
+// for an existing artifact, creates a new build entry by copying the latest
+// manifest, and promotes to PUBLISHED.
+//
+// Flow:
+//  1. Receive binary stream (header + chunks)
+//  2. Verify checksum matches
+//  3. Find the latest published build for this (publisher, name, version, platform)
+//  4. Copy its manifest, update checksum + size + build_number
+//  5. Store new binary + manifest
+//  6. Complete publish pipeline (register descriptor + promote)
+//  7. Return new build_number
+func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateArtifactBinaryServer) error {
+	// ── Receive header ──────────────────────────────────────────────────
+	firstMsg, err := stream.Recv()
+	if err != nil {
+		return status.Errorf(codes.Internal, "receive header: %v", err)
+	}
+	header := firstMsg.GetHeader()
+	if header == nil {
+		return status.Error(codes.InvalidArgument, "first message must contain header")
+	}
+	ref := header.GetRef()
+	if ref == nil {
+		return status.Error(codes.InvalidArgument, "header.ref is required")
+	}
+	if strings.TrimSpace(ref.GetName()) == "" {
+		return status.Error(codes.InvalidArgument, "ref.name is required")
+	}
+	if strings.TrimSpace(ref.GetVersion()) == "" {
+		return status.Error(codes.InvalidArgument, "ref.version is required")
+	}
+	if canonVer, verr := versionutil.Canonical(ref.GetVersion()); verr == nil {
+		ref.Version = canonVer
+	}
+
+	ctx := stream.Context()
+
+	// ── Publisher namespace + access validation ─────────────────────────
+	if err := srv.validatePackageAccess(ctx, ref.GetPublisherId(), ref.GetName()); err != nil {
+		return err
+	}
+
+	// ── Receive binary chunks ───────────────────────────────────────────
+	var data []byte
+	for {
+		msg, recvErr := stream.Recv()
+		if errors.Is(recvErr, io.EOF) {
+			break
+		}
+		if recvErr != nil {
+			return status.Errorf(codes.Internal, "receive chunk: %v", recvErr)
+		}
+		data = append(data, msg.GetChunk()...)
+	}
+
+	// ── Verify checksum ─────────────────────────────────────────────────
+	actualChecksum := checksumBytes(data)
+	expectedChecksum := header.GetChecksum()
+	if expectedChecksum != "" && actualChecksum != expectedChecksum {
+		return status.Errorf(codes.InvalidArgument,
+			"checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
+	}
+
+	// ── Find latest published build ─────────────────────────────────────
+	latestBuild := srv.resolveLatestBuildNumber(ctx, ref)
+	if latestBuild == 0 {
+		return status.Error(codes.FailedPrecondition,
+			"no existing published build found — use UploadArtifact for first publish")
+	}
+
+	latestKey := artifactKeyWithBuild(ref, latestBuild)
+	latestManifest, mErr := srv.readManifestByKey(ctx, latestKey)
+	if mErr != nil {
+		return status.Errorf(codes.Internal, "read latest manifest %q: %v", latestKey, mErr)
+	}
+
+	// ── Assign next build number ────────────────────────────────────────
+	newBuild := latestBuild + 1
+	newKey := artifactKeyWithBuild(ref, newBuild)
+
+	// ── Ensure artifacts directory ──────────────────────────────────────
+	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
+		return status.Errorf(codes.Internal, "create artifacts dir: %v", err)
+	}
+
+	// ── Store new binary ────────────────────────────────────────────────
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(newKey), data, 0o644); err != nil {
+		return status.Errorf(codes.Internal, "write binary: %v", err)
+	}
+
+	// ── Create new manifest (clone from latest, update binary fields) ──
+	newManifest := &repopb.ArtifactManifest{
+		Ref:                       ref,
+		BuildNumber:               newBuild,
+		Checksum:                  actualChecksum,
+		SizeBytes:                 int64(len(data)),
+		ModifiedUnix:              time.Now().Unix(),
+		Profiles:                  latestManifest.GetProfiles(),
+		Priority:                  latestManifest.GetPriority(),
+		InstallMode:               latestManifest.GetInstallMode(),
+		ManagedUnit:               latestManifest.GetManagedUnit(),
+		SystemdUnit:               latestManifest.GetSystemdUnit(),
+		RuntimeLocalDependencies:  latestManifest.GetRuntimeLocalDependencies(),
+		InstallDependencies:       latestManifest.GetInstallDependencies(),
+		HealthCheckUnit:           latestManifest.GetHealthCheckUnit(),
+		HealthCheckPort:           latestManifest.GetHealthCheckPort(),
+		Provides:                  latestManifest.GetProvides(),
+		Requires:                  latestManifest.GetRequires(),
+		Defaults:                  latestManifest.GetDefaults(),
+		Entrypoints:               latestManifest.GetEntrypoints(),
+		Description:               latestManifest.GetDescription(),
+		Keywords:                  latestManifest.GetKeywords(),
+		Icon:                      latestManifest.GetIcon(),
+		Alias:                     latestManifest.GetAlias(),
+		License:                   latestManifest.GetLicense(),
+		MinGlobularVersion:        latestManifest.GetMinGlobularVersion(),
+	}
+
+	// Copy type_detail from the latest manifest.
+	switch td := latestManifest.GetTypeDetail().(type) {
+	case *repopb.ArtifactManifest_ServiceDetail:
+		newManifest.TypeDetail = td
+	case *repopb.ArtifactManifest_ApplicationDetail:
+		newManifest.TypeDetail = td
+	case *repopb.ArtifactManifest_InfrastructureDetail:
+		newManifest.TypeDetail = td
+	}
+
+	// Also try to enrich from the new binary's package.json if it's a .tgz.
+	if pkg := extractPackageManifest(data); pkg != nil {
+		enrichManifestFromPackageJSON(newManifest, pkg)
+	}
+
+	mjson, err := marshalManifestWithState(newManifest, repopb.PublishState_VERIFIED)
+	if err != nil {
+		return status.Errorf(codes.Internal, "marshal manifest: %v", err)
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(newKey), mjson, 0o644); err != nil {
+		return status.Errorf(codes.Internal, "write manifest: %v", err)
+	}
+
+	// ── Provenance ──────────────────────────────────────────────────────
+	prov := buildProvenanceRecord(ctx, newManifest)
+	if _, provErr := srv.writeProvenance(ctx, newKey, prov); provErr != nil {
+		slog.Warn("delta-deploy provenance write failed (non-fatal)", "key", newKey, "err", provErr)
+	}
+
+	slog.Info("delta-deploy: binary updated",
+		"key", newKey,
+		"build", newBuild,
+		"size", len(data),
+		"checksum", actualChecksum,
+		"prev_build", latestBuild,
+	)
+
+	// ── Complete publish pipeline ───────────────────────────────────────
+	if err := srv.completePublish(ctx, newManifest, newKey, prov); err != nil {
+		slog.Warn("delta-deploy: auto-publish failed — artifact stored as VERIFIED",
+			"key", newKey, "err", err)
+	}
+
+	return stream.SendAndClose(&repopb.UpdateArtifactBinaryResponse{
+		BuildNumber: newBuild,
+		Checksum:    actualChecksum,
+		Status:      "published",
+	})
 }

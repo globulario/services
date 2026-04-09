@@ -64,7 +64,7 @@ func (srv *server) snapshotNodeIdentities() []projections.NodeIdentity {
 func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
 	hosts, err := config.GetScyllaHosts()
 	if err != nil || len(hosts) == 0 {
-		hosts = []string{"127.0.0.1"}
+		return nil, fmt.Errorf("cannot resolve ScyllaDB hosts from etcd: %v", err)
 	}
 
 	// First session: no keyspace, used only to create the keyspace.

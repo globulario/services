@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -51,12 +52,40 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 	// early services like ai-executor get dispatched before dns/event, and the
 	// one-plan-per-node guard blocks convergence.
 
-	// 1. Infrastructure releases first (etcd, dns, minio, monitoring, etc.)
+	// 1. Infrastructure releases first, sorted by catalog priority.
+	// Skip AVAILABLE infra releases to avoid re-processing on restart.
+	// Priority order ensures etcd converges before gateway, gateway before workloads.
 	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		type infraItem struct {
+			key      string
+			priority int
+		}
+		var pending []infraItem
 		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
-				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
+			rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+			if !ok || rel.Meta == nil {
+				continue
 			}
+			if rel.Status != nil && rel.Status.Phase == cluster_controllerpb.ReleasePhaseAvailable {
+				continue
+			}
+			pri := 999
+			if rel.Spec != nil {
+				if entry := CatalogByName(rel.Spec.Component); entry != nil {
+					pri = entry.Priority
+				}
+			}
+			pending = append(pending, infraItem{
+				key:      infraReleaseKeyPrefix + rel.Meta.Name,
+				priority: pri,
+			})
+		}
+		sort.Slice(pending, func(i, j int) bool {
+			return pending[i].priority < pending[j].priority
+		})
+		for _, item := range pending {
+			reconcileEnqueueTotal.WithLabelValues("initial").Inc()
+			queue.Enqueue(item.key)
 		}
 	}
 	safeGo("watch-infrastructure-release", func() {
@@ -66,33 +95,45 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 		}
 		for evt := range ch {
 			if rel, ok := evt.Object.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Meta != nil {
+				reconcileEnqueueTotal.WithLabelValues("watch").Inc()
 				queue.Enqueue(infraReleaseKeyPrefix + rel.Meta.Name)
 			}
 		}
 	})
 
 	// 2. Foundational service releases (event, dns, rbac, file), then the rest.
+	// Skip releases that are already converged (AVAILABLE with matching installed
+	// version) to avoid re-processing all 41 services on restart.
 	if items, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
 		var foundational, rest []string
 		for _, obj := range items {
-			if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Meta != nil {
-				key := releaseKeyPrefix + rel.Meta.Name
-				name := rel.Meta.Name
-				// Strip publisher prefix: "core@globular.io/event" → "event"
-				if idx := strings.LastIndex(name, "/"); idx >= 0 {
-					name = name[idx+1:]
-				}
-				if isFoundationalService(name) {
-					foundational = append(foundational, key)
-				} else {
-					rest = append(rest, key)
-				}
+			rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+			if !ok || rel.Meta == nil {
+				continue
+			}
+			// Skip already-converged releases: AVAILABLE phase means all
+			// nodes have been served. No need to re-process on restart.
+			if rel.Status != nil && rel.Status.Phase == cluster_controllerpb.ReleasePhaseAvailable {
+				continue
+			}
+			key := releaseKeyPrefix + rel.Meta.Name
+			name := rel.Meta.Name
+			// Strip publisher prefix: "core@globular.io/event" → "event"
+			if idx := strings.LastIndex(name, "/"); idx >= 0 {
+				name = name[idx+1:]
+			}
+			if isFoundationalService(name) {
+				foundational = append(foundational, key)
+			} else {
+				rest = append(rest, key)
 			}
 		}
 		for _, k := range foundational {
+			reconcileEnqueueTotal.WithLabelValues("initial").Inc()
 			queue.Enqueue(k)
 		}
 		for _, k := range rest {
+			reconcileEnqueueTotal.WithLabelValues("initial").Inc()
 			queue.Enqueue(k)
 		}
 	}
@@ -110,6 +151,7 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 					phase = rel.Status.Phase
 				}
 				log.Printf("watch-service-release: event %s name=%s phase=%s", evt.Type, rel.Meta.Name, phase)
+				reconcileEnqueueTotal.WithLabelValues("watch").Inc()
 				queue.Enqueue(releaseKeyPrefix + rel.Meta.Name)
 			}
 		}
@@ -131,6 +173,7 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 		}
 		for evt := range ch {
 			if rel, ok := evt.Object.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
+				reconcileEnqueueTotal.WithLabelValues("watch").Inc()
 				queue.Enqueue(appReleaseKeyPrefix + rel.Meta.Name)
 			}
 		}
@@ -141,6 +184,9 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 // using the shared release pipeline.
 // Called from the worker goroutine when the queue key has the "release/" prefix.
 func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if srv.resources == nil {
 		return
 	}
@@ -467,6 +513,9 @@ func isFoundationalService(name string) bool {
 // reconcileAppRelease drives the phase state machine for one ApplicationRelease
 // using the shared release pipeline.
 func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if srv.resources == nil {
 		return
 	}
@@ -553,6 +602,9 @@ func appRepoAddr(spec *cluster_controllerpb.ApplicationReleaseSpec) string {
 // reconcileInfraRelease drives the phase state machine for one InfrastructureRelease
 // using the shared release pipeline.
 func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string) {
+	if !srv.mustBeLeader() {
+		return
+	}
 	if srv.resources == nil {
 		return
 	}

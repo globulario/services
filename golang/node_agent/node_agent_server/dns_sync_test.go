@@ -101,14 +101,15 @@ func TestParseIPv6(t *testing.T) {
 	}
 }
 
-func TestSelectDNSIPsEnvOverride(t *testing.T) {
-	os.Setenv(envDNSIPv4, "1.2.3.4")
-	os.Setenv(envDNSIPv6, "2001:db8::1")
-	os.Unsetenv(envDNSIface)
-	defer os.Unsetenv(envDNSIPv4)
-	defer os.Unsetenv(envDNSIPv6)
+func TestSelectDNSIPsOverride(t *testing.T) {
+	srv := &NodeAgentServer{
+		cfg: NodeAgentConfig{
+			DNSIPv4: "1.2.3.4",
+			DNSIPv6: "2001:db8::1",
+		},
+	}
 
-	v4, v6 := selectDNSIPs()
+	v4, v6 := srv.selectDNSIPs()
 	if v4 != "1.2.3.4" {
 		t.Fatalf("expected v4 override, got %q", v4)
 	}

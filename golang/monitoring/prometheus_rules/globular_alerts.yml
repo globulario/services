@@ -141,6 +141,41 @@ groups:
           summary: "Node memory above 90%"
           description: "Sustained high memory usage. Check for goroutine leaks or unbounded caches."
 
+  # ---- Control Plane: Leader Liveness ----
+  # Detect zombie leaders and stale heartbeat processing.
+
+  - name: globular_control_plane
+    rules:
+      - alert: LeaderHeartbeatStale
+        expr: (time() - globular_controller_last_heartbeat_processed_unix) > 180
+        for: 1m
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Leader has not processed a heartbeat for over 3 minutes"
+          description: "The cluster controller leader is not processing ReportNodeStatus heartbeats. Nodes will appear stale. The liveness watchdog should auto-resign if a safe successor exists."
+
+      - alert: LeaderLivenessDegraded
+        expr: globular_controller_leader_liveness_degraded == 1
+        for: 30s
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Leader liveness degraded — no safe successor to resign to"
+          description: "The leader has detected it is not processing heartbeats but cannot resign because no safe successor exists. Manual intervention may be needed."
+
+      - alert: LeaderSelfResigned
+        expr: increase(globular_controller_leader_self_resign_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          layer: infrastructure
+        annotations:
+          summary: "Leader auto-resigned due to liveness failure"
+          description: "The leader liveness watchdog triggered an automatic resignation. A new leader should be elected. Check logs for root cause."
+
   # ---- Gateway HTTP Surface ----
   # Detect storms, errors, and latency on the gateway's HTTP handlers
   # (file uploads, admin API, media, config endpoints).

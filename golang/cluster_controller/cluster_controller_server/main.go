@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -34,6 +36,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding"
+	grpchealth "google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/keepalive"
 	"path/filepath"
 )
@@ -51,10 +56,17 @@ func init() { encoding.RegisterCodec(jsonCodec{}) }
 
 // Version information (set via ldflags during build)
 var (
-	Version   = "0.0.1"
-	BuildTime = "unknown"
-	GitCommit = "unknown"
+	Version        = "0.0.1"
+	BuildTime      = "unknown"
+	GitCommit      = "unknown"
+	BuildNumberStr = "0" // injected via ldflags: -X main.BuildNumberStr=6
 )
+
+// BuildNumber returns the parsed build number from the ldflags-injected string.
+func parseBuildNumber() int64 {
+	n, _ := strconv.ParseInt(BuildNumberStr, 10, 64)
+	return n
+}
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 	Level: slog.LevelInfo,
@@ -106,10 +118,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Environment variable overrides
-	if env := os.Getenv("CLUSTER_STATE_PATH"); env != "" {
-		*statePath = env
-	}
+	// State path comes from CLI flag only — no env var override.
 
 	// Validate renderer registry (startup integrity check).
 	if err := validateRenderers(); err != nil {
@@ -255,11 +264,21 @@ func main() {
 	cluster_controllerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
 	cluster_controllerpb.RegisterResourcesServiceServer(grpcServer, srv)
 	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, srv.actorServer)
-	logger.Debug("gRPC services registered (controller + resources + workflow actor)")
+	healthSrv := grpchealth.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthSrv)
+	reflection.Register(grpcServer)
+	logger.Info("gRPC services registered (controller + resources + workflow actor + health + reflection)")
 
-	// Create background context
+	// Create background context with signal handler for graceful shutdown.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		sig := <-sigCh
+		logger.Info("received signal, shutting down", "signal", sig)
+		cancel()
+	}()
 
 	// Load the authoritative state from etcd at startup so non-leader
 	// controllers can serve fresh read-only queries (e.g. ListNodes) without
@@ -311,16 +330,33 @@ func main() {
 				if err := LoadCatalogFromRepository(""); err != nil {
 					logger.Debug("catalog reload from repository failed (will retry)", "err", err)
 				}
+				// System contract: desired state must track latest published builds.
+				if srv.isLeader() {
+					srv.reconcileDesiredFromRepository(ctx)
+				}
 			}
+		}
+	}()
+
+	// Start gRPC server BEFORE background loops so health checks and RPCs
+	// work immediately. Without this, blocking calls in initProjections or
+	// startDomainReconciler prevent Serve() from running, causing Envoy
+	// health checks to fail and the admin app to show 503.
+	go func() {
+		logger.Info("cluster controller serving", "address", address)
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("grpc serve failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Start background loops
 	logger.Info("starting background loops")
 	srv.startControllerRuntime(ctx, 4)
-	srv.startAgentCleanupLoop(context.Background())
-	srv.startOperationCleanupLoop(context.Background())
-	srv.startHealthMonitorLoop(context.Background())
+	srv.startAgentCleanupLoop(ctx)
+	srv.startOperationCleanupLoop(ctx)
+	srv.startHealthMonitorLoop(ctx)
+	srv.startLeaderLivenessCheck(ctx)
 
 	// Bring up read-only projections (node_identity, …). Best-effort: the
 	// server continues if ScyllaDB is unreachable. See projection-clauses.md.
@@ -350,7 +386,7 @@ func main() {
 		logger.Warn("failed to register in Globular service registry; xDS routing may be unavailable", "err", err)
 	}
 
-	// Start serving
+	// Block main goroutine — the gRPC server runs in its own goroutine above.
 	logger.Info("cluster controller ready",
 		"address", address,
 		"config", *cfgPath,
@@ -358,10 +394,10 @@ func main() {
 		"version", Version,
 	)
 
-	if err := grpcServer.Serve(lis); err != nil {
-		logger.Error("grpc serve failed", "error", err)
-		os.Exit(1)
-	}
+	// Wait for context cancellation (signal handler).
+	<-ctx.Done()
+	logger.Info("shutting down")
+	grpcServer.GracefulStop()
 }
 
 // startPprofServer starts the pprof + Prometheus metrics HTTP server.
@@ -375,7 +411,7 @@ func startPprofServer() {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	// Bind to :0 so we get a free port, then register with Prometheus.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		logger.Error("metrics/pprof: listen failed", "error", err)
 		return
@@ -392,15 +428,13 @@ func startPprofServer() {
 const promTargetsDir = "/var/lib/globular/prometheus/targets"
 
 func writePromTargetFile(job string, port int) {
-	// Scrape via loopback (metrics + pprof are bound on 127.0.0.1 only) but
-	// override the `instance` label with the node IP so multi-node
-	// observability can attribute samples to the correct host.
+	// Use routable IP so Prometheus can scrape from any node.
 	nodeIP, ipErr := config.GetRoutableIP()
 	if ipErr != nil || nodeIP == "" {
-		nodeIP = "127.0.0.1"
+		return // cannot write target file without routable IP
 	}
 	hostname, _ := os.Hostname()
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
+	content := fmt.Sprintf("- targets: [\"%s:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", nodeIP, port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}
@@ -423,16 +457,8 @@ func startDNSReconciler(srv *server, state *controllerState) {
 		return
 	}
 
+	// DNS endpoints discovered from etcd/cluster membership — no env override.
 	var dnsEndpoints []string
-	dnsEndpointsStr := os.Getenv("CLUSTER_DNS_ENDPOINTS")
-	if dnsEndpointsStr != "" {
-		// Parse comma-separated list of DNS endpoints
-		dnsEndpoints = strings.Split(dnsEndpointsStr, ",")
-		for i := range dnsEndpoints {
-			dnsEndpoints[i] = strings.TrimSpace(dnsEndpoints[i])
-		}
-	}
-	// If no endpoints specified, NewDNSReconciler will discover them
 
 	dnsReconciler := NewDNSReconciler(srv, dnsEndpoints)
 	dnsReconciler.Start()
@@ -535,17 +561,35 @@ func printVersion() {
 func printDescribe() {
 	// Deterministic ID: UUID5 from "Name:Version:MAC" — same scheme as all
 	// Globular services. Each node gets a unique Id (different MAC).
+	// Version includes build number so the Id changes on upgrade.
 	mac, _ := config.GetMacAddress()
-	id := Utility.GenerateUUID("cluster_controller.ClusterControllerService:" + Version + ":" + mac)
+	fullVersion := Version
+	if BuildNumberStr != "" && BuildNumberStr != "0" {
+		fullVersion = Version + "-b" + BuildNumberStr
+	}
+	id := Utility.GenerateUUID("cluster_controller.ClusterControllerService:" + fullVersion + ":" + mac)
 
+	// Resolve port from etcd (source of truth), fall back to config file.
+	port := 0
+	if svcCfg, err := config.GetServiceConfigurationsByName("cluster_controller.ClusterControllerService"); err == nil && svcCfg != nil {
+		if p, ok := svcCfg["Port"]; ok {
+			port = Utility.ToInt(p)
+		}
+	}
+	if port == 0 {
+		cfg, _ := loadClusterControllerConfig("/var/lib/globular/cluster-controller/config.json")
+		if cfg != nil {
+			port = cfg.Port
+		}
+	}
 	metadata := map[string]interface{}{
 		// ── Standard fields (required by node-agent install pipeline) ──
 		"Id":      id,
-		"Port":    12000,
-		"Address": "localhost:12000",
+		"Port":    port,
+		"Address": fmt.Sprintf("0.0.0.0:%d", port),
 		// ── Extended fields (informational) ──
 		"Name":        "cluster-controller",
-		"Version":     Version,
+		"Version":     fullVersion,
 		"Description": "Globular cluster controller manages nodes and orchestrates service deployments",
 		"pprof_port":  6060,
 		"capabilities": []string{
@@ -556,7 +600,7 @@ func printDescribe() {
 			"health-monitoring",
 		},
 		"build_info": map[string]string{
-			"version":    Version,
+			"version":    fullVersion,
 			"build_time": BuildTime,
 			"git_commit": GitCommit,
 		},

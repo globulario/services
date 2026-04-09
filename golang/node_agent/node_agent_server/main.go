@@ -26,6 +26,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -33,19 +36,76 @@ func main() {
 	// Falls back to local disk if MinIO is unreachable (e.g. during bootstrap).
 	v1alpha1.EnableMinIOFetcher()
 
-	port := getEnv("NODE_AGENT_PORT", defaultPort)
-	address := fmt.Sprintf(":%s", port)
+	// All configuration comes from CLI flags (bootstrap-time) or the state file.
+	// No os.Getenv calls — etcd is the runtime source of truth.
+	portFlag := flag.String("port", defaultPort, "gRPC listen port")
+	bootstrapPlanFlag := flag.String("bootstrap-plan", "", "path to bootstrap plan JSON")
+	etcdModeFlag := flag.String("etcd-mode", "managed", "etcd mode: managed|external")
+	statePathFlag := flag.String("state-path", "/var/lib/globular/nodeagent/state.json", "path to node agent state file")
+	advertiseAddrFlag := flag.String("advertise-addr", "", "advertise address (ip:port)")
+	advertiseIPFlag := flag.String("advertise-ip", "", "advertise IP override")
+	clusterModeFlag := flag.Bool("cluster-mode", true, "enable cluster mode (fail if no routable IP)")
+	insecureFlag := flag.Bool("insecure", false, "use insecure gRPC connections")
+	clusterDomainFlag := flag.String("cluster-domain", "", "cluster domain")
+	controllerEndpointFlag := flag.String("controller-endpoint", "", "controller endpoint (host:port)")
+	nodeIDFlag := flag.String("node-id", "", "node ID override")
+	nodeNameFlag := flag.String("node-name", "", "node name override")
+	joinTokenFlag := flag.String("join-token", "", "join token for cluster registration")
+	bootstrapTokenFlag := flag.String("bootstrap-token", "", "bootstrap token")
+	agentVersionFlag := flag.String("agent-version", "0.0.1", "agent version string")
+	controllerCAFlag := flag.String("controller-ca", "", "path to controller CA certificate")
+	controllerSNIFlag := flag.String("controller-sni", "", "controller TLS SNI")
+	controllerSystemRootsFlag := flag.Bool("controller-use-system-roots", false, "use system root CAs for controller TLS")
+	labelsFlag := flag.String("labels", "", "comma-separated key=value node labels")
+	domainFlag := flag.String("domain", "", "node domain for FQDN construction")
+	tlsCertFlag := flag.String("tls-cert", "", "path to TLS server certificate")
+	tlsKeyFlag := flag.String("tls-key", "", "path to TLS server key")
+	tlsCAFlag := flag.String("tls-ca", "", "path to TLS CA certificate")
+	clusterIDFlag := flag.String("cluster-id", "", "cluster identifier for workflow tracing")
 
-	bootstrapPlanFlag := flag.String("bootstrap-plan", os.Getenv("NODE_AGENT_BOOTSTRAP_PLAN"), "path to bootstrap plan JSON")
-	etcdModeFlag := flag.String("etcd-mode", getEnv("NODE_AGENT_ETCD_MODE", "managed"), "etcd mode: managed|external")
+	// DNS override flags (optional, for multi-NIC nodes)
+	dnsIPv4Flag := flag.String("dns-ipv4", "", "override IPv4 for DNS A records")
+	dnsIPv6Flag := flag.String("dns-ipv6", "", "override IPv6 for DNS AAAA records")
+	dnsIfaceFlag := flag.String("dns-iface", "", "network interface for DNS IP selection")
+
 	flag.Parse()
 
-	statePath := getEnv("NODE_AGENT_STATE_PATH", "/var/lib/globular/nodeagent/state.json")
+	port := *portFlag
+	address := fmt.Sprintf("0.0.0.0:%s", port)
+
+	statePath := *statePathFlag
 	state, err := loadNodeAgentState(statePath)
 	if err != nil {
 		log.Printf("unable to load node agent state %s: %v", statePath, err)
 	}
-	srv := NewNodeAgentServer(statePath, state)
+
+	cfg := NodeAgentConfig{
+		Port:                     port,
+		AdvertiseAddr:            *advertiseAddrFlag,
+		AdvertiseIP:              *advertiseIPFlag,
+		ClusterMode:              *clusterModeFlag,
+		Insecure:                 *insecureFlag,
+		ClusterDomain:            *clusterDomainFlag,
+		ControllerEndpoint:       *controllerEndpointFlag,
+		NodeID:                   *nodeIDFlag,
+		NodeName:                 *nodeNameFlag,
+		JoinToken:                *joinTokenFlag,
+		BootstrapToken:           *bootstrapTokenFlag,
+		AgentVersion:             *agentVersionFlag,
+		ControllerCAPath:         *controllerCAFlag,
+		ControllerSNI:            *controllerSNIFlag,
+		ControllerUseSystemRoots: *controllerSystemRootsFlag,
+		Labels:                   parseNodeAgentLabels(*labelsFlag),
+		Domain:                   *domainFlag,
+		DNSIPv4:                  *dnsIPv4Flag,
+		DNSIPv6:                  *dnsIPv6Flag,
+		DNSIface:                 *dnsIfaceFlag,
+	}
+	if cfg.AgentVersion == "" {
+		cfg.AgentVersion = "0.0.1"
+	}
+
+	srv := NewNodeAgentServer(statePath, state, cfg)
 	srv.SetEtcdMode(*etcdModeFlag)
 	// Plan store removed — workflows handle all execution.
 	if planPath := strings.TrimSpace(*bootstrapPlanFlag); planPath != "" {
@@ -85,14 +145,12 @@ func main() {
 		log.Fatalf("unable to listen on %s: %v", address, err)
 	}
 
-	// TLS is mandatory. Check env vars first, then fall back to standard Globular cert paths.
+	// TLS is mandatory. CLI flags override; fall back to standard Globular cert paths.
 	serverOpts := []grpc.ServerOption{}
-	certFile := os.Getenv("NODE_AGENT_TLS_CERT")
-	keyFile := os.Getenv("NODE_AGENT_TLS_KEY")
-	caFile := os.Getenv("NODE_AGENT_TLS_CA")
+	certFile := strings.TrimSpace(*tlsCertFlag)
+	keyFile := strings.TrimSpace(*tlsKeyFlag)
+	caFile := strings.TrimSpace(*tlsCAFlag)
 	// Use canonical server certs (same paths as framework services).
-	// GetTLSFile falls back to envoy-xds-client certs which are CLIENT-only
-	// and cause "unsuitable certificate purpose" errors when used as server certs.
 	if certFile == "" {
 		certFile = config.GetLocalServerCertificatePath()
 	}
@@ -119,13 +177,19 @@ func main() {
 	// even when the workflow service isn't available at startup (Day-1 join).
 	// The address is re-resolved on each connection attempt — local port
 	// first, then gateway fallback.
-	wfClusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
+	wfClusterID := strings.TrimSpace(*clusterIDFlag)
 	if wfClusterID == "" {
-		wfClusterID = "globular.internal"
+		// Resolve from etcd at runtime; default to "globular.internal" if unavailable.
+		if domain, err := config.GetDomain(); err == nil && domain != "" {
+			wfClusterID = domain
+		} else {
+			wfClusterID = "globular.internal"
+		}
 	}
 	wfResolver := func() string {
-		if env := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR")); env != "" {
-			return env
+		// Resolve workflow service address from etcd via service discovery.
+		if addr := config.ResolveServiceAddr("workflow.WorkflowService", ""); addr != "" {
+			return addr
 		}
 		return discoverServiceAddr(10220)
 	}
@@ -138,6 +202,8 @@ func main() {
 	srv.StartCAKeySync(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
+	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
+	reflection.Register(grpcServer)
 
 	// Register in the Globular service registry so the xDS watcher creates an Envoy cluster.
 	// NodeAgent is a standalone control-plane service that does not use the
@@ -156,7 +222,7 @@ func main() {
 			"TLS":      true,
 			"State":    "running",
 			"Process":  os.Getpid(),
-			"Version":  getEnv("NODE_AGENT_VERSION", "0.0.1"),
+			"Version":  cfg.AgentVersion,
 		}); regErr != nil {
 			log.Printf("warn: failed to register in Globular service registry; xDS routing may be unavailable: %v", regErr)
 		}
@@ -166,9 +232,16 @@ func main() {
 	go startMetricsServer()
 
 	log.Printf("node agent listening on %s", address)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("grpc serve failed: %v", err)
-	}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("grpc serve failed: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Printf("shutting down node agent (signal received)")
+	grpcServer.GracefulStop()
+	log.Printf("node agent stopped")
 }
 
 func startMetricsServer() {
@@ -194,7 +267,11 @@ func writePromTargetFile(job string, port int) {
 	// observability can attribute samples to the correct host.
 	nodeIP, ipErr := config.GetRoutableIP()
 	if ipErr != nil || nodeIP == "" {
-		nodeIP = "127.0.0.1"
+		nodeIP = config.GetRoutableIPv4()
+	}
+	if nodeIP == "" {
+		log.Printf("metrics: cannot determine routable IP for prometheus target file")
+		return
 	}
 	hostname, _ := os.Hostname()
 	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)

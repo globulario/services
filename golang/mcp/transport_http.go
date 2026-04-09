@@ -17,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/globulario/services/golang/config"
 )
 
 // sessionStore tracks active MCP sessions for the Streamable HTTP transport.
@@ -347,15 +349,16 @@ func ensureClaudeMCPConfigs(port int) []string {
 		}
 	}
 
+	mcpHost := config.GetRoutableIPv4()
 	mcpJSON := fmt.Sprintf(`{
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "http://127.0.0.1:%d/mcp"
+      "url": "http://%s:%d/mcp"
     }
   }
 }
-`, port)
+`, mcpHost, port)
 
 	for _, home := range homeDirs {
 		claudeDir := filepath.Join(home, ".claude")
@@ -428,8 +431,9 @@ func patchMCPJson(path string, port int) {
 			continue
 		}
 
-		// Build the new URL with the actual port.
-		newURL := fmt.Sprintf("http://localhost:%d/mcp", port)
+		// Build the new URL with the actual port and routable IP.
+		host := config.GetRoutableIPv4()
+		newURL := fmt.Sprintf("http://%s:%d/mcp", host, port)
 		if urlStr != newURL {
 			srv["url"] = newURL
 			changed = true

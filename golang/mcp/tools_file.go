@@ -17,16 +17,7 @@ import (
 // ── File service endpoint ────────────────────────────────────────────────────
 
 func fileEndpoint() string {
-	if cfg, err := config.GetServiceConfigurationById("file.FileService"); err == nil {
-		if port, ok := cfg["Port"].(float64); ok {
-			addr := "localhost"
-			if a, ok := cfg["Address"].(string); ok && a != "" {
-				addr = a
-			}
-			return fmt.Sprintf("%s:%d", addr, int(port))
-		}
-	}
-	return "localhost:10103"
+	return config.ResolveServiceAddr("file.FileService", "")
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

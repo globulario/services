@@ -589,9 +589,13 @@ func main() {
 		srv.Address = fmt.Sprintf("%s:%d", host, srv.Port)
 	}
 
-	// Fix up CacheAddress: if empty or "localhost", use local IP (like title service)
+	// Fix up CacheAddress: if empty or "localhost", use routable IP.
 	if srv.CacheAddress == "" || srv.CacheAddress == "localhost" {
-		srv.CacheAddress = config.GetLocalIP()
+		if ip := config.GetRoutableIPv4(); ip != "" {
+			srv.CacheAddress = ip
+		} else {
+			srv.CacheAddress = config.GetLocalIP()
+		}
 	}
 
 	// Log service start

@@ -393,10 +393,17 @@ func (srv *server) Save() error { return globular.SaveService(srv) }
 // -----------------------------------------------------------------------------
 
 // getResourceClient returns a connected Resource service client.
+// Uses direct service address (not gateway) so the call carries mTLS auth
+// and passes the cluster_id interceptor check.
 func (srv *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	address, _ := config.GetAddress()
+	// Prefer direct address from etcd registry — avoids Envoy TLS termination
+	// which strips mTLS identity and triggers cluster_id enforcement.
+	directAddr := config.ResolveLocalServiceAddr("resource.ResourceService")
+	if directAddr == "" {
+		directAddr, _ = config.GetAddress()
+	}
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(directAddr, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -668,13 +675,13 @@ func initializeServerDefaults() *server {
 
 	// Workflow recorder for publish tracing (fire-and-forget, never blocks uploads).
 	// Route through the Envoy gateway so it works on any node.
-	clusterID := strings.TrimSpace(os.Getenv("CLUSTER_ID"))
-	if clusterID == "" {
-		clusterID = "globular.internal"
+	clusterID := "globular.internal"
+	if d, err := config.GetDomain(); err == nil && d != "" {
+		clusterID = d
 	}
 	s.workflowRec = workflow.NewRecorderWithResolver(func() string {
-		if env := strings.TrimSpace(os.Getenv("WORKFLOW_SERVICE_ADDR")); env != "" {
-			return env
+		if addr := config.ResolveServiceAddr("workflow.WorkflowService", ""); addr != "" {
+			return addr
 		}
 		if addr, err := config.GetMeshAddress(); err == nil {
 			return addr // routes through Envoy service mesh (:443)
@@ -778,6 +785,10 @@ func main() {
 
 	// 7b. Run trust model migration (idempotent — only on first run).
 	s.MigrateToTrustModel(context.Background())
+
+	// 7c. Start publish reconciler (retries stuck VERIFIED artifacts).
+	pr := newPublishReconciler(s)
+	pr.Start(context.Background())
 
 	// 8. Register gRPC service and reflection
 	setupGrpcService(s)

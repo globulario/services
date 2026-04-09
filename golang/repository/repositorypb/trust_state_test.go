@@ -146,14 +146,15 @@ func TestIsDiscoveryHidden(t *testing.T) {
 }
 
 func TestIsEligibleForLatestResolve(t *testing.T) {
-	eligible := []PublishState{PublishState_PUBLISHED, PublishState_PUBLISH_STATE_UNSPECIFIED}
+	eligible := []PublishState{PublishState_PUBLISHED}
 	for _, s := range eligible {
 		if !IsEligibleForLatestResolve(s) {
 			t.Errorf("%s should be eligible for latest resolve", s)
 		}
 	}
-	notEligible := []PublishState{PublishState_DEPRECATED, PublishState_YANKED,
-		PublishState_QUARANTINED, PublishState_REVOKED, PublishState_STAGING}
+	// UNSPECIFIED is no longer eligible — migration promotes legacy manifests.
+	notEligible := []PublishState{PublishState_PUBLISH_STATE_UNSPECIFIED, PublishState_DEPRECATED,
+		PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED, PublishState_STAGING}
 	for _, s := range notEligible {
 		if IsEligibleForLatestResolve(s) {
 			t.Errorf("%s should NOT be eligible for latest resolve", s)
@@ -162,13 +163,15 @@ func TestIsEligibleForLatestResolve(t *testing.T) {
 }
 
 func TestIsInstallableByPin(t *testing.T) {
-	installable := []PublishState{PublishState_PUBLISHED, PublishState_DEPRECATED, PublishState_PUBLISH_STATE_UNSPECIFIED}
+	// UNSPECIFIED is no longer installable — migration promotes legacy manifests.
+	installable := []PublishState{PublishState_PUBLISHED, PublishState_DEPRECATED}
 	for _, s := range installable {
 		if !IsInstallableByPin(s) {
 			t.Errorf("%s should be installable by pin", s)
 		}
 	}
-	notInstallable := []PublishState{PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED}
+	notInstallable := []PublishState{PublishState_PUBLISH_STATE_UNSPECIFIED,
+		PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED}
 	for _, s := range notInstallable {
 		if IsInstallableByPin(s) {
 			t.Errorf("%s should NOT be installable by pin", s)

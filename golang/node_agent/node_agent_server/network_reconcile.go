@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -40,7 +39,7 @@ func (srv *NodeAgentServer) waitForDNSAuthoritative(ctx context.Context, spec *c
 		PreferGo: true,
 		Dial: func(c context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(c, "udp", "127.0.0.1:53")
+			return d.DialContext(c, "udp", nodeRoutableIP()+":53")
 		},
 	}
 	deadline := time.Now().Add(30 * time.Second)
@@ -75,18 +74,9 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 	contractPath := "/var/lib/globular/objectstore/minio.json"
 	log.Printf("  contract_path: %s", contractPath)
 
+	// Retry defaults; no env var overrides — etcd is the source of truth for config.
 	retry := 30
-	if v := strings.TrimSpace(os.Getenv("OBJECTSTORE_RETRY")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			retry = n
-		}
-	}
 	retryDelay := 1000
-	if v := strings.TrimSpace(os.Getenv("OBJECTSTORE_RETRY_DELAY_MS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			retryDelay = n
-		}
-	}
 
 	if cfg := parseContractForLog(contractPath); cfg != nil {
 		log.Printf("  minio endpoint=%s bucket=%s secure=%t", cfg.Endpoint, cfg.Bucket, cfg.Secure)

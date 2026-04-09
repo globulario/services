@@ -6,11 +6,9 @@ import (
 	"io"
 
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // //////////////////////////////////////////////////////////////////////////////
@@ -52,9 +50,6 @@ type Torrent_Client struct {
 
 	// certificate authority file
 	caFile string
-
-	// The client context
-	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -98,15 +93,7 @@ func (client *Torrent_Client) Invoke(method string, rqst interface{}, ctx contex
 }
 
 func (client *Torrent_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
-	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-	return client.ctx
+	return globular.GetClientContext(client)
 }
 
 // Return the domain

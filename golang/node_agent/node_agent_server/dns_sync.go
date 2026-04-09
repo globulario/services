@@ -18,9 +18,6 @@ import (
 const (
 	dnsDefaultTTL                = 60
 	defaultSessionTimeoutMinutes = 15
-	envDNSIPv4                   = "GLOBULAR_DNS_IPv4"
-	envDNSIPv6                   = "GLOBULAR_DNS_IPv6"
-	envDNSIface                  = "GLOBULAR_DNS_IFACE"
 	dnsInitConfigPath            = "/var/lib/globular/dns/dns_init.json"
 )
 
@@ -58,9 +55,9 @@ func (srv *NodeAgentServer) syncDNS(spec *cluster_controllerpb.ClusterNetworkSpe
 		hostname = "node"
 	}
 
-	ipv4, ipv6 := selectDNSIPs()
+	ipv4, ipv6 := srv.selectDNSIPs()
 	if ipv4 == "" {
-		return fmt.Errorf("unable to determine node IPv4 address (set %s or %s)", envDNSIPv4, envDNSIface)
+		return fmt.Errorf("unable to determine node IPv4 address (use --dns-ipv4 or --dns-iface flags)")
 	}
 
 	hostFQDN := fmt.Sprintf("%s.%s", hostname, domain)
@@ -438,15 +435,15 @@ func ifaceIPv6(ifaceName string) string {
 	return ""
 }
 
-// selectDNSIPs picks IPv4/IPv6 for DNS records with override/env/interface options and fallbacks.
-// On multi-NIC nodes, set GLOBULAR_DNS_IFACE=enp3s0 or explicit GLOBULAR_DNS_IPv4.
-func selectDNSIPs() (string, string) {
-	if v4 := parseIPv4(os.Getenv(envDNSIPv4)); v4 != "" {
-		return v4, parseIPv6(os.Getenv(envDNSIPv6))
+// selectDNSIPs picks IPv4/IPv6 for DNS records with override/interface options and fallbacks.
+// On multi-NIC nodes, use --dns-iface=enp3s0 or --dns-ipv4 flags.
+func (srv *NodeAgentServer) selectDNSIPs() (string, string) {
+	if v4 := parseIPv4(srv.cfg.DNSIPv4); v4 != "" {
+		return v4, parseIPv6(srv.cfg.DNSIPv6)
 	}
-	v6Override := parseIPv6(os.Getenv(envDNSIPv6))
+	v6Override := parseIPv6(srv.cfg.DNSIPv6)
 
-	if ifn := strings.TrimSpace(os.Getenv(envDNSIface)); ifn != "" {
+	if ifn := strings.TrimSpace(srv.cfg.DNSIface); ifn != "" {
 		v4 := ifaceIPv4(ifn)
 		v6 := ifaceIPv6(ifn)
 		if v4 != "" {
@@ -489,9 +486,6 @@ func makeDNSToken(nodeID string, client *dns_client.Dns_Client, spec *cluster_co
 		return "", fmt.Errorf("dns: empty cluster domain")
 	}
 	id := strings.TrimSpace(nodeID)
-	if id == "" {
-		id = strings.TrimSpace(os.Getenv("NODE_AGENT_NODE_ID"))
-	}
 	if id == "" && client != nil {
 		id = strings.TrimSpace(client.GetMac())
 	}

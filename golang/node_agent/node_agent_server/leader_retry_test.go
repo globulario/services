@@ -51,7 +51,7 @@ func TestReportStatusRetriesToLeader(t *testing.T) {
 		return &cluster_controllerpb.ReportNodeStatusResponse{}, nil
 	})
 
-	srv := NewNodeAgentServer("", nil)
+	srv := NewNodeAgentServer("", nil, NodeAgentConfig{})
 	srv.useInsecure = true
 	srv.nodeID = "node-1"
 	srv.controllerEndpoint = "follower"

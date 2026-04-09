@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 type clusterControllerConfig struct {
@@ -58,24 +57,9 @@ func saveClusterControllerConfig(path string, cfg *clusterControllerConfig) erro
 	return os.WriteFile(path, b, 0o600)
 }
 
+// applyEnvOverrides is intentionally empty — env vars are NOT a source of truth.
+// All configuration comes from the config file or etcd.
 func applyEnvOverrides(cfg *clusterControllerConfig) {
-	if v := os.Getenv("CLUSTER_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil {
-			cfg.Port = port
-		}
-	}
-	if v := os.Getenv("CLUSTER_JOIN_TOKEN"); v != "" {
-		cfg.JoinToken = v
-	}
-	if v := os.Getenv("CLUSTER_DOMAIN"); v != "" {
-		cfg.ClusterDomain = v
-	}
-	if v := os.Getenv("CLUSTER_ADMIN_EMAIL"); v != "" {
-		cfg.AdminEmail = v
-	}
-	if v := os.Getenv("CLUSTER_BOOTSTRAP_TOKEN"); v != "" {
-		cfg.BootstrapToken = v
-	}
 }
 
 // validateClusterConfig ensures the configuration is valid for cluster mode

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -306,8 +307,10 @@ func resolveRecorderTarget(endpoint string) recorderDialTarget {
 		host = endpoint
 		port = ""
 	}
-	if host == "127.0.0.1" || host == "::1" {
-		host = "localhost"
+	if host == "127.0.0.1" || host == "::1" || host == "localhost" {
+		if routable := config.GetRoutableIPv4(); routable != "" {
+			host = routable
+		}
 	}
 	addr := host
 	if port != "" {

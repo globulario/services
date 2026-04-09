@@ -240,6 +240,13 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 	return signed, nil
 }
 
+// GenerateServiceToken creates a short-lived service-account token in memory
+// (no file I/O). Use this for internal service-to-service calls so that tokens
+// are always fresh and never expire mid-flight.
+func GenerateServiceToken(mac string) (string, error) {
+	return GenerateToken(5, mac, "sa", "sa", "") // 5-minute TTL
+}
+
 // ValidateToken parses and validates a signed JWT string and returns its claims.
 // Signature is verified using the **issuer's public key** looked up by iss + kid.
 // v2 Note: Does NOT validate audience - use ValidateTokenWithAudience for proper validation.

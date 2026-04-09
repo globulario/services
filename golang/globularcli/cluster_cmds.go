@@ -107,7 +107,7 @@ func init() {
 
 	bootstrapCmd.Flags().StringVar(&bootstrapNodeAddr, "node", "", "Node agent endpoint (required)")
 	bootstrapCmd.Flags().StringVar(&bootstrapDomain, "domain", "", "Cluster domain (required)")
-	bootstrapCmd.Flags().StringVar(&bootstrapBind, "bind", "localhost:12000", "Controller bind address")
+	bootstrapCmd.Flags().StringVar(&bootstrapBind, "bind", "0.0.0.0:12000", "Controller bind address")
 	bootstrapCmd.Flags().StringSliceVar(&bootstrapProfiles, "profile", nil, "Profiles for the first node")
 
 	joinCmd.Flags().StringVar(&joinNodeOverride, "node", "", "Node agent endpoint")

@@ -330,7 +330,7 @@ func endpointFromConfig(svc map[string]interface{}) string {
 	port, _ := svc["Port"].(float64)
 	addr, _ := svc["Address"].(string)
 	if addr == "" {
-		addr = "localhost"
+		addr = config.GetRoutableIPv4()
 	}
 	// Strip any existing port from address to avoid "host:port:port".
 	if host, _, err := net.SplitHostPort(addr); err == nil && host != "" {
