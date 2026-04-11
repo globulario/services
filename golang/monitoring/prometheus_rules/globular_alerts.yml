@@ -146,6 +146,56 @@ groups:
 
   - name: globular_control_plane
     rules:
+      - alert: NodeHeartbeatStale
+        expr: (time() - globular_node_agent_heartbeat_success_unix) > 120
+        for: 2m
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Node agent heartbeat stale on {{ $labels.instance }}"
+          description: "No successful heartbeat for over 120s. Node may be offline or controller unreachable."
+
+      - alert: NodeControllerUnreachable
+        expr: globular_node_agent_controller_state == 3
+        for: 2m
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Node agent cannot reach controller on {{ $labels.instance }}"
+          description: "Controller connection state is unreachable for >2m. Heartbeats and applies are blocked."
+
+      - alert: ControllerLoopStalled
+        expr: (time() - globular_controller_loop_heartbeat_unix) > 180
+        for: 1m
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Controller reconcile loop stalled"
+          description: "No reconcile item completed for over 3 minutes. Check controller logs for deadlock or stuck workflow."
+
+      - alert: WorkflowStuck
+        expr: (globular_workflow_active_runs > 0) and (globular_workflow_oldest_active_age_seconds > 900)
+        for: 2m
+        labels:
+          severity: critical
+          layer: infrastructure
+        annotations:
+          summary: "Workflow stuck for >15m"
+          description: "The oldest active workflow run has exceeded 15 minutes. Check workflow service logs; convergence may be blocked."
+
+      - alert: WorkflowRunFailures
+        expr: rate(globular_workflow_run_fail_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          layer: infrastructure
+        annotations:
+          summary: "Workflow failures detected"
+          description: "Workflow service reported failed runs in the last 10 minutes. Inspect failing workflows."
+
       - alert: LeaderHeartbeatStale
         expr: (time() - globular_controller_last_heartbeat_processed_unix) > 180
         for: 1m

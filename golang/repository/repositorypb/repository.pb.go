@@ -2880,6 +2880,208 @@ func (x *DescribePackageResponse) GetInfo() *PackageInfo {
 	return nil
 }
 
+type UpdateArtifactBinaryRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*UpdateArtifactBinaryRequest_Header
+	//	*UpdateArtifactBinaryRequest_Chunk
+	Payload       isUpdateArtifactBinaryRequest_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateArtifactBinaryRequest) Reset() {
+	*x = UpdateArtifactBinaryRequest{}
+	mi := &file_repository_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateArtifactBinaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateArtifactBinaryRequest) ProtoMessage() {}
+
+func (x *UpdateArtifactBinaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateArtifactBinaryRequest.ProtoReflect.Descriptor instead.
+func (*UpdateArtifactBinaryRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *UpdateArtifactBinaryRequest) GetPayload() isUpdateArtifactBinaryRequest_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *UpdateArtifactBinaryRequest) GetHeader() *UpdateArtifactBinaryHeader {
+	if x != nil {
+		if x, ok := x.Payload.(*UpdateArtifactBinaryRequest_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *UpdateArtifactBinaryRequest) GetChunk() []byte {
+	if x != nil {
+		if x, ok := x.Payload.(*UpdateArtifactBinaryRequest_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+type isUpdateArtifactBinaryRequest_Payload interface {
+	isUpdateArtifactBinaryRequest_Payload()
+}
+
+type UpdateArtifactBinaryRequest_Header struct {
+	Header *UpdateArtifactBinaryHeader `protobuf:"bytes,1,opt,name=header,proto3,oneof"`
+}
+
+type UpdateArtifactBinaryRequest_Chunk struct {
+	Chunk []byte `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+func (*UpdateArtifactBinaryRequest_Header) isUpdateArtifactBinaryRequest_Payload() {}
+
+func (*UpdateArtifactBinaryRequest_Chunk) isUpdateArtifactBinaryRequest_Payload() {}
+
+type UpdateArtifactBinaryHeader struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`                               // publisher, name, version, platform, kind
+	Checksum      string                 `protobuf:"bytes,2,opt,name=checksum,proto3" json:"checksum,omitempty"`                     // expected SHA256 of the new binary ("sha256:<hex>")
+	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"` // expected size of the new binary
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateArtifactBinaryHeader) Reset() {
+	*x = UpdateArtifactBinaryHeader{}
+	mi := &file_repository_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateArtifactBinaryHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateArtifactBinaryHeader) ProtoMessage() {}
+
+func (x *UpdateArtifactBinaryHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateArtifactBinaryHeader.ProtoReflect.Descriptor instead.
+func (*UpdateArtifactBinaryHeader) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *UpdateArtifactBinaryHeader) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *UpdateArtifactBinaryHeader) GetChecksum() string {
+	if x != nil {
+		return x.Checksum
+	}
+	return ""
+}
+
+func (x *UpdateArtifactBinaryHeader) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+type UpdateArtifactBinaryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BuildNumber   int64                  `protobuf:"varint,1,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // assigned by repository (max + 1)
+	Checksum      string                 `protobuf:"bytes,2,opt,name=checksum,proto3" json:"checksum,omitempty"`                           // verified checksum
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                               // "published" | "error"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateArtifactBinaryResponse) Reset() {
+	*x = UpdateArtifactBinaryResponse{}
+	mi := &file_repository_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateArtifactBinaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateArtifactBinaryResponse) ProtoMessage() {}
+
+func (x *UpdateArtifactBinaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateArtifactBinaryResponse.ProtoReflect.Descriptor instead.
+func (*UpdateArtifactBinaryResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *UpdateArtifactBinaryResponse) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+func (x *UpdateArtifactBinaryResponse) GetChecksum() string {
+	if x != nil {
+		return x.Checksum
+	}
+	return ""
+}
+
+func (x *UpdateArtifactBinaryResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -3124,7 +3326,20 @@ const file_repository_proto_rawDesc = "" +
 	" \x01(\x03R\n" +
 	"observedAt\"F\n" +
 	"\x17DescribePackageResponse\x12+\n" +
-	"\x04info\x18\x01 \x01(\v2\x17.repository.PackageInfoR\x04info*\x86\x01\n" +
+	"\x04info\x18\x01 \x01(\v2\x17.repository.PackageInfoR\x04info\"\x82\x01\n" +
+	"\x1bUpdateArtifactBinaryRequest\x12@\n" +
+	"\x06header\x18\x01 \x01(\v2&.repository.UpdateArtifactBinaryHeaderH\x00R\x06header\x12\x16\n" +
+	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\t\n" +
+	"\apayload\"\x82\x01\n" +
+	"\x1aUpdateArtifactBinaryHeader\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
+	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\"u\n" +
+	"\x1cUpdateArtifactBinaryResponse\x12!\n" +
+	"\fbuild_number\x18\x01 \x01(\x03R\vbuildNumber\x12\x1a\n" +
+	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status*\x86\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
@@ -3146,7 +3361,7 @@ const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"\x06YANKED\x10\a\x12\x0f\n" +
 	"\vQUARANTINED\x10\b\x12\v\n" +
-	"\aREVOKED\x10\t2\x90\x13\n" +
+	"\aREVOKED\x10\t2\xea\x14\n" +
 	"\x11PackageRepository\x12\xa7\x01\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse\"L\x82\xb5\x18H\n" +
 	"\x16repository.bundle.read\x12\x04read\x1a /repository/bundles/{descriptor}*\x06viewer0\x01\x12\xb0\x01\n" +
@@ -3175,7 +3390,9 @@ const file_repository_proto_rawDesc = "" +
 	"\x10SetArtifactState\x12#.repository.SetArtifactStateRequest\x1a$.repository.SetArtifactStateResponse\"O\x82\xb5\x18K\n" +
 	"\x1drepository.artifact.set_state\x12\x05write\x1a\x1b/repository/artifacts/{ref}*\x06editor\x12\xa7\x01\n" +
 	"\fGetNamespace\x12\x1f.repository.GetNamespaceRequest\x1a .repository.GetNamespaceResponse\"T\x82\xb5\x18P\n" +
-	"\x19repository.namespace.read\x12\x04read\x1a%/repository/namespaces/{namespace_id}*\x06viewerB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\x19repository.namespace.read\x12\x04read\x1a%/repository/namespaces/{namespace_id}*\x06viewer\x12\xd7\x01\n" +
+	"\x14UpdateArtifactBinary\x12'.repository.UpdateArtifactBinaryRequest\x1a(.repository.UpdateArtifactBinaryResponse\"j\x82\xb5\x18f\n" +
+	"\x19repository.artifact.write\x12\x05write\":/repository/namespaces/{header.ref.publisher_id}/artifacts*\x06editor(\x01B?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -3190,7 +3407,7 @@ func file_repository_proto_rawDescGZIP() []byte {
 }
 
 var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_repository_proto_goTypes = []any{
 	(ArtifactKind)(0),                    // 0: repository.ArtifactKind
 	(PublishState)(0),                    // 1: repository.PublishState
@@ -3233,20 +3450,23 @@ var file_repository_proto_goTypes = []any{
 	(*DesiredInfo)(nil),                  // 38: repository.DesiredInfo
 	(*PackageInfo)(nil),                  // 39: repository.PackageInfo
 	(*DescribePackageResponse)(nil),      // 40: repository.DescribePackageResponse
-	nil,                                  // 41: repository.ArtifactManifest.DefaultsEntry
-	nil,                                  // 42: repository.ApplicationDetail.AppConfigEntry
-	(*resourcepb.PackageDescriptor)(nil), // 43: resource.PackageDescriptor
+	(*UpdateArtifactBinaryRequest)(nil),  // 41: repository.UpdateArtifactBinaryRequest
+	(*UpdateArtifactBinaryHeader)(nil),   // 42: repository.UpdateArtifactBinaryHeader
+	(*UpdateArtifactBinaryResponse)(nil), // 43: repository.UpdateArtifactBinaryResponse
+	nil,                                  // 44: repository.ArtifactManifest.DefaultsEntry
+	nil,                                  // 45: repository.ApplicationDetail.AppConfigEntry
+	(*resourcepb.PackageDescriptor)(nil), // 46: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
 	0,  // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
 	2,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
-	41, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	44, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
 	4,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
 	5,  // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
 	6,  // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
 	1,  // 6: repository.ArtifactManifest.publish_state:type_name -> repository.PublishState
 	7,  // 7: repository.ArtifactManifest.provenance:type_name -> repository.ProvenanceRecord
-	42, // 8: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
+	45, // 8: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
 	2,  // 9: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
 	1,  // 10: repository.SetArtifactStateRequest.target_state:type_name -> repository.PublishState
 	1,  // 11: repository.SetArtifactStateResponse.previous_state:type_name -> repository.PublishState
@@ -3257,7 +3477,7 @@ var file_repository_proto_depIdxs = []int32{
 	2,  // 16: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
 	2,  // 17: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
 	3,  // 18: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
-	43, // 19: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	46, // 19: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
 	25, // 20: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
 	0,  // 21: repository.SearchArtifactsRequest.kind:type_name -> repository.ArtifactKind
 	3,  // 22: repository.SearchArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
@@ -3272,39 +3492,43 @@ var file_repository_proto_depIdxs = []int32{
 	37, // 31: repository.PackageInfo.installed_on:type_name -> repository.NodeInstallation
 	37, // 32: repository.PackageInfo.failing_on:type_name -> repository.NodeInstallation
 	39, // 33: repository.DescribePackageResponse.info:type_name -> repository.PackageInfo
-	23, // 34: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	21, // 35: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	13, // 36: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
-	15, // 37: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
-	17, // 38: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
-	19, // 39: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
-	26, // 40: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
-	28, // 41: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
-	30, // 42: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
-	36, // 43: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
-	32, // 44: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
-	34, // 45: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
-	8,  // 46: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
-	10, // 47: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
-	24, // 48: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	22, // 49: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	14, // 50: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
-	16, // 51: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
-	18, // 52: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
-	20, // 53: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
-	27, // 54: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
-	29, // 55: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
-	31, // 56: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
-	40, // 57: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
-	33, // 58: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
-	35, // 59: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
-	9,  // 60: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
-	12, // 61: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
-	48, // [48:62] is the sub-list for method output_type
-	34, // [34:48] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	42, // 34: repository.UpdateArtifactBinaryRequest.header:type_name -> repository.UpdateArtifactBinaryHeader
+	2,  // 35: repository.UpdateArtifactBinaryHeader.ref:type_name -> repository.ArtifactRef
+	23, // 36: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	21, // 37: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	13, // 38: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	15, // 39: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	17, // 40: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	19, // 41: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	26, // 42: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
+	28, // 43: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
+	30, // 44: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
+	36, // 45: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
+	32, // 46: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
+	34, // 47: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
+	8,  // 48: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
+	10, // 49: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
+	41, // 50: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
+	24, // 51: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	22, // 52: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	14, // 53: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	16, // 54: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	18, // 55: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	20, // 56: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	27, // 57: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
+	29, // 58: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
+	31, // 59: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
+	40, // 60: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
+	33, // 61: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
+	35, // 62: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
+	9,  // 63: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
+	12, // 64: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
+	43, // 65: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
+	51, // [51:66] is the sub-list for method output_type
+	36, // [36:51] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -3317,13 +3541,17 @@ func file_repository_proto_init() {
 		(*ArtifactManifest_ApplicationDetail)(nil),
 		(*ArtifactManifest_InfrastructureDetail)(nil),
 	}
+	file_repository_proto_msgTypes[39].OneofWrappers = []any{
+		(*UpdateArtifactBinaryRequest_Header)(nil),
+		(*UpdateArtifactBinaryRequest_Chunk)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   41,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

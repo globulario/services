@@ -1,8 +1,8 @@
 package rules
 
 import (
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // pendingInvariant returns a single INVARIANT_PENDING finding explaining

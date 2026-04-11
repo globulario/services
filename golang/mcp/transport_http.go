@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -21,11 +24,42 @@ import (
 	"github.com/globulario/services/golang/config"
 )
 
-// sessionStore tracks active MCP sessions for the Streamable HTTP transport.
+// sessionStore tracks active MCP HTTP sessions keyed by Mcp-Session-Id.
+type mcpSession struct {
+	createdAt time.Time
+	lastSeen  time.Time
+}
+
 var (
-	sessionMu   sync.RWMutex
-	sessionSet  = map[string]bool{} // valid session IDs
+	sessionMu    sync.RWMutex
+	sessionStore = map[string]*mcpSession{}
 )
+
+func createSession() string {
+	sid := generateSessionID()
+	now := time.Now()
+	sessionMu.Lock()
+	sessionStore[sid] = &mcpSession{createdAt: now, lastSeen: now}
+	sessionMu.Unlock()
+	return sid
+}
+
+func deleteSession(id string) {
+	sessionMu.Lock()
+	delete(sessionStore, id)
+	sessionMu.Unlock()
+}
+
+// touchSession validates a session id and updates its lastSeen timestamp.
+func touchSession(id string) bool {
+	sessionMu.Lock()
+	s, ok := sessionStore[id]
+	if ok {
+		s.lastSeen = time.Now()
+	}
+	sessionMu.Unlock()
+	return ok
+}
 
 // serveHTTP starts an HTTP server that accepts JSON-RPC MCP requests via POST.
 // This is the cluster-facing transport for remote MCP clients (via Envoy).
@@ -33,9 +67,18 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 	mux := http.NewServeMux()
 
 	// MCP endpoint: POST /mcp with JSON-RPC body.
-	// Responds using SSE (text/event-stream) for MCP Streamable HTTP transport
-	// compatibility, or plain JSON if the client doesn't accept SSE.
+	// Responds with JSON for MCP HTTP transport. GET /mcp can optionally open
+	// an SSE stream for server-initiated notifications.
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		// CORS + preflight support so browser-based MCP clients can connect.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id, Authorization, token")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		log.Printf("mcp: %s /mcp Accept=%q Mcp-Session-Id=%q", r.Method, r.Header.Get("Accept"), r.Header.Get("Mcp-Session-Id"))
 		if r.Method == http.MethodGet {
 			// GET with Accept: text/event-stream opens an SSE stream for
@@ -61,9 +104,8 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 			// DELETE terminates a session.
 			sid := r.Header.Get("Mcp-Session-Id")
 			if sid != "" {
-				sessionMu.Lock()
-				delete(sessionSet, sid)
-				sessionMu.Unlock()
+				deleteSession(sid)
+				log.Printf("mcp: DELETE session %q", sid)
 			}
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -77,86 +119,169 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
 		if err != nil {
 			http.Error(w, "read error", http.StatusBadRequest)
+			log.Printf("mcp: error reading body: %v", err)
 			return
 		}
 		defer r.Body.Close()
 
-		var req jsonRPCRequest
-		if err := json.Unmarshal(body, &req); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(jsonRPCResponse{
-				JSONRPC: "2.0",
-				Error:   &jsonRPCError{Code: -32700, Message: "parse error"},
-			})
+		trimmed := bytes.TrimSpace(body)
+		if len(trimmed) == 0 {
+			http.Error(w, "empty body", http.StatusBadRequest)
+			log.Printf("mcp: empty POST body")
 			return
 		}
 
-		// For non-initialize requests, validate the session ID if provided.
-		if req.Method != "initialize" {
-			sid := r.Header.Get("Mcp-Session-Id")
-			if sid != "" {
-				sessionMu.RLock()
-				valid := sessionSet[sid]
-				sessionMu.RUnlock()
-				if !valid {
+		sid := r.Header.Get("Mcp-Session-Id")
+
+		// Parse single request or batch per MCP Streamable HTTP spec.
+		var (
+			requests   []jsonRPCRequest
+			isBatch    bool
+			parseError bool
+		)
+
+		if trimmed[0] == '[' {
+			isBatch = true
+			var rawBatch []json.RawMessage
+			if err := json.Unmarshal(trimmed, &rawBatch); err != nil {
+				parseError = true
+			} else {
+				for _, raw := range rawBatch {
+					var req jsonRPCRequest
+					if err := json.Unmarshal(raw, &req); err != nil {
+						parseError = true
+						break
+					}
+					requests = append(requests, req)
+				}
+			}
+		} else {
+			var req jsonRPCRequest
+			if err := json.Unmarshal(trimmed, &req); err != nil {
+				parseError = true
+			} else {
+				requests = append(requests, req)
+			}
+		}
+
+		if parseError {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			payload := jsonRPCResponse{JSONRPC: "2.0", Error: &jsonRPCError{Code: -32700, Message: "parse error"}}
+			json.NewEncoder(w).Encode(payload)
+			log.Printf("mcp: parse error sid=%q", sid)
+			return
+		}
+
+		var (
+			responses    []jsonRPCResponse
+			newSessionID string
+		)
+
+		for idx, req := range requests {
+			msgType := "notification"
+			if len(req.ID) > 0 {
+				msgType = "request"
+			}
+			log.Printf("mcp: POST /mcp msg=%d method=%q type=%s sid=%q", idx, req.Method, msgType, sid)
+
+			// For non-initialize calls, require and validate the session ID.
+			if req.Method != "initialize" {
+				if sid == "" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					resp := jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32600, Message: "missing Mcp-Session-Id"}}
+					json.NewEncoder(w).Encode(resp)
+					log.Printf("mcp: missing session for method %q", req.Method)
+					return
+				}
+				if !touchSession(sid) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusNotFound)
-					json.NewEncoder(w).Encode(jsonRPCResponse{
-						JSONRPC: "2.0",
-						ID:      req.ID,
-						Error:   &jsonRPCError{Code: -32600, Message: "invalid or expired session"},
-					})
+					resp := jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32600, Message: "invalid or expired session"}}
+					json.NewEncoder(w).Encode(resp)
+					log.Printf("mcp: invalid session %q for method %q", sid, req.Method)
 					return
 				}
 			}
-		}
 
-		// Inject caller identity from token header into context for audit logging.
-		reqCtx := r.Context()
-		if token := r.Header.Get("token"); token != "" {
-			// Extract caller from token (best-effort, don't block on failure).
-			if caller := extractCallerFromToken(token); caller != "" {
-				reqCtx = context.WithValue(reqCtx, callerKey, caller)
+			// Inject caller identity from token header into context for audit logging.
+			reqCtx := r.Context()
+			if token := r.Header.Get("token"); token != "" {
+				if caller := extractCallerFromToken(token); caller != "" {
+					reqCtx = context.WithValue(reqCtx, callerKey, caller)
+				}
 			}
+
+			resp := s.handleRequest(reqCtx, &req)
+			if req.Method == "initialized" || req.Method == "notifications/initialized" {
+				log.Printf("mcp: received initialized notification sid=%q", sid)
+			}
+
+			// For initialize responses, generate and attach session ID once.
+			if req.Method == "initialize" && resp != nil && resp.Error == nil {
+				newSessionID = createSession()
+				if result, ok := resp.Result.(map[string]interface{}); ok {
+					result["sessionId"] = newSessionID
+				}
+			}
+
+			// Notifications do not yield JSON-RPC responses.
+			if len(req.ID) == 0 {
+				continue
+			}
+
+			if resp == nil {
+				continue
+			}
+			responses = append(responses, *resp)
 		}
 
-		resp := s.handleRequest(reqCtx, &req)
-
-		// Check if the client accepts SSE (MCP Streamable HTTP transport).
-		accept := r.Header.Get("Accept")
-		wantSSE := strings.Contains(accept, "text/event-stream")
-
-		// For initialize responses, generate and attach session ID.
-		if req.Method == "initialize" && resp != nil && resp.Error == nil {
-			sid := generateSessionID()
-			sessionMu.Lock()
-			sessionSet[sid] = true
-			sessionMu.Unlock()
-			w.Header().Set("Mcp-Session-Id", sid)
+		// Attach session header if initialize succeeded.
+		if newSessionID != "" {
+			w.Header().Set("Mcp-Session-Id", newSessionID)
+			log.Printf("mcp: initialize success new session %q", newSessionID)
 		}
 
-		if resp == nil {
-			// Notification — no response needed.
-			w.WriteHeader(http.StatusNoContent)
+		if len(responses) == 0 {
+			w.WriteHeader(http.StatusAccepted)
+			log.Printf("mcp: response status=%d content-type=%q body-bytes=%d", http.StatusAccepted, w.Header().Get("Content-Type"), 0)
 			return
 		}
 
-		if wantSSE {
-			// Respond in SSE format for MCP Streamable HTTP compatibility.
-			data, _ := json.Marshal(resp)
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-			fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
+		// Encode responses (single or batch) as JSON.
+		var payload []byte
+		if isBatch {
+			payload, _ = json.Marshal(responses)
 		} else {
-			// Plain JSON fallback (curl, legacy clients).
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
+			payload, _ = json.Marshal(responses[0])
 		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(payload)
+		log.Printf("mcp: response status=%d content-type=%q body-bytes=%d", http.StatusOK, w.Header().Get("Content-Type"), len(payload))
+	})
+
+	// Legacy POST streaming endpoint kept for backward compatibility with
+	// clients that still send NDJSON over a single POST and expect SSE replies.
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id, Authorization, token")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+			http.Error(w, "expected Accept: text/event-stream", http.StatusNotAcceptable)
+			return
+		}
+		log.Printf("mcp: legacy /sse stream Accept=%q Mcp-Session-Id=%q", r.Header.Get("Accept"), r.Header.Get("Mcp-Session-Id"))
+		s.handleStreamablePost(w, r)
 	})
 
 	// Health endpoint
@@ -172,7 +297,7 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 	// Retry binding the configured port a few times — Envoy or another
 	// service may still be releasing it during startup sequencing.
 	var (
-		ln      net.Listener
+		ln        net.Listener
 		listenErr error
 	)
 	for attempt := 0; attempt < 10; attempt++ {
@@ -205,17 +330,24 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 
 	// Resolve the actual port (useful when listenAddr is ":0" or fallback).
 	actualPort := ln.Addr().(*net.TCPAddr).Port
-	log.Printf("globular-mcp-server: HTTP listening on %s", ln.Addr())
+	log.Printf("globular-mcp-server: HTTP listening on %s (cfg=%s)", ln.Addr(), listenAddr)
 
 	// Do NOT overwrite the configured port — the config should be the
 	// source of truth. Random fallback ports caused instability.
 
 	// Update .mcp.json files so Claude Code can reconnect without a restart.
-	updateMCPJsonFiles(actualPort)
+	advertiseHost := s.cfg.HTTPAdvertiseHost
+	if advertiseHost == "" {
+		advertiseHost = config.GetRoutableIPv4()
+	}
+	scheme := "http"
+	if s.cfg.HTTPUseTLS {
+		scheme = "https"
+	}
+	updateMCPJsonFiles(actualPort, scheme, advertiseHost)
 
-	// MCP is a local-only HTTP service (like gateway/xds). It is NOT a gRPC
-	// service and should not appear in the Service Instances table. Claude Code
-	// connects directly to 127.0.0.1:<port>; no Envoy routing is needed.
+	// MCP is typically local-only, but can be exposed cluster-wide when
+	// configured with a non-loopback listen address or TLS termination.
 
 	go func() {
 		<-ctx.Done()
@@ -224,12 +356,130 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 		srv.Shutdown(shutdownCtx)
 	}()
 
+	if s.cfg.HTTPUseTLS {
+		if s.cfg.HTTPTLSCertFile == "" || s.cfg.HTTPTLSKeyFile == "" {
+			return fmt.Errorf("http serve: TLS enabled but certificate or key path is empty")
+		}
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		if err := srv.ServeTLS(ln, s.cfg.HTTPTLSCertFile, s.cfg.HTTPTLSKeyFile); err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("https serve: %w", err)
+		}
+		return nil
+	}
+
 	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("http serve: %w", err)
 	}
 	return nil
 }
 
+// handleStreamablePost processes an MCP Streamable HTTP POST request where the
+// client keeps the connection open and exchanges NDJSON messages over a single
+// HTTP stream, while the server responds using Server‑Sent Events (SSE).
+// This matches the MCP Streamable HTTP transport used by Claude Code.
+func (s *server) handleStreamablePost(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Stream newline-delimited JSON requests from the client.
+	scanner := bufio.NewScanner(r.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20) // allow up to 1MB per message
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var req jsonRPCRequest
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			resp := jsonRPCResponse{
+				JSONRPC: "2.0",
+				Error:   &jsonRPCError{Code: -32700, Message: "parse error"},
+			}
+			data, _ := json.Marshal(&resp)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+			continue
+		}
+
+		sid := r.Header.Get("Mcp-Session-Id")
+		log.Printf("mcp: legacy stream POST method=%q sid=%q", req.Method, sid)
+
+		// For non-initialize requests, validate the session ID if provided.
+		if req.Method != "initialize" {
+			if sid == "" {
+				resp := jsonRPCResponse{
+					JSONRPC: "2.0",
+					ID:      req.ID,
+					Error:   &jsonRPCError{Code: -32600, Message: "missing Mcp-Session-Id"},
+				}
+				data, _ := json.Marshal(&resp)
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+				continue
+			}
+
+			if !touchSession(sid) {
+				resp := jsonRPCResponse{
+					JSONRPC: "2.0",
+					ID:      req.ID,
+					Error:   &jsonRPCError{Code: -32600, Message: "invalid or expired session"},
+				}
+				data, _ := json.Marshal(&resp)
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+				log.Printf("mcp: legacy stream invalid session %q", sid)
+				continue
+			}
+		}
+
+		// Inject caller identity from token header into context for audit logging.
+		reqCtx := r.Context()
+		if token := r.Header.Get("token"); token != "" {
+			if caller := extractCallerFromToken(token); caller != "" {
+				reqCtx = context.WithValue(reqCtx, callerKey, caller)
+			}
+		}
+
+		resp := s.handleRequest(reqCtx, &req)
+
+		// For initialize responses, generate and attach session ID.
+		if req.Method == "initialize" && resp != nil && resp.Error == nil {
+			sid := createSession()
+			w.Header().Set("Mcp-Session-Id", sid)
+			if result, ok := resp.Result.(map[string]interface{}); ok {
+				result["sessionId"] = sid
+			}
+		}
+
+		if resp == nil {
+			// Notification — no response needed.
+			continue
+		}
+
+		data, err := json.Marshal(resp)
+		if err != nil {
+			log.Printf("mcp: failed to marshal response: %v", err)
+			continue
+		}
+
+		// Send as SSE event body.
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		log.Printf("mcp: stream read error: %v", err)
+	}
+}
 
 // generateSessionID creates a random session identifier for the MCP Streamable HTTP transport.
 func generateSessionID() string {
@@ -277,7 +527,7 @@ func extractCallerFromToken(token string) string {
 //
 // It also ensures ~/.claude/.mcp.json exists for all user home directories
 // so Claude Code can discover the MCP server without manual configuration.
-func updateMCPJsonFiles(actualPort int) {
+func updateMCPJsonFiles(actualPort int, scheme, host string) {
 	candidates := []string{}
 
 	// Check the services repo root (where this binary typically lives).
@@ -315,7 +565,7 @@ func updateMCPJsonFiles(actualPort int) {
 
 	// Ensure ~/.claude/.mcp.json exists for all user home directories.
 	// This allows Claude Code to discover the MCP server automatically.
-	ensuredPaths := ensureClaudeMCPConfigs(actualPort)
+	ensuredPaths := ensureClaudeMCPConfigs(actualPort, scheme, host)
 	candidates = append(candidates, ensuredPaths...)
 
 	// Deduplicate.
@@ -329,7 +579,7 @@ func updateMCPJsonFiles(actualPort int) {
 			continue
 		}
 		seen[abs] = true
-		patchMCPJson(abs, actualPort)
+		patchMCPJson(abs, actualPort, scheme, host)
 	}
 }
 
@@ -337,28 +587,38 @@ func updateMCPJsonFiles(actualPort int) {
 // directories under /home/ (and /root/). If the file doesn't exist, it creates
 // it with the correct MCP server URL. Returns paths that were created or
 // already existed for further patching.
-func ensureClaudeMCPConfigs(port int) []string {
+func ensureClaudeMCPConfigs(port int, scheme, host string) []string {
 	var paths []string
 
-	homeDirs := []string{"/root", "/var/lib/globular"}
-	if entries, err := os.ReadDir("/home"); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				homeDirs = append(homeDirs, filepath.Join("/home", e.Name()))
+	uid := os.Geteuid()
+	homeDirs := []string{}
+
+	// Always include the current user.
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		homeDirs = append(homeDirs, home)
+	}
+
+	// Only attempt other users' homes (root, service accounts) when running as root.
+	if uid == 0 {
+		homeDirs = append(homeDirs, "/root", "/var/lib/globular")
+		if entries, err := os.ReadDir("/home"); err == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					homeDirs = append(homeDirs, filepath.Join("/home", e.Name()))
+				}
 			}
 		}
 	}
 
-	mcpHost := config.GetRoutableIPv4()
 	mcpJSON := fmt.Sprintf(`{
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "http://%s:%d/mcp"
+      "url": "%s://%s:%d/mcp"
     }
   }
 }
-`, mcpHost, port)
+`, scheme, host, port)
 
 	for _, home := range homeDirs {
 		claudeDir := filepath.Join(home, ".claude")
@@ -379,12 +639,13 @@ func ensureClaudeMCPConfigs(port int) []string {
 			continue
 		}
 
-		// Fix ownership: match the home directory owner so Claude Code
-		// (running as the user) can read/write the file.
-		if info, err := os.Stat(home); err == nil {
-			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-				_ = os.Chown(claudeDir, int(stat.Uid), int(stat.Gid))
-				_ = os.Chown(mcpPath, int(stat.Uid), int(stat.Gid))
+		// Fix ownership when running as root.
+		if uid == 0 {
+			if info, err := os.Stat(home); err == nil {
+				if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+					_ = os.Chown(claudeDir, int(stat.Uid), int(stat.Gid))
+					_ = os.Chown(mcpPath, int(stat.Uid), int(stat.Gid))
+				}
 			}
 		}
 
@@ -396,8 +657,8 @@ func ensureClaudeMCPConfigs(port int) []string {
 }
 
 // patchMCPJson reads a .mcp.json file, updates any localhost MCP server URL to
-// use the given port, and writes it back if changed.
-func patchMCPJson(path string, port int) {
+// use the given port/scheme/host, and writes it back if changed.
+func patchMCPJson(path string, port int, scheme, host string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -424,7 +685,7 @@ func patchMCPJson(path string, port int) {
 			continue
 		}
 		// Only patch localhost URLs pointing to /mcp.
-		if !strings.Contains(urlStr, "localhost") && !strings.Contains(urlStr, "127.0.0.1") {
+		if !strings.Contains(urlStr, "localhost") && !strings.Contains(urlStr, "127.0.0.1") && !strings.Contains(urlStr, "0.0.0.0") {
 			continue
 		}
 		if !strings.Contains(urlStr, "/mcp") {
@@ -432,8 +693,7 @@ func patchMCPJson(path string, port int) {
 		}
 
 		// Build the new URL with the actual port and routable IP.
-		host := config.GetRoutableIPv4()
-		newURL := fmt.Sprintf("http://%s:%d/mcp", host, port)
+		newURL := fmt.Sprintf("%s://%s:%d/mcp", scheme, host, port)
 		if urlStr != newURL {
 			srv["url"] = newURL
 			changed = true

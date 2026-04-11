@@ -1,0 +1,297 @@
+🧠 Claude Instruction — Globular Stabilization Patch (STRICT MODE)
+🎯 Mission
+
+Fix distributed-system correctness issues identified in the patch checklist, with a focus on:
+
+canonical identity (version + build + checksum)
+lease ownership correctness
+leader routing correctness
+persistence integrity
+removal of unsafe fallbacks
+
+This is a stabilization phase, not a refactor or redesign.
+
+🔒 HARD CONSTRAINTS (DO NOT VIOLATE)
+1. ❌ No architecture changes
+Do NOT introduce new workflows
+Do NOT redesign services
+Do NOT refactor unrelated code
+Do NOT change control-plane structure
+2. ❌ No version-only logic in control paths
+
+Any logic involving:
+
+reconciliation
+rollout
+preview
+health checks
+targeting
+rollback
+
+MUST NOT use version-only comparisons.
+
+3. ❌ No fallback to weaker identity
+
+Forbidden pattern:
+
+if etcdMissing {
+    fallbackToVersionOnly()
+}
+
+Replace with:
+
+fail closed, log clearly
+
+4. ❌ Do not invent truth during recovery
+
+Forbidden:
+
+assigning "control-plane" or "gateway" by default
+assuming roles or identity
+
+Use:
+
+Profiles: []string{"unknown"}
+Status:   "recovering"
+🧱 GLOBAL INVARIANT (ENFORCE EVERYWHERE)
+
+All targeting and comparison MUST use canonical identity:
+
+service name
+version
+build number
+checksum (if available)
+
+No exceptions.
+
+🧪 EXECUTION STRATEGY
+Work one fix at a time
+
+For each issue:
+
+Locate code
+Apply minimal fix
+Add log explaining decision
+Ensure no side-effects
+Move to next
+🔧 PATCH TASKS (IN ORDER)
+✅ 1. Persist redirected controller endpoint
+
+File: node_agent_server/heartbeat.go
+
+After updating srv.controllerEndpoint
+Also update persisted state
+Call saveState()
+Log error if persist fails
+✅ 2. Rediscover controller even if endpoint is non-empty but unhealthy
+
+File: node_agent_server/heartbeat.go
+
+Trigger rediscovery when:
+
+endpoint empty
+OR connection degraded/unreachable
+OR repeated failures
+✅ 3. Reset controller client on endpoint change
+
+Files:
+
+grpc_handlers.go
+operation_tracker.go
+
+After changing endpoint:
+
+srv.resetControllerClient()
+
+Then reconnect.
+
+✅ 4. Fix lease heartbeat CAS validation
+
+File: workflow_server/executor_lease.go
+
+Replace .Exec() with:
+
+ScanCAS(...)
+
+If applied == false:
+
+stop ownership
+cancel run
+log event
+✅ 5. Fix lease release ownership bug
+
+File: workflow_server/executor_lease.go
+
+Replace:
+
+DELETE WHERE run_id=?
+
+With:
+
+DELETE WHERE run_id=? IF executor_id=?
+
+Check applied.
+
+✅ 6. Fix StartRun concurrency race
+
+File: workflow_server/server.go
+
+Problem:
+
+read-before-write race
+
+Fix:
+
+introduce LWT-based correlation lock
+ensure single active run per correlation_id
+✅ 7. Fix Day-0 import idempotency
+
+File: workflow_server/import_day0.go
+
+Replace:
+
+SELECT + insert
+
+With:
+
+atomic LWT claim or marker
+✅ 8. Fix leader publish failure handling
+
+File: cluster_controller_server/leader_election.go
+
+If leader address publish fails:
+
+do NOT continue as healthy leader
+either:
+resign
+OR mark degraded and retry
+✅ 9. Remove version-only matching in reconciliation
+
+File: release_reconciler.go
+
+Replace:
+
+installed == version
+
+With:
+
+full identity match (version + build + checksum)
+✅ 10. Remove version-only fallback in controller deploy verification
+
+File: workflow_controller_deploy.go
+
+Remove:
+
+if etcd missing → accept version match
+
+Require:
+
+exact match from installed-state
+✅ 11. Fix desired state identity truncation
+
+File: desired_from_resources.go
+
+Replace:
+
+map[string]string
+
+With:
+
+struct {
+  version
+  buildNumber
+}
+✅ 12. Fix preview logic identity comparison
+
+File: desired_state_handlers.go
+
+Replace:
+
+versionutil.Equal(...)
+
+With canonical identity comparison.
+
+✅ 13. Fix reconcile_nodes initial filter
+
+File: reconcile_nodes.go
+
+Do NOT filter using version-only.
+
+Use installed-state identity.
+
+✅ 14. Fix unknown-node auto-registration
+
+File: handlers_status.go
+
+Replace:
+
+Profiles: ["control-plane", "gateway"]
+
+With:
+
+Profiles: ["unknown"]
+Status: "recovering"
+✅ 15. Check persist errors everywhere
+
+File: handlers_status.go
+
+Replace:
+
+persistStateLocked(...)
+
+With:
+
+if err != nil → return error
+✅ 16. Strengthen successor selection
+
+File: leader_liveness.go
+
+Replace:
+
+hasControllerUnit()
+
+With:
+
+must be active/healthy controller
+🧪 ACCEPTANCE TESTS (MANDATORY)
+Test 1 — Same version, different build
+system MUST detect mismatch
+MUST trigger update
+MUST NOT mark healthy
+Test 2 — Exact match
+system MUST mark healthy
+Test 3 — Missing build info
+system MUST fail closed
+MUST NOT guess
+Test 4 — Lease ownership
+executor A cannot release lease owned by B
+Test 5 — Leader fail publish
+system MUST NOT silently continue
+🧠 FINAL RULE
+
+Distributed state must be claimed, verified, and released with proof — never assumed.
+
+🚫 STOP CONDITIONS
+
+If you find yourself:
+
+adding new abstractions
+rewriting flows
+simplifying logic by removing checks
+
+👉 STOP. That is drift.
+
+✅ DONE CRITERIA
+No version-only comparison remains in control paths
+No lease operation without ownership proof
+No fallback to weaker identity
+No state mutation without persistence
+No leader without published address
+⚡ What this achieves
+
+After this patch:
+
+identity becomes deterministic
+rollback becomes safe
+reconciliation becomes exact
+AI iteration becomes reliable

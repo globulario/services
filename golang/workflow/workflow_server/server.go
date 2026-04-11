@@ -105,45 +105,50 @@ type server struct {
 	leaseManager *executorLeaseManager
 
 	// AI-memory client for incident projection (AL-1).
-	aiMemoryClient ai_memorypb.AiMemoryServiceClient
-	incidentDedupeMu sync.RWMutex
+	aiMemoryClient    ai_memorypb.AiMemoryServiceClient
+	incidentDedupeMu  sync.RWMutex
 	incidentDedupeMap map[string]time.Time
+
+	// Metrics bookkeeping (low cardinality, held locally)
+	metricsMu    sync.Mutex
+	runStart     map[string]time.Time // run_id -> start time
+	lastStepUnix time.Time
 }
 
 // ---------------------------------------------------------------------------
 // Globular service contract
 // ---------------------------------------------------------------------------
 
-func (srv *server) GetConfigurationPath() string               { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)           { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                         { return srv.Address }
-func (srv *server) SetAddress(address string)                  { srv.Address = address }
-func (srv *server) GetProcess() int                            { return srv.Process }
+func (srv *server) GetConfigurationPath() string     { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
+func (srv *server) GetAddress() string               { return srv.Address }
+func (srv *server) SetAddress(address string)        { srv.Address = address }
+func (srv *server) GetProcess() int                  { return srv.Process }
 func (srv *server) SetProcess(pid int) {
 	if pid == -1 {
 		srv.closeScylla()
 	}
 	srv.Process = pid
 }
-func (srv *server) GetProxyProcess() int                       { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)                    { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                           { return srv.State }
-func (srv *server) SetState(state string)                      { srv.State = state }
-func (srv *server) GetLastError() string                       { return srv.LastError }
-func (srv *server) SetLastError(err string)                    { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)                   { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                          { return srv.ModTime }
-func (srv *server) GetId() string                              { return srv.Id }
-func (srv *server) SetId(id string)                            { srv.Id = id }
-func (srv *server) GetName() string                            { return srv.Name }
-func (srv *server) SetName(name string)                        { srv.Name = name }
-func (srv *server) GetMac() string                             { return srv.Mac }
-func (srv *server) SetMac(mac string)                          { srv.Mac = mac }
-func (srv *server) GetDescription() string                     { return srv.Description }
-func (srv *server) SetDescription(description string)          { srv.Description = description }
-func (srv *server) GetKeywords() []string                      { return srv.Keywords }
-func (srv *server) SetKeywords(keywords []string)              { srv.Keywords = keywords }
-func (srv *server) Dist(path string) (string, error)           { return globular.Dist(path, srv) }
+func (srv *server) GetProxyProcess() int              { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)           { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                  { return srv.State }
+func (srv *server) SetState(state string)             { srv.State = state }
+func (srv *server) GetLastError() string              { return srv.LastError }
+func (srv *server) SetLastError(err string)           { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)          { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                 { return srv.ModTime }
+func (srv *server) GetId() string                     { return srv.Id }
+func (srv *server) SetId(id string)                   { srv.Id = id }
+func (srv *server) GetName() string                   { return srv.Name }
+func (srv *server) SetName(name string)               { srv.Name = name }
+func (srv *server) GetMac() string                    { return srv.Mac }
+func (srv *server) SetMac(mac string)                 { srv.Mac = mac }
+func (srv *server) GetDescription() string            { return srv.Description }
+func (srv *server) SetDescription(description string) { srv.Description = description }
+func (srv *server) GetKeywords() []string             { return srv.Keywords }
+func (srv *server) SetKeywords(keywords []string)     { srv.Keywords = keywords }
+func (srv *server) Dist(path string) (string, error)  { return globular.Dist(path, srv) }
 func (srv *server) GetDependencies() []string {
 	if srv.Dependencies == nil {
 		srv.Dependencies = []string{}
@@ -161,53 +166,53 @@ func (srv *server) SetDependency(dep string) {
 	}
 	srv.Dependencies = append(srv.Dependencies, dep)
 }
-func (srv *server) GetChecksum() string                         { return srv.Checksum }
-func (srv *server) SetChecksum(checksum string)                 { srv.Checksum = checksum }
-func (srv *server) GetPlatform() string                         { return srv.Plaform }
-func (srv *server) SetPlatform(platform string)                 { srv.Plaform = platform }
-func (srv *server) GetRepositories() []string                   { return srv.Repositories }
-func (srv *server) SetRepositories(v []string)                  { srv.Repositories = v }
-func (srv *server) GetDiscoveries() []string                    { return srv.Discoveries }
-func (srv *server) SetDiscoveries(v []string)                   { srv.Discoveries = v }
-func (srv *server) GetPath() string                             { return srv.Path }
-func (srv *server) SetPath(path string)                         { srv.Path = path }
-func (srv *server) GetProto() string                            { return srv.Proto }
-func (srv *server) SetProto(proto string)                       { srv.Proto = proto }
-func (srv *server) GetPort() int                                { return srv.Port }
-func (srv *server) SetPort(port int)                            { srv.Port = port }
-func (srv *server) GetProxy() int                               { return srv.Proxy }
-func (srv *server) SetProxy(proxy int)                          { srv.Proxy = proxy }
-func (srv *server) GetProtocol() string                         { return srv.Protocol }
-func (srv *server) SetProtocol(protocol string)                 { srv.Protocol = protocol }
-func (srv *server) GetAllowAllOrigins() bool                    { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(b bool)                   { srv.AllowAllOrigins = b }
-func (srv *server) GetAllowedOrigins() string                   { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(s string)                  { srv.AllowedOrigins = s }
-func (srv *server) GetDomain() string                           { return srv.Domain }
-func (srv *server) SetDomain(domain string)                     { srv.Domain = domain }
-func (srv *server) GetTls() bool                                { return srv.TLS }
-func (srv *server) SetTls(hasTls bool)                          { srv.TLS = hasTls }
-func (srv *server) GetCertAuthorityTrust() string               { return srv.CertAuthorityTrust }
-func (srv *server) SetCertAuthorityTrust(ca string)             { srv.CertAuthorityTrust = ca }
-func (srv *server) GetCertFile() string                         { return srv.CertFile }
-func (srv *server) SetCertFile(certFile string)                 { srv.CertFile = certFile }
-func (srv *server) GetKeyFile() string                          { return srv.KeyFile }
-func (srv *server) SetKeyFile(keyFile string)                   { srv.KeyFile = keyFile }
-func (srv *server) GetVersion() string                          { return srv.Version }
-func (srv *server) SetVersion(version string)                   { srv.Version = version }
-func (srv *server) GetPublisherID() string                      { return srv.PublisherID }
-func (srv *server) SetPublisherID(p string)                     { srv.PublisherID = p }
-func (srv *server) GetKeepUpToDate() bool                       { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(val bool)                    { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool                          { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)                       { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}               { return srv.Permissions }
-func (srv *server) SetPermissions(permissions []interface{})    { srv.Permissions = permissions }
-func (srv *server) GetGrpcServer() *grpc.Server                 { return srv.grpcServer }
-func (srv *server) Save() error                                 { return globular.SaveService(srv) }
-func (srv *server) StartService() error                         { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error                          { return globular.StopService(srv, srv.grpcServer) }
-func (srv *server) RolesDefault() []resourcepb.Role             { return []resourcepb.Role{} }
+func (srv *server) GetChecksum() string                      { return srv.Checksum }
+func (srv *server) SetChecksum(checksum string)              { srv.Checksum = checksum }
+func (srv *server) GetPlatform() string                      { return srv.Plaform }
+func (srv *server) SetPlatform(platform string)              { srv.Plaform = platform }
+func (srv *server) GetRepositories() []string                { return srv.Repositories }
+func (srv *server) SetRepositories(v []string)               { srv.Repositories = v }
+func (srv *server) GetDiscoveries() []string                 { return srv.Discoveries }
+func (srv *server) SetDiscoveries(v []string)                { srv.Discoveries = v }
+func (srv *server) GetPath() string                          { return srv.Path }
+func (srv *server) SetPath(path string)                      { srv.Path = path }
+func (srv *server) GetProto() string                         { return srv.Proto }
+func (srv *server) SetProto(proto string)                    { srv.Proto = proto }
+func (srv *server) GetPort() int                             { return srv.Port }
+func (srv *server) SetPort(port int)                         { srv.Port = port }
+func (srv *server) GetProxy() int                            { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)                       { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string                      { return srv.Protocol }
+func (srv *server) SetProtocol(protocol string)              { srv.Protocol = protocol }
+func (srv *server) GetAllowAllOrigins() bool                 { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(b bool)                { srv.AllowAllOrigins = b }
+func (srv *server) GetAllowedOrigins() string                { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(s string)               { srv.AllowedOrigins = s }
+func (srv *server) GetDomain() string                        { return srv.Domain }
+func (srv *server) SetDomain(domain string)                  { srv.Domain = domain }
+func (srv *server) GetTls() bool                             { return srv.TLS }
+func (srv *server) SetTls(hasTls bool)                       { srv.TLS = hasTls }
+func (srv *server) GetCertAuthorityTrust() string            { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string)          { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string                      { return srv.CertFile }
+func (srv *server) SetCertFile(certFile string)              { srv.CertFile = certFile }
+func (srv *server) GetKeyFile() string                       { return srv.KeyFile }
+func (srv *server) SetKeyFile(keyFile string)                { srv.KeyFile = keyFile }
+func (srv *server) GetVersion() string                       { return srv.Version }
+func (srv *server) SetVersion(version string)                { srv.Version = version }
+func (srv *server) GetPublisherID() string                   { return srv.PublisherID }
+func (srv *server) SetPublisherID(p string)                  { srv.PublisherID = p }
+func (srv *server) GetKeepUpToDate() bool                    { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)                 { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool                       { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
+func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
+func (srv *server) GetGrpcServer() *grpc.Server              { return srv.grpcServer }
+func (srv *server) Save() error                              { return globular.SaveService(srv) }
+func (srv *server) StartService() error                      { return globular.StartService(srv, srv.grpcServer) }
+func (srv *server) StopService() error                       { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) RolesDefault() []resourcepb.Role          { return []resourcepb.Role{} }
 
 // ---------------------------------------------------------------------------
 // ScyllaDB connection
@@ -382,10 +387,10 @@ func (srv *server) Init() error {
 // (we remember the last emitted key and only fire on deltas).
 func (srv *server) scanTelemetryAndEmit() {
 	const (
-		scanInterval        = 60 * time.Second
-		minExecutions       = 5
-		failureRateThresh   = 0.10
-		driftStuckThresh    = 3
+		scanInterval      = 60 * time.Second
+		minExecutions     = 5
+		failureRateThresh = 0.10
+		driftStuckThresh  = 3
 	)
 	// Per-workflow inactivity thresholds.
 	noActivity := map[string]time.Duration{
@@ -437,13 +442,13 @@ func (srv *server) scanTelemetryAndEmit() {
 			}
 			key := "step_fail:" + wf + "/" + step
 			fire(key, "workflow.step.failures_high", map[string]interface{}{
-				"cluster_id":     clusterID,
-				"workflow_name":  wf,
-				"step_id":        step,
-				"failure_rate":   rate,
-				"failure_count":  fail,
+				"cluster_id":       clusterID,
+				"workflow_name":    wf,
+				"step_id":          step,
+				"failure_rate":     rate,
+				"failure_count":    fail,
 				"total_executions": total,
-				"last_error":     lastErr,
+				"last_error":       lastErr,
 			})
 		}
 		_ = iter.Close()
@@ -493,9 +498,9 @@ func (srv *server) scanTelemetryAndEmit() {
 			}
 			key := "no_activity:" + wfName
 			fire(key, "workflow.no_activity", map[string]interface{}{
-				"cluster_id":    clusterID,
-				"workflow_name": wfName,
-				"age_seconds":   int64(age.Seconds()),
+				"cluster_id":        clusterID,
+				"workflow_name":     wfName,
+				"age_seconds":       int64(age.Seconds()),
 				"threshold_seconds": int64(threshold.Seconds()),
 			})
 		}
@@ -1428,9 +1433,9 @@ func (srv *server) upsertWorkflowSummary(clusterID, workflowName, runID string,
 
 	// Read existing summary (ignore error: missing row → zeroed fields).
 	var (
-		total, succ, fail                          int64
+		total, succ, fail                               int64
 		lastSuccessID, lastFailureID, lastFailureReason string
-		lastSuccessAt, lastFailureAt              time.Time
+		lastSuccessAt, lastFailureAt                    time.Time
 	)
 	_ = srv.session.Query(`
 		SELECT total_runs, success_runs, failure_runs,
@@ -1527,8 +1532,8 @@ func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.List
 	var summaries []*workflowpb.WorkflowRunSummary
 	for {
 		var (
-			clusterID, workflowName, lastRunID      string
-			lastSuccessID, lastFailureID            string
+			clusterID, workflowName, lastRunID       string
+			lastSuccessID, lastFailureID             string
 			lastFailureReason                        string
 			total, succ, fail, durationMs            int64
 			lastStatus                               int
@@ -1578,7 +1583,7 @@ func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordSt
 
 	var (
 		total, succ, fail, skip int64
-		firstSeen                time.Time
+		firstSeen               time.Time
 	)
 	_ = srv.session.Query(`
 		SELECT total_executions, success_count, failure_count, skipped_count, first_seen_at
@@ -1643,12 +1648,12 @@ func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepO
 	var out []*workflowpb.WorkflowStepOutcome
 	for {
 		var (
-			clusterID, wfName, stepID      string
-			errCode, errMsg                string
-			total, succ, fail, skip, dur   int64
-			lastStatus                     int
-			lastStarted, lastFinished      time.Time
-			firstSeen, updatedAt           time.Time
+			clusterID, wfName, stepID    string
+			errCode, errMsg              string
+			total, succ, fail, skip, dur int64
+			lastStatus                   int
+			lastStarted, lastFinished    time.Time
+			firstSeen, updatedAt         time.Time
 		)
 		if !iter.Scan(&clusterID, &wfName, &stepID,
 			&total, &succ, &fail, &skip,
@@ -1751,8 +1756,8 @@ func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.Rec
 	}
 
 	var (
-		cycles          int
-		firstObserved   time.Time
+		cycles        int
+		firstObserved time.Time
 	)
 	_ = srv.session.Query(`
 		SELECT consecutive_cycles, first_observed_at
@@ -1856,13 +1861,13 @@ func (srv *server) updateRunByID(clusterID, runID string, fn func(startedAt time
 
 func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun, error) {
 	var (
-		id, corrID, parentID                                                                 string
-		nodeID, nodeHostname, compName, compVersion                                          string
-		relKind, relObjID, desObjID                                                          string
-		summary, errMsg, ackBy, wfName                                                       string
-		compKind, trigReason, status, curActor, failClass, retryCnt                          int
-		ack                                                                                  bool
-		startedAt, updatedAt, finishedAt, ackAt                                              time.Time
+		id, corrID, parentID                                        string
+		nodeID, nodeHostname, compName, compVersion                 string
+		relKind, relObjID, desObjID                                 string
+		summary, errMsg, ackBy, wfName                              string
+		compKind, trigReason, status, curActor, failClass, retryCnt int
+		ack                                                         bool
+		startedAt, updatedAt, finishedAt, ackAt                     time.Time
 	)
 
 	if err := srv.session.Query(`
@@ -1892,15 +1897,15 @@ func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun
 		CorrelationId: corrID,
 		ParentRunId:   parentID,
 		Context: &workflowpb.WorkflowContext{
-			ClusterId:       clusterID,
-			NodeId:          nodeID,
-			NodeHostname:    nodeHostname,
-			ComponentName:   compName,
-			ComponentKind:   workflowpb.ComponentKind(compKind),
+			ClusterId:        clusterID,
+			NodeId:           nodeID,
+			NodeHostname:     nodeHostname,
+			ComponentName:    compName,
+			ComponentKind:    workflowpb.ComponentKind(compKind),
 			ComponentVersion: compVersion,
-			ReleaseKind:     relKind,
-			ReleaseObjectId: relObjID,
-			DesiredObjectId: desObjID,
+			ReleaseKind:      relKind,
+			ReleaseObjectId:  relObjID,
+			DesiredObjectId:  desObjID,
 		},
 		TriggerReason:  workflowpb.TriggerReason(trigReason),
 		Status:         workflowpb.RunStatus(status),
@@ -1966,7 +1971,7 @@ func (srv *server) loadArtifacts(clusterID, runID string) ([]*workflowpb.Workflo
 
 	var artifacts []*workflowpb.WorkflowArtifactRef
 	var (
-		aID, rID, name, ver, digest, nodeID                                    string
+		aID, rID, name, ver, digest, nodeID                                     string
 		path, etcdKey, unitName, cfgPath, pkgName, pkgVer, specPath, scriptPath string
 		metaJSON                                                                string
 		stepSeq, kind                                                           int
@@ -2176,27 +2181,27 @@ func phaseDisplayName(p workflowpb.WorkflowPhaseKind) string {
 
 func initializeServerDefaults() *server {
 	return &server{
-		Name:            "workflow.WorkflowService",
-		Proto:           "workflow.proto",
-		Path:            func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
-		Port:            defaultPort,
-		Proxy:           defaultProxy,
-		Protocol:        "grpc",
-		Version:         Version,
-		PublisherID:     "localhost",
-		Description:     "Workflow service — reconciliation workflow tracing and history",
-		Keywords:        []string{"workflow", "reconciliation", "trace", "operations", "scylladb"},
-		AllowAllOrigins: true,
-		KeepAlive:       true,
-		KeepUpToDate:    true,
-		Process:         -1,
-		ProxyProcess:    -1,
-		Repositories:    make([]string, 0),
-		Discoveries:     make([]string, 0),
-		Dependencies:    []string{},
-		Permissions:     make([]interface{}, 0),
-		ScyllaHosts:     scyllaHostsOrRoutable(),
-		ScyllaPort:      9042,
+		Name:                    "workflow.WorkflowService",
+		Proto:                   "workflow.proto",
+		Path:                    func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
+		Port:                    defaultPort,
+		Proxy:                   defaultProxy,
+		Protocol:                "grpc",
+		Version:                 Version,
+		PublisherID:             "localhost",
+		Description:             "Workflow service — reconciliation workflow tracing and history",
+		Keywords:                []string{"workflow", "reconciliation", "trace", "operations", "scylladb"},
+		AllowAllOrigins:         true,
+		KeepAlive:               true,
+		KeepUpToDate:            true,
+		Process:                 -1,
+		ProxyProcess:            -1,
+		Repositories:            make([]string, 0),
+		Discoveries:             make([]string, 0),
+		Dependencies:            []string{},
+		Permissions:             make([]interface{}, 0),
+		ScyllaHosts:             scyllaHostsOrRoutable(),
+		ScyllaPort:              9042,
 		ScyllaReplicationFactor: 1,
 	}
 }

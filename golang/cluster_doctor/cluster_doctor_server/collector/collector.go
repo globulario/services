@@ -20,10 +20,10 @@ import (
 
 // CollectorConfig carries per-fetch settings.
 type CollectorConfig struct {
-	ListTimeout  time.Duration
-	NodeTimeout  time.Duration
-	Concurrency  int
-	SnapshotTTL  time.Duration
+	ListTimeout time.Duration
+	NodeTimeout time.Duration
+	Concurrency int
+	SnapshotTTL time.Duration
 }
 
 // Collector gathers upstream state and maintains a SnapshotCache.
@@ -36,6 +36,11 @@ type Collector struct {
 
 	connMu     sync.Mutex
 	agentConns map[string]*grpc.ClientConn // keyed by AgentEndpoint
+
+	// Prometheus access
+	promEndpoint  string
+	promTokenFile string
+	promInsecure  bool
 }
 
 func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceClient) *Collector {
@@ -44,6 +49,9 @@ func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceCl
 		controllerClient: cc,
 		cache:            NewSnapshotCache(cfg.SnapshotTTL),
 		agentConns:       make(map[string]*grpc.ClientConn),
+		promEndpoint:     defaultPromEndpoint(),
+		promTokenFile:    os.Getenv("PROMETHEUS_BEARER_FILE"),
+		promInsecure:     os.Getenv("PROMETHEUS_INSECURE") == "1",
 	}
 }
 
@@ -166,6 +174,9 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	if c.workflowClient != nil && c.clusterID != "" {
 		c.fetchWorkflowTelemetry(ctx, snap)
 	}
+
+	// ── 5. Prometheus control-plane signals (best-effort) ───────────────────
+	c.fetchPrometheus(ctx, snap)
 
 	return snap, nil
 }

@@ -613,6 +613,10 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 		},
 
 		VerifyPackageRuntime: func(ctx context.Context, name, healthCheck string) error {
+			// Skip runtime probes for command/binary-only packages that have no unit.
+			if skipRuntimeCheck(name) || strings.TrimSpace(healthCheck) == "" {
+				return nil
+			}
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
@@ -810,13 +814,13 @@ func packageToUnit(name string) string {
 func (srv *server) reportRunStart(pkgName, pkgKind, version, releaseID string, nodeCount int) string {
 	runID := uuid.New().String()
 	go globular_service.PublishEvent("workflow.release.started", map[string]interface{}{
-		"run_id":      runID,
-		"release_id":  releaseID,
-		"package":     pkgName,
-		"kind":        pkgKind,
-		"version":     version,
-		"node_count":  nodeCount,
-		"cluster":     srv.cfg.ClusterDomain,
+		"run_id":     runID,
+		"release_id": releaseID,
+		"package":    pkgName,
+		"kind":       pkgKind,
+		"version":    version,
+		"node_count": nodeCount,
+		"cluster":    srv.cfg.ClusterDomain,
 	})
 	return runID
 }
@@ -845,3 +849,11 @@ func (srv *server) reportStepFailed(runID, stepID, errMsg string) {
 	})
 }
 
+// skipRuntimeCheck returns true for command-style packages without a long-running unit.
+func skipRuntimeCheck(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "restic", "rclone", "ffmpeg", "sctool", "mc":
+		return true
+	}
+	return false
+}

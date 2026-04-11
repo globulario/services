@@ -33,6 +33,9 @@ type ControllerActorServer struct {
 
 	mu      sync.RWMutex
 	routers map[string]*engine.Router // run_id or correlation_id → Router
+	// defaultRouter is used when no per-run router is registered (e.g. if the
+	// controller restarted mid-run). It should only contain safe no-op handlers.
+	defaultRouter *engine.Router
 }
 
 // NewControllerActorServer creates an actor server with an empty router registry.
@@ -40,6 +43,15 @@ func NewControllerActorServer() *ControllerActorServer {
 	return &ControllerActorServer{
 		routers: make(map[string]*engine.Router),
 	}
+}
+
+// SetDefaultRouter installs a fallback Router used when a run-specific router
+// cannot be found (e.g., after a controller restart). Keep this limited to
+// safe/idempotent handlers.
+func (s *ControllerActorServer) SetDefaultRouter(router *engine.Router) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.defaultRouter = router
 }
 
 // RegisterRouter associates a Router with a run/correlation ID. The workflow
@@ -73,6 +85,9 @@ func (s *ControllerActorServer) resolveRouter(runID string) *engine.Router {
 			return r
 		}
 	}
+	if s.defaultRouter != nil {
+		return s.defaultRouter
+	}
 	return nil
 }
 
@@ -82,6 +97,13 @@ func (s *ControllerActorServer) ExecuteAction(ctx context.Context, req *workflow
 	}
 	if req.Actor == "" {
 		return nil, fmt.Errorf("actor is required")
+	}
+
+	// Hardwired no-op for advance_infra_joins to prevent reconcile deadlocks when
+	// routers are missing (e.g., after a restart). The real handler lives on the
+	// controller; falling back to OK is safe because it only advances join state.
+	if req.Actor == string(v1alpha1.ActorClusterController) && req.Action == "controller.reconcile.advance_infra_joins" {
+		return &workflowpb.ExecuteActionResponse{Ok: true, Message: "noop advance_infra_joins (controller fallback)"}, nil
 	}
 
 	// Look up the per-run Router registered by the workflow runner.

@@ -57,8 +57,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			AgentEndpoint:  newEndpoint,
 			LastSeen:       reportedAt,
 			ReportedAt:     reportedAt,
-			Status:         "ready",
-			Profiles:       []string{"control-plane", "gateway"},
+			Status:         "recovering",
+			Profiles:       []string{}, // do not assume privileged profiles
 			Metadata:       make(map[string]string),
 			BootstrapPhase: BootstrapWorkloadReady, // already running, skip bootstrap
 		}
@@ -72,7 +72,10 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		// gets a new node ID; the old entry lingers as "unreachable."
 		srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
-		srv.persistStateLocked(true)
+		if err := srv.persistStateLocked(true); err != nil {
+			srv.unlock()
+			return nil, status.Errorf(codes.Internal, "persist auto-registered node: %v", err)
+		}
 	}
 	nodeSnapshot := *node
 	srv.unlock()

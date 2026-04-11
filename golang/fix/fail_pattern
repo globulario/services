@@ -1,0 +1,558 @@
+Yes. Here’s a Claude-ready pattern catalog for finding and fixing potential issues in Globular.
+
+This is not just a bug list. It is a diagnostic framework: each pattern has
+
+what it is
+how to detect it
+what it looks like in code
+what failure it causes
+the safe fix rule
+Globular Distributed-System Pattern Catalog
+0. Prime directive
+
+The system must act only on validated, current, complete, durable truth.
+
+If a control path uses truth that is:
+
+stale
+partial
+inferred
+non-durable
+unverified
+
+then assume a bug is possible.
+
+1. Persistence Gap
+Definition
+
+State changes in memory but does not become durable.
+
+Detect
+
+Look for:
+
+field updated
+map updated
+struct mutated
+but no etcd write / persistStateLocked() / saveState() / durable commit
+Code smell
+x = newValue with no persistence call after
+persistence error ignored
+background goroutines launched before durable write succeeds
+Failure mode
+restart loses truth
+leader failover sees different truth
+memory and etcd diverge
+Fix rule
+
+Every state mutation that matters to control flow must cross a persistence barrier or fail.
+
+Typical fix
+update state
+persist
+check error
+only then trigger side effects
+2. Error Swallowing
+Definition
+
+An error happens, but the code reports success or suppresses recovery.
+
+Detect
+
+Look for:
+
+return nil in failure branch
+ignored err
+log-only failure in control path
+if err != nil { log... } but continue as healthy
+Failure mode
+rediscovery never triggers
+retries never happen
+health appears good while logic is broken
+Fix rule
+
+Errors that affect control decisions must propagate into the loop that can react.
+
+Typical fix
+return real error
+set degraded/unreachable state
+trigger retry / rediscovery / rollback
+3. Stale Authority
+Definition
+
+A component keeps using an old leader, endpoint, owner, or routing decision.
+
+Detect
+
+Look for:
+
+cached endpoint
+cached client
+leader address stored once
+refresh only when empty, not when unhealthy
+multiple independent dial paths
+Failure mode
+heartbeats sent to dead leader
+client talks to old controller
+node stays connected to obsolete authority
+Fix rule
+
+Authority must be refreshed when unhealthy, not only when missing.
+
+Typical fix
+rediscover on degraded/unreachable
+reset client on endpoint change
+persist new authority after successful switch
+unify dial paths
+4. Identity Truncation
+Definition
+
+A richer identity exists, but control logic uses only part of it.
+
+Detect
+
+Look for version-only comparisons where true identity should include:
+
+name
+version
+build number
+platform
+checksum
+Code smell
+installed == version
+map[string]string for desired versions
+rollback keyed only by version
+preview logic using version-only equality
+Failure mode
+wrong build treated as healthy
+wrong rollback target chosen
+same-version hotfix not deployed
+Fix rule
+
+All control paths must use canonical identity, never partial identity.
+
+Canonical identity
+
+At minimum:
+
+service name
+version
+build number
+checksum if available
+Typical fix
+
+Use a struct, not loose strings:
+
+type CanonicalIdentity struct {
+    Name        string
+    Version     string
+    BuildNumber int64
+    Checksum    string
+    Platform    string
+}
+5. CAS / LWT Ignored
+Definition
+
+A conditional write is attempted, but code does not verify whether it actually applied.
+
+Detect
+
+Look for:
+
+Scylla/Cassandra IF ...
+compare-and-set semantics
+.Exec() on conditional query
+no applied check
+Failure mode
+lease ownership silently lost
+stale owner continues acting
+double execution
+inconsistent lock semantics
+Fix rule
+
+Every conditional write must check whether it applied.
+
+Typical fix
+
+Use ScanCAS(...) or equivalent and branch on applied == false.
+
+6. Ownership Without Proof
+Definition
+
+Code releases, modifies, or finalizes a resource without proving it still owns it.
+
+Detect
+
+Look for:
+
+delete/update by run_id only
+no executor_id, no owner token, no epoch check
+release path less strict than acquire path
+Failure mode
+old executor deletes new owner’s lease
+stale controller finalizes a release it no longer owns
+split-brain side effects
+Fix rule
+
+Acquire, heartbeat, and release must all prove ownership with the same identity.
+
+Typical fix
+DELETE ... IF executor_id = ?
+ownership tokens / epochs
+reject stale releasers
+7. Non-Atomic Control Decision
+Definition
+
+Code reads current state, then acts later, assuming nothing changed in between.
+
+Detect
+
+Look for:
+
+SELECT / count / exists
+then insert/update later
+no lock, no LWT, no compare-and-swap
+Failure mode
+duplicate workflow runs
+duplicate day-0 import
+two leaders think they’re first
+two actors both “see nothing” and proceed
+Fix rule
+
+Critical uniqueness and idempotency decisions must be atomic.
+
+Typical fix
+LWT-backed claim
+lock row
+IF NOT EXISTS
+correlation lock table
+8. Fake Recovery Truth
+Definition
+
+During recovery, the system invents values it does not truly know.
+
+Detect
+
+Look for:
+
+default roles
+default profiles
+fabricated node type
+assumed readiness
+implicit “must be control-plane”
+Failure mode
+worker becomes control-plane by accident
+routing, successor selection, or desired-state filtering gets poisoned
+Fix rule
+
+Unknown must stay unknown until proven.
+
+Typical fix
+
+Use:
+
+Profiles: []string{"unknown"}
+Status: "recovering"
+
+and suppress privileged actions until truth is re-established.
+
+9. Weak Success Predicate
+Definition
+
+The system accepts a condition as success even though it is only a shallow proxy.
+
+Detect
+
+Look for:
+
+“unit exists” instead of “service healthy”
+“leader address changed” instead of “new leader is ready”
+“version matches” instead of “canonical identity matches”
+Failure mode
+rollout marked complete too early
+successor chosen but not truly ready
+health looks green while service is half-dead
+Fix rule
+
+Success must mean operationally ready, not merely structurally present.
+
+Typical fix
+
+Strengthen predicate with:
+
+readiness bit
+healthy service state
+exact build match
+control-plane capability proven
+10. Unsafe Leadership
+Definition
+
+Leadership changes without safe successor, reachable publication, or readiness guarantees.
+
+Detect
+
+Look for:
+
+resign without successor
+successor eligibility too weak
+publish leader address failure treated as log-only
+single-node resignation loops
+Failure mode
+invisible leader
+election loops
+failover to dead or stale controller
+cluster-wide confusion
+Fix rule
+
+Leadership requires valid successor, published reachability, and readiness.
+
+Typical fix
+do not resign unless successor exists and is healthy
+leadership publish failure should degrade or resign
+single-node clusters must not self-destruct
+11. Unsafe Remediation
+Definition
+
+A repair loop acts without checking whether the action is admissible.
+
+Detect
+
+Look for:
+
+blind restart loops
+retries without backoff or terminal blocked state
+remediation that ignores dependency graph
+Failure mode
+endless restart storms
+dependent services flapping
+damage amplification
+Fix rule
+
+Remediation must have admission rules.
+
+Typical fix
+
+Before restart/retry:
+
+verify dependency health
+bound attempts
+mark blocked after threshold
+emit explicit degraded state
+12. False Equivalence
+Definition
+
+Two states are treated as equivalent when they are not.
+
+Detect
+
+Look for:
+
+unreachable treated as drift
+stale applied hash treated as fresh installed truth
+same version treated as same artifact
+desired state compared without node profile filtering
+Failure mode
+false drift
+false health
+false no-op
+rollout skipped when needed
+Fix rule
+
+Comparison must use correct freshness, scope, and identity.
+
+Typical fix
+
+Distinguish:
+
+unreachable
+stale
+unknown
+mismatched
+exact match
+13. Split Truth
+Definition
+
+Different subsystems derive the same fact from different sources or paths.
+
+Detect
+
+Look for:
+
+one path uses etcd
+another uses in-memory cache
+another re-dials independently
+another uses --describe
+another uses installed-state
+Failure mode
+two components disagree while both look locally correct
+debugging becomes nonlinear
+one path heals while another keeps failing
+Fix rule
+
+Each class of truth must have one source of authority.
+
+Typical fix
+
+Examples:
+
+leader endpoint from one canonical channel
+installed artifact truth from installed-state
+version/build identity from manifest + installed-state, not ad hoc strings
+14. Background Side Effects Before Durability
+Definition
+
+Secondary actions run before the primary state is durably committed.
+
+Detect
+
+Look for:
+
+goroutine launch after state mutation but before persist success
+enqueue, projection, publish, reconcile triggers before durable write
+Failure mode
+background loops observe half-written truth
+racey flaps after recovery or leader handoff
+Fix rule
+
+Persist first, then fan out side effects.
+
+15. Good-Enough Fallback That Reintroduces the Bug
+Definition
+
+A strict path falls back to a weaker path “for convenience.”
+
+Detect
+
+Look for:
+
+“if etcd missing, accept version-only”
+“if identity incomplete, compare semantic version only”
+“if publish fails, continue leader anyway”
+Failure mode
+exactness disappears in degraded conditions
+bug only appears under stress or lag
+same bug resurfaces as a “temporary fallback”
+Fix rule
+
+In control paths, missing proof must fail closed, not degrade to weaker truth.
+
+16. Multiple Dial Paths
+Definition
+
+The same target service is reached through different client creation logic.
+
+Detect
+
+Look for:
+
+helper creates raw grpc.NewClient(...)
+main path uses cached client with rediscovery
+side path dials directly from endpoint string
+Failure mode
+main path healthy, side path stale
+hostname sync or admin path fails while heartbeats work
+Fix rule
+
+Reuse the same endpoint resolution and client lifecycle logic everywhere.
+
+17. Sequencing Bug
+Definition
+
+The order of operations makes correctness depend on timing.
+
+Detect
+
+Look for:
+
+liveness stamp after persistence instead of before
+release finalize before ownership check
+leader state set before publication readiness
+identity compare before build/checksum available
+Failure mode
+false resignation
+race-dependent flapping
+intermittent partial success
+Fix rule
+
+Order operations according to invariant, not convenience.
+
+18. Visibility Without Integrity
+Definition
+
+Human-readable outputs are reused as machine identity or control input.
+
+Detect
+
+Look for:
+
+--describe output or display strings reused for targeting
+IDs derived from display formatting
+parsing descriptive text as control identity
+Failure mode
+cosmetic truncation becomes targeting bug
+rollback or selection chooses wrong object
+Fix rule
+
+Human-readable output is not a control-plane source of truth.
+
+Typical fix
+machine identity must come from canonical structured fields
+display strings may include less, but must never be used for selection
+Claude Operating Procedure
+
+When something looks wrong, Claude should classify it using this order:
+
+Step 1: Is the truth stale?
+stale leader?
+stale endpoint?
+stale cached client?
+old installed-state?
+Step 2: Is the truth partial?
+version-only?
+missing build number?
+checksum absent?
+unknown node treated as known?
+Step 3: Is the truth non-durable?
+memory changed, etcd not updated?
+persist error ignored?
+Step 4: Is the truth unverified?
+conditional write with no applied check?
+release without ownership proof?
+fallback accepted without exact match?
+Step 5: Is the control decision non-atomic?
+read-then-write race?
+uniqueness check without LWT?
+Step 6: Is the success predicate too weak?
+“exists” instead of “healthy”?
+“address changed” instead of “ready”?
+Fix Priority Heuristic
+
+Claude should prioritize in this order:
+
+Identity truncation
+Ownership / CAS correctness
+Persistence gaps
+Stale authority
+Non-atomic control decisions
+Weak successor / weak success predicates
+Unsafe remediation
+Scaling traps
+
+Because the first five can corrupt control-plane truth directly.
+
+Forbidden Claude Behaviors
+
+Claude must not:
+
+add architecture
+add new control flows unless explicitly required
+replace strict checks with “fallback for convenience”
+invent defaults during recovery
+use version-only comparison in control paths
+ignore conditional write outcomes
+continue healthy after losing proof
+One-line doctrine
+
+Claim with proof, persist before fan-out, compare by canonical identity, and fail closed when truth is incomplete.
+
+If you want, I can turn this into a compact Claude system prompt and a separate implementation checklist prompt so one is doctrine and the other is action.

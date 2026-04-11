@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,16 +47,16 @@ type toolDef struct {
 }
 
 type inputSchema struct {
-	Type       string                 `json:"type"`
-	Properties map[string]propSchema  `json:"properties,omitempty"`
-	Required   []string               `json:"required,omitempty"`
+	Type       string                `json:"type"`
+	Properties map[string]propSchema `json:"properties,omitempty"`
+	Required   []string              `json:"required,omitempty"`
 }
 
 type propSchema struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
+	Type        string      `json:"type"`
+	Description string      `json:"description,omitempty"`
 	Default     interface{} `json:"default,omitempty"`
-	Enum        []string `json:"enum,omitempty"`
+	Enum        []string    `json:"enum,omitempty"`
 }
 
 type toolCallParams struct {
@@ -125,7 +127,7 @@ func (s *server) register(def toolDef, handler toolHandler) {
 
 func (s *server) serveStdio(ctx context.Context) error {
 	reader := bufio.NewReader(os.Stdin)
-	encoder := json.NewEncoder(os.Stdout)
+	writer := bufio.NewWriter(os.Stdout)
 
 	for {
 		select {
@@ -134,7 +136,7 @@ func (s *server) serveStdio(ctx context.Context) error {
 		default:
 		}
 
-		line, err := reader.ReadBytes('\n')
+		msg, err := readStdioMessage(reader)
 		if err != nil {
 			if err == io.EOF {
 				return nil
@@ -143,17 +145,79 @@ func (s *server) serveStdio(ctx context.Context) error {
 		}
 
 		var req jsonRPCRequest
-		if err := json.Unmarshal(line, &req); err != nil {
+		if err := json.Unmarshal(msg, &req); err != nil {
 			log.Printf("invalid JSON-RPC: %v", err)
 			continue
 		}
 
 		resp := s.handleRequest(ctx, &req)
 		if resp != nil {
-			if err := encoder.Encode(resp); err != nil {
+			data, _ := json.Marshal(resp)
+			if _, err := fmt.Fprintf(writer, "Content-Length: %d\r\n\r\n", len(data)); err == nil {
+				_, err = writer.Write(data)
+			}
+			if err != nil {
 				log.Printf("write response: %v", err)
 			}
+			writer.Flush()
 		}
+	}
+}
+
+// readStdioMessage reads a single MCP message from a bufio.Reader. It supports
+// both the official MCP framing (Content-Length headers like LSP) and a
+// best-effort fallback for newline-delimited JSON used by early prototypes.
+func readStdioMessage(r *bufio.Reader) ([]byte, error) {
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		trimmed := strings.TrimRight(line, "\r\n")
+
+		// Skip leading blank lines that some clients send between messages.
+		if trimmed == "" {
+			continue
+		}
+
+		// Newline-delimited JSON fallback: if the line starts with '{', treat it
+		// as the whole message.
+		if strings.HasPrefix(trimmed, "{") {
+			return []byte(trimmed), nil
+		}
+
+		// Otherwise parse LSP-style headers until the blank line, then read the
+		// declared Content-Length bytes for the body.
+		headers := map[string]string{}
+		for {
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 {
+				headers[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
+			}
+			line, err = r.ReadString('\n')
+			if err != nil {
+				return nil, err
+			}
+			trimmed = strings.TrimRight(line, "\r\n")
+			if trimmed == "" {
+				break // end of headers
+			}
+		}
+
+		cl := headers["content-length"]
+		if cl == "" {
+			return nil, fmt.Errorf("missing Content-Length header")
+		}
+		n, err := strconv.Atoi(cl)
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("invalid Content-Length: %q", cl)
+		}
+
+		buf := make([]byte, n)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, err
+		}
+		return buf, nil
 	}
 }
 
@@ -163,10 +227,16 @@ func (s *server) handleRequest(ctx context.Context, req *jsonRPCRequest) *jsonRP
 		return s.handleInitialize(req)
 	case "initialized":
 		return nil // notification, no response
+	case "notifications/initialized":
+		return nil // MCP streamable HTTP notification, no response
 	case "tools/list":
 		return s.handleToolsList(req)
 	case "tools/call":
 		return s.handleToolsCall(ctx, req)
+	case "resources/list":
+		return s.handleResourcesList(req)
+	case "prompts/list":
+		return s.handlePromptsList(req)
 	case "ping":
 		return &jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]interface{}{}}
 	default:
@@ -183,9 +253,26 @@ func (s *server) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: map[string]interface{}{
+			// Use the latest published protocol version for maximum client compatibility.
 			"protocolVersion": "2025-03-26",
 			"capabilities": map[string]interface{}{
-				"tools": map[string]interface{}{},
+				// Claude Code / Codex expect explicit authentication advertising.
+				// We only support unauthenticated local HTTP.
+				"authentication": map[string]interface{}{
+					"methods":  []string{"none"},
+					"required": false,
+				},
+				// Discovery features explicitly declared to avoid clients assuming “unsupported”.
+				"tools": map[string]interface{}{
+					"listChanged": false,
+				},
+				"resources": map[string]interface{}{
+					"listChanged": false,
+					"subscribe":   false,
+				},
+				"prompts": map[string]interface{}{
+					"listChanged": false,
+				},
 			},
 			"serverInfo": map[string]interface{}{
 				"name":    "globular-mcp-server",
@@ -210,6 +297,25 @@ func (s *server) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result:  map[string]interface{}{"tools": tools},
+	}
+}
+
+// handleResourcesList returns an empty resource list so clients that probe
+// resources do not treat the method as unsupported.
+func (s *server) handleResourcesList(req *jsonRPCRequest) *jsonRPCResponse {
+	return &jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  map[string]interface{}{"resources": []interface{}{}},
+	}
+}
+
+// handlePromptsList returns an empty prompt list to satisfy MCP discovery calls.
+func (s *server) handlePromptsList(req *jsonRPCRequest) *jsonRPCResponse {
+	return &jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  map[string]interface{}{"prompts": []interface{}{}},
 	}
 }
 

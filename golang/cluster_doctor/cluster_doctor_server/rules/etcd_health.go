@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // ── etcd quorum and configuration checks ────────────────────────────────────
@@ -155,9 +155,9 @@ func (staleNodeDetection) Evaluate(snap *collector.Snapshot, cfg Config) []Findi
 				hostname, len(nodeIDs), strings.Join(nodeIDs, ", ")),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_doctor", "node.stale_duplicate", map[string]string{
-					"hostname":  hostname,
-					"node_ids":  strings.Join(nodeIDs, ","),
-					"count":     fmt.Sprintf("%d", len(nodeIDs)),
+					"hostname": hostname,
+					"node_ids": strings.Join(nodeIDs, ","),
+					"count":    fmt.Sprintf("%d", len(nodeIDs)),
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
@@ -270,12 +270,12 @@ func (bootstrapPhaseStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Find
 			Summary:     fmt.Sprintf("Node %s (%s) in bootstrap phase %q — %s", hostname, nodeID, phase, hint),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_controller", "ListNodes", map[string]string{
-					"node_id":          nodeID,
-					"bootstrap_phase":  phase,
-					"etcd_join_phase":  meta["etcd_join_phase"],
-					"minio_join_phase": meta["minio_join_phase"],
+					"node_id":           nodeID,
+					"bootstrap_phase":   phase,
+					"etcd_join_phase":   meta["etcd_join_phase"],
+					"minio_join_phase":  meta["minio_join_phase"],
 					"scylla_join_phase": meta["scylla_join_phase"],
-					"status":           node.GetStatus(),
+					"status":            node.GetStatus(),
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{

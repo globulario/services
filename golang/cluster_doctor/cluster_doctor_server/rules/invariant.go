@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"time"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Config holds thresholds and flags passed to invariant Evaluate calls.
 type Config struct {
-	HeartbeatStale time.Duration
+	HeartbeatStale  time.Duration
 	EmitAuditEvents bool
 }
 
@@ -102,9 +102,9 @@ func actionStep(order uint32, desc, cli string, action *cluster_doctorpb.Remedia
 // executor against the globular-* unit allowlist.
 func systemctlRestartAction(unit, nodeID string) *cluster_doctorpb.RemediationAction {
 	return &cluster_doctorpb.RemediationAction{
-		ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
-		Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
-		Idempotent: true,
+		ActionType:  cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+		Risk:        cluster_doctorpb.ActionRisk_RISK_LOW,
+		Idempotent:  true,
 		Description: fmt.Sprintf("systemctl restart %s on node %s", unit, nodeID),
 		Params: map[string]string{
 			"unit":    unit,

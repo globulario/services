@@ -14,6 +14,26 @@ import (
 //   - watch-triggered re-enqueue count (counter)
 //   - convergence filter suppression count (counter)
 var (
+	// controllerLoopHeartbeatUnix marks the last time a reconcile worker
+	// completed an item. Alerts can fire when this timestamp goes stale,
+	// catching deadlocks or blocked queues.
+	controllerLoopHeartbeatUnix = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "loop_heartbeat_unix",
+		Help:      "Unix timestamp of the last completed reconcile loop iteration.",
+	})
+
+	// workflowActiveRuns tracks in-flight cluster.reconcile executions so
+	// dashboards/alerts can spot a stuck workflow (never finishes) or lack
+	// of activity (never starts).
+	workflowActiveRuns = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "workflow_active_runs",
+		Help:      "Number of active cluster.reconcile workflow runs.",
+	})
+
 	// reconcileQueueDepth is the current number of items pending in the work queue.
 	reconcileQueueDepth = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "globular",

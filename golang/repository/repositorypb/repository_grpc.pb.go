@@ -19,20 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PackageRepository_DownloadBundle_FullMethodName      = "/repository.PackageRepository/DownloadBundle"
-	PackageRepository_UploadBundle_FullMethodName        = "/repository.PackageRepository/UploadBundle"
-	PackageRepository_ListArtifacts_FullMethodName       = "/repository.PackageRepository/ListArtifacts"
-	PackageRepository_UploadArtifact_FullMethodName      = "/repository.PackageRepository/UploadArtifact"
-	PackageRepository_DownloadArtifact_FullMethodName    = "/repository.PackageRepository/DownloadArtifact"
-	PackageRepository_GetArtifactManifest_FullMethodName = "/repository.PackageRepository/GetArtifactManifest"
-	PackageRepository_ListBundles_FullMethodName         = "/repository.PackageRepository/ListBundles"
-	PackageRepository_SearchArtifacts_FullMethodName     = "/repository.PackageRepository/SearchArtifacts"
-	PackageRepository_GetArtifactVersions_FullMethodName = "/repository.PackageRepository/GetArtifactVersions"
-	PackageRepository_DescribePackage_FullMethodName     = "/repository.PackageRepository/DescribePackage"
-	PackageRepository_DeleteArtifact_FullMethodName      = "/repository.PackageRepository/DeleteArtifact"
-	PackageRepository_PromoteArtifact_FullMethodName     = "/repository.PackageRepository/PromoteArtifact"
-	PackageRepository_SetArtifactState_FullMethodName    = "/repository.PackageRepository/SetArtifactState"
-	PackageRepository_GetNamespace_FullMethodName        = "/repository.PackageRepository/GetNamespace"
+	PackageRepository_DownloadBundle_FullMethodName       = "/repository.PackageRepository/DownloadBundle"
+	PackageRepository_UploadBundle_FullMethodName         = "/repository.PackageRepository/UploadBundle"
+	PackageRepository_ListArtifacts_FullMethodName        = "/repository.PackageRepository/ListArtifacts"
+	PackageRepository_UploadArtifact_FullMethodName       = "/repository.PackageRepository/UploadArtifact"
+	PackageRepository_DownloadArtifact_FullMethodName     = "/repository.PackageRepository/DownloadArtifact"
+	PackageRepository_GetArtifactManifest_FullMethodName  = "/repository.PackageRepository/GetArtifactManifest"
+	PackageRepository_ListBundles_FullMethodName          = "/repository.PackageRepository/ListBundles"
+	PackageRepository_SearchArtifacts_FullMethodName      = "/repository.PackageRepository/SearchArtifacts"
+	PackageRepository_GetArtifactVersions_FullMethodName  = "/repository.PackageRepository/GetArtifactVersions"
+	PackageRepository_DescribePackage_FullMethodName      = "/repository.PackageRepository/DescribePackage"
+	PackageRepository_DeleteArtifact_FullMethodName       = "/repository.PackageRepository/DeleteArtifact"
+	PackageRepository_PromoteArtifact_FullMethodName      = "/repository.PackageRepository/PromoteArtifact"
+	PackageRepository_SetArtifactState_FullMethodName     = "/repository.PackageRepository/SetArtifactState"
+	PackageRepository_GetNamespace_FullMethodName         = "/repository.PackageRepository/GetNamespace"
+	PackageRepository_UpdateArtifactBinary_FullMethodName = "/repository.PackageRepository/UpdateArtifactBinary"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -75,6 +76,11 @@ type PackageRepositoryClient interface {
 	SetArtifactState(ctx context.Context, in *SetArtifactStateRequest, opts ...grpc.CallOption) (*SetArtifactStateResponse, error)
 	// Queries namespace ownership and permission information.
 	GetNamespace(ctx context.Context, in *GetNamespaceRequest, opts ...grpc.CallOption) (*GetNamespaceResponse, error)
+	// Updates only the binary of an existing artifact, creating a new build entry.
+	// The repository copies the manifest from the latest build, updates checksum/size,
+	// assigns the next build_number, and promotes to PUBLISHED.
+	// This enables delta deploys where only the binary changed.
+	UpdateArtifactBinary(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse], error)
 }
 
 type packageRepositoryClient struct {
@@ -249,6 +255,19 @@ func (c *packageRepositoryClient) GetNamespace(ctx context.Context, in *GetNames
 	return out, nil
 }
 
+func (c *packageRepositoryClient) UpdateArtifactBinary(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PackageRepository_ServiceDesc.Streams[4], PackageRepository_UpdateArtifactBinary_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_UpdateArtifactBinaryClient = grpc.ClientStreamingClient[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -289,6 +308,11 @@ type PackageRepositoryServer interface {
 	SetArtifactState(context.Context, *SetArtifactStateRequest) (*SetArtifactStateResponse, error)
 	// Queries namespace ownership and permission information.
 	GetNamespace(context.Context, *GetNamespaceRequest) (*GetNamespaceResponse, error)
+	// Updates only the binary of an existing artifact, creating a new build entry.
+	// The repository copies the manifest from the latest build, updates checksum/size,
+	// assigns the next build_number, and promotes to PUBLISHED.
+	// This enables delta deploys where only the binary changed.
+	UpdateArtifactBinary(grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]) error
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -339,6 +363,9 @@ func (UnimplementedPackageRepositoryServer) SetArtifactState(context.Context, *S
 }
 func (UnimplementedPackageRepositoryServer) GetNamespace(context.Context, *GetNamespaceRequest) (*GetNamespaceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNamespace not implemented")
+}
+func (UnimplementedPackageRepositoryServer) UpdateArtifactBinary(grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]) error {
+	return status.Error(codes.Unimplemented, "method UpdateArtifactBinary not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -576,6 +603,13 @@ func _PackageRepository_GetNamespace_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_UpdateArtifactBinary_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(PackageRepositoryServer).UpdateArtifactBinary(&grpc.GenericServerStream[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_UpdateArtifactBinaryServer = grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -644,6 +678,11 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "DownloadArtifact",
 			Handler:       _PackageRepository_DownloadArtifact_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "UpdateArtifactBinary",
+			Handler:       _PackageRepository_UpdateArtifactBinary_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "repository.proto",

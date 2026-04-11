@@ -3,8 +3,8 @@ package rules
 import (
 	"fmt"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 type clusterNetworkDrift struct{}
@@ -32,9 +32,9 @@ func (clusterNetworkDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Find
 			Summary:     fmt.Sprintf("Node %s network state hash mismatch (desired ≠ applied)", nodeID),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_controller", "GetClusterHealthV1", map[string]string{
-					"node_id":       nodeID,
-					"desired_hash":  desired,
-					"applied_hash":  applied,
+					"node_id":      nodeID,
+					"desired_hash": desired,
+					"applied_hash": applied,
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{

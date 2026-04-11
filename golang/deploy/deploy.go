@@ -267,16 +267,30 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		"--repository", repoAddr,
 		"--force",
 	)
-	cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)
-	cmd.Dir = paths.Root
-	var pubOut strings.Builder
-	cmd.Stdout = &pubOut
-	cmd.Stderr = &pubOut
-	if err := cmd.Run(); err != nil {
-		out := pubOut.String()
-		if !strings.Contains(out, "success") && !strings.Contains(out, "bundle_id") && !strings.Contains(out, "verify uploaded manifest") {
-			fmt.Printf("  %s\n", out)
-			return nil, fmt.Errorf("pkg publish: %w", err)
+	runPublish := func() (string, error) {
+		cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)
+		cmd.Dir = paths.Root
+		var pubOut strings.Builder
+		cmd.Stdout = &pubOut
+		cmd.Stderr = &pubOut
+		err := cmd.Run()
+		return pubOut.String(), err
+	}
+
+	var pubOut string
+	var errPub error
+	for attempt := 1; attempt <= 3; attempt++ {
+		pubOut, errPub = runPublish()
+		if errPub == nil || isTransientPublishError(errPub, pubOut) == false {
+			break
+		}
+		fmt.Printf("  retrying publish (%d/3) after transient error: %v\n", attempt, errPub)
+		time.Sleep(time.Duration(attempt) * time.Second)
+	}
+	if errPub != nil {
+		if !strings.Contains(pubOut, "success") && !strings.Contains(pubOut, "bundle_id") && !strings.Contains(pubOut, "verify uploaded manifest") {
+			fmt.Printf("  %s\n", pubOut)
+			return nil, fmt.Errorf("pkg publish: %w", errPub)
 		}
 		fmt.Printf("  (post-upload verify warning — bundle was uploaded)\n")
 	}
@@ -289,13 +303,27 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		entry.Name, opts.Version,
 		"--build-number", fmt.Sprintf("%d", nextBuild),
 	}
-	cmd = exec.CommandContext(ctx, globularCLI, desiredArgs...)
-	cmd.Dir = paths.Root
-	var desiredOut strings.Builder
-	cmd.Stdout = &desiredOut
-	cmd.Stderr = &desiredOut
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("  ⚠ desired state update failed: %s\n", desiredOut.String())
+	updateDesired := func() (string, error) {
+		cmd := exec.CommandContext(ctx, globularCLI, desiredArgs...)
+		cmd.Dir = paths.Root
+		var desiredOut strings.Builder
+		cmd.Stdout = &desiredOut
+		cmd.Stderr = &desiredOut
+		err := cmd.Run()
+		return desiredOut.String(), err
+	}
+	var desiredOut string
+	var desiredErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		desiredOut, desiredErr = updateDesired()
+		if desiredErr == nil || isTransientDesiredError(desiredErr, desiredOut) == false {
+			break
+		}
+		fmt.Printf("  retrying desired-state update (%d/2)\n", attempt)
+		time.Sleep(time.Duration(attempt) * time.Second)
+	}
+	if desiredErr != nil {
+		fmt.Printf("  ⚠ desired state update failed: %s\n", desiredOut)
 		// Non-fatal — the artifact is published, just not auto-rolled out.
 	} else {
 		fmt.Printf("  ✓ Desired state: %s@%s+%d\n", entry.Name, opts.Version, nextBuild)
@@ -411,7 +439,6 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-
 func findGlobularCLI(paths *Paths) (string, error) {
 	staged := filepath.Join(paths.StageBin, "globularcli")
 	if _, err := os.Stat(staged); err == nil {
@@ -428,6 +455,27 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// isTransientPublishError classifies publish errors that are worth retrying.
+func isTransientPublishError(err error, out string) bool {
+	msg := strings.ToLower(out + " " + err.Error())
+	return strings.Contains(msg, "unavailable") ||
+		strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "rst_stream") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "try again")
+}
+
+// isTransientDesiredError classifies desired-state update errors to retry.
+func isTransientDesiredError(err error, out string) bool {
+	msg := strings.ToLower(out + " " + err.Error())
+	// Leader redirects or transient controller outages.
+	return strings.Contains(msg, "unavailable") ||
+		strings.Contains(msg, "not leader") ||
+		strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "timeout")
 }
 
 // verifyBinary runs a basic pre-flight check on the compiled binary.

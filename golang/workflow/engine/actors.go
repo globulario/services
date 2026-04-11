@@ -243,20 +243,20 @@ func controllerWaitCondition(cfg ControllerConfig) ActionHandler {
 // InstallerConfig provides dependencies for installer actor actions.
 // These wrap the local bootstrap primitives on the node-agent.
 type InstallerConfig struct {
-	SetupTLS                func(ctx context.Context, clusterID string) error
-	EnableBootstrapWindow   func(ctx context.Context, ttl time.Duration) error
-	DisableBootstrapWindow  func(ctx context.Context) error
-	WriteBootstrapCreds     func(ctx context.Context) error
-	InstallPackage          func(ctx context.Context, name string) error
-	InstallPackageSet       func(ctx context.Context, packages []string) error
-	InstallProfileSets      func(ctx context.Context, profiles []string) error
-	ConfigureSharedStorage  func(ctx context.Context) error
-	BootstrapDNS            func(ctx context.Context, domain string) error
-	ValidateClusterHealth   func(ctx context.Context) error
-	GenerateJoinToken       func(ctx context.Context) (string, error)
-	RestartServices         func(ctx context.Context, services []string) error
-	ClusterBootstrap        func(ctx context.Context, clusterID, nodeID string) error
-	CaptureFailureBundle    func(ctx context.Context, runID string) error
+	SetupTLS               func(ctx context.Context, clusterID string) error
+	EnableBootstrapWindow  func(ctx context.Context, ttl time.Duration) error
+	DisableBootstrapWindow func(ctx context.Context) error
+	WriteBootstrapCreds    func(ctx context.Context) error
+	InstallPackage         func(ctx context.Context, name string) error
+	InstallPackageSet      func(ctx context.Context, packages []string) error
+	InstallProfileSets     func(ctx context.Context, profiles []string) error
+	ConfigureSharedStorage func(ctx context.Context) error
+	BootstrapDNS           func(ctx context.Context, domain string) error
+	ValidateClusterHealth  func(ctx context.Context) error
+	GenerateJoinToken      func(ctx context.Context) (string, error)
+	RestartServices        func(ctx context.Context, services []string) error
+	ClusterBootstrap       func(ctx context.Context, clusterID, nodeID string) error
+	CaptureFailureBundle   func(ctx context.Context, runID string) error
 }
 
 // RegisterInstallerActions registers all installer actor handlers for Day-0.
@@ -505,10 +505,10 @@ func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
 // controller actions used by release.apply.infrastructure and Day-0 workflows.
 type ReleaseControllerConfig struct {
 	// Release lifecycle
-	MarkReleaseResolved  func(ctx context.Context, releaseID string) error
-	MarkReleaseApplying  func(ctx context.Context, releaseID string) error
-	MarkReleaseFailed    func(ctx context.Context, releaseID, reason string) error
-	RecheckConvergence   func(ctx context.Context, releaseID string) error
+	MarkReleaseResolved func(ctx context.Context, releaseID string) error
+	MarkReleaseApplying func(ctx context.Context, releaseID string) error
+	MarkReleaseFailed   func(ctx context.Context, releaseID, reason string) error
+	RecheckConvergence  func(ctx context.Context, releaseID string) error
 
 	// Day-0 extras
 	SeedDesiredFromInstalled func(ctx context.Context, clusterID string) error
@@ -800,9 +800,9 @@ type NodeDirectApplyConfig struct {
 	SyncInstalledPackage   func(ctx context.Context, name, version, hash, kind string) error
 
 	// Removal actions (release.remove.package workflow)
-	StopPackageService        func(ctx context.Context, name string) error
-	DisablePackageService     func(ctx context.Context, name string) error
-	UninstallPackage          func(ctx context.Context, name, kind string) error
+	StopPackageService         func(ctx context.Context, name string) error
+	DisablePackageService      func(ctx context.Context, name string) error
+	UninstallPackage           func(ctx context.Context, name, kind string) error
 	ClearInstalledPackageState func(ctx context.Context, name, kind string) error
 }
 
@@ -934,6 +934,11 @@ func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		check := fmt.Sprint(req.With["health_check"])
+		kind := strings.ToUpper(strings.TrimSpace(fmt.Sprint(req.With["package_kind"])))
+		// Commands (and packages with no runtime check) don't have a service to probe.
+		if kind == "COMMAND" || check == "" || skipRuntimeCheck(name) {
+			return &ActionResult{OK: true, Message: "skip runtime check for non-service package"}, nil
+		}
 		if cfg.VerifyPackageRuntime != nil {
 			if err := cfg.VerifyPackageRuntime(ctx, name, check); err != nil {
 				return nil, fmt.Errorf("verify runtime %s: %w", name, err)
@@ -941,6 +946,17 @@ func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 		}
 		return &ActionResult{OK: true, Output: map[string]any{"healthy": true}}, nil
 	}
+}
+
+// skipRuntimeCheck returns true for packages that are binaries/commands without
+// a long-running systemd unit. These should not gate workflows on "active" state.
+func skipRuntimeCheck(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	switch n {
+	case "restic", "rclone", "ffmpeg", "sctool", "mc":
+		return true
+	}
+	return false
 }
 
 func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {

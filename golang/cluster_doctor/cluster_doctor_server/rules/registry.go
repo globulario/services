@@ -21,6 +21,7 @@ func NewRegistry(cfg Config) *Registry {
 		nodeUnitsRunning{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},
+		promRuntime{},
 		// Local filesystem checks
 		prometheusBearerTokenFile{},
 		// Operational diagnostics (multi-node expansion, bootstrap, etcd)

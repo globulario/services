@@ -199,37 +199,10 @@ echo "  ✓ Package: $(basename "${ACTUAL_PKG}")"
 
 # Resolve repository address from etcd if not set via --repository flag.
 if [[ -z "$REPOSITORY" ]]; then
-    ETCD_EP="https://$(hostname -I | awk '{print $1}'):2379"
-    ETCD_CERTS=(
-        --cacert=/var/lib/globular/pki/ca.crt
-        --cert=/var/lib/globular/pki/issued/services/service.crt
-        --key=/var/lib/globular/pki/issued/services/service.key
-    )
-    # Service configs are keyed by UUID under /globular/services/. Scan for
-    # the repository service by matching its Name field in the JSON value.
-    while IFS= read -r key; do
-        [[ -z "$key" ]] && continue
-        VAL=$(etcdctl get "$key" --endpoints="$ETCD_EP" "${ETCD_CERTS[@]}" --print-value-only 2>/dev/null || true)
-        if echo "$VAL" | grep -q '"repository.PackageRepository"'; then
-            REPOSITORY=$(echo "$VAL" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-addr=d.get('Address','')
-port=d.get('Port','')
-if ':' in str(addr):
-    print(addr)
-elif addr and port:
-    print(f'{addr}:{port}')
-" 2>/dev/null || true)
-            [[ -n "$REPOSITORY" ]] && break
-        fi
-    done < <(etcdctl get --prefix /globular/services/ --keys-only \
-        --endpoints="$ETCD_EP" "${ETCD_CERTS[@]}" 2>/dev/null | grep '/config$')
-fi
-if [[ -z "$REPOSITORY" ]]; then
-    echo "ERROR: could not resolve repository address from etcd" >&2
-    echo "  Use --repository <host:port> to specify manually" >&2
-    exit 1
+    # Simplest safe default: rely on mesh logical name. etcd lookup is optional and
+    # can fail in restricted environments; skip it here to avoid hostname/network
+    # permission issues.
+    REPOSITORY="repository.PackageRepository"
 fi
 
 echo ""

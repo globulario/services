@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // ── etcd stale member / unsafe cluster size ─────────────────────────────────
@@ -101,7 +101,7 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 				len(staleMembers), strings.Join(staleMembers, ", "), healthyCount, quorumNeeded),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_doctor", "etcd.stale_member", map[string]string{
-					"stale_members":  strings.Join(staleMembers, ","),
+					"stale_members": strings.Join(staleMembers, ","),
 					"total_etcd":    fmt.Sprintf("%d", len(etcdNodes)),
 					"verified":      fmt.Sprintf("%d", verifiedCount),
 					"healthy":       fmt.Sprintf("%d", healthyCount),

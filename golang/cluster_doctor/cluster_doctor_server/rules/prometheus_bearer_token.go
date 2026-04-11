@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 const defaultPrometheusConfig = "/var/lib/globular/prometheus/prometheus.yml"
@@ -38,9 +38,9 @@ func (prometheusBearerTokenFile) Evaluate(_ *collector.Snapshot, _ Config) []Fin
 			Summary:     fmt.Sprintf("Prometheus config references bearer_token_file %q but the file does not exist", path),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("prometheus", "config_parse", map[string]string{
-					"config_file":      defaultPrometheusConfig,
+					"config_file":       defaultPrometheusConfig,
 					"bearer_token_file": path,
-					"status":           "not_found",
+					"status":            "not_found",
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{

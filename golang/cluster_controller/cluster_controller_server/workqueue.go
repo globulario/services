@@ -110,6 +110,10 @@ func (q *workQueue) Done(key string, err error) {
 	q.mu.Unlock()
 
 	if err == nil {
+		controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
+	}
+
+	if err == nil {
 		q.rl.forget(key)
 	} else {
 		q.EnqueueAfter(key, q.rl.backoff(key))

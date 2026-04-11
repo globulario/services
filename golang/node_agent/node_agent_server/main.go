@@ -247,14 +247,17 @@ func main() {
 func startMetricsServer() {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	// Expose metrics to the cluster (scraped via node IP/Envoy), not just loopback.
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		log.Printf("metrics: listen failed: %v", err)
 		return
 	}
 	metricsPort := ln.Addr().(*net.TCPAddr).Port
-	log.Printf("metrics listening on 127.0.0.1:%d", metricsPort)
+	log.Printf("metrics listening on 0.0.0.0:%d", metricsPort)
+	nodeIP := resolveRoutableIP()
 	writePromTargetFile("node_agent", metricsPort)
+	registerMetricsService("node-agent-metrics", nodeIP, metricsPort)
 	if err := http.Serve(ln, mux); err != nil {
 		log.Printf("metrics server error: %v", err)
 	}
@@ -265,20 +268,59 @@ const promTargetsDir = "/var/lib/globular/prometheus/targets"
 func writePromTargetFile(job string, port int) {
 	// Scrape via loopback but override instance with node IP so multi-node
 	// observability can attribute samples to the correct host.
-	nodeIP, ipErr := config.GetRoutableIP()
-	if ipErr != nil || nodeIP == "" {
-		nodeIP = config.GetRoutableIPv4()
-	}
-	if nodeIP == "" {
-		log.Printf("metrics: cannot determine routable IP for prometheus target file")
-		return
-	}
+	nodeIP := resolveRoutableIP()
 	hostname, _ := os.Hostname()
-	content := fmt.Sprintf("- targets: [\"127.0.0.1:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", port, job, nodeIP, port, hostname)
+	// Use nodeIP in targets so the central Prometheus can scrape over the network.
+	content := fmt.Sprintf("- targets: [\"%s:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", portTarget(nodeIP, port), port, job, nodeIP, port, hostname)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(promTargetsDir, job+".yaml"), []byte(content), 0644)
+}
+
+// resolveRoutableIP returns a non-loopback routable IP, preferring IPv4.
+func resolveRoutableIP() string {
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		nodeIP = config.GetRoutableIPv4()
+	}
+	if strings.HasPrefix(nodeIP, "127.") || strings.HasPrefix(nodeIP, "::1") {
+		nodeIP = config.GetRoutableIPv4()
+	}
+	return nodeIP
+}
+
+// registerMetricsService publishes this node's metrics endpoint into the
+// Globular service registry so xDS can expose it cluster-wide.
+func registerMetricsService(name, ip string, port int) {
+	if ip == "" {
+		log.Printf("metrics: skip registry publish (no routable IP)")
+		return
+	}
+	hostname, _ := os.Hostname()
+	serviceID := fmt.Sprintf("%s-%s", name, hostname)
+	conf := map[string]interface{}{
+		"Id":       serviceID,
+		"Name":     name,
+		"Address":  ip,
+		"Port":     port,
+		"Protocol": "http",
+		"TLS":      false,
+		"State":    "running",
+		"Process":  os.Getpid(),
+		"Version":  "metrics",
+	}
+	if err := config.SaveServiceConfiguration(conf); err != nil {
+		log.Printf("metrics: failed to register service %s: %v", serviceID, err)
+	}
+}
+
+// portTarget returns ip:port with ip fallback to 127.0.0.1 if empty.
+func portTarget(ip string, port int) string {
+	if ip == "" {
+		ip = "127.0.0.1"
+	}
+	return fmt.Sprintf("%s:%d", ip, port)
 }
 
 func loadBootstrapPlan(path string) ([]string, error) {

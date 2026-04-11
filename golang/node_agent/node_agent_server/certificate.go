@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/user"
 	"os/exec"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -81,7 +84,40 @@ func (srv *NodeAgentServer) syncCAKeyFromMinIO() {
 		return
 	}
 
+	ensureCAKeyPermissions(caKeyPath)
+
 	log.Printf("ca-key-sync: pulled ca.key from MinIO to %s (%d bytes)", caKeyPath, len(data))
+}
+
+// ensureCAKeyPermissions makes ca.key readable by the globular group so services
+// running as the globular user can issue client certificates without manual chmod.
+func ensureCAKeyPermissions(path string) {
+	const desiredMode = 0o640
+
+	// Set mode first (best-effort).
+	if err := os.Chmod(path, desiredMode); err != nil {
+		log.Printf("ca-key-sync: chmod %s: %v", path, err)
+	}
+
+	// Try to set group to "globular" while keeping current owner.
+	fi, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return
+	}
+	uid := int(stat.Uid)
+	gid := int(stat.Gid)
+
+	if grp, err := user.LookupGroup("globular"); err == nil {
+		if gidParsed, err := strconv.Atoi(grp.Gid); err == nil && gidParsed != gid {
+			if err := os.Chown(path, uid, gidParsed); err != nil {
+				log.Printf("ca-key-sync: chown %s to :globular failed: %v", path, err)
+			}
+		}
+	}
 }
 
 func (srv *NodeAgentServer) acmeRenewalLoop(ctx context.Context) {

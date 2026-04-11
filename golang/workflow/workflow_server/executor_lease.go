@@ -96,8 +96,19 @@ func (m *executorLeaseManager) ReleaseRun(runID string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	m.srv.session.Query(`DELETE FROM workflow.executor_leases WHERE run_id = ?`, runID).
-		WithContext(ctx).Exec()
+	applied, err := m.srv.session.Query(`
+		DELETE FROM workflow.executor_leases
+		WHERE run_id = ?
+		IF executor_id = ?`,
+		runID, m.executorID,
+	).WithContext(ctx).ScanCAS(nil)
+	if err != nil {
+		slog.Warn("executor lease: release failed", "run_id", runID, "err", err)
+	}
+	if applied == false {
+		slog.Warn("executor lease: release skipped, not owner",
+			"run_id", runID, "executor_id", m.executorID)
+	}
 }
 
 // heartbeatLoop updates the heartbeat_at timestamp every 10 seconds.
@@ -115,14 +126,27 @@ func (m *executorLeaseManager) heartbeatLoop(ctx context.Context, runID string) 
 				continue
 			}
 			now := time.Now().UnixMilli()
-			if err := m.srv.session.Query(`
+			applied, err := m.srv.session.Query(`
 				UPDATE workflow.executor_leases SET heartbeat_at = ?
 				WHERE run_id = ?
 				IF executor_id = ?`,
 				now, runID, m.executorID,
-			).Exec(); err != nil {
+			).ScanCAS(nil)
+			if err != nil {
 				slog.Warn("executor lease: heartbeat failed",
 					"run_id", runID, "err", err)
+				continue
+			}
+			if !applied {
+				slog.Warn("executor lease: ownership lost, stopping heartbeat",
+					"run_id", runID, "executor_id", m.executorID)
+				m.mu.Lock()
+				if cancel, ok := m.ownedRuns[runID]; ok {
+					cancel()
+					delete(m.ownedRuns, runID)
+				}
+				m.mu.Unlock()
+				return
 			}
 		}
 	}

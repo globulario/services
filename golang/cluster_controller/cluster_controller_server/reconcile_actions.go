@@ -489,6 +489,7 @@ func (srv *server) reconcileFinalize(ctx context.Context, aggregate map[string]a
 // reconcileMarkFailed records a top-level reconcile failure.
 func (srv *server) reconcileMarkFailed(ctx context.Context) error {
 	log.Printf("reconcile-workflow: FAILED (top-level)")
+	controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	srv.emitClusterEvent("cluster.reconcile.failed", map[string]interface{}{
 		"severity": "ERROR",
 		"message":  "Cluster reconcile workflow failed",
@@ -581,9 +582,14 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 	correlationID := fmt.Sprintf("reconcile:%d", time.Now().UnixMilli())
 
 	log.Printf("reconcile-workflow: starting cluster.reconcile")
+	// Mark activity immediately so Prom/Doctor can see liveness even if the
+	// workflow fails early.
+	workflowActiveRuns.Inc()
+	controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	startedAt := time.Now()
 	resp, err := srv.executeWorkflowCentralized(ctx, "cluster.reconcile", correlationID, inputs, router)
 	finishedAt := time.Now()
+	defer workflowActiveRuns.Dec()
 
 	// Summary-only persistence for the bounded dashboard view.
 	runID := ""
@@ -596,8 +602,12 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 		outcomeStatus = workflowpb.RunStatus_RUN_STATUS_FAILED
 		failureReason = err.Error()
 		log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
+		// Stamp heartbeat on failure so alerts reset and surfaces show recent activity.
+		controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	} else {
 		log.Printf("reconcile-workflow: cluster.reconcile completed")
+		// Stamp controller heartbeat so Prometheus alerts can see progress.
+		controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	}
 	if srv.workflowRec != nil {
 		srv.workflowRec.RecordOutcome(ctx, "cluster.reconcile", runID,

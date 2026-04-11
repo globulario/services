@@ -20,9 +20,9 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/versionutil"
-	"github.com/globulario/services/golang/repository/repository_client"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -67,8 +67,10 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	loggedMissingEndpoint := false
 
 	for {
+		now := time.Now()
 		if err := srv.reportStatus(ctx); err != nil {
 			srv.consecutiveHeartbeatFail++
+			recordHeartbeatFailure(srv.consecutiveHeartbeatFail)
 			switch {
 			case srv.controllerEndpoint == "":
 				srv.controllerConnState = ConnStateRediscovering
@@ -89,10 +91,12 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			}
 		} else {
 			srv.controllerConnState = ConnStateConnected
-			srv.lastControllerContact = time.Now()
+			srv.lastControllerContact = now
 			srv.consecutiveHeartbeatFail = 0
+			recordHeartbeatSuccess(now)
 			loggedMissingEndpoint = false
 		}
+		setControllerStateGauge(srv.controllerConnState)
 		select {
 		case <-ctx.Done():
 			return
@@ -100,15 +104,22 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			srv.syncInstalledStateToEtcd(ctx)
 			srv.syncEtcHosts(ctx)
 		case <-rediscoverTicker.C:
-			if srv.controllerEndpoint == "" {
-				if ep := srv.rediscoverControllerEndpoint(); ep != "" {
+			shouldRediscover := srv.controllerEndpoint == "" ||
+				srv.controllerConnState == ConnStateDegraded ||
+				srv.controllerConnState == ConnStateUnreachable ||
+				srv.consecutiveHeartbeatFail >= 3
+			if shouldRediscover {
+				if ep := srv.rediscoverControllerEndpoint(); ep != "" && ep != srv.controllerEndpoint {
+					old := srv.controllerEndpoint
 					srv.controllerEndpoint = ep
 					srv.resetControllerClient()
-					// Persist recovered endpoint to state file.
-					if err := srv.saveState(); err != nil {
-						log.Printf("node-agent: failed to persist recovered controller endpoint: %v", err)
+					if srv.state != nil {
+						srv.state.ControllerEndpoint = ep
 					}
-					log.Printf("node-agent: controller endpoint recovered: %s", ep)
+					if err := srv.saveState(); err != nil {
+						log.Printf("node-agent: failed to persist rediscovered controller endpoint: %v", err)
+					}
+					log.Printf("node-agent: controller endpoint refreshed: %s -> %s", old, ep)
 					loggedMissingEndpoint = false
 				}
 			}
@@ -575,6 +586,7 @@ func (srv *NodeAgentServer) sendStatusWithRetry(ctx context.Context, statusReq *
 			return err
 		}
 		// Switch to leader and retry once.
+		old := srv.controllerEndpoint
 		srv.controllerEndpoint = addr
 		if srv.controllerClientOverride != nil {
 			srv.controllerClient = srv.controllerClientOverride(addr)
@@ -584,7 +596,17 @@ func (srv *NodeAgentServer) sendStatusWithRetry(ctx context.Context, statusReq *
 				return err
 			}
 		}
-		return send()
+		if err := send(); err != nil {
+			return err
+		}
+		// Persist the redirected endpoint after a successful retry.
+		if srv.state != nil {
+			srv.state.ControllerEndpoint = srv.controllerEndpoint
+		}
+		if err := srv.saveState(); err != nil {
+			log.Printf("node-agent: failed to persist redirected controller endpoint (%s -> %s): %v", old, srv.controllerEndpoint, err)
+		}
+		return nil
 	}
 	return nil
 }

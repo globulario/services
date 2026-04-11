@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/globulario/services/golang/config"
 )
 
 type clusterControllerConfig struct {
@@ -40,6 +42,16 @@ func loadClusterControllerConfig(path string) (*clusterControllerConfig, error) 
 		if err := json.Unmarshal(b, cfg); err != nil {
 			return nil, err
 		}
+	}
+
+	// Fill cluster_domain from etcd/global config if missing.
+	if cfg.ClusterDomain == "" {
+		if domain, derr := config.GetDomain(); derr == nil && domain != "" {
+			cfg.ClusterDomain = domain
+		}
+	}
+	if cfg.ClusterDomain == "" {
+		return nil, errors.New("cluster_domain required (not found in config or etcd)")
 	}
 
 	applyEnvOverrides(cfg)

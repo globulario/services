@@ -3,8 +3,8 @@ package rules
 import (
 	"fmt"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // --- workflow.blocked_runs ------------------------------------------------
@@ -72,4 +72,3 @@ func (w workflowBlockedRuns) Evaluate(snap *collector.Snapshot, cfg Config) []Fi
 
 	return findings
 }
-

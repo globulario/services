@@ -12,6 +12,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -67,20 +68,27 @@ func serviceNameFromKey(key string) string {
 //
 // Three distinct gates control the flow of reconcile work:
 //
-//   1. Admission gate — convergence filter + staggered enqueue suppress work
-//      at the source. This is the primary defense against restart storms.
-//      "Too much work admitted too early" was the original disease.
+//  1. Admission gate — convergence filter + staggered enqueue suppress work
+//     at the source. This is the primary defense against restart storms.
+//     "Too much work admitted too early" was the original disease.
 //
-//   2. Resolve gate — resolveSem (cap 2) limits concurrent repository calls
-//      so the PENDING→RESOLVED transition doesn't saturate the repo endpoint.
+//  2. Resolve gate — resolveSem (cap 2) limits concurrent repository calls
+//     so the PENDING→RESOLVED transition doesn't saturate the repo endpoint.
 //
-//   3. Execution gate — workflowSem (cap 3) + inflightWorkflows map limit
-//      concurrent workflow dispatches to prevent systemd overload on nodes.
+//  3. Execution gate — workflowSem (cap 3) + inflightWorkflows map limit
+//     concurrent workflow dispatches to prevent systemd overload on nodes.
 func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	if workers <= 0 {
 		workers = 2
 	}
 	queue := newWorkQueue(128)
+
+	// Install a safe default router so workflow callbacks don't fail with
+	// "no handler" after controller restarts. This router uses the live
+	// reconcile handlers; per-run routers still take precedence.
+	defaultRouter := engine.NewRouter()
+	engine.RegisterReconcileControllerActions(defaultRouter, srv.buildReconcileControllerConfig())
+	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then
 	// filter out already-converged services and enqueue in small batches.
@@ -425,15 +433,15 @@ func (srv *server) startupAutoImport(ctx context.Context, queue *workQueue) {
 //
 // Predicates are split into two tiers:
 //
-//   Hard (no timeout — must pass, or reconcile never starts):
-//   - Controller is leader
-//   - Resource store is functional
+//	Hard (no timeout — must pass, or reconcile never starts):
+//	- Controller is leader
+//	- Resource store is functional
 //
-//   Soft (bounded timeout — 60s, then proceed with warning):
-//   - At least one node has reported via heartbeat
-//   - Installed-state snapshot is readable from etcd
-//   - Workflow service reachable
-//   - Repository resolution path reachable
+//	Soft (bounded timeout — 60s, then proceed with warning):
+//	- At least one node has reported via heartbeat
+//	- Installed-state snapshot is readable from etcd
+//	- Workflow service reachable
+//	- Repository resolution path reachable
 //
 // The timeout exists for cold starts where no nodes exist yet. But leadership
 // and resource store availability are absolute prerequisites — without them,

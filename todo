@@ -1,48 +1,26 @@
-Yes. That plan is good, and better than expected because it reuses existing groundwork instead of building a parallel alerting path. The fact that you already have globular_alerts.yml, monitoring service endpoints for AlertManagers() and Rules(), and MCP tooling means this is no longer “invent alerting,” it is “finish the plumbing.”
+I inspected the server code. `/health` and `/mcp` are registered on the same `http.ServeMux` and served by the same `http.Server` on the same TCP listener.
 
-What I like
-It treats Alertmanager as infrastructure, not an app bolt-on. Good.
-It wires Prometheus the standard way with alerting: and rule_files:. Good.
-It reuses the existing rules file instead of inventing a second rules source. Very good.
-It puts Alertmanager into Day-0, which is the right place if leader liveness, stale heartbeat, and scrape failures are now considered control-plane risks. Good.
-Two things I would tighten before implementation
-1. Do not include cluster gossip/HA on Day-0 unless you are actually deploying Alertmanager HA
+Therefore, if `https://10.0.0.63:10250/health` reaches the Go MCP process, then `https://10.0.0.63:10250/mcp` should also reach the same process. It might return an HTTP error, but it should not fail with raw TCP connection refused.
 
-The note about port 9094 for gossip is only relevant if you are really configuring Alertmanager in clustered HA mode. If Day-0 is just:
+Conclusion:
 
-one Alertmanager instance per node, or
-a simple local instance without peer clustering,
+* this is likely not an application handler bug in `transport_http.go`
+* this is likely an upstream routing / exposure problem
 
-then dragging in gossip config now is extra entropy.
+Please diagnose outside the MCP handler:
 
-So I’d tell Claude:
+1. verify whether `10.0.0.63:10250` is terminating TLS directly in the MCP server or in a proxy
+2. verify whether `/mcp` is routed to the same backend as `/health`
+3. verify whether a reverse proxy / Envoy / firewall exposes only `/health`
+4. verify whether the MCP server is actually listening with TLS on `0.0.0.0:10250` and not just localhost
+5. compare access logs: if failed `/mcp` requests do not appear in the MCP server logs, the requests are not reaching the server
 
-Day-0 v1: focus on single-instance operational Alertmanager per intended node
-only add Alertmanager HA clustering if you are explicitly wiring peer discovery and cluster addresses
+Important reasoning:
 
-Otherwise 9094 is decorative plumbing.
+* path-specific TCP refusal is not consistent with a single Go `http.Server`
+* if `/health` works and `/mcp` is refused, then the refusal is happening before the request reaches the mux
 
-2. Be explicit about where the rules file lives at runtime
+Likely fix:
 
-You mention embedding baseline rules in the Prometheus spec and also reusing golang/monitoring/prometheus_rules/globular_alerts.yml. That’s good, but Claude must make one source of truth clear:
-
-either the rules file is copied/rendered into the Prometheus runtime rules directory
-or it is embedded/generated from the service spec
-
-But it should not become:
-
-one copy in the repo
-one hand-rendered copy in the package
-one mystery fallback copy in bootstrap
-
-So require:
-
-single source of truth in repo
-deterministic render/copy into runtime rules directory during install/config generation
-My verdict
-
-Approve, with those two clarifications.
-
-If you want a one-line response to Claude, use this:
-
-Approved. Implement it, but keep Day-0 Alertmanager non-HA unless you are explicitly wiring clustered peer discovery, and make the Prometheus rules source-of-truth unambiguous so runtime rules come from a single canonical file.
+* expose `/mcp` on the same HTTPS listener and route as `/health`
+* or provide the correct host/port where the MCP server itself is actually listening

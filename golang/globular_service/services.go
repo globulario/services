@@ -789,13 +789,15 @@ func startMetricsServer(s Service) {
 		return
 	}
 
-	// Pre-bind so we detect conflicts immediately instead of in a goroutine.
-	addr := "127.0.0.1:" + strconv.Itoa(port)
+    // Pre-bind so we detect conflicts immediately instead of in a goroutine.
+    // Bind on all interfaces to allow service-mesh sidecars and remote scrapers
+    // to reach /metrics without host-network port forwarding.
+    addr := "0.0.0.0:" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		if isAddrInUse(err) {
-			// Port is taken — allocate a free one.
-			ln, err = net.Listen("tcp", "127.0.0.1:0")
+            // Port is taken — allocate a free one on all interfaces.
+            ln, err = net.Listen("tcp", "0.0.0.0:0")
 			if err != nil {
 				slog.Warn("metrics: cannot allocate port", "service", s.GetName(), "err", err)
 				return
@@ -824,8 +826,8 @@ func startMetricsServer(s Service) {
 		}
 	}()
 
-	// Register with Prometheus file-based service discovery.
-	writePromTargetFile(s.GetName(), port)
+    // Register with Prometheus file-based service discovery.
+    writePromTargetFile(s.GetName(), port)
 }
 
 // promTargetsDir is the directory where Prometheus file_sd target files are written.
@@ -841,24 +843,21 @@ func writePromTargetFile(serviceName string, port int) {
 	}
 	job = strings.ToLower(job)
 
-	// The metrics server binds on 127.0.0.1 (keeps /metrics — and pprof on
-	// some services — off the LAN), so we scrape via loopback. But we
-	// override the `instance` label with the node's routable IP so that
-	// multi-node observability can distinguish samples per host. Without
-	// this, every node's Prometheus records instance="127.0.0.1:<port>"
-	// and samples from different nodes collide when federated.
-	nodeIP, ipErr := config.GetRoutableIP()
-	if ipErr != nil || nodeIP == "" {
-		nodeIP = "127.0.0.1"
-	}
-	hostname, _ := os.Hostname()
+    // Metrics now bind on 0.0.0.0, so advertise the routable node IP as target
+    // to keep Prometheus scraping over the network (or via service mesh) with
+    // distinct per-node instances.
+    nodeIP, ipErr := config.GetRoutableIP()
+    if ipErr != nil || nodeIP == "" {
+        nodeIP = "127.0.0.1"
+    }
+    hostname, _ := os.Hostname()
 
-	content := fmt.Sprintf(`- targets: ["127.0.0.1:%d"]
+    content := fmt.Sprintf(`- targets: ["%s:%d"]
   labels:
     job: %s
     instance: %s:%d
     node: %s
-`, port, job, nodeIP, port, hostname)
+`, nodeIP, port, job, nodeIP, port, hostname)
 
 	path := filepath.Join(promTargetsDir, job+".yaml")
 

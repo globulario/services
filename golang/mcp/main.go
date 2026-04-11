@@ -48,7 +48,7 @@ func main() {
 		addr := cfg.HTTPListenAddr
 		if addr == "" {
 			// Resolve port from etcd; bind to all interfaces.
-			port := 10050
+			port := 10250
 			if sc, err := config.GetServiceConfigurationById("mcp.McpService"); err == nil {
 				if p, ok := sc["Port"].(float64); ok && p > 0 {
 					port = int(p)

@@ -316,6 +316,7 @@ func loadControllerTokenUncached() string {
 	}
 	// 2. Scan tokens directory for any valid token.
 	dir := "/var/lib/globular/tokens"
+	_ = os.MkdirAll(dir, 0750) // ensure directory exists for later writes
 	if entries, err := os.ReadDir(dir); err == nil {
 		for _, e := range entries {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), "_token") {

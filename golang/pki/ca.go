@@ -3,10 +3,10 @@ package pki
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"crypto/elliptic"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -18,6 +18,7 @@ import (
 // CA file paths
 func caKeyPath(dir string) string { return filepath.Join(dir, "ca.key") }
 func caCrtPath(dir string) string { return filepath.Join(dir, "ca.crt") }
+func caPemPath(dir string) string { return filepath.Join(dir, "ca.pem") }
 
 // MigrateCAIfNeeded checks for CA files in legacy locations and migrates them to canonical paths.
 // H2 Hardening: Ensures existing CAs are moved from work/ directories to /var/lib/globular/pki/
@@ -86,7 +87,17 @@ func (m *FileManager) ensureOrLoadLocalCA(dir, subjectCN string, days int) (keyF
 	}
 
 	kf, cf := caKeyPath(dir), caCrtPath(dir)
+
+	// Try to hydrate CA from etcd (source of truth) if present.
+	if err := m.syncCAFromEtcd(dir); err != nil && m.Logger != nil {
+		m.Logger.Warn("pki: failed to sync CA from etcd; will fall back to local files", "err", err)
+	}
+
+	// If canonical files already exist after sync, we are done.
 	if exists(kf) && exists(cf) {
+		if _, _, err := readPEMBlock(cf); err != nil {
+			return "", "", fmt.Errorf("invalid CA cert: %w", err)
+		}
 		return kf, cf, nil
 	}
 
@@ -129,9 +140,14 @@ func (m *FileManager) ensureOrLoadLocalCA(dir, subjectCN string, days int) (keyF
 	}
 
 	// H2 Hardening: Also create ca.pem for compatibility (bundle format)
-	bundlePath := filepath.Join(dir, "ca.pem")
+	bundlePath := caPemPath(dir)
 	if err := writePEMFile(bundlePath, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444); err != nil {
 		return "", "", err
+	}
+
+	// Publish freshly created CA to etcd if empty there.
+	if err := m.publishCALocalIfEtcdEmpty(cf); err != nil && m.Logger != nil {
+		m.Logger.Warn("pki: failed to publish CA to etcd", "err", err)
 	}
 
 	return kf, cf, nil
@@ -149,7 +165,6 @@ func genECDSAKeyPKCS8() (crypto.Signer, []byte, error) {
 	}
 	return priv, pkcs8, nil
 }
-
 
 func writePEMFile(path string, block *pem.Block, mode os.FileMode) error {
 	return os.WriteFile(path, pem.EncodeToMemory(block), mode)

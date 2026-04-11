@@ -402,6 +402,7 @@ func main() {
 
 // startPprofServer starts the pprof + Prometheus metrics HTTP server.
 func startPprofServer() {
+	const metricsPort = 40377
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -410,11 +411,16 @@ func startPprofServer() {
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// Bind to :0 so we get a free port, then register with Prometheus.
-	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	// Prefer a fixed port so Prometheus targets stay stable.
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", metricsPort))
 	if err != nil {
-		logger.Error("metrics/pprof: listen failed", "error", err)
-		return
+		// Fallback to :0 if the preferred port is taken.
+		logger.Warn("metrics/pprof: preferred port unavailable, falling back to random", "port", metricsPort, "error", err)
+		ln, err = net.Listen("tcp", "0.0.0.0:0")
+		if err != nil {
+			logger.Error("metrics/pprof: listen failed", "error", err)
+			return
+		}
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	logger.Info("metrics/pprof listening", "addr", ln.Addr().String())
@@ -432,6 +438,14 @@ func writePromTargetFile(job string, port int) {
 	nodeIP, ipErr := config.GetRoutableIP()
 	if ipErr != nil || nodeIP == "" {
 		return // cannot write target file without routable IP
+	}
+	if strings.HasPrefix(nodeIP, "127.") || strings.HasPrefix(nodeIP, "::1") {
+		// Fallback to IPv4 if primary resolution returned loopback.
+		nodeIP = config.GetRoutableIPv4()
+	}
+	if nodeIP == "" || strings.HasPrefix(nodeIP, "127.") || strings.HasPrefix(nodeIP, "::1") {
+		logger.Warn("metrics/pprof: no routable IP found for target file; skipping")
+		return
 	}
 	hostname, _ := os.Hostname()
 	content := fmt.Sprintf("- targets: [\"%s:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", nodeIP, port, job, nodeIP, port, hostname)

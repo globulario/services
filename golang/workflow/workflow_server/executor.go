@@ -79,6 +79,12 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	defer dispatcher.close()
 
 	router := engine.NewRouter()
+	// Safety net: advance_infra_joins is a no-op when invoked on the workflow
+	// service (should be handled by the controller). This prevents "no handler"
+	// failures if the controller callback router is missing after a restart.
+	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.advance_infra_joins", func(ctx context.Context, _ engine.ActionRequest) (*engine.ActionResult, error) {
+		return &engine.ActionResult{OK: true, Message: "noop advance_infra_joins (workflow service)"}, nil
+	})
 
 	// Register workflow-service as a local actor (self-dispatch for child
 	// workflows and drift tracking). Uses a no-op config for now — these
@@ -105,7 +111,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		srv:       srv,
 		clusterID: req.ClusterId,
 		runID:     runID,
-		seqMu:    sync.Mutex{},
+		seqMu:     sync.Mutex{},
 		seq:       0,
 	}
 
@@ -114,6 +120,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		RunID:  runID, // match the executor's run ID so actor callbacks can find the registered Router
 		OnStepDone: func(run *engine.Run, step *engine.StepState) {
 			recorder.onStepDone(run, step)
+			srv.metricsStep(time.Now())
 			// MC-1: Write receipt if step has a receipt_key and succeeded.
 			if step.Status == engine.StepSucceeded && cw != nil {
 				if cs, ok := cw.Steps[step.ID]; ok && cs.Execution != nil && cs.Execution.ReceiptKey != "" {
@@ -233,6 +240,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	logger.Info("executor: starting workflow",
 		"workflow", req.WorkflowName, "run_id", runID,
 		"actors", fmt.Sprintf("%v", mapKeys(req.ActorEndpoints)))
+	srv.metricsRunStart(runID, time.Now())
 
 	run, execErr := eng.Execute(ctx, def, inputs)
 
@@ -262,6 +270,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	logger.Info("executor: workflow finished",
 		"workflow", req.WorkflowName, "run_id", runID,
 		"status", status.String())
+	srv.metricsRunFinish(runID, status, time.Now())
 
 	// ── 8. Build response ────────────────────────────────────────────────
 	resp := &workflowpb.ExecuteWorkflowResponse{

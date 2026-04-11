@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/globulario/services/golang/config"
 )
 
 // MCPConfig is the explicit configuration for the Globular MCP server.
@@ -37,9 +39,13 @@ type MCPConfig struct {
 	RedactFields []string `json:"redact_fields"` // additional sensitive field names
 
 	// HTTP transport (cluster-facing mode)
-	HTTPListenAddr   string   `json:"http_listen_addr"`   // e.g. ":10050", empty = disabled
-	HTTPReadTimeout  Duration `json:"http_read_timeout"`  // default 30s
-	HTTPWriteTimeout Duration `json:"http_write_timeout"` // default 60s
+	HTTPListenAddr    string   `json:"http_listen_addr"`    // e.g. ":10250", empty = disabled
+	HTTPReadTimeout   Duration `json:"http_read_timeout"`   // default 30s
+	HTTPWriteTimeout  Duration `json:"http_write_timeout"`  // default 60s
+	HTTPUseTLS        bool     `json:"http_use_tls"`        // serve HTTPS if true
+	HTTPTLSCertFile   string   `json:"http_tls_cert_file"`  // path to TLS cert (PEM)
+	HTTPTLSKeyFile    string   `json:"http_tls_key_file"`   // path to TLS key (PEM)
+	HTTPAdvertiseHost string   `json:"http_advertise_host"` // optional host to publish in .mcp.json
 
 	// Audit
 	AuditLog     bool   `json:"audit_log"`      // true by default
@@ -101,6 +107,10 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // defaultConfigPath is the canonical location for the MCP config file.
 const defaultConfigPath = "/var/lib/globular/mcp/config.json"
+var (
+	serviceCertPath = "/var/lib/globular/pki/issued/services/service.crt"
+	serviceKeyPath  = "/var/lib/globular/pki/issued/services/service.key"
+)
 
 func defaultConfig() *MCPConfig {
 	return &MCPConfig{
@@ -150,46 +160,46 @@ func defaultConfig() *MCPConfig {
 		HTTPListenAddr:            ":10250",
 		HTTPReadTimeout:           Duration{30 * time.Second},
 		HTTPWriteTimeout:          Duration{60 * time.Second},
+		HTTPUseTLS:                true,
+		HTTPTLSCertFile:           serviceCertPath,
+		HTTPTLSKeyFile:            serviceKeyPath,
+		HTTPAdvertiseHost:         "",
 		AuditLog:                  true,
 		AuditLogPath:              "", // stderr
 	}
 }
 
-// loadConfig loads config from file, env var, or defaults.
-// Search order: $GLOBULAR_MCP_CONFIG, /var/lib/globular/mcp/config.json, ~/.config/globular/mcp.json, defaults.
+// loadConfig loads config from the canonical path. If missing, it writes
+// defaults. If the file exists, it is never overwritten (no auto-rewrite).
 func loadConfig() *MCPConfig {
 	cfg := defaultConfig()
 
-	paths := []string{
-		"/var/lib/globular/mcp/config.json",
-		filepath.Join(os.Getenv("HOME"), ".config/globular/mcp.json"),
-	}
-
-	for _, p := range paths {
-		if p == "" {
-			continue
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		if err := json.Unmarshal(data, cfg); err != nil {
-			log.Printf("mcp: warning: failed to parse config %s: %v", p, err)
-			continue
-		}
-		log.Printf("mcp: loaded config from %s", p)
-
-		// Apply defaults for new tool groups that may be missing from
-		// older config files. When a bool field is absent from the JSON
-		// object, Go decodes it as false — so we check the raw JSON
-		// and restore the default for any missing field.
-		applyToolGroupDefaults(data, cfg)
-
+	data, err := os.ReadFile(defaultConfigPath)
+	if err != nil {
+		log.Println("mcp: no config file found, writing defaults to " + defaultConfigPath)
+		// Enable TLS by default when certs are present.
+		_ = maybeEnableTLSFromServiceCert(cfg)
+		writeConfig(defaultConfigPath, cfg)
 		return cfg
 	}
 
-	log.Println("mcp: no config file found, writing defaults to " + defaultConfigPath)
-	writeDefaultConfig(cfg)
+	if err := json.Unmarshal(data, cfg); err != nil {
+		log.Printf("mcp: warning: failed to parse config %s: %v", defaultConfigPath, err)
+		return cfg
+	}
+
+	log.Printf("mcp: loaded config from %s", defaultConfigPath)
+
+	// Apply defaults for new tool groups that may be missing from
+	// older config files. When a bool field is absent from the JSON
+	// object, Go decodes it as false — so we check the raw JSON
+	// and restore the default for any missing field. Do NOT rewrite
+	// the file; keep runtime-only changes in memory.
+	applyToolGroupDefaults(data, cfg)
+
+	// Enforce TLS at runtime if certs are present, but do not rewrite config.
+	_ = maybeEnableTLSFromServiceCert(cfg)
+
 	return cfg
 }
 
@@ -226,24 +236,55 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 
 	// Re-write config with the new defaults so next restart picks them up.
 	if updated {
-		writeDefaultConfig(cfg)
+		writeConfig(defaultConfigPath, cfg)
 	}
 }
 
-// writeDefaultConfig persists the default config so operators can discover and
-// edit it. Errors are non-fatal — the server runs fine with in-memory defaults.
-func writeDefaultConfig(cfg *MCPConfig) {
-	dir := filepath.Dir(defaultConfigPath)
+func writeConfig(path string, cfg *MCPConfig) {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		log.Printf("mcp: cannot create config dir %s: %v", dir, err)
 		return
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		log.Printf("mcp: cannot marshal default config: %v", err)
+		log.Printf("mcp: cannot marshal config: %v", err)
 		return
 	}
-	if err := os.WriteFile(defaultConfigPath, data, 0640); err != nil {
-		log.Printf("mcp: cannot write default config to %s: %v (running with in-memory defaults)", defaultConfigPath, err)
+	if err := os.WriteFile(path, data, 0640); err != nil {
+		log.Printf("mcp: cannot write config to %s: %v", path, err)
 	}
+}
+
+// maybeEnableTLSFromServiceCert enables HTTPS automatically when the standard
+// service certificate exists in /var/lib/globular/pki/issued/services.
+// It mutates cfg in-place and returns true if any field changed.
+func maybeEnableTLSFromServiceCert(cfg *MCPConfig) bool {
+	if _, err := os.Stat(serviceCertPath); err != nil {
+		return false
+	}
+	if _, err := os.Stat(serviceKeyPath); err != nil {
+		return false
+	}
+
+	changed := false
+
+	if !cfg.HTTPUseTLS {
+		cfg.HTTPUseTLS = true
+		changed = true
+	}
+	if cfg.HTTPTLSCertFile != serviceCertPath {
+		cfg.HTTPTLSCertFile = serviceCertPath
+		changed = true
+	}
+	if cfg.HTTPTLSKeyFile != serviceKeyPath {
+		cfg.HTTPTLSKeyFile = serviceKeyPath
+		changed = true
+	}
+	if cfg.HTTPAdvertiseHost == "" {
+		cfg.HTTPAdvertiseHost = config.GetRoutableIPv4()
+		changed = true
+	}
+
+	return changed
 }

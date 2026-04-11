@@ -29,20 +29,24 @@ type Snapshot struct {
 	Inventories map[string]*node_agentpb.Inventory          // keyed by NodeId
 
 	// Workflow convergence telemetry — see WI17/WI18.
-	StepOutcomes       []*workflowpb.WorkflowStepOutcome
-	WorkflowSummaries  []*workflowpb.WorkflowRunSummary
-	DriftUnresolved    []*workflowpb.DriftUnresolved
-	BlockedRuns        []*workflowpb.WorkflowRun // MC-4: runs paused for operator approval
+	StepOutcomes      []*workflowpb.WorkflowStepOutcome
+	WorkflowSummaries []*workflowpb.WorkflowRunSummary
+	DriftUnresolved   []*workflowpb.DriftUnresolved
+	BlockedRuns       []*workflowpb.WorkflowRun // MC-4: runs paused for operator approval
+
+	// Prometheus-derived control-plane signals (optional)
+	PromMetrics map[string]float64 // small, fixed key set
+	PromTS      time.Time          // scrape timestamp
 
 	mu sync.Mutex
 }
 
 func newSnapshot(id string) *Snapshot {
 	return &Snapshot{
-		SnapshotID:   id,
-		GeneratedAt:  time.Now(),
-		NodeHealths:  make(map[string]*cluster_controllerpb.NodeHealth),
-		Inventories:  make(map[string]*node_agentpb.Inventory),
+		SnapshotID:  id,
+		GeneratedAt: time.Now(),
+		NodeHealths: make(map[string]*cluster_controllerpb.NodeHealth),
+		Inventories: make(map[string]*node_agentpb.Inventory),
 	}
 }
 

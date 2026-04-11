@@ -1307,6 +1307,10 @@ globular pkg verify --file service.myservice_1.0.0_linux_amd64.tgz
 
 **Purpose**: Upload a package to the Globular repository service for distribution.
 
+**Important**: The repository only accepts packaged `.tgz` artifacts. There is no
+CLI command to upload a raw binary by itself. Even "binary-only" deploys still
+wrap the binary into a `.tgz`; they just skip regenerating specs/config.
+
 ```bash
 globular pkg publish \
   --file <package.tgz> \
@@ -1341,6 +1345,10 @@ globular pkg publish \
 - `--dry-run`: Validate without uploading
 
 **Authentication**: Uses `--token` global flag or `GLOBULAR_TOKEN` environment variable.
+
+**Binary-only deploys**: Use `globular deploy <service>` when only the binary
+changed; it will rebuild a `.tgz` and publish it automatically. There is no raw
+binary upload path.
 
 ---
 

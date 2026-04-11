@@ -80,3 +80,4 @@
 2026-04-09T02:02:06Z | cluster_controller | v0.0.2+14 | bootstrap handoff detection, build 14
 2026-04-09T03:51:23Z | event | v0.0.2+3 | client circuit breaker + log rate-limiting
 2026-04-09T04:44:22Z | cluster_controller | v0.0.2+15 | fix describe Id with build number
+2026-04-10T19:55:26Z | ai_memory | v0.0.2+2 | metrics bind 0.0.0.0

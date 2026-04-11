@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // ── Service registration gap detection ──────────────────────────────────────
@@ -82,10 +82,10 @@ func (serviceRegistrationGap) Evaluate(snap *collector.Snapshot, cfg Config) []F
 					hostname, nodeID, installedCount, expectedCount),
 				Evidence: []*cluster_doctorpb.Evidence{
 					kvEvidence("cluster_doctor", "service_registration_gap", map[string]string{
-						"node_id":          nodeID,
-						"installed_count":  fmt.Sprintf("%d", installedCount),
-						"expected_count":   fmt.Sprintf("%d", expectedCount),
-						"desired_infra":    desiredInfra,
+						"node_id":           nodeID,
+						"installed_count":   fmt.Sprintf("%d", installedCount),
+						"expected_count":    fmt.Sprintf("%d", expectedCount),
+						"desired_infra":     desiredInfra,
 						"desired_workloads": desiredWorkloads,
 					}),
 				},

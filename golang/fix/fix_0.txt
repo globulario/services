@@ -1,0 +1,921 @@
+Yep. Here’s the patch-ready checklist. I’d treat the first four as the juiciest next targets.
+
+1. Persist redirected controller endpoint
+
+File: node_agent_server/heartbeat.go
+Function: sendStatusWithRetry()
+
+Observed pattern
+On leader redirect, srv.controllerEndpoint = addr is updated in memory, but not persisted.
+
+Failure mode
+
+node-agent gets redirected correctly
+process restarts later
+comes back with stale endpoint from state
+heartbeat degradation returns like a boomerang
+
+Why it matches today’s bug family
+This is classic:
+
+state changed, but durable truth did not
+
+Minimal safe fix
+After setting srv.controllerEndpoint = addr, also:
+
+update srv.state.ControllerEndpoint if that is the persisted field
+call saveState()
+log if persist fails
+
+Patch shape
+
+srv.controllerEndpoint = addr
+if srv.state != nil {
+    srv.state.ControllerEndpoint = addr
+}
+if err := srv.saveState(); err != nil {
+    log.Printf("node-agent: failed to persist redirected controller endpoint: %v", err)
+}
+
+Extra hardening
+Only persist after the retry succeeds, or persist immediately and accept that it may record a leader that dies moments later. I would lean toward:
+
+persist after successful retry if you want “known-good”
+persist immediately if you want faster convergence
+
+For your system, persist after successful retry is cleaner.
+
+2. Rediscover even when endpoint is non-empty but unhealthy
+
+File: node_agent_server/heartbeat.go
+Functions: heartbeatLoop(), sendStatusWithRetry()
+
+Observed pattern
+Periodic rediscovery only runs when:
+
+if srv.controllerEndpoint == ""
+
+So stale-but-non-empty endpoints can linger forever unless the server returns a redirect with leader_addr=.
+
+Failure mode
+
+leader changes
+old endpoint still resolves but is wrong / degraded / blackholed
+node-agent keeps retrying stale address
+rediscovery never runs because endpoint is not empty
+
+Why it matches today’s bug family
+This is:
+
+stale authority cached too long
+
+Minimal safe fix
+Trigger rediscovery when either:
+
+endpoint is empty, or
+connection state is Degraded / Unreachable, or
+consecutive heartbeat failures exceed threshold
+
+Patch shape
+
+case <-rediscoverTicker.C:
+    shouldRediscover := srv.controllerEndpoint == "" ||
+        srv.controllerConnState == ConnStateDegraded ||
+        srv.controllerConnState == ConnStateUnreachable ||
+        srv.consecutiveHeartbeatFail >= 3
+
+    if shouldRediscover {
+        if ep := srv.rediscoverControllerEndpoint(); ep != "" && ep != srv.controllerEndpoint {
+            old := srv.controllerEndpoint
+            srv.controllerEndpoint = ep
+            srv.resetControllerClient()
+            if srv.state != nil {
+                srv.state.ControllerEndpoint = ep
+            }
+            if err := srv.saveState(); err != nil {
+                log.Printf("node-agent: failed to persist rediscovered controller endpoint: %v", err)
+            }
+            log.Printf("node-agent: controller endpoint refreshed: %s -> %s", old, ep)
+            loggedMissingEndpoint = false
+        }
+    }
+
+Extra hardening
+Add jitter so five nodes do not all rediscover in lockstep.
+
+3. Lease heartbeat ignores whether the LWT was actually applied
+
+File: workflow_server/executor_lease.go
+Function: heartbeatLoop()
+
+Observed pattern
+This update is conditional:
+
+UPDATE workflow.executor_leases
+SET heartbeat_at = ?
+WHERE run_id = ?
+IF executor_id = ?
+
+But code uses .Exec() and checks only transport/query error, not whether the conditional update applied.
+
+Failure mode
+
+executor loses lease ownership
+heartbeat loop continues happily
+owner thinks it still owns the run
+possible double execution / resume weirdness / orphan scanner confusion
+
+Why it matches today’s bug family
+This is a distributed classic:
+
+compare-and-set attempted, but applied-result ignored
+
+Minimal safe fix
+Use ScanCAS(...) and stop heartbeating if applied == false.
+
+Patch shape
+
+applied, err := m.srv.session.Query(`
+    UPDATE workflow.executor_leases SET heartbeat_at = ?
+    WHERE run_id = ?
+    IF executor_id = ?`,
+    now, runID, m.executorID,
+).WithContext(ctx).ScanCAS(nil)
+
+if err != nil {
+    slog.Warn("executor lease: heartbeat failed", "run_id", runID, "err", err)
+    continue
+}
+if !applied {
+    slog.Warn("executor lease: ownership lost, stopping heartbeat",
+        "run_id", runID, "executor_id", m.executorID)
+    m.mu.Lock()
+    if cancel, ok := m.ownedRuns[runID]; ok {
+        cancel()
+        delete(m.ownedRuns, runID)
+    }
+    m.mu.Unlock()
+    return
+}
+
+Extra hardening
+Emit a metric and structured event:
+
+workflow.executor_lease_lost
+
+This one is high priority.
+
+4. Unknown-node auto-registration assigns privileged profiles
+
+File: cluster_controller/handlers_status.go
+Function: ReportNodeStatus()
+
+Observed pattern
+Unknown nodes are auto-created with:
+
+Profiles: []string{"control-plane", "gateway"}
+
+Failure mode
+After restore/wipe:
+
+worker node heartbeats
+gets reintroduced as control-plane/gateway
+desired-state filtering, successor selection, health evaluation, routing assumptions get polluted
+
+Why it matches today’s bug family
+This is:
+
+recovery fallback injects fake truth
+
+Minimal safe fix
+Do not invent privileged profiles. Use one of:
+
+empty profiles
+[]string{"unknown"}
+recovered profiles from signed node identity if available
+
+Patch shape
+
+Profiles: []string{},
+Status:   "recovering",
+
+or
+
+Profiles: []string{"unknown"},
+Status:   "recovering",
+
+Extra hardening
+Emit:
+
+bootstrap_handoff_required
+or node_reprojection_required
+
+until profiles are reconciled from a real source of truth.
+
+This is more model-level than code-level, but it can absolutely create phantom bugs later.
+
+5. Auto-register persist error is ignored
+
+File: cluster_controller/handlers_status.go
+Function: ReportNodeStatus()
+
+Observed pattern
+Auto-register path calls:
+
+srv.persistStateLocked(true)
+
+without checking the error.
+
+Failure mode
+
+controller memory thinks node exists
+etcd/state file may not
+restart or leader failover loses it
+weird “it existed five seconds ago” behavior
+
+Minimal safe fix
+Check and return internal error if persist fails.
+
+Patch shape
+
+if err := srv.persistStateLocked(true); err != nil {
+    return nil, status.Errorf(codes.Internal, "persist auto-registered node: %v", err)
+}
+
+Priority
+Medium-high. Very same species as your heartbeat persistence bug.
+
+6. “Safe successor” checks unit presence, not actual controller health
+
+File: cluster_controller/leader_liveness.go
+Functions: findLivenessSafeSuccessor(), hasControllerUnit()
+
+Observed pattern
+Successor predicate currently accepts:
+
+fresh heartbeat
+not unreachable/blocked
+controller unit present
+
+But “unit present” is weaker than “controller actually healthy.”
+
+Failure mode
+A node can qualify as successor even if:
+
+controller binary installed
+but service dead, wedged, or crashlooping
+
+Minimal safe fix
+Prefer:
+
+controller unit active/running in node inventory
+or last-reported controller health bit
+or successful control-plane capability bit
+
+Patch direction
+Replace hasControllerUnit(node) with something like:
+
+hasHealthyControllerUnit(node)
+
+and require unit state active or running.
+
+Priority
+Medium. Not necessarily wrong, but the function name currently overpromises.
+
+7. Step receipt identity may be too weak
+
+File: workflow_server/step_receipts.go
+Functions: schema, readStepReceipt()
+
+Observed pattern
+Table primary key is:
+
+PRIMARY KEY (run_id, step_id)
+
+but receipt_key is stored as data only, not part of lookup identity.
+
+Failure mode
+If step_id remains stable while receipt semantics change across retries/resume/compiler evolution, old receipts may be reused too broadly.
+
+Minimal safe fix options
+Option A, conservative:
+
+keep schema
+assert step_id is immutable semantic identity within a run
+
+Option B, safer:
+
+include receipt_key in lookup/write identity
+
+Example:
+
+PRIMARY KEY (run_id, step_id, receipt_key)
+
+Priority
+Medium-low unless your engine may reuse step IDs with evolving receipt meanings.
+
+My recommended order
+Do now
+Persist redirected controller endpoint
+Rediscover on unhealthy non-empty endpoints
+Fix executor lease heartbeat to check CAS applied
+Check persist error in unknown-node auto-register
+Do next
+Remove fake control-plane,gateway defaults
+Tighten successor health predicate
+Watch
+Receipt identity model
+Tiny doctrine hiding underneath
+
+These all rhyme with the same drumbeat:
+
+Never trust memory alone
+Never trust cached authority too long
+Never trust conditional writes unless you checked “applied”
+Never invent privileged truth during recovery
+Never let remediation act on weak predicates
+
+
+Yep. I found a few more that fit the same bug families. These are hypotheses from code review, not confirmed incidents, but several are strong enough that I’d put them on the shortlist.
+
+High-confidence candidates
+1. Node-agent can keep using an old gRPC client after controller endpoint changes
+
+Files
+
+node_agent_server/grpc_handlers.go
+node_agent_server/operation_tracker.go
+
+Pattern
+You update:
+
+srv.controllerEndpoint
+srv.state.ControllerEndpoint
+
+but I do not see a guaranteed resetControllerClient() before calling ensureControllerClient().
+
+ensureControllerClient() returns early if srv.controllerClient != nil, so a previously-open client can survive an endpoint change.
+
+Failure mode
+
+node joins or reconfigures to a new controller endpoint
+state file shows the new endpoint
+but the live client still points at the old controller
+heartbeats / join / workflow RPCs go to the wrong place until restart
+
+Why this matters
+This is the same family as stale leader routing:
+
+authority changed, client cache did not
+
+Minimal fix
+Any path that mutates srv.controllerEndpoint should also:
+
+srv.resetControllerClient()
+then persist
+then reconnect
+2. Workflow lease release is not ownership-guarded
+
+File
+
+workflow_server/executor_lease.go
+
+Pattern
+ReleaseRun() does:
+
+DELETE FROM workflow.executor_leases WHERE run_id = ?
+
+with no IF executor_id = ?.
+
+Failure mode
+
+executor A owns run
+executor A stalls
+executor B claims orphan and becomes owner
+executor A later wakes up and calls ReleaseRun(runID)
+A deletes B’s valid lease
+
+That is a real distributed ownership bug.
+
+Why this matters
+You already fixed one side of lease ownership. This is the other side:
+
+release path must also prove ownership
+
+Minimal fix
+Use conditional delete:
+
+DELETE FROM workflow.executor_leases
+WHERE run_id = ?
+IF executor_id = ?
+
+and check applied.
+
+This one is juicy.
+
+3. StartRun idempotency / superseding is race-prone under concurrency
+
+File
+
+workflow_server/server.go
+
+Pattern
+StartRun() does:
+
+supersedePriorRuns(correlation_id)
+insert new run
+
+But supersedePriorRuns() scans existing runs before the new insert is written. Two executors starting the same correlation at the same time can both:
+
+see no active prior run
+both insert
+both remain active
+
+Failure mode
+Two active runs with the same correlation_id, despite the comment saying there should be at most one.
+
+Why this matters
+This is classic:
+
+read-then-write idempotency without serialization
+
+Minimal fix options
+
+add a separate active_correlation_locks table with LWT ownership
+or maintain a correlation_id -> active_run_id record with IF NOT EXISTS / IF active_run_id = ...
+
+Right now the logic is operationally helpful, but not strongly safe under concurrency.
+
+4. Day-0 import “idempotent via correlation_id” is not actually atomic
+
+File
+
+workflow_server/import_day0.go
+
+Pattern
+It checks:
+
+SELECT COUNT(*) ... WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING
+
+then later calls StartRun(...).
+
+That’s not atomic.
+
+Failure mode
+On restart races or multiple workflow instances:
+
+two importers both see count 0
+both import Day-0 trace
+duplicate workflow runs appear
+
+Why this matters
+Same bug family as above:
+
+existence check + later insert is not idempotency in distributed systems
+
+Minimal fix
+Reuse the same correlation lock / uniqueness mechanism as StartRun, or use a dedicated import marker row claimed via LWT.
+
+5. Controller can become leader without successfully publishing reachable leader address
+
+File
+
+cluster_controller_server/leader_election.go
+
+Pattern
+After winning election:
+
+srv.setLeader(true, ...)
+then publishLeaderAddr(...)
+if publish fails, code logs and stays leader
+
+Failure mode
+
+controller is the etcd leader
+but followers / node-agents may not learn the leader address
+heartbeats can keep targeting stale address
+cluster behaves like “leader exists, but invisible”
+
+Why this matters
+That’s a split between:
+
+formal leadership
+discoverable leadership
+
+In a distributed system, those need to stay tightly coupled.
+
+Minimal fix
+If leader address publication fails after bounded retries:
+
+either resign immediately
+or mark self degraded and retry aggressively before enabling normal reconciliation
+
+I would lean toward:
+
+no published reachable leader address = not healthy enough to lead
+
+Medium-confidence candidates
+6. syncEtcHosts() bypasses the cached controller client and dials directly every sync
+
+File
+
+node_agent_server/heartbeat.go
+
+Pattern
+syncEtcHosts() builds its own connection with grpc.NewClient(...) from srv.controllerEndpoint instead of reusing the known-good controller client path.
+
+Failure mode
+
+main heartbeat path is healthy via redirected / refreshed client
+/etc/hosts sync path still dials a stale endpoint
+hostname sync silently stops while heartbeats appear fine
+
+Why this matters
+This is a weaker version of the stale-authority family:
+
+multiple dial paths = multiple truths
+
+Minimal fix
+Route ListNodes through the same controller client / endpoint management path, or force this helper to share the same resolved target logic and rediscovery state.
+
+7. Unknown-node recovery can auto-register and then background projections / enqueue logic run on partially durable state
+
+File
+
+cluster_controller_server/handlers_status.go
+
+You already caught one persist-error issue here. The broader concern is sequencing:
+
+in-memory node update
+projection goroutines
+release enqueue goroutines
+auto-import triggers
+
+If any durability step or projection lags, background work can observe a partially-set node state.
+
+Failure mode
+
+release re-enqueue or projections run on node state that is valid in memory but not yet durable / not yet fully normalized
+hard-to-reproduce flap after restore or leadership handoff
+
+Minimal fix
+For recovery-created nodes, consider a short “recovering/unconfirmed” phase that suppresses secondary side effects until persistence succeeds.
+
+8. Successor selection ignores whether candidate knows current epoch / leader address
+
+Files
+
+cluster_controller_server/leader_liveness.go
+cluster_controller_server/leader_election.go
+
+You already fixed “must have successor.” Another subtle one remains:
+a successor is chosen based on node liveness and controller unit presence, but not on whether it has:
+
+caught up to current state
+seen current epoch
+successfully loaded current config
+
+Failure mode
+
+current leader resigns
+successor is “alive enough” but not truly ready
+failover is legal but sloppy
+
+Minimal fix
+Add one stronger readiness signal for successor eligibility, such as:
+
+recent controller self-heartbeat
+controller readiness flag
+state revision loaded after last election epoch
+
+This is less obvious than the others, but it is very distributed-systems flavored.
+
+Lower-confidence but worth watching
+9. Orphan scanner does a full-table lease scan
+
+File
+
+workflow_server/executor_lease.go
+
+It scans:
+
+SELECT run_id, executor_id, heartbeat_at FROM workflow.executor_leases
+
+for all leases.
+
+This is not a correctness bug today, but under larger scale it can become:
+
+slow orphan detection
+false impressions of lease lag
+load spikes on the workflow store
+
+That’s more of a scaling trap than a logic trap.
+
+10. supersedePriorRuns() ignores update errors
+
+File
+
+workflow_server/server.go
+
+It calls .Exec() to mark prior runs superseded and ignores errors.
+
+Failure mode
+
+new run starts
+prior run fails to be marked superseded
+both remain active
+no obvious signal except odd operator stories
+
+Not the biggest issue, but it weakens the “single active correlation” guarantee even more.
+
+My top 5 next checks
+
+If I were driving the next patch wave, I’d do these in this order:
+
+Guard lease release with IF executor_id = ?
+Reset/rebuild node-agent controller client whenever endpoint changes
+Fix StartRun correlation-id race with a real LWT-backed active-run claim
+Make Day-0 import idempotency atomic
+Treat leader-address publication failure as leadership degradation, not just a log line
+
+Those five all fit the same deep theme:
+
+distributed state must be claimed, published, and released with proof
+not just intention
+
+That’s the heartbeat of almost every bug you’ve been fighting.
+
+If you want, I can turn these into another Claude-ready implementation brief with exact patch instructions and acceptance criteria.
+
+Yes. Based on the same canonical-identity / distributed-targeting pattern, I see a few more likely bugs in the uploaded tarballs.
+
+The big theme is:
+
+some paths are already build-aware, but a few still make decisions using version only
+
+That’s the same trap door that bit you with --describe.
+
+Highest-confidence candidates
+1. release_reconciler still treats version-only as success
+
+File: cluster_controller_server/release_reconciler.go
+Spot: around the versionMatch check
+
+It does this:
+
+if node.InstalledVersions != nil && rel.Status.ResolvedVersion != "" {
+    svcName := rel.Spec.ServiceName
+    if installed, ok := node.InstalledVersions[svcName]; ok && installed == rel.Status.ResolvedVersion {
+        versionMatch = true
+    }
+}
+Why this is risky
+
+If you have:
+
+desired = 1.2.3 build 42
+node installed = 1.2.3 build 41
+
+then this code can still call that node “matching” if InstalledVersions only carries the version string.
+
+Failure mode
+
+A release can be marked AVAILABLE even though some nodes are on the wrong build.
+
+Fix direction
+
+Use installed-state identity, not version-only memory. Match on:
+
+service name
+version
+build number
+checksum too if available
+
+This one is very close to your rollback bug family.
+
+2. verifyControllerReplicaHealth() accepts version-only and explicitly tolerates missing build proof
+
+File: cluster_controller_server/workflow_controller_deploy.go
+
+It first checks in-memory InstalledVersions using version only. Then it cross-checks etcd installed-state, but if that lookup fails or lags, it accepts the version-only match:
+
+if err != nil || pkg == nil {
+    // Fallback: in-memory version matched, etcd may lag. Accept it.
+    return nil
+}
+Why this is risky
+
+For controller deploys, that is too generous.
+
+You can end up accepting:
+
+same version
+wrong build
+etcd lagging
+and still call the replica healthy
+Failure mode
+
+Controller rollout completes while one replica is on an older build.
+
+Fix direction
+
+For controller deploy verification, fail closed:
+
+require etcd installed-state record
+require exact build match
+maybe checksum match too
+
+This path should be stricter than ordinary health.
+
+3. loadDesiredServices() drops build number entirely
+
+File: cluster_controller_server/desired_from_resources.go
+
+This function returns:
+
+map[string]string
+
+and stores only:
+
+result[canon] = sdv.Spec.Version
+Why this is risky
+
+You already know version alone is not a sufficient identity.
+
+Some newer paths use BuildNumber, but this older helper still compresses desired state into version-only truth.
+
+Failure mode
+
+Any caller using this map for:
+
+preview
+drift checks
+rollout checks
+“already installed?” logic
+
+can silently collapse 1.2.3+41 and 1.2.3+42 into the same target.
+
+Fix direction
+
+Replace the version-only map with a richer identity type, something like:
+
+type desiredVersionInfo struct {
+    version     string
+    buildNumber int64
+}
+
+This is one of the clearest remaining identity truncations.
+
+4. desired_state_handlers preview logic is version-only
+
+File: cluster_controller_server/desired_state_handlers.go
+Spot: WillInstall preview generation
+
+It does:
+
+if !versionutil.Equal(node.InstalledVersions[name], ver) {
+    change.WillInstall = append(change.WillInstall, fmt.Sprintf("%s@%s", name, ver))
+}
+Why this is risky
+
+That means a preview can say:
+
+“nothing to install”
+
+even when the version matches but the build does not.
+
+Failure mode
+
+Operator/UI preview underestimates pending change.
+That can cascade into wrong human decisions and misleading AI guidance.
+
+Fix direction
+
+Preview should compare canonical desired vs installed identity:
+
+version
+build number
+checksum if available
+
+This one is not as dangerous as rollout logic, but it’s the same family.
+
+Medium-confidence candidates
+5. reconcile_nodes.go still uses InstalledVersions for initial mismatch filtering
+
+File: cluster_controller_server/reconcile_nodes.go
+
+This line is still version-only:
+
+installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, name)
+if installedVer != ver {
+    svcNames = append(svcNames, name)
+}
+
+Then later it resolves build number, but the initial “does this need action?” filter is driven by version only.
+
+Why this is risky
+
+If same version / wrong build is installed:
+
+node may be filtered out as already good
+no action triggered
+build drift survives
+Failure mode
+
+Hotfix rebuild of same version does not reconcile.
+
+Fix direction
+
+Use installed-state identity from etcd here too, not just InstalledVersions.
+
+6. Controller deploy verification compares leadership movement by address only
+
+File: cluster_controller_server/workflow_controller_deploy.go
+Function: confirmLeadershipMoved()
+
+It checks:
+
+not leader locally
+leader address in etcd is different from local address
+Why this is risky
+
+Address change is weaker than confirmed healthy successor.
+
+If leadership moves to:
+
+a node on old build
+a node not fully ready
+a node that published address but is not actually stable
+
+then the workflow can still think handoff succeeded.
+
+Failure mode
+
+Controller deploy completes after a shallow handoff to the wrong or stale replica.
+
+Fix direction
+
+Also verify:
+
+successor controller build/version matches target
+successor is healthy
+successor is serving heartbeats / control RPCs
+
+This is less identity-truncation and more “promotion predicate too weak,” but it rhymes with today’s bugs.
+
+Lower-confidence, but worth watching
+7. node-agent describe consumers only parse Id, Address, Port
+
+Files:
+
+node_agent_server/internal/actions/artifact.go
+node_agent_server/internal/actions/serviceports/config.go
+
+The describePayload type is:
+
+type describePayload struct {
+    Id      string `json:"Id"`
+    Address string `json:"Address"`
+    Port    int    `json:"Port"`
+}
+Why this is worth watching
+
+Right now that’s probably okay for install plumbing, and your cluster-controller --describe fix now embeds build number into the Id, which helps.
+
+But it still means the consumer cannot reason explicitly about:
+
+version
+build number
+checksum
+
+So any future logic that depends on --describe as a source of artifact identity is still brittle unless it relies entirely on the Id.
+
+Failure mode
+
+Another future code path starts using --describe for targeting or upgrade decisions and accidentally loses canonical identity again.
+
+Fix direction
+
+Keep install plumbing simple if you want, but never let --describe be the only place where version/build identity lives. Repository manifest and installed-state should remain the real truth.
+
+Good news
+
+Your cluster-controller --describe fix appears present now.
+
+In cluster_controller_server/main.go, printDescribe() builds:
+
+fullVersion := Version
+if BuildNumberStr != "" && BuildNumberStr != "0" {
+    fullVersion = Version + "-b" + BuildNumberStr
+}
+id := Utility.GenerateUUID("cluster_controller.ClusterControllerService:" + fullVersion + ":" + mac)
+
+So that specific bug seems patched.
+
+The remaining risk is not “describe forgot build number again.”
+
+It’s this:
+
+some control-plane paths still compare or preview using version-only, while others are already build-aware
+
+That mismatch is the real beast left in the bushes.
