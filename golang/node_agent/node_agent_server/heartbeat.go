@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -153,6 +154,14 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	synced := 0
 
+	// Phase 0: Refresh version markers from deployed binaries. When an
+	// operator direct-installs a service binary (e.g. `sudo install`), the
+	// version marker at /var/lib/globular/services/<name>/version is not
+	// updated, so loadMarkers() would return the stale version and the
+	// drift-reconciler would re-roll the repo version on top of the direct
+	// install. Probing each binary with --describe gives ground truth.
+	srv.refreshMarkersFromBinaries(ctx)
+
 	// Phase 1: Sync packages from local discovery.
 	// Day0/join infrastructure (e.g. etcd) is written as INFRASTRUCTURE;
 	// all other locally-discovered packages are written as SERVICE.
@@ -284,6 +293,104 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 
 	if synced > 0 {
 		log.Printf("nodeagent: synced %d installed-state records to etcd", synced)
+	}
+}
+
+// globularBinDir is the canonical directory where Globular service binaries
+// are deployed. Matches internal/actions.ActionBinDir. Duplicated rather than
+// imported to avoid pulling the actions package into the heartbeat loop.
+const globularBinDir = "/usr/lib/globular/bin"
+
+// refreshMarkersFromBinaries probes each deployed service binary with
+// --describe and rewrites /var/lib/globular/services/<name>/version when the
+// binary reports a different version from the marker. This detects
+// out-of-band installs (sudo install, manual scp, etc.) that bypass the
+// plan executor and would otherwise leave the marker stale, causing the
+// drift-reconciler to clobber the direct install with the repo version.
+//
+// Only probes when binary mtime is newer than marker mtime — so the
+// happy path (no direct installs) is a cheap stat per marker with zero
+// subprocess execs.
+func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
+	markerRoot := versionutil.BaseDir()
+	entries, err := os.ReadDir(markerRoot)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("nodeagent: refresh markers: read %s: %v", markerRoot, err)
+		}
+		return
+	}
+	refreshed := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		markerPath := filepath.Join(markerRoot, name, "version")
+		markerStat, err := os.Stat(markerPath)
+		if err != nil {
+			continue // no marker → nothing to refresh
+		}
+
+		// Convention: binary name is <name_with_underscores>_server.
+		// This matches executableForService() fallback in internal/actions.
+		// Services that don't follow the convention (etcd, minio, envoy,
+		// scylladb, …) are handled by loadDay0JoinInfra/syncRepoArtifacts.
+		binName := strings.ReplaceAll(name, "-", "_") + "_server"
+		binPath := filepath.Join(globularBinDir, binName)
+		binStat, err := os.Stat(binPath)
+		if err != nil {
+			continue
+		}
+		if !binStat.ModTime().After(markerStat.ModTime()) {
+			continue // marker is at least as fresh as the binary
+		}
+
+		// Binary is newer than marker — probe for ground-truth version.
+		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		out, err := exec.CommandContext(probeCtx, binPath, "--describe").Output()
+		cancel()
+		if err != nil {
+			log.Printf("nodeagent: refresh markers: --describe %s: %v", binPath, err)
+			continue
+		}
+		// --describe JSON includes {"Version": "0.0.2", ...}.
+		// Minimal struct to avoid coupling to the full DescribeMap schema.
+		var payload struct {
+			Version string `json:"Version"`
+		}
+		if err := json.Unmarshal(out, &payload); err != nil || strings.TrimSpace(payload.Version) == "" {
+			continue
+		}
+		newVer := strings.TrimSpace(payload.Version)
+		if cv, err := versionutil.Canonical(newVer); err == nil {
+			newVer = cv
+		}
+		// Compare against current marker content.
+		cur, err := os.ReadFile(markerPath)
+		if err != nil {
+			continue
+		}
+		curVer := strings.TrimSpace(string(cur))
+		if cv, err := versionutil.Canonical(curVer); err == nil {
+			curVer = cv
+		}
+		if curVer == newVer {
+			// Touch the marker so the mtime check doesn't re-probe every
+			// heartbeat when the binary happens to be newer.
+			_ = os.Chtimes(markerPath, time.Now(), time.Now())
+			continue
+		}
+		if err := os.WriteFile(markerPath, []byte(newVer+"\n"), 0o644); err != nil {
+			log.Printf("nodeagent: refresh markers: write %s: %v", markerPath, err)
+			continue
+		}
+		log.Printf("nodeagent: refreshed version marker %s: %s → %s (direct install detected)",
+			name, curVer, newVer)
+		refreshed++
+	}
+	if refreshed > 0 {
+		log.Printf("nodeagent: refreshed %d version markers from binary probes", refreshed)
 	}
 }
 
