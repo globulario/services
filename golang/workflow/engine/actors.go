@@ -935,8 +935,12 @@ func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 		name := fmt.Sprint(req.With["package_name"])
 		check := fmt.Sprint(req.With["health_check"])
 		kind := strings.ToUpper(strings.TrimSpace(fmt.Sprint(req.With["package_kind"])))
-		// Commands (and packages with no runtime check) don't have a service to probe.
-		if kind == "COMMAND" || check == "" || skipRuntimeCheck(name) {
+		// COMMAND packages are CLI binaries (rclone, restic, sctool, mc,
+		// ffmpeg, …) — they have no systemd unit and will never report
+		// active. The package type is authoritative here; do not fall back
+		// to static name lists, which drift out of sync with the catalog.
+		// Packages with no health_check probe are also skipped.
+		if kind == "COMMAND" || check == "" {
 			return &ActionResult{OK: true, Message: "skip runtime check for non-service package"}, nil
 		}
 		if cfg.VerifyPackageRuntime != nil {
@@ -946,17 +950,6 @@ func nodeVerifyRuntime(cfg NodeDirectApplyConfig) ActionHandler {
 		}
 		return &ActionResult{OK: true, Output: map[string]any{"healthy": true}}, nil
 	}
-}
-
-// skipRuntimeCheck returns true for packages that are binaries/commands without
-// a long-running systemd unit. These should not gate workflows on "active" state.
-func skipRuntimeCheck(name string) bool {
-	n := strings.ToLower(strings.TrimSpace(name))
-	switch n {
-	case "restic", "rclone", "ffmpeg", "sctool", "mc":
-		return true
-	}
-	return false
 }
 
 func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {

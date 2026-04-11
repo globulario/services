@@ -366,9 +366,18 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 
 	switch driftType {
 	case "missing_package", "version_drift":
+		// Determine the dispatch kind from the component catalog rather than
+		// a static name list. COMMAND packages (rclone, restic, sctool, mc,
+		// ffmpeg, …) must be tagged as such so the workflow engine skips
+		// systemd-unit runtime checks that would never go active.
 		kind := "SERVICE"
-		if catalogEntry := CatalogByName(pkgName); catalogEntry != nil && catalogEntry.Kind == KindInfrastructure {
-			kind = "INFRASTRUCTURE"
+		if catalogEntry := CatalogByName(pkgName); catalogEntry != nil {
+			switch catalogEntry.Kind {
+			case KindInfrastructure:
+				kind = "INFRASTRUCTURE"
+			case KindCommand:
+				kind = "COMMAND"
+			}
 		}
 		return map[string]any{
 			"workflow_name": "release.apply.package",

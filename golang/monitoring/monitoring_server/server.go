@@ -241,6 +241,17 @@ func (srv *server) Init() error {
 	}
 	srv.grpcServer = gs
 
+	// The shared globular.InitService() uses a whitelist (applyDesiredToService)
+	// to copy fields from persisted etcd config onto this struct. That whitelist
+	// does NOT know about monitoring's custom "Connections" field, so after a
+	// restart srv.Connections is empty even though the connections are still
+	// persisted in etcd. Reload them here so the rebuild loop below works.
+	if cfg, cfgErr := config.GetServiceConfigurationById(srv.Id); cfgErr == nil && cfg != nil {
+		srv.loadConnectionsFromConfig(cfg)
+	} else if byName, nameErr := config.GetServicesConfigurationsByName(srv.Name); nameErr == nil && len(byName) > 0 {
+		srv.loadConnectionsFromConfig(byName[0])
+	}
+
 	// Initialize stores for existing connections.
 	for _, c := range srv.Connections {
 		var store monitoring_store.Store
@@ -259,6 +270,39 @@ func (srv *server) Init() error {
 		srv.stores[c.Id] = store
 	}
 	return nil
+}
+
+// loadConnectionsFromConfig rebuilds srv.Connections from the persisted
+// service configuration map retrieved from etcd. It tolerates both JSON-ish
+// map[string]any shapes and numeric/string type encodings.
+func (srv *server) loadConnectionsFromConfig(cfg map[string]any) {
+	raw, ok := cfg["Connections"].(map[string]any)
+	if !ok || len(raw) == 0 {
+		return
+	}
+	for id, v := range raw {
+		m, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		c := connection{
+			Id:   Utility.ToString(m["Id"]),
+			Host: Utility.ToString(m["Host"]),
+			Port: int32(Utility.ToInt(m["Port"])),
+			Type: monitoringpb.StoreType(Utility.ToInt(m["Type"])),
+		}
+		if c.Id == "" {
+			c.Id = id
+		}
+		if c.Host == "" || c.Port == 0 {
+			slog.Warn("loadConnectionsFromConfig: skipping incomplete entry",
+				"conn_id", id, "host", c.Host, "port", c.Port)
+			continue
+		}
+		srv.Connections[c.Id] = c
+	}
+	slog.Info("loadConnectionsFromConfig: restored connections from etcd",
+		"count", len(srv.Connections))
 }
 
 // Save persists configuration.

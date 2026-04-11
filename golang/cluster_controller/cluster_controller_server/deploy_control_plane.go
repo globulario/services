@@ -35,8 +35,8 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 	if pkgKind == "" {
 		pkgKind = "SERVICE"
 	}
-	if pkgKind != "SERVICE" && pkgKind != "INFRASTRUCTURE" {
-		return reject(fmt.Sprintf("package_kind must be SERVICE or INFRASTRUCTURE, got %q", pkgKind)), nil
+	if pkgKind != "SERVICE" && pkgKind != "INFRASTRUCTURE" && pkgKind != "COMMAND" {
+		return reject(fmt.Sprintf("package_kind must be SERVICE, INFRASTRUCTURE, or COMMAND, got %q", pkgKind)), nil
 	}
 
 	// ── Leader check ──
@@ -55,8 +55,11 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 	}
 
 	artifactKind := repositorypb.ArtifactKind_SERVICE
-	if pkgKind == "INFRASTRUCTURE" {
+	switch pkgKind {
+	case "INFRASTRUCTURE":
 		artifactKind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	case "COMMAND":
+		artifactKind = repositorypb.ArtifactKind_COMMAND
 	}
 
 	resolver := &ReleaseResolver{ArtifactKind: artifactKind}

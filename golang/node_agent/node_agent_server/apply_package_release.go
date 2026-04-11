@@ -39,8 +39,8 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	if kind == "" {
 		kind = "SERVICE"
 	}
-	if kind != "SERVICE" && kind != "INFRASTRUCTURE" {
-		return nil, fmt.Errorf("package_kind must be SERVICE or INFRASTRUCTURE, got %q", kind)
+	if kind != "SERVICE" && kind != "INFRASTRUCTURE" && kind != "COMMAND" {
+		return nil, fmt.Errorf("package_kind must be SERVICE, INFRASTRUCTURE, or COMMAND, got %q", kind)
 	}
 	if version == "" {
 		return nil, fmt.Errorf("version is required")
