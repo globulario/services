@@ -30,21 +30,23 @@ func loadClusterControllerConfig(path string) (*clusterControllerConfig, error) 
 	cfg := defaultClusterControllerConfig()
 
 	b, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			applyEnvOverrides(cfg)
-			return cfg, nil
-		}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
 
-	if len(b) > 0 {
+	if err == nil && len(b) > 0 {
 		if err := json.Unmarshal(b, cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	// Fill cluster_domain from etcd/global config if missing.
+	// Fill cluster_domain from etcd/global config if missing. This must run
+	// REGARDLESS of whether the on-disk config file existed — on a freshly
+	// installed node the installer may not have written a config.json yet
+	// and etcd is the authoritative source. Previously this path was only
+	// reached when the file existed, so a missing file left ClusterDomain
+	// empty and every centralized workflow dispatch failed server-side with
+	// "cluster_id is required".
 	if cfg.ClusterDomain == "" {
 		if domain, derr := config.GetDomain(); derr == nil && domain != "" {
 			cfg.ClusterDomain = domain
