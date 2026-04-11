@@ -15,6 +15,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -213,37 +215,139 @@ func (r *Recorder) disconnect() {
 }
 
 // loadNodeToken reads the node's identity token (JWT).
-// Checks the explicit node_token first, then scans the tokens directory
-// for any available token (e.g. MAC-based token on Day-0 nodes).
-// Returns empty string if no token is found.
+//
+// Resolution order:
+//  1. DefaultTokenFile (/var/lib/globular/tokens/node_token) — preferred
+//     explicit handle used on Day-1 nodes — but only if the token is not
+//     already expired.
+//  2. MAC-matched filename: any non-loopback interface MAC on this host is
+//     converted to "<mac>_token" and loaded. This prevents picking up a
+//     token that was issued for a DIFFERENT node's MAC (which would cause
+//     Unauthenticated on every cluster-internal call because audience
+//     doesn't match this node).
+//  3. Directory scan fallback: parse exp claims from every *_token file,
+//     skip expired ones, and return the token with the latest exp. This
+//     keeps Day-0 nodes working while preventing stale tokens from older
+//     node identities from being preferred just because they sort first.
+//
+// Returns empty string if no usable token is found.
 func loadNodeToken() string {
-	// Preferred: explicit node token (Day-1 nodes).
+	// 1. Explicit Day-1 node token.
 	if data, err := os.ReadFile(DefaultTokenFile); err == nil {
-		if t := strings.TrimSpace(string(data)); t != "" {
+		if t := strings.TrimSpace(string(data)); t != "" && !jwtExpired(t) {
 			return t
 		}
 	}
 
-	// Fallback: scan tokens directory for any JWT (Day-0 nodes have a MAC-based token).
 	dir := "/var/lib/globular/tokens"
+
+	// 2. MAC-matched token for this node.
+	for _, mac := range localNodeMACs() {
+		candidate := dir + "/" + mac + "_token"
+		if data, err := os.ReadFile(candidate); err == nil {
+			if t := strings.TrimSpace(string(data)); t != "" && !jwtExpired(t) {
+				return t
+			}
+		}
+	}
+
+	// 3. Fallback scan: pick the non-expired token with the latest exp.
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
 	}
+	var best string
+	var bestExp int64
+	now := time.Now().Unix()
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), "_token") {
 			continue
 		}
-		if strings.HasSuffix(e.Name(), "_token") {
-			data, err := os.ReadFile(dir + "/" + e.Name())
-			if err == nil {
-				if t := strings.TrimSpace(string(data)); t != "" {
-					return t
-				}
-			}
+		data, err := os.ReadFile(dir + "/" + e.Name())
+		if err != nil {
+			continue
+		}
+		t := strings.TrimSpace(string(data))
+		if t == "" {
+			continue
+		}
+		exp, ok := jwtExp(t)
+		if !ok {
+			// Unparsable payload — skip; we can't risk picking an expired
+			// one without knowing.
+			continue
+		}
+		if exp <= now {
+			continue
+		}
+		if exp > bestExp {
+			bestExp = exp
+			best = t
 		}
 	}
-	return ""
+	return best
+}
+
+// localNodeMACs returns MAC addresses of this host's non-loopback network
+// interfaces, formatted with underscores (e.g. "e0_d4_64_f0_86_f6") to match
+// the token filename convention used by the PKI issuer.
+func localNodeMACs() []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(ifaces))
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		mac := iface.HardwareAddr.String()
+		if mac == "" {
+			continue
+		}
+		out = append(out, strings.ReplaceAll(mac, ":", "_"))
+	}
+	return out
+}
+
+// jwtExp extracts the "exp" claim (Unix seconds) from an unverified JWT.
+// Signature is NOT validated — we only read the payload to filter out
+// tokens that have already expired. Returns (0, false) if the token is
+// malformed or has no exp claim.
+func jwtExp(tok string) (int64, bool) {
+	parts := strings.Split(tok, ".")
+	if len(parts) != 3 {
+		return 0, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		// Some issuers emit with padding; try standard base64.
+		payload, err = base64.StdEncoding.DecodeString(parts[1])
+		if err != nil {
+			return 0, false
+		}
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return 0, false
+	}
+	if claims.Exp <= 0 {
+		return 0, false
+	}
+	return claims.Exp, true
+}
+
+// jwtExpired reports whether the token's exp claim is in the past. Returns
+// false when the claim cannot be parsed, so unknown-format tokens are still
+// attempted — the server will make the final decision.
+func jwtExpired(tok string) bool {
+	exp, ok := jwtExp(tok)
+	if !ok {
+		return false
+	}
+	return time.Now().Unix() >= exp
 }
 
 // tokenInjector returns a gRPC unary interceptor that attaches the token
