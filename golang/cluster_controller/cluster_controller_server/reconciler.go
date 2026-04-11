@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
@@ -128,29 +129,47 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				continue
 			}
 
-			// Verify the desired artifact is PUBLISHED before dispatching.
-			// This prevents installing artifacts that are still VERIFIED (not yet
-			// through the publish pipeline), maintaining the truth chain:
-			// Repository → Desired → Installed → Runtime.
-			if !r.isArtifactPublished(ctx, name, dv.version, dv.buildNumber, repo.Address) {
-				log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — artifact not PUBLISHED",
-					nodeID, name, dv.version, dv.buildNumber)
+			// Resolve the desired artifact via ReleaseResolver. This:
+			//   1. Resolves build_number=0 to the latest PUBLISHED build for the
+			//      pinned version (so `services desired set <svc> <ver>` without
+			//      --build-number picks up the current build at dispatch time).
+			//   2. Implicitly validates the artifact is PUBLISHED (via
+			//      getLatestPublished filtering) and exists in the repository.
+			// Maintains the truth chain: Repository → Desired → Installed → Runtime.
+			resolver := &ReleaseResolver{
+				RepositoryAddr: repo.Address,
+				ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
+			}
+			resolved, err := resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
+				PublisherID: defaultPublisherID(),
+				ServiceName: name,
+				Version:     dv.version,
+				BuildNumber: dv.buildNumber,
+				Platform:    r.srv.getNodePlatform(nodeID),
+			})
+			if err != nil {
+				log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
+					nodeID, name, dv.version, dv.buildNumber, err)
 				continue
+			}
+			resolvedBuild := resolved.BuildNumber
+			if resolvedBuild == 0 {
+				resolvedBuild = dv.buildNumber
 			}
 
 			installedVer := "<none>"
 			if found {
 				installedVer = fmt.Sprintf("%s-b%d", pkg.version, pkg.buildNumber)
 			}
-			log.Printf("drift-reconciler: node=%s pkg=%s desired=%s-b%d installed=%s — dispatching",
-				node.Identity.Hostname, name, dv.version, dv.buildNumber, installedVer)
+			log.Printf("drift-reconciler: node=%s pkg=%s desired=%s-b%d (resolved build=%d) installed=%s — dispatching",
+				node.Identity.Hostname, name, dv.version, dv.buildNumber, resolvedBuild, installedVer)
 
 			r.markInflight(inflightKey)
 
 			// Capture loop variables for goroutine.
 			nID, endpoint := nodeID, node.AgentEndpoint
 			pkgName, pkgKind := name, kind
-			version, buildNumber := dv.version, dv.buildNumber
+			version, buildNumber := resolved.Version, resolvedBuild
 
 			go func() {
 				r.sem <- struct{}{}        // acquire
@@ -195,45 +214,6 @@ func (r *driftReconciler) clearInflight(key string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.inflight, key)
-}
-
-// isArtifactPublished checks whether the artifact for the given service/version/build
-// is in PUBLISHED state in the repository. Returns false if the artifact cannot be
-// verified (repository unreachable, artifact not found, or not PUBLISHED).
-func (r *driftReconciler) isArtifactPublished(ctx context.Context, serviceName, version string, buildNumber int64, repoAddr string) bool {
-	resolver := &ReleaseResolver{RepositoryAddr: repoAddr}
-	client, cc, err := resolver.dialRepositoryDirect(ctx, repoAddr)
-	if err != nil {
-		log.Printf("drift-reconciler: cannot dial repository for publish check pkg=%s: %v", serviceName, err)
-		return false
-	}
-	defer cc.Close()
-
-	authCtx := resolver.buildAuthContext(ctx)
-	ref := &repositorypb.ArtifactRef{
-		PublisherId: defaultPublisherID(),
-		Name:        serviceName,
-		Version:     version,
-		Platform:    "linux_amd64",
-		Kind:        repositorypb.ArtifactKind_SERVICE,
-	}
-	resp, err := client.GetArtifactManifest(authCtx, &repositorypb.GetArtifactManifestRequest{
-		Ref:         ref,
-		BuildNumber: buildNumber,
-	})
-	if err != nil {
-		log.Printf("drift-reconciler: artifact publish check failed pkg=%s@%s-b%d: %v",
-			serviceName, version, buildNumber, err)
-		return false
-	}
-	manifest := resp.GetManifest()
-	if manifest == nil {
-		return false
-	}
-	ps := manifest.GetPublishState()
-	// Only PUBLISHED is acceptable. UNSPECIFIED is no longer tolerated —
-	// the migration promotes legacy manifests to PUBLISHED on first startup.
-	return ps == repositorypb.PublishState_PUBLISHED
 }
 
 func (r *driftReconciler) expireStale() {
