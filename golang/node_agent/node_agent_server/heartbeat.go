@@ -49,6 +49,9 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// installed by the Day-0 installer (which doesn't go through plan execution).
 	srv.syncInstalledStateToEtcd(ctx)
 	srv.syncEtcHosts(ctx)
+	// Heal /var/lib/globular/objectstore/minio.json if it was clobbered
+	// out-of-band; etcd is authoritative. See minio_contract_reconcile.go.
+	srv.reconcileMinioContract(ctx)
 
 	heartbeat := time.NewTicker(30 * time.Second)
 	defer heartbeat.Stop()
@@ -103,6 +106,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		case <-syncTicker.C:
 			srv.syncInstalledStateToEtcd(ctx)
 			srv.syncEtcHosts(ctx)
+			srv.reconcileMinioContract(ctx)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
