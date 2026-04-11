@@ -13,6 +13,7 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // applyMu prevents concurrent ApplyPackageRelease calls for the same package.
@@ -50,22 +51,47 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 
 	// Idempotency check: skip if already installed at this version+build (unless force).
+	// Downgrade guard: if a NEWER build is already installed and the caller did not
+	// explicitly set Force=true, refuse the install. This protects against stale
+	// release workflows that dispatch an older build (e.g. build 0 from a pre-fix
+	// resolver) and would otherwise silently undo a freshly-installed binary on
+	// every reconcile tick. The self-update path that legitimately re-applies an
+	// exact build always passes Force=true, so it is unaffected.
 	if !req.GetForce() {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
-		if existing != nil &&
-			existing.Version == version &&
-			existing.BuildNumber == req.GetBuildNumber() &&
-			existing.Status == "installed" {
-			log.Printf("apply-package: %s/%s@%s (build %d) already installed, skipping",
-				kind, name, version, req.GetBuildNumber())
-			return &node_agentpb.ApplyPackageReleaseResponse{
-				Ok:          true,
-				Message:     "already installed at requested version",
-				PackageName: name,
-				Version:     version,
-				Status:      "skipped",
-				OperationId: operationID,
-			}, nil
+		if existing != nil && existing.Status == "installed" {
+			if existing.Version == version && existing.BuildNumber == req.GetBuildNumber() {
+				log.Printf("apply-package: %s/%s@%s (build %d) already installed, skipping",
+					kind, name, version, req.GetBuildNumber())
+				return &node_agentpb.ApplyPackageReleaseResponse{
+					Ok:          true,
+					Message:     "already installed at requested version",
+					PackageName: name,
+					Version:     version,
+					Status:      "skipped",
+					OperationId: operationID,
+				}, nil
+			}
+			// Compare version+build using the canonical semver comparator so
+			// 0.0.2+16 beats 0.0.2+0 the way a human would read it.
+			cmp, cmpErr := versionutil.CompareFull(
+				version, req.GetBuildNumber(),
+				existing.GetVersion(), existing.GetBuildNumber(),
+			)
+			if cmpErr == nil && cmp < 0 {
+				msg := fmt.Sprintf("refuse to downgrade %s/%s from %s+%d to %s+%d (pass Force=true to override)",
+					kind, name, existing.GetVersion(), existing.GetBuildNumber(), version, req.GetBuildNumber())
+				log.Printf("apply-package: REJECTED %s", msg)
+				return &node_agentpb.ApplyPackageReleaseResponse{
+					Ok:          false,
+					Message:     msg,
+					PackageName: name,
+					Version:     version,
+					Status:      "rejected",
+					ErrorDetail: msg,
+					OperationId: operationID,
+				}, nil
+			}
 		}
 	}
 
