@@ -2,7 +2,7 @@
   "enabled": true,
   "transport": "stdio",
   "read_only": true,
-  "http_listen_addr": ":10250",
+  "http_listen_addr": ":10260",
   "concurrency_limit": 10,
   "max_response_size": 1048576,
   "max_result_count": 100,

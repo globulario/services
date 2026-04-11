@@ -10,7 +10,7 @@ Claude / remote MCP client
       Envoy (gateway)
         |
         v
-globular-mcp-server :10250 (HTTP transport)
+globular-mcp-server :10260 (HTTP transport)
         |
         +-- ClusterControllerService :12000
         +-- ClusterDoctorService
@@ -42,7 +42,7 @@ If node-local diagnostic helpers exist, they are internal-only and not registere
 
 | Mode | Use Case | Config |
 |------|----------|--------|
-| **HTTP** (default for cluster) | Remote MCP clients via Envoy | `transport: "http"`, `http_listen_addr: ":10250"` |
+| **HTTP** (default for cluster) | Remote MCP clients via Envoy | `transport: "http"`, `http_listen_addr: ":10260"` |
 | **stdio** (default for dev) | Local Claude Code | `transport: "stdio"` |
 
 ## Envoy Integration
@@ -86,7 +86,7 @@ Envoy cluster:
               address:
                 socket_address:
                   address: 127.0.0.1
-                  port_value: 10250
+                  port_value: 10260
 ```
 
 ### Security boundary

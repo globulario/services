@@ -3,7 +3,7 @@
 Purpose: quick orientation for humans and AIs. What lives where, how it talks, and where to look first when operating or extending Globular.
 
 ## Fast Path
-- MCP endpoint: `http://127.0.0.1:10250/mcp` (POST /mcp JSON-RPC; GET /health). Session header: `Mcp-Session-Id`. Optional auth: `token` header (JWT). Config in `.mcp.json` / `~/.claude/.mcp.json`.
+- MCP endpoint: `http://127.0.0.1:10260/mcp` (POST /mcp JSON-RPC; GET /health). Session header: `Mcp-Session-Id`. Optional auth: `token` header (JWT). Config in `.mcp.json` / `~/.claude/.mcp.json`.
 - Control-plane entry: `cluster_controller` + `workflow` services; workflows drive all change.
 - Execution agents: `node_agent` on every node; receives workflow step RPCs.
 - Artifact source: `repository` service; packages built via `globular pkg build/publish`.
@@ -25,7 +25,7 @@ Purpose: quick orientation for humans and AIs. What lives where, how it talks, a
 - MCP HTTP allows optional `token` header for caller identity in audit.
 
 ## Data Planes & Ports (common)
-- MCP HTTP: 10250 (local loopback).
+- MCP HTTP: 10260 (local loopback).
 - gRPC services typically via Envoy/gateway; cluster services expose 10.0.0.x ports (see service configs). Repository/gateway often on 443/8443; Prometheus/Alertmanager present.
 
 ## State Model (operational)

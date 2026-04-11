@@ -62,7 +62,7 @@ func defaultMCPURL() string {
 	if addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", ""); addr != "" {
 		return fmt.Sprintf("http://%s/mcp", addr)
 	}
-	return fmt.Sprintf("http://%s:10250/mcp", config.GetRoutableIPv4())
+	return fmt.Sprintf("http://%s:10260/mcp", config.GetRoutableIPv4())
 }
 
 // proposedSettings returns the recommended Claude Code settings for Globular dev.

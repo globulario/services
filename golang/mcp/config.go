@@ -39,7 +39,7 @@ type MCPConfig struct {
 	RedactFields []string `json:"redact_fields"` // additional sensitive field names
 
 	// HTTP transport (cluster-facing mode)
-	HTTPListenAddr    string   `json:"http_listen_addr"`    // e.g. ":10250", empty = disabled
+	HTTPListenAddr    string   `json:"http_listen_addr"`    // e.g. ":10260", empty = disabled
 	HTTPReadTimeout   Duration `json:"http_read_timeout"`   // default 30s
 	HTTPWriteTimeout  Duration `json:"http_write_timeout"`  // default 60s
 	HTTPUseTLS        bool     `json:"http_use_tls"`        // serve HTTPS if true
@@ -157,7 +157,7 @@ func defaultConfig() *MCPConfig {
 		MaxFileReadBytes:          32768,
 		ConcurrencyLimit:          10,
 		RedactFields:              nil, // uses built-in defaults
-		HTTPListenAddr:            ":10250",
+		HTTPListenAddr:            ":10260",
 		HTTPReadTimeout:           Duration{30 * time.Second},
 		HTTPWriteTimeout:          Duration{60 * time.Second},
 		HTTPUseTLS:                true,

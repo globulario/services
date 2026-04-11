@@ -48,7 +48,9 @@ func main() {
 		addr := cfg.HTTPListenAddr
 		if addr == "" {
 			// Resolve port from etcd; bind to all interfaces.
-			port := 10250
+			// 10260 is the default (sibling of the 102xx service block);
+			// avoids conflict with kubelet's conventional 10250.
+			port := 10260
 			if sc, err := config.GetServiceConfigurationById("mcp.McpService"); err == nil {
 				if p, ok := sc["Port"].(float64); ok && p > 0 {
 					port = int(p)

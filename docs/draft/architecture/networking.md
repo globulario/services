@@ -32,7 +32,7 @@ Purpose: snapshot of how Globular routes traffic, discovers services, and expose
 ## Ops tips
 - To see live listeners/clusters: check Envoy admin (if enabled) or use xDS logs; for quick view of service ports, use MCP `cluster_get_health` or etcd configs.
 - If routing fails: verify service registered in etcd with correct Port/Proxy, ensure xds is reachable by Envoy, and confirm TLS secret delivery.
-- For MCP ingress: ensure Envoy route `/mcp` → MCP service; MCP itself listens on loopback port from config (often 10250) if accessed locally, or through Envoy for remote.
+- For MCP ingress: ensure Envoy route `/mcp` → MCP service; MCP itself listens on loopback port from config (often 10260) if accessed locally, or through Envoy for remote.
 - For TLS/SDS correctness: see `docs/envoy-sds.md`; xDS/SDS defaults to mTLS using `/var/lib/globular/config/tls/{fullchain.pem,privkey.pem,ca.pem}`; dev-only override `GLOBULAR_XDS_INSECURE=1` should not be used in prod.
 
 ## Example Envoy route (MCP)
@@ -60,7 +60,7 @@ clusters:
                 address:
                   socket_address:
                     address: 127.0.0.1
-                    port_value: 10250
+                    port_value: 10260
 ```
 
 ## Example Envoy route (Gateway as front door)
@@ -94,7 +94,7 @@ clusters:
 2. Start xDS (mTLS): `globular-xds --addr :18000` (or set env to point to certs; default paths used if present).
 3. Start Envoy with bootstrap pointing ADS/SDS to xDS at `:18000`, using the same certs for client mTLS.
 4. Ensure service registry (etcd) has the MCP service entry (Port/Proxy). xDS builder will emit cluster/listener.
-5. Hit `https://mcp.globular.internal/mcp` through Envoy; MCP should answer via local `127.0.0.1:10250`.
+5. Hit `https://mcp.globular.internal/mcp` through Envoy; MCP should answer via local `127.0.0.1:10260`.
 
 For gateway front door: ensure the gateway service is registered in etcd with its allocated port; update the cluster address/port accordingly in the Envoy bootstrap or xDS snapshot.
 

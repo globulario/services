@@ -45,7 +45,7 @@ Purpose: shortest path from bare node to a running Globular cluster with correct
 - etcd: `etcdctl get /globular/system/config`.
 - MinIO: `mc ls minio/globular-config/workflows/`.
 - Scylla: `cqlsh ... SELECT id,title FROM ai_memory.memories LIMIT 1;`.
-- MCP: `curl -s -D - http://127.0.0.1:10250/mcp -d '{"'"'"'jsonrpc'"'"'":"'"'"'2.0'"'"',"'"'"'id'"'"'":1,"'"'"'method'"'"'":"'"'"'initialize'"'"',"'"'"'params'"'"'":{"'"'"'protocolVersion'"'"'":"'"'"'2025-03-26'"'"',"'"'"'capabilities'"'"'":{"'"'"'tools'"'"':{}}}}'`.
+- MCP: `curl -s -D - http://127.0.0.1:10260/mcp -d '{"'"'"'jsonrpc'"'"'":"'"'"'2.0'"'"',"'"'"'id'"'"'":1,"'"'"'method'"'"'":"'"'"'initialize'"'"',"'"'"'params'"'"'":{"'"'"'protocolVersion'"'"'":"'"'"'2025-03-26'"'"',"'"'"'capabilities'"'"'":{"'"'"'tools'"'"':{}}}}'`.
 
 ## Notes
 - Ports are dynamic; rely on etcd/MCP, not static numbers.
