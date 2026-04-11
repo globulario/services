@@ -266,16 +266,32 @@ func startMetricsServer() {
 const promTargetsDir = "/var/lib/globular/prometheus/targets"
 
 func writePromTargetFile(job string, port int) {
-	// Scrape via loopback but override instance with node IP so multi-node
-	// observability can attribute samples to the correct host.
+	// Emit this node's scrape target as a per-hostname file so that multiple
+	// nodes writing into a shared file_sd_configs directory don't clobber
+	// each other's entries. Prometheus globs `*.yaml` in the targets dir so
+	// any naming that's unique per host will be picked up.
 	nodeIP := resolveRoutableIP()
 	hostname, _ := os.Hostname()
-	// Use nodeIP in targets so the central Prometheus can scrape over the network.
-	content := fmt.Sprintf("- targets: [\"%s:%d\"]\n  labels:\n    job: %s\n    instance: %s:%d\n    node: %s\n", portTarget(nodeIP, port), port, job, nodeIP, port, hostname)
+	target := portTarget(nodeIP, port) // already "ip:port"
+	content := fmt.Sprintf(
+		"- targets: [\"%s\"]\n  labels:\n    job: %s\n    instance: %s\n    node: %s\n",
+		target, job, target, hostname,
+	)
 	if err := os.MkdirAll(promTargetsDir, 0750); err != nil {
 		return
 	}
-	_ = os.WriteFile(filepath.Join(promTargetsDir, job+".yaml"), []byte(content), 0644)
+	// Per-hostname filename avoids cross-node clobbering. We also remove any
+	// legacy `<job>.yaml` written by older versions so stale, malformed or
+	// wrong-node entries don't linger next to the fresh per-host file.
+	filename := job + ".yaml"
+	if hostname != "" {
+		filename = fmt.Sprintf("%s_%s.yaml", job, hostname)
+		legacy := filepath.Join(promTargetsDir, job+".yaml")
+		if _, err := os.Stat(legacy); err == nil {
+			_ = os.Remove(legacy)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(promTargetsDir, filename), []byte(content), 0644)
 }
 
 // resolveRoutableIP returns a non-loopback routable IP, preferring IPv4.
