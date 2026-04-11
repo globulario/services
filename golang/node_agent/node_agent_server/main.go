@@ -228,8 +228,10 @@ func main() {
 		}
 	}
 
-	// Start Prometheus metrics server on a free port.
-	go startMetricsServer()
+	// Start Prometheus metrics server.  Binds a stable port across restarts
+	// when possible so Prometheus file_sd and xDS routing don't flap every
+	// time the process restarts (see startMetricsServer for details).
+	go startMetricsServer(srv.nodeID)
 
 	log.Printf("node agent listening on %s", address)
 	go func() {
@@ -244,22 +246,122 @@ func main() {
 	log.Printf("node agent stopped")
 }
 
-func startMetricsServer() {
+// metricsPortDefault is the preferred port for the node_agent metrics HTTP
+// server — sibling of the gRPC default on 11000. Tried before any ephemeral
+// fallback so first-time starts are deterministic.
+const metricsPortDefault = 11001
+
+// metricsPortEtcdKey returns the etcd key where this node persists the last
+// successfully-bound metrics port. Empty nodeID yields an empty key so the
+// caller skips persistence (pre-registration startup).
+func metricsPortEtcdKey(nodeID string) string {
+	if strings.TrimSpace(nodeID) == "" {
+		return ""
+	}
+	return fmt.Sprintf("/globular/nodes/%s/node_agent_metrics_port", nodeID)
+}
+
+// startMetricsServer launches the Prometheus /metrics HTTP server.
+//
+// Port selection (first successful bind wins):
+//  1. Port persisted in etcd from a previous run (stable across restarts).
+//  2. metricsPortDefault (11001) — deterministic fallback for first starts.
+//  3. Ephemeral (0.0.0.0:0) — only if the above are taken.
+//
+// Whichever port is finally bound is written back to etcd so the next
+// restart picks the same one, avoiding scrape-target flapping, stale xDS
+// routes, and alert noise on up{job="node_agent"}.
+func startMetricsServer(nodeID string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	// Expose metrics to the cluster (scraped via node IP/Envoy), not just loopback.
-	ln, err := net.Listen("tcp", "0.0.0.0:0")
-	if err != nil {
-		log.Printf("metrics: listen failed: %v", err)
+
+	savedPort := loadSavedMetricsPort(nodeID)
+	ln, chosen := bindMetricsListener(savedPort)
+	if ln == nil {
 		return
 	}
-	metricsPort := ln.Addr().(*net.TCPAddr).Port
-	log.Printf("metrics listening on 0.0.0.0:%d", metricsPort)
+	if savedPort != chosen {
+		persistMetricsPort(nodeID, chosen)
+	}
+
+	log.Printf("metrics listening on 0.0.0.0:%d (saved=%d, default=%d)",
+		chosen, savedPort, metricsPortDefault)
 	nodeIP := resolveRoutableIP()
-	writePromTargetFile("node_agent", metricsPort)
-	registerMetricsService("node-agent-metrics", nodeIP, metricsPort)
+	writePromTargetFile("node_agent", chosen)
+	registerMetricsService("node-agent-metrics", nodeIP, chosen)
 	if err := http.Serve(ln, mux); err != nil {
 		log.Printf("metrics server error: %v", err)
+	}
+}
+
+// bindMetricsListener tries saved → default → ephemeral and returns the
+// listener plus the actually-bound port. Returns (nil, 0) on total failure.
+func bindMetricsListener(savedPort int) (net.Listener, int) {
+	candidates := []int{}
+	if savedPort > 0 {
+		candidates = append(candidates, savedPort)
+	}
+	if metricsPortDefault != savedPort {
+		candidates = append(candidates, metricsPortDefault)
+	}
+	for _, p := range candidates {
+		if ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p)); err == nil {
+			return ln, p
+		} else {
+			log.Printf("metrics: port %d unavailable (%v), trying next", p, err)
+		}
+	}
+	// Ephemeral fallback — OS picks any free port.
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		log.Printf("metrics: ephemeral listen failed: %v", err)
+		return nil, 0
+	}
+	return ln, ln.Addr().(*net.TCPAddr).Port
+}
+
+// loadSavedMetricsPort reads the last-bound metrics port from etcd. Returns
+// 0 if unset, unreachable, malformed, or out of range — the caller then
+// falls through to metricsPortDefault.
+func loadSavedMetricsPort(nodeID string) int {
+	key := metricsPortEtcdKey(nodeID)
+	if key == "" {
+		return 0
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := cli.Get(ctx, key)
+	if err != nil || len(resp.Kvs) == 0 {
+		return 0
+	}
+	p, err := strconv.Atoi(strings.TrimSpace(string(resp.Kvs[0].Value)))
+	if err != nil || p <= 0 || p > 65535 {
+		return 0
+	}
+	return p
+}
+
+// persistMetricsPort writes the bound metrics port back to etcd so the next
+// restart can reuse it. Best-effort; failures are logged but not fatal
+// since an ephemeral fallback on next start will still work.
+func persistMetricsPort(nodeID string, port int) {
+	key := metricsPortEtcdKey(nodeID)
+	if key == "" || port <= 0 {
+		return
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		log.Printf("metrics: cannot persist port %d: etcd client: %v", port, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := cli.Put(ctx, key, strconv.Itoa(port)); err != nil {
+		log.Printf("metrics: cannot persist port %d to %s: %v", port, key, err)
 	}
 }
 
