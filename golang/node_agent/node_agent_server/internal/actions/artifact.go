@@ -61,16 +61,63 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", fmt.Errorf("create dest dir: %w", err)
 	}
-	// Artifact already present — verify hash if expected, then skip fetch.
+	// Determine full artifact identity for logs and metadata resolution.
+	identity := fmt.Sprintf("%s/%s@%s+%d", publisherID, service, version, buildNumber)
+
+	// Resolve the repository address early — we may need it below to fetch
+	// the manifest digest when the caller didn't pass expected_sha256.
+	effectiveRepoAddr := repositoryAddr
+	if effectiveRepoAddr == "" {
+		effectiveRepoAddr = config.ResolveServiceAddr("repository.PackageRepository", "")
+	}
+	if effectiveRepoAddr == "" {
+		effectiveRepoAddr = discoverRepositoryViaGateway()
+	}
+
+	// Safe cache decision matrix (see ROOT-CAUSE FIX in todo):
+	//   A) expected_sha256 set            → verify local hash; reuse if match, replace if not.
+	//   B) full artifact identity known   → fetch manifest digest from repository, then A.
+	//   C) neither                        → refuse blind cache reuse (loud error).
+	// Blind "file exists → reuse" is forbidden.
 	if _, err := os.Stat(dest); err == nil {
-		if expectedSHA != "" {
-			if err := verifyFileSHA256(dest, expectedSHA); err != nil {
-				os.Remove(dest) // corrupted — remove and re-fetch
+		effectiveSHA := expectedSHA
+		if effectiveSHA == "" {
+			// Case B: try to resolve the digest from the repository manifest
+			// so we can validate the cached bytes before trusting them.
+			if service != "" && version != "" && platform != "" && effectiveRepoAddr != "" {
+				log.Printf("artifact.fetch: cache-resolving-digest %s (dest=%s, repo=%s)",
+					identity, dest, effectiveRepoAddr)
+				if digest, rerr := resolveArtifactDigest(ctx, effectiveRepoAddr,
+					publisherID, service, version, platform,
+					strings.TrimSpace(fields["artifact_kind"].GetStringValue()),
+					buildNumber); rerr == nil && digest != "" {
+					effectiveSHA = digest
+				} else if rerr != nil {
+					log.Printf("artifact.fetch: cache-resolve-failed %s: %v — will re-download",
+						identity, rerr)
+				}
+			}
+		}
+		if effectiveSHA != "" {
+			if err := verifyFileSHA256(dest, effectiveSHA); err != nil {
+				log.Printf("artifact.fetch: cache-mismatch %s (dest=%s): %v — re-downloading",
+					identity, dest, err)
+				if rmErr := os.Remove(dest); rmErr != nil && !os.IsNotExist(rmErr) {
+					log.Printf("artifact.fetch: cache-remove-failed %s: %v", dest, rmErr)
+				}
 			} else {
+				log.Printf("artifact.fetch: cache-hit-verified %s (dest=%s, sha256=%s)",
+					identity, dest, shortHash(effectiveSHA))
 				return "artifact already present (verified)", nil
 			}
 		} else {
-			return "artifact already present", nil
+			// Case C: cannot validate cache without identity — never trust.
+			// This is loud on purpose: it proves the contract is enforced.
+			log.Printf("artifact.fetch: cache-insufficient-identity %s (dest=%s) — refusing blind reuse",
+				identity, dest)
+			return "", fmt.Errorf(
+				"artifact.fetch: refuse blind cache reuse for %s — pass expected_sha256 or full artifact identity (service+version+platform+publisher, repository_addr for manifest lookup)",
+				dest)
 		}
 	}
 
@@ -79,7 +126,8 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 		source = resolveArtifactPath(service, version, platform)
 	}
 
-	// Try local copy first.
+	// Try local copy first — but only if we can validate the copied bytes.
+	// A local source without identity is treated the same as blind cache reuse.
 	if source != "" {
 		if _, err := os.Stat(source); err == nil {
 			in, err := os.Open(source)
@@ -90,19 +138,25 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 			if err := copyFileAtomic(dest, in); err != nil {
 				return "", err
 			}
+			if expectedSHA != "" {
+				if verr := verifyFileSHA256(dest, expectedSHA); verr != nil {
+					os.Remove(dest)
+					log.Printf("artifact.fetch: local-source-mismatch %s (source=%s): %v",
+						identity, source, verr)
+					return "", fmt.Errorf("local source %s sha256 mismatch: %w", source, verr)
+				}
+				log.Printf("artifact.fetch: local-source-verified %s (source=%s, sha256=%s)",
+					identity, source, shortHash(expectedSHA))
+				return "artifact fetched (local, verified)", nil
+			}
+			log.Printf("artifact.fetch: local-source-no-digest %s (source=%s) — copied without verification",
+				identity, source)
 			return "artifact fetched (local)", nil
 		}
 	}
 
 	// Fall back to remote repository download.
-	if repositoryAddr == "" {
-		repositoryAddr = config.ResolveServiceAddr("repository.PackageRepository", "")
-	}
-	// Auto-discover repository via gateway: same host as the controller, port 443.
-	// The gateway (Envoy) routes gRPC to the repository service transparently.
-	if repositoryAddr == "" {
-		repositoryAddr = discoverRepositoryViaGateway()
-	}
+	repositoryAddr = effectiveRepoAddr
 	if repositoryAddr == "" {
 		return "", fmt.Errorf("artifact not found locally and repository address could not be resolved")
 	}
@@ -130,10 +184,100 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	if publisherID != "" {
 		ref.PublisherId = publisherID
 	}
+	// If the caller didn't pass expected_sha256, resolve it from the manifest
+	// before download so the download path can verify bytes post-fetch.
+	if expectedSHA == "" {
+		if digest, rerr := resolveArtifactDigest(ctx, repositoryAddr,
+			publisherID, service, version, platform,
+			strings.TrimSpace(fields["artifact_kind"].GetStringValue()),
+			buildNumber); rerr == nil && digest != "" {
+			expectedSHA = digest
+			log.Printf("artifact.fetch: resolved-digest %s sha256=%s (pre-download)",
+				identity, shortHash(expectedSHA))
+		} else if rerr != nil {
+			log.Printf("artifact.fetch: digest-resolve-failed %s: %v — downloading without pre-check",
+				identity, rerr)
+		}
+	}
 	if err := downloadArtifactFromRepository(ctx, repositoryAddr, ref, dest, expectedSHA, repositoryInsecure, repositoryCAPath, buildNumber); err != nil {
+		log.Printf("artifact.fetch: download-failed %s: %v", identity, err)
 		return "", err
 	}
+	if expectedSHA != "" {
+		log.Printf("artifact.fetch: download-complete-verified %s (dest=%s, sha256=%s)",
+			identity, dest, shortHash(expectedSHA))
+	} else {
+		log.Printf("artifact.fetch: download-complete %s (dest=%s, no expected digest)",
+			identity, dest)
+	}
 	return fmt.Sprintf("artifact fetched (remote) from %s", repositoryAddr), nil
+}
+
+// resolveArtifactDigest fetches the expected checksum for an artifact from the
+// repository's GetArtifactManifest. Used to validate local cached bytes before
+// reuse when the caller did not pass an explicit expected_sha256. Returns the
+// lowercase hex digest (no "sha256:" prefix) or an error.
+func resolveArtifactDigest(ctx context.Context, repoAddr, publisherID, service, version, platform, kindStr string, buildNumber int64) (string, error) {
+	if repoAddr == "" {
+		return "", fmt.Errorf("repository address not set")
+	}
+	conn, _, err := dialRepository(ctx, repoAddr)
+	if err != nil {
+		return "", fmt.Errorf("dial repository: %w", err)
+	}
+	defer conn.Close()
+
+	authCtx := ctx
+	if clusterID, cerr := security.GetLocalClusterID(); cerr == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		authCtx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	kind := repositorypb.ArtifactKind_SERVICE
+	switch strings.ToUpper(kindStr) {
+	case "INFRASTRUCTURE":
+		kind = repositorypb.ArtifactKind_INFRASTRUCTURE
+	case "APPLICATION":
+		kind = repositorypb.ArtifactKind_APPLICATION
+	case "COMMAND":
+		kind = repositorypb.ArtifactKind_COMMAND
+	}
+	ref := &repositorypb.ArtifactRef{
+		PublisherId: publisherID,
+		Name:        service,
+		Version:     version,
+		Platform:    platform,
+		Kind:        kind,
+	}
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	resp, err := client.GetArtifactManifest(authCtx, &repositorypb.GetArtifactManifestRequest{
+		Ref:         ref,
+		BuildNumber: buildNumber,
+	})
+	if err != nil {
+		return "", fmt.Errorf("get manifest: %w", err)
+	}
+	manifest := resp.GetManifest()
+	if manifest == nil {
+		return "", fmt.Errorf("no manifest returned")
+	}
+	// Strip "sha256:" prefix and lowercase — verifyFileSHA256 compares lowercase hex.
+	digest := strings.ToLower(strings.TrimSpace(manifest.GetChecksum()))
+	digest = strings.TrimPrefix(digest, "sha256:")
+	if len(digest) != 64 {
+		return "", fmt.Errorf("manifest checksum is not a sha256 hex (len=%d)", len(digest))
+	}
+	return digest, nil
+}
+
+// shortHash returns the first 12 chars of a hex digest for log readability.
+func shortHash(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimPrefix(s, "sha256:")
+	if len(s) <= 12 {
+		return s
+	}
+	return s[:12]
 }
 
 // artifact.verify performs a simple existence/digest check if provided.

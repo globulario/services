@@ -139,7 +139,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// - Extracting and installing payload/infrastructure
 	// - systemd daemon-reload
 	// - Writing version markers
-	if err := srv.InstallPackage(ctx, name, kind, repoAddr, version); err != nil {
+	//
+	// Identity propagation (root-cause fix, see todo Task 1):
+	// build_number + expected_sha256 MUST flow end-to-end so the fetch layer
+	// can validate cached bytes. Dropping either field here was the cause of
+	// the "stale cache reinstall" incident.
+	if err := srv.InstallPackage(ctx, name, kind, repoAddr, version,
+		req.GetBuildNumber(), req.GetExpectedSha256()); err != nil {
 		log.Printf("apply-package: install failed for %s/%s@%s: %v", kind, name, version, err)
 
 		// Mark as failed in installed-state.

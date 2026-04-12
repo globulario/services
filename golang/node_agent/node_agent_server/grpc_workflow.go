@@ -168,7 +168,10 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	log.Printf("grpc-workflow: install-package %s (%s)", pkgName, pkgKind)
 	start := time.Now()
 
-	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion)
+	// Legacy workflow path: no build_number / expected_sha256 known here.
+	// The fetch layer will resolve the digest from the repository manifest
+	// before trusting any cached bytes (see artifact.fetch Case B).
+	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion, 0, "")
 	elapsed := time.Since(start)
 
 	resp := &node_agentpb.RunWorkflowResponse{

@@ -35,7 +35,9 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "")
+			// Engine PackageRef currently lacks build_number/expected_sha256;
+			// the fetch layer resolves the manifest digest from the repository.
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", 0, "")
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)

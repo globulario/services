@@ -4,14 +4,185 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+// sha256Hex returns the lowercase hex SHA256 of the given bytes.
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// TestArtifactFetchCacheHitVerified — Test 1 from the recovery plan:
+// when the cached file matches the expected digest, fetch reuses it safely.
+func TestArtifactFetchCacheHitVerified(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "cached.tgz")
+	payload := []byte("cached-payload-build20")
+	if err := os.WriteFile(dest, payload, 0o644); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"artifact_path":   dest,
+		"expected_sha256": sha256Hex(payload),
+		"service":         "svc",
+		"version":         "1.0.0",
+		"platform":        "linux_amd64",
+	})
+	msg, err := artifactFetchAction{}.Apply(context.Background(), args)
+	if err != nil {
+		t.Fatalf("fetch failed: %v", err)
+	}
+	if !strings.Contains(msg, "already present (verified)") {
+		t.Fatalf("expected cache-hit-verified, got %q", msg)
+	}
+	// Destination must still contain the original payload.
+	b, _ := os.ReadFile(dest)
+	if string(b) != string(payload) {
+		t.Fatalf("cache was clobbered: got %q", string(b))
+	}
+}
+
+// TestArtifactFetchCacheMismatchRejected — Test 2 from the recovery plan:
+// a corrupted cache file must be detected (not silently reused) and removed.
+// We run fetch with no local source and no repo, so after the mismatch is
+// detected, fetch should fail loudly — the point is to prove it NEVER
+// returns success with stale bytes.
+func TestArtifactFetchCacheMismatchRejected(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "cached.tgz")
+	if err := os.WriteFile(dest, []byte("stale-build19-bytes"), 0o644); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+	// The "correct" bytes would be something else — use its digest as expected.
+	expected := sha256Hex([]byte("the-real-build20-bytes-that-are-not-here"))
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"artifact_path":   dest,
+		"expected_sha256": expected,
+		"service":         "svc",
+		"version":         "1.0.0",
+		"platform":        "linux_amd64",
+	})
+	// No repository, no local source → fetch should fail (correctly) rather
+	// than silently return "already present".
+	_, err := artifactFetchAction{}.Apply(context.Background(), args)
+	if err == nil {
+		t.Fatalf("expected error on cache mismatch with no source, got nil")
+	}
+	if strings.Contains(err.Error(), "already present") {
+		t.Fatalf("fetch silently reused corrupt cache: %v", err)
+	}
+	// The stale file must have been removed (proving the mismatch path ran).
+	if _, statErr := os.Stat(dest); statErr == nil {
+		t.Fatalf("corrupt cache file was not removed: %s", dest)
+	}
+}
+
+// TestArtifactFetchCacheBlindReuseRefused — Test 4 from the recovery plan
+// (+ defense-in-depth for Case C): when the caller passes NO expected
+// checksum AND no way to resolve one (no repo address, no full identity),
+// fetch must refuse blind cache reuse rather than silently return success.
+func TestArtifactFetchCacheBlindReuseRefused(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "cached.tgz")
+	if err := os.WriteFile(dest, []byte("unknown-provenance-bytes"), 0o644); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+	// No expected_sha256, no repository_addr, no service/version/platform →
+	// no way to validate identity. Must refuse.
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"artifact_path": dest,
+	})
+	_, err := artifactFetchAction{}.Apply(context.Background(), args)
+	if err == nil {
+		t.Fatalf("expected refuse-blind-reuse error, got nil (fetch silently reused cache)")
+	}
+	if !strings.Contains(err.Error(), "refuse blind cache reuse") {
+		t.Fatalf("expected 'refuse blind cache reuse' error, got: %v", err)
+	}
+}
+
+// TestArtifactFetchLocalSourceVerified exercises Test 3's contract:
+// when a local source is available and the caller passes expected_sha256,
+// the copy path validates the copied bytes before returning success.
+func TestArtifactFetchLocalSourceVerified(t *testing.T) {
+	repo := t.TempDir()
+	service, version, platform := "svc", "1.0.0", "linux_amd64"
+	srcPath := filepath.Join(repo, service, version, platform)
+	if err := os.MkdirAll(srcPath, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	payload := []byte("published-build20-bytes")
+	srcFile := filepath.Join(srcPath, "svc.1.0.0.linux_amd64.tgz")
+	if err := os.WriteFile(srcFile, payload, 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	ActionArtifactRepoRoot = repo
+	t.Cleanup(func() { ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts" })
+
+	dest := filepath.Join(t.TempDir(), "out.tgz")
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":         service,
+		"version":         version,
+		"platform":        platform,
+		"artifact_path":   dest,
+		"expected_sha256": sha256Hex(payload),
+	})
+	msg, err := artifactFetchAction{}.Apply(context.Background(), args)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if !strings.Contains(msg, "verified") {
+		t.Fatalf("expected verification in result, got %q", msg)
+	}
+	b, _ := os.ReadFile(dest)
+	if sha256Hex(b) != sha256Hex(payload) {
+		t.Fatalf("dest bytes do not match published payload")
+	}
+}
+
+// TestArtifactFetchLocalSourceMismatchFails verifies that if a local source
+// exists but its bytes don't match the expected checksum, fetch fails loudly
+// (instead of silently copying wrong bytes into place).
+func TestArtifactFetchLocalSourceMismatchFails(t *testing.T) {
+	repo := t.TempDir()
+	service, version, platform := "svc", "1.0.0", "linux_amd64"
+	srcPath := filepath.Join(repo, service, version, platform)
+	if err := os.MkdirAll(srcPath, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	srcFile := filepath.Join(srcPath, "svc.1.0.0.linux_amd64.tgz")
+	if err := os.WriteFile(srcFile, []byte("the-local-source-is-tampered"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	ActionArtifactRepoRoot = repo
+	t.Cleanup(func() { ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts" })
+
+	dest := filepath.Join(t.TempDir(), "out.tgz")
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":         service,
+		"version":         version,
+		"platform":        platform,
+		"artifact_path":   dest,
+		"expected_sha256": sha256Hex([]byte("what-the-caller-actually-wanted")),
+	})
+	_, err := artifactFetchAction{}.Apply(context.Background(), args)
+	if err == nil {
+		t.Fatalf("expected mismatch error, got nil")
+	}
+	if !strings.Contains(err.Error(), "sha256 mismatch") {
+		t.Fatalf("expected sha256 mismatch error, got: %v", err)
+	}
+	if _, statErr := os.Stat(dest); statErr == nil {
+		t.Fatalf("dest file should have been removed after mismatch")
+	}
+}
 
 func TestArtifactFetchResolvesRepoRoot(t *testing.T) {
 	repo := t.TempDir()

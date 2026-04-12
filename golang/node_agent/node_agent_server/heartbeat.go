@@ -347,11 +347,16 @@ func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
 		}
 
 		// Binary is newer than marker — probe for ground-truth version.
+		// Some binaries (e.g. node_agent itself) do not implement --describe.
+		// Silently skip those: a non-zero exit is indistinguishable from
+		// "unsupported flag" here, and logging every probe spams the journal.
 		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		out, err := exec.CommandContext(probeCtx, binPath, "--describe").Output()
 		cancel()
 		if err != nil {
-			log.Printf("nodeagent: refresh markers: --describe %s: %v", binPath, err)
+			// Touch mtime so we don't re-probe the same unsupported binary
+			// every heartbeat until it is actually reinstalled.
+			_ = os.Chtimes(markerPath, time.Now(), time.Now())
 			continue
 		}
 		// --describe JSON includes {"Version": "0.0.2", ...}.
@@ -360,6 +365,7 @@ func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
 			Version string `json:"Version"`
 		}
 		if err := json.Unmarshal(out, &payload); err != nil || strings.TrimSpace(payload.Version) == "" {
+			_ = os.Chtimes(markerPath, time.Now(), time.Now())
 			continue
 		}
 		newVer := strings.TrimSpace(payload.Version)
@@ -378,6 +384,19 @@ func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
 		if curVer == newVer {
 			// Touch the marker so the mtime check doesn't re-probe every
 			// heartbeat when the binary happens to be newer.
+			_ = os.Chtimes(markerPath, time.Now(), time.Now())
+			continue
+		}
+		// NEVER downgrade a marker. If the binary reports an OLDER version
+		// than the marker, trust the marker — the binary may simply be a
+		// stale leftover (e.g. the Day-0 installer binary), or this probe
+		// may have run against an older launcher wrapper. Downgrading was
+		// the cause of a prior incident where a service marker silently
+		// went from 0.0.2 → 0.0.1 on heartbeat.
+		if cmp, cmpErr := versionutil.Compare(newVer, curVer); cmpErr == nil && cmp <= 0 {
+			log.Printf("nodeagent: refresh markers: skipping %s — binary reports %s ≤ marker %s (no downgrade)",
+				name, newVer, curVer)
+			// Touch mtime so we don't re-probe every heartbeat.
 			_ = os.Chtimes(markerPath, time.Now(), time.Now())
 			continue
 		}
