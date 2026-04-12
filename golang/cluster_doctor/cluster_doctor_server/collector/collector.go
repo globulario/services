@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -263,6 +265,31 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.Inventories[nid] = invResp.GetInventory()
 				snap.mu.Unlock()
 				snap.addSource("node_agent.GetInventory@" + nid)
+			}
+
+			// VerifyPackageIntegrity — reads installed_state, the local
+			// artifact cache, and the repository manifest. Read-only.
+			// If the node is running a pre-f488b5f1 binary the RPC will
+			// be Unimplemented and we simply skip (no error surfaced).
+			integCtx, cancel2 := context.WithTimeout(ctx, c.cfg.NodeTimeout)
+			defer cancel2()
+			integResp, ierr := agentClient.VerifyPackageIntegrity(integCtx, &node_agentpb.VerifyPackageIntegrityRequest{
+				NodeId: nid,
+			})
+			if ierr != nil {
+				// Don't surface Unimplemented as an error — older
+				// node_agent binaries simply don't have the RPC.
+				if !strings.Contains(ierr.Error(), "Unimplemented") {
+					snap.addError("node_agent@"+nid, "VerifyPackageIntegrity", ierr)
+				}
+			} else if integResp.GetOk() && integResp.GetReportJson() != "" {
+				var report IntegrityReport
+				if uerr := json.Unmarshal([]byte(integResp.GetReportJson()), &report); uerr == nil {
+					snap.mu.Lock()
+					snap.IntegrityReports[nid] = &report
+					snap.mu.Unlock()
+					snap.addSource("node_agent.VerifyPackageIntegrity@" + nid)
+				}
 			}
 
 			// Plan collection removed — plan system deleted.

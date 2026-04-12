@@ -19,24 +19,25 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NodeAgentService_JoinCluster_FullMethodName           = "/node_agent.NodeAgentService/JoinCluster"
-	NodeAgentService_GetInventory_FullMethodName          = "/node_agent.NodeAgentService/GetInventory"
-	NodeAgentService_WatchOperation_FullMethodName        = "/node_agent.NodeAgentService/WatchOperation"
-	NodeAgentService_BootstrapFirstNode_FullMethodName    = "/node_agent.NodeAgentService/BootstrapFirstNode"
-	NodeAgentService_RunBackupProvider_FullMethodName     = "/node_agent.NodeAgentService/RunBackupProvider"
-	NodeAgentService_GetBackupTaskResult_FullMethodName   = "/node_agent.NodeAgentService/GetBackupTaskResult"
-	NodeAgentService_RunRestoreProvider_FullMethodName    = "/node_agent.NodeAgentService/RunRestoreProvider"
-	NodeAgentService_GetRestoreTaskResult_FullMethodName  = "/node_agent.NodeAgentService/GetRestoreTaskResult"
-	NodeAgentService_ListInstalledPackages_FullMethodName = "/node_agent.NodeAgentService/ListInstalledPackages"
-	NodeAgentService_GetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/GetInstalledPackage"
-	NodeAgentService_SetInstalledPackage_FullMethodName   = "/node_agent.NodeAgentService/SetInstalledPackage"
-	NodeAgentService_RotateNodeToken_FullMethodName       = "/node_agent.NodeAgentService/RotateNodeToken"
-	NodeAgentService_GetServiceLogs_FullMethodName        = "/node_agent.NodeAgentService/GetServiceLogs"
-	NodeAgentService_ControlService_FullMethodName        = "/node_agent.NodeAgentService/ControlService"
-	NodeAgentService_SearchServiceLogs_FullMethodName     = "/node_agent.NodeAgentService/SearchServiceLogs"
-	NodeAgentService_GetCertificateStatus_FullMethodName  = "/node_agent.NodeAgentService/GetCertificateStatus"
-	NodeAgentService_RunWorkflow_FullMethodName           = "/node_agent.NodeAgentService/RunWorkflow"
-	NodeAgentService_ApplyPackageRelease_FullMethodName   = "/node_agent.NodeAgentService/ApplyPackageRelease"
+	NodeAgentService_JoinCluster_FullMethodName            = "/node_agent.NodeAgentService/JoinCluster"
+	NodeAgentService_GetInventory_FullMethodName           = "/node_agent.NodeAgentService/GetInventory"
+	NodeAgentService_WatchOperation_FullMethodName         = "/node_agent.NodeAgentService/WatchOperation"
+	NodeAgentService_BootstrapFirstNode_FullMethodName     = "/node_agent.NodeAgentService/BootstrapFirstNode"
+	NodeAgentService_RunBackupProvider_FullMethodName      = "/node_agent.NodeAgentService/RunBackupProvider"
+	NodeAgentService_GetBackupTaskResult_FullMethodName    = "/node_agent.NodeAgentService/GetBackupTaskResult"
+	NodeAgentService_RunRestoreProvider_FullMethodName     = "/node_agent.NodeAgentService/RunRestoreProvider"
+	NodeAgentService_GetRestoreTaskResult_FullMethodName   = "/node_agent.NodeAgentService/GetRestoreTaskResult"
+	NodeAgentService_ListInstalledPackages_FullMethodName  = "/node_agent.NodeAgentService/ListInstalledPackages"
+	NodeAgentService_GetInstalledPackage_FullMethodName    = "/node_agent.NodeAgentService/GetInstalledPackage"
+	NodeAgentService_SetInstalledPackage_FullMethodName    = "/node_agent.NodeAgentService/SetInstalledPackage"
+	NodeAgentService_RotateNodeToken_FullMethodName        = "/node_agent.NodeAgentService/RotateNodeToken"
+	NodeAgentService_GetServiceLogs_FullMethodName         = "/node_agent.NodeAgentService/GetServiceLogs"
+	NodeAgentService_ControlService_FullMethodName         = "/node_agent.NodeAgentService/ControlService"
+	NodeAgentService_SearchServiceLogs_FullMethodName      = "/node_agent.NodeAgentService/SearchServiceLogs"
+	NodeAgentService_GetCertificateStatus_FullMethodName   = "/node_agent.NodeAgentService/GetCertificateStatus"
+	NodeAgentService_RunWorkflow_FullMethodName            = "/node_agent.NodeAgentService/RunWorkflow"
+	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
+	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -72,6 +73,13 @@ type NodeAgentServiceClient interface {
 	// Remote package apply: fetch from repository, install, restart, health check.
 	// This is the reusable primitive for leader-aware control-plane deployments.
 	ApplyPackageRelease(ctx context.Context, in *ApplyPackageReleaseRequest, opts ...grpc.CallOption) (*ApplyPackageReleaseResponse, error)
+	// VerifyPackageIntegrity runs the `package.verify_integrity` action locally
+	// and returns a JSON integrity report. See internal/actions/verify_integrity.go
+	// for the invariant set and result schema.
+	//
+	// Read-only: does not modify any state. Safe to call on demand from CLI,
+	// doctor, or admin UI.
+	VerifyPackageIntegrity(ctx context.Context, in *VerifyPackageIntegrityRequest, opts ...grpc.CallOption) (*VerifyPackageIntegrityResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -271,6 +279,16 @@ func (c *nodeAgentServiceClient) ApplyPackageRelease(ctx context.Context, in *Ap
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) VerifyPackageIntegrity(ctx context.Context, in *VerifyPackageIntegrityRequest, opts ...grpc.CallOption) (*VerifyPackageIntegrityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyPackageIntegrityResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_VerifyPackageIntegrity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -304,6 +322,13 @@ type NodeAgentServiceServer interface {
 	// Remote package apply: fetch from repository, install, restart, health check.
 	// This is the reusable primitive for leader-aware control-plane deployments.
 	ApplyPackageRelease(context.Context, *ApplyPackageReleaseRequest) (*ApplyPackageReleaseResponse, error)
+	// VerifyPackageIntegrity runs the `package.verify_integrity` action locally
+	// and returns a JSON integrity report. See internal/actions/verify_integrity.go
+	// for the invariant set and result schema.
+	//
+	// Read-only: does not modify any state. Safe to call on demand from CLI,
+	// doctor, or admin UI.
+	VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -366,6 +391,9 @@ func (UnimplementedNodeAgentServiceServer) RunWorkflow(context.Context, *RunWork
 }
 func (UnimplementedNodeAgentServiceServer) ApplyPackageRelease(context.Context, *ApplyPackageReleaseRequest) (*ApplyPackageReleaseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyPackageRelease not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyPackageIntegrity not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -704,6 +732,24 @@ func _NodeAgentService_ApplyPackageRelease_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_VerifyPackageIntegrity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyPackageIntegrityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).VerifyPackageIntegrity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_VerifyPackageIntegrity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).VerifyPackageIntegrity(ctx, req.(*VerifyPackageIntegrityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -778,6 +824,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyPackageRelease",
 			Handler:    _NodeAgentService_ApplyPackageRelease_Handler,
+		},
+		{
+			MethodName: "VerifyPackageIntegrity",
+			Handler:    _NodeAgentService_VerifyPackageIntegrity_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

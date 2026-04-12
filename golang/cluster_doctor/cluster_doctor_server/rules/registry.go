@@ -40,6 +40,10 @@ func NewRegistry(cfg Config) *Registry {
 		workflowNoActivity{},
 		// MC-4: Blocked workflow runs requiring operator approval
 		workflowBlockedRuns{},
+		// Artifact identity invariants (cache digest, installed digest,
+		// desired/installed build drift). Consumes per-node reports from
+		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
+		artifactIntegrity{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

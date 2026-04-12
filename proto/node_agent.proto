@@ -350,6 +350,42 @@ service NodeAgentService {
       default_role_hint: "admin"
     };
   };
+
+  // VerifyPackageIntegrity runs the `package.verify_integrity` action locally
+  // and returns a JSON integrity report. See internal/actions/verify_integrity.go
+  // for the invariant set and result schema.
+  //
+  // Read-only: does not modify any state. Safe to call on demand from CLI,
+  // doctor, or admin UI.
+  rpc VerifyPackageIntegrity(VerifyPackageIntegrityRequest) returns (VerifyPackageIntegrityResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.package_integrity.verify"
+      permission: "read"
+      resource_template: "/node_agent/packages/{package_name}"
+      default_role_hint: "admin"
+    };
+  };
+}
+
+// VerifyPackageIntegrityRequest narrows the scope of a verify_integrity run.
+// All fields are optional; an empty request verifies every installed package
+// of every kind on the local node.
+message VerifyPackageIntegrityRequest {
+  string package_name    = 1; // filter to a single package (empty = all)
+  string kind            = 2; // SERVICE | INFRASTRUCTURE | COMMAND | APPLICATION (empty = all)
+  string repository_addr = 3; // optional override; auto-discovered if empty
+  string node_id         = 4; // optional override; defaults to local node id
+}
+
+// VerifyPackageIntegrityResponse carries the JSON report produced by
+// package.verify_integrity. The schema is documented alongside the action
+// definition. Callers should parse `report_json` to read findings.
+message VerifyPackageIntegrityResponse {
+  bool   ok             = 1;
+  string report_json    = 2; // JSON-encoded integrityReport
+  int32  finding_count  = 3; // convenience: total findings (sum of invariants)
+  int32  checked_count  = 4; // packages actually checked
+  string error_detail   = 5; // populated only on failure
 }
 
 // ── Node identity token rotation (Phase 2) ──

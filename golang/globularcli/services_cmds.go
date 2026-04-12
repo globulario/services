@@ -205,6 +205,12 @@ func init() {
 
 	servicesRepairCmd.Flags().BoolVar(&servicesRepairDryRun, "dry-run", false, "Report only — do not repair")
 
+	servicesVerifyIntegrityCmd.Flags().StringVar(&svcVerifyPackage, "package", "", "Limit check to a single package (default: all)")
+	servicesVerifyIntegrityCmd.Flags().StringVar(&svcVerifyKind, "kind", "", "Filter by kind: SERVICE|INFRASTRUCTURE|COMMAND|APPLICATION (default: all)")
+	servicesVerifyIntegrityCmd.Flags().StringVar(&svcVerifyRepoAddr, "repository", "", "Override repository gRPC endpoint (auto-discovered if empty)")
+	servicesVerifyIntegrityCmd.Flags().BoolVar(&svcVerifyJSON, "json", false, "Output the raw JSON report instead of the table")
+	servicesVerifyIntegrityCmd.Flags().BoolVar(&svcVerifyQuiet, "quiet", false, "Hide per-finding evidence rows in the table output")
+
 	servicesCmd.AddCommand(servicesApplyCmd)
 	servicesCmd.AddCommand(servicesApplyDesiredCmd)
 	servicesCmd.AddCommand(servicesSeedCmd)
@@ -212,6 +218,7 @@ func init() {
 	servicesCmd.AddCommand(servicesAdoptInstalledCmd)
 	servicesCmd.AddCommand(servicesListDesiredCmd)
 	servicesCmd.AddCommand(servicesRepairCmd)
+	servicesCmd.AddCommand(servicesVerifyIntegrityCmd)
 }
 
 // ─── apply ───────────────────────────────────────────────────────────────────

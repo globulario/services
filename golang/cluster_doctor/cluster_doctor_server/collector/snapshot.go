@@ -28,6 +28,15 @@ type Snapshot struct {
 	NodeHealths map[string]*cluster_controllerpb.NodeHealth // keyed by NodeId
 	Inventories map[string]*node_agentpb.Inventory          // keyed by NodeId
 
+	// Per-node artifact integrity reports, populated from the
+	// VerifyPackageIntegrity RPC. Consumed by the
+	// "artifact.*" invariant family in rules/ to surface
+	// cache / installed-digest mismatches as doctor findings.
+	// Keyed by NodeId. Missing entries mean the collector could
+	// not obtain a report (dial failure, unimplemented on that
+	// node's running binary, etc).
+	IntegrityReports map[string]*IntegrityReport
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary
@@ -41,12 +50,37 @@ type Snapshot struct {
 	mu sync.Mutex
 }
 
+// IntegrityReport is the internal representation of the JSON report returned
+// by node_agent's VerifyPackageIntegrity RPC. It mirrors the schema produced
+// by the `package.verify_integrity` action in node_agent/internal/actions.
+//
+// Unmarshalled from report_json verbatim — keep field tags in sync with the
+// action's integrityReport type.
+type IntegrityReport struct {
+	NodeID     string              `json:"node_id"`
+	Checked    int                 `json:"checked"`
+	Findings   []IntegrityFinding  `json:"findings"`
+	Errors     []string            `json:"errors,omitempty"`
+	Invariants map[string]int      `json:"invariants"`
+}
+
+// IntegrityFinding is a single artifact-integrity violation.
+type IntegrityFinding struct {
+	Invariant string            `json:"invariant"`
+	Severity  string            `json:"severity"`
+	Package   string            `json:"package"`
+	Kind      string            `json:"kind"`
+	Summary   string            `json:"summary"`
+	Evidence  map[string]string `json:"evidence,omitempty"`
+}
+
 func newSnapshot(id string) *Snapshot {
 	return &Snapshot{
-		SnapshotID:  id,
-		GeneratedAt: time.Now(),
-		NodeHealths: make(map[string]*cluster_controllerpb.NodeHealth),
-		Inventories: make(map[string]*node_agentpb.Inventory),
+		SnapshotID:       id,
+		GeneratedAt:      time.Now(),
+		NodeHealths:      make(map[string]*cluster_controllerpb.NodeHealth),
+		Inventories:      make(map[string]*node_agentpb.Inventory),
+		IntegrityReports: make(map[string]*IntegrityReport),
 	}
 }
 
