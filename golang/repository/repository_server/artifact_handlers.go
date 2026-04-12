@@ -133,8 +133,19 @@ func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.A
 
 // readManifestAndStateByKey reads a manifest and its publish state from storage.
 // It also corrects the kind for manifests published before proper kind assignment.
+// Results are cached in-memory to reduce storage backend reads from the
+// reconcile loop (~6 req/s across the cluster).
 func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (string, repopb.PublishState, *repopb.ArtifactManifest, error) {
-	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	sKey := manifestStorageKey(key)
+
+	// Check cache first.
+	if srv.cache != nil {
+		if cKey, cState, cManifest, ok := srv.cache.getManifest(sKey); ok {
+			return cKey, cState, cManifest, nil
+		}
+	}
+
+	data, err := srv.Storage().ReadFile(ctx, sKey)
 	if err != nil {
 		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, err
 	}
@@ -148,6 +159,12 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 			ref.Kind = corrected
 		}
 	}
+
+	// Populate cache.
+	if srv.cache != nil {
+		srv.cache.putManifest(sKey, key, state, m)
+	}
+
 	return key, state, m, nil
 }
 
@@ -256,9 +273,12 @@ func sortManifestsByVersionDesc(ms []*repopb.ArtifactManifest) {
 // resolveLatestBuildNumber scans the artifacts directory for all builds of the
 // given artifact (publisher, name, version, platform) and returns the highest
 // build_number found. Returns 0 if no builds are found.
+//
+// Directory listings are cached (30s TTL) to avoid repeated MinIO ListObjects
+// calls from the reconcile loop.
 func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.ArtifactRef) int64 {
-	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
-	if err != nil {
+	names := srv.cachedDirNames(ctx)
+	if names == nil {
 		return 0
 	}
 
@@ -268,8 +288,7 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 	suffix := ".manifest.json"
 
 	var best int64
-	for _, e := range entries {
-		name := e.Name()
+	for _, name := range names {
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
 			continue
 		}
@@ -291,6 +310,28 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 		}
 	}
 	return best
+}
+
+// cachedDirNames returns the artifact directory entry names, using the cache
+// when available.
+func (srv *server) cachedDirNames(ctx context.Context) []string {
+	if srv.cache != nil {
+		if names, ok := srv.cache.getDir(artifactsDir); ok {
+			return names
+		}
+	}
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	if srv.cache != nil {
+		srv.cache.putDir(artifactsDir, names)
+	}
+	return names
 }
 
 // ── package.json extraction ───────────────────────────────────────────────
@@ -612,6 +653,11 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
+	// Invalidate cache for this artifact and its directory listing.
+	if srv.cache != nil {
+		srv.cache.invalidatePrefix(artifactsDir + "/" + ref.GetPublisherId() + "%" + ref.GetName() + "%")
+	}
+
 	// Write provenance record and digest sidecar.
 	prov := buildProvenanceRecord(ctx, manifest)
 	provDigest, provErr := srv.writeProvenance(ctx, key, prov)
@@ -860,6 +906,12 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	}
 	_ = srv.Storage().Remove(ctx, bKey)
 
+	// Invalidate cache.
+	if srv.cache != nil {
+		srv.cache.invalidateManifest(mKey)
+		srv.cache.invalidateDir(artifactsDir)
+	}
+
 	msg := fmt.Sprintf("artifact %s@%s deleted from repository", ref.GetName(), ref.GetVersion())
 	if len(installedNodes) > 0 {
 		msg += fmt.Sprintf(" (warning: still installed on %d node(s) — this does NOT uninstall from nodes)", len(installedNodes))
@@ -1014,6 +1066,11 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
+	// Invalidate cached manifest (state changed).
+	if srv.cache != nil {
+		srv.cache.invalidateManifest(manifestStorageKey(key))
+	}
+
 	slog.Info("artifact promoted",
 		"key", key,
 		"from", currentState.String(),
@@ -1120,6 +1177,11 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 	}
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
+	}
+
+	// Invalidate cached manifest (state changed).
+	if srv.cache != nil {
+		srv.cache.invalidateManifest(manifestStorageKey(key))
 	}
 
 	slog.Info("artifact state changed",

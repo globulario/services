@@ -116,6 +116,7 @@ type server struct {
 	MinioConfig *config.MinioProxyConfig  // nil → use local filesystem
 	minioClient *minio.Client
 	storage     storage_backend.Storage
+	cache       *manifestCache            // in-memory TTL cache for manifest reads
 
 	// --- Workflow tracing ---
 	workflowRec *workflow.Recorder
@@ -672,6 +673,9 @@ func initializeServerDefaults() *server {
 	s.AllowedOrigins = allowedOriginsStr
 	s.KeepAlive = true
 	s.KeepUpToDate = true
+
+	// Manifest cache for reducing storage backend reads from reconcile loops.
+	s.cache = newManifestCache()
 
 	// Workflow recorder for publish tracing (fire-and-forget, never blocks uploads).
 	// Route through the Envoy gateway so it works on any node.
