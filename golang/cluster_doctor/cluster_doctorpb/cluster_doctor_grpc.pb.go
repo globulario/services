@@ -25,6 +25,7 @@ const (
 	ClusterDoctorService_ExplainFinding_FullMethodName           = "/cluster_doctor.ClusterDoctorService/ExplainFinding"
 	ClusterDoctorService_ExecuteRemediation_FullMethodName       = "/cluster_doctor.ClusterDoctorService/ExecuteRemediation"
 	ClusterDoctorService_StartRemediationWorkflow_FullMethodName = "/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow"
+	ClusterDoctorService_GetHealHistory_FullMethodName           = "/cluster_doctor.ClusterDoctorService/GetHealHistory"
 )
 
 // ClusterDoctorServiceClient is the client API for ClusterDoctorService service.
@@ -44,6 +45,10 @@ type ClusterDoctorServiceClient interface {
 	// and does not bypass its blocklist or approval gates. See
 	// docs/remediation_workflow.md.
 	StartRemediationWorkflow(ctx context.Context, in *StartRemediationWorkflowRequest, opts ...grpc.CallOption) (*StartRemediationWorkflowResponse, error)
+	// GetHealHistory returns recent auto-heal action records from the
+	// persistent audit trail. Supports filtering by node, package,
+	// invariant, and execution status.
+	GetHealHistory(ctx context.Context, in *GetHealHistoryRequest, opts ...grpc.CallOption) (*GetHealHistoryResponse, error)
 }
 
 type clusterDoctorServiceClient struct {
@@ -114,6 +119,16 @@ func (c *clusterDoctorServiceClient) StartRemediationWorkflow(ctx context.Contex
 	return out, nil
 }
 
+func (c *clusterDoctorServiceClient) GetHealHistory(ctx context.Context, in *GetHealHistoryRequest, opts ...grpc.CallOption) (*GetHealHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetHealHistoryResponse)
+	err := c.cc.Invoke(ctx, ClusterDoctorService_GetHealHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterDoctorServiceServer is the server API for ClusterDoctorService service.
 // All implementations should embed UnimplementedClusterDoctorServiceServer
 // for forward compatibility.
@@ -131,6 +146,10 @@ type ClusterDoctorServiceServer interface {
 	// and does not bypass its blocklist or approval gates. See
 	// docs/remediation_workflow.md.
 	StartRemediationWorkflow(context.Context, *StartRemediationWorkflowRequest) (*StartRemediationWorkflowResponse, error)
+	// GetHealHistory returns recent auto-heal action records from the
+	// persistent audit trail. Supports filtering by node, package,
+	// invariant, and execution status.
+	GetHealHistory(context.Context, *GetHealHistoryRequest) (*GetHealHistoryResponse, error)
 }
 
 // UnimplementedClusterDoctorServiceServer should be embedded to have
@@ -157,6 +176,9 @@ func (UnimplementedClusterDoctorServiceServer) ExecuteRemediation(context.Contex
 }
 func (UnimplementedClusterDoctorServiceServer) StartRemediationWorkflow(context.Context, *StartRemediationWorkflowRequest) (*StartRemediationWorkflowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartRemediationWorkflow not implemented")
+}
+func (UnimplementedClusterDoctorServiceServer) GetHealHistory(context.Context, *GetHealHistoryRequest) (*GetHealHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHealHistory not implemented")
 }
 func (UnimplementedClusterDoctorServiceServer) testEmbeddedByValue() {}
 
@@ -286,6 +308,24 @@ func _ClusterDoctorService_StartRemediationWorkflow_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterDoctorService_GetHealHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHealHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterDoctorServiceServer).GetHealHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterDoctorService_GetHealHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterDoctorServiceServer).GetHealHistory(ctx, req.(*GetHealHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterDoctorService_ServiceDesc is the grpc.ServiceDesc for ClusterDoctorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -316,6 +356,10 @@ var ClusterDoctorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartRemediationWorkflow",
 			Handler:    _ClusterDoctorService_StartRemediationWorkflow_Handler,
+		},
+		{
+			MethodName: "GetHealHistory",
+			Handler:    _ClusterDoctorService_GetHealHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

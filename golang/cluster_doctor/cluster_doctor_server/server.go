@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -68,6 +69,8 @@ type ClusterDoctorServer struct {
 
 	// auditRing stores recent periodic heal reports for inspection.
 	auditRing *healerAuditRing
+	// auditStore is the persistent JSONL file for heal action history.
+	auditStore *rules.HealAuditStore
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport
@@ -183,6 +186,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		clusterID:      clusterID,
 		naDialer:       naDialer,
 		ccClient:       ccClient,
+		auditStore:     rules.NewHealAuditStore(""),
 	}
 
 	// Event client for publishing finding deltas to ai-watcher (optional).
@@ -255,6 +259,10 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	}
 	if healMode != cluster_doctorpb.HealMode_HEAL_MODE_OBSERVE {
 		healReport := healer.Evaluate(ctx, findings)
+		// Persist audit trail for on-demand heal.
+		if s.auditStore != nil {
+			s.auditStore.AppendReport(healReport)
+		}
 		// Annotate each finding with its heal decision.
 		for i, f := range findings {
 			if i < len(healReport.Results) {
@@ -558,4 +566,45 @@ func (r *healerRemote) IsServiceConverged(ctx context.Context, serviceName strin
 		}
 	}
 	return true, nil
+}
+
+// GetHealHistory returns recent heal action records from the persistent audit trail.
+func (s *ClusterDoctorServer) GetHealHistory(ctx context.Context, req *cluster_doctorpb.GetHealHistoryRequest) (*cluster_doctorpb.GetHealHistoryResponse, error) {
+	if s.auditStore == nil {
+		return &cluster_doctorpb.GetHealHistoryResponse{}, nil
+	}
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 50
+	}
+	records, err := s.auditStore.ReadHistory(rules.HealHistoryFilter{
+		Node:         req.GetNode(),
+		Package:      req.GetPackageName(),
+		InvariantID:  req.GetInvariantId(),
+		ExecutedOnly: req.GetExecutedOnly(),
+		FailuresOnly: req.GetFailuresOnly(),
+		Limit:        limit,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "read heal history: %v", err)
+	}
+	resp := &cluster_doctorpb.GetHealHistoryResponse{
+		Total: int32(len(records)),
+	}
+	for _, r := range records {
+		resp.Records = append(resp.Records, &cluster_doctorpb.HealHistoryRecord{
+			Ts:          r.Timestamp.Format(time.RFC3339),
+			CycleId:     r.CycleID,
+			InvariantId: r.InvariantID,
+			EntityRef:   r.EntityRef,
+			Node:        r.Node,
+			PackageName: r.Package,
+			Disposition: string(r.Disposition),
+			Action:      r.Action,
+			Executed:    r.Executed,
+			Verified:    r.Verified,
+			Error:       r.Error,
+		})
+	}
+	return resp, nil
 }

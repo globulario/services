@@ -122,9 +122,12 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 
 	report := healer.Evaluate(ctx, findings)
 
-	// Store in audit ring.
+	// Store in audit ring + persistent file.
 	if s.auditRing != nil {
 		s.auditRing.push(report)
+	}
+	if s.auditStore != nil {
+		s.auditStore.AppendReport(report)
 	}
 
 	// Log summary.

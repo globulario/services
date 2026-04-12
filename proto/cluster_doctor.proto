@@ -402,4 +402,46 @@ service ClusterDoctorService {
       default_role_hint: "admin"
     };
   };
+
+  // GetHealHistory returns recent auto-heal action records from the
+  // persistent audit trail. Supports filtering by node, package,
+  // invariant, and execution status.
+  rpc GetHealHistory(GetHealHistoryRequest) returns (GetHealHistoryResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_doctor.heal.history"
+      permission: "read"
+      resource_template: "/cluster_doctor/heal"
+      default_role_hint: "viewer"
+    };
+  };
+}
+
+// ─── Heal History ────────────────────────────────────────────────────────────
+
+message GetHealHistoryRequest {
+  string node          = 1; // filter by node ID prefix (empty = all)
+  string package_name  = 2; // filter by package name (empty = all)
+  string invariant_id  = 3; // filter by invariant ID (empty = all)
+  bool   executed_only = 4; // only show executed actions
+  bool   failures_only = 5; // only show actions that errored
+  int32  limit         = 6; // max records to return (default 50)
+}
+
+message HealHistoryRecord {
+  string ts            = 1; // RFC3339 timestamp
+  string cycle_id      = 2; // groups actions from the same healer cycle
+  string invariant_id  = 3;
+  string entity_ref    = 4; // nodeID/package
+  string node          = 5;
+  string package_name  = 6;
+  string disposition   = 7; // auto | propose | observe
+  string action        = 8; // human-readable action description
+  bool   executed      = 9;
+  bool   verified      = 10;
+  string error         = 11;
+}
+
+message GetHealHistoryResponse {
+  repeated HealHistoryRecord records = 1;
+  int32 total                        = 2;
 }

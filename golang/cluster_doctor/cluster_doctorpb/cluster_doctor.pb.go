@@ -2119,6 +2119,266 @@ func (x *FindingExplanation) GetPlanDiff() []string {
 	return nil
 }
 
+type GetHealHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Node          string                 `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`                                      // filter by node ID prefix (empty = all)
+	PackageName   string                 `protobuf:"bytes,2,opt,name=package_name,json=packageName,proto3" json:"package_name,omitempty"`     // filter by package name (empty = all)
+	InvariantId   string                 `protobuf:"bytes,3,opt,name=invariant_id,json=invariantId,proto3" json:"invariant_id,omitempty"`     // filter by invariant ID (empty = all)
+	ExecutedOnly  bool                   `protobuf:"varint,4,opt,name=executed_only,json=executedOnly,proto3" json:"executed_only,omitempty"` // only show executed actions
+	FailuresOnly  bool                   `protobuf:"varint,5,opt,name=failures_only,json=failuresOnly,proto3" json:"failures_only,omitempty"` // only show actions that errored
+	Limit         int32                  `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`                                   // max records to return (default 50)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHealHistoryRequest) Reset() {
+	*x = GetHealHistoryRequest{}
+	mi := &file_cluster_doctor_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHealHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHealHistoryRequest) ProtoMessage() {}
+
+func (x *GetHealHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHealHistoryRequest.ProtoReflect.Descriptor instead.
+func (*GetHealHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *GetHealHistoryRequest) GetNode() string {
+	if x != nil {
+		return x.Node
+	}
+	return ""
+}
+
+func (x *GetHealHistoryRequest) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *GetHealHistoryRequest) GetInvariantId() string {
+	if x != nil {
+		return x.InvariantId
+	}
+	return ""
+}
+
+func (x *GetHealHistoryRequest) GetExecutedOnly() bool {
+	if x != nil {
+		return x.ExecutedOnly
+	}
+	return false
+}
+
+func (x *GetHealHistoryRequest) GetFailuresOnly() bool {
+	if x != nil {
+		return x.FailuresOnly
+	}
+	return false
+}
+
+func (x *GetHealHistoryRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type HealHistoryRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ts            string                 `protobuf:"bytes,1,opt,name=ts,proto3" json:"ts,omitempty"`                          // RFC3339 timestamp
+	CycleId       string                 `protobuf:"bytes,2,opt,name=cycle_id,json=cycleId,proto3" json:"cycle_id,omitempty"` // groups actions from the same healer cycle
+	InvariantId   string                 `protobuf:"bytes,3,opt,name=invariant_id,json=invariantId,proto3" json:"invariant_id,omitempty"`
+	EntityRef     string                 `protobuf:"bytes,4,opt,name=entity_ref,json=entityRef,proto3" json:"entity_ref,omitempty"` // nodeID/package
+	Node          string                 `protobuf:"bytes,5,opt,name=node,proto3" json:"node,omitempty"`
+	PackageName   string                 `protobuf:"bytes,6,opt,name=package_name,json=packageName,proto3" json:"package_name,omitempty"`
+	Disposition   string                 `protobuf:"bytes,7,opt,name=disposition,proto3" json:"disposition,omitempty"` // auto | propose | observe
+	Action        string                 `protobuf:"bytes,8,opt,name=action,proto3" json:"action,omitempty"`           // human-readable action description
+	Executed      bool                   `protobuf:"varint,9,opt,name=executed,proto3" json:"executed,omitempty"`
+	Verified      bool                   `protobuf:"varint,10,opt,name=verified,proto3" json:"verified,omitempty"`
+	Error         string                 `protobuf:"bytes,11,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealHistoryRecord) Reset() {
+	*x = HealHistoryRecord{}
+	mi := &file_cluster_doctor_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealHistoryRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealHistoryRecord) ProtoMessage() {}
+
+func (x *HealHistoryRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealHistoryRecord.ProtoReflect.Descriptor instead.
+func (*HealHistoryRecord) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *HealHistoryRecord) GetTs() string {
+	if x != nil {
+		return x.Ts
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetCycleId() string {
+	if x != nil {
+		return x.CycleId
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetInvariantId() string {
+	if x != nil {
+		return x.InvariantId
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetEntityRef() string {
+	if x != nil {
+		return x.EntityRef
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetNode() string {
+	if x != nil {
+		return x.Node
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetDisposition() string {
+	if x != nil {
+		return x.Disposition
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *HealHistoryRecord) GetExecuted() bool {
+	if x != nil {
+		return x.Executed
+	}
+	return false
+}
+
+func (x *HealHistoryRecord) GetVerified() bool {
+	if x != nil {
+		return x.Verified
+	}
+	return false
+}
+
+func (x *HealHistoryRecord) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type GetHealHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Records       []*HealHistoryRecord   `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHealHistoryResponse) Reset() {
+	*x = GetHealHistoryResponse{}
+	mi := &file_cluster_doctor_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHealHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHealHistoryResponse) ProtoMessage() {}
+
+func (x *GetHealHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHealHistoryResponse.ProtoReflect.Descriptor instead.
+func (*GetHealHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetHealHistoryResponse) GetRecords() []*HealHistoryRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *GetHealHistoryResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_cluster_doctor_proto protoreflect.FileDescriptor
 
 const file_cluster_doctor_proto_rawDesc = "" +
@@ -2279,7 +2539,31 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\vremediation\x18\x04 \x03(\v2\x1f.cluster_doctor.RemediationStepR\vremediation\x124\n" +
 	"\bevidence\x18\x05 \x03(\v2\x18.cluster_doctor.EvidenceR\bevidence\x125\n" +
 	"\tplan_risk\x18\x06 \x01(\x0e2\x18.cluster_doctor.PlanRiskR\bplanRisk\x12\x1b\n" +
-	"\tplan_diff\x18\a \x03(\tR\bplanDiff*q\n" +
+	"\tplan_diff\x18\a \x03(\tR\bplanDiff\"\xd1\x01\n" +
+	"\x15GetHealHistoryRequest\x12\x12\n" +
+	"\x04node\x18\x01 \x01(\tR\x04node\x12!\n" +
+	"\fpackage_name\x18\x02 \x01(\tR\vpackageName\x12!\n" +
+	"\finvariant_id\x18\x03 \x01(\tR\vinvariantId\x12#\n" +
+	"\rexecuted_only\x18\x04 \x01(\bR\fexecutedOnly\x12#\n" +
+	"\rfailures_only\x18\x05 \x01(\bR\ffailuresOnly\x12\x14\n" +
+	"\x05limit\x18\x06 \x01(\x05R\x05limit\"\xbf\x02\n" +
+	"\x11HealHistoryRecord\x12\x0e\n" +
+	"\x02ts\x18\x01 \x01(\tR\x02ts\x12\x19\n" +
+	"\bcycle_id\x18\x02 \x01(\tR\acycleId\x12!\n" +
+	"\finvariant_id\x18\x03 \x01(\tR\vinvariantId\x12\x1d\n" +
+	"\n" +
+	"entity_ref\x18\x04 \x01(\tR\tentityRef\x12\x12\n" +
+	"\x04node\x18\x05 \x01(\tR\x04node\x12!\n" +
+	"\fpackage_name\x18\x06 \x01(\tR\vpackageName\x12 \n" +
+	"\vdisposition\x18\a \x01(\tR\vdisposition\x12\x16\n" +
+	"\x06action\x18\b \x01(\tR\x06action\x12\x1a\n" +
+	"\bexecuted\x18\t \x01(\bR\bexecuted\x12\x1a\n" +
+	"\bverified\x18\n" +
+	" \x01(\bR\bverified\x12\x14\n" +
+	"\x05error\x18\v \x01(\tR\x05error\"k\n" +
+	"\x16GetHealHistoryResponse\x12;\n" +
+	"\arecords\x18\x01 \x03(\v2!.cluster_doctor.HealHistoryRecordR\arecords\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total*q\n" +
 	"\bSeverity\x12\x14\n" +
 	"\x10SEVERITY_UNKNOWN\x10\x00\x12\x11\n" +
 	"\rSEVERITY_INFO\x10\x01\x12\x11\n" +
@@ -2339,7 +2623,8 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\bHealMode\x12\x15\n" +
 	"\x11HEAL_MODE_OBSERVE\x10\x00\x12\x15\n" +
 	"\x11HEAL_MODE_DRY_RUN\x10\x01\x12\x15\n" +
-	"\x11HEAL_MODE_ENFORCE\x10\x022\x93\t\n" +
+	"\x11HEAL_MODE_ENFORCE\x10\x022\xbc\n" +
+	"\n" +
 	"\x14ClusterDoctorService\x12\xaf\x01\n" +
 	"\x10GetClusterReport\x12$.cluster_doctor.ClusterReportRequest\x1a\x1d.cluster_doctor.ClusterReport\"V\x82\xb5\x18R\n" +
 	"\"cluster_doctor.cluster_report.read\x12\x04read\x1a\x1e/cluster_doctor/cluster/report*\x06viewer\x12\xab\x01\n" +
@@ -2352,7 +2637,9 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x12ExecuteRemediation\x12).cluster_doctor.ExecuteRemediationRequest\x1a*.cluster_doctor.ExecuteRemediationResponse\"]\x82\xb5\x18Y\n" +
 	"\"cluster_doctor.remediation.execute\x12\x05write\x1a%/cluster_doctor/findings/{finding_id}*\x05admin\x12\xe3\x01\n" +
 	"\x18StartRemediationWorkflow\x12/.cluster_doctor.StartRemediationWorkflowRequest\x1a0.cluster_doctor.StartRemediationWorkflowResponse\"d\x82\xb5\x18`\n" +
-	")cluster_doctor.remediation.workflow_start\x12\x05write\x1a%/cluster_doctor/findings/{finding_id}*\x05adminBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
+	")cluster_doctor.remediation.workflow_start\x12\x05write\x1a%/cluster_doctor/findings/{finding_id}*\x05admin\x12\xa6\x01\n" +
+	"\x0eGetHealHistory\x12%.cluster_doctor.GetHealHistoryRequest\x1a&.cluster_doctor.GetHealHistoryResponse\"E\x82\xb5\x18A\n" +
+	"\x1bcluster_doctor.heal.history\x12\x04read\x1a\x14/cluster_doctor/heal*\x06viewerBXZVgithub.com/globulario/services/golang/cluster_doctor/cluster_doctorpb;cluster_doctorpbb\x06proto3"
 
 var (
 	file_cluster_doctor_proto_rawDescOnce sync.Once
@@ -2367,7 +2654,7 @@ func file_cluster_doctor_proto_rawDescGZIP() []byte {
 }
 
 var file_cluster_doctor_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_cluster_doctor_proto_goTypes = []any{
 	(Severity)(0),                            // 0: cluster_doctor.Severity
 	(ClusterStatus)(0),                       // 1: cluster_doctor.ClusterStatus
@@ -2398,22 +2685,25 @@ var file_cluster_doctor_proto_goTypes = []any{
 	(*DriftReport)(nil),                      // 26: cluster_doctor.DriftReport
 	(*ExplainFindingRequest)(nil),            // 27: cluster_doctor.ExplainFindingRequest
 	(*FindingExplanation)(nil),               // 28: cluster_doctor.FindingExplanation
-	nil,                                      // 29: cluster_doctor.Evidence.KeyValuesEntry
-	nil,                                      // 30: cluster_doctor.RemediationAction.ParamsEntry
-	nil,                                      // 31: cluster_doctor.ClusterReport.CountsByCategoryEntry
-	(*timestamppb.Timestamp)(nil),            // 32: google.protobuf.Timestamp
+	(*GetHealHistoryRequest)(nil),            // 29: cluster_doctor.GetHealHistoryRequest
+	(*HealHistoryRecord)(nil),                // 30: cluster_doctor.HealHistoryRecord
+	(*GetHealHistoryResponse)(nil),           // 31: cluster_doctor.GetHealHistoryResponse
+	nil,                                      // 32: cluster_doctor.Evidence.KeyValuesEntry
+	nil,                                      // 33: cluster_doctor.RemediationAction.ParamsEntry
+	nil,                                      // 34: cluster_doctor.ClusterReport.CountsByCategoryEntry
+	(*timestamppb.Timestamp)(nil),            // 35: google.protobuf.Timestamp
 }
 var file_cluster_doctor_proto_depIdxs = []int32{
-	32, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
+	35, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
 	11, // 1: cluster_doctor.ReportHeader.data_errors:type_name -> cluster_doctor.Evidence
-	32, // 2: cluster_doctor.ReportHeader.observed_at:type_name -> google.protobuf.Timestamp
+	35, // 2: cluster_doctor.ReportHeader.observed_at:type_name -> google.protobuf.Timestamp
 	5,  // 3: cluster_doctor.ReportHeader.freshness_mode:type_name -> cluster_doctor.FreshnessMode
-	29, // 4: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
-	32, // 5: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
+	32, // 4: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
+	35, // 5: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
 	13, // 6: cluster_doctor.RemediationStep.action:type_name -> cluster_doctor.RemediationAction
 	6,  // 7: cluster_doctor.RemediationAction.action_type:type_name -> cluster_doctor.ActionType
 	7,  // 8: cluster_doctor.RemediationAction.risk:type_name -> cluster_doctor.ActionRisk
-	30, // 9: cluster_doctor.RemediationAction.params:type_name -> cluster_doctor.RemediationAction.ParamsEntry
+	33, // 9: cluster_doctor.RemediationAction.params:type_name -> cluster_doctor.RemediationAction.ParamsEntry
 	0,  // 10: cluster_doctor.Finding.severity:type_name -> cluster_doctor.Severity
 	11, // 11: cluster_doctor.Finding.evidence:type_name -> cluster_doctor.Evidence
 	12, // 12: cluster_doctor.Finding.remediation:type_name -> cluster_doctor.RemediationStep
@@ -2425,7 +2715,7 @@ var file_cluster_doctor_proto_depIdxs = []int32{
 	10, // 18: cluster_doctor.ClusterReport.header:type_name -> cluster_doctor.ReportHeader
 	1,  // 19: cluster_doctor.ClusterReport.overall_status:type_name -> cluster_doctor.ClusterStatus
 	18, // 20: cluster_doctor.ClusterReport.findings:type_name -> cluster_doctor.Finding
-	31, // 21: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
+	34, // 21: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
 	5,  // 22: cluster_doctor.NodeReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
 	10, // 23: cluster_doctor.NodeReport.header:type_name -> cluster_doctor.ReportHeader
 	18, // 24: cluster_doctor.NodeReport.findings:type_name -> cluster_doctor.Finding
@@ -2437,23 +2727,26 @@ var file_cluster_doctor_proto_depIdxs = []int32{
 	12, // 30: cluster_doctor.FindingExplanation.remediation:type_name -> cluster_doctor.RemediationStep
 	11, // 31: cluster_doctor.FindingExplanation.evidence:type_name -> cluster_doctor.Evidence
 	3,  // 32: cluster_doctor.FindingExplanation.plan_risk:type_name -> cluster_doctor.PlanRisk
-	20, // 33: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
-	22, // 34: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
-	24, // 35: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
-	27, // 36: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
-	14, // 37: cluster_doctor.ClusterDoctorService.ExecuteRemediation:input_type -> cluster_doctor.ExecuteRemediationRequest
-	16, // 38: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:input_type -> cluster_doctor.StartRemediationWorkflowRequest
-	21, // 39: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
-	23, // 40: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
-	26, // 41: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
-	28, // 42: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
-	15, // 43: cluster_doctor.ClusterDoctorService.ExecuteRemediation:output_type -> cluster_doctor.ExecuteRemediationResponse
-	17, // 44: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:output_type -> cluster_doctor.StartRemediationWorkflowResponse
-	39, // [39:45] is the sub-list for method output_type
-	33, // [33:39] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	30, // 33: cluster_doctor.GetHealHistoryResponse.records:type_name -> cluster_doctor.HealHistoryRecord
+	20, // 34: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
+	22, // 35: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
+	24, // 36: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
+	27, // 37: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
+	14, // 38: cluster_doctor.ClusterDoctorService.ExecuteRemediation:input_type -> cluster_doctor.ExecuteRemediationRequest
+	16, // 39: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:input_type -> cluster_doctor.StartRemediationWorkflowRequest
+	29, // 40: cluster_doctor.ClusterDoctorService.GetHealHistory:input_type -> cluster_doctor.GetHealHistoryRequest
+	21, // 41: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
+	23, // 42: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
+	26, // 43: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
+	28, // 44: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
+	15, // 45: cluster_doctor.ClusterDoctorService.ExecuteRemediation:output_type -> cluster_doctor.ExecuteRemediationResponse
+	17, // 46: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:output_type -> cluster_doctor.StartRemediationWorkflowResponse
+	31, // 47: cluster_doctor.ClusterDoctorService.GetHealHistory:output_type -> cluster_doctor.GetHealHistoryResponse
+	41, // [41:48] is the sub-list for method output_type
+	34, // [34:41] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_cluster_doctor_proto_init() }
@@ -2467,7 +2760,7 @@ func file_cluster_doctor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cluster_doctor_proto_rawDesc), len(file_cluster_doctor_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   22,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
