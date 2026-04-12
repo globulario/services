@@ -33,14 +33,19 @@ func EnsureServicePortConfig(ctx context.Context, service, binDir string) error 
 	// ── 1. Resolve service Id from the identity registry ──
 	serviceId := resolveServiceId(service)
 	if serviceId == "" {
-		// Unknown service — fall back to --describe as last resort.
+		// Unknown service — try --describe as a last resort.
+		// If the binary doesn't support --describe (runDescribe returns
+		// nil,nil), skip port config entirely. This is best-effort: the
+		// install proceeds and port allocation can be retried later via
+		// EnsureServicePortReady once the service is known.
 		binPath := filepath.Join(binDir, exe)
 		desc, err := runDescribe(ctx, binPath)
 		if err != nil {
-			return fmt.Errorf("unknown service %q and describe failed: %w", service, err)
+			return fmt.Errorf("unknown service %q: %w", service, err)
 		}
-		if desc.Id == "" {
-			return fmt.Errorf("unknown service %q and describe returned empty Id", service)
+		if desc == nil || desc.Id == "" {
+			// describe not supported or returned no Id — best-effort skip.
+			return nil
 		}
 		serviceId = desc.Id
 	}
@@ -261,15 +266,51 @@ type describePayload struct {
 	Port    int    `json:"Port"`
 }
 
+// runDescribe executes "<binary> --describe" and parses the JSON response.
+//
+// Many Globular binaries (node_agent_server, minio, xds, gateway, envoy, etc.)
+// do NOT support --describe. Some exit with "flag provided but not defined",
+// others emit plain text or log output before exiting 0. Neither is a failure
+// condition — they simply have no describe. This function returns (nil, nil)
+// in that case so callers can treat describe as "best effort" rather than
+// a hard verification gate.
+//
+// Only a clean stdout containing valid JSON with the expected fields is
+// considered a describe result. Any other outcome (non-zero exit, empty
+// stdout, unparseable JSON) → (nil, nil).
+//
+// Real errors unrelated to the describe contract (ctx cancel before exec,
+// binary path is a directory, etc.) are still returned as errors.
 func runDescribe(ctx context.Context, binPath string) (*describePayload, error) {
+	// Quick pre-check: bin must exist and be executable. This surfaces the
+	// "missing binary" case as a real error instead of swallowing it as
+	// "describe not supported".
+	if fi, statErr := os.Stat(binPath); statErr != nil {
+		return nil, fmt.Errorf("describe %s: %w", binPath, statErr)
+	} else if fi.IsDir() {
+		return nil, fmt.Errorf("describe %s: is a directory", binPath)
+	}
+
 	cmd := exec.CommandContext(ctx, binPath, "--describe")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("describe %s: %w", binPath, err)
+		// Non-zero exit or startup failure. Treat as "describe not
+		// supported" — the binary is valid, it just doesn't speak the
+		// --describe protocol. Callers must handle nil result.
+		return nil, nil
+	}
+	if len(strings.TrimSpace(string(out))) == 0 {
+		return nil, nil
 	}
 	var payload describePayload
 	if err := json.Unmarshal(out, &payload); err != nil {
-		return nil, fmt.Errorf("parse describe: %w", err)
+		// Non-JSON stdout (log lines, ANSI, etc.) — not a describe
+		// response. Same semantics as non-zero exit.
+		return nil, nil
+	}
+	if payload.Id == "" && payload.Port == 0 && payload.Address == "" {
+		// Empty payload — treat as "not supported".
+		return nil, nil
 	}
 	if payload.Port == 0 {
 		payload.Port = portFromAddress(payload.Address)

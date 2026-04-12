@@ -466,9 +466,11 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		version = filepath.Base(artifact)
 	}
 
-	// Ensure runtime config + port normalization
+	// Ensure runtime config + port normalization. Non-fatal: many binaries
+	// don't implement --describe so port config is best-effort. The drift
+	// reconciler will re-run this later once the service is known.
 	if err := serviceports.EnsureServicePortConfig(ctx, service, binDir); err != nil {
-		return "", err
+		log.Printf("install_payload: port config for %s best-effort failed: %v (install continues)", service, err)
 	}
 
 	// Run post-install script if bundled in the artifact.
@@ -478,7 +480,46 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		return "", fmt.Errorf("post-install script: %w", err)
 	}
 
+	// Safe post-install verification: confirm the bytes we just extracted
+	// are actually on disk, executable, and non-empty. This replaces the
+	// old --describe gate which falsely failed for binaries that don't
+	// implement the describe protocol (node_agent_server, xds, gateway,
+	// minio, etc). Identity of the extracted bytes is already verified
+	// upstream by artifact.fetch (sha256 match vs manifest digest).
+	exe := executableForService(service)
+	if exe != "" {
+		binPath := filepath.Join(binDir, exe)
+		if err := verifyInstalledBinary(binPath); err != nil {
+			return "", fmt.Errorf("verify %s: %w", service, err)
+		}
+	}
+
 	return fmt.Sprintf("service payload installed version=%s", version), nil
+}
+
+// verifyInstalledBinary checks that an installed binary is present, executable,
+// and non-empty. It does NOT invoke the binary — invoking an unknown binary
+// with an arbitrary flag like --describe is inherently unreliable for
+// verification since many binaries don't implement it and some start the
+// full service instead. Byte-level integrity is the responsibility of
+// artifact.fetch (which verifies the sha256 digest vs the manifest).
+func verifyInstalledBinary(binPath string) error {
+	fi, err := os.Stat(binPath)
+	if err != nil {
+		return fmt.Errorf("%s: %w", binPath, err)
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("%s: is a directory, not a file", binPath)
+	}
+	if fi.Size() == 0 {
+		return fmt.Errorf("%s: zero-byte file", binPath)
+	}
+	// Any exec bit suffices (owner/group/other). We don't own the binary,
+	// we just need the kernel to accept it as runnable by systemd.
+	if fi.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("%s: not executable (mode=%s)", binPath, fi.Mode().Perm())
+	}
+	return nil
 }
 
 // runPostInstallScript executes scripts/post-install.sh from the extracted
@@ -865,21 +906,10 @@ type describePayload struct {
 	Port    int    `json:"Port"`
 }
 
-func runDescribe(ctx context.Context, binPath string) (*describePayload, error) {
-	cmd := exec.CommandContext(ctx, binPath, "--describe")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("describe %s: %w", binPath, err)
-	}
-	var payload describePayload
-	if err := json.Unmarshal(out, &payload); err != nil {
-		return nil, fmt.Errorf("parse describe: %w", err)
-	}
-	if payload.Port == 0 {
-		payload.Port = portFromAddress(payload.Address)
-	}
-	return &payload, nil
-}
+// (runDescribe was removed — the only in-package caller was dead code.
+// Callers that need describe use serviceports.runDescribe, which now
+// returns nil,nil for binaries that don't support the --describe protocol
+// instead of propagating non-zero exit / non-JSON output as hard errors.)
 
 func portFromAddress(addr string) int {
 	host, port, err := net.SplitHostPort(addr)
