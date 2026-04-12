@@ -64,7 +64,25 @@ type ClusterDoctorServer struct {
 //
 // The serverName argument must be the DialTarget.ServerName (never an
 // IP literal) — it is what TLS verifies the peer certificate against.
+//
+// Loopback rewrite: config.ResolveDialTarget rewrites 127.0.0.1/::1 to
+// "localhost", but service certs in the cluster never include "localhost"
+// in their SAN list (they use the real hostname + *.cluster-domain).
+// When we detect a localhost ServerName, substitute the machine hostname
+// so the TLS handshake verifies against a SAN that actually exists in
+// the cert. This unblocks doctor's ListNodes and fetchPerNode which
+// would otherwise fail with "certificate is valid for globule-X, not localhost".
+//
+// Additionally, we also load a client certificate (mTLS) so services
+// that require it (e.g. node_agent's VerifyPackageIntegrity with
+// permission=read) see an authenticated peer identity, not an
+// anonymous TLS-only connection.
 func buildClientTLSCreds(serverName string) credentials.TransportCredentials {
+	if serverName == "" || serverName == "localhost" || serverName == "::1" {
+		if h, err := os.Hostname(); err == nil && h != "" {
+			serverName = h
+		}
+	}
 	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetTLSFile("", "", "ca.crt")
 	if caFile != "" {
@@ -74,6 +92,12 @@ func buildClientTLSCreds(serverName string) credentials.TransportCredentials {
 				tlsCfg.RootCAs = pool
 			}
 		}
+	}
+	// Best-effort mTLS client cert — required by some RPCs for auth.
+	clientCert := "/var/lib/globular/pki/issued/services/service.crt"
+	clientKey := "/var/lib/globular/pki/issued/services/service.key"
+	if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
 	}
 	return credentials.NewTLS(tlsCfg)
 }

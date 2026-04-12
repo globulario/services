@@ -362,7 +362,14 @@ func (c *Collector) agentClient(endpoint string) (node_agentpb.NodeAgentServiceC
 }
 
 // agentClientTLSCreds returns gRPC transport credentials for dialling node agents.
+// See buildClientTLSCreds in server.go for the loopback ServerName rationale;
+// this mirrors that behavior for per-node dials.
 func agentClientTLSCreds(serverName string) credentials.TransportCredentials {
+	if serverName == "" || serverName == "localhost" || serverName == "::1" {
+		if h, err := os.Hostname(); err == nil && h != "" {
+			serverName = h
+		}
+	}
 	tlsCfg := &tls.Config{ServerName: serverName}
 	caFile := config.GetTLSFile("", "", "ca.crt")
 	if caFile != "" {
@@ -372,6 +379,14 @@ func agentClientTLSCreds(serverName string) credentials.TransportCredentials {
 				tlsCfg.RootCAs = pool
 			}
 		}
+	}
+	// Load mTLS client cert so downstream RPCs that require an
+	// authenticated peer identity (e.g. node_agent.VerifyPackageIntegrity
+	// with permission=read) see a real principal, not anonymous.
+	clientCert := "/var/lib/globular/pki/issued/services/service.crt"
+	clientKey := "/var/lib/globular/pki/issued/services/service.key"
+	if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
+		tlsCfg.Certificates = []tls.Certificate{cert}
 	}
 	return credentials.NewTLS(tlsCfg)
 }
