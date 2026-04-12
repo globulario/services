@@ -12,9 +12,37 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/globulario/services/golang/compute/computepb"
 )
+
+// ─── Priority model ──────────────────────────────────────────────────────────
+
+// Priority classes for compute jobs. Higher value = higher priority.
+const (
+	PriorityLow      = 1
+	PriorityNormal   = 5
+	PriorityHigh     = 8
+	PriorityCritical = 10
+)
+
+// parsePriority converts a string priority to a numeric value.
+// Default is PriorityNormal when unset or unrecognized.
+func parsePriority(s string) int {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "low":
+		return PriorityLow
+	case "high":
+		return PriorityHigh
+	case "critical":
+		return PriorityCritical
+	case "normal", "":
+		return PriorityNormal
+	default:
+		return PriorityNormal
+	}
+}
 
 // placementResult holds the outcome of a placement decision.
 type placementResult struct {
@@ -36,8 +64,13 @@ func (e *placementError) Error() string {
 
 // placeUnit selects the best node for a compute unit. It applies hard filters
 // first (profiles, minimum resources), then scores eligible nodes by load +
-// capacity. Returns the chosen node with full observability.
-func placeUnit(ctx context.Context, nodes []computeNodeInfo, def *computepb.ComputeDefinition, loadMap map[string]int) (*placementResult, error) {
+// capacity. Higher-priority jobs get a scoring boost that effectively lets them
+// tolerate more node load. Returns the chosen node with full observability.
+func placeUnit(ctx context.Context, nodes []computeNodeInfo, def *computepb.ComputeDefinition, loadMap map[string]int, priorities ...int) (*placementResult, error) {
+	jobPriority := PriorityNormal
+	if len(priorities) > 0 {
+		jobPriority = priorities[0]
+	}
 	if len(nodes) == 0 {
 		return nil, &placementError{Reason: "no compute service instances", Candidates: 0}
 	}
@@ -74,8 +107,8 @@ func placeUnit(ctx context.Context, nodes []computeNodeInfo, def *computepb.Comp
 		}
 	}
 
-	// Phase 2: Score eligible nodes.
-	best := scoreNodes(eligible, loadMap)
+	// Phase 2: Score eligible nodes with priority boost.
+	best := scoreNodes(eligible, loadMap, jobPriority)
 
 	slog.Info("compute placement: decision",
 		"chosen", best.Node.Hostname,
@@ -120,10 +153,12 @@ func filterByResources(nodes []computeNodeInfo, rp *computepb.ResourceProfile) [
 }
 
 // scoreNodes computes a placement score for each node and returns the best.
-// Score formula: capacity_score / (1 + active_units)
+// Score formula: (capacity_score * priority_boost) / (1 + active_units)
 // Higher is better. Capacity = normalized(CPU + RAM + disk).
+// Priority boost: higher-priority jobs tolerate more load, effectively
+// getting access to nodes that lower-priority jobs would avoid.
 // Tie-break: round-robin.
-func scoreNodes(nodes []computeNodeInfo, loadMap map[string]int) *placementResult {
+func scoreNodes(nodes []computeNodeInfo, loadMap map[string]int, priority int) *placementResult {
 	if len(nodes) == 0 {
 		return nil
 	}
@@ -156,6 +191,10 @@ func scoreNodes(nodes []computeNodeInfo, loadMap map[string]int) *placementResul
 		// Capacity score: weighted average.
 		capacity := 0.4*cpuNorm + 0.4*ramNorm + 0.2*diskNorm
 
+		// Priority boost: higher priority tolerates more load.
+		// Normal(5)=1.0x, High(8)=1.6x, Critical(10)=2.0x, Low(1)=0.2x
+		priorityBoost := float64(priority) / float64(PriorityNormal)
+
 		// Load penalty — check by both NodeID and Address since the
 		// load map may be keyed by either depending on the source.
 		load := 0
@@ -165,7 +204,7 @@ func scoreNodes(nodes []computeNodeInfo, loadMap map[string]int) *placementResul
 				load = l
 			}
 		}
-		score := capacity / float64(1+load)
+		score := (capacity * priorityBoost) / float64(1+load)
 
 		if score > bestScore {
 			bestScore = score

@@ -240,8 +240,12 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("definition not found for job %s", jobID)
 		}
 
-		// Get current load for placement decisions.
+		// Get current load and job priority for placement decisions.
 		loadMap := activeUnitsPerNode(ctx)
+		priority := PriorityNormal
+		if job != nil && job.Spec != nil {
+			priority = parsePriority(job.Spec.Priority)
+		}
 
 		dispatched := 0
 		for _, unit := range units {
@@ -249,8 +253,8 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 				continue
 			}
 
-			// Resource-aware placement: filters + scoring.
-			result, err := placeUnit(ctx, nodes, def, loadMap)
+			// Resource-aware placement: filters + scoring + priority.
+			result, err := placeUnit(ctx, nodes, def, loadMap, priority)
 			if err != nil {
 				slog.Warn("compute dispatch: placement failed for unit",
 					"unit_id", unit.UnitId, "err", err)
@@ -453,7 +457,11 @@ func retryUnit(ctx context.Context, srv *server, def *computepb.ComputeDefinitio
 		return
 	}
 	retryLoad := activeUnitsPerNode(ctx)
-	retryResult, placeErr := placeUnit(ctx, nodes, def, retryLoad)
+	retryPriority := PriorityNormal
+	if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
+		retryPriority = parsePriority(job.Spec.Priority)
+	}
+	retryResult, placeErr := placeUnit(ctx, nodes, def, retryLoad, retryPriority)
 	if placeErr != nil {
 		slog.Error("compute retry: placement failed", "unit_id", unit.UnitId, "err", placeErr)
 		unit.State = computepb.UnitState_UNIT_FAILED
@@ -534,20 +542,22 @@ func computeChooseNode(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// Load definition for placement constraints.
+		// Load definition and priority for placement.
 		var def *computepb.ComputeDefinition
+		priority := PriorityNormal
 		if jobID != "" {
 			if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
 				def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+				priority = parsePriority(job.Spec.Priority)
 			}
 		}
 		if def == nil {
 			def = &computepb.ComputeDefinition{}
 		}
 
-		// Resource-aware placement: hard filters + scoring.
+		// Resource-aware placement: hard filters + scoring + priority.
 		loadMap := activeUnitsPerNode(ctx)
-		result, err := placeUnit(ctx, nodes, def, loadMap)
+		result, err := placeUnit(ctx, nodes, def, loadMap, priority)
 		if err != nil {
 			return nil, err
 		}
