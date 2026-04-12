@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
@@ -219,6 +220,48 @@ func listUnits(ctx context.Context, jobID string) ([]*computepb.ComputeUnit, err
 		units = append(units, unit)
 	}
 	return units, nil
+}
+
+// ─── Load tracking ───────────────────────────────────────────────────────────
+
+// activeUnitsPerNode scans all compute jobs and returns a map of nodeId → active
+// unit count. Active means UNIT_PENDING, UNIT_ASSIGNED, UNIT_STAGING, or UNIT_RUNNING.
+func activeUnitsPerNode(ctx context.Context) map[string]int {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+
+	// Scan all unit keys across all jobs.
+	resp, err := cli.Get(tctx, "/globular/compute/jobs/", clientv3.WithPrefix())
+	if err != nil {
+		return nil
+	}
+
+	counts := map[string]int{}
+	for _, kv := range resp.Kvs {
+		key := string(kv.Key)
+		// Only look at unit keys: /globular/compute/jobs/{id}/units/{uid}
+		if !strings.Contains(key, "/units/") {
+			continue
+		}
+		unit := &computepb.ComputeUnit{}
+		if err := protojson.Unmarshal(kv.Value, unit); err != nil {
+			continue
+		}
+		switch unit.State {
+		case computepb.UnitState_UNIT_PENDING,
+			computepb.UnitState_UNIT_ASSIGNED,
+			computepb.UnitState_UNIT_STAGING,
+			computepb.UnitState_UNIT_RUNNING:
+			if unit.NodeId != "" {
+				counts[unit.NodeId]++
+			}
+		}
+	}
+	return counts
 }
 
 // ─── Results ─────────────────────────────────────────────────────────────────

@@ -239,16 +239,20 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 			}
 		}
 
+		// Get current load for placement decisions.
+		loadMap := activeUnitsPerNode(ctx)
+
 		dispatched := 0
 		for _, unit := range units {
 			if unit.State != computepb.UnitState_UNIT_PENDING {
 				continue
 			}
 
-			// Round-robin placement across distinct nodes.
-			idx := roundRobinCounter.Add(1) - 1
-			node := nodes[int(idx)%len(nodes)]
+			// Load-aware placement: pick least-loaded node.
+			node, _ := selectLeastLoaded(nodes, loadMap)
 			endpoint := node.Address
+			// Update local load tracking for subsequent units in this batch.
+			loadMap[node.NodeID]++
 
 			// Grant lease.
 			leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
@@ -419,8 +423,8 @@ func retryUnit(ctx context.Context, srv *server, def *computepb.ComputeDefinitio
 		_ = putUnit(ctx, unit)
 		return
 	}
-	idx := roundRobinCounter.Add(1) - 1
-	node := nodes[int(idx)%len(nodes)]
+	retryLoad := activeUnitsPerNode(ctx)
+	node, _ := selectLeastLoaded(nodes, retryLoad)
 
 	// Grant lease.
 	leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
@@ -524,13 +528,14 @@ func computeChooseNode(srv *server) engine.ActionHandler {
 				"candidates", len(nodes))
 		}
 
-		// Round-robin across eligible nodes for spread placement.
-		idx := roundRobinCounter.Add(1) - 1
-		chosen := nodes[int(idx)%len(nodes)]
-		slog.Info("compute workflow: node chosen",
+		// Load-aware selection: pick the node with fewest active units.
+		loadMap := activeUnitsPerNode(ctx)
+		chosen, _ := selectLeastLoaded(nodes, loadMap)
+		slog.Info("compute workflow: node chosen (load-aware)",
 			"address", chosen.Address,
 			"hostname", chosen.Hostname,
 			"profiles", chosen.Profiles,
+			"load", loadMap[chosen.NodeID],
 			"candidates", len(nodes))
 		return &engine.ActionResult{
 			OK: true,

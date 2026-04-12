@@ -215,6 +215,39 @@ func enrichNodeProfiles(nodes []computeNodeInfo) {
 	}
 }
 
+// selectLeastLoaded picks the node with the fewest active compute units.
+// Ties are broken by round-robin. Returns the chosen node and the load map
+// for observability.
+func selectLeastLoaded(nodes []computeNodeInfo, loadMap map[string]int) (computeNodeInfo, map[string]int) {
+	if len(nodes) == 0 {
+		return computeNodeInfo{}, loadMap
+	}
+	if loadMap == nil {
+		loadMap = map[string]int{}
+	}
+
+	// Find minimum load.
+	minLoad := int(^uint(0) >> 1) // max int
+	for _, n := range nodes {
+		load := loadMap[n.NodeID]
+		if load < minLoad {
+			minLoad = load
+		}
+	}
+
+	// Collect all nodes at minimum load.
+	var candidates []computeNodeInfo
+	for _, n := range nodes {
+		if loadMap[n.NodeID] <= minLoad {
+			candidates = append(candidates, n)
+		}
+	}
+
+	// Tie-break with round-robin.
+	idx := roundRobinCounter.Add(1) - 1
+	return candidates[int(idx)%len(candidates)], loadMap
+}
+
 // filterByProfiles returns only nodes that have at least one of the required profiles.
 func filterByProfiles(nodes []computeNodeInfo, required []string) []computeNodeInfo {
 	if len(required) == 0 {
