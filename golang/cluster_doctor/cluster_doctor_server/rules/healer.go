@@ -53,10 +53,20 @@ type HealReport struct {
 	Errors    int          `json:"errors"`
 }
 
+// RemoteOps provides the healer with bounded access to node-agent RPCs.
+// The server wires this to the real node_agent dialer; tests can mock it.
+type RemoteOps interface {
+	// DeleteCacheArtifact calls node_agent.DeleteCacheArtifact on the given node.
+	DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error
+}
+
 // Healer evaluates findings against the policy and executes safe auto-repairs.
 type Healer struct {
 	// DryRun prevents any mutations. Actions are logged but not executed.
 	DryRun bool
+	// Remote provides bounded access to node-agent RPCs for remote actions.
+	// Nil means remote actions are skipped (local-only fallback).
+	Remote RemoteOps
 }
 
 // Evaluate runs one pass of the healer against a set of findings.
@@ -128,49 +138,41 @@ func (h *Healer) executeAutoAction(ctx context.Context, action string, f Finding
 }
 
 // actionDeleteStaleCache removes the cached latest.artifact for a package
-// on a specific node. This is a local-only operation when the doctor runs
-// on the same node; for remote nodes it would need a node_agent RPC.
-//
-// v1 limitation: only operates on the LOCAL node. Remote cache cleanup
-// requires a future node_agent.DeleteCacheArtifact RPC.
+// on a specific node via the DeleteCacheArtifact RPC. If the Remote
+// interface is nil, falls back to local filesystem deletion (only works
+// when the healer runs on the same node as the target).
 func (h *Healer) actionDeleteStaleCache(ctx context.Context, f Finding) error {
-	// Extract package name and cache path from finding evidence.
-	pkg := ""
-	cachePath := ""
-	for _, ev := range f.Evidence {
-		kv := ev.GetKeyValues()
-		if v, ok := kv["cache_path"]; ok {
-			cachePath = v
-		}
-	}
-	// Fallback: derive from EntityRef (format: "nodeID/packageName").
+	// Extract node + package from EntityRef (format: "nodeID/packageName").
 	parts := strings.SplitN(f.EntityRef, "/", 2)
-	if len(parts) == 2 {
-		pkg = parts[1]
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fmt.Errorf("cannot parse entityRef %q as node/package", f.EntityRef)
 	}
-	if cachePath == "" && pkg != "" {
-		cachePath = fmt.Sprintf("/var/lib/globular/staging/core@globular.io/%s/latest.artifact", pkg)
-	}
-	if cachePath == "" {
-		return fmt.Errorf("cannot determine cache path from finding evidence")
+	nodeID, pkg := parts[0], parts[1]
+	publisher := "core@globular.io"
+
+	// Prefer the remote RPC path (works on any node).
+	if h.Remote != nil {
+		if err := h.Remote.DeleteCacheArtifact(ctx, nodeID, pkg, publisher); err != nil {
+			return fmt.Errorf("DeleteCacheArtifact(%s, %s): %w", nodeID[:8], pkg, err)
+		}
+		log.Printf("healer: deleted stale cache via RPC (node=%s pkg=%s)", nodeID[:8], pkg)
+		return nil
 	}
 
-	// Only operate on local paths.
-	hostname, _ := os.Hostname()
-	nodeID := parts[0]
+	// Fallback: local filesystem (only if this is the local node).
 	localNodeID := resolveLocalNodeID()
 	if localNodeID != "" && nodeID != localNodeID {
-		log.Printf("healer: skip delete_stale_cache for remote node %s (local=%s)", nodeID[:8], localNodeID[:8])
-		return nil // not an error — just can't operate remotely in v1
+		log.Printf("healer: skip delete_stale_cache for remote node %s (no Remote ops, local=%s)", nodeID[:8], localNodeID[:8])
+		return nil
 	}
-
+	cachePath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact", publisher, pkg)
 	if err := os.Remove(cachePath); err != nil {
 		if os.IsNotExist(err) {
-			return nil // already removed — idempotent
+			return nil
 		}
 		return fmt.Errorf("remove %s: %w", cachePath, err)
 	}
-	log.Printf("healer: deleted stale cache %s (node=%s pkg=%s host=%s)", cachePath, nodeID[:8], pkg, hostname)
+	log.Printf("healer: deleted stale cache locally (node=%s pkg=%s path=%s)", nodeID[:8], pkg, cachePath)
 	return nil
 }
 

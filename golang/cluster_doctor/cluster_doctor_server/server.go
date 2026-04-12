@@ -12,6 +12,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
@@ -55,6 +56,11 @@ type ClusterDoctorServer struct {
 	// WorkflowEndpoint is configured.
 	workflowClient workflowpb.WorkflowServiceClient
 	clusterID      string
+
+	// naDialer resolves node_agent endpoints via the cluster controller
+	// and dials them with TLS. Used by the healer for remote auto-heal
+	// actions like DeleteCacheArtifact.
+	naDialer *controllerNodeAgentDialer
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport
@@ -159,14 +165,16 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		EmitAuditEvents: cfg.EmitAuditEvents,
 	})
 
+	naDialer := newControllerNodeAgentDialer(ccClient)
 	s := &ClusterDoctorServer{
 		cfg:            cfg,
 		collector:      col,
 		registry:       reg,
 		version:        version,
-		executor:       &ActionExecutor{nodeAgentDialer: newControllerNodeAgentDialer(ccClient)},
+		executor:       &ActionExecutor{nodeAgentDialer: naDialer},
 		workflowClient: wfClient,
 		clusterID:      clusterID,
+		naDialer:       naDialer,
 	}
 
 	// Event client for publishing finding deltas to ai-watcher (optional).
@@ -235,6 +243,7 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	healMode := req.GetHealMode()
 	healer := &rules.Healer{
 		DryRun: healMode != cluster_doctorpb.HealMode_HEAL_MODE_ENFORCE,
+		Remote: s.healerRemoteOps(),
 	}
 	if healMode != cluster_doctorpb.HealMode_HEAL_MODE_OBSERVE {
 		healReport := healer.Evaluate(ctx, findings)
@@ -384,4 +393,40 @@ func (s *ClusterDoctorServer) publishFindingEvent(topic string, f rules.Finding)
 	if err := s.eventClient.Publish(topic, data); err != nil {
 		logger.Warn("publish finding event failed", "topic", topic, "err", err)
 	}
+}
+
+// healerRemoteOps returns a RemoteOps implementation that delegates to
+// node_agent gRPC calls via the existing controllerNodeAgentDialer.
+// Returns nil if the dialer is not available (healer falls back to local).
+func (s *ClusterDoctorServer) healerRemoteOps() rules.RemoteOps {
+	if s.naDialer == nil {
+		return nil
+	}
+	return &healerRemote{dialer: s.naDialer}
+}
+
+// healerRemote implements rules.RemoteOps using the doctor's node_agent dialer.
+type healerRemote struct {
+	dialer *controllerNodeAgentDialer
+}
+
+func (r *healerRemote) DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error {
+	conn, err := r.dialer.dialAgent(ctx, nodeID)
+	if err != nil {
+		return fmt.Errorf("dial node %s: %w", nodeID[:8], err)
+	}
+	defer conn.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(conn)
+	resp, err := client.DeleteCacheArtifact(ctx, &node_agentpb.DeleteCacheArtifactRequest{
+		PackageName: packageName,
+		PublisherId: publisherID,
+	})
+	if err != nil {
+		return fmt.Errorf("DeleteCacheArtifact RPC: %w", err)
+	}
+	if !resp.GetOk() {
+		return fmt.Errorf("DeleteCacheArtifact: %s", resp.GetMessage())
+	}
+	return nil
 }
