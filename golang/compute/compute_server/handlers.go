@@ -182,6 +182,10 @@ func (srv *server) SubmitComputeJob(ctx context.Context, req *computepb.SubmitCo
 		"unit_id", unitID,
 		"definition", spec.DefinitionName+"@"+spec.DefinitionVersion)
 
+	// Dispatch via workflow engine — the workflow service orchestrates the
+	// full job lifecycle and calls back to this service for each action.
+	go srv.executeViaWorkflow(def, job, unit)
+
 	return &computepb.SubmitComputeJobResponse{Job: job}, nil
 }
 
@@ -292,3 +296,4 @@ func (srv *server) GetComputeUnit(ctx context.Context, req *computepb.GetCompute
 	// In production, we'd have a secondary index or the caller provides job_id.
 	return nil, fmt.Errorf("GetComputeUnit requires job context — use ListComputeUnits with job_id instead")
 }
+

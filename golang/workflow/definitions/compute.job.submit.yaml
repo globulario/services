@@ -7,6 +7,8 @@ metadata:
     Validates a compute job, admits it, creates a single execution unit,
     and dispatches the unit execution workflow. V1 single-unit path only.
 spec:
+  strategy:
+    mode: single
   inputSchema:
     type: object
     required:

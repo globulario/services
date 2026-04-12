@@ -313,6 +313,9 @@ func main() {
 
 	setupGrpcService(srv)
 
+	// Publish compute workflow definitions to MinIO (idempotent).
+	go publishWorkflowDefinitions()
+
 	logger.Info("service ready", "service", srv.Name, "version", srv.Version, "port", srv.Port, "domain", srv.Domain, "startup_ms", time.Since(start).Milliseconds())
 
 	lm := globular.NewLifecycleManager(srv, logger)

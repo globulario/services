@@ -7,6 +7,8 @@ metadata:
     Assigns a compute unit to a node, stages inputs/artifact, executes
     the entrypoint, and waits for terminal state. V1 single-unit path.
 spec:
+  strategy:
+    mode: single
   inputSchema:
     type: object
     required:

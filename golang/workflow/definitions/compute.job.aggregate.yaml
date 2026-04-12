@@ -7,6 +7,8 @@ metadata:
     Checks unit outcomes, creates the result record, and transitions
     the job to its terminal state. V1 single-unit path (no merge needed).
 spec:
+  strategy:
+    mode: single
   inputSchema:
     type: object
     required:
