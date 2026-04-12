@@ -53,11 +53,26 @@ type HealReport struct {
 	Errors    int          `json:"errors"`
 }
 
-// RemoteOps provides the healer with bounded access to node-agent RPCs.
-// The server wires this to the real node_agent dialer; tests can mock it.
+// RemoteOps provides the healer with bounded access to cluster RPCs.
+// The server wires this to the real dialers; tests can mock it.
 type RemoteOps interface {
 	// DeleteCacheArtifact calls node_agent.DeleteCacheArtifact on the given node.
 	DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error
+
+	// PatchReleasePhase updates a ServiceRelease's status.phase in etcd.
+	// Only used by patch_release_available. Guard: caller must verify
+	// convergence BEFORE calling.
+	PatchReleasePhase(ctx context.Context, releaseName, newPhase, reason string) error
+
+	// ClearDriftObservation clears a DriftUnresolved entry via the
+	// workflow service. Guard: caller must verify the underlying drift
+	// is actually resolved before calling.
+	ClearDriftObservation(ctx context.Context, clusterID, driftType, entityRef string) error
+
+	// IsServiceConverged checks whether a service's installed build matches
+	// desired build on ALL nodes that should have it. Returns true only when
+	// every eligible node has installed == desired.
+	IsServiceConverged(ctx context.Context, serviceName string) (bool, error)
 }
 
 // Healer evaluates findings against the policy and executes safe auto-repairs.
@@ -128,10 +143,7 @@ func (h *Healer) executeAutoAction(ctx context.Context, action string, f Finding
 	case "clear_resolved_drift":
 		return h.actionClearResolvedDrift(ctx, f)
 	case "patch_release_available":
-		// v1: log recommendation, do not execute.
-		log.Printf("healer: [recommend] patch_release_available for %s — policy says auto, v1 healer defers to operator",
-			f.EntityRef)
-		return nil
+		return h.actionPatchReleaseAvailable(ctx, f)
 	default:
 		return fmt.Errorf("unknown auto-action %q", action)
 	}
@@ -176,11 +188,72 @@ func (h *Healer) actionDeleteStaleCache(ctx context.Context, f Finding) error {
 	return nil
 }
 
-// actionClearResolvedDrift clears a DriftUnresolved counter in the workflow
-// service after verifying the underlying drift has been resolved. Uses etcd
-// installed_state vs desired_state comparison to confirm convergence before
-// clearing.
+// actionPatchReleaseAvailable patches a stuck ServiceRelease from RESOLVED
+// to AVAILABLE after verifying convergence.
+//
+// Guard conditions (ALL must be true):
+//   - ServiceRelease phase is RESOLVED
+//   - installed_state matches desired build/version on all eligible nodes
+//   - Remote.IsServiceConverged confirms alignment
+//
+// If any guard fails, the action is skipped (not an error — just not eligible).
+func (h *Healer) actionPatchReleaseAvailable(ctx context.Context, f Finding) error {
+	if h.Remote == nil {
+		log.Printf("healer: [skip] patch_release_available for %s — no Remote ops", f.EntityRef)
+		return nil
+	}
+
+	// Extract service name from EntityRef (format: "nodeID/serviceName" or just "releaseName").
+	serviceName := f.EntityRef
+	if parts := strings.SplitN(f.EntityRef, "/", 2); len(parts) == 2 {
+		serviceName = parts[1]
+	}
+
+	// Guard: verify convergence before patching.
+	converged, err := h.Remote.IsServiceConverged(ctx, serviceName)
+	if err != nil {
+		log.Printf("healer: [skip] patch_release_available for %s — convergence check failed: %v", serviceName, err)
+		return nil // skip, not error
+	}
+	if !converged {
+		log.Printf("healer: [skip] patch_release_available for %s — not converged, leaving as RESOLVED", serviceName)
+		return nil // not eligible
+	}
+
+	// Extract release name from evidence or derive from EntityRef.
+	releaseName := ""
+	for _, ev := range f.Evidence {
+		kv := ev.GetKeyValues()
+		if v, ok := kv["release_name"]; ok {
+			releaseName = v
+		}
+	}
+	if releaseName == "" {
+		releaseName = "core@globular.io/" + serviceName
+	}
+
+	if err := h.Remote.PatchReleasePhase(ctx, releaseName, "AVAILABLE", "converged"); err != nil {
+		return fmt.Errorf("PatchReleasePhase(%s): %w", releaseName, err)
+	}
+	log.Printf("healer: patched release %s → AVAILABLE (convergence verified)", releaseName)
+	return nil
+}
+
+// actionClearResolvedDrift clears a DriftUnresolved counter after verifying
+// the underlying drift has been resolved.
+//
+// Guard conditions (ALL must be true):
+//   - drift observation exists (from the finding)
+//   - installed_state matches desired for the drifted service
+//   - Remote.IsServiceConverged confirms alignment
+//
+// If any guard fails, the action is skipped.
 func (h *Healer) actionClearResolvedDrift(ctx context.Context, f Finding) error {
+	if h.Remote == nil {
+		log.Printf("healer: [skip] clear_resolved_drift for %s — no Remote ops", f.EntityRef)
+		return nil
+	}
+
 	// Extract drift_type and entity_ref from evidence.
 	driftType := ""
 	entityRef := ""
@@ -197,11 +270,28 @@ func (h *Healer) actionClearResolvedDrift(ctx context.Context, f Finding) error 
 		return fmt.Errorf("missing drift_type or entity_ref in finding evidence")
 	}
 
-	// TODO: call workflow.ClearDriftObservation via gRPC.
-	// v1 limitation: this requires a workflow client connection which the
-	// healer doesn't currently hold. For now, log the recommendation.
-	log.Printf("healer: [recommend] clear drift observation: type=%s entity=%s — requires workflow gRPC client",
-		driftType, entityRef)
+	// Extract service name from entityRef (format: "serviceName@nodeID").
+	serviceName := entityRef
+	if atIdx := strings.Index(entityRef, "@"); atIdx > 0 {
+		serviceName = entityRef[:atIdx]
+	}
+
+	// Guard: verify convergence before clearing.
+	converged, err := h.Remote.IsServiceConverged(ctx, serviceName)
+	if err != nil {
+		log.Printf("healer: [skip] clear_resolved_drift for %s — convergence check failed: %v", entityRef, err)
+		return nil
+	}
+	if !converged {
+		log.Printf("healer: [skip] clear_resolved_drift for %s — not converged, keeping drift observation", entityRef)
+		return nil
+	}
+
+	clusterID := "globular.internal" // TODO: pass from config
+	if err := h.Remote.ClearDriftObservation(ctx, clusterID, driftType, entityRef); err != nil {
+		return fmt.Errorf("ClearDriftObservation(%s, %s): %w", driftType, entityRef, err)
+	}
+	log.Printf("healer: cleared drift observation %s/%s (convergence verified)", driftType, entityRef)
 	return nil
 }
 

@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -61,6 +62,9 @@ type ClusterDoctorServer struct {
 	// and dials them with TLS. Used by the healer for remote auto-heal
 	// actions like DeleteCacheArtifact.
 	naDialer *controllerNodeAgentDialer
+
+	// ccClient for convergence checks in the healer.
+	ccClient cluster_controllerpb.ClusterControllerServiceClient
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport
@@ -175,6 +179,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		workflowClient: wfClient,
 		clusterID:      clusterID,
 		naDialer:       naDialer,
+		ccClient:       ccClient,
 	}
 
 	// Event client for publishing finding deltas to ai-watcher (optional).
@@ -402,12 +407,20 @@ func (s *ClusterDoctorServer) healerRemoteOps() rules.RemoteOps {
 	if s.naDialer == nil {
 		return nil
 	}
-	return &healerRemote{dialer: s.naDialer}
+	return &healerRemote{
+		dialer:         s.naDialer,
+		ccClient:       s.ccClient,
+		workflowClient: s.workflowClient,
+		clusterID:      s.clusterID,
+	}
 }
 
-// healerRemote implements rules.RemoteOps using the doctor's node_agent dialer.
+// healerRemote implements rules.RemoteOps using the doctor's dialers.
 type healerRemote struct {
-	dialer *controllerNodeAgentDialer
+	dialer         *controllerNodeAgentDialer
+	ccClient       cluster_controllerpb.ClusterControllerServiceClient
+	workflowClient workflowpb.WorkflowServiceClient
+	clusterID      string
 }
 
 func (r *healerRemote) DeleteCacheArtifact(ctx context.Context, nodeID, packageName, publisherID string) error {
@@ -429,4 +442,117 @@ func (r *healerRemote) DeleteCacheArtifact(ctx context.Context, nodeID, packageN
 		return fmt.Errorf("DeleteCacheArtifact: %s", resp.GetMessage())
 	}
 	return nil
+}
+
+func (r *healerRemote) PatchReleasePhase(ctx context.Context, releaseName, newPhase, reason string) error {
+	// Read current ServiceRelease from etcd via the controller's resource store.
+	// The controller provides no direct "PatchRelease" RPC, so we do a bounded
+	// etcd read+write. The key is deterministic: /globular/resources/ServiceRelease/<name>.
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	key := "/globular/resources/ServiceRelease/" + releaseName
+	resp, err := cli.Get(ctx, key)
+	if err != nil || len(resp.Kvs) == 0 {
+		return fmt.Errorf("get release %s: not found or error: %v", releaseName, err)
+	}
+
+	var rec map[string]interface{}
+	if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err != nil {
+		return fmt.Errorf("parse release: %w", err)
+	}
+	st, _ := rec["status"].(map[string]interface{})
+	if st == nil {
+		return fmt.Errorf("release %s has no status", releaseName)
+	}
+	st["phase"] = newPhase
+	st["transition_reason"] = reason
+	updated, err := json.Marshal(rec)
+	if err != nil {
+		return fmt.Errorf("marshal release: %w", err)
+	}
+	if _, err := cli.Put(ctx, key, string(updated)); err != nil {
+		return fmt.Errorf("put release: %w", err)
+	}
+	return nil
+}
+
+func (r *healerRemote) ClearDriftObservation(ctx context.Context, clusterID, driftType, entityRef string) error {
+	if r.workflowClient == nil {
+		return fmt.Errorf("workflow client not available")
+	}
+	// Inject cluster_id metadata (required by workflow interceptor).
+	md := metadata.Pairs("cluster_id", clusterID)
+	wfCtx := metadata.NewOutgoingContext(ctx, md)
+
+	_, err := r.workflowClient.ClearDriftObservation(wfCtx, &workflowpb.ClearDriftObservationRequest{
+		ClusterId: clusterID,
+		DriftType: driftType,
+		EntityRef: entityRef,
+	})
+	return err
+}
+
+func (r *healerRemote) IsServiceConverged(ctx context.Context, serviceName string) (bool, error) {
+	if r.ccClient == nil {
+		return false, fmt.Errorf("controller client not available")
+	}
+	// Read desired state from etcd.
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return false, fmt.Errorf("etcd: %w", err)
+	}
+	key := "/globular/resources/ServiceDesiredVersion/" + serviceName
+	resp, err := cli.Get(ctx, key)
+	if err != nil || len(resp.Kvs) == 0 {
+		return false, fmt.Errorf("desired %s not found", serviceName)
+	}
+	var desired struct {
+		Spec struct {
+			Version     string `json:"version"`
+			BuildNumber int64  `json:"build_number"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(resp.Kvs[0].Value, &desired); err != nil {
+		return false, err
+	}
+
+	// Check installed state on all nodes via ListNodes + per-node installed_state.
+	nodesResp, err := r.ccClient.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
+	if err != nil {
+		return false, fmt.Errorf("ListNodes: %w", err)
+	}
+	for _, node := range nodesResp.GetNodes() {
+		nodeID := node.GetNodeId()
+		if nodeID == "" {
+			continue
+		}
+		instKey := fmt.Sprintf("/globular/nodes/%s/packages/SERVICE/%s", nodeID, serviceName)
+		instResp, err := cli.Get(ctx, instKey)
+		if err != nil || len(instResp.Kvs) == 0 {
+			// Service may not be installed on this node (different profile).
+			// Not a convergence failure — just skip.
+			continue
+		}
+		var inst struct {
+			Version     string `json:"version"`
+			BuildNumber string `json:"buildNumber"`
+			Status      string `json:"status"`
+		}
+		if err := json.Unmarshal(instResp.Kvs[0].Value, &inst); err != nil {
+			continue
+		}
+		if inst.Status != "installed" {
+			return false, nil // not converged
+		}
+		if inst.Version != desired.Spec.Version {
+			return false, nil
+		}
+		// Build number in installed_state is a string, desired is int64.
+		if inst.BuildNumber != "" && inst.BuildNumber != fmt.Sprintf("%d", desired.Spec.BuildNumber) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
