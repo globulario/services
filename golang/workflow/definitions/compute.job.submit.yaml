@@ -6,7 +6,8 @@ metadata:
   description: >-
     Validates a compute job, admits it, creates execution units (single or
     partitioned), dispatches all units for execution, waits for completion,
-    and triggers aggregation. Supports both single-unit and multi-unit paths.
+    then aggregates results and finalizes the job. Single workflow path
+    with no child workflow dispatch.
 spec:
   strategy:
     mode: single
@@ -75,15 +76,35 @@ spec:
       execution:
         idempotency: safe_retry
 
-    - id: dispatch_aggregate
-      title: Dispatch job aggregation workflow
+    - id: assess_units
+      title: Assess unit outcomes
       dependsOn: [await_all]
-      actor: workflow-service
-      action: workflow.start_child
+      actor: compute
+      action: compute.assess_unit_outcomes
       with:
-        workflow_name: compute.job.aggregate
-        inputs:
-          job_id: $.job_id
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: create_result
+      title: Create aggregate result
+      dependsOn: [assess_units]
+      actor: compute
+      action: compute.create_result
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: finalize_job
+      title: Finalize job to terminal state
+      dependsOn: [create_result]
+      actor: compute
+      action: compute.finalize_job
+      with:
+        job_id: $.job_id
+        verification_passed: $.verification_passed
+        trust_level: $.trust_level
       execution:
         idempotency: safe_retry
 

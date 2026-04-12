@@ -764,47 +764,73 @@ func computeCreateResult(srv *server) engine.ActionHandler {
 		job, _ := getJob(ctx, jobID)
 		units, _ := listUnits(ctx, jobID)
 
-		// Run verification on the first succeeded unit (v1: single unit).
-		var vResult verificationResult
+		// Collect outputs and checksums from all succeeded units.
+		var allChecksums []string
+		var lastOutputRef *computepb.ObjectRef
+		succeededCount := 0
+
+		var def *computepb.ComputeDefinition
+		if job != nil && job.Spec != nil {
+			def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+		}
+
+		// Run verification on each succeeded unit and collect aggregate checksums.
+		allVerified := true
+		var worstTrust computepb.ResultTrustLevel
 		for _, u := range units {
 			if u.State != computepb.UnitState_UNIT_SUCCEEDED {
 				continue
 			}
-			if job != nil && job.Spec != nil {
-				def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
-				if def != nil {
-					stagingPath := "/var/lib/globular/compute/jobs/" + jobID + "/units/" + u.UnitId
-					vResult = verifyOutput(def, stagingPath, u)
-					slog.Info("compute workflow: verification completed",
-						"job_id", jobID, "unit_id", u.UnitId,
-						"passed", vResult.Passed,
-						"trust_level", vResult.TrustLevel.String())
-				}
+			succeededCount++
+			if u.Checksum != "" {
+				allChecksums = append(allChecksums, u.Checksum)
 			}
-			break
+			lastOutputRef = u.OutputRef
+
+			// Per-unit verification.
+			if def != nil {
+				stagingPath := "/var/lib/globular/compute/jobs/" + jobID + "/units/" + u.UnitId
+				vr := verifyOutput(def, stagingPath, u)
+				if !vr.Passed {
+					allVerified = false
+				}
+				if vr.TrustLevel > worstTrust {
+					worstTrust = vr.TrustLevel
+				}
+				slog.Info("compute workflow: unit verification",
+					"job_id", jobID, "unit_id", u.UnitId,
+					"passed", vr.Passed, "trust", vr.TrustLevel.String())
+			}
 		}
-		if vResult.TrustLevel == computepb.ResultTrustLevel_RESULT_TRUST_LEVEL_UNSPECIFIED {
-			vResult.TrustLevel = computepb.ResultTrustLevel_UNVERIFIED
-			vResult.Passed = true
+
+		// Aggregate trust level: use the weakest verification across units.
+		trustLevel := worstTrust
+		if trustLevel == computepb.ResultTrustLevel_RESULT_TRUST_LEVEL_UNSPECIFIED {
+			trustLevel = computepb.ResultTrustLevel_UNVERIFIED
 		}
 
 		result := &computepb.ComputeResult{
 			JobId:       jobID,
-			TrustLevel:  vResult.TrustLevel,
-			Checksums:   vResult.Checksums,
-			Metadata:    verificationMetadataToStruct(vResult.Metadata),
+			ResultRef:   lastOutputRef,
+			TrustLevel:  trustLevel,
+			Checksums:   allChecksums,
 			CompletedAt: timestamppb.Now(),
 		}
 		if err := putResult(ctx, result); err != nil {
 			return nil, fmt.Errorf("store result: %w", err)
 		}
 
+		slog.Info("compute workflow: aggregate result created",
+			"job_id", jobID, "units_succeeded", succeededCount,
+			"trust_level", trustLevel.String(),
+			"checksums", len(allChecksums))
+
 		return &engine.ActionResult{
 			OK: true,
 			Output: map[string]any{
-				"trust_level":         vResult.TrustLevel.String(),
-				"verification_passed": vResult.Passed,
-				"verification_msg":    vResult.Message,
+				"trust_level":         trustLevel.String(),
+				"verification_passed": allVerified,
+				"units_succeeded":     succeededCount,
 			},
 		}, nil
 	}
