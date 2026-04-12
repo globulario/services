@@ -45,7 +45,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"workflow_active_runs":          "globular_workflow_active_runs",
 		"node_heartbeat_age_max":        "max(time() - globular_node_agent_heartbeat_success_unix)",
 		"etcd_has_leader":               "max(etcd_server_has_leader)",
-		"etcd_quorum_size":              "max(etcd_server_quorum_size)",
+		// etcd_server_quorum_size doesn't exist in etcd 3.5.x.
+		// Use count(etcd_server_id) which counts how many etcd members
+		// this Prometheus can see. On a single-node scrape it returns 1;
+		// with federation it returns the full membership.
+		"etcd_quorum_size": "count(etcd_server_id)",
 	}
 
 	results := make(map[string]float64)
@@ -53,7 +57,14 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 	for key, q := range queries {
 		val, err := c.promQuery(ctx, client, endpoint, q)
 		if err != nil {
-			snap.addError("prometheus", key, err)
+			// "no data" from an optional enrichment query is not a hard
+			// error — the metric may not exist in this version or may
+			// have no current samples. Only surface real HTTP/parse
+			// failures. This prevents non-existent optional metrics from
+			// keeping data_incomplete permanently set.
+			if !strings.Contains(err.Error(), "prometheus no data") {
+				snap.addError("prometheus", key, err)
+			}
 			continue
 		}
 		results[key] = val
