@@ -307,7 +307,8 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 			def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
 		}
 
-		// Track which units we've already retried to avoid double-retry in the same poll cycle.
+		// Track which (unit, attempt) pairs we've retried to avoid double-retry
+		// but allow re-evaluation after a new attempt fails.
 		retriedUnits := map[string]bool{}
 
 		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
@@ -334,11 +335,12 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 					succeeded++
 				case computepb.UnitState_UNIT_FAILED, computepb.UnitState_UNIT_CANCELLED, computepb.UnitState_UNIT_LEASE_EXPIRED:
 					// Check retry policy for failed units.
-					if def != nil && !retriedUnits[u.UnitId] {
+					retryKey := fmt.Sprintf("%s:%d", u.UnitId, u.Attempt)
+					if def != nil && !retriedUnits[retryKey] {
 						decision := shouldRetryUnit(def, u)
 						logRetryDecision(u, decision)
 						if decision.ShouldRetry {
-							retriedUnits[u.UnitId] = true
+							retriedUnits[retryKey] = true
 							go retryUnit(ctx, srv, def, jobID, u)
 							retried++
 							allTerminal = false
