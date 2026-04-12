@@ -11,13 +11,22 @@ import (
 	"time"
 )
 
-// defaultPromEndpoint returns the cluster-local Prometheus endpoint. Envoy
-// usually fronts Prometheus, so prefer the DNS name; fall back to loopback.
+// defaultPromEndpoint returns the Prometheus HTTP query endpoint.
+//
+// Prometheus runs on every node at :9090 and is NOT registered in the
+// etcd service registry. DNS-based access ("prometheus.globular.internal")
+// resolves through the Envoy gateway on port 443, which requires HTTPS
+// and sometimes doesn't have a route configured — causing persistent
+// data_errors in doctor. Direct loopback avoids all those issues: the
+// doctor process always lives on the same host as a Prometheus instance,
+// no TLS is needed for loopback HTTP, and no gateway route is required.
+//
+// Override with PROMETHEUS_ENDPOINT env var for non-standard setups.
 func defaultPromEndpoint() string {
 	if v := os.Getenv("PROMETHEUS_ENDPOINT"); v != "" {
 		return v
 	}
-	return "http://prometheus.globular.internal" // routed via Envoy
+	return "http://127.0.0.1:9090"
 }
 
 // fetchPrometheus executes a handful of instant queries to enrich the snapshot.
