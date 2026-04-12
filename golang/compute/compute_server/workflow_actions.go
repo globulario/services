@@ -9,8 +9,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -471,26 +473,48 @@ func retryUnit(ctx context.Context, srv *server, def *computepb.ComputeDefinitio
 
 func computeChooseNode(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		jobID, _ := req.With["job_id"].(string)
+
 		// Discover all nodes running the compute service.
 		nodes := resolveComputeNodes()
 		if len(nodes) == 0 {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// Round-robin across distinct nodes for spread placement.
+		// Filter by definition's allowed_node_profiles if specified.
+		if jobID != "" {
+			if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
+				if def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion); def != nil {
+					if len(def.AllowedNodeProfiles) > 0 {
+						filtered := filterByProfiles(nodes, def.AllowedNodeProfiles)
+						if len(filtered) == 0 {
+							slog.Warn("compute workflow: no nodes match required profiles, using all",
+								"required", def.AllowedNodeProfiles, "available", len(nodes))
+						} else {
+							slog.Info("compute workflow: profile filter applied",
+								"required", def.AllowedNodeProfiles,
+								"before", len(nodes), "after", len(filtered))
+							nodes = filtered
+						}
+					}
+				}
+			}
+		}
+
+		// Round-robin across eligible nodes for spread placement.
 		idx := roundRobinCounter.Add(1) - 1
 		chosen := nodes[int(idx)%len(nodes)]
 		slog.Info("compute workflow: node chosen",
 			"address", chosen.Address,
-			"node_id", chosen.NodeID,
-			"mac", chosen.Mac,
+			"hostname", chosen.Hostname,
+			"profiles", chosen.Profiles,
 			"candidates", len(nodes))
 		return &engine.ActionResult{
 			OK: true,
 			Output: map[string]any{
 				"node_id":         chosen.NodeID,
 				"runner_endpoint": chosen.Address,
-				"node_mac":        chosen.Mac,
+				"node_hostname":   chosen.Hostname,
 			},
 		}, nil
 	}
@@ -809,9 +833,27 @@ func computeCreateResult(srv *server) engine.ActionHandler {
 			trustLevel = computepb.ResultTrustLevel_UNVERIFIED
 		}
 
+		// For multi-unit jobs, upload an aggregate manifest to MinIO.
+		var aggregateRef *computepb.ObjectRef
+		if succeededCount > 1 {
+			manifest := buildAggregateManifest(jobID, units)
+			ref, err := uploadAggregateManifest(ctx, jobID, manifest)
+			if err != nil {
+				slog.Warn("compute workflow: aggregate manifest upload failed",
+					"job_id", jobID, "err", err)
+			} else {
+				aggregateRef = ref
+			}
+		}
+
+		resultRef := aggregateRef
+		if resultRef == nil {
+			resultRef = lastOutputRef
+		}
+
 		result := &computepb.ComputeResult{
 			JobId:       jobID,
-			ResultRef:   lastOutputRef,
+			ResultRef:   resultRef,
 			TrustLevel:  trustLevel,
 			Checksums:   allChecksums,
 			CompletedAt: timestamppb.Now(),
@@ -823,7 +865,8 @@ func computeCreateResult(srv *server) engine.ActionHandler {
 		slog.Info("compute workflow: aggregate result created",
 			"job_id", jobID, "units_succeeded", succeededCount,
 			"trust_level", trustLevel.String(),
-			"checksums", len(allChecksums))
+			"checksums", len(allChecksums),
+			"has_manifest", aggregateRef != nil)
 
 		return &engine.ActionResult{
 			OK: true,
@@ -899,4 +942,65 @@ func computeRunnerRunRequest(unitID, jobID string, def *computepb.ComputeDefinit
 		JobSpec:     spec,
 		StagingPath: stagingPath,
 	}
+}
+
+// ─── Aggregate manifest ──────────────────────────────────────────────────────
+
+type aggregateManifest struct {
+	JobID       string              `json:"job_id"`
+	CompletedAt string              `json:"completed_at"`
+	UnitCount   int                 `json:"unit_count"`
+	Units       []unitManifestEntry `json:"units"`
+}
+
+type unitManifestEntry struct {
+	UnitID      string `json:"unit_id"`
+	PartitionID string `json:"partition_id,omitempty"`
+	NodeID      string `json:"node_id"`
+	State       string `json:"state"`
+	OutputURI   string `json:"output_uri,omitempty"`
+	Checksum    string `json:"checksum,omitempty"`
+	SizeBytes   uint64 `json:"size_bytes,omitempty"`
+}
+
+func buildAggregateManifest(jobID string, units []*computepb.ComputeUnit) *aggregateManifest {
+	m := &aggregateManifest{
+		JobID:       jobID,
+		CompletedAt: time.Now().UTC().Format(time.RFC3339),
+		UnitCount:   len(units),
+	}
+	for _, u := range units {
+		entry := unitManifestEntry{
+			UnitID:      u.UnitId,
+			PartitionID: u.PartitionId,
+			NodeID:      u.NodeId,
+			State:       u.State.String(),
+		}
+		if u.OutputRef != nil {
+			entry.OutputURI = u.OutputRef.Uri
+			entry.Checksum = u.OutputRef.Sha256
+			entry.SizeBytes = u.OutputRef.SizeBytes
+		}
+		m.Units = append(m.Units, entry)
+	}
+	return m
+}
+
+func uploadAggregateManifest(ctx context.Context, jobID string, manifest *aggregateManifest) (*computepb.ObjectRef, error) {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal manifest: %w", err)
+	}
+
+	// Write manifest to a staging dir and upload via MinIO.
+	stagingDir := fmt.Sprintf("/var/lib/globular/compute/jobs/%s/aggregate", jobID)
+	outputDir := stagingDir + "/output"
+	if err := os.MkdirAll(outputDir, 0750); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(outputDir+"/manifest.json", data, 0644); err != nil {
+		return nil, err
+	}
+
+	return uploadOutput(ctx, stagingDir, jobID, "aggregate")
 }

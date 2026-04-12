@@ -10,14 +10,17 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 
 	"github.com/globulario/services/golang/compute/compute_runnerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -122,17 +125,22 @@ func resolveComputeEndpoints() []string {
 
 // computeNodeInfo holds a resolved compute node's identity and endpoint.
 type computeNodeInfo struct {
-	Address string // e.g. "10.0.0.20:10300"
-	NodeID  string // service instance ID
-	Mac     string // node MAC for identification
+	Address  string   // e.g. "10.0.0.20:10300"
+	NodeID   string   // service instance ID
+	Mac      string   // node MAC for identification
+	Hostname string   // node hostname
+	Profiles []string // node profiles (core, compute, storage, etc.)
 }
 
-// resolveComputeNodes returns detailed node info for all compute instances.
+// resolveComputeNodes returns detailed node info for all compute instances,
+// enriched with node profiles from the cluster controller for placement filtering.
 func resolveComputeNodes() []computeNodeInfo {
 	svcs, err := config.GetServicesConfigurationsByName(computeServiceName)
 	if err != nil || len(svcs) == 0 {
 		return nil
 	}
+
+	// Build node info from service configs.
 	var nodes []computeNodeInfo
 	for _, s := range svcs {
 		addr, _ := s["Address"].(string)
@@ -147,7 +155,72 @@ func resolveComputeNodes() []computeNodeInfo {
 			Mac:     mac,
 		})
 	}
+
+	// Enrich with node profiles from etcd cluster state (best-effort).
+	enrichNodeProfiles(nodes)
 	return nodes
+}
+
+// enrichNodeProfiles reads node profiles from etcd and matches them
+// to compute instances by IP address.
+func enrichNodeProfiles(nodes []computeNodeInfo) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, "/globular/nodes/", clientv3.WithPrefix())
+	if err != nil {
+		return
+	}
+
+	// Build IP → profiles map from node records.
+	type nodeRecord struct {
+		Hostname string   `json:"hostname"`
+		Profiles []string `json:"profiles"`
+		IPs      []string `json:"ips"`
+	}
+	ipProfiles := map[string]*nodeRecord{}
+	for _, kv := range resp.Kvs {
+		var rec nodeRecord
+		if json.Unmarshal(kv.Value, &rec) != nil {
+			continue
+		}
+		for _, ip := range rec.IPs {
+			ipProfiles[ip] = &rec
+		}
+	}
+
+	// Match compute nodes by extracting IP from their address.
+	for i := range nodes {
+		host, _, _ := net.SplitHostPort(nodes[i].Address)
+		if rec, ok := ipProfiles[host]; ok {
+			nodes[i].Profiles = rec.Profiles
+			nodes[i].Hostname = rec.Hostname
+		}
+	}
+}
+
+// filterByProfiles returns only nodes that have at least one of the required profiles.
+func filterByProfiles(nodes []computeNodeInfo, required []string) []computeNodeInfo {
+	if len(required) == 0 {
+		return nodes
+	}
+	var out []computeNodeInfo
+	for _, n := range nodes {
+		for _, req := range required {
+			for _, p := range n.Profiles {
+				if p == req {
+					out = append(out, n)
+					goto next
+				}
+			}
+		}
+	next:
+	}
+	return out
 }
 
 // runnerTokenAuth implements grpc.PerRPCCredentials for bearer token auth.
