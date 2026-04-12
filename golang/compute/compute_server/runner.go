@@ -52,6 +52,25 @@ func (srv *server) StageComputeUnit(ctx context.Context, req *compute_runnerpb.S
 		}
 	}
 
+	// Fetch declared input ObjectRefs from MinIO into the staging directory.
+	// Inputs come from the unit (which inherits from job spec).
+	var inputRefs []*computepb.ObjectRef
+	if req.Unit != nil && len(req.Unit.InputRefs) > 0 {
+		inputRefs = req.Unit.InputRefs
+	} else if req.JobSpec != nil && len(req.JobSpec.InputRefs) > 0 {
+		inputRefs = req.JobSpec.InputRefs
+	}
+	var warnings []string
+	if len(inputRefs) > 0 {
+		if err := fetchInputRefs(ctx, stagingPath, inputRefs); err != nil {
+			return nil, fmt.Errorf("stage inputs: %w", err)
+		}
+		slog.Info("compute runner: inputs staged from MinIO",
+			"unit_id", req.UnitId, "count", len(inputRefs))
+	} else {
+		warnings = append(warnings, "no input refs declared — staging directory has no inputs")
+	}
+
 	slog.Info("compute runner: unit staged",
 		"unit_id", req.UnitId, "job_id", req.JobId,
 		"staging_path", stagingPath)
@@ -59,6 +78,7 @@ func (srv *server) StageComputeUnit(ctx context.Context, req *compute_runnerpb.S
 	return &compute_runnerpb.StageComputeUnitResponse{
 		Staged:      true,
 		StagingPath: stagingPath,
+		Warnings:    warnings,
 	}, nil
 }
 
@@ -167,10 +187,21 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 	unit.ExitStatus = int32(exitCode)
 
 	if exitCode == 0 {
+		// Upload output directory to MinIO.
+		outputRef, uploadErr := uploadOutput(ctx, stagingPath, req.JobId, req.UnitId)
+		if uploadErr != nil {
+			slog.Warn("compute runner: output upload failed (non-fatal)",
+				"unit_id", req.UnitId, "err", uploadErr)
+		}
+		unit.OutputRef = outputRef
+		if outputRef != nil {
+			unit.Checksum = outputRef.Sha256
+		}
 		unit.State = computepb.UnitState_UNIT_SUCCEEDED
 		unit.ObservedProgress = 1.0
 		slog.Info("compute runner: unit succeeded",
-			"unit_id", req.UnitId, "job_id", req.JobId)
+			"unit_id", req.UnitId, "job_id", req.JobId,
+			"has_output", outputRef != nil)
 	} else {
 		unit.State = computepb.UnitState_UNIT_FAILED
 		unit.FailureClass = computepb.FailureClass_EXECUTION_NONZERO_EXIT
@@ -286,9 +317,25 @@ func (srv *server) CommitComputeOutput(ctx context.Context, req *compute_runnerp
 		return nil, fmt.Errorf("unit %s not found", req.UnitId)
 	}
 
-	unit.OutputRef = req.OutputRef
-	unit.Checksum = req.Checksum
 	unit.ExitStatus = req.ExitStatus
+
+	// If no output ref was provided by the caller, upload the output
+	// directory to MinIO and compute the checksum.
+	outputRef := req.OutputRef
+	checksum := req.Checksum
+	if outputRef == nil && req.ExitStatus == 0 {
+		stagingPath := filepath.Join("/var/lib/globular/compute/jobs", req.JobId, "units", req.UnitId)
+		uploaded, err := uploadOutput(ctx, stagingPath, req.JobId, req.UnitId)
+		if err != nil {
+			slog.Warn("compute runner: output upload failed", "unit_id", req.UnitId, "err", err)
+		} else if uploaded != nil {
+			outputRef = uploaded
+			checksum = uploaded.Sha256
+		}
+	}
+
+	unit.OutputRef = outputRef
+	unit.Checksum = checksum
 
 	// Determine unit state from exit status — success is NOT just exit code.
 	// The verification strategy from the definition determines trust level.
