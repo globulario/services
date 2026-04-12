@@ -35,6 +35,11 @@ type executorLeaseManager struct {
 
 	mu        sync.Mutex
 	ownedRuns map[string]context.CancelFunc // run_id → heartbeat cancel
+
+	// Orphan scanner backoff state.
+	scanFailures     int           // consecutive scan-cycle failures
+	scanBackoff      time.Duration // current backoff duration
+	scanBackoffUntil time.Time     // skip scans until this time
 }
 
 func newExecutorLeaseManager(srv *server) *executorLeaseManager {
@@ -182,7 +187,17 @@ func (m *executorLeaseManager) StartOrphanScanner(ctx context.Context) {
 	}()
 }
 
+const (
+	orphanBackoffMin = 1 * time.Second
+	orphanBackoffMax = 2 * time.Minute
+)
+
 func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
+	// Backoff: skip this scan if we're in a backoff period.
+	if time.Now().Before(m.scanBackoffUntil) {
+		return
+	}
+
 	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -194,6 +209,7 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 
 	var runID, executorID string
 	var heartbeatAt int64
+	cycleFailures := 0
 
 	for iter.Scan(&runID, &executorID, &heartbeatAt) {
 		if heartbeatAt < cutoff && executorID != m.executorID {
@@ -205,20 +221,21 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 
 			claimed, err := m.claimOrphan(ctx, runID, heartbeatAt)
 			if err != nil {
-				slog.Warn("executor lease: claim orphan failed",
-					"run_id", runID, "err", err)
+				cycleFailures++
+				// Rate-limit error logs: only log first 3 per cycle.
+				if cycleFailures <= 3 {
+					slog.Warn("executor lease: claim orphan failed",
+						"run_id", runID, "err", err,
+						"cycle_failures", cycleFailures)
+				}
 				continue
 			}
 			if claimed {
 				slog.Info("executor lease: claimed orphan, resuming",
 					"run_id", runID)
-				// Resume the orphaned run. Best-effort — errors are logged
-				// but do not stop the scanner from processing other orphans.
 				go func(rID string) {
 					resumeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 					defer cancel()
-					// Load cluster_id from the run record.
-					// For now, use a scan to find the cluster_id.
 					if err := m.srv.resumeOrphanedRun(resumeCtx, rID); err != nil {
 						slog.Warn("executor lease: resume failed",
 							"run_id", rID, "err", err)
@@ -231,6 +248,40 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 
 	if err := iter.Close(); err != nil {
 		slog.Warn("executor lease: orphan scan iteration error", "err", err)
+		cycleFailures++
+	}
+
+	// Log suppressed errors.
+	if cycleFailures > 3 {
+		slog.Warn("executor lease: orphan scan cycle completed with errors",
+			"total_failures", cycleFailures, "suppressed", cycleFailures-3)
+	}
+
+	// Update backoff state.
+	if cycleFailures > 0 {
+		m.scanFailures++
+		if m.scanBackoff == 0 {
+			m.scanBackoff = orphanBackoffMin
+		} else {
+			m.scanBackoff *= 2
+			if m.scanBackoff > orphanBackoffMax {
+				m.scanBackoff = orphanBackoffMax
+			}
+		}
+		m.scanBackoffUntil = time.Now().Add(m.scanBackoff)
+		slog.Warn("executor lease: orphan scanner backing off",
+			"consecutive_failures", m.scanFailures,
+			"backoff", m.scanBackoff,
+			"next_scan_after", m.scanBackoffUntil.Format(time.RFC3339))
+	} else {
+		// Reset on clean cycle.
+		if m.scanFailures > 0 {
+			slog.Info("executor lease: orphan scanner recovered",
+				"previous_failures", m.scanFailures)
+		}
+		m.scanFailures = 0
+		m.scanBackoff = 0
+		m.scanBackoffUntil = time.Time{}
 	}
 }
 
@@ -244,7 +295,7 @@ func (m *executorLeaseManager) claimOrphan(ctx context.Context, runID string, st
 		WHERE run_id = ?
 		IF heartbeat_at = ?`,
 		m.executorID, now, runID, staleHeartbeat,
-	).ScanCAS(nil, nil)
+	).ScanCAS(nil)
 
 	if err != nil {
 		return false, fmt.Errorf("claim orphan %s: %w", runID, err)

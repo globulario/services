@@ -105,5 +105,71 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
+	// ── Storm protection signals (Phase A-D) ────────────────────────────
+
+	if loops, ok := snap.PromMetrics["apply_loop_detected"]; ok && loops > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("cluster.apply_loop_detected", "cluster", "controller"),
+			InvariantID: "cluster.apply_loop_detected",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("Apply-loop detection triggered %d time(s) — packages quarantined from auto-dispatch", int(loops)),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "apply_loop", map[string]string{
+				"total_quarantines": fmt.Sprintf("%.0f", loops),
+				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if mismatches, ok := snap.PromMetrics["drift_kind_mismatch"]; ok && mismatches > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("desired.kind_mismatch", "cluster", "controller"),
+			InvariantID: "desired.kind_mismatch",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("Desired-state kind mismatch blocked %d dispatch(es) — SERVICE desired but INFRASTRUCTURE in repo", int(mismatches)),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "kind_mismatch", map[string]string{
+				"total_blocked": fmt.Sprintf("%.0f", mismatches),
+				"timestamp":    snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if opens, ok := snap.PromMetrics["reconcile_circuit_open"]; ok && opens > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("cluster.reconcile_circuit_open", "cluster", "controller"),
+			InvariantID: "cluster.reconcile_circuit_open",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("Reconcile circuit breaker opened %d time(s) — periodic reconcile suspended due to repeated failures", int(opens)),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "circuit_breaker", map[string]string{
+				"total_opens": fmt.Sprintf("%.0f", opens),
+				"timestamp":  snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if rejected, ok := snap.PromMetrics["workflow_dispatch_rejected"]; ok && rejected > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("workflow.backend_pressure", "cluster", "workflow"),
+			InvariantID: "workflow.backend_pressure",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "workflow",
+			Summary:     fmt.Sprintf("Workflow health gate rejected %d dispatch(es) — backend under pressure", int(rejected)),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "backend_pressure", map[string]string{
+				"total_rejected": fmt.Sprintf("%.0f", rejected),
+				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
 	return findings
 }

@@ -102,4 +102,67 @@ var (
 		Name:      "reconcile_dropped_not_leader_total",
 		Help:      "Reconcile items dropped because this instance is not the leader.",
 	})
+
+	// clusterReconcileSkippedTotal counts periodic reconcile ticks skipped
+	// because a previous run is still active. Tracks coalescing behavior.
+	clusterReconcileSkippedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "cluster_reconcile_skipped_total",
+		Help:      "Cluster reconcile ticks skipped because a previous run is still active.",
+	}, []string{"source"})
+
+	// driftKindMismatchTotal counts desired-state entries blocked because
+	// the artifact kind in the repository does not match the desired kind.
+	driftKindMismatchTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "drift_kind_mismatch_total",
+		Help:      "Desired-state entries blocked because artifact kind in repo does not match desired kind.",
+	})
+
+	// workflowCircuitBreakerOpenTotal counts how many times the workflow
+	// dispatch circuit breaker has opened due to repeated RPC failures.
+	workflowCircuitBreakerOpenTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "workflow_circuit_breaker_open_total",
+		Help:      "Times the workflow dispatch circuit breaker opened.",
+	})
+
+	// workflowDispatchRejectedTotal counts workflow dispatches rejected
+	// by the health gate while the circuit breaker is open.
+	workflowDispatchRejectedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "workflow_dispatch_rejected_total",
+		Help:      "Workflow dispatches rejected by the health gate circuit breaker.",
+	})
+
+	// reconcileCircuitOpenTotal counts times the reconcile circuit breaker
+	// opened or rejected a dispatch due to repeated reconcile failures.
+	reconcileCircuitOpenTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_circuit_open_total",
+		Help:      "Times the reconcile circuit breaker opened or rejected dispatch.",
+	})
+
+	// applyLoopDetectedTotal counts packages quarantined due to repeated
+	// apply loops without convergence.
+	applyLoopDetectedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "apply_loop_detected_total",
+		Help:      "Packages quarantined due to repeated apply loops without convergence.",
+	})
+
+	// dispatchDedupSuppressedTotal counts dispatches suppressed by the
+	// cross-path dedup registry (drift reconciler vs release pipeline).
+	dispatchDedupSuppressedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "dispatch_dedup_suppressed_total",
+		Help:      "Dispatches suppressed by cross-path dedup registry.",
+	}, []string{"source", "held_by"})
 )

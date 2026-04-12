@@ -229,6 +229,64 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 		})
 	}
 
+	// runClusterReconcileIfIdle attempts to start a cluster.reconcile workflow.
+	// If a previous run is still active, it marks pending so exactly one
+	// follow-up run occurs when the current run finishes. This prevents
+	// concurrent reconcile storms while ensuring no work is silently dropped.
+	srv.runClusterReconcileIfIdle = func(parentCtx context.Context, source string) {
+		// Reconcile circuit breaker: skip if open (too many recent failures).
+		if srv.reconcileBreaker != nil {
+			if err := srv.reconcileBreaker.Allow(); err != nil {
+				logger.Info("reconcile deferred: circuit breaker open", "source", source, "reason", err.Error())
+				srv.emitClusterEvent("cluster.reconcile_circuit_open", map[string]interface{}{
+					"severity": "CRITICAL",
+					"source":   source,
+					"message":  err.Error(),
+				})
+				return
+			}
+		}
+
+		if !srv.clusterReconcileRunning.CompareAndSwap(false, true) {
+			srv.clusterReconcilePending.Store(true)
+			clusterReconcileSkippedTotal.WithLabelValues(source).Inc()
+			logger.Info("reconcile skipped: previous run still active", "source", source)
+			return
+		}
+		go func() {
+			defer srv.clusterReconcileRunning.Store(false)
+			for {
+				// Clear pending before the run so ticks during execution
+				// set it again, guaranteeing exactly one follow-up pass.
+				srv.clusterReconcilePending.Store(false)
+
+				rctx, cancel := context.WithTimeout(parentCtx, 10*time.Minute)
+				_, err := srv.RunClusterReconcileWorkflow(rctx)
+				cancel()
+
+				if err != nil {
+					logger.Debug("periodic cluster.reconcile failed", "error", err)
+					if srv.reconcileBreaker != nil {
+						srv.reconcileBreaker.RecordTimeout()
+					}
+				} else {
+					if srv.reconcileBreaker != nil {
+						srv.reconcileBreaker.RecordSuccess()
+					}
+				}
+
+				// If work arrived while we were running, do one more pass.
+				if parentCtx.Err() != nil {
+					return
+				}
+				if !srv.clusterReconcilePending.CompareAndSwap(true, false) {
+					return // no pending work
+				}
+				logger.Info("reconcile: running coalesced follow-up pass")
+			}
+		}()
+	}
+
 	// Periodic cluster.reconcile workflow: drives infrastructure health
 	// scans (ScyllaDB, MinIO join phases + probes) and detects package
 	// drift. Runs every 30s when leader, replacing the old direct calls
@@ -244,14 +302,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				if !srv.isLeader() {
 					continue
 				}
-				// Run asynchronously so it doesn't block the reconcile queue.
-				go func() {
-					rctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-					defer cancel()
-					if _, err := srv.RunClusterReconcileWorkflow(rctx); err != nil {
-						logger.Debug("periodic cluster.reconcile failed", "error", err)
-					}
-				}()
+				srv.runClusterReconcileIfIdle(ctx, "periodic")
 			}
 		}
 	})

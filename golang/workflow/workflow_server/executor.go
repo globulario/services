@@ -242,7 +242,13 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		"actors", fmt.Sprintf("%v", mapKeys(req.ActorEndpoints)))
 	srv.metricsRunStart(runID, time.Now())
 
+	logger.Info("executor: engine.Execute starting", "run_id", runID, "steps", len(def.Spec.Steps))
 	run, execErr := eng.Execute(ctx, def, inputs)
+	if execErr != nil {
+		logger.Warn("executor: engine.Execute returned error", "run_id", runID, "error", execErr.Error())
+	} else {
+		logger.Info("executor: engine.Execute completed", "run_id", runID)
+	}
 
 	// ── 7. Record run finish ─────────────────────────────────────────────
 	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
@@ -365,8 +371,13 @@ func (d *actorDispatcher) getClient(actorType string) (workflowpb.WorkflowActorS
 // validates the action name and rejects unknowns.
 func (d *actorDispatcher) makeHandler(actorType string) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		slog.Info("executor: dispatching action",
+			"actor", actorType, "action", req.Action,
+			"run_id", req.RunID, "step_id", req.StepID)
 		client, err := d.getClient(actorType)
 		if err != nil {
+			slog.Warn("executor: actor dial failed",
+				"actor", actorType, "action", req.Action, "err", err)
 			return nil, fmt.Errorf("actor %s: %w", actorType, err)
 		}
 

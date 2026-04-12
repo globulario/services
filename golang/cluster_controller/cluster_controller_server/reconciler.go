@@ -117,6 +117,17 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			if r.isInflight(inflightKey) {
 				continue
 			}
+			// Apply-loop detection: skip if this package/node is quarantined
+			// due to repeated applies without convergence.
+			if r.srv.applyLoopDet != nil && r.srv.applyLoopDet.IsQuarantined(inflightKey) {
+				log.Printf("drift-reconciler: skipped %s — quarantined (apply loop detected)", inflightKey)
+				continue
+			}
+			// Cross-path dedup: check if the release pipeline already
+			// has an active workflow for this package on this node.
+			if r.srv.dispatchReg != nil && !r.srv.dispatchReg.TryAcquire(inflightKey, "drift-reconciler") {
+				continue
+			}
 
 			parts := strings.SplitN(desiredKey, "/", 2)
 			if len(parts) != 2 {
@@ -152,6 +163,27 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 					nodeID, name, dv.version, dv.buildNumber, err)
 				continue
 			}
+			// Part 3: Validate desired kind matches repository manifest kind.
+			// A mismatch (e.g. INFRASTRUCTURE in repo but SERVICE in desired)
+			// creates an infinite apply loop — block dispatch and emit a finding.
+			if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+				repoKindStr := strings.ToUpper(resolved.RepoKind.String())
+				if repoKindStr != kind {
+					log.Printf("drift-reconciler: BLOCKED node=%s pkg=%s — desired kind mismatch: %s (desired) vs %s (repo); dispatch suppressed",
+						node.Identity.Hostname, name, kind, repoKindStr)
+					driftKindMismatchTotal.Inc()
+					r.srv.emitClusterEvent("desired.kind_mismatch", map[string]interface{}{
+						"severity":     "WARNING",
+						"node_id":      nodeID,
+						"package":      name,
+						"desired_kind": kind,
+						"repo_kind":    repoKindStr,
+						"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
+					})
+					continue
+				}
+			}
+
 			resolvedBuild := resolved.BuildNumber
 			if resolvedBuild == 0 {
 				resolvedBuild = dv.buildNumber
@@ -175,6 +207,9 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				r.sem <- struct{}{}        // acquire
 				defer func() { <-r.sem }() // release
 				defer r.clearInflight(inflightKey)
+				if r.srv.dispatchReg != nil {
+					defer r.srv.dispatchReg.Release(inflightKey)
+				}
 
 				rctx, cancel := context.WithTimeout(ctx, r.timeout)
 				defer cancel()
@@ -185,6 +220,21 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 					log.Printf("drift-reconciler: apply failed node=%s pkg=%s: %v", nID, pkgName, err)
 				} else {
 					log.Printf("drift-reconciler: apply succeeded node=%s pkg=%s@%s", nID, pkgName, version)
+				}
+
+				// Record the apply for loop detection. If threshold exceeded,
+				// quarantine this package/node and emit a finding.
+				if r.srv.applyLoopDet != nil {
+					if r.srv.applyLoopDet.RecordApply(inflightKey) {
+						r.srv.emitClusterEvent("cluster.apply_loop_detected", map[string]interface{}{
+							"severity": "WARNING",
+							"node_id":  nID,
+							"package":  pkgName,
+							"kind":     pkgKind,
+							"key":      inflightKey,
+							"message":  fmt.Sprintf("package %s on node %s quarantined — repeated applies without convergence", pkgName, nID),
+						})
+					}
 				}
 			}()
 		}

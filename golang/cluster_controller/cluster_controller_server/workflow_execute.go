@@ -35,6 +35,18 @@ func (srv *server) executeWorkflowCentralized(
 		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil — check CLUSTER_WORKFLOW_SERVICE_ADDR or etcd service registry)")
 	}
 
+	// Health gate: block dispatch if workflow backend is under pressure.
+	if srv.workflowGate != nil {
+		if err := srv.workflowGate.Check(); err != nil {
+			log.Printf("workflow backend unhealthy, reconcile deferred: %v", err)
+			srv.emitClusterEvent("workflow.backend_pressure", map[string]interface{}{
+				"severity": "WARNING",
+				"message":  err.Error(),
+			})
+			return nil, err
+		}
+	}
+
 	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
 		return nil, fmt.Errorf("marshal inputs: %w", err)
@@ -70,7 +82,16 @@ func (srv *server) executeWorkflowCentralized(
 	})
 	if err != nil {
 		log.Printf("workflow %s (correlation=%s): RPC failed: %v", workflowName, correlationID, err)
+		// Record transport failure for circuit breaker (not business failures).
+		if srv.workflowGate != nil {
+			srv.workflowGate.RecordFailure()
+		}
 		return nil, fmt.Errorf("ExecuteWorkflow %s: %w", workflowName, err)
+	}
+
+	// RPC succeeded — close circuit breaker if it was open.
+	if srv.workflowGate != nil {
+		srv.workflowGate.RecordSuccess()
 	}
 
 	if resp.Status == "FAILED" {

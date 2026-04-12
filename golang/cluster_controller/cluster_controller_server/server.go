@@ -161,7 +161,9 @@ type server struct {
 	leaderEpoch          atomic.Int64
 	resignCh             chan struct{} // signal leader election to resign
 	lastHeartbeatProcessed atomic.Int64 // UnixNano of last successful ReportNodeStatus
-	reconcileRunning     atomic.Bool
+	reconcileRunning            atomic.Bool
+	clusterReconcileRunning     atomic.Bool
+	clusterReconcilePending     atomic.Bool
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
@@ -173,6 +175,10 @@ type server struct {
 	// enqueueReconcile is set by startControllerRuntime so that SetNodeProfiles
 	// can immediately trigger a reconcile cycle after saving profile changes.
 	enqueueReconcile func()
+	// runClusterReconcileIfIdle starts a cluster.reconcile workflow if none
+	// is active. If one is running, it marks pending for a follow-up pass.
+	// Set by startControllerRuntime.
+	runClusterReconcileIfIdle func(ctx context.Context, source string)
 
 	// autoImportDone is set to true after the first successful auto-import
 	// of installed services into desired state. Prevents repeated imports
@@ -198,6 +204,22 @@ type server struct {
 	// first's router on lease contention failure).
 	inflightMu        sync.Mutex
 	inflightWorkflows map[string]struct{}
+
+	// workflowGate is a circuit breaker that prevents dispatching workflows
+	// when the backend is unhealthy (repeated RPC failures).
+	workflowGate *workflowHealthGate
+
+	// reconcileBreaker opens when reconcile workflows fail repeatedly,
+	// suspending periodic dispatch to prevent backlog buildup.
+	reconcileBreaker *reconcileCircuitBreaker
+
+	// dispatchReg provides cross-path deduplication for package dispatches
+	// between the drift reconciler and the release pipeline.
+	dispatchReg *dispatchRegistry
+
+	// applyLoopDet detects and quarantines packages that are being applied
+	// repeatedly without convergence.
+	applyLoopDet *applyLoopDetector
 
 	// etcd cluster membership manager (for multi-node expansion)
 	etcdMembers *etcdMemberManager
@@ -409,6 +431,10 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		inflightWorkflows: make(map[string]struct{}),
 		resignCh:          make(chan struct{}, 1),
 		actorServer:       NewControllerActorServer(),
+		workflowGate:      newWorkflowHealthGate(),
+		reconcileBreaker:  newReconcileCircuitBreaker(),
+		dispatchReg:       newDispatchRegistry(),
+		applyLoopDet:      newApplyLoopDetector(),
 	}
 	// Service removal is controlled by the config file, not env vars.
 	// Disabled by default for safety.

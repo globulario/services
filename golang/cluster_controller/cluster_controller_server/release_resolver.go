@@ -35,6 +35,7 @@ type ResolvedArtifact struct {
 	Version     string
 	Digest      string // SHA256 lowercase hex
 	BuildNumber int64
+	RepoKind    repositorypb.ArtifactKind // actual kind from repository manifest
 }
 
 // Resolve returns the full artifact identity for a ServiceReleaseSpec.
@@ -159,6 +160,7 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		Version:     version,
 		Digest:      checksum,
 		BuildNumber: manifest.GetBuildNumber(),
+		RepoKind:    manifest.GetRef().GetKind(),
 	}, nil
 }
 

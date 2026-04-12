@@ -69,7 +69,6 @@ var (
 
 func (srv *server) metricsRunStart(runID string, now time.Time) {
 	srv.metricsMu.Lock()
-	defer srv.metricsMu.Unlock()
 	if srv.runStart == nil {
 		srv.runStart = make(map[string]time.Time)
 	}
@@ -77,6 +76,7 @@ func (srv *server) metricsRunStart(runID string, now time.Time) {
 	workflowActiveRuns.Set(float64(len(srv.runStart)))
 	workflowRunStartTotal.Inc()
 	workflowLastRunStartUnix.Set(float64(now.Unix()))
+	srv.metricsMu.Unlock()
 	srv.updateOldestActive(now)
 }
 

@@ -50,6 +50,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// this Prometheus can see. On a single-node scrape it returns 1;
 		// with federation it returns the full membership.
 		"etcd_quorum_size": "count(etcd_server_id)",
+		// Storm protection signals (Phase A-D).
+		"apply_loop_detected":       "globular_controller_apply_loop_detected_total",
+		"drift_kind_mismatch":       "globular_controller_drift_kind_mismatch_total",
+		"reconcile_circuit_open":    "globular_controller_reconcile_circuit_open_total",
+		"workflow_dispatch_rejected": "globular_controller_workflow_dispatch_rejected_total",
 	}
 
 	results := make(map[string]float64)
