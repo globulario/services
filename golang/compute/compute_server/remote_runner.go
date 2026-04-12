@@ -94,10 +94,15 @@ func resolveComputeEndpoints() []string {
 	}
 	var addrs []string
 	for _, s := range svcs {
-		host, _ := s["Domain"].(string)
-		if host == "" {
-			host, _ = s["Address"].(string)
+		// Address is the unique per-node routable endpoint (e.g. "10.0.0.20:10300").
+		// Domain is the shared cluster DNS name — not useful for distinct placement.
+		if addr, ok := s["Address"].(string); ok && addr != "" {
+			addrs = append(addrs, addr)
+			continue
 		}
+		// Fallback: construct from Domain + Port (all nodes share Domain, so
+		// this collapses — only used when Address is missing).
+		host, _ := s["Domain"].(string)
 		port := 0
 		switch v := s["Port"].(type) {
 		case float64:
@@ -113,6 +118,36 @@ func resolveComputeEndpoints() []string {
 		slog.Warn("compute: no compute service endpoints resolved from etcd")
 	}
 	return addrs
+}
+
+// computeNodeInfo holds a resolved compute node's identity and endpoint.
+type computeNodeInfo struct {
+	Address string // e.g. "10.0.0.20:10300"
+	NodeID  string // service instance ID
+	Mac     string // node MAC for identification
+}
+
+// resolveComputeNodes returns detailed node info for all compute instances.
+func resolveComputeNodes() []computeNodeInfo {
+	svcs, err := config.GetServicesConfigurationsByName(computeServiceName)
+	if err != nil || len(svcs) == 0 {
+		return nil
+	}
+	var nodes []computeNodeInfo
+	for _, s := range svcs {
+		addr, _ := s["Address"].(string)
+		if addr == "" {
+			continue
+		}
+		nodeID, _ := s["Id"].(string)
+		mac, _ := s["Mac"].(string)
+		nodes = append(nodes, computeNodeInfo{
+			Address: addr,
+			NodeID:  nodeID,
+			Mac:     mac,
+		})
+	}
+	return nodes
 }
 
 // runnerTokenAuth implements grpc.PerRPCCredentials for bearer token auth.

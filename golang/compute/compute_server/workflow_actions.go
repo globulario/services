@@ -211,8 +211,8 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 		// For each unit, run the full execute pipeline inline:
 		// choose_node → assign → stage → run (async).
 		// The await step handles waiting for completion.
-		endpoints := resolveComputeEndpoints()
-		if len(endpoints) == 0 {
+		nodes := resolveComputeNodes()
+		if len(nodes) == 0 {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
@@ -230,22 +230,23 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 				continue
 			}
 
-			// Round-robin placement.
+			// Round-robin placement across distinct nodes.
 			idx := roundRobinCounter.Add(1) - 1
-			endpoint := endpoints[int(idx)%len(endpoints)]
+			node := nodes[int(idx)%len(nodes)]
+			endpoint := node.Address
 
 			// Grant lease.
-			leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, endpoint)
+			leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
 			if err != nil {
 				slog.Warn("compute dispatch: lease grant failed",
 					"unit_id", unit.UnitId, "err", err)
 				continue
 			}
 
-			// Mark assigned.
+			// Mark assigned with explicit node identity.
 			unit.State = computepb.UnitState_UNIT_ASSIGNED
-			unit.NodeId = endpoint
-			unit.LeaseOwner = fmt.Sprintf("node:%s/lease:%d", endpoint, leaseID)
+			unit.NodeId = node.NodeID
+			unit.LeaseOwner = fmt.Sprintf("node:%s/lease:%d", node.NodeID, leaseID)
 			unit.LeaseExpiresAt = timestamppb.New(time.Now().Add(leaseTTL * time.Second))
 			_ = putUnit(ctx, unit)
 
@@ -349,44 +350,26 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 
 func computeChooseNode(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
-		jobID, _ := req.With["job_id"].(string)
-
-		// Load definition to check allowed_node_profiles.
-		var allowedProfiles []string
-		if jobID != "" {
-			job, _ := getJob(ctx, jobID)
-			if job != nil && job.Spec != nil {
-				def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
-				if def != nil {
-					allowedProfiles = def.AllowedNodeProfiles
-				}
-			}
-		}
-
-		// Discover all nodes running the compute service via etcd.
-		endpoints := resolveComputeEndpoints()
-		if len(endpoints) == 0 {
+		// Discover all nodes running the compute service.
+		nodes := resolveComputeNodes()
+		if len(nodes) == 0 {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// Filter by allowed profiles if specified.
-		// For v1, if profiles are specified but we can't resolve node metadata,
-		// we proceed with all candidates (best-effort).
-		if len(allowedProfiles) > 0 {
-			slog.Info("compute workflow: filtering by profiles",
-				"allowed", allowedProfiles, "candidates", len(endpoints))
-		}
-
-		// Round-robin across available endpoints for spread placement.
+		// Round-robin across distinct nodes for spread placement.
 		idx := roundRobinCounter.Add(1) - 1
-		chosen := endpoints[int(idx)%len(endpoints)]
+		chosen := nodes[int(idx)%len(nodes)]
 		slog.Info("compute workflow: node chosen",
-			"endpoint", chosen, "candidates", len(endpoints))
+			"address", chosen.Address,
+			"node_id", chosen.NodeID,
+			"mac", chosen.Mac,
+			"candidates", len(nodes))
 		return &engine.ActionResult{
 			OK: true,
 			Output: map[string]any{
-				"node_id":         chosen,
-				"runner_endpoint": chosen,
+				"node_id":         chosen.NodeID,
+				"runner_endpoint": chosen.Address,
+				"node_mac":        chosen.Mac,
 			},
 		}, nil
 	}
