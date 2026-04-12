@@ -226,19 +226,6 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("definition not found for job %s", jobID)
 		}
 
-		// Strict profile filtering.
-		if len(def.AllowedNodeProfiles) > 0 {
-			nodes = filterByProfiles(nodes, def.AllowedNodeProfiles)
-			if len(nodes) == 0 {
-				return nil, fmt.Errorf("placement failed: no nodes match required profiles %v", def.AllowedNodeProfiles)
-			}
-		} else {
-			// Default: prefer compute-profiled nodes.
-			if cn := filterByProfiles(nodes, []string{"compute"}); len(cn) > 0 {
-				nodes = cn
-			}
-		}
-
 		// Get current load for placement decisions.
 		loadMap := activeUnitsPerNode(ctx)
 
@@ -248,11 +235,17 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 				continue
 			}
 
-			// Load-aware placement: pick least-loaded node.
-			node, _ := selectLeastLoaded(nodes, loadMap)
+			// Resource-aware placement: filters + scoring.
+			result, err := placeUnit(ctx, nodes, def, loadMap)
+			if err != nil {
+				slog.Warn("compute dispatch: placement failed for unit",
+					"unit_id", unit.UnitId, "err", err)
+				continue
+			}
+			node := result.Node
 			endpoint := node.Address
 			// Update local load tracking for subsequent units in this batch.
-			loadMap[node.NodeID]++
+			loadMap[node.Address]++
 
 			// Grant lease.
 			leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
@@ -424,7 +417,15 @@ func retryUnit(ctx context.Context, srv *server, def *computepb.ComputeDefinitio
 		return
 	}
 	retryLoad := activeUnitsPerNode(ctx)
-	node, _ := selectLeastLoaded(nodes, retryLoad)
+	retryResult, placeErr := placeUnit(ctx, nodes, def, retryLoad)
+	if placeErr != nil {
+		slog.Error("compute retry: placement failed", "unit_id", unit.UnitId, "err", placeErr)
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureReason = fmt.Sprintf("retry placement failed: %v", placeErr)
+		_ = putUnit(ctx, unit)
+		return
+	}
+	node := retryResult.Node
 
 	// Grant lease.
 	leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
@@ -492,57 +493,35 @@ func computeChooseNode(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		jobID, _ := req.With["job_id"].(string)
 
-		// Discover all nodes running the compute service.
 		nodes := resolveComputeNodes()
 		if len(nodes) == 0 {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// Strict profile filtering: only nodes with matching profiles are eligible.
-		// No fallback — if no node matches, placement fails loudly.
+		// Load definition for placement constraints.
+		var def *computepb.ComputeDefinition
 		if jobID != "" {
 			if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
-				if def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion); def != nil {
-					if len(def.AllowedNodeProfiles) > 0 {
-						filtered := filterByProfiles(nodes, def.AllowedNodeProfiles)
-						if len(filtered) == 0 {
-							return nil, fmt.Errorf("placement failed: no nodes match required profiles %v (candidates: %d)",
-								def.AllowedNodeProfiles, len(nodes))
-						}
-						slog.Info("compute workflow: profile filter applied",
-							"required", def.AllowedNodeProfiles,
-							"before", len(nodes), "after", len(filtered))
-						nodes = filtered
-					}
-				}
+				def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
 			}
 		}
-
-		// Default filter: only nodes with "compute" profile are eligible.
-		// This ensures compute workloads don't run on non-compute nodes.
-		computeNodes := filterByProfiles(nodes, []string{"compute"})
-		if len(computeNodes) > 0 {
-			nodes = computeNodes
-		} else {
-			slog.Warn("compute workflow: no nodes have compute profile, using all service instances",
-				"candidates", len(nodes))
+		if def == nil {
+			def = &computepb.ComputeDefinition{}
 		}
 
-		// Load-aware selection: pick the node with fewest active units.
+		// Resource-aware placement: hard filters + scoring.
 		loadMap := activeUnitsPerNode(ctx)
-		chosen, _ := selectLeastLoaded(nodes, loadMap)
-		slog.Info("compute workflow: node chosen (load-aware)",
-			"address", chosen.Address,
-			"hostname", chosen.Hostname,
-			"profiles", chosen.Profiles,
-			"load", loadMap[chosen.NodeID],
-			"candidates", len(nodes))
+		result, err := placeUnit(ctx, nodes, def, loadMap)
+		if err != nil {
+			return nil, err
+		}
+
 		return &engine.ActionResult{
 			OK: true,
 			Output: map[string]any{
-				"node_id":         chosen.NodeID,
-				"runner_endpoint": chosen.Address,
-				"node_hostname":   chosen.Hostname,
+				"node_id":         result.Node.NodeID,
+				"runner_endpoint": result.Node.Address,
+				"node_hostname":   result.Node.Hostname,
 			},
 		}, nil
 	}

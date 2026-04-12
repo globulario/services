@@ -122,13 +122,16 @@ func resolveComputeEndpoints() []string {
 	return addrs
 }
 
-// computeNodeInfo holds a resolved compute node's identity and endpoint.
+// computeNodeInfo holds a resolved compute node's identity, endpoint, and capacity.
 type computeNodeInfo struct {
-	Address  string   // e.g. "10.0.0.20:10300"
-	NodeID   string   // service instance ID
-	Mac      string   // node MAC for identification
-	Hostname string   // node hostname
-	Profiles []string // node profiles (core, compute, storage, etc.)
+	Address       string   // e.g. "10.0.0.20:10300"
+	NodeID        string   // service instance ID
+	Mac           string   // node MAC for identification
+	Hostname      string   // node hostname
+	Profiles      []string // node profiles (core, compute, storage, etc.)
+	CPUCount      uint32   // logical CPU cores
+	RAMBytes      uint64   // total RAM
+	DiskFreeBytes uint64   // free disk on primary volume
 }
 
 // resolveComputeNodes returns detailed node info for all compute instances,
@@ -188,8 +191,11 @@ func enrichNodeProfiles(nodes []computeNodeInfo) {
 
 	// Build IP → node info map.
 	type clusterNode struct {
-		Hostname string
-		Profiles []string
+		Hostname      string
+		Profiles      []string
+		CPUCount      uint32
+		RAMBytes      uint64
+		DiskFreeBytes uint64
 	}
 	ipMap := map[string]*clusterNode{}
 	for _, n := range resp.Nodes {
@@ -200,6 +206,11 @@ func enrichNodeProfiles(nodes []computeNodeInfo) {
 			ips = n.Identity.Ips
 		}
 		cn := &clusterNode{Hostname: hostname, Profiles: n.Profiles}
+		if n.Capabilities != nil {
+			cn.CPUCount = n.Capabilities.CpuCount
+			cn.RAMBytes = n.Capabilities.RamBytes
+			cn.DiskFreeBytes = n.Capabilities.DiskFreeBytes
+		}
 		for _, ip := range ips {
 			ipMap[ip] = cn
 		}
@@ -211,41 +222,11 @@ func enrichNodeProfiles(nodes []computeNodeInfo) {
 		if cn, ok := ipMap[host]; ok {
 			nodes[i].Profiles = cn.Profiles
 			nodes[i].Hostname = cn.Hostname
+			nodes[i].CPUCount = cn.CPUCount
+			nodes[i].RAMBytes = cn.RAMBytes
+			nodes[i].DiskFreeBytes = cn.DiskFreeBytes
 		}
 	}
-}
-
-// selectLeastLoaded picks the node with the fewest active compute units.
-// Ties are broken by round-robin. Returns the chosen node and the load map
-// for observability.
-func selectLeastLoaded(nodes []computeNodeInfo, loadMap map[string]int) (computeNodeInfo, map[string]int) {
-	if len(nodes) == 0 {
-		return computeNodeInfo{}, loadMap
-	}
-	if loadMap == nil {
-		loadMap = map[string]int{}
-	}
-
-	// Find minimum load.
-	minLoad := int(^uint(0) >> 1) // max int
-	for _, n := range nodes {
-		load := loadMap[n.NodeID]
-		if load < minLoad {
-			minLoad = load
-		}
-	}
-
-	// Collect all nodes at minimum load.
-	var candidates []computeNodeInfo
-	for _, n := range nodes {
-		if loadMap[n.NodeID] <= minLoad {
-			candidates = append(candidates, n)
-		}
-	}
-
-	// Tie-break with round-robin.
-	idx := roundRobinCounter.Add(1) - 1
-	return candidates[int(idx)%len(candidates)], loadMap
 }
 
 // filterByProfiles returns only nodes that have at least one of the required profiles.
