@@ -17,6 +17,7 @@ import (
 
 	"github.com/globulario/services/golang/compute/computepb"
 	"github.com/globulario/services/golang/compute/compute_runnerpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -115,8 +116,9 @@ func (srv *server) RunComputeUnit(ctx context.Context, req *compute_runnerpb.Run
 		_ = putJob(ctx, job)
 	}
 
-	// Execute the entrypoint asynchronously.
-	go srv.executeUnit(req, executionID)
+	// Execute the entrypoint asynchronously with lease renewal.
+	leaseID := clientv3.LeaseID(req.EtcdLeaseId)
+	go srv.executeUnit(req, executionID, leaseID)
 
 	slog.Info("compute runner: unit execution started",
 		"unit_id", req.UnitId, "job_id", req.JobId,
@@ -129,17 +131,33 @@ func (srv *server) RunComputeUnit(ctx context.Context, req *compute_runnerpb.Run
 	}, nil
 }
 
-// executeUnit runs the declared entrypoint and updates state on completion.
-func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, executionID string) {
-	ctx := context.Background()
+// executeUnit runs the declared entrypoint with heartbeats, lease renewal,
+// and cancellation support. Updates state on completion.
+func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, executionID string, leaseID clientv3.LeaseID) {
+	bgCtx := context.Background()
 	entrypoint := req.Definition.Entrypoint
 	stagingPath := req.StagingPath
 	if stagingPath == "" {
 		stagingPath = filepath.Join("/var/lib/globular/compute/jobs", req.JobId, "units", req.UnitId)
 	}
 
+	// Start lease renewal if we have a lease.
+	if leaseID != 0 {
+		cancelRenewal, err := startLeaseRenewal(leaseID)
+		if err != nil {
+			slog.Warn("compute runner: lease renewal failed to start", "err", err)
+		} else {
+			defer cancelRenewal()
+			defer revokeUnitLease(leaseID)
+		}
+	}
+
+	// Create a cancellable context for the process.
+	execCtx, execCancel := context.WithCancel(bgCtx)
+	defer execCancel()
+
 	// Set up execution environment.
-	cmd := exec.CommandContext(ctx, entrypoint)
+	cmd := exec.CommandContext(execCtx, entrypoint)
 	cmd.Dir = stagingPath
 	cmd.Env = append(os.Environ(),
 		"COMPUTE_JOB_ID="+req.JobId,
@@ -165,17 +183,59 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 	slog.Info("compute runner: executing entrypoint",
 		"unit_id", req.UnitId, "entrypoint", entrypoint, "dir", stagingPath)
 
-	err := cmd.Run()
-	exitCode := 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			exitCode = -1
-		}
+	// Register for cancellation.
+	srv.runningUnitsMu.Lock()
+	srv.runningUnits[req.UnitId] = &runningUnit{cmd: cmd, cancel: execCancel, leaseID: leaseID}
+	srv.runningUnitsMu.Unlock()
+	defer func() {
+		srv.runningUnitsMu.Lock()
+		delete(srv.runningUnits, req.UnitId)
+		srv.runningUnitsMu.Unlock()
+	}()
+
+	// Start the process.
+	if err := cmd.Start(); err != nil {
+		srv.handleExecutionFailure(bgCtx, req, -1, err)
+		return
 	}
 
-	// Update unit state based on exit.
+	// Wait for process in a goroutine.
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- cmd.Wait() }()
+
+	// Heartbeat loop.
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err := <-waitCh:
+			// Process completed.
+			exitCode := 0
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				} else {
+					exitCode = -1
+				}
+			}
+			srv.handleExecutionComplete(bgCtx, req, stagingPath, exitCode, err)
+			return
+
+		case <-ticker.C:
+			// Send heartbeat.
+			_ = putHeartbeat(bgCtx, req.JobId, req.UnitId, 0.0)
+
+		case <-execCtx.Done():
+			// Cancelled externally.
+			slog.Info("compute runner: unit cancelled", "unit_id", req.UnitId)
+			return
+		}
+	}
+}
+
+// handleExecutionComplete updates unit/job state after a process exits.
+func (srv *server) handleExecutionComplete(ctx context.Context, req *compute_runnerpb.RunComputeUnitRequest, stagingPath string, exitCode int, execErr error) {
 	unit, getErr := getUnit(ctx, req.JobId, req.UnitId)
 	if getErr != nil || unit == nil {
 		slog.Error("compute runner: could not retrieve unit after execution",
@@ -187,7 +247,6 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 	unit.ExitStatus = int32(exitCode)
 
 	if exitCode == 0 {
-		// Upload output directory to MinIO.
 		outputRef, uploadErr := uploadOutput(ctx, stagingPath, req.JobId, req.UnitId)
 		if uploadErr != nil {
 			slog.Warn("compute runner: output upload failed (non-fatal)",
@@ -205,10 +264,10 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 	} else {
 		unit.State = computepb.UnitState_UNIT_FAILED
 		unit.FailureClass = computepb.FailureClass_EXECUTION_NONZERO_EXIT
-		unit.FailureReason = fmt.Sprintf("exit code %d: %v", exitCode, err)
+		unit.FailureReason = fmt.Sprintf("exit code %d: %v", exitCode, execErr)
 		slog.Warn("compute runner: unit failed",
 			"unit_id", req.UnitId, "job_id", req.JobId,
-			"exit_code", exitCode, "err", err)
+			"exit_code", exitCode, "err", execErr)
 	}
 
 	if putErr := putUnit(ctx, unit); putErr != nil {
@@ -216,7 +275,21 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 			"unit_id", req.UnitId, "err", putErr)
 	}
 
-	// Finalize job state.
+	srv.finalizeJob(ctx, req.JobId, unit)
+}
+
+// handleExecutionFailure marks a unit as failed when the process can't start.
+func (srv *server) handleExecutionFailure(ctx context.Context, req *compute_runnerpb.RunComputeUnitRequest, exitCode int, err error) {
+	unit, _ := getUnit(ctx, req.JobId, req.UnitId)
+	if unit == nil {
+		return
+	}
+	unit.State = computepb.UnitState_UNIT_FAILED
+	unit.ExitStatus = int32(exitCode)
+	unit.FailureClass = computepb.FailureClass_EXECUTION_NONZERO_EXIT
+	unit.FailureReason = fmt.Sprintf("start failed: %v", err)
+	unit.EndTime = timestamppb.Now()
+	_ = putUnit(ctx, unit)
 	srv.finalizeJob(ctx, req.JobId, unit)
 }
 
@@ -318,6 +391,31 @@ func (srv *server) ReportComputeHeartbeat(ctx context.Context, req *compute_runn
 
 func (srv *server) CancelComputeUnit(ctx context.Context, req *compute_runnerpb.CancelComputeUnitRequest) (*compute_runnerpb.CancelComputeUnitResponse, error) {
 	slog.Info("compute runner: cancel requested", "unit_id", req.UnitId, "reason", req.Reason)
+
+	srv.runningUnitsMu.Lock()
+	ru, ok := srv.runningUnits[req.UnitId]
+	srv.runningUnitsMu.Unlock()
+
+	if !ok {
+		return &compute_runnerpb.CancelComputeUnitResponse{Accepted: false}, nil
+	}
+
+	// Kill the process via context cancellation.
+	ru.cancel()
+
+	// Update unit state.
+	unit, _ := getUnit(ctx, req.JobId, req.UnitId)
+	if unit != nil {
+		unit.State = computepb.UnitState_UNIT_CANCELLED
+		unit.EndTime = timestamppb.Now()
+		unit.FailureReason = "cancelled: " + req.Reason
+		_ = putUnit(ctx, unit)
+	}
+
+	// Revoke lease.
+	revokeUnitLease(ru.leaseID)
+
+	slog.Info("compute runner: unit cancelled", "unit_id", req.UnitId, "reason", req.Reason)
 	return &compute_runnerpb.CancelComputeUnitResponse{Accepted: true}, nil
 }
 

@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
@@ -260,4 +261,119 @@ func getResult(ctx context.Context, jobID string) (*computepb.ComputeResult, err
 		return nil, fmt.Errorf("unmarshal result: %w", err)
 	}
 	return result, nil
+}
+
+// ─── Leases ──────────────────────────────────────────────────────────────────
+
+const (
+	leaseKeyPrefix = "/globular/compute/leases/"
+	leaseTTL       = 30 // seconds
+)
+
+func leaseKey(jobID, unitID string) string {
+	return fmt.Sprintf("%s%s/%s", leaseKeyPrefix, jobID, unitID)
+}
+
+// grantUnitLease acquires an etcd TTL lease for exclusive unit ownership.
+// Returns the lease ID for keep-alive renewal.
+func grantUnitLease(ctx context.Context, jobID, unitID, nodeID string) (clientv3.LeaseID, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return 0, fmt.Errorf("etcd client: %w", err)
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+
+	grant, err := cli.Grant(tctx, leaseTTL)
+	if err != nil {
+		return 0, fmt.Errorf("lease grant: %w", err)
+	}
+
+	_, err = cli.Put(tctx, leaseKey(jobID, unitID), nodeID, clientv3.WithLease(grant.ID))
+	if err != nil {
+		cli.Revoke(context.Background(), grant.ID)
+		return 0, fmt.Errorf("lease put: %w", err)
+	}
+
+	slog.Info("compute lease: granted",
+		"job_id", jobID, "unit_id", unitID, "node", nodeID,
+		"lease_id", grant.ID, "ttl", leaseTTL)
+	return grant.ID, nil
+}
+
+// startLeaseRenewal begins automatic keep-alive for a lease. Returns a cancel
+// function that stops renewal. The caller must also call revokeUnitLease on
+// completion.
+func startLeaseRenewal(leaseID clientv3.LeaseID) (context.CancelFunc, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+
+	kaCtx, kaCancel := context.WithCancel(context.Background())
+	ch, err := cli.KeepAlive(kaCtx, leaseID)
+	if err != nil {
+		kaCancel()
+		return nil, fmt.Errorf("lease keepalive: %w", err)
+	}
+	// Drain the keep-alive channel in the background.
+	go func() {
+		for range ch {
+		}
+	}()
+	return kaCancel, nil
+}
+
+// revokeUnitLease explicitly revokes a lease on unit completion.
+func revokeUnitLease(leaseID clientv3.LeaseID) {
+	if leaseID == 0 {
+		return
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cli.Revoke(ctx, leaseID)
+}
+
+// isLeaseAlive checks if a unit's lease key still exists in etcd.
+func isLeaseAlive(ctx context.Context, jobID, unitID string) bool {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return false
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, leaseKey(jobID, unitID))
+	return err == nil && len(resp.Kvs) > 0
+}
+
+// ─── Heartbeats ──────────────────────────────────────────────────────────────
+
+func heartbeatKey(jobID, unitID string) string {
+	return fmt.Sprintf("/globular/compute/heartbeats/%s/%s", jobID, unitID)
+}
+
+// putHeartbeat writes a heartbeat marker to etcd with a short TTL.
+// Auto-expires if the runner stops writing.
+func putHeartbeat(ctx context.Context, jobID, unitID string, progress float64) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return err
+	}
+	tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// Grant a short-lived lease for the heartbeat key (15s TTL).
+	grant, err := cli.Grant(tctx, 15)
+	if err != nil {
+		return err
+	}
+
+	val := fmt.Sprintf(`{"progress":%.2f,"observed_at":"%s"}`, progress, time.Now().UTC().Format(time.RFC3339))
+	_, err = cli.Put(tctx, heartbeatKey(jobID, unitID), val, clientv3.WithLease(grant.ID))
+	return err
 }

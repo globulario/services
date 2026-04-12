@@ -4,12 +4,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
@@ -18,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -81,6 +85,17 @@ type server struct {
 
 	// --- gRPC Runtime ---
 	grpcServer *grpc.Server
+
+	// --- Process Tracking (for cancellation) ---
+	runningUnits   map[string]*runningUnit
+	runningUnitsMu sync.Mutex
+}
+
+// runningUnit tracks a running compute process for cancellation support.
+type runningUnit struct {
+	cmd     *exec.Cmd
+	cancel  context.CancelFunc
+	leaseID clientv3.LeaseID
 }
 
 // ─── Globular service contract (getters/setters) ─────────────────────────────
@@ -227,6 +242,7 @@ func initializeServerDefaults() *server {
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
 	srv.Permissions = make([]any, 0)
+	srv.runningUnits = make(map[string]*runningUnit)
 
 	return srv
 }

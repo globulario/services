@@ -63,6 +63,7 @@ spec:
         unit_id: $.unit_id
         runner_endpoint: $.runner_endpoint
         staging_path: $.staging_path
+        lease_id: $.lease_id
       execution:
         idempotency: safe_retry
 

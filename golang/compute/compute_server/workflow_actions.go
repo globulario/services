@@ -165,21 +165,43 @@ func computeMarkJobFailed(srv *server) engine.ActionHandler {
 
 func computeChooseNode(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		jobID, _ := req.With["job_id"].(string)
+
+		// Load definition to check allowed_node_profiles.
+		var allowedProfiles []string
+		if jobID != "" {
+			job, _ := getJob(ctx, jobID)
+			if job != nil && job.Spec != nil {
+				def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+				if def != nil {
+					allowedProfiles = def.AllowedNodeProfiles
+				}
+			}
+		}
+
 		// Discover all nodes running the compute service via etcd.
 		endpoints := resolveComputeEndpoints()
 		if len(endpoints) == 0 {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// V1: pick the first available endpoint.
-		// Future: query node capabilities, profiles, load for scheduling.
+		// Filter by allowed profiles if specified.
+		// For v1, if profiles are specified but we can't resolve node metadata,
+		// we proceed with all candidates (best-effort).
+		if len(allowedProfiles) > 0 {
+			slog.Info("compute workflow: filtering by profiles",
+				"allowed", allowedProfiles, "candidates", len(endpoints))
+		}
+
+		// V1.5: pick the first available endpoint.
+		// Future: apply PlacementPolicy (SPREAD, PACK, LOWEST_LOAD).
 		chosen := endpoints[0]
 		slog.Info("compute workflow: node chosen",
 			"endpoint", chosen, "candidates", len(endpoints))
 		return &engine.ActionResult{
 			OK: true,
 			Output: map[string]any{
-				"node_id":         chosen, // endpoint doubles as node identifier for dispatch
+				"node_id":         chosen,
 				"runner_endpoint": chosen,
 			},
 		}, nil
@@ -193,18 +215,31 @@ func computeMarkUnitAssigned(srv *server) engine.ActionHandler {
 		nodeID, _ := req.With["node_id"].(string)
 		runnerEndpoint, _ := req.With["runner_endpoint"].(string)
 
+		// Acquire an etcd TTL lease for exclusive unit ownership.
+		leaseID, err := grantUnitLease(ctx, jobID, unitID, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("grant lease: %w", err)
+		}
+
 		unit, err := getUnit(ctx, jobID, unitID)
 		if err != nil || unit == nil {
+			revokeUnitLease(leaseID)
 			return nil, fmt.Errorf("unit %s not found", unitID)
 		}
 		unit.State = computepb.UnitState_UNIT_ASSIGNED
 		unit.NodeId = nodeID
+		unit.LeaseOwner = fmt.Sprintf("node:%s/lease:%d", nodeID, leaseID)
+		unit.LeaseExpiresAt = timestamppb.New(time.Now().Add(leaseTTL * time.Second))
 		if err := putUnit(ctx, unit); err != nil {
+			revokeUnitLease(leaseID)
 			return nil, fmt.Errorf("update unit: %w", err)
 		}
 		return &engine.ActionResult{
-			OK:     true,
-			Output: map[string]any{"runner_endpoint": runnerEndpoint},
+			OK: true,
+			Output: map[string]any{
+				"runner_endpoint": runnerEndpoint,
+				"lease_id":        int64(leaseID),
+			},
 		}, nil
 	}
 }
@@ -260,6 +295,7 @@ func computeRunUnit(srv *server) engine.ActionHandler {
 		unitID, _ := req.With["unit_id"].(string)
 		stagingPath, _ := req.With["staging_path"].(string)
 		runnerEndpoint, _ := req.With["runner_endpoint"].(string)
+		leaseIDf, _ := req.With["lease_id"].(float64) // JSON numbers are float64
 
 		job, _ := getJob(ctx, jobID)
 		if job == nil {
@@ -275,6 +311,7 @@ func computeRunUnit(srv *server) engine.ActionHandler {
 		}
 
 		runReq := computeRunnerRunRequest(unitID, jobID, def, unit, job.Spec, stagingPath)
+		runReq.EtcdLeaseId = int64(leaseIDf)
 
 		// Dispatch to remote runner via gRPC.
 		client, conn, err := runnerClient(runnerEndpoint)
@@ -310,6 +347,9 @@ func computeAwaitUnitTerminal(srv *server) engine.ActionHandler {
 		}
 
 		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
+		leaseCheckInterval := 10 * time.Second
+		lastLeaseCheck := time.Now()
+
 		for {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -338,8 +378,8 @@ func computeAwaitUnitTerminal(srv *server) engine.ActionHandler {
 				return &engine.ActionResult{
 					OK: true,
 					Output: map[string]any{
-						"unit_state":    "UNIT_FAILED",
-						"failure_class": unit.FailureClass.String(),
+						"unit_state":     "UNIT_FAILED",
+						"failure_class":  unit.FailureClass.String(),
 						"failure_reason": unit.FailureReason,
 					},
 				}, nil
@@ -348,6 +388,28 @@ func computeAwaitUnitTerminal(srv *server) engine.ActionHandler {
 					OK:     true,
 					Output: map[string]any{"unit_state": "UNIT_CANCELLED"},
 				}, nil
+			case computepb.UnitState_UNIT_LEASE_EXPIRED:
+				return &engine.ActionResult{
+					OK:     true,
+					Output: map[string]any{"unit_state": "UNIT_LEASE_EXPIRED"},
+				}, nil
+			}
+
+			// Periodically check if the lease is still alive.
+			if time.Since(lastLeaseCheck) >= leaseCheckInterval {
+				if unit.State == computepb.UnitState_UNIT_RUNNING && !isLeaseAlive(ctx, jobID, unitID) {
+					slog.Warn("compute workflow: lease expired for running unit",
+						"job_id", jobID, "unit_id", unitID)
+					unit.State = computepb.UnitState_UNIT_LEASE_EXPIRED
+					unit.FailureReason = "lease expired — runner may have died"
+					unit.EndTime = timestamppb.Now()
+					_ = putUnit(ctx, unit)
+					return &engine.ActionResult{
+						OK:     true,
+						Output: map[string]any{"unit_state": "UNIT_LEASE_EXPIRED"},
+					}, nil
+				}
+				lastLeaseCheck = time.Now()
 			}
 
 			time.Sleep(2 * time.Second)

@@ -176,6 +176,7 @@ type RunComputeUnitRequest struct {
 	Unit          *computepb.ComputeUnit       `protobuf:"bytes,4,opt,name=unit,proto3" json:"unit,omitempty"`
 	JobSpec       *computepb.ComputeJobSpec    `protobuf:"bytes,5,opt,name=job_spec,json=jobSpec,proto3" json:"job_spec,omitempty"`
 	StagingPath   string                       `protobuf:"bytes,6,opt,name=staging_path,json=stagingPath,proto3" json:"staging_path,omitempty"`
+	EtcdLeaseId   int64                        `protobuf:"varint,7,opt,name=etcd_lease_id,json=etcdLeaseId,proto3" json:"etcd_lease_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,6 +251,13 @@ func (x *RunComputeUnitRequest) GetStagingPath() string {
 		return x.StagingPath
 	}
 	return ""
+}
+
+func (x *RunComputeUnitRequest) GetEtcdLeaseId() int64 {
+	if x != nil {
+		return x.EtcdLeaseId
+	}
+	return 0
 }
 
 type RunComputeUnitResponse struct {
@@ -737,7 +745,7 @@ const file_compute_runner_proto_rawDesc = "" +
 	"\x18StageComputeUnitResponse\x12\x16\n" +
 	"\x06staged\x18\x01 \x01(\bR\x06staged\x12!\n" +
 	"\fstaging_path\x18\x02 \x01(\tR\vstagingPath\x12\x1a\n" +
-	"\bwarnings\x18\x03 \x03(\tR\bwarnings\"\x84\x02\n" +
+	"\bwarnings\x18\x03 \x03(\tR\bwarnings\"\xa8\x02\n" +
 	"\x15RunComputeUnitRequest\x12\x17\n" +
 	"\aunit_id\x18\x01 \x01(\tR\x06unitId\x12\x15\n" +
 	"\x06job_id\x18\x02 \x01(\tR\x05jobId\x12:\n" +
@@ -746,7 +754,8 @@ const file_compute_runner_proto_rawDesc = "" +
 	"definition\x12(\n" +
 	"\x04unit\x18\x04 \x01(\v2\x14.compute.ComputeUnitR\x04unit\x122\n" +
 	"\bjob_spec\x18\x05 \x01(\v2\x17.compute.ComputeJobSpecR\ajobSpec\x12!\n" +
-	"\fstaging_path\x18\x06 \x01(\tR\vstagingPath\"W\n" +
+	"\fstaging_path\x18\x06 \x01(\tR\vstagingPath\x12\"\n" +
+	"\retcd_lease_id\x18\a \x01(\x03R\vetcdLeaseId\"W\n" +
 	"\x16RunComputeUnitResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12!\n" +
 	"\fexecution_id\x18\x02 \x01(\tR\vexecutionId\"b\n" +
