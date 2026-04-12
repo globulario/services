@@ -156,18 +156,33 @@ func (srv *server) SubmitComputeJob(ctx context.Context, req *computepb.SubmitCo
 		return nil, fmt.Errorf("store job: %w", err)
 	}
 
-	// For v1 single-unit path: create one unit immediately.
-	unitID := gocql.TimeUUID().String()
-	unit := &computepb.ComputeUnit{
-		UnitId:    unitID,
-		JobId:     jobID,
-		State:     computepb.UnitState_UNIT_PENDING,
-		InputRefs: spec.InputRefs,
-		Attempt:   1,
+	// Check if the job should be partitioned into multiple units.
+	plan := planPartitions(def, spec)
+
+	var units []*computepb.ComputeUnit
+	if plan != nil {
+		// Multi-unit path: partition plan creates N units.
+		plan.JobId = jobID
+		if err := putPlan(ctx, plan); err != nil {
+			return nil, fmt.Errorf("store partition plan: %w", err)
+		}
+		units = createUnitsFromPlan(jobID, plan)
+		job.State = computepb.JobState_JOB_PARTITIONING
+	} else {
+		// Single-unit path: one unit with all inputs.
+		units = []*computepb.ComputeUnit{{
+			UnitId:    gocql.TimeUUID().String(),
+			JobId:     jobID,
+			State:     computepb.UnitState_UNIT_PENDING,
+			InputRefs: spec.InputRefs,
+			Attempt:   1,
+		}}
 	}
 
-	if err := putUnit(ctx, unit); err != nil {
-		return nil, fmt.Errorf("store unit: %w", err)
+	for _, unit := range units {
+		if err := putUnit(ctx, unit); err != nil {
+			return nil, fmt.Errorf("store unit: %w", err)
+		}
 	}
 
 	// Transition job to ADMITTED.
@@ -179,12 +194,12 @@ func (srv *server) SubmitComputeJob(ctx context.Context, req *computepb.SubmitCo
 
 	slog.Info("compute: job submitted",
 		"job_id", jobID,
-		"unit_id", unitID,
+		"units", len(units),
+		"partitioned", plan != nil,
 		"definition", spec.DefinitionName+"@"+spec.DefinitionVersion)
 
-	// Dispatch via workflow engine — the workflow service orchestrates the
-	// full job lifecycle and calls back to this service for each action.
-	go srv.executeViaWorkflow(def, job, unit)
+	// Dispatch via workflow engine.
+	go srv.executeViaWorkflow(def, job, units[0])
 
 	return &computepb.SubmitComputeJobResponse{Job: job}, nil
 }

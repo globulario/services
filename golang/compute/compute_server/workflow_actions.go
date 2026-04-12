@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
@@ -19,6 +20,9 @@ import (
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// roundRobinCounter is used by computeChooseNode for deterministic placement.
+var roundRobinCounter atomic.Uint64
 
 const ActorCompute v1alpha1.ActorType = "compute"
 
@@ -30,6 +34,10 @@ func RegisterComputeActions(router *engine.Router, srv *server) {
 	router.Register(ActorCompute, "compute.admit_job", computeAdmitJob(srv))
 	router.Register(ActorCompute, "compute.create_single_unit", computeCreateSingleUnit(srv))
 	router.Register(ActorCompute, "compute.mark_job_failed", computeMarkJobFailed(srv))
+
+	// ── Multi-unit dispatch ─────────────────────────────────────────
+	router.Register(ActorCompute, "compute.dispatch_all_units", computeDispatchAllUnits(srv))
+	router.Register(ActorCompute, "compute.await_all_units", computeAwaitAllUnits(srv))
 
 	// ── Unit execution actions ───────────────────────────────────────
 	router.Register(ActorCompute, "compute.choose_node", computeChooseNode(srv))
@@ -114,9 +122,27 @@ func computeCreateSingleUnit(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("job %s not found", jobID)
 		}
 
-		// Check if unit already exists (idempotency).
+		// Check if units already exist (idempotency / partition path).
 		units, _ := listUnits(ctx, jobID)
 		if len(units) > 0 {
+			// Multi-unit: return all unit IDs as a list for foreach fan-out.
+			if len(units) > 1 {
+				unitItems := make([]map[string]any, len(units))
+				for i, u := range units {
+					unitItems[i] = map[string]any{
+						"unit_id": u.UnitId,
+						"job_id":  u.JobId,
+					}
+				}
+				return &engine.ActionResult{
+					OK: true,
+					Output: map[string]any{
+						"unit_id":    units[0].UnitId,
+						"unit_items": unitItems,
+						"unit_count": len(units),
+					},
+				}, nil
+			}
 			return &engine.ActionResult{
 				OK:     true,
 				Output: map[string]any{"unit_id": units[0].UnitId},
@@ -161,6 +187,164 @@ func computeMarkJobFailed(srv *server) engine.ActionHandler {
 	}
 }
 
+// ─── Multi-unit dispatch handlers ─────────────────────────────────────────────
+
+// computeDispatchAllUnits starts a compute.unit.execute workflow for each
+// pending unit in the job. For single-unit jobs, dispatches one. For multi-unit,
+// dispatches N in parallel via goroutines.
+func computeDispatchAllUnits(srv *server) engine.ActionHandler {
+	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		jobID, _ := req.With["job_id"].(string)
+
+		units, err := listUnits(ctx, jobID)
+		if err != nil {
+			return nil, fmt.Errorf("list units: %w", err)
+		}
+
+		job, _ := getJob(ctx, jobID)
+		if job != nil {
+			job.State = computepb.JobState_JOB_RUNNING
+			job.UpdatedAt = timestamppb.Now()
+			_ = putJob(ctx, job)
+		}
+
+		// For each unit, run the full execute pipeline inline:
+		// choose_node → assign → stage → run (async).
+		// The await step handles waiting for completion.
+		endpoints := resolveComputeEndpoints()
+		if len(endpoints) == 0 {
+			return nil, fmt.Errorf("no compute service instances available")
+		}
+
+		var def *computepb.ComputeDefinition
+		if job != nil && job.Spec != nil {
+			def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+		}
+		if def == nil {
+			return nil, fmt.Errorf("definition not found for job %s", jobID)
+		}
+
+		dispatched := 0
+		for _, unit := range units {
+			if unit.State != computepb.UnitState_UNIT_PENDING {
+				continue
+			}
+
+			// Round-robin placement.
+			idx := roundRobinCounter.Add(1) - 1
+			endpoint := endpoints[int(idx)%len(endpoints)]
+
+			// Grant lease.
+			leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, endpoint)
+			if err != nil {
+				slog.Warn("compute dispatch: lease grant failed",
+					"unit_id", unit.UnitId, "err", err)
+				continue
+			}
+
+			// Mark assigned.
+			unit.State = computepb.UnitState_UNIT_ASSIGNED
+			unit.NodeId = endpoint
+			unit.LeaseOwner = fmt.Sprintf("node:%s/lease:%d", endpoint, leaseID)
+			unit.LeaseExpiresAt = timestamppb.New(time.Now().Add(leaseTTL * time.Second))
+			_ = putUnit(ctx, unit)
+
+			// Stage remotely.
+			stageReq := computeRunnerStageRequest(unit.UnitId, jobID, def, unit, job.Spec)
+			client, conn, err := runnerClient(endpoint)
+			if err != nil {
+				slog.Warn("compute dispatch: dial failed",
+					"unit_id", unit.UnitId, "endpoint", endpoint, "err", err)
+				continue
+			}
+			stageResp, err := client.StageComputeUnit(ctx, &stageReq)
+			if err != nil {
+				conn.Close()
+				slog.Warn("compute dispatch: stage failed",
+					"unit_id", unit.UnitId, "err", err)
+				continue
+			}
+
+			// Run remotely (async on the runner side).
+			runReq := computeRunnerRunRequest(unit.UnitId, jobID, def, unit, job.Spec, stageResp.StagingPath)
+			runReq.EtcdLeaseId = int64(leaseID)
+			_, err = client.RunComputeUnit(ctx, &runReq)
+			conn.Close()
+			if err != nil {
+				slog.Warn("compute dispatch: run failed",
+					"unit_id", unit.UnitId, "err", err)
+				continue
+			}
+
+			dispatched++
+			slog.Info("compute dispatch: unit started",
+				"unit_id", unit.UnitId, "endpoint", endpoint)
+		}
+
+		slog.Info("compute dispatch: all units dispatched",
+			"job_id", jobID, "dispatched", dispatched, "total", len(units))
+		return &engine.ActionResult{
+			OK:     true,
+			Output: map[string]any{"dispatched": dispatched, "total": len(units)},
+		}, nil
+	}
+}
+
+// computeAwaitAllUnits waits for all units in the job to reach a terminal state.
+func computeAwaitAllUnits(srv *server) engine.ActionHandler {
+	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		jobID, _ := req.With["job_id"].(string)
+		timeoutSec := 3600
+		if ts, ok := req.With["timeout_seconds"].(float64); ok {
+			timeoutSec = int(ts)
+		}
+
+		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
+		for {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if time.Now().After(deadline) {
+				return nil, fmt.Errorf("units did not complete within %ds", timeoutSec)
+			}
+
+			units, err := listUnits(ctx, jobID)
+			if err != nil {
+				return nil, err
+			}
+
+			allTerminal := true
+			succeeded := 0
+			failed := 0
+			for _, u := range units {
+				switch u.State {
+				case computepb.UnitState_UNIT_SUCCEEDED:
+					succeeded++
+				case computepb.UnitState_UNIT_FAILED, computepb.UnitState_UNIT_CANCELLED, computepb.UnitState_UNIT_LEASE_EXPIRED:
+					failed++
+				default:
+					allTerminal = false
+				}
+			}
+
+			if allTerminal {
+				slog.Info("compute workflow: all units terminal",
+					"job_id", jobID, "succeeded", succeeded, "failed", failed)
+				return &engine.ActionResult{
+					OK: true,
+					Output: map[string]any{
+						"total":     len(units),
+						"succeeded": succeeded,
+						"failed":    failed,
+					},
+				}, nil
+			}
+
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
 // ─── Unit execution handlers ─────────────────────────────────────────────────
 
 func computeChooseNode(srv *server) engine.ActionHandler {
@@ -193,9 +377,9 @@ func computeChooseNode(srv *server) engine.ActionHandler {
 				"allowed", allowedProfiles, "candidates", len(endpoints))
 		}
 
-		// V1.5: pick the first available endpoint.
-		// Future: apply PlacementPolicy (SPREAD, PACK, LOWEST_LOAD).
-		chosen := endpoints[0]
+		// Round-robin across available endpoints for spread placement.
+		idx := roundRobinCounter.Add(1) - 1
+		chosen := endpoints[int(idx)%len(endpoints)]
 		slog.Info("compute workflow: node chosen",
 			"endpoint", chosen, "candidates", len(endpoints))
 		return &engine.ActionResult{

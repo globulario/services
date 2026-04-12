@@ -4,8 +4,9 @@ metadata:
   name: compute.job.submit
   displayName: Submit compute job
   description: >-
-    Validates a compute job, admits it, creates a single execution unit,
-    and dispatches the unit execution workflow. V1 single-unit path only.
+    Validates a compute job, admits it, creates execution units (single or
+    partitioned), dispatches all units for execution, waits for completion,
+    and triggers aggregation. Supports both single-unit and multi-unit paths.
 spec:
   strategy:
     mode: single
@@ -43,8 +44,8 @@ spec:
       execution:
         idempotency: safe_retry
 
-    - id: create_unit
-      title: Create single execution unit
+    - id: create_units
+      title: Create execution units (single or partitioned)
       dependsOn: [admit_job]
       actor: compute
       action: compute.create_single_unit
@@ -53,32 +54,30 @@ spec:
       execution:
         idempotency: safe_retry
 
-    - id: dispatch_execute
-      title: Dispatch unit execution workflow
-      dependsOn: [create_unit]
-      actor: workflow-service
-      action: workflow.start_child
+    - id: dispatch_all
+      title: Dispatch all units for execution
+      dependsOn: [create_units]
+      actor: compute
+      action: compute.dispatch_all_units
       with:
-        workflow_name: compute.unit.execute
-        inputs:
-          job_id: $.job_id
-          unit_id: $.unit_id
+        job_id: $.job_id
       execution:
         idempotency: safe_retry
 
-    - id: wait_execution
-      title: Wait for unit execution to complete
-      dependsOn: [dispatch_execute]
-      actor: workflow-service
-      action: workflow.wait_child_terminal
+    - id: await_all
+      title: Wait for all units to complete
+      dependsOn: [dispatch_all]
+      actor: compute
+      action: compute.await_all_units
       with:
-        child_run_id: $.child_run.run_id
+        job_id: $.job_id
+        timeout_seconds: 3600
       execution:
         idempotency: safe_retry
 
     - id: dispatch_aggregate
       title: Dispatch job aggregation workflow
-      dependsOn: [wait_execution]
+      dependsOn: [await_all]
       actor: workflow-service
       action: workflow.start_child
       with:

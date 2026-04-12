@@ -263,6 +263,48 @@ func getResult(ctx context.Context, jobID string) (*computepb.ComputeResult, err
 	return result, nil
 }
 
+// ─── Partition Plans ─────────────────────────────────────────────────────────
+
+func planKey(jobID string) string {
+	return fmt.Sprintf("/globular/compute/jobs/%s/plan", jobID)
+}
+
+func putPlan(ctx context.Context, plan *computepb.ComputePartitionPlan) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	data, err := protojson.Marshal(plan)
+	if err != nil {
+		return fmt.Errorf("marshal plan: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	_, err = cli.Put(tctx, planKey(plan.JobId), string(data))
+	return err
+}
+
+func getPlan(ctx context.Context, jobID string) (*computepb.ComputePartitionPlan, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, planKey(jobID))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	plan := &computepb.ComputePartitionPlan{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, plan); err != nil {
+		return nil, fmt.Errorf("unmarshal plan: %w", err)
+	}
+	return plan, nil
+}
+
 // ─── Leases ──────────────────────────────────────────────────────────────────
 
 const (
