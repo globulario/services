@@ -205,6 +205,20 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 
 		job, _ := getJob(ctx, jobID)
 		if job != nil {
+			// Check deadline before dispatching any units.
+			if job.Spec != nil && job.Spec.Deadline != nil && job.Spec.Deadline.IsValid() {
+				if time.Now().After(job.Spec.Deadline.AsTime()) {
+					slog.Warn("compute dispatch: job deadline already passed, refusing dispatch",
+						"job_id", jobID, "deadline", job.Spec.Deadline.AsTime().Format(time.RFC3339))
+					return &engine.ActionResult{
+						OK: true,
+						Output: map[string]any{
+							"dispatched": 0, "total": len(units),
+							"timed_out": true, "reason": "job deadline already passed",
+						},
+					}, nil
+				}
+			}
 			job.State = computepb.JobState_JOB_RUNNING
 			job.UpdatedAt = timestamppb.Now()
 			_ = putJob(ctx, job)
