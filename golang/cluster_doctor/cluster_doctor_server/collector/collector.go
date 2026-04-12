@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 )
 
 // CollectorConfig carries per-fetch settings.
@@ -190,6 +191,16 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 func (c *Collector) fetchWorkflowTelemetry(ctx context.Context, snap *Snapshot) {
 	wfCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
+
+	// Inject cluster_id into outgoing gRPC metadata so the workflow
+	// service's interceptor doesn't reject the call with
+	// "cluster_id required after cluster initialization". The same
+	// metadata pattern is used by node_agent's artifact.fetch and
+	// cluster_controller's release_resolver.
+	if c.clusterID != "" {
+		md := metadata.Pairs("cluster_id", c.clusterID)
+		wfCtx = metadata.NewOutgoingContext(wfCtx, md)
+	}
 
 	if stepsResp, err := c.workflowClient.ListStepOutcomes(wfCtx, &workflowpb.ListStepOutcomesRequest{
 		ClusterId: c.clusterID,
