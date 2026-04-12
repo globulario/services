@@ -59,6 +59,14 @@ steps:
     install_spec: false
     install_systemd: false
 
+  - id: install-workflow-definitions
+    type: ensure_dirs
+    dirs:
+      - path: "{{.StateDir}}/workflows"
+        owner: globular
+        group: globular
+        mode: 0750
+
   - id: ensure-compute-config
     type: ensure_service_config
     service_name: compute
@@ -87,7 +95,8 @@ steps:
           WorkingDirectory={{.StateDir}}/compute
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
 
-          ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/compute/jobs && chown -R globular:globular {{.StateDir}}/compute'
+          ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/compute/jobs {{.StateDir}}/workflows && chown -R globular:globular {{.StateDir}}/compute {{.StateDir}}/workflows'
+          ExecStartPre=+/bin/sh -c 'cp -f {{.Prefix}}/workflows/compute.*.yaml {{.StateDir}}/workflows/ 2>/dev/null || true'
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready"; exit 1'
           ExecStart={{.Prefix}}/bin/compute_server
           Restart=on-failure
