@@ -1,0 +1,335 @@
+syntax = "proto3";
+package compute;
+
+option go_package = "github.com/globulario/services/golang/compute/computepb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum ComputeDefinitionKind {
+  COMPUTE_DEFINITION_KIND_UNSPECIFIED = 0;
+  SINGLE_NODE = 1;
+  PARTITIONABLE_BATCH = 2;
+  MAP_REDUCE = 3;
+  PIPELINE = 4;
+  AGGREGATION = 5;
+  GPU_BATCH = 6;
+  STREAM_WINDOWED = 7;
+}
+
+enum RuntimeType {
+  RUNTIME_TYPE_UNSPECIFIED = 0;
+  NATIVE_BINARY = 1;
+  SCRIPTED = 2;
+  WASM = 3;
+  OCI_OPTIONAL = 4;
+  VM_OPTIONAL = 5;
+}
+
+enum DeterminismLevel {
+  DETERMINISM_LEVEL_UNSPECIFIED = 0;
+  DETERMINISTIC = 1;
+  MOSTLY_DETERMINISTIC = 2;
+  NON_DETERMINISTIC_BOUNDED = 3;
+  NON_DETERMINISTIC = 4;
+}
+
+enum IdempotencyMode {
+  IDEMPOTENCY_MODE_UNSPECIFIED = 0;
+  SAFE_RETRY = 1;
+  RETRY_WITH_CLEANUP = 2;
+  NO_AUTOMATIC_RETRY = 3;
+  APPEND_ONLY = 4;
+}
+
+enum VerificationType {
+  VERIFICATION_TYPE_UNSPECIFIED = 0;
+  CHECKSUM = 1;
+  SCHEMA_VALIDATE = 2;
+  MEDIA_PROBE = 3;
+  NUMERIC_TOLERANCE = 4;
+  ROW_COUNT = 5;
+  CUSTOM_VERIFIER = 6;
+  MULTI_STAGE = 7;
+}
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  JOB_PENDING = 1;
+  JOB_ADMITTED = 2;
+  JOB_PARTITIONING = 3;
+  JOB_QUEUED = 4;
+  JOB_RUNNING = 5;
+  JOB_AGGREGATING = 6;
+  JOB_VERIFYING = 7;
+  JOB_COMPLETED = 8;
+  JOB_DEGRADED = 9;
+  JOB_FAILED = 10;
+  JOB_CANCELLED = 11;
+  JOB_WAITING_APPROVAL = 12;
+  JOB_RETRYING = 13;
+}
+
+enum UnitState {
+  UNIT_STATE_UNSPECIFIED = 0;
+  UNIT_PENDING = 1;
+  UNIT_RESERVED = 2;
+  UNIT_ASSIGNED = 3;
+  UNIT_STAGING = 4;
+  UNIT_RUNNING = 5;
+  UNIT_UPLOADING = 6;
+  UNIT_VERIFYING = 7;
+  UNIT_SUCCEEDED = 8;
+  UNIT_FAILED = 9;
+  UNIT_CANCELLED = 10;
+  UNIT_LEASE_EXPIRED = 11;
+}
+
+enum ResultTrustLevel {
+  RESULT_TRUST_LEVEL_UNSPECIFIED = 0;
+  UNVERIFIED = 1;
+  STRUCTURALLY_VERIFIED = 2;
+  CONTENT_VERIFIED = 3;
+  FULLY_REPRODUCED = 4;
+  DEGRADED_ACCEPTED = 5;
+}
+
+enum PlacementPolicy {
+  PLACEMENT_POLICY_UNSPECIFIED = 0;
+  PACK = 1;
+  SPREAD = 2;
+  LOCALITY_FIRST = 3;
+  LOWEST_LOAD = 4;
+  GPU_AWARE = 5;
+  LATENCY_SENSITIVE = 6;
+  THROUGHPUT_MAX = 7;
+}
+
+enum FailureClass {
+  FAILURE_CLASS_UNSPECIFIED = 0;
+  ARTIFACT_FETCH_FAILED = 1;
+  INPUT_MISSING = 2;
+  LEASE_EXPIRED = 3;
+  NODE_UNREACHABLE = 4;
+  EXECUTION_NONZERO_EXIT = 5;
+  OUTPUT_UPLOAD_FAILED = 6;
+  OUTPUT_VERIFICATION_FAILED = 7;
+  RESOURCE_EXHAUSTED = 8;
+  POLICY_BLOCKED = 9;
+  DETERMINISTIC_REPEAT_FAILURE = 10;
+  AGGREGATION_BLOCKED = 11;
+}
+
+// ─── Core messages ───────────────────────────────────────────────────────────
+
+message ObjectRef {
+  string uri = 1;
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+  map<string, string> metadata = 4;
+}
+
+message ResourceProfile {
+  uint32 min_cpu_millis = 1;
+  uint32 max_cpu_millis = 2;
+  uint64 min_memory_bytes = 3;
+  uint64 max_memory_bytes = 4;
+  uint64 local_disk_bytes = 5;
+  uint32 gpu_count = 6;
+  string network_intensity = 7;
+}
+
+message PlacementRules {
+  repeated string require_profiles = 1;
+  repeated string prefer_profiles = 2;
+  bool prefer_data_locality = 3;
+  bool avoid_busy_nodes = 4;
+  PlacementPolicy default_policy = 5;
+}
+
+message PartitionStrategy {
+  string type = 1;
+  string unit = 2;
+  string min_partition_size = 3;
+  string max_partition_size = 4;
+  bool supports_adaptive_partitioning = 5;
+}
+
+message MergeStrategy {
+  string type = 1;
+  google.protobuf.Struct config = 2;
+}
+
+message VerificationRule {
+  VerificationType type = 1;
+  repeated string checks = 2;
+  string custom_verifier_ref = 3;
+  google.protobuf.Struct config = 4;
+}
+
+message SecurityPolicy {
+  repeated string allowed_roots = 1;
+  bool network_egress_allowed = 2;
+  bool host_filesystem_access_allowed = 3;
+  repeated string required_permissions = 4;
+}
+
+// ─── Domain objects ──────────────────────────────────────────────────────────
+
+message ComputeDefinition {
+  string name = 1;
+  string version = 2;
+  int64 build_number = 3;
+  string artifact_uri = 4;
+  string artifact_sha256 = 5;
+  ComputeDefinitionKind kind = 6;
+  string entrypoint = 7;
+  RuntimeType runtime_type = 8;
+  string input_schema = 9;
+  string output_schema = 10;
+  PartitionStrategy partition_strategy = 11;
+  MergeStrategy merge_strategy = 12;
+  VerificationRule verify_strategy = 13;
+  ResourceProfile resource_profile = 14;
+  DeterminismLevel determinism_level = 15;
+  IdempotencyMode idempotency_mode = 16;
+  PlacementRules placement = 17;
+  SecurityPolicy security_policy = 18;
+  repeated string capabilities_required = 19;
+  repeated string allowed_node_profiles = 20;
+  map<string, string> labels = 21;
+}
+
+message ComputeJobSpec {
+  string definition_name = 1;
+  string definition_version = 2;
+  int64 definition_build_number = 3;
+  repeated ObjectRef input_refs = 4;
+  google.protobuf.Struct parameters = 5;
+  ObjectRef requested_output_location = 6;
+  uint32 desired_parallelism = 7;
+  PlacementPolicy placement_policy = 8;
+  string priority = 9;
+  google.protobuf.Timestamp deadline = 10;
+  string repro_mode = 11;
+  repeated string tags = 12;
+}
+
+message ComputeJob {
+  string job_id = 1;
+  ComputeJobSpec spec = 2;
+  JobState state = 3;
+  string workflow_run_id = 4;
+  string submitter = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  string failure_message = 8;
+}
+
+message Partition {
+  string partition_id = 1;
+  repeated ObjectRef input_refs = 2;
+  google.protobuf.Struct parameters = 3;
+  uint64 estimated_cpu_millis = 4;
+  uint64 estimated_memory_bytes = 5;
+  uint64 estimated_bytes = 6;
+  map<string, string> locality_hints = 7;
+}
+
+message ComputePartitionPlan {
+  string plan_id = 1;
+  string job_id = 2;
+  repeated Partition partitions = 3;
+  bool aggregation_required = 4;
+  string merge_tree = 5;
+  google.protobuf.Struct verification_plan = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ComputeUnit {
+  string unit_id = 1;
+  string job_id = 2;
+  string partition_id = 3;
+  string node_id = 4;
+  UnitState state = 5;
+  uint32 attempt = 6;
+  repeated ObjectRef input_refs = 7;
+  ObjectRef output_ref = 8;
+  string lease_owner = 9;
+  google.protobuf.Timestamp lease_expires_at = 10;
+  google.protobuf.Timestamp start_time = 11;
+  google.protobuf.Timestamp end_time = 12;
+  ResourceProfile reservation = 13;
+  double observed_progress = 14;
+  string checksum = 15;
+  int32 exit_status = 16;
+  FailureClass failure_class = 17;
+  string failure_reason = 18;
+}
+
+message ComputeResult {
+  string job_id = 1;
+  ObjectRef result_ref = 2;
+  ResultTrustLevel trust_level = 3;
+  repeated string checksums = 4;
+  google.protobuf.Struct metadata = 5;
+  google.protobuf.Timestamp completed_at = 6;
+}
+
+// ─── RPC request/response ────────────────────────────────────────────────────
+
+message RegisterComputeDefinitionRequest { ComputeDefinition definition = 1; }
+message RegisterComputeDefinitionResponse { ComputeDefinition definition = 1; }
+
+message GetComputeDefinitionRequest { string name = 1; string version = 2; int64 build_number = 3; }
+message GetComputeDefinitionResponse { ComputeDefinition definition = 1; }
+
+message ListComputeDefinitionsRequest { string name_prefix = 1; string page_token = 2; uint32 page_size = 3; }
+message ListComputeDefinitionsResponse { repeated ComputeDefinition definitions = 1; string next_page_token = 2; }
+
+message ValidateComputeDefinitionRequest { ComputeDefinition definition = 1; }
+message ValidateComputeDefinitionResponse { bool valid = 1; repeated string errors = 2; repeated string warnings = 3; }
+
+message SubmitComputeJobRequest { ComputeJobSpec spec = 1; }
+message SubmitComputeJobResponse { ComputeJob job = 1; }
+
+message GetComputeJobRequest { string job_id = 1; }
+message GetComputeJobResponse { ComputeJob job = 1; }
+
+message ListComputeJobsRequest { JobState state_filter = 1; string submitter = 2; string page_token = 3; uint32 page_size = 4; }
+message ListComputeJobsResponse { repeated ComputeJob jobs = 1; string next_page_token = 2; }
+
+message CancelComputeJobRequest { string job_id = 1; string reason = 2; }
+message CancelComputeJobResponse { ComputeJob job = 1; }
+
+message GetComputeResultRequest { string job_id = 1; }
+message GetComputeResultResponse { ComputeResult result = 1; }
+
+message ListComputeUnitsRequest { string job_id = 1; UnitState state_filter = 2; string page_token = 3; uint32 page_size = 4; }
+message ListComputeUnitsResponse { repeated ComputeUnit units = 1; string next_page_token = 2; }
+
+message GetComputeUnitRequest { string unit_id = 1; }
+message GetComputeUnitResponse { ComputeUnit unit = 1; }
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service ComputeService {
+  // Definitions
+  rpc RegisterComputeDefinition(RegisterComputeDefinitionRequest) returns (RegisterComputeDefinitionResponse);
+  rpc GetComputeDefinition(GetComputeDefinitionRequest) returns (GetComputeDefinitionResponse);
+  rpc ListComputeDefinitions(ListComputeDefinitionsRequest) returns (ListComputeDefinitionsResponse);
+  rpc ValidateComputeDefinition(ValidateComputeDefinitionRequest) returns (ValidateComputeDefinitionResponse);
+
+  // Jobs
+  rpc SubmitComputeJob(SubmitComputeJobRequest) returns (SubmitComputeJobResponse);
+  rpc GetComputeJob(GetComputeJobRequest) returns (GetComputeJobResponse);
+  rpc ListComputeJobs(ListComputeJobsRequest) returns (ListComputeJobsResponse);
+  rpc CancelComputeJob(CancelComputeJobRequest) returns (CancelComputeJobResponse);
+  rpc GetComputeResult(GetComputeResultRequest) returns (GetComputeResultResponse);
+
+  // Units
+  rpc ListComputeUnits(ListComputeUnitsRequest) returns (ListComputeUnitsResponse);
+  rpc GetComputeUnit(GetComputeUnitRequest) returns (GetComputeUnitResponse);
+}

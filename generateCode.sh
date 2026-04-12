@@ -42,6 +42,8 @@ GO_TARGETS=(
   "ai_router:golang/ai_router/ai_routerpb"
   "ai_executor:golang/ai_executor/ai_executorpb"
   "workflow:golang/workflow/workflowpb"
+  "compute:golang/compute/computepb"
+  "compute_runner:golang/compute/compute_runnerpb"
 )
 
 TS_TARGETS=(

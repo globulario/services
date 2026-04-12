@@ -1,0 +1,92 @@
+syntax = "proto3";
+package compute_runner;
+
+option go_package = "github.com/globulario/services/golang/compute/compute_runnerpb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "compute.proto";
+
+// ─── Runner messages ─────────────────────────────────────────────────────────
+
+message StageComputeUnitRequest {
+  string unit_id = 1;
+  string job_id = 2;
+  compute.ComputeDefinition definition = 3;
+  compute.ComputeUnit unit = 4;
+  compute.ComputeJobSpec job_spec = 5;
+  string execution_root = 6;
+}
+
+message StageComputeUnitResponse {
+  bool staged = 1;
+  string staging_path = 2;
+  repeated string warnings = 3;
+}
+
+message RunComputeUnitRequest {
+  string unit_id = 1;
+  string job_id = 2;
+  compute.ComputeDefinition definition = 3;
+  compute.ComputeUnit unit = 4;
+  compute.ComputeJobSpec job_spec = 5;
+  string staging_path = 6;
+}
+
+message RunComputeUnitResponse {
+  bool accepted = 1;
+  string execution_id = 2;
+}
+
+message CancelComputeUnitRequest {
+  string unit_id = 1;
+  string job_id = 2;
+  string reason = 3;
+}
+
+message CancelComputeUnitResponse {
+  bool accepted = 1;
+}
+
+message ReportComputeHeartbeatRequest {
+  string execution_id = 1;
+  string unit_id = 2;
+  string job_id = 3;
+  string node_id = 4;
+  double progress = 5;
+  uint64 stdout_bytes = 6;
+  uint64 stderr_bytes = 7;
+  uint64 output_bytes = 8;
+  google.protobuf.Struct metrics = 9;
+  google.protobuf.Timestamp observed_at = 10;
+}
+
+message ReportComputeHeartbeatResponse {
+  bool ok = 1;
+  bool should_cancel = 2;
+}
+
+message CommitComputeOutputRequest {
+  string execution_id = 1;
+  string unit_id = 2;
+  string job_id = 3;
+  compute.ObjectRef output_ref = 4;
+  int32 exit_status = 5;
+  string checksum = 6;
+  google.protobuf.Struct verifier_metadata = 7;
+}
+
+message CommitComputeOutputResponse {
+  bool committed = 1;
+  string result_state = 2;
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service ComputeRunnerService {
+  rpc StageComputeUnit(StageComputeUnitRequest) returns (StageComputeUnitResponse);
+  rpc RunComputeUnit(RunComputeUnitRequest) returns (RunComputeUnitResponse);
+  rpc CancelComputeUnit(CancelComputeUnitRequest) returns (CancelComputeUnitResponse);
+  rpc ReportComputeHeartbeat(ReportComputeHeartbeatRequest) returns (ReportComputeHeartbeatResponse);
+  rpc CommitComputeOutput(CommitComputeOutputRequest) returns (CommitComputeOutputResponse);
+}
