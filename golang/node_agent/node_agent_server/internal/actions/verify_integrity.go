@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -145,22 +146,72 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 
 	report.Checked = len(pkgs)
 
-	// Resolve repository manifests in bulk (one call per package).
+	// Resolve repository manifests in parallel — one GetArtifactManifest
+	// RPC per installed package. Sequential iteration takes ~5 seconds for
+	// ~48 packages, which blows past the doctor collector's NodeTimeout.
+	// A small worker pool keeps the total wall time under 1 second for
+	// typical clusters without hammering the repository.
 	manifestDigests := make(map[string]string) // key: kind/name → expected sha256
-	for key, inst := range installedMap {
-		if repoAddr == "" {
-			break
+	if repoAddr != "" && len(installedMap) > 0 {
+		type resolveResult struct {
+			key    string
+			digest string
+			err    error
+			pubID  string
+			name   string
+			ver    string
+			build  int64
 		}
-		digest, err := resolveArtifactDigest(ctx, repoAddr,
-			inst.ref.GetPublisherId(), inst.ref.GetName(), inst.ref.GetVersion(), inst.ref.GetPlatform(),
-			strings.ToUpper(inst.kind), inst.build)
-		if err != nil {
-			report.Errors = append(report.Errors,
-				fmt.Sprintf("resolve manifest %s/%s@%s+%d: %v",
-					inst.ref.GetPublisherId(), inst.ref.GetName(), inst.ref.GetVersion(), inst.build, err))
-			continue
+		workerCount := 8
+		if n := len(installedMap); n < workerCount {
+			workerCount = n
 		}
-		manifestDigests[key] = digest
+		jobs := make(chan struct {
+			key  string
+			inst installedRef
+		}, len(installedMap))
+		results := make(chan resolveResult, len(installedMap))
+
+		var wg sync.WaitGroup
+		for w := 0; w < workerCount; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := range jobs {
+					digest, err := resolveArtifactDigest(ctx, repoAddr,
+						j.inst.ref.GetPublisherId(), j.inst.ref.GetName(),
+						j.inst.ref.GetVersion(), j.inst.ref.GetPlatform(),
+						strings.ToUpper(j.inst.kind), j.inst.build)
+					results <- resolveResult{
+						key:    j.key,
+						digest: digest,
+						err:    err,
+						pubID:  j.inst.ref.GetPublisherId(),
+						name:   j.inst.ref.GetName(),
+						ver:    j.inst.ref.GetVersion(),
+						build:  j.inst.build,
+					}
+				}
+			}()
+		}
+		for key, inst := range installedMap {
+			jobs <- struct {
+				key  string
+				inst installedRef
+			}{key: key, inst: inst}
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+		for r := range results {
+			if r.err != nil {
+				report.Errors = append(report.Errors,
+					fmt.Sprintf("resolve manifest %s/%s@%s+%d: %v",
+						r.pubID, r.name, r.ver, r.build, r.err))
+				continue
+			}
+			manifestDigests[r.key] = r.digest
+		}
 	}
 
 	// Collect desired versions once.

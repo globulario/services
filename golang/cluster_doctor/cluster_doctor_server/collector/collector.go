@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -269,26 +270,69 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 
 			// VerifyPackageIntegrity — reads installed_state, the local
 			// artifact cache, and the repository manifest. Read-only.
-			// If the node is running a pre-f488b5f1 binary the RPC will
-			// be Unimplemented and we simply skip (no error surfaced).
-			integCtx, cancel2 := context.WithTimeout(ctx, c.cfg.NodeTimeout)
+			//
+			// Timeout is intentionally much larger than NodeTimeout
+			// because the action makes one GetArtifactManifest RPC per
+			// installed package (~48 packages × ~100ms each → 5s+ wall
+			// time). With the default 5-second NodeTimeout, the call
+			// reliably times out and the invariant silently sees no
+			// data. The tighter GetInventory deadline is fine; this
+			// call needs its own budget.
+			integTimeout := c.cfg.NodeTimeout * 6
+			if integTimeout < 30*time.Second {
+				integTimeout = 30 * time.Second
+			}
+			log.Printf("collector: VerifyPackageIntegrity on node=%s endpoint=%s timeout=%s",
+				nid, ep, integTimeout)
+			integCtx, cancel2 := context.WithTimeout(ctx, integTimeout)
 			defer cancel2()
+			start := time.Now()
 			integResp, ierr := agentClient.VerifyPackageIntegrity(integCtx, &node_agentpb.VerifyPackageIntegrityRequest{
 				NodeId: nid,
 			})
-			if ierr != nil {
-				// Don't surface Unimplemented as an error — older
-				// node_agent binaries simply don't have the RPC.
-				if !strings.Contains(ierr.Error(), "Unimplemented") {
+			elapsed := time.Since(start)
+			switch {
+			case ierr != nil:
+				// Unimplemented is the "old node_agent" sentinel — log
+				// at info level without marking the snapshot incomplete.
+				if strings.Contains(ierr.Error(), "Unimplemented") {
+					log.Printf("collector: VerifyPackageIntegrity on node=%s not supported (old binary), skipping: %v",
+						nid, ierr)
+				} else {
+					// Everything else is a real failure the operator
+					// should see. Surface it to the snapshot error
+					// stream (→ data_incomplete) AND log the full
+					// message including elapsed time so timeout vs.
+					// auth vs. dial issues are distinguishable.
+					log.Printf("collector: VerifyPackageIntegrity on node=%s FAILED after %s: %v",
+						nid, elapsed, ierr)
 					snap.addError("node_agent@"+nid, "VerifyPackageIntegrity", ierr)
 				}
-			} else if integResp.GetOk() && integResp.GetReportJson() != "" {
+			case !integResp.GetOk():
+				// Server-side failure: action returned ok=false. The
+				// handler populates error_detail in this branch.
+				log.Printf("collector: VerifyPackageIntegrity on node=%s returned ok=false after %s: %s",
+					nid, elapsed, integResp.GetErrorDetail())
+				snap.addError("node_agent@"+nid, "VerifyPackageIntegrity",
+					fmt.Errorf("ok=false: %s", integResp.GetErrorDetail()))
+			case integResp.GetReportJson() == "":
+				log.Printf("collector: VerifyPackageIntegrity on node=%s returned empty report after %s",
+					nid, elapsed)
+				snap.addError("node_agent@"+nid, "VerifyPackageIntegrity", fmt.Errorf("empty report_json"))
+			default:
 				var report IntegrityReport
-				if uerr := json.Unmarshal([]byte(integResp.GetReportJson()), &report); uerr == nil {
+				if uerr := json.Unmarshal([]byte(integResp.GetReportJson()), &report); uerr != nil {
+					log.Printf("collector: VerifyPackageIntegrity on node=%s JSON parse failed after %s: %v",
+						nid, elapsed, uerr)
+					snap.addError("node_agent@"+nid, "VerifyPackageIntegrity",
+						fmt.Errorf("parse report_json: %w", uerr))
+				} else {
 					snap.mu.Lock()
 					snap.IntegrityReports[nid] = &report
 					snap.mu.Unlock()
 					snap.addSource("node_agent.VerifyPackageIntegrity@" + nid)
+					log.Printf("collector: VerifyPackageIntegrity on node=%s stored report (checked=%d, findings=%d) in %s",
+						nid, report.Checked, len(report.Findings), elapsed)
 				}
 			}
 
