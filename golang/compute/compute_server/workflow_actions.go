@@ -411,21 +411,63 @@ func computeCreateResult(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		jobID, _ := req.With["job_id"].(string)
 
+		job, _ := getJob(ctx, jobID)
+		units, _ := listUnits(ctx, jobID)
+
+		// Run verification on the first succeeded unit (v1: single unit).
+		var vResult verificationResult
+		for _, u := range units {
+			if u.State != computepb.UnitState_UNIT_SUCCEEDED {
+				continue
+			}
+			if job != nil && job.Spec != nil {
+				def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+				if def != nil {
+					stagingPath := "/var/lib/globular/compute/jobs/" + jobID + "/units/" + u.UnitId
+					vResult = verifyOutput(def, stagingPath, u)
+					slog.Info("compute workflow: verification completed",
+						"job_id", jobID, "unit_id", u.UnitId,
+						"passed", vResult.Passed,
+						"trust_level", vResult.TrustLevel.String())
+				}
+			}
+			break
+		}
+		if vResult.TrustLevel == computepb.ResultTrustLevel_RESULT_TRUST_LEVEL_UNSPECIFIED {
+			vResult.TrustLevel = computepb.ResultTrustLevel_UNVERIFIED
+			vResult.Passed = true
+		}
+
 		result := &computepb.ComputeResult{
 			JobId:       jobID,
-			TrustLevel:  computepb.ResultTrustLevel_UNVERIFIED,
+			TrustLevel:  vResult.TrustLevel,
+			Checksums:   vResult.Checksums,
+			Metadata:    verificationMetadataToStruct(vResult.Metadata),
 			CompletedAt: timestamppb.Now(),
 		}
 		if err := putResult(ctx, result); err != nil {
 			return nil, fmt.Errorf("store result: %w", err)
 		}
-		return &engine.ActionResult{OK: true}, nil
+
+		return &engine.ActionResult{
+			OK: true,
+			Output: map[string]any{
+				"trust_level":         vResult.TrustLevel.String(),
+				"verification_passed": vResult.Passed,
+				"verification_msg":    vResult.Message,
+			},
+		}, nil
 	}
 }
 
 func computeFinalizeJob(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		jobID, _ := req.With["job_id"].(string)
+		verificationPassed := true
+		if vp, ok := req.With["verification_passed"].(bool); ok {
+			verificationPassed = vp
+		}
+
 		job, err := getJob(ctx, jobID)
 		if err != nil || job == nil {
 			return nil, fmt.Errorf("job %s not found", jobID)
@@ -440,8 +482,11 @@ func computeFinalizeJob(srv *server) engine.ActionHandler {
 			}
 		}
 
-		if allSucceeded {
+		if allSucceeded && verificationPassed {
 			job.State = computepb.JobState_JOB_COMPLETED
+		} else if allSucceeded && !verificationPassed {
+			job.State = computepb.JobState_JOB_FAILED
+			job.FailureMessage = "verification failed"
 		} else {
 			job.State = computepb.JobState_JOB_FAILED
 			job.FailureMessage = "one or more units failed"

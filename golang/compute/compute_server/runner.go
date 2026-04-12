@@ -220,7 +220,9 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 	srv.finalizeJob(ctx, req.JobId, unit)
 }
 
-// finalizeJob transitions the job to a terminal state based on unit outcomes.
+// finalizeJob transitions the job to a terminal state based on unit outcomes
+// and verification results. If a verify_strategy is declared, verification
+// runs after output upload and determines the trust level.
 func (srv *server) finalizeJob(ctx context.Context, jobID string, unit *computepb.ComputeUnit) {
 	job, err := getJob(ctx, jobID)
 	if err != nil || job == nil {
@@ -230,26 +232,44 @@ func (srv *server) finalizeJob(ctx context.Context, jobID string, unit *computep
 	now := timestamppb.Now()
 
 	if unit.State == computepb.UnitState_UNIT_SUCCEEDED {
-		// Create result record.
-		result := &computepb.ComputeResult{
-			JobId:       jobID,
-			TrustLevel:  computepb.ResultTrustLevel_UNVERIFIED,
-			CompletedAt: now,
-		}
-
-		// If verification strategy was declared, mark accordingly.
+		// Run verification if the definition declares a strategy.
+		var vResult verificationResult
 		if job.Spec != nil {
 			def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
-			if def != nil && def.VerifyStrategy != nil {
-				result.TrustLevel = computepb.ResultTrustLevel_STRUCTURALLY_VERIFIED
+			if def != nil {
+				stagingPath := filepath.Join("/var/lib/globular/compute/jobs", jobID, "units", unit.UnitId)
+				vResult = verifyOutput(def, stagingPath, unit)
+				slog.Info("compute: verification completed",
+					"job_id", jobID, "passed", vResult.Passed,
+					"trust_level", vResult.TrustLevel.String(),
+					"message", vResult.Message)
 			}
 		}
+		if vResult.TrustLevel == computepb.ResultTrustLevel_RESULT_TRUST_LEVEL_UNSPECIFIED {
+			vResult.TrustLevel = computepb.ResultTrustLevel_UNVERIFIED
+			vResult.Passed = true
+		}
 
+		result := &computepb.ComputeResult{
+			JobId:       jobID,
+			ResultRef:   unit.OutputRef,
+			TrustLevel:  vResult.TrustLevel,
+			Checksums:   vResult.Checksums,
+			Metadata:    verificationMetadataToStruct(vResult.Metadata),
+			CompletedAt: now,
+		}
 		if putErr := putResult(ctx, result); putErr != nil {
 			slog.Error("compute: failed to store result", "job_id", jobID, "err", putErr)
 		}
 
-		job.State = computepb.JobState_JOB_COMPLETED
+		// Terminal state depends on verification: if verification was declared
+		// and failed, the job fails even though execution succeeded.
+		if vResult.Passed {
+			job.State = computepb.JobState_JOB_COMPLETED
+		} else {
+			job.State = computepb.JobState_JOB_FAILED
+			job.FailureMessage = "verification failed: " + vResult.Message
+		}
 	} else {
 		job.State = computepb.JobState_JOB_FAILED
 		job.FailureMessage = unit.FailureReason

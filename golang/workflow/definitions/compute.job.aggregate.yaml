@@ -40,6 +40,8 @@ spec:
       action: compute.finalize_job
       with:
         job_id: $.job_id
+        verification_passed: $.verification_passed
+        trust_level: $.trust_level
       execution:
         idempotency: safe_retry
 
