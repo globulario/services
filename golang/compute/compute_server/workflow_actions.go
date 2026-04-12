@@ -226,6 +226,19 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("definition not found for job %s", jobID)
 		}
 
+		// Strict profile filtering.
+		if len(def.AllowedNodeProfiles) > 0 {
+			nodes = filterByProfiles(nodes, def.AllowedNodeProfiles)
+			if len(nodes) == 0 {
+				return nil, fmt.Errorf("placement failed: no nodes match required profiles %v", def.AllowedNodeProfiles)
+			}
+		} else {
+			// Default: prefer compute-profiled nodes.
+			if cn := filterByProfiles(nodes, []string{"compute"}); len(cn) > 0 {
+				nodes = cn
+			}
+		}
+
 		dispatched := 0
 		for _, unit := range units {
 			if unit.State != computepb.UnitState_UNIT_PENDING {
@@ -481,24 +494,34 @@ func computeChooseNode(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("no compute service instances available")
 		}
 
-		// Filter by definition's allowed_node_profiles if specified.
+		// Strict profile filtering: only nodes with matching profiles are eligible.
+		// No fallback — if no node matches, placement fails loudly.
 		if jobID != "" {
 			if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
 				if def, _ := getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion); def != nil {
 					if len(def.AllowedNodeProfiles) > 0 {
 						filtered := filterByProfiles(nodes, def.AllowedNodeProfiles)
 						if len(filtered) == 0 {
-							slog.Warn("compute workflow: no nodes match required profiles, using all",
-								"required", def.AllowedNodeProfiles, "available", len(nodes))
-						} else {
-							slog.Info("compute workflow: profile filter applied",
-								"required", def.AllowedNodeProfiles,
-								"before", len(nodes), "after", len(filtered))
-							nodes = filtered
+							return nil, fmt.Errorf("placement failed: no nodes match required profiles %v (candidates: %d)",
+								def.AllowedNodeProfiles, len(nodes))
 						}
+						slog.Info("compute workflow: profile filter applied",
+							"required", def.AllowedNodeProfiles,
+							"before", len(nodes), "after", len(filtered))
+						nodes = filtered
 					}
 				}
 			}
+		}
+
+		// Default filter: only nodes with "compute" profile are eligible.
+		// This ensures compute workloads don't run on non-compute nodes.
+		computeNodes := filterByProfiles(nodes, []string{"compute"})
+		if len(computeNodes) > 0 {
+			nodes = computeNodes
+		} else {
+			slog.Warn("compute workflow: no nodes have compute profile, using all service instances",
+				"candidates", len(nodes))
 		}
 
 		// Round-robin across eligible nodes for spread placement.

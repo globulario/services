@@ -10,17 +10,16 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"time"
 
+	"github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/compute/compute_runnerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -161,44 +160,57 @@ func resolveComputeNodes() []computeNodeInfo {
 	return nodes
 }
 
-// enrichNodeProfiles reads node profiles from etcd and matches them
-// to compute instances by IP address.
+// enrichNodeProfiles calls the cluster controller's ListNodes RPC to get
+// node profiles and matches them to compute instances by IP address.
 func enrichNodeProfiles(nodes []computeNodeInfo) {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
+	controllerAddr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if controllerAddr == "" {
+		slog.Debug("compute: cannot resolve controller for profile enrichment")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	conn, err := dialComputeRunner(controllerAddr)
+	if err != nil {
+		slog.Debug("compute: cannot dial controller for profile enrichment", "err", err)
+		return
+	}
+	defer conn.Close()
+
+	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := cli.Get(ctx, "/globular/nodes/", clientv3.WithPrefix())
+	resp, err := client.ListNodes(ctx, &cluster_controllerpb.ListNodesRequest{})
 	if err != nil {
+		slog.Debug("compute: ListNodes failed for profile enrichment", "err", err)
 		return
 	}
 
-	// Build IP → profiles map from node records.
-	type nodeRecord struct {
-		Hostname string   `json:"hostname"`
-		Profiles []string `json:"profiles"`
-		IPs      []string `json:"ips"`
+	// Build IP → node info map.
+	type clusterNode struct {
+		Hostname string
+		Profiles []string
 	}
-	ipProfiles := map[string]*nodeRecord{}
-	for _, kv := range resp.Kvs {
-		var rec nodeRecord
-		if json.Unmarshal(kv.Value, &rec) != nil {
-			continue
+	ipMap := map[string]*clusterNode{}
+	for _, n := range resp.Nodes {
+		hostname := ""
+		var ips []string
+		if n.Identity != nil {
+			hostname = n.Identity.Hostname
+			ips = n.Identity.Ips
 		}
-		for _, ip := range rec.IPs {
-			ipProfiles[ip] = &rec
+		cn := &clusterNode{Hostname: hostname, Profiles: n.Profiles}
+		for _, ip := range ips {
+			ipMap[ip] = cn
 		}
 	}
 
-	// Match compute nodes by extracting IP from their address.
+	// Match compute service endpoints by IP.
 	for i := range nodes {
 		host, _, _ := net.SplitHostPort(nodes[i].Address)
-		if rec, ok := ipProfiles[host]; ok {
-			nodes[i].Profiles = rec.Profiles
-			nodes[i].Hostname = rec.Hostname
+		if cn, ok := ipMap[host]; ok {
+			nodes[i].Profiles = cn.Profiles
+			nodes[i].Hostname = cn.Hostname
 		}
 	}
 }

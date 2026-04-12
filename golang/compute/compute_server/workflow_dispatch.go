@@ -180,9 +180,18 @@ func (srv *server) executeViaWorkflow(def *computepb.ComputeDefinition, job *com
 		"job_id", job.JobId, "status", resp.Status,
 		"run_id", resp.RunId)
 
-	if resp.Status == "FAILED" {
+	if resp.Status != "RUN_STATUS_SUCCEEDED" {
 		slog.Warn("compute: workflow reported failure",
-			"job_id", job.JobId, "error", resp.Error)
+			"job_id", job.JobId, "status", resp.Status, "error", resp.Error)
+		// Ensure job reaches terminal state even when the workflow fails.
+		// The onFailure hook (compute.mark_job_failed) may have already run,
+		// but re-check in case it didn't.
+		currentJob, _ := getJob(ctx, job.JobId)
+		if currentJob != nil && currentJob.State != computepb.JobState_JOB_FAILED &&
+			currentJob.State != computepb.JobState_JOB_COMPLETED &&
+			currentJob.State != computepb.JobState_JOB_CANCELLED {
+			srv.failJob(ctx, currentJob, unit, "workflow failed: "+resp.Error)
+		}
 	}
 }
 
