@@ -44,8 +44,10 @@ Examples:
 }
 
 func runDoctorHeal(cmd *cobra.Command, args []string) error {
-	// Resolve doctor endpoint from etcd or fall back to localhost.
-	doctorAddr := config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "localhost:12100")
+	// Resolve doctor endpoint directly from etcd (no mesh rewrite).
+	// Doctor is a control-plane service that should be called directly,
+	// not through the Envoy mesh (which may not have a route for it).
+	doctorAddr := config.ResolveLocalServiceAddr("cluster_doctor.ClusterDoctorService")
 	if doctorAddr == "" {
 		doctorAddr = "localhost:12100"
 	}
