@@ -313,23 +313,45 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 			timeoutSec = int(ts)
 		}
 
-		// Load definition for retry policy.
+		// Load definition for retry policy and job deadline.
 		var def *computepb.ComputeDefinition
+		var jobDeadline time.Time
 		if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
 			def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+			// Use the declared deadline if set.
+			if job.Spec.Deadline != nil && job.Spec.Deadline.IsValid() {
+				jobDeadline = job.Spec.Deadline.AsTime()
+			}
+		}
+
+		// Effective deadline: the earlier of timeout_seconds and job deadline.
+		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
+		if !jobDeadline.IsZero() && jobDeadline.Before(deadline) {
+			deadline = jobDeadline
+			slog.Info("compute workflow: job deadline enforced",
+				"job_id", jobID, "deadline", deadline.Format(time.RFC3339))
 		}
 
 		// Track which (unit, attempt) pairs we've retried to avoid double-retry
 		// but allow re-evaluation after a new attempt fails.
 		retriedUnits := map[string]bool{}
 
-		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
 		for {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
 			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("units did not complete within %ds", timeoutSec)
+				// Deadline exceeded — cancel all running units.
+				slog.Warn("compute workflow: job deadline exceeded, cancelling units",
+					"job_id", jobID)
+				cancelRunningUnits(ctx, srv, jobID, "job deadline exceeded")
+				return &engine.ActionResult{
+					OK: true,
+					Output: map[string]any{
+						"timed_out": true,
+						"reason":    "job deadline exceeded",
+					},
+				}, nil
 			}
 
 			units, err := listUnits(ctx, jobID)
@@ -893,6 +915,10 @@ func computeFinalizeJob(srv *server) engine.ActionHandler {
 		if vp, ok := req.With["verification_passed"].(bool); ok {
 			verificationPassed = vp
 		}
+		timedOut := false
+		if to, ok := req.With["timed_out"].(bool); ok {
+			timedOut = to
+		}
 
 		job, err := getJob(ctx, jobID)
 		if err != nil || job == nil {
@@ -908,7 +934,10 @@ func computeFinalizeJob(srv *server) engine.ActionHandler {
 			}
 		}
 
-		if allSucceeded && verificationPassed {
+		if timedOut {
+			job.State = computepb.JobState_JOB_FAILED
+			job.FailureMessage = "job deadline exceeded"
+		} else if allSucceeded && verificationPassed {
 			job.State = computepb.JobState_JOB_COMPLETED
 		} else if allSucceeded && !verificationPassed {
 			job.State = computepb.JobState_JOB_FAILED
@@ -948,6 +977,33 @@ func computeRunnerRunRequest(unitID, jobID string, def *computepb.ComputeDefinit
 		Unit:        unit,
 		JobSpec:     spec,
 		StagingPath: stagingPath,
+	}
+}
+
+// ─── Timeout helpers ─────────────────────────────────────────────────────────
+
+// cancelRunningUnits cancels all non-terminal units for a job.
+func cancelRunningUnits(ctx context.Context, srv *server, jobID, reason string) {
+	units, err := listUnits(ctx, jobID)
+	if err != nil {
+		return
+	}
+	for _, u := range units {
+		switch u.State {
+		case computepb.UnitState_UNIT_RUNNING, computepb.UnitState_UNIT_STAGING,
+			computepb.UnitState_UNIT_ASSIGNED, computepb.UnitState_UNIT_PENDING:
+			srv.CancelComputeUnit(ctx, &compute_runnerpb.CancelComputeUnitRequest{
+				UnitId: u.UnitId,
+				JobId:  jobID,
+				Reason: reason,
+			})
+			u.State = computepb.UnitState_UNIT_CANCELLED
+			u.FailureReason = reason
+			u.EndTime = timestamppb.Now()
+			_ = putUnit(ctx, u)
+			slog.Info("compute timeout: unit cancelled",
+				"unit_id", u.UnitId, "job_id", jobID)
+		}
 	}
 }
 
