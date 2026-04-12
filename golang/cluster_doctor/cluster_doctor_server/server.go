@@ -125,10 +125,19 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 
 	// Attach workflow-service client for convergence telemetry and
 	// centralized workflow execution (optional).
+	//
+	// Resolve endpoint dynamically from etcd service registry first
+	// (source of truth for address + port), falling back to the config
+	// default only if etcd is unreachable. This avoids hardcoding a port
+	// that may not match the actual running workflow service.
 	var wfClient workflowpb.WorkflowServiceClient
 	clusterID := cfg.ClusterID
-	if cfg.WorkflowEndpoint != "" {
-		wfTarget := config.ResolveDialTarget(cfg.WorkflowEndpoint)
+	wfEndpoint := config.ResolveServiceAddr("workflow.WorkflowService", cfg.WorkflowEndpoint)
+	if wfEndpoint == "" {
+		wfEndpoint = cfg.WorkflowEndpoint // last-resort compiled default
+	}
+	if wfEndpoint != "" {
+		wfTarget := config.ResolveDialTarget(wfEndpoint)
 		wfConn, wfErr := grpc.NewClient(wfTarget.Address, grpc.WithTransportCredentials(buildClientTLSCreds(wfTarget.ServerName)))
 		if wfErr == nil {
 			if clusterID == "" {

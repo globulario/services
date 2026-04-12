@@ -32,7 +32,10 @@ func defaultConfig() *clusterdoctorConfig {
 		// not the loopback IP literally, so any 127.0.0.1 dial fails
 		// TLS verification. See docs/endpoint_resolution_policy.md.
 		ControllerEndpoint:         "localhost:12000",
-		WorkflowEndpoint:           "localhost:10220",
+		// Fallback only — the real endpoint is resolved from etcd at startup
+		// via config.ResolveServiceAddr("workflow.WorkflowService", ...).
+		// This default fires only if etcd is unreachable during doctor startup.
+		WorkflowEndpoint:           "",
 		ClusterID:                  "",
 		SnapshotTTLSeconds:         5,
 		NodeHeartbeatStaleSeconds:  120,
