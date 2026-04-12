@@ -292,6 +292,7 @@ func computeDispatchAllUnits(srv *server) engine.ActionHandler {
 }
 
 // computeAwaitAllUnits waits for all units in the job to reach a terminal state.
+// Failed units are retried if the retry policy allows (bounded by max attempts).
 func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		jobID, _ := req.With["job_id"].(string)
@@ -299,6 +300,15 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 		if ts, ok := req.With["timeout_seconds"].(float64); ok {
 			timeoutSec = int(ts)
 		}
+
+		// Load definition for retry policy.
+		var def *computepb.ComputeDefinition
+		if job, _ := getJob(ctx, jobID); job != nil && job.Spec != nil {
+			def, _ = getDefinition(ctx, job.Spec.DefinitionName, job.Spec.DefinitionVersion)
+		}
+
+		// Track which units we've already retried to avoid double-retry in the same poll cycle.
+		retriedUnits := map[string]bool{}
 
 		deadline := time.Now().Add(time.Duration(timeoutSec) * time.Second)
 		for {
@@ -317,11 +327,24 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 			allTerminal := true
 			succeeded := 0
 			failed := 0
+			retried := 0
 			for _, u := range units {
 				switch u.State {
 				case computepb.UnitState_UNIT_SUCCEEDED:
 					succeeded++
 				case computepb.UnitState_UNIT_FAILED, computepb.UnitState_UNIT_CANCELLED, computepb.UnitState_UNIT_LEASE_EXPIRED:
+					// Check retry policy for failed units.
+					if def != nil && !retriedUnits[u.UnitId] {
+						decision := shouldRetryUnit(def, u)
+						logRetryDecision(u, decision)
+						if decision.ShouldRetry {
+							retriedUnits[u.UnitId] = true
+							go retryUnit(ctx, srv, def, jobID, u)
+							retried++
+							allTerminal = false
+							continue
+						}
+					}
 					failed++
 				default:
 					allTerminal = false
@@ -330,7 +353,8 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 
 			if allTerminal {
 				slog.Info("compute workflow: all units terminal",
-					"job_id", jobID, "succeeded", succeeded, "failed", failed)
+					"job_id", jobID, "succeeded", succeeded,
+					"failed", failed, "retried", retried)
 				return &engine.ActionResult{
 					OK: true,
 					Output: map[string]any{
@@ -344,6 +368,101 @@ func computeAwaitAllUnits(srv *server) engine.ActionHandler {
 			time.Sleep(2 * time.Second)
 		}
 	}
+}
+
+// retryUnit re-dispatches a failed unit with an incremented attempt counter.
+func retryUnit(ctx context.Context, srv *server, def *computepb.ComputeDefinition, jobID string, unit *computepb.ComputeUnit) {
+	slog.Info("compute retry: re-dispatching unit",
+		"unit_id", unit.UnitId, "job_id", jobID,
+		"attempt", unit.Attempt+1,
+		"previous_failure", unit.FailureClass.String())
+
+	// Increment attempt and reset state.
+	unit.Attempt++
+	unit.State = computepb.UnitState_UNIT_PENDING
+	unit.FailureClass = computepb.FailureClass_FAILURE_CLASS_UNSPECIFIED
+	unit.FailureReason = ""
+	unit.ExitStatus = 0
+	unit.OutputRef = nil
+	unit.Checksum = ""
+	unit.StartTime = nil
+	unit.EndTime = nil
+	unit.ObservedProgress = 0
+	if err := putUnit(ctx, unit); err != nil {
+		slog.Error("compute retry: failed to reset unit", "unit_id", unit.UnitId, "err", err)
+		return
+	}
+
+	// Pick a (possibly different) node for the retry.
+	nodes := resolveComputeNodes()
+	if len(nodes) == 0 {
+		slog.Error("compute retry: no compute nodes available")
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureReason = "no compute nodes for retry"
+		_ = putUnit(ctx, unit)
+		return
+	}
+	idx := roundRobinCounter.Add(1) - 1
+	node := nodes[int(idx)%len(nodes)]
+
+	// Grant lease.
+	leaseID, err := grantUnitLease(ctx, jobID, unit.UnitId, node.NodeID)
+	if err != nil {
+		slog.Error("compute retry: lease grant failed", "unit_id", unit.UnitId, "err", err)
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureReason = fmt.Sprintf("retry lease grant failed: %v", err)
+		_ = putUnit(ctx, unit)
+		return
+	}
+
+	unit.State = computepb.UnitState_UNIT_ASSIGNED
+	unit.NodeId = node.NodeID
+	unit.LeaseOwner = fmt.Sprintf("node:%s/lease:%d", node.NodeID, leaseID)
+	unit.LeaseExpiresAt = timestamppb.New(time.Now().Add(leaseTTL * time.Second))
+	_ = putUnit(ctx, unit)
+
+	// Get job spec for stage/run requests.
+	job, _ := getJob(ctx, jobID)
+	if job == nil {
+		return
+	}
+
+	// Stage.
+	stageReq := computeRunnerStageRequest(unit.UnitId, jobID, def, unit, job.Spec)
+	client, conn, err := runnerClient(node.Address)
+	if err != nil {
+		slog.Error("compute retry: dial failed", "unit_id", unit.UnitId, "err", err)
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureClass = classifyRunFailure(err)
+		unit.FailureReason = fmt.Sprintf("retry dial failed: %v", err)
+		_ = putUnit(ctx, unit)
+		return
+	}
+	stageResp, err := client.StageComputeUnit(ctx, &stageReq)
+	if err != nil {
+		conn.Close()
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureClass = classifyStageFailure(err)
+		unit.FailureReason = fmt.Sprintf("retry stage failed: %v", err)
+		_ = putUnit(ctx, unit)
+		return
+	}
+
+	// Run.
+	runReq := computeRunnerRunRequest(unit.UnitId, jobID, def, unit, job.Spec, stageResp.StagingPath)
+	runReq.EtcdLeaseId = int64(leaseID)
+	_, err = client.RunComputeUnit(ctx, &runReq)
+	conn.Close()
+	if err != nil {
+		unit.State = computepb.UnitState_UNIT_FAILED
+		unit.FailureClass = classifyRunFailure(err)
+		unit.FailureReason = fmt.Sprintf("retry run failed: %v", err)
+		_ = putUnit(ctx, unit)
+		return
+	}
+
+	slog.Info("compute retry: unit re-dispatched",
+		"unit_id", unit.UnitId, "node", node.Address, "attempt", unit.Attempt)
 }
 
 // ─── Unit execution handlers ─────────────────────────────────────────────────
