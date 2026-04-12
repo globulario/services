@@ -83,12 +83,34 @@ func runnerClient(endpoint string) (compute_runnerpb.ComputeRunnerServiceClient,
 	return compute_runnerpb.NewComputeRunnerServiceClient(conn), conn, nil
 }
 
-// resolveComputeEndpoints returns all registered compute service endpoints
-// from etcd. Each endpoint serves both ComputeService and ComputeRunnerService.
+// resolveComputeEndpoints returns the DIRECT (non-mesh) endpoints for all
+// compute service instances. The ComputeRunnerService is not routed through
+// the Envoy mesh, so we need the actual service port, not :443.
 func resolveComputeEndpoints() []string {
-	addrs := config.ResolveServiceAddrs(computeServiceName)
+	svcs, err := config.GetServicesConfigurationsByName(computeServiceName)
+	if err != nil || len(svcs) == 0 {
+		slog.Warn("compute: no compute service instances found via etcd")
+		return nil
+	}
+	var addrs []string
+	for _, s := range svcs {
+		host, _ := s["Domain"].(string)
+		if host == "" {
+			host, _ = s["Address"].(string)
+		}
+		port := 0
+		switch v := s["Port"].(type) {
+		case float64:
+			port = int(v)
+		case int:
+			port = v
+		}
+		if host != "" && port > 0 {
+			addrs = append(addrs, fmt.Sprintf("%s:%d", host, port))
+		}
+	}
 	if len(addrs) == 0 {
-		slog.Warn("compute: no compute service instances found via service discovery")
+		slog.Warn("compute: no compute service endpoints resolved from etcd")
 	}
 	return addrs
 }

@@ -294,12 +294,35 @@ func (srv *server) handleExecutionFailure(ctx context.Context, req *compute_runn
 }
 
 // finalizeJob transitions the job to a terminal state based on unit outcomes
-// and verification results. If a verify_strategy is declared, verification
-// runs after output upload and determines the trust level.
+// and verification results. For multi-unit jobs, only finalizes when ALL
+// units have reached terminal state — otherwise the workflow's
+// await_all_units + aggregate steps handle finalization.
 func (srv *server) finalizeJob(ctx context.Context, jobID string, unit *computepb.ComputeUnit) {
 	job, err := getJob(ctx, jobID)
 	if err != nil || job == nil {
 		return
+	}
+
+	// Check if there are other non-terminal units — if so, don't finalize.
+	// The workflow aggregate step handles multi-unit finalization.
+	allUnits, _ := listUnits(ctx, jobID)
+	if len(allUnits) > 1 {
+		for _, u := range allUnits {
+			if u.UnitId == unit.UnitId {
+				continue
+			}
+			switch u.State {
+			case computepb.UnitState_UNIT_SUCCEEDED, computepb.UnitState_UNIT_FAILED,
+				computepb.UnitState_UNIT_CANCELLED, computepb.UnitState_UNIT_LEASE_EXPIRED:
+				// terminal
+			default:
+				// Non-terminal unit still exists — defer to workflow aggregation.
+				slog.Info("compute runner: deferring job finalization (other units still running)",
+					"job_id", jobID, "unit_id", unit.UnitId,
+					"pending_unit", u.UnitId, "pending_state", u.State.String())
+				return
+			}
+		}
 	}
 
 	now := timestamppb.Now()
