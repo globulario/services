@@ -477,6 +477,112 @@ func (ActionRisk) EnumDescriptor() ([]byte, []int) {
 	return file_cluster_doctor_proto_rawDescGZIP(), []int{7}
 }
 
+// HealDisposition describes the healer's policy classification.
+type HealDisposition int32
+
+const (
+	HealDisposition_HEAL_DISPOSITION_UNSPECIFIED HealDisposition = 0
+	HealDisposition_HEAL_AUTO                    HealDisposition = 1 // Safe to execute automatically
+	HealDisposition_HEAL_PROPOSE                 HealDisposition = 2 // Requires human approval
+	HealDisposition_HEAL_OBSERVE                 HealDisposition = 3 // Report only, no action
+)
+
+// Enum value maps for HealDisposition.
+var (
+	HealDisposition_name = map[int32]string{
+		0: "HEAL_DISPOSITION_UNSPECIFIED",
+		1: "HEAL_AUTO",
+		2: "HEAL_PROPOSE",
+		3: "HEAL_OBSERVE",
+	}
+	HealDisposition_value = map[string]int32{
+		"HEAL_DISPOSITION_UNSPECIFIED": 0,
+		"HEAL_AUTO":                    1,
+		"HEAL_PROPOSE":                 2,
+		"HEAL_OBSERVE":                 3,
+	}
+)
+
+func (x HealDisposition) Enum() *HealDisposition {
+	p := new(HealDisposition)
+	*p = x
+	return p
+}
+
+func (x HealDisposition) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HealDisposition) Descriptor() protoreflect.EnumDescriptor {
+	return file_cluster_doctor_proto_enumTypes[8].Descriptor()
+}
+
+func (HealDisposition) Type() protoreflect.EnumType {
+	return &file_cluster_doctor_proto_enumTypes[8]
+}
+
+func (x HealDisposition) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HealDisposition.Descriptor instead.
+func (HealDisposition) EnumDescriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{8}
+}
+
+// HealMode controls healer behavior in doctor report requests.
+type HealMode int32
+
+const (
+	// HEAL_OBSERVE — classify findings but take no action (safest).
+	HealMode_HEAL_MODE_OBSERVE HealMode = 0
+	// HEAL_DRY_RUN — classify and record intended actions, no mutations.
+	HealMode_HEAL_MODE_DRY_RUN HealMode = 1
+	// HEAL_ENFORCE — execute auto-heal actions for HealAuto findings.
+	HealMode_HEAL_MODE_ENFORCE HealMode = 2
+)
+
+// Enum value maps for HealMode.
+var (
+	HealMode_name = map[int32]string{
+		0: "HEAL_MODE_OBSERVE",
+		1: "HEAL_MODE_DRY_RUN",
+		2: "HEAL_MODE_ENFORCE",
+	}
+	HealMode_value = map[string]int32{
+		"HEAL_MODE_OBSERVE": 0,
+		"HEAL_MODE_DRY_RUN": 1,
+		"HEAL_MODE_ENFORCE": 2,
+	}
+)
+
+func (x HealMode) Enum() *HealMode {
+	p := new(HealMode)
+	*p = x
+	return p
+}
+
+func (x HealMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HealMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_cluster_doctor_proto_enumTypes[9].Descriptor()
+}
+
+func (HealMode) Type() protoreflect.EnumType {
+	return &file_cluster_doctor_proto_enumTypes[9]
+}
+
+func (x HealMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HealMode.Descriptor instead.
+func (HealMode) EnumDescriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{9}
+}
+
 type ReportHeader struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	GeneratedAt     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
@@ -1229,8 +1335,11 @@ type Finding struct {
 	Evidence        []*Evidence            `protobuf:"bytes,7,rep,name=evidence,proto3" json:"evidence,omitempty"`
 	Remediation     []*RemediationStep     `protobuf:"bytes,8,rep,name=remediation,proto3" json:"remediation,omitempty"`
 	InvariantStatus InvariantStatus        `protobuf:"varint,9,opt,name=invariant_status,json=invariantStatus,proto3,enum=cluster_doctor.InvariantStatus" json:"invariant_status,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Auto-heal decision (populated by the healer after invariant evaluation).
+	// Only present when the doctor runs with heal_mode != HEAL_OBSERVE.
+	HealDecision  *HealDecision `protobuf:"bytes,10,opt,name=heal_decision,json=healDecision,proto3" json:"heal_decision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Finding) Reset() {
@@ -1326,18 +1435,111 @@ func (x *Finding) GetInvariantStatus() InvariantStatus {
 	return InvariantStatus_INVARIANT_UNKNOWN
 }
 
+func (x *Finding) GetHealDecision() *HealDecision {
+	if x != nil {
+		return x.HealDecision
+	}
+	return nil
+}
+
+// HealDecision describes what the healer would do (or did) for a finding.
+type HealDecision struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Disposition from the auto-heal policy.
+	Disposition HealDisposition `protobuf:"varint,1,opt,name=disposition,proto3,enum=cluster_doctor.HealDisposition" json:"disposition,omitempty"`
+	// Human-readable action description from the policy rule.
+	Action string `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	// Whether the action was executed (only true in enforce mode).
+	Executed bool `protobuf:"varint,3,opt,name=executed,proto3" json:"executed,omitempty"`
+	// Whether post-action verification confirmed resolution.
+	Verified bool `protobuf:"varint,4,opt,name=verified,proto3" json:"verified,omitempty"`
+	// Error message if the action failed.
+	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealDecision) Reset() {
+	*x = HealDecision{}
+	mi := &file_cluster_doctor_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealDecision) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealDecision) ProtoMessage() {}
+
+func (x *HealDecision) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_doctor_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealDecision.ProtoReflect.Descriptor instead.
+func (*HealDecision) Descriptor() ([]byte, []int) {
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *HealDecision) GetDisposition() HealDisposition {
+	if x != nil {
+		return x.Disposition
+	}
+	return HealDisposition_HEAL_DISPOSITION_UNSPECIFIED
+}
+
+func (x *HealDecision) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *HealDecision) GetExecuted() bool {
+	if x != nil {
+		return x.Executed
+	}
+	return false
+}
+
+func (x *HealDecision) GetVerified() bool {
+	if x != nil {
+		return x.Verified
+	}
+	return false
+}
+
+func (x *HealDecision) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type ClusterReportRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Freshness mode for this read. Omit or set to FRESHNESS_UNSPECIFIED
 	// to accept the server default (cached). See FreshnessMode.
-	Freshness     FreshnessMode `protobuf:"varint,1,opt,name=freshness,proto3,enum=cluster_doctor.FreshnessMode" json:"freshness,omitempty"`
+	Freshness FreshnessMode `protobuf:"varint,1,opt,name=freshness,proto3,enum=cluster_doctor.FreshnessMode" json:"freshness,omitempty"`
+	// Heal mode. Default (0) = HEAL_MODE_OBSERVE (no mutations).
+	// Set to HEAL_MODE_DRY_RUN to see intended actions without executing.
+	// Set to HEAL_MODE_ENFORCE to execute auto-heal actions.
+	HealMode      HealMode `protobuf:"varint,2,opt,name=heal_mode,json=healMode,proto3,enum=cluster_doctor.HealMode" json:"heal_mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClusterReportRequest) Reset() {
 	*x = ClusterReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[9]
+	mi := &file_cluster_doctor_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1349,7 +1551,7 @@ func (x *ClusterReportRequest) String() string {
 func (*ClusterReportRequest) ProtoMessage() {}
 
 func (x *ClusterReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[9]
+	mi := &file_cluster_doctor_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1362,7 +1564,7 @@ func (x *ClusterReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterReportRequest.ProtoReflect.Descriptor instead.
 func (*ClusterReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{9}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ClusterReportRequest) GetFreshness() FreshnessMode {
@@ -1370,6 +1572,13 @@ func (x *ClusterReportRequest) GetFreshness() FreshnessMode {
 		return x.Freshness
 	}
 	return FreshnessMode_FRESHNESS_UNSPECIFIED
+}
+
+func (x *ClusterReportRequest) GetHealMode() HealMode {
+	if x != nil {
+		return x.HealMode
+	}
+	return HealMode_HEAL_MODE_OBSERVE
 }
 
 type ClusterReport struct {
@@ -1385,7 +1594,7 @@ type ClusterReport struct {
 
 func (x *ClusterReport) Reset() {
 	*x = ClusterReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[10]
+	mi := &file_cluster_doctor_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1397,7 +1606,7 @@ func (x *ClusterReport) String() string {
 func (*ClusterReport) ProtoMessage() {}
 
 func (x *ClusterReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[10]
+	mi := &file_cluster_doctor_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1410,7 +1619,7 @@ func (x *ClusterReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterReport.ProtoReflect.Descriptor instead.
 func (*ClusterReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{10}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ClusterReport) GetHeader() *ReportHeader {
@@ -1459,7 +1668,7 @@ type NodeReportRequest struct {
 
 func (x *NodeReportRequest) Reset() {
 	*x = NodeReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[11]
+	mi := &file_cluster_doctor_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1471,7 +1680,7 @@ func (x *NodeReportRequest) String() string {
 func (*NodeReportRequest) ProtoMessage() {}
 
 func (x *NodeReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[11]
+	mi := &file_cluster_doctor_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1484,7 +1693,7 @@ func (x *NodeReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeReportRequest.ProtoReflect.Descriptor instead.
 func (*NodeReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{11}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *NodeReportRequest) GetNodeId() string {
@@ -1514,7 +1723,7 @@ type NodeReport struct {
 
 func (x *NodeReport) Reset() {
 	*x = NodeReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[12]
+	mi := &file_cluster_doctor_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1526,7 +1735,7 @@ func (x *NodeReport) String() string {
 func (*NodeReport) ProtoMessage() {}
 
 func (x *NodeReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[12]
+	mi := &file_cluster_doctor_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1539,7 +1748,7 @@ func (x *NodeReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeReport.ProtoReflect.Descriptor instead.
 func (*NodeReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{12}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *NodeReport) GetHeader() *ReportHeader {
@@ -1588,7 +1797,7 @@ type DriftReportRequest struct {
 
 func (x *DriftReportRequest) Reset() {
 	*x = DriftReportRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[13]
+	mi := &file_cluster_doctor_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1600,7 +1809,7 @@ func (x *DriftReportRequest) String() string {
 func (*DriftReportRequest) ProtoMessage() {}
 
 func (x *DriftReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[13]
+	mi := &file_cluster_doctor_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1613,7 +1822,7 @@ func (x *DriftReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftReportRequest.ProtoReflect.Descriptor instead.
 func (*DriftReportRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{13}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DriftReportRequest) GetNodeId() string {
@@ -1644,7 +1853,7 @@ type DriftItem struct {
 
 func (x *DriftItem) Reset() {
 	*x = DriftItem{}
-	mi := &file_cluster_doctor_proto_msgTypes[14]
+	mi := &file_cluster_doctor_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1656,7 +1865,7 @@ func (x *DriftItem) String() string {
 func (*DriftItem) ProtoMessage() {}
 
 func (x *DriftItem) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[14]
+	mi := &file_cluster_doctor_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1669,7 +1878,7 @@ func (x *DriftItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftItem.ProtoReflect.Descriptor instead.
 func (*DriftItem) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{14}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DriftItem) GetNodeId() string {
@@ -1725,7 +1934,7 @@ type DriftReport struct {
 
 func (x *DriftReport) Reset() {
 	*x = DriftReport{}
-	mi := &file_cluster_doctor_proto_msgTypes[15]
+	mi := &file_cluster_doctor_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1737,7 +1946,7 @@ func (x *DriftReport) String() string {
 func (*DriftReport) ProtoMessage() {}
 
 func (x *DriftReport) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[15]
+	mi := &file_cluster_doctor_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1750,7 +1959,7 @@ func (x *DriftReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DriftReport.ProtoReflect.Descriptor instead.
 func (*DriftReport) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{15}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DriftReport) GetHeader() *ReportHeader {
@@ -1783,7 +1992,7 @@ type ExplainFindingRequest struct {
 
 func (x *ExplainFindingRequest) Reset() {
 	*x = ExplainFindingRequest{}
-	mi := &file_cluster_doctor_proto_msgTypes[16]
+	mi := &file_cluster_doctor_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1795,7 +2004,7 @@ func (x *ExplainFindingRequest) String() string {
 func (*ExplainFindingRequest) ProtoMessage() {}
 
 func (x *ExplainFindingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[16]
+	mi := &file_cluster_doctor_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1808,7 +2017,7 @@ func (x *ExplainFindingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExplainFindingRequest.ProtoReflect.Descriptor instead.
 func (*ExplainFindingRequest) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{16}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ExplainFindingRequest) GetFindingId() string {
@@ -1833,7 +2042,7 @@ type FindingExplanation struct {
 
 func (x *FindingExplanation) Reset() {
 	*x = FindingExplanation{}
-	mi := &file_cluster_doctor_proto_msgTypes[17]
+	mi := &file_cluster_doctor_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1845,7 +2054,7 @@ func (x *FindingExplanation) String() string {
 func (*FindingExplanation) ProtoMessage() {}
 
 func (x *FindingExplanation) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_doctor_proto_msgTypes[17]
+	mi := &file_cluster_doctor_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1858,7 +2067,7 @@ func (x *FindingExplanation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindingExplanation.ProtoReflect.Descriptor instead.
 func (*FindingExplanation) Descriptor() ([]byte, []int) {
-	return file_cluster_doctor_proto_rawDescGZIP(), []int{17}
+	return file_cluster_doctor_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *FindingExplanation) GetFindingId() string {
@@ -1997,7 +2206,7 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x0eexecute_output\x18\v \x01(\tR\rexecuteOutput\x12\x19\n" +
 	"\baudit_id\x18\f \x01(\tR\aauditId\x12\x1c\n" +
 	"\tconverged\x18\r \x01(\bR\tconverged\x122\n" +
-	"\x15finding_still_present\x18\x0e \x01(\bR\x13findingStillPresent\"\x9b\x03\n" +
+	"\x15finding_still_present\x18\x0e \x01(\bR\x13findingStillPresent\"\xde\x03\n" +
 	"\aFinding\x12\x1d\n" +
 	"\n" +
 	"finding_id\x18\x01 \x01(\tR\tfindingId\x12!\n" +
@@ -2009,9 +2218,18 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\asummary\x18\x06 \x01(\tR\asummary\x124\n" +
 	"\bevidence\x18\a \x03(\v2\x18.cluster_doctor.EvidenceR\bevidence\x12A\n" +
 	"\vremediation\x18\b \x03(\v2\x1f.cluster_doctor.RemediationStepR\vremediation\x12J\n" +
-	"\x10invariant_status\x18\t \x01(\x0e2\x1f.cluster_doctor.InvariantStatusR\x0finvariantStatus\"S\n" +
+	"\x10invariant_status\x18\t \x01(\x0e2\x1f.cluster_doctor.InvariantStatusR\x0finvariantStatus\x12A\n" +
+	"\rheal_decision\x18\n" +
+	" \x01(\v2\x1c.cluster_doctor.HealDecisionR\fhealDecision\"\xb7\x01\n" +
+	"\fHealDecision\x12A\n" +
+	"\vdisposition\x18\x01 \x01(\x0e2\x1f.cluster_doctor.HealDispositionR\vdisposition\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x12\x1a\n" +
+	"\bexecuted\x18\x03 \x01(\bR\bexecuted\x12\x1a\n" +
+	"\bverified\x18\x04 \x01(\bR\bverified\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\x8a\x01\n" +
 	"\x14ClusterReportRequest\x12;\n" +
-	"\tfreshness\x18\x01 \x01(\x0e2\x1d.cluster_doctor.FreshnessModeR\tfreshness\"\x8c\x03\n" +
+	"\tfreshness\x18\x01 \x01(\x0e2\x1d.cluster_doctor.FreshnessModeR\tfreshness\x125\n" +
+	"\theal_mode\x18\x02 \x01(\x0e2\x18.cluster_doctor.HealModeR\bhealMode\"\x8c\x03\n" +
 	"\rClusterReport\x124\n" +
 	"\x06header\x18\x01 \x01(\v2\x1c.cluster_doctor.ReportHeaderR\x06header\x12D\n" +
 	"\x0eoverall_status\x18\x02 \x01(\x0e2\x1d.cluster_doctor.ClusterStatusR\roverallStatus\x123\n" +
@@ -2112,7 +2330,16 @@ const file_cluster_doctor_proto_rawDesc = "" +
 	"\x10RISK_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bRISK_LOW\x10\x01\x12\x0f\n" +
 	"\vRISK_MEDIUM\x10\x02\x12\r\n" +
-	"\tRISK_HIGH\x10\x032\x93\t\n" +
+	"\tRISK_HIGH\x10\x03*f\n" +
+	"\x0fHealDisposition\x12 \n" +
+	"\x1cHEAL_DISPOSITION_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tHEAL_AUTO\x10\x01\x12\x10\n" +
+	"\fHEAL_PROPOSE\x10\x02\x12\x10\n" +
+	"\fHEAL_OBSERVE\x10\x03*O\n" +
+	"\bHealMode\x12\x15\n" +
+	"\x11HEAL_MODE_OBSERVE\x10\x00\x12\x15\n" +
+	"\x11HEAL_MODE_DRY_RUN\x10\x01\x12\x15\n" +
+	"\x11HEAL_MODE_ENFORCE\x10\x022\x93\t\n" +
 	"\x14ClusterDoctorService\x12\xaf\x01\n" +
 	"\x10GetClusterReport\x12$.cluster_doctor.ClusterReportRequest\x1a\x1d.cluster_doctor.ClusterReport\"V\x82\xb5\x18R\n" +
 	"\"cluster_doctor.cluster_report.read\x12\x04read\x1a\x1e/cluster_doctor/cluster/report*\x06viewer\x12\xab\x01\n" +
@@ -2139,8 +2366,8 @@ func file_cluster_doctor_proto_rawDescGZIP() []byte {
 	return file_cluster_doctor_proto_rawDescData
 }
 
-var file_cluster_doctor_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_cluster_doctor_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_cluster_doctor_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_cluster_doctor_proto_goTypes = []any{
 	(Severity)(0),                            // 0: cluster_doctor.Severity
 	(ClusterStatus)(0),                       // 1: cluster_doctor.ClusterStatus
@@ -2150,77 +2377,83 @@ var file_cluster_doctor_proto_goTypes = []any{
 	(FreshnessMode)(0),                       // 5: cluster_doctor.FreshnessMode
 	(ActionType)(0),                          // 6: cluster_doctor.ActionType
 	(ActionRisk)(0),                          // 7: cluster_doctor.ActionRisk
-	(*ReportHeader)(nil),                     // 8: cluster_doctor.ReportHeader
-	(*Evidence)(nil),                         // 9: cluster_doctor.Evidence
-	(*RemediationStep)(nil),                  // 10: cluster_doctor.RemediationStep
-	(*RemediationAction)(nil),                // 11: cluster_doctor.RemediationAction
-	(*ExecuteRemediationRequest)(nil),        // 12: cluster_doctor.ExecuteRemediationRequest
-	(*ExecuteRemediationResponse)(nil),       // 13: cluster_doctor.ExecuteRemediationResponse
-	(*StartRemediationWorkflowRequest)(nil),  // 14: cluster_doctor.StartRemediationWorkflowRequest
-	(*StartRemediationWorkflowResponse)(nil), // 15: cluster_doctor.StartRemediationWorkflowResponse
-	(*Finding)(nil),                          // 16: cluster_doctor.Finding
-	(*ClusterReportRequest)(nil),             // 17: cluster_doctor.ClusterReportRequest
-	(*ClusterReport)(nil),                    // 18: cluster_doctor.ClusterReport
-	(*NodeReportRequest)(nil),                // 19: cluster_doctor.NodeReportRequest
-	(*NodeReport)(nil),                       // 20: cluster_doctor.NodeReport
-	(*DriftReportRequest)(nil),               // 21: cluster_doctor.DriftReportRequest
-	(*DriftItem)(nil),                        // 22: cluster_doctor.DriftItem
-	(*DriftReport)(nil),                      // 23: cluster_doctor.DriftReport
-	(*ExplainFindingRequest)(nil),            // 24: cluster_doctor.ExplainFindingRequest
-	(*FindingExplanation)(nil),               // 25: cluster_doctor.FindingExplanation
-	nil,                                      // 26: cluster_doctor.Evidence.KeyValuesEntry
-	nil,                                      // 27: cluster_doctor.RemediationAction.ParamsEntry
-	nil,                                      // 28: cluster_doctor.ClusterReport.CountsByCategoryEntry
-	(*timestamppb.Timestamp)(nil),            // 29: google.protobuf.Timestamp
+	(HealDisposition)(0),                     // 8: cluster_doctor.HealDisposition
+	(HealMode)(0),                            // 9: cluster_doctor.HealMode
+	(*ReportHeader)(nil),                     // 10: cluster_doctor.ReportHeader
+	(*Evidence)(nil),                         // 11: cluster_doctor.Evidence
+	(*RemediationStep)(nil),                  // 12: cluster_doctor.RemediationStep
+	(*RemediationAction)(nil),                // 13: cluster_doctor.RemediationAction
+	(*ExecuteRemediationRequest)(nil),        // 14: cluster_doctor.ExecuteRemediationRequest
+	(*ExecuteRemediationResponse)(nil),       // 15: cluster_doctor.ExecuteRemediationResponse
+	(*StartRemediationWorkflowRequest)(nil),  // 16: cluster_doctor.StartRemediationWorkflowRequest
+	(*StartRemediationWorkflowResponse)(nil), // 17: cluster_doctor.StartRemediationWorkflowResponse
+	(*Finding)(nil),                          // 18: cluster_doctor.Finding
+	(*HealDecision)(nil),                     // 19: cluster_doctor.HealDecision
+	(*ClusterReportRequest)(nil),             // 20: cluster_doctor.ClusterReportRequest
+	(*ClusterReport)(nil),                    // 21: cluster_doctor.ClusterReport
+	(*NodeReportRequest)(nil),                // 22: cluster_doctor.NodeReportRequest
+	(*NodeReport)(nil),                       // 23: cluster_doctor.NodeReport
+	(*DriftReportRequest)(nil),               // 24: cluster_doctor.DriftReportRequest
+	(*DriftItem)(nil),                        // 25: cluster_doctor.DriftItem
+	(*DriftReport)(nil),                      // 26: cluster_doctor.DriftReport
+	(*ExplainFindingRequest)(nil),            // 27: cluster_doctor.ExplainFindingRequest
+	(*FindingExplanation)(nil),               // 28: cluster_doctor.FindingExplanation
+	nil,                                      // 29: cluster_doctor.Evidence.KeyValuesEntry
+	nil,                                      // 30: cluster_doctor.RemediationAction.ParamsEntry
+	nil,                                      // 31: cluster_doctor.ClusterReport.CountsByCategoryEntry
+	(*timestamppb.Timestamp)(nil),            // 32: google.protobuf.Timestamp
 }
 var file_cluster_doctor_proto_depIdxs = []int32{
-	29, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
-	9,  // 1: cluster_doctor.ReportHeader.data_errors:type_name -> cluster_doctor.Evidence
-	29, // 2: cluster_doctor.ReportHeader.observed_at:type_name -> google.protobuf.Timestamp
+	32, // 0: cluster_doctor.ReportHeader.generated_at:type_name -> google.protobuf.Timestamp
+	11, // 1: cluster_doctor.ReportHeader.data_errors:type_name -> cluster_doctor.Evidence
+	32, // 2: cluster_doctor.ReportHeader.observed_at:type_name -> google.protobuf.Timestamp
 	5,  // 3: cluster_doctor.ReportHeader.freshness_mode:type_name -> cluster_doctor.FreshnessMode
-	26, // 4: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
-	29, // 5: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
-	11, // 6: cluster_doctor.RemediationStep.action:type_name -> cluster_doctor.RemediationAction
+	29, // 4: cluster_doctor.Evidence.key_values:type_name -> cluster_doctor.Evidence.KeyValuesEntry
+	32, // 5: cluster_doctor.Evidence.timestamp:type_name -> google.protobuf.Timestamp
+	13, // 6: cluster_doctor.RemediationStep.action:type_name -> cluster_doctor.RemediationAction
 	6,  // 7: cluster_doctor.RemediationAction.action_type:type_name -> cluster_doctor.ActionType
 	7,  // 8: cluster_doctor.RemediationAction.risk:type_name -> cluster_doctor.ActionRisk
-	27, // 9: cluster_doctor.RemediationAction.params:type_name -> cluster_doctor.RemediationAction.ParamsEntry
+	30, // 9: cluster_doctor.RemediationAction.params:type_name -> cluster_doctor.RemediationAction.ParamsEntry
 	0,  // 10: cluster_doctor.Finding.severity:type_name -> cluster_doctor.Severity
-	9,  // 11: cluster_doctor.Finding.evidence:type_name -> cluster_doctor.Evidence
-	10, // 12: cluster_doctor.Finding.remediation:type_name -> cluster_doctor.RemediationStep
+	11, // 11: cluster_doctor.Finding.evidence:type_name -> cluster_doctor.Evidence
+	12, // 12: cluster_doctor.Finding.remediation:type_name -> cluster_doctor.RemediationStep
 	4,  // 13: cluster_doctor.Finding.invariant_status:type_name -> cluster_doctor.InvariantStatus
-	5,  // 14: cluster_doctor.ClusterReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
-	8,  // 15: cluster_doctor.ClusterReport.header:type_name -> cluster_doctor.ReportHeader
-	1,  // 16: cluster_doctor.ClusterReport.overall_status:type_name -> cluster_doctor.ClusterStatus
-	16, // 17: cluster_doctor.ClusterReport.findings:type_name -> cluster_doctor.Finding
-	28, // 18: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
-	5,  // 19: cluster_doctor.NodeReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
-	8,  // 20: cluster_doctor.NodeReport.header:type_name -> cluster_doctor.ReportHeader
-	16, // 21: cluster_doctor.NodeReport.findings:type_name -> cluster_doctor.Finding
-	5,  // 22: cluster_doctor.DriftReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
-	2,  // 23: cluster_doctor.DriftItem.category:type_name -> cluster_doctor.DriftCategory
-	9,  // 24: cluster_doctor.DriftItem.evidence:type_name -> cluster_doctor.Evidence
-	8,  // 25: cluster_doctor.DriftReport.header:type_name -> cluster_doctor.ReportHeader
-	22, // 26: cluster_doctor.DriftReport.items:type_name -> cluster_doctor.DriftItem
-	10, // 27: cluster_doctor.FindingExplanation.remediation:type_name -> cluster_doctor.RemediationStep
-	9,  // 28: cluster_doctor.FindingExplanation.evidence:type_name -> cluster_doctor.Evidence
-	3,  // 29: cluster_doctor.FindingExplanation.plan_risk:type_name -> cluster_doctor.PlanRisk
-	17, // 30: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
-	19, // 31: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
-	21, // 32: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
-	24, // 33: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
-	12, // 34: cluster_doctor.ClusterDoctorService.ExecuteRemediation:input_type -> cluster_doctor.ExecuteRemediationRequest
-	14, // 35: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:input_type -> cluster_doctor.StartRemediationWorkflowRequest
-	18, // 36: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
-	20, // 37: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
-	23, // 38: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
-	25, // 39: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
-	13, // 40: cluster_doctor.ClusterDoctorService.ExecuteRemediation:output_type -> cluster_doctor.ExecuteRemediationResponse
-	15, // 41: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:output_type -> cluster_doctor.StartRemediationWorkflowResponse
-	36, // [36:42] is the sub-list for method output_type
-	30, // [30:36] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	19, // 14: cluster_doctor.Finding.heal_decision:type_name -> cluster_doctor.HealDecision
+	8,  // 15: cluster_doctor.HealDecision.disposition:type_name -> cluster_doctor.HealDisposition
+	5,  // 16: cluster_doctor.ClusterReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
+	9,  // 17: cluster_doctor.ClusterReportRequest.heal_mode:type_name -> cluster_doctor.HealMode
+	10, // 18: cluster_doctor.ClusterReport.header:type_name -> cluster_doctor.ReportHeader
+	1,  // 19: cluster_doctor.ClusterReport.overall_status:type_name -> cluster_doctor.ClusterStatus
+	18, // 20: cluster_doctor.ClusterReport.findings:type_name -> cluster_doctor.Finding
+	31, // 21: cluster_doctor.ClusterReport.counts_by_category:type_name -> cluster_doctor.ClusterReport.CountsByCategoryEntry
+	5,  // 22: cluster_doctor.NodeReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
+	10, // 23: cluster_doctor.NodeReport.header:type_name -> cluster_doctor.ReportHeader
+	18, // 24: cluster_doctor.NodeReport.findings:type_name -> cluster_doctor.Finding
+	5,  // 25: cluster_doctor.DriftReportRequest.freshness:type_name -> cluster_doctor.FreshnessMode
+	2,  // 26: cluster_doctor.DriftItem.category:type_name -> cluster_doctor.DriftCategory
+	11, // 27: cluster_doctor.DriftItem.evidence:type_name -> cluster_doctor.Evidence
+	10, // 28: cluster_doctor.DriftReport.header:type_name -> cluster_doctor.ReportHeader
+	25, // 29: cluster_doctor.DriftReport.items:type_name -> cluster_doctor.DriftItem
+	12, // 30: cluster_doctor.FindingExplanation.remediation:type_name -> cluster_doctor.RemediationStep
+	11, // 31: cluster_doctor.FindingExplanation.evidence:type_name -> cluster_doctor.Evidence
+	3,  // 32: cluster_doctor.FindingExplanation.plan_risk:type_name -> cluster_doctor.PlanRisk
+	20, // 33: cluster_doctor.ClusterDoctorService.GetClusterReport:input_type -> cluster_doctor.ClusterReportRequest
+	22, // 34: cluster_doctor.ClusterDoctorService.GetNodeReport:input_type -> cluster_doctor.NodeReportRequest
+	24, // 35: cluster_doctor.ClusterDoctorService.GetDriftReport:input_type -> cluster_doctor.DriftReportRequest
+	27, // 36: cluster_doctor.ClusterDoctorService.ExplainFinding:input_type -> cluster_doctor.ExplainFindingRequest
+	14, // 37: cluster_doctor.ClusterDoctorService.ExecuteRemediation:input_type -> cluster_doctor.ExecuteRemediationRequest
+	16, // 38: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:input_type -> cluster_doctor.StartRemediationWorkflowRequest
+	21, // 39: cluster_doctor.ClusterDoctorService.GetClusterReport:output_type -> cluster_doctor.ClusterReport
+	23, // 40: cluster_doctor.ClusterDoctorService.GetNodeReport:output_type -> cluster_doctor.NodeReport
+	26, // 41: cluster_doctor.ClusterDoctorService.GetDriftReport:output_type -> cluster_doctor.DriftReport
+	28, // 42: cluster_doctor.ClusterDoctorService.ExplainFinding:output_type -> cluster_doctor.FindingExplanation
+	15, // 43: cluster_doctor.ClusterDoctorService.ExecuteRemediation:output_type -> cluster_doctor.ExecuteRemediationResponse
+	17, // 44: cluster_doctor.ClusterDoctorService.StartRemediationWorkflow:output_type -> cluster_doctor.StartRemediationWorkflowResponse
+	39, // [39:45] is the sub-list for method output_type
+	33, // [33:39] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_cluster_doctor_proto_init() }
@@ -2233,8 +2466,8 @@ func file_cluster_doctor_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cluster_doctor_proto_rawDesc), len(file_cluster_doctor_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   21,
+			NumEnums:      10,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -38,6 +38,7 @@ const (
 	NodeAgentService_RunWorkflow_FullMethodName            = "/node_agent.NodeAgentService/RunWorkflow"
 	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
+	NodeAgentService_DeleteCacheArtifact_FullMethodName    = "/node_agent.NodeAgentService/DeleteCacheArtifact"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -80,6 +81,17 @@ type NodeAgentServiceClient interface {
 	// Read-only: does not modify any state. Safe to call on demand from CLI,
 	// doctor, or admin UI.
 	VerifyPackageIntegrity(ctx context.Context, in *VerifyPackageIntegrityRequest, opts ...grpc.CallOption) (*VerifyPackageIntegrityResponse, error)
+	// DeleteCacheArtifact removes the cached artifact (.tgz) at the
+	// deterministic staging path for a given package. The next install
+	// will re-fetch from the repository with digest verification.
+	//
+	// This is the production-safe primitive for the auto-heal
+	// "delete_stale_cache" action. It validates that the path is inside
+	// the staging directory and that the package/publisher scoping is
+	// correct — no arbitrary file deletion.
+	//
+	// Idempotent: returns ok=true if the file was deleted OR was already absent.
+	DeleteCacheArtifact(ctx context.Context, in *DeleteCacheArtifactRequest, opts ...grpc.CallOption) (*DeleteCacheArtifactResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -289,6 +301,16 @@ func (c *nodeAgentServiceClient) VerifyPackageIntegrity(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) DeleteCacheArtifact(ctx context.Context, in *DeleteCacheArtifactRequest, opts ...grpc.CallOption) (*DeleteCacheArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCacheArtifactResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_DeleteCacheArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -329,6 +351,17 @@ type NodeAgentServiceServer interface {
 	// Read-only: does not modify any state. Safe to call on demand from CLI,
 	// doctor, or admin UI.
 	VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error)
+	// DeleteCacheArtifact removes the cached artifact (.tgz) at the
+	// deterministic staging path for a given package. The next install
+	// will re-fetch from the repository with digest verification.
+	//
+	// This is the production-safe primitive for the auto-heal
+	// "delete_stale_cache" action. It validates that the path is inside
+	// the staging directory and that the package/publisher scoping is
+	// correct — no arbitrary file deletion.
+	//
+	// Idempotent: returns ok=true if the file was deleted OR was already absent.
+	DeleteCacheArtifact(context.Context, *DeleteCacheArtifactRequest) (*DeleteCacheArtifactResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -394,6 +427,9 @@ func (UnimplementedNodeAgentServiceServer) ApplyPackageRelease(context.Context, 
 }
 func (UnimplementedNodeAgentServiceServer) VerifyPackageIntegrity(context.Context, *VerifyPackageIntegrityRequest) (*VerifyPackageIntegrityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyPackageIntegrity not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) DeleteCacheArtifact(context.Context, *DeleteCacheArtifactRequest) (*DeleteCacheArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCacheArtifact not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -750,6 +786,24 @@ func _NodeAgentService_VerifyPackageIntegrity_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_DeleteCacheArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCacheArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).DeleteCacheArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_DeleteCacheArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).DeleteCacheArtifact(ctx, req.(*DeleteCacheArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -828,6 +882,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPackageIntegrity",
 			Handler:    _NodeAgentService_VerifyPackageIntegrity_Handler,
+		},
+		{
+			MethodName: "DeleteCacheArtifact",
+			Handler:    _NodeAgentService_DeleteCacheArtifact_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

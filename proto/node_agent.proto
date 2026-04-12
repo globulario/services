@@ -365,6 +365,25 @@ service NodeAgentService {
       default_role_hint: "admin"
     };
   };
+
+  // DeleteCacheArtifact removes the cached artifact (.tgz) at the
+  // deterministic staging path for a given package. The next install
+  // will re-fetch from the repository with digest verification.
+  //
+  // This is the production-safe primitive for the auto-heal
+  // "delete_stale_cache" action. It validates that the path is inside
+  // the staging directory and that the package/publisher scoping is
+  // correct — no arbitrary file deletion.
+  //
+  // Idempotent: returns ok=true if the file was deleted OR was already absent.
+  rpc DeleteCacheArtifact(DeleteCacheArtifactRequest) returns (DeleteCacheArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.cache.delete"
+      permission: "admin"
+      resource_template: "/node_agent/cache/{package_name}"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // VerifyPackageIntegrityRequest narrows the scope of a verify_integrity run.
@@ -513,3 +532,17 @@ message ApplyPackageReleaseResponse {
   string operation_id = 8;
 }
 
+
+// DeleteCacheArtifactRequest identifies which cached artifact to remove.
+// Only scoped to /var/lib/globular/staging/<publisher_id>/<package_name>/latest.artifact.
+message DeleteCacheArtifactRequest {
+  string package_name = 1; // e.g. "monitoring", "event"
+  string publisher_id = 2; // e.g. "core@globular.io" (defaults to "core@globular.io" if empty)
+}
+
+// DeleteCacheArtifactResponse confirms the deletion outcome.
+message DeleteCacheArtifactResponse {
+  bool   ok      = 1; // true if deleted or already absent (idempotent)
+  string message = 2; // human-readable outcome
+  string path    = 3; // the path that was (or would have been) deleted
+}

@@ -28,6 +28,10 @@ type Finding struct {
 	Evidence        []*cluster_doctorpb.Evidence
 	Remediation     []*cluster_doctorpb.RemediationStep
 	InvariantStatus cluster_doctorpb.InvariantStatus
+
+	// HealDecisionProto is populated by the healer after invariant evaluation.
+	// Nil when the healer is not running (heal_mode=OBSERVE).
+	HealDecisionProto *cluster_doctorpb.HealDecision
 }
 
 // ToProto converts a Finding to its protobuf representation.
@@ -42,6 +46,7 @@ func (f Finding) ToProto() *cluster_doctorpb.Finding {
 		Evidence:        f.Evidence,
 		Remediation:     f.Remediation,
 		InvariantStatus: f.InvariantStatus,
+		HealDecision:    f.HealDecisionProto,
 	}
 }
 

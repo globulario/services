@@ -231,6 +231,42 @@ message Finding {
   repeated Evidence evidence           = 7;
   repeated RemediationStep remediation = 8;
   InvariantStatus invariant_status     = 9;
+
+  // Auto-heal decision (populated by the healer after invariant evaluation).
+  // Only present when the doctor runs with heal_mode != HEAL_OBSERVE.
+  HealDecision heal_decision           = 10;
+}
+
+// HealDecision describes what the healer would do (or did) for a finding.
+message HealDecision {
+  // Disposition from the auto-heal policy.
+  HealDisposition disposition = 1;
+  // Human-readable action description from the policy rule.
+  string action                = 2;
+  // Whether the action was executed (only true in enforce mode).
+  bool executed                = 3;
+  // Whether post-action verification confirmed resolution.
+  bool verified                = 4;
+  // Error message if the action failed.
+  string error                 = 5;
+}
+
+// HealDisposition describes the healer's policy classification.
+enum HealDisposition {
+  HEAL_DISPOSITION_UNSPECIFIED = 0;
+  HEAL_AUTO                    = 1; // Safe to execute automatically
+  HEAL_PROPOSE                 = 2; // Requires human approval
+  HEAL_OBSERVE                 = 3; // Report only, no action
+}
+
+// HealMode controls healer behavior in doctor report requests.
+enum HealMode {
+  // HEAL_OBSERVE — classify findings but take no action (safest).
+  HEAL_MODE_OBSERVE = 0;
+  // HEAL_DRY_RUN — classify and record intended actions, no mutations.
+  HEAL_MODE_DRY_RUN = 1;
+  // HEAL_ENFORCE — execute auto-heal actions for HealAuto findings.
+  HEAL_MODE_ENFORCE = 2;
 }
 
 // ─── Cluster Report ───────────────────────────────────────────────────────────
@@ -239,6 +275,10 @@ message ClusterReportRequest {
   // Freshness mode for this read. Omit or set to FRESHNESS_UNSPECIFIED
   // to accept the server default (cached). See FreshnessMode.
   FreshnessMode freshness = 1;
+  // Heal mode. Default (0) = HEAL_MODE_OBSERVE (no mutations).
+  // Set to HEAL_MODE_DRY_RUN to see intended actions without executing.
+  // Set to HEAL_MODE_ENFORCE to execute auto-heal actions.
+  HealMode heal_mode = 2;
 }
 
 message ClusterReport {

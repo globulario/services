@@ -2977,6 +2977,121 @@ func (x *ApplyPackageReleaseResponse) GetOperationId() string {
 	return ""
 }
 
+// DeleteCacheArtifactRequest identifies which cached artifact to remove.
+// Only scoped to /var/lib/globular/staging/<publisher_id>/<package_name>/latest.artifact.
+type DeleteCacheArtifactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PackageName   string                 `protobuf:"bytes,1,opt,name=package_name,json=packageName,proto3" json:"package_name,omitempty"` // e.g. "monitoring", "event"
+	PublisherId   string                 `protobuf:"bytes,2,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"` // e.g. "core@globular.io" (defaults to "core@globular.io" if empty)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteCacheArtifactRequest) Reset() {
+	*x = DeleteCacheArtifactRequest{}
+	mi := &file_node_agent_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteCacheArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteCacheArtifactRequest) ProtoMessage() {}
+
+func (x *DeleteCacheArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteCacheArtifactRequest.ProtoReflect.Descriptor instead.
+func (*DeleteCacheArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *DeleteCacheArtifactRequest) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *DeleteCacheArtifactRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+// DeleteCacheArtifactResponse confirms the deletion outcome.
+type DeleteCacheArtifactResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`          // true if deleted or already absent (idempotent)
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"` // human-readable outcome
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`       // the path that was (or would have been) deleted
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteCacheArtifactResponse) Reset() {
+	*x = DeleteCacheArtifactResponse{}
+	mi := &file_node_agent_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteCacheArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteCacheArtifactResponse) ProtoMessage() {}
+
+func (x *DeleteCacheArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteCacheArtifactResponse.ProtoReflect.Descriptor instead.
+func (*DeleteCacheArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *DeleteCacheArtifactResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *DeleteCacheArtifactResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *DeleteCacheArtifactResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
 var File_node_agent_proto protoreflect.FileDescriptor
 
 const file_node_agent_proto_rawDesc = "" +
@@ -3240,7 +3355,14 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\tR\x06status\x12!\n" +
 	"\ferror_detail\x18\x06 \x01(\tR\verrorDetail\x12\x1a\n" +
 	"\bchecksum\x18\a \x01(\tR\bchecksum\x12!\n" +
-	"\foperation_id\x18\b \x01(\tR\voperationId2\xaf\x1b\n" +
+	"\foperation_id\x18\b \x01(\tR\voperationId\"b\n" +
+	"\x1aDeleteCacheArtifactRequest\x12!\n" +
+	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12!\n" +
+	"\fpublisher_id\x18\x02 \x01(\tR\vpublisherId\"[\n" +
+	"\x1bDeleteCacheArtifactResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path2\xe7\x1c\n" +
 	"\x10NodeAgentService\x12\x90\x01\n" +
 	"\vJoinCluster\x12\x1e.node_agent.JoinClusterRequest\x1a\x1f.node_agent.JoinClusterResponse\"@\x82\xb5\x18<\n" +
 	"\x17node_agent.cluster.join\x12\x05admin\x1a\x13/node_agent/cluster*\x05admin\x12\x97\x01\n" +
@@ -3279,7 +3401,9 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x13ApplyPackageRelease\x12&.node_agent.ApplyPackageReleaseRequest\x1a'.node_agent.ApplyPackageReleaseResponse\"Y\x82\xb5\x18U\n" +
 	" node_agent.package_release.apply\x12\x05admin\x1a#/node_agent/packages/{package_name}*\x05admin\x12\xcc\x01\n" +
 	"\x16VerifyPackageIntegrity\x12).node_agent.VerifyPackageIntegrityRequest\x1a*.node_agent.VerifyPackageIntegrityResponse\"[\x82\xb5\x18W\n" +
-	"#node_agent.package_integrity.verify\x12\x04read\x1a#/node_agent/packages/{package_name}*\x05adminBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
+	"#node_agent.package_integrity.verify\x12\x04read\x1a#/node_agent/packages/{package_name}*\x05admin\x12\xb5\x01\n" +
+	"\x13DeleteCacheArtifact\x12&.node_agent.DeleteCacheArtifactRequest\x1a'.node_agent.DeleteCacheArtifactResponse\"M\x82\xb5\x18I\n" +
+	"\x17node_agent.cache.delete\x12\x05admin\x1a /node_agent/cache/{package_name}*\x05adminBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
 
 var (
 	file_node_agent_proto_rawDescOnce sync.Once
@@ -3293,7 +3417,7 @@ func file_node_agent_proto_rawDescGZIP() []byte {
 	return file_node_agent_proto_rawDescData
 }
 
-var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
+var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_node_agent_proto_goTypes = []any{
 	(*JoinClusterRequest)(nil),                // 0: node_agent.JoinClusterRequest
 	(*JoinClusterResponse)(nil),               // 1: node_agent.JoinClusterResponse
@@ -3341,41 +3465,43 @@ var file_node_agent_proto_goTypes = []any{
 	(*RunWorkflowResponse)(nil),               // 43: node_agent.RunWorkflowResponse
 	(*ApplyPackageReleaseRequest)(nil),        // 44: node_agent.ApplyPackageReleaseRequest
 	(*ApplyPackageReleaseResponse)(nil),       // 45: node_agent.ApplyPackageReleaseResponse
-	nil,                                       // 46: node_agent.InstalledPackage.MetadataEntry
-	nil,                                       // 47: node_agent.BackupProviderSpec.OptionsEntry
-	nil,                                       // 48: node_agent.RunBackupProviderRequest.LabelsEntry
-	nil,                                       // 49: node_agent.BackupProviderResult.OutputsEntry
-	nil,                                       // 50: node_agent.BackupProviderResult.ArtifactsEntry
-	nil,                                       // 51: node_agent.RestoreProviderSpec.OptionsEntry
-	nil,                                       // 52: node_agent.RunWorkflowRequest.InputsEntry
-	(*cluster_controllerpb.NodeIdentity)(nil), // 53: cluster_controller.NodeIdentity
-	(*timestamppb.Timestamp)(nil),             // 54: google.protobuf.Timestamp
-	(cluster_controllerpb.OperationPhase)(0),  // 55: cluster_controller.OperationPhase
+	(*DeleteCacheArtifactRequest)(nil),        // 46: node_agent.DeleteCacheArtifactRequest
+	(*DeleteCacheArtifactResponse)(nil),       // 47: node_agent.DeleteCacheArtifactResponse
+	nil,                                       // 48: node_agent.InstalledPackage.MetadataEntry
+	nil,                                       // 49: node_agent.BackupProviderSpec.OptionsEntry
+	nil,                                       // 50: node_agent.RunBackupProviderRequest.LabelsEntry
+	nil,                                       // 51: node_agent.BackupProviderResult.OutputsEntry
+	nil,                                       // 52: node_agent.BackupProviderResult.ArtifactsEntry
+	nil,                                       // 53: node_agent.RestoreProviderSpec.OptionsEntry
+	nil,                                       // 54: node_agent.RunWorkflowRequest.InputsEntry
+	(*cluster_controllerpb.NodeIdentity)(nil), // 55: cluster_controller.NodeIdentity
+	(*timestamppb.Timestamp)(nil),             // 56: google.protobuf.Timestamp
+	(cluster_controllerpb.OperationPhase)(0),  // 57: cluster_controller.OperationPhase
 }
 var file_node_agent_proto_depIdxs = []int32{
-	46, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
+	48, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
 	3,  // 1: node_agent.ListInstalledPackagesResponse.packages:type_name -> node_agent.InstalledPackage
 	3,  // 2: node_agent.GetInstalledPackageResponse.package:type_name -> node_agent.InstalledPackage
 	3,  // 3: node_agent.SetInstalledPackageRequest.package:type_name -> node_agent.InstalledPackage
-	53, // 4: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
-	54, // 5: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
+	55, // 4: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
+	56, // 5: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
 	2,  // 6: node_agent.Inventory.components:type_name -> node_agent.InstalledComponent
 	10, // 7: node_agent.Inventory.units:type_name -> node_agent.UnitStatus
 	11, // 8: node_agent.GetInventoryResponse.inventory:type_name -> node_agent.Inventory
-	55, // 9: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
-	54, // 10: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
-	47, // 11: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
+	57, // 9: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
+	56, // 10: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	49, // 11: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
 	18, // 12: node_agent.RunBackupProviderRequest.spec:type_name -> node_agent.BackupProviderSpec
-	48, // 13: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
-	49, // 14: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
-	50, // 15: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
+	50, // 13: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
+	51, // 14: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
+	52, // 15: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
 	22, // 16: node_agent.GetBackupTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
-	51, // 17: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
+	53, // 17: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
 	24, // 18: node_agent.RunRestoreProviderRequest.spec:type_name -> node_agent.RestoreProviderSpec
 	22, // 19: node_agent.GetRestoreTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
 	37, // 20: node_agent.GetCertificateStatusResponse.server_cert:type_name -> node_agent.CertificateInfo
 	37, // 21: node_agent.GetCertificateStatusResponse.ca_cert:type_name -> node_agent.CertificateInfo
-	52, // 22: node_agent.RunWorkflowRequest.inputs:type_name -> node_agent.RunWorkflowRequest.InputsEntry
+	54, // 22: node_agent.RunWorkflowRequest.inputs:type_name -> node_agent.RunWorkflowRequest.InputsEntry
 	0,  // 23: node_agent.NodeAgentService.JoinCluster:input_type -> node_agent.JoinClusterRequest
 	12, // 24: node_agent.NodeAgentService.GetInventory:input_type -> node_agent.GetInventoryRequest
 	14, // 25: node_agent.NodeAgentService.WatchOperation:input_type -> node_agent.WatchOperationRequest
@@ -3395,27 +3521,29 @@ var file_node_agent_proto_depIdxs = []int32{
 	42, // 39: node_agent.NodeAgentService.RunWorkflow:input_type -> node_agent.RunWorkflowRequest
 	44, // 40: node_agent.NodeAgentService.ApplyPackageRelease:input_type -> node_agent.ApplyPackageReleaseRequest
 	29, // 41: node_agent.NodeAgentService.VerifyPackageIntegrity:input_type -> node_agent.VerifyPackageIntegrityRequest
-	1,  // 42: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
-	13, // 43: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
-	15, // 44: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
-	17, // 45: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
-	20, // 46: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
-	23, // 47: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
-	26, // 48: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
-	28, // 49: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
-	5,  // 50: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
-	7,  // 51: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
-	9,  // 52: node_agent.NodeAgentService.SetInstalledPackage:output_type -> node_agent.SetInstalledPackageResponse
-	32, // 53: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
-	34, // 54: node_agent.NodeAgentService.GetServiceLogs:output_type -> node_agent.GetServiceLogsResponse
-	39, // 55: node_agent.NodeAgentService.ControlService:output_type -> node_agent.ControlServiceResponse
-	36, // 56: node_agent.NodeAgentService.SearchServiceLogs:output_type -> node_agent.SearchServiceLogsResponse
-	41, // 57: node_agent.NodeAgentService.GetCertificateStatus:output_type -> node_agent.GetCertificateStatusResponse
-	43, // 58: node_agent.NodeAgentService.RunWorkflow:output_type -> node_agent.RunWorkflowResponse
-	45, // 59: node_agent.NodeAgentService.ApplyPackageRelease:output_type -> node_agent.ApplyPackageReleaseResponse
-	30, // 60: node_agent.NodeAgentService.VerifyPackageIntegrity:output_type -> node_agent.VerifyPackageIntegrityResponse
-	42, // [42:61] is the sub-list for method output_type
-	23, // [23:42] is the sub-list for method input_type
+	46, // 42: node_agent.NodeAgentService.DeleteCacheArtifact:input_type -> node_agent.DeleteCacheArtifactRequest
+	1,  // 43: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
+	13, // 44: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
+	15, // 45: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
+	17, // 46: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
+	20, // 47: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
+	23, // 48: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
+	26, // 49: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
+	28, // 50: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
+	5,  // 51: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
+	7,  // 52: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
+	9,  // 53: node_agent.NodeAgentService.SetInstalledPackage:output_type -> node_agent.SetInstalledPackageResponse
+	32, // 54: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
+	34, // 55: node_agent.NodeAgentService.GetServiceLogs:output_type -> node_agent.GetServiceLogsResponse
+	39, // 56: node_agent.NodeAgentService.ControlService:output_type -> node_agent.ControlServiceResponse
+	36, // 57: node_agent.NodeAgentService.SearchServiceLogs:output_type -> node_agent.SearchServiceLogsResponse
+	41, // 58: node_agent.NodeAgentService.GetCertificateStatus:output_type -> node_agent.GetCertificateStatusResponse
+	43, // 59: node_agent.NodeAgentService.RunWorkflow:output_type -> node_agent.RunWorkflowResponse
+	45, // 60: node_agent.NodeAgentService.ApplyPackageRelease:output_type -> node_agent.ApplyPackageReleaseResponse
+	30, // 61: node_agent.NodeAgentService.VerifyPackageIntegrity:output_type -> node_agent.VerifyPackageIntegrityResponse
+	47, // 62: node_agent.NodeAgentService.DeleteCacheArtifact:output_type -> node_agent.DeleteCacheArtifactResponse
+	43, // [43:63] is the sub-list for method output_type
+	23, // [23:43] is the sub-list for method input_type
 	23, // [23:23] is the sub-list for extension type_name
 	23, // [23:23] is the sub-list for extension extendee
 	0,  // [0:23] is the sub-list for field type_name
@@ -3432,7 +3560,7 @@ func file_node_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_agent_proto_rawDesc), len(file_node_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   53,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

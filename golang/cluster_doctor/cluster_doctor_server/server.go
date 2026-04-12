@@ -229,9 +229,47 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	}
 
 	findings := s.registry.EvaluateAll(snap)
+
+	// Run the healer against findings based on the requested heal mode.
+	// Default (0 / OBSERVE) = classify only, no mutations.
+	healMode := req.GetHealMode()
+	healer := &rules.Healer{
+		DryRun: healMode != cluster_doctorpb.HealMode_HEAL_MODE_ENFORCE,
+	}
+	if healMode != cluster_doctorpb.HealMode_HEAL_MODE_OBSERVE {
+		healReport := healer.Evaluate(ctx, findings)
+		// Annotate each finding with its heal decision.
+		for i, f := range findings {
+			if i < len(healReport.Results) {
+				r := healReport.Results[i]
+				findings[i].HealDecisionProto = &cluster_doctorpb.HealDecision{
+					Disposition: dispositionToProto(r.Disposition),
+					Action:      r.Action,
+					Executed:    r.Executed,
+					Verified:    r.Verified,
+					Error:       r.Error,
+				}
+			}
+			_ = f // suppress unused
+		}
+	}
+
 	s.cacheFindings(findings)
 
 	return render.ClusterReport(snap, findings, s.version, fresh), nil
+}
+
+// dispositionToProto maps the rules-layer disposition string to the proto enum.
+func dispositionToProto(d rules.HealDisposition) cluster_doctorpb.HealDisposition {
+	switch d {
+	case rules.HealAuto:
+		return cluster_doctorpb.HealDisposition_HEAL_AUTO
+	case rules.HealPropose:
+		return cluster_doctorpb.HealDisposition_HEAL_PROPOSE
+	case rules.HealObserve:
+		return cluster_doctorpb.HealDisposition_HEAL_OBSERVE
+	}
+	return cluster_doctorpb.HealDisposition_HEAL_DISPOSITION_UNSPECIFIED
 }
 
 func (s *ClusterDoctorServer) GetNodeReport(ctx context.Context, req *cluster_doctorpb.NodeReportRequest) (*cluster_doctorpb.NodeReport, error) {
