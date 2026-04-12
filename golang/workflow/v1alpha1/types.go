@@ -189,6 +189,7 @@ const (
 	ActorInstaller         ActorType = "installer"
 	ActorRepository        ActorType = "repository"
 	ActorOperator          ActorType = "operator"
+	ActorCompute           ActorType = "compute"
 )
 
 // ScalarString accepts either a literal string or an expression-like string.

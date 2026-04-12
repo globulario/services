@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
@@ -166,13 +165,23 @@ func computeMarkJobFailed(srv *server) engine.ActionHandler {
 
 func computeChooseNode(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
-		// V1: choose the local node (compute service runs here).
-		// Future: query node capabilities, profiles, load.
-		hostname, _ := getLocalNodeID(ctx)
-		slog.Info("compute workflow: node chosen", "node_id", hostname)
+		// Discover all nodes running the compute service via etcd.
+		endpoints := resolveComputeEndpoints()
+		if len(endpoints) == 0 {
+			return nil, fmt.Errorf("no compute service instances available")
+		}
+
+		// V1: pick the first available endpoint.
+		// Future: query node capabilities, profiles, load for scheduling.
+		chosen := endpoints[0]
+		slog.Info("compute workflow: node chosen",
+			"endpoint", chosen, "candidates", len(endpoints))
 		return &engine.ActionResult{
-			OK:     true,
-			Output: map[string]any{"node_id": hostname},
+			OK: true,
+			Output: map[string]any{
+				"node_id":         chosen, // endpoint doubles as node identifier for dispatch
+				"runner_endpoint": chosen,
+			},
 		}, nil
 	}
 }
@@ -182,6 +191,7 @@ func computeMarkUnitAssigned(srv *server) engine.ActionHandler {
 		jobID, _ := req.With["job_id"].(string)
 		unitID, _ := req.With["unit_id"].(string)
 		nodeID, _ := req.With["node_id"].(string)
+		runnerEndpoint, _ := req.With["runner_endpoint"].(string)
 
 		unit, err := getUnit(ctx, jobID, unitID)
 		if err != nil || unit == nil {
@@ -192,7 +202,10 @@ func computeMarkUnitAssigned(srv *server) engine.ActionHandler {
 		if err := putUnit(ctx, unit); err != nil {
 			return nil, fmt.Errorf("update unit: %w", err)
 		}
-		return &engine.ActionResult{OK: true}, nil
+		return &engine.ActionResult{
+			OK:     true,
+			Output: map[string]any{"runner_endpoint": runnerEndpoint},
+		}, nil
 	}
 }
 
@@ -200,6 +213,7 @@ func computeStageUnit(srv *server) engine.ActionHandler {
 	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		jobID, _ := req.With["job_id"].(string)
 		unitID, _ := req.With["unit_id"].(string)
+		runnerEndpoint, _ := req.With["runner_endpoint"].(string)
 
 		unit, err := getUnit(ctx, jobID, unitID)
 		if err != nil || unit == nil {
@@ -215,12 +229,23 @@ func computeStageUnit(srv *server) engine.ActionHandler {
 			return nil, fmt.Errorf("definition not found")
 		}
 
-		// Call the runner's StageComputeUnit (inline for v1).
 		stageReq := computeRunnerStageRequest(unitID, jobID, def, unit, job.Spec)
-		resp, err := srv.StageComputeUnit(ctx, &stageReq)
+
+		// Dispatch to remote runner via gRPC.
+		client, conn, err := runnerClient(runnerEndpoint)
 		if err != nil {
-			return nil, fmt.Errorf("stage unit: %w", err)
+			return nil, fmt.Errorf("dial runner at %s: %w", runnerEndpoint, err)
 		}
+		defer conn.Close()
+
+		resp, err := client.StageComputeUnit(ctx, &stageReq)
+		if err != nil {
+			return nil, fmt.Errorf("remote stage unit: %w", err)
+		}
+
+		slog.Info("compute workflow: unit staged remotely",
+			"unit_id", unitID, "endpoint", runnerEndpoint,
+			"staging_path", resp.StagingPath)
 
 		return &engine.ActionResult{
 			OK:     true,
@@ -234,6 +259,7 @@ func computeRunUnit(srv *server) engine.ActionHandler {
 		jobID, _ := req.With["job_id"].(string)
 		unitID, _ := req.With["unit_id"].(string)
 		stagingPath, _ := req.With["staging_path"].(string)
+		runnerEndpoint, _ := req.With["runner_endpoint"].(string)
 
 		job, _ := getJob(ctx, jobID)
 		if job == nil {
@@ -249,10 +275,22 @@ func computeRunUnit(srv *server) engine.ActionHandler {
 		}
 
 		runReq := computeRunnerRunRequest(unitID, jobID, def, unit, job.Spec, stagingPath)
-		resp, err := srv.RunComputeUnit(ctx, &runReq)
+
+		// Dispatch to remote runner via gRPC.
+		client, conn, err := runnerClient(runnerEndpoint)
 		if err != nil {
-			return nil, fmt.Errorf("run unit: %w", err)
+			return nil, fmt.Errorf("dial runner at %s: %w", runnerEndpoint, err)
 		}
+		defer conn.Close()
+
+		resp, err := client.RunComputeUnit(ctx, &runReq)
+		if err != nil {
+			return nil, fmt.Errorf("remote run unit: %w", err)
+		}
+
+		slog.Info("compute workflow: unit running remotely",
+			"unit_id", unitID, "endpoint", runnerEndpoint,
+			"execution_id", resp.ExecutionId)
 
 		return &engine.ActionResult{
 			OK:     true,
@@ -420,10 +458,6 @@ func computeFinalizeJob(srv *server) engine.ActionHandler {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-func getLocalNodeID(ctx context.Context) (string, error) {
-	return os.Hostname()
-}
 
 func computeRunnerStageRequest(unitID, jobID string, def *computepb.ComputeDefinition, unit *computepb.ComputeUnit, spec *computepb.ComputeJobSpec) compute_runnerpb.StageComputeUnitRequest {
 	return compute_runnerpb.StageComputeUnitRequest{

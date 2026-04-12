@@ -284,7 +284,7 @@ func validateDurationScalar(field string, s *ScalarString) error {
 
 func validateActorAndAction(actor ActorType, action, loc string) error {
 	switch actor {
-	case ActorWorkflowService, ActorClusterController, ActorClusterDoctor, ActorNodeAgent, ActorInstaller, ActorRepository, ActorOperator:
+	case ActorWorkflowService, ActorClusterController, ActorClusterDoctor, ActorNodeAgent, ActorInstaller, ActorRepository, ActorOperator, ActorCompute:
 	default:
 		return fmt.Errorf("%s.actor %q is not supported", loc, actor)
 	}

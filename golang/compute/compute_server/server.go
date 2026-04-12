@@ -16,6 +16,8 @@ import (
 	"github.com/globulario/services/golang/compute/compute_runnerpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/workflow/engine"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -232,7 +234,19 @@ func initializeServerDefaults() *server {
 func setupGrpcService(srv *server) {
 	computepb.RegisterComputeServiceServer(srv.grpcServer, srv)
 	compute_runnerpb.RegisterComputeRunnerServiceServer(srv.grpcServer, srv)
+
+	// Wire compute as a workflow actor so the workflow engine can dispatch
+	// action callbacks (compute.load_job, compute.run_unit, etc.).
+	actorRouter := buildComputeActorRouter(srv)
+	workflowpb.RegisterWorkflowActorServiceServer(srv.grpcServer, NewComputeActorServer(actorRouter))
+
 	reflection.Register(srv.grpcServer)
+}
+
+func buildComputeActorRouter(srv *server) *engine.Router {
+	router := engine.NewRouter()
+	RegisterComputeActions(router, srv)
+	return router
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────
