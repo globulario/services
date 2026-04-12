@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -20,6 +21,38 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// progressReport is the contract for compute entrypoints to report progress.
+// Entrypoints write a JSON file at $COMPUTE_STAGING_PATH/progress.json.
+// All fields are optional — the runner reads whatever is present.
+type progressReport struct {
+	Progress   float64 `json:"progress"`              // 0.0 to 1.0
+	Message    string  `json:"message,omitempty"`      // human-readable status
+	Phase      string  `json:"phase,omitempty"`        // current phase name
+	ItemsDone  int64   `json:"items_done,omitempty"`   // items completed
+	ItemsTotal int64   `json:"items_total,omitempty"`  // total items
+}
+
+// readProgress reads the progress.json file from the staging directory.
+// Returns nil if the file doesn't exist or can't be parsed (progress is optional).
+func readProgress(stagingPath string) *progressReport {
+	data, err := os.ReadFile(filepath.Join(stagingPath, "progress.json"))
+	if err != nil {
+		return nil
+	}
+	var p progressReport
+	if json.Unmarshal(data, &p) != nil {
+		return nil
+	}
+	// Clamp to [0, 1].
+	if p.Progress < 0 {
+		p.Progress = 0
+	}
+	if p.Progress > 1 {
+		p.Progress = 1
+	}
+	return &p
+}
 
 // ─── Stage ───────────────────────────────────────────────────────────────────
 
@@ -223,8 +256,17 @@ func (srv *server) executeUnit(req *compute_runnerpb.RunComputeUnitRequest, exec
 			return
 
 		case <-ticker.C:
-			// Send heartbeat.
-			_ = putHeartbeat(bgCtx, req.JobId, req.UnitId, 0.0)
+			// Read progress from entrypoint's progress.json (optional).
+			progress := 0.0
+			if p := readProgress(stagingPath); p != nil {
+				progress = p.Progress
+				// Persist progress to the unit in etcd.
+				if unit, err := getUnit(bgCtx, req.JobId, req.UnitId); err == nil && unit != nil {
+					unit.ObservedProgress = progress
+					_ = putUnit(bgCtx, unit)
+				}
+			}
+			_ = putHeartbeat(bgCtx, req.JobId, req.UnitId, progress)
 
 		case <-execCtx.Done():
 			// Cancelled externally.
