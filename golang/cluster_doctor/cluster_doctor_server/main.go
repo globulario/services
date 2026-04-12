@@ -193,6 +193,9 @@ func main() {
 	defer electionCancel()
 	startDoctorLeaderElection(electionCtx, srv)
 
+	// Start the periodic healer loop (leader-only, configurable).
+	srv.startHealerLoop(electionCtx)
+
 	logger.Info("cluster doctor ready",
 		"address", address,
 		"controller", cfg.ControllerEndpoint,

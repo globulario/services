@@ -41,6 +41,7 @@ type HealResult struct {
 	Executed    bool            `json:"executed"`
 	Verified    bool            `json:"verified"` // true if post-action check confirms resolution
 	Error       string          `json:"error,omitempty"`
+	Timestamp   time.Time       `json:"timestamp"`
 }
 
 // HealReport is the structured output of one healer pass.
@@ -82,12 +83,26 @@ type Healer struct {
 	// Remote provides bounded access to node-agent RPCs for remote actions.
 	// Nil means remote actions are skipped (local-only fallback).
 	Remote RemoteOps
+	// MaxActions caps how many auto-heal actions execute in one Evaluate call.
+	// 0 = unlimited. Enforced as a hard stop: once reached, remaining AUTO
+	// findings are classified but not executed.
+	MaxActions int
+	// MaxFailures stops further execution when this many actions have failed
+	// in the current cycle. 0 = unlimited. Default recommendation: 3.
+	MaxFailures int
 }
 
 // Evaluate runs one pass of the healer against a set of findings.
 // Returns a report describing what was done (or what would be done in dry-run).
+//
+// Rate limiting: if MaxActions > 0, execution stops after that many auto-heal
+// actions (remaining findings are classified but not executed). If MaxFailures
+// > 0, execution stops after that many failures (circuit breaker).
 func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 	report := HealReport{Timestamp: time.Now()}
+	actionsExecuted := 0
+	failureCount := 0
+	rateLimited := false
 
 	for _, f := range findings {
 		rule := LookupPolicy(f.InvariantID)
@@ -96,6 +111,7 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 			EntityRef:   f.EntityRef,
 			Disposition: rule.Disposition,
 			Action:      rule.Action,
+			Timestamp:   time.Now(),
 		}
 
 		switch rule.Disposition {
@@ -103,24 +119,39 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 			if rule.AutoAction == "" {
 				// Auto-classified but no programmatic action (e.g. cache_missing = no-op).
 				result.Executed = false
-				result.Verified = true // already resolved by design
+				result.Verified = true
 				report.Observed++
 			} else if h.DryRun {
 				log.Printf("healer: [dry-run] would execute %s for %s (%s)",
 					rule.AutoAction, f.EntityRef, f.InvariantID)
 				result.Executed = false
 				report.AutoFixed++
+			} else if rateLimited {
+				result.Executed = false
+				result.Error = "rate-limited (max actions or max failures reached)"
+				report.Observed++
 			} else {
 				err := h.executeAutoAction(ctx, rule.AutoAction, f)
 				if err != nil {
 					result.Error = err.Error()
 					report.Errors++
+					failureCount++
 					log.Printf("healer: %s FAILED for %s: %v", rule.AutoAction, f.EntityRef, err)
 				} else {
 					result.Executed = true
-					result.Verified = true // post-verification is done inside executeAutoAction
+					result.Verified = true
 					report.AutoFixed++
 					log.Printf("healer: %s DONE for %s", rule.AutoAction, f.EntityRef)
+				}
+				actionsExecuted++
+				// Check rate limits.
+				if h.MaxActions > 0 && actionsExecuted >= h.MaxActions {
+					rateLimited = true
+					log.Printf("healer: rate limit reached (%d actions), skipping remaining", h.MaxActions)
+				}
+				if h.MaxFailures > 0 && failureCount >= h.MaxFailures {
+					rateLimited = true
+					log.Printf("healer: failure threshold reached (%d failures), stopping execution", h.MaxFailures)
 				}
 			}
 		case HealPropose:

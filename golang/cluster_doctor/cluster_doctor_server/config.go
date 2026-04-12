@@ -22,6 +22,23 @@ type clusterdoctorConfig struct {
 	UpstreamNodeTimeoutSeconds int    `json:"upstream_node_timeout_seconds"`
 	UpstreamNodeConcurrency    int    `json:"upstream_node_concurrency"`
 	EmitAuditEvents            bool   `json:"emit_audit_events"`
+
+	// ── Auto-heal (v3) ──────────────────────────────────────────────
+	// HealerEnabled activates the periodic background healer.
+	// When false, the healer only runs on-demand via GetClusterReport
+	// with heal_mode != OBSERVE.
+	HealerEnabled bool `json:"healer_enabled"`
+	// HealerMode controls what the background healer does.
+	// "observe" = classify only (safest, default)
+	// "dry_run" = classify + log intended actions
+	// "enforce" = execute auto-heal actions (requires explicit opt-in)
+	HealerMode string `json:"healer_mode"`
+	// HealerIntervalSeconds is how often the background healer runs.
+	// Default: 60 (1 minute). Minimum: 30.
+	HealerIntervalSeconds int `json:"healer_interval_seconds"`
+	// HealerMaxActionsPerCycle caps how many auto-heal actions the healer
+	// executes in a single cycle. 0 = unlimited. Default: 10.
+	HealerMaxActionsPerCycle int `json:"healer_max_actions_per_cycle"`
 }
 
 func defaultConfig() *clusterdoctorConfig {
@@ -43,7 +60,22 @@ func defaultConfig() *clusterdoctorConfig {
 		UpstreamNodeTimeoutSeconds: 5,
 		UpstreamNodeConcurrency:    20,
 		EmitAuditEvents:            true,
+		// Auto-heal defaults: disabled, dry_run mode, 60s interval, 10 max actions.
+		// Enforce mode requires explicit opt-in via config file.
+		HealerEnabled:            false,
+		HealerMode:               "dry_run",
+		HealerIntervalSeconds:    60,
+		HealerMaxActionsPerCycle: 10,
 	}
+}
+
+// healerInterval returns the healer interval as a Duration, clamped to >= 30s.
+func (c *clusterdoctorConfig) healerInterval() time.Duration {
+	s := c.HealerIntervalSeconds
+	if s < 30 {
+		s = 30
+	}
+	return time.Duration(s) * time.Second
 }
 
 func loadConfig(path string) (*clusterdoctorConfig, error) {

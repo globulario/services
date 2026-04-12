@@ -65,6 +65,9 @@ type ClusterDoctorServer struct {
 
 	// ccClient for convergence checks in the healer.
 	ccClient cluster_controllerpb.ClusterControllerServiceClient
+
+	// auditRing stores recent periodic heal reports for inspection.
+	auditRing *healerAuditRing
 }
 
 // buildClientTLSCreds loads the cluster CA and returns gRPC transport
