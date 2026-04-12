@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/compute/computepb"
+	"github.com/globulario/services/golang/compute/compute_runnerpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -196,52 +196,6 @@ func (srv *server) StopService() error {
 	return globular.StopService(srv, srv.grpcServer)
 }
 
-// ─── ComputeService RPC stubs ────────────────────────────────────────────────
-
-func (srv *server) RegisterComputeDefinition(ctx context.Context, req *computepb.RegisterComputeDefinitionRequest) (*computepb.RegisterComputeDefinitionResponse, error) {
-	return nil, fmt.Errorf("RegisterComputeDefinition not implemented")
-}
-
-func (srv *server) GetComputeDefinition(ctx context.Context, req *computepb.GetComputeDefinitionRequest) (*computepb.GetComputeDefinitionResponse, error) {
-	return nil, fmt.Errorf("GetComputeDefinition not implemented")
-}
-
-func (srv *server) ListComputeDefinitions(ctx context.Context, req *computepb.ListComputeDefinitionsRequest) (*computepb.ListComputeDefinitionsResponse, error) {
-	return nil, fmt.Errorf("ListComputeDefinitions not implemented")
-}
-
-func (srv *server) ValidateComputeDefinition(ctx context.Context, req *computepb.ValidateComputeDefinitionRequest) (*computepb.ValidateComputeDefinitionResponse, error) {
-	return nil, fmt.Errorf("ValidateComputeDefinition not implemented")
-}
-
-func (srv *server) SubmitComputeJob(ctx context.Context, req *computepb.SubmitComputeJobRequest) (*computepb.SubmitComputeJobResponse, error) {
-	return nil, fmt.Errorf("SubmitComputeJob not implemented")
-}
-
-func (srv *server) GetComputeJob(ctx context.Context, req *computepb.GetComputeJobRequest) (*computepb.GetComputeJobResponse, error) {
-	return nil, fmt.Errorf("GetComputeJob not implemented")
-}
-
-func (srv *server) ListComputeJobs(ctx context.Context, req *computepb.ListComputeJobsRequest) (*computepb.ListComputeJobsResponse, error) {
-	return nil, fmt.Errorf("ListComputeJobs not implemented")
-}
-
-func (srv *server) CancelComputeJob(ctx context.Context, req *computepb.CancelComputeJobRequest) (*computepb.CancelComputeJobResponse, error) {
-	return nil, fmt.Errorf("CancelComputeJob not implemented")
-}
-
-func (srv *server) GetComputeResult(ctx context.Context, req *computepb.GetComputeResultRequest) (*computepb.GetComputeResultResponse, error) {
-	return nil, fmt.Errorf("GetComputeResult not implemented")
-}
-
-func (srv *server) ListComputeUnits(ctx context.Context, req *computepb.ListComputeUnitsRequest) (*computepb.ListComputeUnitsResponse, error) {
-	return nil, fmt.Errorf("ListComputeUnits not implemented")
-}
-
-func (srv *server) GetComputeUnit(ctx context.Context, req *computepb.GetComputeUnitRequest) (*computepb.GetComputeUnitResponse, error) {
-	return nil, fmt.Errorf("GetComputeUnit not implemented")
-}
-
 // ─── Initialization ──────────────────────────────────────────────────────────
 
 func initializeServerDefaults() *server {
@@ -277,6 +231,7 @@ func initializeServerDefaults() *server {
 
 func setupGrpcService(srv *server) {
 	computepb.RegisterComputeServiceServer(srv.grpcServer, srv)
+	compute_runnerpb.RegisterComputeRunnerServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
 }
 

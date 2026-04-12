@@ -1,0 +1,263 @@
+// state.go provides etcd-backed state operations for compute objects.
+//
+// etcd key schema:
+//   /globular/compute/definitions/{name}/{version}
+//   /globular/compute/jobs/{job_id}
+//   /globular/compute/jobs/{job_id}/units/{unit_id}
+//   /globular/compute/jobs/{job_id}/result
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/globulario/services/golang/compute/computepb"
+	"github.com/globulario/services/golang/config"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/encoding/protojson"
+)
+
+const etcdTimeout = 5 * time.Second
+
+// ─── Definitions ─────────────────────────────────────────────────────────────
+
+func definitionKey(name, version string) string {
+	return fmt.Sprintf("/globular/compute/definitions/%s/%s", name, version)
+}
+
+func putDefinition(ctx context.Context, def *computepb.ComputeDefinition) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	data, err := protojson.Marshal(def)
+	if err != nil {
+		return fmt.Errorf("marshal definition: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	_, err = cli.Put(tctx, definitionKey(def.Name, def.Version), string(data))
+	return err
+}
+
+func getDefinition(ctx context.Context, name, version string) (*computepb.ComputeDefinition, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, definitionKey(name, version))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	def := &computepb.ComputeDefinition{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, def); err != nil {
+		return nil, fmt.Errorf("unmarshal definition: %w", err)
+	}
+	return def, nil
+}
+
+func listDefinitions(ctx context.Context, prefix string) ([]*computepb.ComputeDefinition, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	keyPrefix := "/globular/compute/definitions/"
+	if prefix != "" {
+		keyPrefix += prefix
+	}
+	resp, err := cli.Get(tctx, keyPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+	defs := make([]*computepb.ComputeDefinition, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		def := &computepb.ComputeDefinition{}
+		if err := protojson.Unmarshal(kv.Value, def); err != nil {
+			continue
+		}
+		defs = append(defs, def)
+	}
+	return defs, nil
+}
+
+// ─── Jobs ────────────────────────────────────────────────────────────────────
+
+func jobKey(jobID string) string {
+	return fmt.Sprintf("/globular/compute/jobs/%s", jobID)
+}
+
+func putJob(ctx context.Context, job *computepb.ComputeJob) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	data, err := protojson.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal job: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	_, err = cli.Put(tctx, jobKey(job.JobId), string(data))
+	return err
+}
+
+func getJob(ctx context.Context, jobID string) (*computepb.ComputeJob, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, jobKey(jobID))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	job := &computepb.ComputeJob{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, job); err != nil {
+		return nil, fmt.Errorf("unmarshal job: %w", err)
+	}
+	return job, nil
+}
+
+func listJobs(ctx context.Context) ([]*computepb.ComputeJob, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, "/globular/compute/jobs/", clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]*computepb.ComputeJob, 0)
+	for _, kv := range resp.Kvs {
+		job := &computepb.ComputeJob{}
+		if err := protojson.Unmarshal(kv.Value, job); err != nil {
+			continue
+		}
+		// Only include job records (not sub-keys like units/result)
+		if job.JobId != "" {
+			jobs = append(jobs, job)
+		}
+	}
+	return jobs, nil
+}
+
+// ─── Units ───────────────────────────────────────────────────────────────────
+
+func unitKey(jobID, unitID string) string {
+	return fmt.Sprintf("/globular/compute/jobs/%s/units/%s", jobID, unitID)
+}
+
+func putUnit(ctx context.Context, unit *computepb.ComputeUnit) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	data, err := protojson.Marshal(unit)
+	if err != nil {
+		return fmt.Errorf("marshal unit: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	_, err = cli.Put(tctx, unitKey(unit.JobId, unit.UnitId), string(data))
+	return err
+}
+
+func getUnit(ctx context.Context, jobID, unitID string) (*computepb.ComputeUnit, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, unitKey(jobID, unitID))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	unit := &computepb.ComputeUnit{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, unit); err != nil {
+		return nil, fmt.Errorf("unmarshal unit: %w", err)
+	}
+	return unit, nil
+}
+
+func listUnits(ctx context.Context, jobID string) ([]*computepb.ComputeUnit, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	prefix := fmt.Sprintf("/globular/compute/jobs/%s/units/", jobID)
+	resp, err := cli.Get(tctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+	units := make([]*computepb.ComputeUnit, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		unit := &computepb.ComputeUnit{}
+		if err := protojson.Unmarshal(kv.Value, unit); err != nil {
+			continue
+		}
+		units = append(units, unit)
+	}
+	return units, nil
+}
+
+// ─── Results ─────────────────────────────────────────────────────────────────
+
+func resultKey(jobID string) string {
+	return fmt.Sprintf("/globular/compute/jobs/%s/result", jobID)
+}
+
+func putResult(ctx context.Context, result *computepb.ComputeResult) error {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return fmt.Errorf("etcd client: %w", err)
+	}
+	data, err := protojson.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal result: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	_, err = cli.Put(tctx, resultKey(result.JobId), string(data))
+	return err
+}
+
+func getResult(ctx context.Context, jobID string) (*computepb.ComputeResult, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("etcd client: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, etcdTimeout)
+	defer cancel()
+	resp, err := cli.Get(tctx, resultKey(jobID))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	result := &computepb.ComputeResult{}
+	if err := protojson.Unmarshal(resp.Kvs[0].Value, result); err != nil {
+		return nil, fmt.Errorf("unmarshal result: %w", err)
+	}
+	return result, nil
+}
