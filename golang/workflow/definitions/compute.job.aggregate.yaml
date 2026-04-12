@@ -1,0 +1,48 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: compute.job.aggregate
+  displayName: Aggregate compute job results
+  description: >-
+    Checks unit outcomes, creates the result record, and transitions
+    the job to its terminal state. V1 single-unit path (no merge needed).
+spec:
+  inputSchema:
+    type: object
+    required:
+      - job_id
+    properties:
+      job_id: { type: string }
+  steps:
+    - id: assess_units
+      title: Assess unit outcomes
+      actor: compute
+      action: compute.assess_unit_outcomes
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: create_result
+      title: Create job result record
+      dependsOn: [assess_units]
+      actor: compute
+      action: compute.create_result
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: finalize_job
+      title: Finalize job to terminal state
+      dependsOn: [create_result]
+      actor: compute
+      action: compute.finalize_job
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+  onFailure:
+    actor: compute
+    action: compute.mark_job_failed

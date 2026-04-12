@@ -1,0 +1,91 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: compute.job.submit
+  displayName: Submit compute job
+  description: >-
+    Validates a compute job, admits it, creates a single execution unit,
+    and dispatches the unit execution workflow. V1 single-unit path only.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - job_id
+    properties:
+      job_id: { type: string }
+  steps:
+    - id: load_job
+      title: Load job from state
+      actor: compute
+      action: compute.load_job
+      with:
+        job_id: $.job_id
+
+    - id: validate_definition
+      title: Validate compute definition exists
+      dependsOn: [load_job]
+      actor: compute
+      action: compute.validate_job_definition
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: admit_job
+      title: Admit job for execution
+      dependsOn: [validate_definition]
+      actor: compute
+      action: compute.admit_job
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: create_unit
+      title: Create single execution unit
+      dependsOn: [admit_job]
+      actor: compute
+      action: compute.create_single_unit
+      with:
+        job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+    - id: dispatch_execute
+      title: Dispatch unit execution workflow
+      dependsOn: [create_unit]
+      actor: workflow-service
+      action: workflow.start_child
+      with:
+        workflow_name: compute.unit.execute
+        inputs:
+          job_id: $.job_id
+          unit_id: $.unit_id
+      execution:
+        idempotency: safe_retry
+
+    - id: wait_execution
+      title: Wait for unit execution to complete
+      dependsOn: [dispatch_execute]
+      actor: workflow-service
+      action: workflow.wait_child_terminal
+      with:
+        child_run_id: $.child_run.run_id
+      execution:
+        idempotency: safe_retry
+
+    - id: dispatch_aggregate
+      title: Dispatch job aggregation workflow
+      dependsOn: [wait_execution]
+      actor: workflow-service
+      action: workflow.start_child
+      with:
+        workflow_name: compute.job.aggregate
+        inputs:
+          job_id: $.job_id
+      execution:
+        idempotency: safe_retry
+
+  onFailure:
+    actor: compute
+    action: compute.mark_job_failed

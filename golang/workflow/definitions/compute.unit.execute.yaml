@@ -1,0 +1,80 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: compute.unit.execute
+  displayName: Execute compute unit
+  description: >-
+    Assigns a compute unit to a node, stages inputs/artifact, executes
+    the entrypoint, and waits for terminal state. V1 single-unit path.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - job_id
+      - unit_id
+    properties:
+      job_id: { type: string }
+      unit_id: { type: string }
+  steps:
+    - id: choose_node
+      title: Choose target node for execution
+      actor: compute
+      action: compute.choose_node
+      with:
+        job_id: $.job_id
+        unit_id: $.unit_id
+      execution:
+        idempotency: safe_retry
+
+    - id: mark_assigned
+      title: Mark unit assigned to node
+      dependsOn: [choose_node]
+      actor: compute
+      action: compute.mark_unit_assigned
+      with:
+        job_id: $.job_id
+        unit_id: $.unit_id
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+
+    - id: stage_unit
+      title: Stage artifact and inputs on target node
+      dependsOn: [mark_assigned]
+      actor: compute
+      action: compute.stage_unit
+      with:
+        job_id: $.job_id
+        unit_id: $.unit_id
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+
+    - id: run_unit
+      title: Execute entrypoint on target node
+      dependsOn: [stage_unit]
+      actor: compute
+      action: compute.run_unit
+      with:
+        job_id: $.job_id
+        unit_id: $.unit_id
+        node_id: $.node_id
+        staging_path: $.staging_path
+      execution:
+        idempotency: safe_retry
+
+    - id: await_terminal
+      title: Wait for unit to reach terminal state
+      dependsOn: [run_unit]
+      actor: compute
+      action: compute.await_unit_terminal
+      with:
+        job_id: $.job_id
+        unit_id: $.unit_id
+        timeout_seconds: 3600
+      execution:
+        idempotency: safe_retry
+
+  onFailure:
+    actor: compute
+    action: compute.mark_unit_failed
