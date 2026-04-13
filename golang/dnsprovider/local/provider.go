@@ -10,8 +10,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dnsprovider"
+	"github.com/globulario/services/golang/security"
 )
 
 func init() {
@@ -41,9 +43,26 @@ func NewLocalProvider(cfg dnsprovider.Config) (dnsprovider.Provider, error) {
 
 func (p *LocalProvider) Name() string { return "local" }
 
-// dial creates a short-lived DNS client connection.
+// dial creates a short-lived DNS client connection with cluster authentication.
 func (p *LocalProvider) dial() (*dns_client.Dns_Client, error) {
-	return dns_client.NewDnsService_Client(p.address, "dns.DnsService")
+	client, err := dns_client.NewDnsService_Client(p.address, "dns.DnsService")
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the cluster domain so the interceptor accepts the request.
+	// We use the local service token for authentication.
+	if domain, err := config.GetDomain(); err == nil && domain != "" {
+		client.SetDomain(domain)
+	}
+
+	if mac, err := config.GetMacAddress(); err == nil && mac != "" {
+		if token, err := security.GetLocalToken(mac); err == nil && token != "" {
+			client.SetTokenCtx(token)
+		}
+	}
+
+	return client, nil
 }
 
 // ensureManagedDomain adds the zone to the DNS service's managed domain list

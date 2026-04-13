@@ -25,12 +25,19 @@ All gRPC communication uses TLS. Certificate management is integrated into the p
 
 **Certificate storage**:
 ```
-/etc/globular/creds/
-├── server.crt          # Server certificate (PEM)
-├── server.key          # Server private key (PEM)
-├── client.crt          # Client certificate for mTLS (PEM)
-├── client.key          # Client private key for mTLS (PEM)
-└── ca.crt              # Cluster CA certificate (PEM)
+/var/lib/globular/pki/
+├── ca.crt                              # Cluster CA certificate
+├── ca.key                              # CA signing key (bootstrap node)
+├── ca.pem                              # CA in PEM format
+├── issued/services/
+│   ├── service.crt                     # Node service certificate (server + client)
+│   └── service.key                     # Node service private key
+├── xds/current/
+│   ├── tls.crt                         # xDS server certificate
+│   └── tls.key                         # xDS server key
+└── envoy-xds-client/current/
+    ├── tls.crt                         # Envoy xDS client certificate
+    └── tls.key                         # Envoy xDS client key
 ```
 
 **CA certificate distribution**: Each node fetches the cluster CA from the Gateway via HTTP/HTTPS:

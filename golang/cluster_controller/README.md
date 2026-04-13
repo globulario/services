@@ -80,30 +80,29 @@ A Globular cluster consists of three main components working together:
 
 Before setting up a cluster, ensure each node has:
 
-- Linux operating system (Ubuntu 20.04+ or similar)
+- Linux operating system (Ubuntu 22.04+ or similar)
 - Network connectivity between all nodes
 - Ports open: 11000 (agent), 12000 (controller), 2379-2380 (etcd), 9000 (MinIO)
 - Globular binary installed at `/usr/local/bin/globular`
 - systemd for service management
 
-### Required Environment Variables
+### Configuration
 
-```bash
-# Optional: Override default ports
-export NODE_AGENT_PORT=11000
-export CLUSTER_PORT=12000
-
-# Optional: TLS configuration
-export NODE_AGENT_TLS_CERT=/path/to/cert.pem
-export NODE_AGENT_TLS_KEY=/path/to/key.pem
-export NODE_AGENT_TLS_CA=/path/to/ca.pem
-```
+All configuration comes from etcd (the single source of truth). No environment variables are used for service configuration. Ports, addresses, and TLS settings are stored in etcd and read by services at startup. See the [ports reference](../../docs/operators/ports-reference.md) for the complete port listing.
 
 ---
 
 ## Day 0: Cluster Bootstrap
 
 Day 0 is the initial cluster creation. This involves bootstrapping the first node which becomes the initial control plane.
+
+### What’s new / behavior updates (April 2026)
+
+- **Heartbeat is always stamped** – controller now updates `globular_controller_loop_heartbeat_unix` on start and on failure, so Prometheus can detect stalled loops reliably.
+- **No-op fallback for missing actors** – if a reconcile action is unknown (e.g. `advance_infra_joins`), the controller records the error once and skips retry storms.
+- **Command packages don’t block reconcile** – runtime validation is skipped for command-only packages (restic, rclone, ffmpeg, sctool, mc) to avoid false-negative runtime checks.
+- **TLS/domain defaults** – if `cluster_domain` is missing in config, it is derived from global config; invalid JSON configs now fail fast with clear errors.
+- **Metrics** – controller metrics are exported on its HTTP port (default 40377) and should be scraped by Prometheus under job `cluster_controller`.
 
 ### Step 1: Start the Node Agent
 

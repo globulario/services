@@ -140,7 +140,7 @@ globularcli dns list --domain yourdomain.com
 
 ### Related Documentation
 
-- [Cluster Controller README](../clustercontroller/README.md) - DNS config rendering details
+- [Cluster Controller README](../cluster_controller/README.md) - DNS config rendering details
 - [Node Agent README](../nodeagent/README.md) - DNS synchronization details
    - Point nameservers to your DNS nodes
 
@@ -763,7 +763,7 @@ sudo systemctl stop systemd-resolved
 
 When deployed in a Globular cluster:
 
-- [Cluster Controller](../clustercontroller/README.md) - Renders DNS init config (`/var/lib/globular/dns/dns_init.json`)
+- [Cluster Controller](../cluster_controller/README.md) - Renders DNS init config (`/var/lib/globular/dns/dns_init.json`)
 - [Node Agent](../nodeagent/README.md) - Applies DNS init config and syncs node records
 
 ---

@@ -43,6 +43,7 @@ Step-by-step procedures for common operations. Each task is executable from star
 
 Day-0 through Day-2 operational guides.
 
+- [Day-0 / Day-1 / Day-2 Operations](operators/day-0-1-2-operations.md) — Complete lifecycle from first boot to ongoing maintenance
 - [Installation (Day-0)](operators/installation.md) — Bootstrap the first node
 - [Adding Nodes (Day-1)](operators/adding-nodes.md) — Join tokens, approval, profile assignment
 - [Deploying Applications](operators/deploying-applications.md) — Desired-state model, monitoring, repair
@@ -51,6 +52,9 @@ Day-0 through Day-2 operational guides.
 - [Debugging Failures](operators/debugging-failures.md) — Workflow diagnostics, service logs, common patterns
 - [Observability](operators/observability.md) — Prometheus metrics, log aggregation, workflow history, MCP tools
 - [Backup and Restore](operators/backup-and-restore.md) — Providers, scheduling, retention, disaster recovery
+- [Building from Source](operators/building-from-source.md) — Clone, build, and install from Git repositories
+- [Ports Reference](operators/ports-reference.md) — All ports, firewall rules, network requirements
+- [Known Issues](operators/known-issues.md) — CLI gaps, infrastructure limitations, planned fixes
 
 ---
 
@@ -63,6 +67,8 @@ High availability, failure handling, networking, and certificate management.
 - [Cluster Doctor](operators/cluster-doctor.md) — Invariant checking, auto-heal, remediation workflows
 - [Network and Routing](operators/network-and-routing.md) — Envoy gateway, xDS, DNS, service discovery, gRPC-Web
 - [Certificate Lifecycle](operators/certificate-lifecycle.md) — Provisioning, rotation, monitoring, troubleshooting
+- [DNS and PKI](operators/dns-and-pki.md) — Internal/external certificates, Let's Encrypt wildcards, DNS zones, split-horizon
+- [Keepalived and Ingress](operators/keepalived-and-ingress.md) — VIP failover, DMZ configuration, external network access
 - [Computing](operators/computing.md) — Distributed batch jobs, parallelized workloads, GPU scheduling
 
 ---
@@ -85,6 +91,7 @@ How AI operates within Globular — rules, services, agent model, and integratio
 
 Build services and applications for the Globular platform.
 
+- [Local-First Development](developers/local-first.md) — Run services without a cluster, progressive deployment from laptop to production
 - [Writing a Microservice](developers/writing-a-microservice.md) — Proto contract, code generation, server implementation, shared primitives
 - [Service Packaging](developers/service-packaging.md) — Package format, spec files, build process
 - [Publishing to Repository](developers/publishing-to-repository.md) — Publish workflow, provenance, CI/CD integration

@@ -1,30 +1,173 @@
 # Globular Services
-Globular services are gRPC services with predefined attributes that make them manageable, each services can be use without Globular. ATTOW Golang, C++, Typescript, and C# contain code for writting Globular services. 
 
-For packaging instructions, see `docs/packaging-workflow.md`.
+Microservices platform for self-hosted distributed applications. Built on gRPC with Protocol Buffers, running as native Linux binaries under systemd. etcd as the single source of truth. Workflow-driven convergence across a 4-layer state model (Repository → Desired → Installed → Runtime).
 
-Currently, there are 28 available microservices that can be used by your applications. Here is a list of some of the most useful ones:
+## Architecture
 
-* File Service: This service can be used for file operations such as creating, renaming, moving, and deleting files or directories.
+```
+Proto definitions (proto/)
+    ↓ generateCode.sh
+Go services (golang/) + TypeScript clients (typescript/)
+    ↓ build-all-packages.sh
+Package archives (.tgz)
+    ↓ globular-installer
+Running cluster (systemd + etcd + Envoy)
+```
 
-* Event Service: This service acts as an event hub, allowing different parts of your application to communicate with each other. You can create event channels and propagate events on the network to synchronize clients or multiple servers. It follows the pub-sub principle and can be used to create an event-driven architecture. Globular itself makes use of this service for inter-service communications.
+## Repository Structure
 
-* Persistence: This service provides an interface to MONGO (with support for other stores in the future). It gives your web application access to a persistence store. The API is simple, offering CRUD operations and covering almost all the functionality offered by MONGO. It is secure and easy to use.
+```
+services/
+├── proto/                     # 38 Protocol Buffer definitions (source of truth)
+├── golang/                    # All Go microservices (33 services + CLI + MCP)
+│   ├── cluster_controller/    # Cluster management, desired state, workflows
+│   ├── node_agent/            # Node-local executor, package management
+│   ├── workflow/              # Centralized workflow execution engine
+│   ├── repository/            # Package artifact registry (MinIO-backed)
+│   ├── authentication/        # JWT token management
+│   ├── rbac/                  # Role-based access control
+│   ├── dns/                   # Authoritative DNS + zone management
+│   ├── monitoring/            # Prometheus adapter
+│   ├── backup_manager/        # Distributed backup orchestration
+│   ├── cluster_doctor/        # Health analysis + auto-heal
+│   ├── ai_memory/             # Persistent AI knowledge (ScyllaDB)
+│   ├── ai_executor/           # AI diagnosis + remediation
+│   ├── ai_watcher/            # Event-driven incident detection
+│   ├── ai_router/             # Dynamic routing policies
+│   ├── compute/               # Distributed batch job execution
+│   ├── domain/                # External domain + ACME cert management
+│   ├── globularcli/           # CLI tool
+│   ├── mcp/                   # Model Context Protocol server (129+ tools)
+│   ├── globular_service/      # Shared service primitives
+│   ├── globular_client/       # Shared client primitives
+│   ├── interceptors/          # gRPC auth, RBAC, audit middleware
+│   ├── config/                # etcd-backed configuration
+│   ├── security/              # TLS, PKI, JWT, Ed25519 keystore
+│   └── ...                    # 15+ additional services
+├── typescript/                # TypeScript gRPC-Web client library
+├── generated/                 # Generated specs, packages, policies
+├── generateCode.sh            # Proto → Go/TypeScript code generation
+└── build-all-packages.sh      # Full package build pipeline
+```
 
-* SQL: This service helps you connect your web application to a SQL server. Connection information is hidden on the server side. By using stored procedures on the SQL server, no SQL queries are visible on the client side, making it more difficult for malicious attacks. The API is simple and provides all you need to interact with a SQL server from your web application.
+## Quick Start
 
-* LDAP: This service is used to connect with an LDAP server. By doing so, you can make use of users already defined in LDAP in your application and keep them synchronized. It can also be connected to the authentication server to authenticate users.
+### Build from Source
 
-* Mail: This microservice implements the SMTP and IMAP protocols. You can configure your own SMTP server and IMAP server or set up connection info for existing ones like Gmail. By doing so, you will be able to send and access your email from your applications.
+```bash
+# Requires: Go 1.24+, protoc, protoc-gen-go
 
-* Log: A simple logging service used to report errors with severity levels.
+# Generate code and build all services
+bash generateCode.sh
 
-* Monitoring: This service gives you access to a time series database (currently Prometheus). This allows you to access time series data and display it in your applications.
+# Build all packages (infrastructure + services)
+bash build-all-packages.sh
+```
 
-* RBAC: This service can be used to validate resource access, such as files, conversations, title info, etc. Its role is to protect your information.
+### Run Tests
 
-* Storage: This is essentially a key-value store that can be used as a cache or persistent cache. Currently, BigCache and Badger are used to implement this service.
+```bash
+cd golang
+go test ./... -race
+```
 
-* Other services such as Authentication, Configuration, Resource, and Repository are also available...
+### Build a Specific Service
 
-Note: Some services may be further developed or enhanced in the future.
+```bash
+cd golang
+go build ./echo/echo_server
+```
+
+## Services
+
+### Control Plane
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Cluster Controller | 12000 | Cluster management, desired state, membership, workflow dispatch |
+| Node Agent | 11000 | Local executor, package tracking, service control |
+| Workflow Service | 10004 | Centralized workflow execution and tracking |
+| Cluster Doctor | 12005 | Health analysis, drift detection, auto-heal |
+
+### Infrastructure
+
+| Service | Port | Description |
+|---------|------|-------------|
+| etcd | 2379/2380 | Distributed configuration and state store |
+| MinIO | 9000 | Object storage (packages, backups, artifacts) |
+| Envoy Gateway | 443/8443 | TLS termination, xDS routing, gRPC-Web |
+| Prometheus | 9090 | Metrics collection |
+| Alertmanager | 9093 | Alert routing |
+| ScyllaDB | 9042 | High-throughput data (AI memory, DNS storage) |
+
+### Core Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Authentication | 10101 | JWT tokens, password management |
+| RBAC | 10104 | Permission enforcement |
+| Event | 10102 | Publish-subscribe event bus |
+| File | 10103 | File management |
+| DNS | 10006 | Authoritative DNS, zone management |
+| Discovery | 10029 | Service discovery, install plans |
+| Repository | — | Package artifact registry |
+| Resource | — | Package descriptors, accounts, groups |
+| Log | 10100 | Centralized logging |
+
+### AI Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| AI Memory | 10200 | Persistent knowledge store (ScyllaDB) |
+| AI Watcher | 10210 | Event monitoring, incident detection |
+| AI Router | 10220 | Dynamic routing policy computation |
+| AI Executor | 10230 | Incident diagnosis and remediation |
+
+### Operational
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Monitoring | 10019 | Prometheus API adapter |
+| Backup Manager | 10040 | Backup orchestration |
+| MCP Server | 10260 | AI agent interface (129+ diagnostic tools) |
+| Domain Reconciler | — | External domain + ACME cert management (runs in controller) |
+
+### Application Services
+
+| Service | Description |
+|---------|-------------|
+| Persistence | MongoDB access layer |
+| Storage | Key-value store (BadgerDB) |
+| Search | Full-text search (Bleve) |
+| Media | Audio/video management |
+| Title | Metadata service |
+| Mail | SMTP email |
+| LDAP | LDAP authentication provider |
+| SQL | SQL database access |
+| Blog | CMS engine |
+| Conversation | Chat management |
+| Catalog | Component catalog |
+| Torrent | Torrent downloads |
+
+## Documentation
+
+Full documentation is in [`docs/`](docs/index.md):
+
+- [Getting Started](docs/getting-started.md) — From zero to running cluster
+- [Architecture](docs/operators/architecture-overview.md) — How components interact
+- [Day-0/1/2 Operations](docs/operators/day-0-1-2-operations.md) — Complete lifecycle
+- [Building from Source](docs/operators/building-from-source.md) — Build process
+- [AI Layer](docs/ai/ai-overview.md) — AI services, rules, and agent model
+- [Developer Guide](docs/developers/local-first.md) — Local-first development
+
+## Key Design Principles
+
+- **etcd is the single source of truth** — no environment variables, no hardcoded addresses
+- **Workflow-driven convergence** — all state changes go through the workflow engine
+- **4-layer state model** — Repository → Desired → Installed → Runtime (never collapsed)
+- **Native binaries under systemd** — no containers required
+- **Local-first** — services run standalone with `go run`, no cluster needed for development
+
+## License
+
+See [LICENSE](LICENSE) for details.

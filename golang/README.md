@@ -112,8 +112,8 @@ Core services that provide the foundation for all other services.
 | [Event](event/README.md) | Pub/sub event bus for inter-service communication | [Details](event/README.md) |
 | [Log](log/README.md) | Centralized logging and audit trail | [Details](log/README.md) |
 | [DNS](dns/README.md) | DNS record management (A, AAAA, CNAME, MX, etc.) | [Details](dns/README.md) |
-| [Cluster Controller](clustercontroller/README.md) | Cluster orchestration and node management | [Details](clustercontroller/README.md) |
-| [Node Agent](nodeagent/README.md) | Local node orchestration and plan execution | [Details](nodeagent/README.md) |
+| [Cluster Controller](cluster_controller/README.md) | Cluster orchestration and node management | [Details](cluster_controller/README.md) |
+| [Node Agent](node_agent/README.md) | Local node orchestration and plan execution | [Details](node_agent/README.md) |
 
 ### Data Layer Services
 
@@ -207,7 +207,7 @@ Services for access control and governance.
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - Protocol Buffers compiler (protoc)
 - gRPC tools
 
@@ -276,21 +276,15 @@ globular cluster join \
 globular cluster requests approve <id> --profile=core
 ```
 
-See the [Cluster Controller documentation](clustercontroller/README.md) for detailed setup instructions.
+See the [Cluster Controller documentation](cluster_controller/README.md) for detailed setup instructions.
 
 ---
 
 ## Configuration
 
-### Environment Variables
+### Configuration Source
 
-Common environment variables used across services:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GLOBULAR_DATA_PATH` | Data storage directory | `/var/lib/globular` |
-| `GLOBULAR_CONFIG_PATH` | Configuration directory | `/etc/globular` |
-| `GLOBULAR_LOG_LEVEL` | Log verbosity | `INFO` |
+All service configuration comes from **etcd** (the single source of truth). Environment variables are not used for service configuration. Services fall back to local seed files during bootstrap or development. See the [Local-First Development](../docs/developers/local-first.md) guide for details.
 
 ### Service Ports
 

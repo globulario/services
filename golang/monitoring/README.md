@@ -10,6 +10,13 @@ The Monitoring Service provides time-series data management through Prometheus i
 
 This service acts as a bridge to Prometheus, enabling Globular applications to query metrics, manage alerts, and access monitoring data through a gRPC interface.
 
+## Recent changes (April 2026)
+- Cluster-wide metrics now include controller heartbeat, workflow error-state handling, node-agent metrics, and MinIO public metrics; ensure scrape targets are up to date.
+- MinIO scraping expects `MINIO_PROMETHEUS_AUTH_TYPE=public` (or basic auth if configured); default scrape path `/minio/v2/metrics/cluster`.
+- Node-agent scrape targets should point to the current agent port per node; remove stale ports after agent restarts.
+- Alertmanager endpoints must use concrete external URLs (no templated `{{.NodeIP}}`) to stay healthy in Prom.
+- The monitoring service itself remains a thin Prom adapter; core additions are operational conventions above.
+
 ## Features
 
 - **Prometheus Integration** - Full Prometheus API access

@@ -1,6 +1,8 @@
-# Certificate Lifecycle
+# Certificate Lifecycle (Internal PKI)
 
-This page covers how TLS certificates are managed in a Globular cluster: initial provisioning, distribution, rotation, monitoring, and troubleshooting.
+This page covers how **internal** TLS certificates are managed in a Globular cluster: the cluster CA, service certificates for mTLS, Ed25519 keystores, provisioning, rotation, and troubleshooting.
+
+For **external** certificates (Let's Encrypt, public domains, ACME), see [DNS and PKI](dns-and-pki.md).
 
 ## Why Certificate Management Matters
 
@@ -18,33 +20,39 @@ If certificates expire, become invalid, or are not properly distributed, service
 
 ```
 Cluster CA (self-signed root)
+    ├── CA cert: /var/lib/globular/pki/ca.crt
+    ├── CA key:  /var/lib/globular/pki/ca.key
     │
-    ├── Node 1 Server Certificate
-    │   ├── Subject: node-1.mycluster.local
-    │   ├── SANs: node-1.mycluster.local, 192.168.1.10, localhost
-    │   └── Key: /etc/globular/creds/server.key
+    ├── Node Service Certificate (one per node, used for both server and client mTLS)
+    │   ├── Subject: CN=<hostname>, O=globular.internal
+    │   ├── SANs: localhost, *.localhost, <hostname>, *.globular.internal,
+    │   │         globular.internal, <node-ip>
+    │   ├── Cert: /var/lib/globular/pki/issued/services/service.crt
+    │   └── Key:  /var/lib/globular/pki/issued/services/service.key
     │
-    ├── Node 1 Client Certificate (for mTLS)
-    │   ├── Subject: node-1.mycluster.local
-    │   ├── Organization: mycluster.local (cluster ID)
-    │   └── Key: /etc/globular/creds/client.key
+    ├── xDS Server Certificate
+    │   ├── Cert: /var/lib/globular/pki/xds/current/tls.crt
+    │   └── Key:  /var/lib/globular/pki/xds/current/tls.key
     │
-    ├── Node 2 Server Certificate
-    │   └── (same structure)
-    │
-    └── Node 3 Server Certificate
-        └── (same structure)
+    └── Envoy xDS Client Certificate
+        ├── Cert: /var/lib/globular/pki/envoy-xds-client/current/tls.crt
+        └── Key:  /var/lib/globular/pki/envoy-xds-client/current/tls.key
 ```
 
 ### File Locations
 
 | File | Path | Permissions | Purpose |
 |------|------|-------------|---------|
-| Server certificate | `/etc/globular/creds/server.crt` | 0644 | Presented to gRPC clients |
-| Server private key | `/etc/globular/creds/server.key` | 0600 | Signs TLS handshake |
-| Client certificate | `/etc/globular/creds/client.crt` | 0644 | Presented for mTLS authentication |
-| Client private key | `/etc/globular/creds/client.key` | 0600 | Signs mTLS handshake |
-| CA certificate | `/etc/globular/creds/ca.crt` | 0644 | Trust anchor for all certificates |
+| Service certificate | `/var/lib/globular/pki/issued/services/service.crt` | 0644 | Server and client identity for mTLS |
+| Service private key | `/var/lib/globular/pki/issued/services/service.key` | 0600 | Signs TLS handshake |
+| CA certificate | `/var/lib/globular/pki/ca.crt` | 0644 | Trust anchor for all internal certificates |
+| CA private key | `/var/lib/globular/pki/ca.key` | 0600 | Signs node certificates (bootstrap node only) |
+| xDS server cert | `/var/lib/globular/pki/xds/current/tls.crt` | 0644 | xDS control plane identity |
+| xDS server key | `/var/lib/globular/pki/xds/current/tls.key` | 0600 | xDS TLS handshake |
+| Envoy xDS client cert | `/var/lib/globular/pki/envoy-xds-client/current/tls.crt` | 0644 | Envoy authenticates to xDS |
+| Envoy xDS client key | `/var/lib/globular/pki/envoy-xds-client/current/tls.key` | 0600 | Envoy xDS TLS handshake |
+| Ed25519 signing keys | `/var/lib/globular/keys/<id>_private` | 0600 | JWT token signing |
+| Ed25519 public keys | `/var/lib/globular/keys/<id>_public` | 0644 | JWT token verification |
 
 ## Initial Provisioning
 
@@ -56,7 +64,7 @@ When the first node bootstraps, certificates are generated as part of the initia
 2. **CA distribution**: The CA certificate is stored in etcd and made available via the Gateway's HTTP endpoint
 3. **Server certificate**: A server certificate is generated for the bootstrap node, signed by the CA
 4. **Client certificate**: A client certificate is generated for mTLS authentication
-5. **Certificate storage**: All certificates are written to `/etc/globular/creds/`
+5. **Certificate storage**: All certificates are written to `/var/lib/globular/pki/`
 
 ### During Node Join
 
@@ -226,7 +234,7 @@ sudo systemctl restart globular-node-agent
 sudo systemctl restart globular-node-agent
 
 # Or manually fetch and install:
-curl -k https://<gateway>/get_ca_certificate > /etc/globular/creds/ca.crt
+curl -k https://<gateway>/get_ca_certificate > /var/lib/globular/pki/ca.crt
 # Then restart services to pick up the new CA
 ```
 
@@ -237,14 +245,14 @@ curl -k https://<gateway>/get_ca_certificate > /etc/globular/creds/ca.crt
 **Diagnosis**:
 ```bash
 # Check that SANs include the correct hostname/IP
-openssl x509 -in /etc/globular/creds/server.crt -text -noout | grep -A5 "Subject Alternative Name"
+openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -text -noout | grep -A5 "Subject Alternative Name"
 
 # Check that the certificate chain is complete
-openssl verify -CAfile /etc/globular/creds/ca.crt /etc/globular/creds/server.crt
+openssl verify -CAfile /var/lib/globular/pki/ca.crt /var/lib/globular/pki/issued/services/service.crt
 
 # Check that the key matches the certificate
-openssl x509 -noout -modulus -in /etc/globular/creds/server.crt | openssl md5
-openssl rsa -noout -modulus -in /etc/globular/creds/server.key | openssl md5
+openssl x509 -noout -modulus -in /var/lib/globular/pki/issued/services/service.crt | openssl md5
+openssl rsa -noout -modulus -in /var/lib/globular/pki/issued/services/service.key | openssl md5
 # (These should match)
 ```
 
@@ -257,11 +265,11 @@ openssl rsa -noout -modulus -in /etc/globular/creds/server.key | openssl md5
 **Fix**:
 ```bash
 # Check the lock file age
-ls -la /etc/globular/creds/.cert.lock
+ls -la /var/lib/globular/pki/.cert.lock
 
 # If it's older than 10 minutes, it's stale and will be auto-detected
 # If you need to force it:
-rm /etc/globular/creds/.cert.lock
+rm /var/lib/globular/pki/.cert.lock
 ```
 
 ## Practical Scenarios
@@ -321,5 +329,6 @@ globular node certificate-status --node <node>:11000
 
 ## What's Next
 
+- [DNS and PKI](dns-and-pki.md): External certificates (Let's Encrypt), DNS zones, ACME provisioning, split-horizon DNS
 - [Writing a Microservice](../developers/writing-a-microservice.md): Build services that use Globular's TLS infrastructure
 - [RBAC Integration](../developers/rbac-integration.md): Add authorization to your services

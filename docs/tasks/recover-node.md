@@ -244,6 +244,6 @@ sudo journalctl -u globular-node-agent --no-pager -n 100
 
 # Common causes:
 # - Port 11000 already in use: ss -tlnp | grep 11000
-# - Certificate expired: check /etc/globular/creds/
+# - Certificate expired: check /var/lib/globular/pki/
 # - etcd unreachable: check network to etcd peers
 ```

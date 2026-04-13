@@ -10,6 +10,12 @@ Replaces fragile log parsing, CLI scraping, and REST endpoint guessing with stru
 
 Phase 1 is **read-only only**. No mutations, no state changes, no destructive operations.
 
+## Recent updates (April 2026)
+- Transport defaults to HTTPS on port 10250 with service certificates (`/var/lib/globular/pki/issued/services/service.crt/key`). Ensure your config has `http_use_tls: true` and advertise host 0.0.0.0.
+- Health endpoint: `https://<node>:10250/health` returns `{status:"ok", tools:<count>}` for readiness checks.
+- Tool count expanded to ~129; command/runtime checks relaxed for command-only packages to reduce false failures in diagnostics.
+- Prometheus: if you scrape MCP, use the TLS endpoint; disable plain HTTP unless explicitly required.
+
 ## Security Model
 
 - **Read-only by default** (`read_only: true`)

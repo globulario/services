@@ -700,7 +700,7 @@ globular domain status --fqdn api.example.com
    - Example: `api.example.com` requires zone `example.com`
 
 3. **Provider API errors**
-   - Check logs: `journalctl -u globular-reconciler -f`
+   - Check logs: `journalctl -u globular-cluster-controller -f`
    - Verify API quotas not exceeded
 
 **Fix:**
@@ -749,7 +749,7 @@ globular domain add \
   --acme-directory staging
 
 # Check reconciler logs
-journalctl -u globular-reconciler -f
+journalctl -u globular-cluster-controller -f
 ```
 
 ### Issue: "Provider not found"
@@ -789,8 +789,8 @@ account.key     # ACME account key
 **Possible Causes:**
 1. **Reconciler not running**
    ```bash
-   systemctl status globular-reconciler
-   systemctl start globular-reconciler
+   systemctl status globular-cluster-controller
+   systemctl start globular-cluster-controller
    ```
 
 2. **Permission issues**
@@ -818,7 +818,7 @@ ETCDCTL_API=3 etcdctl get /globular/domains/v1/api.example.com/status
 
 **Check reconciler logs:**
 ```bash
-journalctl -u globular-reconciler -f --since "10 minutes ago"
+journalctl -u globular-cluster-controller -f --since "10 minutes ago"
 ```
 
 **Verify DNS resolution:**
@@ -861,7 +861,7 @@ globular domain add --fqdn api.example.net --provider godaddy-net ...
 
 ### Wildcard Certificates
 
-**Note:** Wildcard certificates not yet supported in domain reconciler. Use node PKI manager for wildcard certs.
+**Note:** Wildcard certificates are supported. Use `--use-wildcard-cert` flag when adding a domain. The reconciler requests `[zone, *.zone]` SANs via DNS-01 challenge.
 
 **Planned Support:**
 ```bash
@@ -876,6 +876,5 @@ globular domain add \
 
 ## See Also
 
-- [DNS Provider Credential Guide](/home/dave/Documents/tmp/CREDENTIAL_HANDLING_GUIDE.md)
-- [Domain Reconciler Implementation](/home/dave/Documents/tmp/pr3-implementation-summary.md)
-- [XDS Integration](/home/dave/Documents/tmp/pr3c-implementation-summary.md)
+- [DNS and PKI Documentation](../../docs/operators/dns-and-pki.md) — External certificates, Let's Encrypt, DNS zones
+- [Certificate Lifecycle](../../docs/operators/certificate-lifecycle.md) — Internal PKI management

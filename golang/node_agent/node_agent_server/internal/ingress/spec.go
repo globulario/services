@@ -30,9 +30,15 @@ type VIPFailoverSpec struct {
 	// Examples: "10.0.0.250" or "10.0.0.250/24"
 	VIP string `json:"vip"`
 
-	// Interface is the network interface to bind the VIP
+	// Interface is the default network interface to bind the VIP
 	// Example: "eth0"
+	// Can be overridden per-node via InterfaceOverride
 	Interface string `json:"interface"`
+
+	// InterfaceOverride is a map of node ID to interface name
+	// Use this when nodes have different interface names (e.g., wlp5s0 vs eno1)
+	// If a node is in this map, its value is used instead of Interface
+	InterfaceOverride map[string]string `json:"interface_override,omitempty"`
 
 	// VirtualRouterID is the VRRP router ID (1-255)
 	VirtualRouterID int `json:"virtual_router_id"`

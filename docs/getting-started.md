@@ -1,6 +1,6 @@
 # Getting Started with Globular
 
-This guide takes you from a bare Linux machine to a running Globular cluster with a deployed service in under 15 minutes.
+This guide takes you from a bare Linux machine to a running Globular cluster.
 
 ## What You Will Achieve
 
@@ -17,70 +17,61 @@ By the end of this guide, you will have:
 - Root or sudo access
 - Network connectivity (the node needs a routable IP address)
 
-## Step 1 — Install Globular
+## Installation
 
-Download and install the Globular binaries and packages:
+There are two ways to install Globular: from a release tarball (recommended) or from source.
+
+### Option A: From Release (Recommended)
+
+Download the latest release from GitHub:
 
 ```bash
-# Download the installer (replace URL with your distribution source)
-wget https://releases.globular.io/latest/globular-installer-linux-amd64.tar.gz
-tar xzf globular-installer-linux-amd64.tar.gz
-cd globular-installer
+# Download latest release
+curl -LO https://github.com/globulario/globular-installer/releases/latest/download/globular-linux-amd64.tar.gz
 
-# Run the installer
-sudo ./install.sh
+# Extract
+tar xzf globular-linux-amd64.tar.gz
+cd globular
+
+# Install (installs all services, certificates, and infrastructure)
+sudo bash install.sh
 ```
 
-The installer places binaries in `/usr/local/bin/` and packages in `/var/lib/globular/packages/`. Verify the installation:
+> **Note**: If no GitHub release is available yet, see [Building from Source](operators/building-from-source.md) for how to build and install from the Git repositories.
+
+### Option B: From Source
+
+Requires Go 1.24+, protoc, and the four Globular repositories:
 
 ```bash
-globular --version
-# Output: globular version 0.0.1
+# Clone
+mkdir -p ~/globulario && cd ~/globulario
+git clone https://github.com/globulario/services.git
+git clone https://github.com/globulario/Globular.git
+git clone https://github.com/globulario/packages.git
+git clone https://github.com/globulario/globular-installer.git
 
-node_agent_server --version
-# Output: node_agent 0.0.1
+# Build everything
+cd services
+bash generateCode.sh
+bash build-all-packages.sh
+
+# Build installer
+cd ../globular-installer
+make sync-specs && make build
+
+# Install
+sudo bash scripts/install-day0.sh
 ```
 
-## Step 2 — Start the Node Agent
+See [Building from Source](operators/building-from-source.md) for the full build guide with prerequisites.
 
-The Node Agent is the local executor that manages services on this machine:
+## Step 1 — Verify Installation
 
-```bash
-sudo systemctl start globular-node-agent
-sudo systemctl status globular-node-agent
-# Active: active (running)
-```
-
-The agent is now listening on port 11000, waiting for bootstrap instructions.
-
-## Step 3 — Bootstrap the Cluster
-
-Initialize a single-node cluster:
+After installation, all services are running under systemd:
 
 ```bash
-globular cluster bootstrap \
-  --node localhost:11000 \
-  --domain mycluster.local \
-  --profile core \
-  --profile gateway
-```
-
-This command:
-1. Creates an etcd cluster on this node
-2. Generates TLS certificates and Ed25519 signing keys
-3. Starts the Cluster Controller
-4. Installs core services (authentication, RBAC, event, discovery, repository)
-5. Installs the Envoy gateway
-6. Registers everything in etcd for discovery
-7. Seeds the desired state
-
-Bootstrap takes 2-5 minutes. Watch the output for progress.
-
-## Step 4 — Verify the Cluster
-
-Check that everything is running:
-
-```bash
+# Check that the cluster is healthy
 globular cluster health
 ```
 
@@ -90,7 +81,7 @@ CLUSTER STATUS: HEALTHY
 NODES: 1/1 healthy
 
 NODE         STATUS   LAST SEEN    SERVICES
-node-abc123  healthy  2s ago       12/12 running
+node-abc123  healthy  2s ago       20+ running
 ```
 
 Check the desired state:
@@ -111,34 +102,34 @@ repository         0.0.1      1/1     INSTALLED
 ...
 ```
 
-All services should show `INSTALLED`. If any show `APPLYING`, wait a minute and check again — the convergence model is still working.
+All services should show `INSTALLED`. If any show `APPLYING`, wait a minute — the convergence model is still working.
 
-## Step 5 — Set the Admin Password
+## Step 2 — Set the Admin Password
 
 ```bash
 globular auth set-password --username admin --password YourStr0ngP@ssword!
 ```
 
-Authenticate with the admin account:
+Authenticate:
 
 ```bash
 globular auth login --username admin --password YourStr0ngP@ssword!
-# Output: Token saved
+# Token saved
 ```
 
-## Step 6 — Deploy Your First Service
+## Step 3 — Deploy Your First Service
 
-Let's deploy the echo service — a simple test service that echoes back whatever you send it.
+Deploy the echo service — a simple test service that echoes back whatever you send:
 
 ```bash
-# Check if the echo package is in the repository
+# Check it's in the repository
 globular pkg info echo
 # Shows: echo 0.0.1 PUBLISHED
 
 # Set the desired state
 globular services desired set echo 0.0.1
 
-# Watch the deployment
+# Watch deployment
 globular services desired list
 # echo  0.0.1  0/1  APPLYING...
 
@@ -147,92 +138,73 @@ globular services desired list
 # echo  0.0.1  1/1  INSTALLED
 ```
 
-The platform:
-1. Detected the desired-state change
-2. Created a workflow for this node
-3. Fetched the echo package from the repository
-4. Verified the checksum
-5. Installed the binary
-6. Started the systemd unit
-7. Confirmed the health check passed
-
-## Step 7 — Verify the Deployment
-
-Check that the echo service is running:
+## Step 4 — Verify the Deployment
 
 ```bash
-# Cluster health shows the new service
+# Cluster shows the new service
 globular cluster health
 
-# Check for any drift
-globular services repair --dry-run
-# All services should show INSTALLED
-```
-
-## Step 8 — Check Workflow History
-
-See the workflow that just deployed the echo service:
-
-```bash
+# Check workflow history
 globular workflow list --service echo
+# Shows: SUCCEEDED with trigger DESIRED_DRIFT
+
+# No drift
+globular services repair --dry-run
+# All INSTALLED
 ```
 
-Output:
-```
-RUN ID          SERVICE  NODE         STATUS     TRIGGER        STARTED
-wf-run-abc123   echo     node-abc123  SUCCEEDED  DESIRED_DRIFT  2m ago
-```
+## Step 5 — Access the Gateway
 
-View the details:
+The Envoy gateway is serving on ports 443 and 8443:
+
 ```bash
-globular workflow get wf-run-abc123
-```
+# HTTPS
+curl -sk https://localhost:443
+# Returns: HTML page (200 OK)
 
-This shows every step: resolve_artifact → fetch_package → verify_checksum → install_binary → configure_service → start_unit → verify_health — all SUCCEEDED.
+# Certificate is self-signed (internal CA) — this is expected
+# For public access with Let's Encrypt, see DNS and PKI docs
+```
 
 ## What Just Happened
 
-Here's what the architecture looks like after bootstrap:
+Here's the architecture running on your machine:
 
 ```
-Your Machine (node-abc123)
-│
-├── Node Agent (port 11000)
-│   └── Manages all services via systemd
-│
-├── Cluster Controller (port 12000)
-│   └── Tracks desired state, dispatches workflows
-│
-├── etcd (port 2379)
-│   └── Stores all cluster configuration and state
-│
-├── Repository + MinIO (port 9000)
-│   └── Stores service packages
-│
-├── Gateway / Envoy (ports 443, 8443)
-│   └── External traffic entry point
-│
-├── Authentication (port 10101)
-│   └── JWT token management
-│
-├── RBAC (port 10104)
-│   └── Permission enforcement
-│
-└── Echo Service (deployed by you)
-    └── Running and healthy
+Your Machine
+├── etcd (2379)              — Cluster state, configuration
+├── Cluster Controller (12000) — Desired state management
+├── Node Agent (11000)       — Local service executor
+├── Workflow Service (13000) — Orchestration engine
+├── Envoy Gateway (443/8443) — External traffic entry
+├── xDS Server (8081)        — Gateway configuration
+├── Authentication (10101)   — JWT tokens
+├── RBAC (10104)             — Permission enforcement
+├── Repository + MinIO (9000) — Package storage
+├── DNS (10006/53)           — Service resolution
+├── Monitoring + Prometheus   — Metrics collection
+├── AI Memory (10200)        — Persistent AI knowledge
+└── Echo Service             — Your deployed service
 ```
 
-Every service registered itself in etcd. Every gRPC call goes through the interceptor chain (authentication → RBAC → audit). The convergence model continuously ensures reality matches desired state.
+Every service:
+- Runs as a systemd unit
+- Communicates via gRPC with mTLS
+- Registers in etcd for discovery
+- Is protected by the RBAC interceptor chain
+- Is managed by the convergence model
 
-## Next Steps
+## What's Next
 
-Now that you have a running cluster:
-
-1. **Add more nodes** — [Adding Nodes](operators/adding-nodes.md) covers creating join tokens and expanding the cluster
-2. **Deploy your own service** — [Writing a Microservice](developers/writing-a-microservice.md) walks through creating a gRPC service from scratch
-3. **Understand the architecture** — [Architecture Overview](operators/architecture-overview.md) explains how all components interact
-4. **Set up monitoring** — [Observability](operators/observability.md) covers Prometheus, logging, and the Cluster Doctor
-5. **Configure backups** — [Backup and Restore](operators/backup-and-restore.md) covers disaster recovery
-6. **Learn the convergence model** — [Convergence Model](operators/convergence-model.md) explains how Globular drives desired state to reality
-
-For quick operational tasks, see the [Tasks](tasks/deploy-application.md) section.
+| Goal | Guide |
+|------|-------|
+| **Add nodes for HA** | [Adding Nodes](operators/adding-nodes.md) |
+| **External access with Let's Encrypt** | [DNS and PKI](operators/dns-and-pki.md) |
+| **VIP failover with keepalived** | [Keepalived and Ingress](operators/keepalived-and-ingress.md) |
+| **Set up backups** | [Backup and Restore](operators/backup-and-restore.md) |
+| **Full Day-0/1/2 lifecycle** | [Day-0/1/2 Operations](operators/day-0-1-2-operations.md) |
+| **Build your own service** | [Writing a Microservice](developers/writing-a-microservice.md) |
+| **Develop without a cluster** | [Local-First Development](developers/local-first.md) |
+| **Understand the architecture** | [Architecture Overview](operators/architecture-overview.md) |
+| **Monitor the cluster** | [Observability](operators/observability.md) |
+| **All ports and firewall rules** | [Ports Reference](operators/ports-reference.md) |

@@ -47,6 +47,14 @@ Unlike many Kubernetes-inspired tools, Globular CLI uses direct gRPC communicati
 
 ---
 
+## Recent updates (April 2026)
+- Control-plane health: controller now stamps heartbeat metrics; workflow stops retry storms on missing actions; use `cluster health` and Prometheus `up` to verify.
+- MCP endpoints default to HTTPS on 10250 with service certs; prefer `--ca` and secure URLs.
+- Node-agent metrics move when the agent restarts; refresh Prom targets after plan/agent restarts.
+- MinIO metrics require `MINIO_PROMETHEUS_AUTH_TYPE=public` (or basic auth); default scrape path `/minio/v2/metrics/cluster`.
+- Alertmanager must be configured with concrete external URLs (no templated host placeholders) for healthy scrapes.
+- Command-only packages (restic, rclone, ffmpeg, sctool, mc) no longer block reconciles due to runtime checks.
+
 ## Installation
 
 ### Build from source
@@ -98,7 +106,7 @@ These flags apply to all commands:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--controller` | `localhost:10000` | Cluster controller gRPC endpoint |
+| `--controller` | `localhost:12000` | Cluster controller gRPC endpoint |
 | `--node` | `localhost:11000` | Node agent gRPC endpoint |
 | `--dns` | `localhost:10033` | DNS service gRPC endpoint |
 | `--token` | (empty) | Authorization token for authenticated operations |
@@ -111,7 +119,7 @@ These flags apply to all commands:
 
 ```bash
 # Connect to remote controller
-globular --controller cluster.example.com:10000 cluster nodes list
+globular --controller cluster.example.com:12000 cluster nodes list
 
 # Use TLS with custom CA
 globular --ca /etc/globular/ca.pem cluster health
@@ -147,7 +155,7 @@ globular cluster bootstrap \
 **Flags**:
 - `--node`: Node agent endpoint (required, e.g., `localhost:11000`)
 - `--domain`: Cluster domain name (required, e.g., `mycluster.local`)
-- `--bind`: Address for controller to bind to (default: `0.0.0.0:10000`)
+- `--bind`: Address for controller to bind to (default: `0.0.0.0:12000`)
 - `--profile`: Initial service profiles for the first node (can be specified multiple times)
 
 **Example**:
@@ -189,12 +197,12 @@ globular cluster join \
 **Example**:
 ```bash
 # Interactive join (generates request ID)
-globular --controller cluster-controller:10000 \
+globular --controller cluster-controller:12000 \
   --node new-node:11000 \
   cluster join
 
 # Automated join with token
-globular --controller cluster-controller:10000 \
+globular --controller cluster-controller:12000 \
   --node new-node:11000 \
   cluster join --join-token abc123...
 ```
@@ -1973,7 +1981,7 @@ globular backup restore --backup-id abc123 --force
 globular cluster bootstrap \
   --node localhost:11000 \
   --domain mycluster.local \
-  --bind 0.0.0.0:10000 \
+  --bind 0.0.0.0:12000 \
   --profile gateway \
   --profile dns
 
@@ -1998,10 +2006,10 @@ globular cluster network set \
 # On administrator machine:
 
 # Step 1: Create join token (optional, for automation)
-TOKEN=$(globular --controller cluster-controller:10000 cluster token create)
+TOKEN=$(globular --controller cluster-controller:12000 cluster token create)
 
 # Step 2: On new node, request to join
-globular --controller cluster-controller:10000 \
+globular --controller cluster-controller:12000 \
   --node new-node:11000 \
   cluster join --join-token $TOKEN
 
@@ -2080,7 +2088,7 @@ globular pkg build \
 # Step 3: Publish (single command — upload + verify + register + promote to PUBLISHED)
 globular pkg publish \
   --file ./dist/application.my-app_1.0.0_linux_amd64.tgz \
-  --repository localhost:10000
+  --repository localhost:12000
 
 # Step 4: Deploy to cluster
 globular app deploy my-app \
@@ -2294,7 +2302,7 @@ sudo journalctl -u globular-nodeagent -f
 
 **Example**:
 ```bash
-export GLOBULAR_CONTROLLER=cluster.example.com:10000
+export GLOBULAR_CONTROLLER=cluster.example.com:12000
 export GLOBULAR_TOKEN=$(cat ~/.globular-token)
 
 globular cluster nodes list  # Uses exported values

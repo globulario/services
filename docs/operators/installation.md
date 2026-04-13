@@ -122,7 +122,7 @@ The Node Agent generates Ed25519 key pairs for the node:
 TLS certificates are generated for the node:
 1. Generate a CA key pair (this node is the initial CA)
 2. Create server and client certificates signed by the CA
-3. Store certificates in `/etc/globular/creds/`
+3. Store certificates in `/var/lib/globular/pki/`
 4. Write CA certificate to etcd for distribution to future nodes
 
 **Phase 5: Core Service Installation**
@@ -268,10 +268,10 @@ ss -tlnp | grep <port>
 **Fix**:
 ```bash
 # Check certificate files exist
-ls -la /etc/globular/creds/
+ls -la /var/lib/globular/pki/
 
 # Check certificate validity
-openssl x509 -in /etc/globular/creds/server.crt -text -noout
+openssl x509 -in /var/lib/globular/pki/issued/services/service.crt -text -noout
 ```
 
 ## Post-Bootstrap Configuration
@@ -303,7 +303,7 @@ The Envoy gateway handles external traffic on ports 443 and 8443. Ensure these p
 # The gateway automatically requests and renews certificates
 
 # If using custom certificates:
-# Place them in /etc/globular/creds/ and restart the gateway
+# Place them in /var/lib/globular/pki/ and restart the gateway
 ```
 
 ## Single-Node vs Multi-Node

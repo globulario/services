@@ -168,7 +168,7 @@ fmt.Printf("Size: %d bytes\n", manifest.Size)
 ## Integration
 
 Used by:
-- [Cluster Controller](../clustercontroller/README.md) - Upgrade artifacts
+- [Cluster Controller](../cluster_controller/README.md) - Upgrade artifacts
 - [Discovery Service](../discovery/README.md) - Package resolution
 - [Node Agent](../nodeagent/README.md) - Artifact downloads
 

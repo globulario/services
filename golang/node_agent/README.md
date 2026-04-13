@@ -18,6 +18,12 @@ The Node Agent is the local orchestration component that receives plans from the
 - **Cluster Joining** - Handles join request workflow
 - **Bootstrap Capability** - Can initialize the first cluster node
 
+## Recent updates (April 2026)
+- Metrics endpoint: exports Prometheus metrics on the node-agent HTTP port (configured per node; ensure targets use the current port).
+- Scrape targeting: only one active port per node should be scraped; clean up stale targets when the agent restarts on a new port.
+- Runtime checks: command-only packages (restic, rclone, ffmpeg, sctool, mc) are allowed without runtime validation to avoid blocking reconcile.
+- Unknown actions from workflows are recorded once; the agent won’t hammer retries for missing handlers.
+
 ## Architecture
 
 ```
@@ -330,7 +336,7 @@ The agent reports status to the controller periodically:
 
 ## Dependencies
 
-- [Cluster Controller](../clustercontroller/README.md) - Receives plans from
+- [Cluster Controller](../cluster_controller/README.md) - Receives plans from
 - [Repository Service](../repository/README.md) - Downloads artifacts
 
 ---

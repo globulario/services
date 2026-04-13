@@ -95,8 +95,14 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 		return "", errors.New("vip_failover configuration is required when mode is vip_failover")
 	}
 
-	// Validate VIPFailover spec
-	if err := validateVIPFailoverSpec(*spec.VIPFailover); err != nil {
+	// Resolve interface for this node (use override if present, before validation)
+	effectiveSpec := *spec.VIPFailover
+	if iface, ok := effectiveSpec.InterfaceOverride[nodeID]; ok && iface != "" {
+		effectiveSpec.Interface = iface
+	}
+
+	// Validate VIPFailover spec (with effective interface for this node)
+	if err := validateVIPFailoverSpec(effectiveSpec); err != nil {
 		// Write error status
 		if etcdClient != nil {
 			status := &ingress.NodeStatus{
@@ -104,7 +110,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 				Phase:     "Error",
 				VRRPState: "UNKNOWN",
 				HasVIP:    false,
-				VIP:       spec.VIPFailover.VIP,
+				VIP:       effectiveSpec.VIP,
 				LastError: fmt.Sprintf("invalid spec: %v", err),
 			}
 			ingress.WriteStatus(ctx, etcdClient, nodeID, status)
@@ -114,7 +120,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 
 	// Validate this node is in Participants
 	isParticipant := false
-	for _, p := range spec.VIPFailover.Participants {
+	for _, p := range effectiveSpec.Participants {
 		if p == nodeID {
 			isParticipant = true
 			break
@@ -127,7 +133,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 
 	// Get priority for this node (default to 100 if not specified)
 	priority := defaultPriority
-	if p, ok := spec.VIPFailover.Priority[nodeID]; ok {
+	if p, ok := effectiveSpec.Priority[nodeID]; ok {
 		priority = p
 	}
 
@@ -135,7 +141,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 	renderInput := keepalived.RenderInput{
 		NodeID:   nodeID,
 		Priority: priority,
-		Spec:     *spec.VIPFailover,
+		Spec:     effectiveSpec,
 	}
 
 	configContent, err := keepalived.RenderConfig(renderInput)
@@ -145,8 +151,8 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 
 	// Render health script (if TCP ports are configured)
 	var healthScriptContent string
-	if len(spec.VIPFailover.CheckTCPPorts) > 0 {
-		healthScriptContent, err = keepalived.RenderHealthScriptTCP(spec.VIPFailover.CheckTCPPorts)
+	if len(effectiveSpec.CheckTCPPorts) > 0 {
+		healthScriptContent, err = keepalived.RenderHealthScriptTCP(effectiveSpec.CheckTCPPorts)
 		if err != nil {
 			return "", fmt.Errorf("render health script: %w", err)
 		}
@@ -183,7 +189,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 				Phase:     "Error",
 				VRRPState: "UNKNOWN",
 				HasVIP:    false,
-				VIP:       spec.VIPFailover.VIP,
+				VIP:       effectiveSpec.VIP,
 				LastError: fmt.Sprintf("keepalived not installed: %v", err),
 			}
 			ingress.WriteStatus(ctx, etcdClient, nodeID, status)
@@ -220,7 +226,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 	}
 
 	// Detect VRRP state and VIP presence
-	vrrpState, hasVIP := ingress.DetectVRRPState(spec.VIPFailover.Interface, spec.VIPFailover.VIP)
+	vrrpState, hasVIP := ingress.DetectVRRPState(effectiveSpec.Interface, effectiveSpec.VIP)
 
 	// Write status to etcd
 	if etcdClient != nil {
@@ -229,7 +235,7 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 			Phase:     "Ready",
 			VRRPState: vrrpState,
 			HasVIP:    hasVIP,
-			VIP:       spec.VIPFailover.VIP,
+			VIP:       effectiveSpec.VIP,
 		}
 
 		if err := ingress.WriteStatus(ctx, etcdClient, nodeID, status); err != nil {
