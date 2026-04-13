@@ -29,7 +29,7 @@ Every tool invocation is audited. The MCP server enforces read-only access by de
 - A running Globular cluster (single node or multi-node)
 - The MCP server package installed and running (`globular-mcp` systemd unit)
 - [Claude Code](https://claude.ai/code) installed on your development machine
-- Network access from your machine to the MCP server port (10250)
+- Network access from your machine to the MCP server port (10260)
 
 ## Step 1: Verify MCP Server is Running
 
@@ -38,7 +38,7 @@ Every tool invocation is audited. The MCP server enforces read-only access by de
 sudo systemctl status globular-mcp
 
 # Check the health endpoint
-curl -sk https://<node-ip>:10250/health
+curl -sk https://<node-ip>:10260/health
 # Expected: {"status":"ok","tools":122,"read_only":false}
 ```
 
@@ -48,7 +48,7 @@ If the MCP server is not installed, deploy it:
 globular services desired set mcp 0.0.1
 ```
 
-The MCP server runs on port **10250** (HTTPS with the cluster's internal TLS certificate).
+The MCP server runs on port **10260** (HTTPS with the cluster's internal TLS certificate).
 
 ## Step 2: Configure Claude Code
 
@@ -65,7 +65,7 @@ cat > ~/.claude/.mcp.json << 'EOF'
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://<your-node-ip>:10250/mcp"
+      "url": "https://<your-node-ip>:10260/mcp"
     }
   }
 }
@@ -88,7 +88,7 @@ cat > /path/to/your/project/.mcp.json << 'EOF'
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://<your-node-ip>:10250/mcp"
+      "url": "https://<your-node-ip>:10260/mcp"
     }
   }
 }
@@ -135,7 +135,7 @@ If you're on the same machine as the MCP server and want to skip TLS:
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "http://<node-ip>:10250/mcp"
+      "url": "http://<node-ip>:10260/mcp"
     }
   }
 }
@@ -336,7 +336,7 @@ The MCP server runs on the node where it's deployed. For multi-node clusters, yo
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://10.0.0.63:10250/mcp"
+      "url": "https://10.0.0.63:10260/mcp"
     }
   }
 }
@@ -348,7 +348,7 @@ The MCP server runs on the node where it's deployed. For multi-node clusters, yo
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://10.0.0.100:10250/mcp"
+      "url": "https://10.0.0.100:10260/mcp"
     }
   }
 }
@@ -364,12 +364,12 @@ To allow AI access from outside your network (e.g., a developer's laptop not on 
 Connect to your network via VPN, then use the internal IP.
 
 **Option 2: Port forward through gateway**
-Add port 10250 to the router's DMZ or port forwarding. The MCP server uses TLS with the cluster CA, so connections are encrypted. However, this exposes an admin interface to the internet — use with caution.
+Add port 10260 to the router's DMZ or port forwarding. The MCP server uses TLS with the cluster CA, so connections are encrypted. However, this exposes an admin interface to the internet — use with caution.
 
 **Option 3: SSH tunnel** (secure, no router changes)
 ```bash
 # On your dev machine, create an SSH tunnel to the cluster
-ssh -L 10250:localhost:10250 user@<cluster-public-ip>
+ssh -L 10260:localhost:10260 user@<cluster-public-ip>
 
 # Then configure Claude Code to use localhost
 # .mcp.json:
@@ -377,7 +377,7 @@ ssh -L 10250:localhost:10250 user@<cluster-public-ip>
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://localhost:10250/mcp"
+      "url": "https://localhost:10260/mcp"
     }
   }
 }
@@ -389,13 +389,13 @@ ssh -L 10250:localhost:10250 user@<cluster-public-ip>
 
 1. Check `.mcp.json` exists in `~/.claude/` or project root
 2. Restart Claude Code (close and reopen terminal)
-3. Verify MCP health: `curl -sk https://<ip>:10250/health`
+3. Verify MCP health: `curl -sk https://<ip>:10260/health`
 
 ### "Connection refused"
 
 - MCP service not running: `sudo systemctl start globular-mcp`
-- Wrong port: MCP is on 10250, not 10260
-- Firewall blocking: `sudo ufw allow from <your-ip> to any port 10250`
+- Wrong port: MCP default is 10260 (check `http_listen_addr` in config)
+- Firewall blocking: `sudo ufw allow from <your-ip> to any port 10260`
 
 ### "Certificate error" or TLS failure
 
@@ -434,7 +434,7 @@ cat > ~/.claude/.mcp.json << 'EOF'
   "mcpServers": {
     "globular": {
       "type": "http",
-      "url": "https://10.0.0.100:10250/mcp"
+      "url": "https://10.0.0.100:10260/mcp"
     }
   }
 }

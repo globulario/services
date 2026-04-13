@@ -69,7 +69,7 @@ These ports must be open between cluster nodes:
 |------|----------|---------|---------|
 | 10019 | gRPC/TLS | Monitoring | Prometheus API adapter |
 | 10040 | gRPC/TLS | Backup Manager | Backup orchestration |
-| 10260 | HTTP/TLS | MCP Server | AI agent interface (65+ diagnostic tools) |
+| 10260 | HTTP/TLS | MCP Server | AI agent interface (122+ diagnostic tools) |
 
 ### Application Services
 
