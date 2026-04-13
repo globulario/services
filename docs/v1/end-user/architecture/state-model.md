@@ -1,244 +1,45 @@
-# State Model
+# How Globular Tracks State
 
-## Purpose
+Globular keeps four separate views of your system. Each answers a different question.
 
-This document defines how Globular represents the system at any point in time.
+## The four layers
 
-It separates **what exists**, **what should exist**, **what is installed**, and **what is actually running**.
+| Layer | Question | Example |
+|-------|----------|---------|
+| **Available** | What packages exist? | "dns v0.0.2 is in the store" |
+| **Desired** | What should be running? | "dns v0.0.2 should run on all machines" |
+| **Installed** | What was actually installed? | "dns v0.0.2 is installed on machine A" |
+| **Running** | What is happening right now? | "dns is healthy on machine A" |
 
-This separation is essential for making the system **observable, debuggable, and deterministic**.
+## Why four layers?
 
----
+Because they can disagree — and that's useful.
 
-## The Problem
+- **Desired != Installed** means a deployment is pending or failed
+- **Installed != Running** means a service crashed after install
+- **Available but not Desired** means you have a package but chose not to deploy it
 
-In many systems, state is blurred:
+When layers match, your cluster is converged. When they don't, you know exactly where the gap is.
 
-* Desired and actual state are mixed
-* Runtime conditions influence decisions implicitly
-* It is unclear what is “true”
+## Who writes each layer?
 
-This leads to:
+| Layer | Written by |
+|-------|-----------|
+| Available | You, when you publish a package |
+| Desired | You, when you run `globular services desired set` |
+| Installed | The machines, after they install a package |
+| Running | The machines, from live health checks |
 
-* Confusion
-* Hidden behavior
-* Difficult debugging
+## How to check alignment
 
----
+```bash
+globular services list-desired
+```
 
-## The Globular Model
+This shows desired vs installed for every service. If they match, you see `match`. If not, you see what's different.
 
-Globular separates system state into **four distinct layers**.
+## What happens behind the scenes
 
-Each layer has a clear responsibility and must not be confused with the others.
+When Desired and Installed disagree, the system detects "drift". Within 30 seconds, it starts a workflow to close the gap — downloading the right package, installing it, and starting the service.
 
----
-
-## 1. Artifact Layer
-
-**What exists and can be used**
-
-This layer represents all available artifacts:
-
-* Packages
-* Versions
-* Builds
-* Metadata
-
-### Source
-
-Repository
-
-### Role
-
-Defines what *can* be deployed.
-
-### Key Property
-
-Immutable and versioned.
-
----
-
-## 2. Desired State (Desired Release)
-
-**What the system is supposed to run**
-
-This layer defines:
-
-* Which services should exist
-* Which versions should be deployed
-* Which nodes should run them
-
-### Source
-
-Control plane + etcd
-
-### Role
-
-Declares intent.
-
-### Key Property
-
-Does not execute anything by itself.
-
----
-
-## 3. Installed State
-
-**What has been deployed**
-
-This layer represents what is actually installed on nodes:
-
-* Installed packages
-* Configured services
-* Deployment results
-
-### Source
-
-Node agents (reported state)
-
-### Role
-
-Reflects execution results.
-
-### Key Property
-
-Derived from workflows.
-
----
-
-## 4. Runtime Health
-
-**What is currently happening**
-
-This layer represents live system behavior:
-
-* Service health
-* Resource usage
-* Availability
-* Failures
-
-### Source
-
-Observability (metrics, probes, events)
-
-### Role
-
-Describes real-time conditions.
-
-### Key Property
-
-Ephemeral and constantly changing.
-
----
-
-## Layer Relationships
-
-Each layer answers a different question:
-
-| Layer     | Question           |
-| --------- | ------------------ |
-| Artifact  | What exists?       |
-| Desired   | What should run?   |
-| Installed | What was applied?  |
-| Runtime   | What is happening? |
-
-These layers must remain **independent but connected**.
-
----
-
-## State Transitions
-
-State does not change automatically.
-
-Transitions happen only through workflows:
-
-1. Artifact is selected
-2. Desired state is updated
-3. Workflow executes
-4. Installed state changes
-5. Runtime reflects the result
-
-👉 No layer directly mutates another without workflow execution.
-
----
-
-## Important Invariants
-
-### No Layer Collapsing
-
-* Desired ≠ Installed
-* Installed ≠ Runtime
-
-These must never be treated as the same.
-
----
-
-### No Implicit Correction
-
-Runtime health must not directly modify desired or installed state.
-
-👉 Observation does not trigger action without a workflow.
-
----
-
-### No Direct Mutation
-
-Installed state cannot be modified manually.
-
-👉 Only workflows can change it.
-
----
-
-## Failure Scenarios
-
-Failures become clear when layers diverge:
-
-### Desired ≠ Installed
-
-Deployment incomplete or failed.
-
-### Installed ≠ Runtime
-
-Service is installed but not functioning.
-
-### Runtime degraded
-
-System is running but unhealthy.
-
-Each mismatch is **visible and diagnosable**.
-
----
-
-## Why This Matters
-
-This model allows:
-
-* Precise debugging
-* Clear reasoning about system state
-* Safe automation
-* AI understanding of the system
-
-Without this separation:
-
-👉 the system becomes ambiguous.
-
----
-
-## Mental Model
-
-Think of the system as four stacked layers:
-
-* The **inventory** (Artifact)
-* The **plan** (Desired)
-* The **result** (Installed)
-* The **reality** (Runtime)
-
-Workflows move the system **down this stack**, step by step.
-
----
-
-## One Sentence
-
-Globular separates system state into artifact, desired, installed, and runtime layers, ensuring every change is explicit, traceable, and understandable.
-
+You don't need to trigger this manually. But you can always see what happened and why.

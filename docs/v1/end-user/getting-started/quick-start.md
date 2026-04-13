@@ -1,67 +1,64 @@
-# Globular in 60 Seconds
+# Quick Start: Deploy Your First Service
 
-Globular is a system that executes **workflows across nodes** to move infrastructure and applications toward a desired state.
+Deploy a service to your cluster in under 5 minutes.
 
----
+## Step 1: Build a package
 
-## Core Components
+```bash
+# Build the echo service (a simple test service)
+cd services/golang
+go build -o /tmp/echo_server ./echo/echo_server/
 
-### Control Plane
+# Package it
+mkdir -p /tmp/echo-payload/bin
+cp /tmp/echo_server /tmp/echo-payload/bin/
+globular pkg build --spec generated/specs/echo_service.yaml \
+  --root /tmp/echo-payload --version 0.0.1 --build-number 1
+```
 
-Validates intent and triggers workflows.
+## Step 2: Publish it
 
-### Workflow Engine
+```bash
+globular pkg publish --file /tmp/out/echo_0.0.1_linux_amd64.tgz
+```
 
-Executes workflows and tracks progress.
+## Step 3: Tell Globular to run it
 
-### Node Agent
+```bash
+globular services desired set echo 0.0.1 --build-number 1
+```
 
-Runs actions on each node (install, configure, execute).
+## Step 4: Watch it deploy
 
-### Repository
+```bash
+globular services list-desired
+```
 
-Stores artifacts, versions, and deployment data.
+Within 30 seconds, you should see:
 
-### AI Layer
+```
+echo    0.0.1    0.0.1    match
+```
 
-Observes system behavior and assists operations.
+The service is now running on your cluster.
 
----
+## Step 5: Check health
 
-## How It Works
+```bash
+globular cluster health
+```
 
-At a high level:
+## What just happened?
 
-1. A **desired state** is defined
-2. The control plane **validates the request**
-3. A **workflow is executed**
-4. Node agents perform actions
-5. Results are reported
-6. The system reaches a **stable state**
+1. You **built** a package from source code
+2. You **published** it to the cluster's package store
+3. You **declared** that it should run
+4. Globular **installed** it on the right machines and **started** it
 
----
+You didn't SSH anywhere. You didn't write systemd units. You didn't manage certificates.
 
-## The State Model
+## Try more things
 
-Globular separates system state into four layers:
-
-* **Artifact** → what exists (packages, versions)
-* **Desired Release** → what should run
-* **Installed State** → what is deployed
-* **Runtime Health** → what is actually happening
-
----
-
-## Key Properties
-
-* **Explicit execution** → no hidden behavior
-* **Deterministic** → same input produces the same result
-* **Observable** → every step is traceable
-* **Composable** → workflows define behavior
-
----
-
-## One Sentence Summary
-
-Globular executes workflows to move a system from a desired state to a stable, observable reality.
-
+- [Deploy a compute job](../../draft/ffmpeg_transcode_demo.md) (transcode audio with ffmpeg)
+- [See all CLI commands](../cli/commands.md)
+- [Learn how Globular works](../architecture/overview.md)

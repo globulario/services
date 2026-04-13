@@ -1,97 +1,87 @@
 # CLI Commands
 
-The `globular` CLI is the primary operator interface for managing the cluster.
+The `globular` command is how you interact with your cluster.
 
-## Cluster Management
+## Most common commands
 
-### `globular cluster bootstrap`
-Initialize the first node of a new cluster.
+### Check cluster health
 
-### `globular cluster join --token <TOKEN> --controller <ADDR>`
-Add a node to an existing cluster.
+```bash
+globular cluster health
+```
 
-### `globular cluster token create`
-Generate a join token for new nodes.
+Shows: node count, health status, convergence.
 
-### `globular cluster health`
-Display overall cluster health, node count, and convergence status.
+### List services
 
-### `globular cluster nodes list`
-List all cluster nodes with status, profiles, and capabilities.
+```bash
+globular services list-desired
+```
 
-### `globular cluster nodes profiles <node-id> --profile=<name>`
-Assign profiles to a node (e.g., `core`, `compute`, `storage`).
+Shows: every service, its desired version, installed version, and whether they match.
 
-## Service Management
+### Deploy a service
 
-### `globular services desired set <name> <version> [--build-number N]`
-Set the desired state for a service across the cluster.
+```bash
+# 1. Publish the package
+globular pkg publish --file my-service.tgz
 
-### `globular services list-desired`
-Compare desired vs installed services, showing status and hash match.
+# 2. Set the desired version
+globular services desired set my-service 1.0.0
+```
 
-### `globular services apply-desired`
-Install all services from the desired state on the local node.
+What happens: Globular installs the service on all eligible machines within 30 seconds.
 
-### `globular services repair [--dry-run]`
-Diagnose and repair state alignment across all layers.
+### Build a package
 
-### `globular services verify-integrity`
-Check installed packages against repository manifests (read-only).
+```bash
+globular pkg build --spec specs/my-service.yaml --root /tmp/payload --version 1.0.0
+```
 
-### `globular services seed`
-Import locally-installed services into the controller's desired state.
+What happens: Creates a `.tgz` package ready to publish.
 
-## Package Management
+## Cluster management
 
-### `globular pkg build --spec <yaml> --root <dir> [--version V] [--build-number N]`
-Build a package (.tgz) from a spec YAML and payload directory.
+| Command | What it does |
+|---------|-------------|
+| `globular cluster bootstrap` | Initialize first machine |
+| `globular cluster join --token T` | Add a machine to the cluster |
+| `globular cluster token create` | Generate a join token |
+| `globular cluster nodes list` | List all machines |
+| `globular cluster nodes profiles NODE --profile=compute` | Assign a role to a machine |
 
-### `globular pkg publish --file <tgz>`
-Upload a package to the cluster repository.
+## Service management
 
-### `globular pkg info <name>`
-Display package metadata and versions.
+| Command | What it does |
+|---------|-------------|
+| `globular services desired set NAME VERSION` | Set which version should run |
+| `globular services list-desired` | Compare desired vs actual |
+| `globular services apply-desired` | Force install on this machine |
+| `globular services repair` | Fix mismatches automatically |
+| `globular services verify-integrity` | Check package checksums |
 
-## Doctor / Diagnostics
+## Package management
 
-### `globular doctor report`
-Generate a cluster health report with findings and recommendations.
+| Command | What it does |
+|---------|-------------|
+| `globular pkg build --spec YAML --root DIR` | Create a package |
+| `globular pkg publish --file TGZ` | Upload to the cluster store |
+| `globular pkg info NAME` | Show package details |
 
-### `globular doctor heal [--dry-run]`
-Auto-remediate known findings.
+## Diagnostics
 
-### `globular doctor heal history`
-View past auto-healing actions and their outcomes.
+| Command | What it does |
+|---------|-------------|
+| `globular doctor report` | Diagnose cluster issues |
+| `globular doctor heal` | Auto-fix known problems |
+| `globular doctor heal history` | View past auto-fixes |
+| `globular support bundle create` | Collect debug data |
 
-## DNS Management
+## Common flags
 
-### `globular dns list`
-List DNS records managed by the cluster.
-
-## Backup
-
-### `globular backup create`
-Create a backup of cluster state.
-
-### `globular backup list`
-List available backups.
-
-### `globular backup restore <id>`
-Restore from a backup.
-
-## Support
-
-### `globular support bundle create`
-Collect diagnostic data into a support bundle.
-
-## Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--controller <addr>` | Cluster controller endpoint (default: localhost:12000) |
-| `--node <addr>` | Node agent endpoint (default: localhost:11000) |
-| `--ca <path>` | Path to CA bundle |
-| `--insecure` | Skip TLS verification |
-| `--output <format>` | Output format: table, json, yaml |
-| `--timeout <duration>` | Request timeout (default: 5s) |
+| Flag | Meaning |
+|------|---------|
+| `--controller ADDR` | Talk to a specific coordinator |
+| `--output json` | Get machine-readable output |
+| `--timeout 10s` | Set request timeout |
+| `--insecure` | Skip certificate checks (dev only) |

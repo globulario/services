@@ -1,115 +1,67 @@
-# Installation
+# Install Globular
 
-## Prerequisites
+Get Globular running on your first machine.
 
-- Linux (Ubuntu 22.04+ or equivalent)
-- Go 1.24+ (for building from source)
-- Network connectivity between cluster nodes
-- Ports 443 (mesh), 2379-2380 (etcd), 10000-20000 (services), 11000 (node agent), 12000 (controller)
+## What you need
 
-## Single-Node Quick Start
+- A Linux machine (Ubuntu 22.04+ recommended)
+- Internet access (to download packages)
+
+## Install
 
 ```bash
-# 1. Build all services
-cd golang && go build ./...
-
-# 2. Run the bootstrap script
-./install-day0.sh
-
-# 3. Verify cluster health
-globular cluster health
+# Download and run the installer
+curl -sL https://get.globular.io | bash
 ```
 
-## Multi-Node Cluster
-
-### First node (bootstrap)
+Or build from source:
 
 ```bash
-# Initialize the first node
-globular cluster bootstrap
-
-# Verify etcd and controller are running
-globular cluster health
-```
-
-### Additional nodes (join)
-
-```bash
-# On the first node, create a join token
-globular cluster token create
-
-# On the joining node
-globular cluster join --token <TOKEN> --controller <CONTROLLER_ADDR>
-```
-
-### Verify convergence
-
-```bash
-# List all nodes
-globular cluster nodes list
-
-# Check desired vs installed services
-globular services list-desired
-
-# Verify service health
-globular cluster health
-```
-
-## Build from Source
-
-```bash
-# Clone the repository
 git clone https://github.com/globulario/services.git
-cd services
-
-# Build all Go services
-cd golang && go build ./...
-
-# Generate protobuf code (after modifying .proto files)
-./generateCode.sh
-
-# Build all packages
-./build-all-packages.sh
+cd services/golang
+go build ./...
+./install-day0.sh
 ```
 
-## Package a Service
+## Verify it works
 
 ```bash
-# Build a specific service package
-globular pkg build --spec generated/specs/<service>_service.yaml \
-  --root /tmp/payload --version 0.0.1 --build-number 1
-
-# Publish to repository
-globular pkg publish --file /tmp/out/<service>_0.0.1_linux_amd64.tgz
-
-# Set desired state
-globular services desired set <service> 0.0.1 --build-number 1
+globular cluster health
 ```
 
-## Directory Layout
+You should see:
 
-| Path | Purpose |
-|------|---------|
-| `/usr/lib/globular/bin/` | Service binaries |
-| `/var/lib/globular/` | State directory (configs, data, PKI) |
-| `/var/lib/globular/pki/` | TLS certificates |
-| `/var/lib/globular/services/` | Service config files |
-| `/var/lib/globular/workflows/` | Workflow definition YAMLs |
-| `/etc/systemd/system/globular-*.service` | Systemd unit files |
+```
+Cluster: healthy
+Nodes: 1/1 ready
+Services: 48 converged
+```
 
-## Default Ports
+## Add more machines
 
-| Service | Port |
-|---------|------|
-| Repository | 10000 |
-| Authentication | 10010 |
-| RBAC | 10014 |
-| DNS | 10006 |
-| Event | 10002 |
-| Workflow | 10004 |
-| Node Agent | 11000 |
-| Cluster Controller | 12000 |
-| Cluster Doctor | 12100 |
-| AI Memory | 10200 |
-| Compute | 10300 |
-| Gateway (Envoy) | 443 |
+On your first machine, create a join token:
+
+```bash
+globular cluster token create
+```
+
+On each new machine:
+
+```bash
+globular cluster join --token <TOKEN> --controller <FIRST_MACHINE_IP>:443
+```
+
+## What happens after install?
+
+Globular automatically:
+
+- Sets up encrypted communication between machines
+- Starts the core services (storage, networking, monitoring)
+- Creates a shared package repository
+- Begins health monitoring
+
+You don't need to configure any of this manually.
+
+## What's next?
+
+- [Deploy your first service](quick-start.md)
