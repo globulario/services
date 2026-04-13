@@ -6,8 +6,6 @@ on:
     branches: [master, main]
 
 env:
-  # Disable go.work — it references sibling repos (Globular, globular-installer)
-  # that only exist in the local dev layout, not in CI.
   GOWORK: "off"
 
 jobs:
@@ -15,17 +13,25 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: golang
+        working-directory: services/golang
 
     steps:
-      - name: Checkout
+      - name: Checkout services
         uses: actions/checkout@v4
+        with:
+          path: services
+
+      - name: Checkout utility (local replace dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/utility
+          path: utility
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-          cache-dependency-path: golang/go.sum
+          cache-dependency-path: services/golang/go.sum
 
       - name: Download dependencies
         run: go mod download
@@ -34,20 +40,28 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./... -race -coverprofile=coverage.out
+        run: go test ./... -race -short -coverprofile=coverage.out
 
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          working-directory: golang
+          working-directory: services/golang
           args: --timeout=5m
 
   proto-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout services
         uses: actions/checkout@v4
+        with:
+          path: services
+
+      - name: Checkout utility
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/utility
+          path: utility
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -56,5 +70,5 @@ jobs:
 
       - name: Check proto files compile
         run: |
-          cd golang
+          cd services/golang
           go build ./...

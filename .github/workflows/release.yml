@@ -17,30 +17,39 @@ jobs:
     steps:
       - name: Checkout services
         uses: actions/checkout@v4
+        with:
+          path: services
+
+      - name: Checkout utility
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/utility
+          path: utility
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache-dependency-path: golang/go.sum
+          cache-dependency-path: services/golang/go.sum
 
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build all Go services
-        working-directory: golang
+        working-directory: services/golang
         run: go build ./...
 
       - name: Run tests
-        working-directory: golang
+        working-directory: services/golang
         run: go test ./... -race -short
 
       - name: Build CLI
-        working-directory: golang
-        run: go build -o ../dist/globular ./globularcli
+        working-directory: services/golang
+        run: go build -o ../../dist/globular ./globularcli
 
       - name: Build documentation site
+        working-directory: services
         run: |
           pip3 install mkdocs-material
           mkdocs build
@@ -55,11 +64,11 @@ jobs:
           cp dist/globular "${RELEASE_DIR}/"
 
           # Documentation site
-          cp -r site "${RELEASE_DIR}/docs-site"
+          cp -r services/site "${RELEASE_DIR}/docs-site"
 
           # Deploy script
-          cp scripts/deploy-docs.sh "${RELEASE_DIR}/"
-          cp mkdocs.yml "${RELEASE_DIR}/"
+          cp services/scripts/deploy-docs.sh "${RELEASE_DIR}/"
+          cp services/mkdocs.yml "${RELEASE_DIR}/"
 
           # Source reference
           echo "Built from: https://github.com/globulario/services/tree/${GITHUB_REF_NAME}" > "${RELEASE_DIR}/BUILD_INFO.txt"

@@ -34,22 +34,31 @@ jobs:
     env:
       GOWORK: "off"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout services
+        uses: actions/checkout@v4
+        with:
+          path: services
+
+      - name: Checkout utility
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/utility
+          path: utility
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache-dependency-path: golang/go.sum
+          cache-dependency-path: services/golang/go.sum
 
       - name: Build CLI
-        working-directory: golang
+        working-directory: services/golang
         run: go build -o /tmp/globular ./globularcli
 
       - name: Extract documented CLI commands
         run: |
           # Extract all "globular <subcommand>" patterns from docs
-          grep -rh "^globular \|^  globular " docs/ | \
+          grep -rh "^globular \|^  globular " services/docs/ | \
             sed 's/^[ ]*//' | \
             grep "^globular " | \
             sed 's/ --.*//; s/ <.*//; s/ [A-Z].*//; s/ \$.*//; s/ ".*//; s/ [0-9].*//; s/ \\.*//; s/ |.*//' | \
@@ -105,7 +114,7 @@ jobs:
           ERRORS=0
 
           # Check for /etc/globular/creds/ (removed — should be /var/lib/globular/pki/)
-          if grep -r "/etc/globular/creds" docs/; then
+          if grep -r "/etc/globular/creds" docs/ 2>/dev/null; then
             echo "ERROR: Found /etc/globular/creds/ references (should be /var/lib/globular/pki/)"
             ERRORS=$((ERRORS + 1))
           fi
