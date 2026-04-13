@@ -17,130 +17,98 @@ jobs:
     steps:
       - name: Checkout services
         uses: actions/checkout@v4
-        with:
-          path: services
-
-      - name: Checkout Globular
-        uses: actions/checkout@v4
-        with:
-          repository: globulario/Globular
-          path: Globular
-
-      - name: Checkout packages
-        uses: actions/checkout@v4
-        with:
-          repository: globulario/packages
-          path: packages
-
-      - name: Checkout installer
-        uses: actions/checkout@v4
-        with:
-          repository: globulario/globular-installer
-          path: globular-installer
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache-dependency-path: services/golang/go.sum
-
-      - name: Install protoc
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y protobuf-compiler
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          cache-dependency-path: golang/go.sum
 
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate code and build services
-        working-directory: services
-        run: bash generateCode.sh
+      - name: Build all Go services
+        working-directory: golang
+        run: go build ./...
 
-      - name: Build all packages
-        working-directory: services
-        run: bash build-all-packages.sh
+      - name: Run tests
+        working-directory: golang
+        run: go test ./... -race -short
 
-      - name: Build installer
-        working-directory: globular-installer
-        run: |
-          make sync-specs
-          make build
+      - name: Build CLI
+        working-directory: golang
+        run: go build -o ../dist/globular ./globularcli
 
       - name: Build documentation site
-        working-directory: services
         run: |
           pip3 install mkdocs-material
           mkdocs build
 
-      - name: Create release tarball
+      - name: Create release archive
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          RELEASE_DIR="globular-${VERSION}-linux-amd64"
-          mkdir -p "${RELEASE_DIR}/packages"
+          RELEASE_DIR="globular-${VERSION}"
+          mkdir -p "${RELEASE_DIR}"
 
-          # Copy installer
-          cp globular-installer/globular-installer "${RELEASE_DIR}/"
+          # CLI binary
+          cp dist/globular "${RELEASE_DIR}/"
 
-          # Copy install script
-          cp globular-installer/scripts/install-day0.sh "${RELEASE_DIR}/install.sh"
+          # Documentation site
+          cp -r site "${RELEASE_DIR}/docs-site"
 
-          # Copy packages
-          cp services/generated/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
-          cp packages/dist/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
+          # Deploy script
+          cp scripts/deploy-docs.sh "${RELEASE_DIR}/"
+          cp mkdocs.yml "${RELEASE_DIR}/"
 
-          # Copy docs site
-          cp -r services/site "${RELEASE_DIR}/docs-site"
+          # Source reference
+          echo "Built from: https://github.com/globulario/services/tree/${GITHUB_REF_NAME}" > "${RELEASE_DIR}/BUILD_INFO.txt"
+          echo "Version: ${VERSION}" >> "${RELEASE_DIR}/BUILD_INFO.txt"
+          echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${RELEASE_DIR}/BUILD_INFO.txt"
 
-          # Copy deploy-docs script
-          cp services/scripts/deploy-docs.sh "${RELEASE_DIR}/"
-          cp services/mkdocs.yml "${RELEASE_DIR}/"
+          # Note about full installation
+          cat > "${RELEASE_DIR}/README.md" << 'EOF'
+          # Globular v${VERSION}
 
-          # Create checksums
+          This release contains:
+          - `globular` — CLI tool
+          - `docs-site/` — pre-built documentation (deploy with deploy-docs.sh)
+
+          For a full cluster installation (all services + infrastructure),
+          build from source. See: https://globular.io/docs/operators/building-from-source/
+          EOF
+
+          # Checksums
           cd "${RELEASE_DIR}"
-          sha256sum packages/*.tgz globular-installer install.sh > checksums.sha256
+          sha256sum globular > checksums.sha256
           cd ..
 
           # Create tarball
-          tar czf "${RELEASE_DIR}.tar.gz" "${RELEASE_DIR}/"
-
-          # Create checksum for the tarball itself
-          sha256sum "${RELEASE_DIR}.tar.gz" > "${RELEASE_DIR}.tar.gz.sha256"
-
-          echo "RELEASE_TARBALL=${RELEASE_DIR}.tar.gz" >> "$GITHUB_ENV"
-          echo "RELEASE_CHECKSUM=${RELEASE_DIR}.tar.gz.sha256" >> "$GITHUB_ENV"
+          tar czf "${RELEASE_DIR}-linux-amd64.tar.gz" "${RELEASE_DIR}/"
+          sha256sum "${RELEASE_DIR}-linux-amd64.tar.gz" > "${RELEASE_DIR}-linux-amd64.tar.gz.sha256"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.RELEASE_TARBALL }}
-            ${{ env.RELEASE_CHECKSUM }}
+            globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+            globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
           generate_release_notes: true
           body: |
             ## Globular ${{ steps.version.outputs.version }}
 
-            ### Installation
+            This release contains the CLI tool and pre-built documentation site.
+
+            For full cluster installation, see [Building from Source](https://globular.io/docs/operators/building-from-source/).
+
+            ### CLI
 
             ```bash
-            # Download and extract
             curl -LO https://github.com/globulario/services/releases/download/${{ github.ref_name }}/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-
-            # Verify checksum
-            curl -LO https://github.com/globulario/services/releases/download/${{ github.ref_name }}/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
-            sha256sum -c globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
-
-            # Extract and install
             tar xzf globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            cd globular-${{ steps.version.outputs.version }}-linux-amd64
-            sudo bash install.sh
+            sudo cp globular-${{ steps.version.outputs.version }}/globular /usr/local/bin/
             ```
 
             ### Documentation
 
-            After installation, deploy the docs site:
-            ```bash
-            bash deploy-docs.sh --domain docs.yourdomain.com
-            ```
+            Full docs: https://globular.io/docs/
