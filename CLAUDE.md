@@ -1,321 +1,255 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is read automatically by Claude Code at the start of every session. It contains the rules, invariants, and operational knowledge needed to work safely with the Globular codebase.
 
-## Project Overview
+---
 
-Globular Services is a microservices platform for building self-hosted distributed applications. Built on gRPC with Protocol Buffers, it provides 28+ microservices across multiple languages (primarily Go, with TypeScript client support).
+## HARD RULES — NEVER VIOLATE
 
-## Build Commands
+These rules are non-negotiable. Every code change, every suggestion, every action must respect them.
 
-```bash
-# Build all Go services
-cd golang && go build ./...
+### 1. etcd is the SOLE source of truth
 
-# Build a specific service
-cd golang && go build ./authentication/authentication_server
+- All cluster configuration, service endpoints, desired state, and node state lives in etcd
+- **NO environment variables** for service configuration — ever
+- **NO hardcoded addresses** — all endpoints resolved from etcd or service discovery
+- **NO hardcoded gRPC service ports** — all ports come from etcd at runtime
+- Standard protocol ports (443, 53, 2379) are OK — they are protocol definitions, not config
+- If etcd can't provide a value, the service MUST error out — no silent fallbacks to defaults
 
-# Run all tests
-cd golang && go test ./... -race -coverprofile=coverage.out
+### 2. The 4-layer state model is SACRED — never collapse
 
-# Run tests for a specific package
-cd golang && go test ./echo/echo_server -v
-
-# Lint (via CI)
-golangci-lint run --timeout=5m
-
-# Generate protobuf code from .proto files
-./generateCode.sh
-
-# Build all packages (infrastructure + services)
-./build-all-packages.sh
+```
+Layer 1: Repository (Artifact)     — "Does this version exist?"
+Layer 2: Desired Release (Controller) — "What should be running?"
+Layer 3: Installed Observed (Node Agent) — "What is actually installed?"
+Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 ```
 
-## Project Structure
+- Each layer is INDEPENDENT with its own owner and data source
+- Never assume Desired == Installed or Installed == Running
+- Never skip layers when diagnosing or converging
+- Repository → Desired → Installed → Runtime — this order is strict
+
+### 3. NO localhost / 127.0.0.1 for remote addresses
+
+- If the address could be remote, resolve it from etcd
+- For bind/listen operations ONLY, use `0.0.0.0`
+- `localhost` is acceptable only for: etcdctl pointing to local etcd, or local DNS resolver in resolv.conf
+- All inter-service gRPC MUST use mTLS with the cluster CA
+
+### 4. All state changes flow through workflows
+
+- Every meaningful cluster mutation goes through the Workflow Service
+- No hidden imperative shortcuts, no inline state changes
+- Workflows MUST be idempotent (safe to replay)
+- Workflows MUST reach a terminal state (SUCCEEDED or FAILED)
+- The controller DECIDES, the Workflow Service COORDINATES, Node Agents EXECUTE
+
+### 5. Security boundaries
+
+- `cluster_controller_server` MUST NOT use `os/exec`, `syscall`, or `systemctl`
+- `node_agent_server` can only use `os/exec` within `internal/supervisor/`
+- Run `make check-services` to verify
+- No token/credential storage in etcd values — use file references
+- All gRPC RPCs must have `(globular.auth.authz)` annotations
+
+---
+
+## ARCHITECTURE NOTES
+
+### Project Structure
 
 ```
 services/
-├── golang/                     # PRIMARY - All Go microservices
-│   ├── <service_name>/         # Each service has its own directory
-│   │   ├── <service_name>pb/   # Generated protobuf code
-│   │   ├── <service_name>_client/
-│   │   └── <service_name>_server/
-│   ├── globular_service/       # Shared service primitives (lifecycle, CLI, config)
-│   ├── globular_client/        # Shared client primitives
-│   ├── interceptors/           # gRPC interceptors (auth, audit, RBAC)
-│   ├── config/                 # Configuration management (etcd backend)
-│   └── go.mod                  # Go 1.24.5
-├── typescript/                 # TypeScript web client library
-├── proto/                      # Protocol buffer definitions (*.proto)
-├── generated/                  # Generated specs and packages
-└── build-all-packages.sh       # Full build script
+├── proto/                     # 38 .proto files (authoritative API contracts)
+├── golang/                    # All Go services (33 binaries)
+│   ├── cluster_controller/    # Central control plane (port 12000)
+│   ├── node_agent/            # Node executor (port 11000)
+│   ├── workflow/              # Workflow engine (port 10004)
+│   ├── cluster_doctor/        # Health analysis (port 12005)
+│   ├── repository/            # Package registry (MinIO-backed)
+│   ├── authentication/        # JWT tokens (port 10101)
+│   ├── rbac/                  # Permission enforcement (port 10104)
+│   ├── dns/                   # Authoritative DNS (port 10006)
+│   ├── ai_memory/             # Persistent AI knowledge (port 10200, ScyllaDB)
+│   ├── ai_executor/           # Diagnosis + remediation (port 10230)
+│   ├── ai_watcher/            # Event monitoring (port 10210)
+│   ├── ai_router/             # Dynamic routing (port 10220)
+│   ├── domain/                # ACME cert management (runs in controller)
+│   ├── compute/               # Batch jobs (not yet in build manifest)
+│   ├── globularcli/           # CLI tool
+│   ├── mcp/                   # MCP server (129+ tools, port 10260)
+│   ├── globular_service/      # Shared primitives (lifecycle, config, CLI helpers)
+│   ├── interceptors/          # gRPC middleware (auth → RBAC → audit)
+│   ├── config/                # etcd-backed config
+│   └── security/              # TLS, PKI, JWT, Ed25519
+├── typescript/                # gRPC-Web client library
+├── docs/                      # Full documentation (49 files)
+├── generateCode.sh            # Proto → Go/TypeScript + build services
+└── build-all-packages.sh      # Package build pipeline
 ```
 
-## Service Architecture
+### Key File Paths (ACTUAL, VERIFIED)
 
-Each Go service follows this structure:
+| What | Path |
+|------|------|
+| Service certificate | `/var/lib/globular/pki/issued/services/service.crt` |
+| Service private key | `/var/lib/globular/pki/issued/services/service.key` |
+| CA certificate | `/var/lib/globular/pki/ca.crt` |
+| CA private key | `/var/lib/globular/pki/ca.key` |
+| Ed25519 signing keys | `/var/lib/globular/keys/<id>_private` |
+| etcd config | `/var/lib/globular/config/etcd.yaml` |
+| ACME certs (Let's Encrypt) | `/var/lib/globular/domains/{domain}/fullchain.pem` |
+| xDS ACME symlink | `/var/lib/globular/config/tls/acme/{domain}/` |
+| Bootstrap flag | `/var/lib/globular/bootstrap.enabled` |
+| RBAC cluster roles | `/var/lib/globular/policy/rbac/cluster-roles.json` |
+| Keepalived config | `/etc/keepalived/keepalived.conf` (managed by node agent) |
+| MCP config | `/var/lib/globular/mcp/config.json` |
+
+**WARNING**: `/etc/globular/creds/` does NOT exist. All certs are under `/var/lib/globular/pki/`.
+
+### etcd Key Schema
+
 ```
-service_name_server/
-├── server.go       # Main server + gRPC registration
-├── config.go       # Config struct, validation, persistence
-├── handlers.go     # Business logic (refactored pattern)
-├── *_test.go       # Tests
+/globular/system/config                              — global settings
+/globular/services/{service_id}/config               — service endpoint + config
+/globular/services/{service_id}/instances/{node}     — per-node instance
+/globular/resources/DesiredService/{name}             — desired state
+/globular/resources/ServiceRelease/{name}             — release tracking
+/globular/nodes/{node_id}/packages/{kind}/{name}     — installed packages
+/globular/nodes/{node_id}/status                     — node heartbeat
+/globular/ingress/v1/spec                            — keepalived VIP config
+/globular/ingress/v1/status/{node_id}                — VRRP state
+/globular/domains/v1/{fqdn}                          — external domain spec
+/globular/providers/v1/{name}                        — DNS provider config
+/globular/ai/jobs/{incident_id}                      — AI executor job records
 ```
 
 ### Service Implementation Pattern
 
-Services use shared primitives from `globular_service/`:
+Every service uses shared primitives from `globular_service/`:
 
-1. **CLI Helpers** - `globular.HandleInformationalFlags()`, `globular.ParsePositionalArgs()`
-2. **Lifecycle Manager** - `globular.NewLifecycleManager()` for startup/shutdown
-3. **Config Helpers** - `globular.SaveConfigToFile()`, `globular.ValidateCommonFields()`
+```go
+// main()
+globular_service.HandleInformationalFlags("name", "version")  // --version, --help, --describe
+serviceID, configPath := globular_service.ParsePositionalArgs()
+lm := globular_service.NewLifecycleManager(srv, port)
+lm.RegisterService(func(gs *grpc.Server) { pb.RegisterMyServiceServer(gs, srv) })
+lm.Serve()  // blocks, handles TLS, interceptors, health, graceful shutdown
+```
 
-Services implement two interfaces:
-- `Service` interface (getters/setters for Name, Port, Domain, etc.)
-- `LifecycleService` interface (`StartService()`, `StopService()`, `GetGrpcServer()`)
+Config fallback chain: etcd → local seed file → global config → hardcoded defaults.
 
-See `golang/MIGRATION_GUIDE.md` and `golang/SHARED_PRIMITIVES.md` for details.
+### Current Cluster (3 nodes)
 
-## 4-Layer State Model
+| Node | IP | Profiles |
+|------|-----|----------|
+| globule-ryzen | 10.0.0.63 | compute, control-plane, core, gateway |
+| globule-nuc | 10.0.0.8 | compute, control-plane, core, gateway, storage |
+| globule-dell | 10.0.0.20 | compute, core |
 
-The platform tracks each package across 4 state layers:
+- **VIP**: 10.0.0.100 (keepalived, floats between ryzen and nuc)
+- **DMZ**: Router forwards all external traffic to VIP
+- **Public IP**: 96.20.133.54
+- **Domain**: globular.io (Let's Encrypt wildcard cert: `*.globular.io`)
+- **Internal domain**: globular.internal
 
-| Layer | Source | Owner |
-|-------|--------|-------|
-| **Artifact** | Repository catalog (`repository.PackageRepository`) | `pkg publish` / `ensure-bootstrap-artifacts.sh` |
-| **Desired Release** | Controller etcd (`/globular/resources/DesiredRelease/…`) | `globular services desired set` / `seed` |
-| **Installed Observed** | Node Agent etcd (`/globular/nodes/{id}/packages/…`) | Node Agent (auto-populated from systemd) |
-| **Runtime Health** | systemd + gRPC health checks | Gateway / admin metrics |
+---
 
-Status vocabulary (design-doc-aligned):
-- **Installed** — desired == installed, converged
-- **Planned** — desired set, not yet installed
-- **Available** — in repo, no desired release
-- **Drifted** — installed version differs from desired
-- **Unmanaged** — installed without a desired-state entry
-- **Missing in repo** — desired/installed but artifact not in repository
-- **Orphaned** — in repo, not desired, not installed
+## BUILD COMMANDS
 
-CLI tools: `globular services repair [--dry-run]`, `globular services seed`
-
-## Key Dependencies
-
-- `google.golang.org/grpc` v1.78.0 - gRPC framework
-- `go.etcd.io/etcd/client/v3` v3.5.14 - Distributed configuration
-- `go.mongodb.org/mongo-driver` v1.16.0 - MongoDB
-- `github.com/minio/minio-go/v7` - Object storage
-- `github.com/prometheus/client_golang` - Metrics
-
-## Protocol Buffers
-
-Proto files are in `/proto/`. After modifying a `.proto` file:
 ```bash
-./generateCode.sh   # Regenerates Go + TypeScript code
+cd golang && go build ./...                          # Build all
+cd golang && go build ./echo/echo_server             # Build specific service
+cd golang && go test ./... -race                     # Run all tests
+cd golang && go test ./echo/echo_server -v           # Test specific package
+./generateCode.sh                                    # Proto → Go/TypeScript
+./build-all-packages.sh                              # Full package build
+make check-services                                  # Security constraints
 ```
 
-## Testing
+---
 
-- Unit tests alongside source files (`*_test.go`)
-- Integration tests in server directories
-- Test utilities in `golang/testutil/`
+## DOCUMENTATION
 
-## CLI Tool (globularcli)
+Full docs in `docs/` (49 files, 16k+ lines). Key references:
 
-Located in `golang/globularcli/`. Commands include:
-```bash
-globular cluster bootstrap    # Initialize first node
-globular cluster join         # Add nodes to cluster
-globular cluster token create # Create join tokens
-globular pkg build            # Build service packages
-```
+- `docs/index.md` — Navigation hub
+- `docs/ai/ai-rules.md` — Strict AI agent rules (12 rules)
+- `docs/ai/ai-services.md` — AI Memory, Executor, Watcher, Router
+- `docs/operators/ports-reference.md` — All ports and firewall rules
+- `docs/operators/known-issues.md` — CLI gaps, infrastructure limitations
+- `docs/operators/dns-and-pki.md` — Internal/external certs, ACME, DNS zones
+- `docs/operators/keepalived-and-ingress.md` — VIP failover, DMZ
+- `docs/developers/local-first.md` — Run services without a cluster
 
-## Default Ports
+---
 
-- Authentication: 10101
-- Event: 10102
-- File: 10103
-- RBAC: 10104
-- Node Agent: 11000
-- Cluster Controller: 12000
-- AI Memory: 10200
+## KNOWN ISSUES (check before assuming things work)
 
-## AI Memory Service (IMPORTANT — read this section carefully)
+1. **DNS zones are in-memory** — after DNS restart, re-register: `globular dns domains set globular.internal. globular.io.`
+2. **Split-horizon DNS not supported** — `/etc/hosts` override needed for hairpin NAT
+3. **ACME cert path mismatch** — reconciler writes to `/var/lib/globular/domains/{d}/`, xDS reads from `/var/lib/globular/config/tls/acme/{d}/`. Symlink required.
+4. **compute_server not in build** — code exists but not compiled or packaged
+5. **All service versions are 0.0.1** — no semantic versioning yet
 
-Globular includes a dedicated memory service (`ai_memory.AiMemoryService`) backed by ScyllaDB
-that replaces flat-file memory with structured, searchable, cluster-scoped persistent storage.
+---
 
-### How to detect if the service is available
+## AI RULES (for AI agents operating on this codebase)
 
-Check your `<available-deferred-tools>` list at the start of the conversation. If you see
-tools prefixed with `mcp__globular__memory_` (e.g. `mcp__globular__memory_store`), the service
-is deployed and you SHOULD use it. If those tools are absent, fall back to the flat-file
-memory system at `~/.claude/projects/.../memory/`.
+### Observe before acting
+Always diagnose before prescribing. Sequence: OBSERVE → DIAGNOSE → RECOMMEND → [APPROVE] → EXECUTE → VERIFY.
 
-### Tool reference
+### Never invent state
+Reason only from observable, verifiable evidence. If you need to know something, query the API — don't assume from memory or partial data. Stale memories must be verified against current state.
 
-All tools use the MCP namespace `mcp__globular__`. The `project` parameter should always
-be `"globular-services"` when working in this repository.
+### Typed actions only
+Never construct shell commands. Use typed gRPC RPCs. If an action doesn't have a typed API, it shouldn't be done by AI.
 
-**memory_store** — Save knowledge to the cluster
-```
-Parameters (all strings unless noted):
-  project:         REQUIRED  "globular-services"
-  type:            REQUIRED  One of: feedback, architecture, decision, debug,
-                             session, user, project, reference, scratch
-  title:           REQUIRED  One-line summary (used in listings)
-  content:         REQUIRED  Full memory body (markdown OK)
-  tags:            optional  Comma-separated: "dns,badgerdb,corruption"
-  ttl_seconds:     optional  (number) Auto-expire after N seconds. 0 = permanent.
-                             Use for scratch type.
-  conversation_id: optional  Link to originating conversation
-  metadata:        optional  JSON string of key-value pairs for flexible attributes:
-                             '{"root_cause":"unclean-shutdown","confidence":"high"}'
-  related_ids:     optional  Comma-separated memory IDs this memory relates to
-Returns: { id, status, project, type, title }
-```
+### Audit everything
+Every action must produce a durable record. Use AI Memory for knowledge, etcd job store for actions.
 
-**memory_query** — Search memories
-```
-Parameters:
-  project:     REQUIRED  "globular-services"
-  type:        optional  Filter by memory type
-  tags:        optional  Comma-separated (AND logic): "dns,corruption"
-  text_search: optional  Substring match on title + content
-  limit:       optional  (number) Max results, default 20
-Returns: { total, memories: [{ id, type, tags, title, content, created_at, ... }] }
-```
+### Fail safe
+If AI services are down, the cluster must continue operating through its deterministic convergence model. AI is supplementary, never required.
 
-**memory_get** — Retrieve single memory by ID
-```
-Parameters:
-  id:      REQUIRED  Memory UUID
-  project: REQUIRED  "globular-services"
-Returns: full memory object with content
-```
+### Respect RBAC
+AI service accounts have scoped permissions. Do not attempt to escalate. Do not bypass the interceptor chain.
 
-**memory_update** — Modify an existing memory (merge: only non-empty fields change)
-```
-Parameters:
-  id:          REQUIRED  Memory UUID
-  project:     REQUIRED  "globular-services"
-  title:       optional  New title
-  content:     optional  New content
-  tags:        optional  New tags (replaces existing)
-  ttl_seconds: optional  (number) New TTL
-  metadata:    optional  JSON string of key-value pairs (merged into existing)
-  related_ids: optional  Comma-separated memory IDs to link (appended, deduplicated)
-Returns: { success, id }
-```
+### Three-tier permissions
+- Tier 0 (OBSERVE): Read-only diagnosis — always safe
+- Tier 1 (AUTO_REMEDIATE): Pre-approved actions (restart, clear cache)
+- Tier 2 (REQUIRE_APPROVAL): Human must approve before execution
 
-**memory_delete** — Remove a memory
-```
-Parameters:
-  id:      REQUIRED  Memory UUID
-  project: REQUIRED  "globular-services"
-Returns: { success, id }
-```
+---
 
-**memory_list** — Browse summaries (no content, lightweight)
-```
-Parameters:
-  project: REQUIRED  "globular-services"
-  type:    optional  Filter by type
-  tags:    optional  Comma-separated filter
-  limit:   optional  (number) Default 20
-Returns: { total, memories: [{ id, type, tags, title, created_at, updated_at }] }
-```
+## AI MEMORY SERVICE
 
-**session_save** — Capture conversation context for continuity
-```
-Parameters:
-  project:          REQUIRED  "globular-services"
-  topic:            REQUIRED  Short topic key: "dns-debugging", "rbac-externalization"
-  summary:          REQUIRED  What was accomplished this session
-  decisions:        optional  Comma-separated key decisions made
-  open_questions:   optional  Comma-separated unresolved items
-  related_memories: optional  Comma-separated memory IDs created/referenced
-Returns: { id, status, topic, project }
-```
+If MCP tools `mcp__globular__memory_*` are available, use them instead of flat-file memory. Project: `"globular-services"`.
 
-**session_resume** — Pick up where a prior conversation left off
-```
-Parameters:
-  project: REQUIRED  "globular-services"
-  topic:   REQUIRED  Topic to search (fuzzy match on topic + summary)
-  limit:   optional  (number) How many sessions to return, default 1
-Returns: { sessions: [{ id, topic, summary, decisions, open_questions, related_memories, created_at }] }
-```
+| Tool | Purpose |
+|------|---------|
+| `memory_store` | Save knowledge (type, title, content, tags, metadata) |
+| `memory_query` | Search by type, tags, text |
+| `memory_get` | Retrieve by ID |
+| `memory_update` | Merge-update fields |
+| `memory_delete` | Remove |
+| `memory_list` | Lightweight summaries |
+| `session_save` | Persist conversation context |
+| `session_resume` | Resume prior conversation |
 
-### When to use each tool
+Types: feedback, architecture, decision, debug, session, user, project, reference, scratch, skill.
 
-| Moment | Action |
-|--------|--------|
-| Start of conversation | `session_resume` if user references prior work |
-| User corrects your approach | `memory_store` type=feedback |
-| You discover a bug root cause | `memory_store` type=debug, tag the service |
-| Design decision is made | `memory_store` type=decision |
-| You learn about user's role/prefs | `memory_store` type=user |
-| Temporary analysis notes | `memory_store` type=scratch, ttl_seconds=86400 |
-| End of conversation | `session_save` with summary + decisions + open questions |
-| Need to recall past knowledge | `memory_query` with relevant tags or text_search |
-| Check what you know about a topic | `memory_list` with type/tag filters, then `memory_get` |
-| Knowledge is outdated | `memory_update` or `memory_delete` |
+---
 
-### Memory types explained
+## COMMON MISTAKES TO AVOID
 
-- **feedback**: User corrections and confirmed approaches (what to do / not do)
-- **architecture**: System design knowledge (how things work and why)
-- **decision**: Design decisions with rationale (why X was chosen over Y)
-- **debug**: Debugging sessions and root causes (problem + fix + how discovered)
-- **session**: Auto-created by session_save (conversation summaries)
-- **user**: User profile, preferences, expertise level
-- **project**: Ongoing work, goals, deadlines, initiatives
-- **reference**: Pointers to external resources (URLs, doc locations, dashboards)
-- **scratch**: Temporary analysis, auto-expires via TTL
-
-### Tags convention
-
-Use lowercase, descriptive tags. Common patterns:
-- Service name: `dns`, `rbac`, `monitoring`, `gateway`
-- Technology: `scylladb`, `badgerdb`, `etcd`, `envoy`
-- Category: `bug`, `fix`, `config`, `tls`, `bootstrap`
-- Example: `tags: "dns,badgerdb,corruption,bug"`
-
-### Adaptive features (metadata + related_ids + reference_count)
-
-Memories have three fields that enable them to self-organize over time:
-
-**metadata** — flexible key-value bag for attributes not in the schema:
-```json
-{"root_cause": "unclean-shutdown", "confidence": "high", "affects": "badgerdb,prometheus"}
-```
-Use metadata to capture context that doesn't fit tags or content. Common keys:
-- `root_cause`: underlying cause of a bug (enables pattern detection)
-- `confidence`: how certain you are about this memory (`high`, `medium`, `low`)
-- `affects`: which services/components are impacted
-- `supersedes`: ID of an older memory this one replaces
-- `source`: where this knowledge came from (`debug-session`, `user-feedback`, `code-review`)
-
-**related_ids** — bidirectional links between memories:
-When you store a memory related to an existing one, link them:
-```
-memory_store(..., related_ids: "uuid-of-related-memory")
-memory_update(id: "uuid-of-related-memory", related_ids: "uuid-of-new-memory")
-```
-This builds a knowledge graph. When debugging, follow related_ids to find connected insights.
-Example: a BadgerDB corruption fix and a Prometheus WAL fix share `root_cause: "unclean-shutdown"`
-— link them so next time you see one, you check for the other.
-
-**reference_count** — auto-incremented every time `memory_get` is called:
-Memories that get queried often are more valuable. Use reference_count to:
-- Surface frequently-used knowledge first
-- Identify memories that might be worth expanding or promoting
-- Spot rarely-referenced memories that might be stale
-
-## Security Constraints (Makefile)
-
-The Makefile enforces security checks:
-- `clustercontroller_server` must NOT use `os/exec`, `syscall`, or `systemctl`
-- `nodeagent_server` can only use `os/exec` within `internal/supervisor/`
-
-Run checks: `make check-services`
+- Using `/etc/globular/creds/` (doesn't exist — use `/var/lib/globular/pki/`)
+- Hardcoding port 10000 for controller (it's 12000)
+- Using `os.Getenv()` for service config (use etcd)
+- Calling `os/exec` in cluster_controller (forbidden)
+- Using `127.0.0.1` for inter-service addresses (resolve from etcd)
+- Assuming desired state == installed state (check all 4 layers)
+- Writing env var sections in READMEs (etcd is the only config source)
+- Referencing `clustercontroller` directory (it's `cluster_controller` with underscore)
+- Assuming DNS zones persist across restarts (they're in-memory, re-register after restart)
