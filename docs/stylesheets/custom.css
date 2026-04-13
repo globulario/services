@@ -1,0 +1,71 @@
+/* Globular brand colors: teal #00ADD8 */
+
+/* Light mode */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #00ADD8;
+  --md-primary-fg-color--light: #33C4E8;
+  --md-primary-fg-color--dark: #0090B5;
+  --md-accent-fg-color: #00ADD8;
+}
+
+/* Dark mode */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #00ADD8;
+  --md-primary-fg-color--light: #33C4E8;
+  --md-primary-fg-color--dark: #0090B5;
+  --md-accent-fg-color: #00ADD8;
+}
+
+/* Header */
+.md-header {
+  background-color: #00ADD8;
+}
+
+/* Logo sizing in header */
+.md-header__button.md-logo img {
+  height: 1.8rem;
+  width: auto;
+}
+
+/* Links */
+.md-typeset a {
+  color: #0090B5;
+}
+[data-md-color-scheme="slate"] .md-typeset a {
+  color: #33C4E8;
+}
+
+/* Navigation active indicator */
+.md-nav__item--active > .md-nav__link {
+  color: #00ADD8;
+  font-weight: 600;
+}
+
+/* Code blocks - subtle teal tint */
+.md-typeset code {
+  background-color: rgba(0, 173, 216, 0.06);
+}
+[data-md-color-scheme="slate"] .md-typeset code {
+  background-color: rgba(0, 173, 216, 0.12);
+}
+
+/* Audio player styling */
+audio {
+  border-radius: 8px;
+  margin: 0.5rem 0 1rem 0;
+}
+
+/* Details/summary (talk transcripts) */
+details {
+  border: 1px solid rgba(0, 173, 216, 0.2);
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+details summary {
+  cursor: pointer;
+  color: #00ADD8;
+}
+[data-md-color-scheme="slate"] details {
+  border-color: rgba(0, 173, 216, 0.3);
+}
