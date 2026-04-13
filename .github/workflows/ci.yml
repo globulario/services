@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [master, main]
 
+env:
+  # Disable go.work — it references sibling repos (Globular, globular-installer)
+  # that only exist in the local dev layout, not in CI.
+  GOWORK: "off"
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -49,18 +54,7 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Install protoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-
-      - name: Install protoc-gen-go
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-      - name: Check proto files are up to date
+      - name: Check proto files compile
         run: |
           cd golang
-          # Just verify the generated files compile - full regeneration check is optional
           go build ./...
