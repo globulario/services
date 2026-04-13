@@ -18,3 +18,4 @@ golang/nodeagent/nodeagent_server/nodeagent_server
 *.so
 *.dylib
 golang/globularcli/globular
+site/
