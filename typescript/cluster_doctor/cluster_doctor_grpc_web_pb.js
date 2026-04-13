@@ -443,5 +443,66 @@ proto.cluster_doctor.ClusterDoctorServicePromiseClient.prototype.startRemediatio
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_doctor.GetHealHistoryRequest,
+ *   !proto.cluster_doctor.GetHealHistoryResponse>}
+ */
+const methodDescriptor_ClusterDoctorService_GetHealHistory = new grpc.web.MethodDescriptor(
+  '/cluster_doctor.ClusterDoctorService/GetHealHistory',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_doctor.GetHealHistoryRequest,
+  proto.cluster_doctor.GetHealHistoryResponse,
+  /**
+   * @param {!proto.cluster_doctor.GetHealHistoryRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_doctor.GetHealHistoryResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_doctor.GetHealHistoryRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_doctor.GetHealHistoryResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_doctor.GetHealHistoryResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_doctor.ClusterDoctorServiceClient.prototype.getHealHistory =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/GetHealHistory',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_GetHealHistory,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_doctor.GetHealHistoryRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_doctor.GetHealHistoryResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_doctor.ClusterDoctorServicePromiseClient.prototype.getHealHistory =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_doctor.ClusterDoctorService/GetHealHistory',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterDoctorService_GetHealHistory);
+};
+
+
 module.exports = proto.cluster_doctor;
 

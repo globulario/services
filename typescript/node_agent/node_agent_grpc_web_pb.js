@@ -1172,5 +1172,127 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.applyPackageRelease =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.VerifyPackageIntegrityRequest,
+ *   !proto.node_agent.VerifyPackageIntegrityResponse>}
+ */
+const methodDescriptor_NodeAgentService_VerifyPackageIntegrity = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/VerifyPackageIntegrity',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.VerifyPackageIntegrityRequest,
+  proto.node_agent.VerifyPackageIntegrityResponse,
+  /**
+   * @param {!proto.node_agent.VerifyPackageIntegrityRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.VerifyPackageIntegrityResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.VerifyPackageIntegrityRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.VerifyPackageIntegrityResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.VerifyPackageIntegrityResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.verifyPackageIntegrity =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/VerifyPackageIntegrity',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_VerifyPackageIntegrity,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.VerifyPackageIntegrityRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.VerifyPackageIntegrityResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.verifyPackageIntegrity =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/VerifyPackageIntegrity',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_VerifyPackageIntegrity);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.DeleteCacheArtifactRequest,
+ *   !proto.node_agent.DeleteCacheArtifactResponse>}
+ */
+const methodDescriptor_NodeAgentService_DeleteCacheArtifact = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/DeleteCacheArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.DeleteCacheArtifactRequest,
+  proto.node_agent.DeleteCacheArtifactResponse,
+  /**
+   * @param {!proto.node_agent.DeleteCacheArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.DeleteCacheArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.DeleteCacheArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.DeleteCacheArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.DeleteCacheArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.deleteCacheArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/DeleteCacheArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_DeleteCacheArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.DeleteCacheArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.DeleteCacheArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.deleteCacheArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/DeleteCacheArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_DeleteCacheArtifact);
+};
+
+
 module.exports = proto.node_agent;
 

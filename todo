@@ -1,26 +1,323 @@
-I inspected the server code. `/health` and `/mcp` are registered on the same `http.ServeMux` and served by the same `http.Server` on the same TCP listener.
+You are documenting and formalizing the AI layer of Globular.
 
-Therefore, if `https://10.0.0.63:10250/health` reaches the Go MCP process, then `https://10.0.0.63:10250/mcp` should also reach the same process. It might return an HTTP error, but it should not fail with raw TCP connection refused.
+Your source material is:
 
-Conclusion:
+1. Legacy and draft documentation in:
+   /home/dave/Documents/docs_old_content
 
-* this is likely not an application handler bug in `transport_http.go`
-* this is likely an upstream routing / exposure problem
+2. The actual current Globular codebase
 
-Please diagnose outside the MCP handler:
+Your mission is to extract, formalize, and document:
 
-1. verify whether `10.0.0.63:10250` is terminating TLS directly in the MCP server or in a proxy
-2. verify whether `/mcp` is routed to the same backend as `/health`
-3. verify whether a reverse proxy / Envoy / firewall exposes only `/health`
-4. verify whether the MCP server is actually listening with TLS on `0.0.0.0:10250` and not just localhost
-5. compare access logs: if failed `/mcp` requests do not appear in the MCP server logs, the requests are not reaching the server
+- the role of AI in Globular
+- the rules AI agents must follow
+- the architecture of AI agents and AI services
+- the operational contract between AI and the cluster
+- the safety boundaries and source-of-truth rules
+- the workflows AI may trigger
+- the observability and auditability requirements for AI decisions
 
-Important reasoning:
+You must base everything on actual documentation and actual code behavior.
 
-* path-specific TCP refusal is not consistent with a single Go `http.Server`
-* if `/health` works and `/mcp` is refused, then the refusal is happening before the request reaches the mux
+Do not invent an AI architecture disconnected from the current system.
 
-Likely fix:
+If something is not implemented yet, mark it clearly as:
+- existing
+- implied by code/design
+- planned / recommended
 
-* expose `/mcp` on the same HTTPS listener and route as `/health`
-* or provide the correct host/port where the MCP server itself is actually listening
+Never blur those categories.
+
+---
+
+## PRIMARY GOAL
+
+Produce production-grade documentation for how AI should work inside Globular.
+
+The output must be usable by:
+- operators
+- developers
+- future AI-agent implementers
+
+The result must explain both:
+1. what the AI layer is
+2. what rules it must obey
+
+---
+
+## MANDATORY PRINCIPLES
+
+### 1. Code and docs first
+Read the old docs and the actual code before writing.
+Use the old docs to understand intent.
+Use the codebase to validate reality.
+
+If docs and code disagree:
+- prefer actual current code behavior
+- note the difference explicitly
+
+### 2. No vague AI language
+Do not write generic text like:
+- "AI improves automation"
+- "AI helps operations"
+- "AI makes smarter decisions"
+
+Everything must be grounded in actual Globular architecture.
+
+### 3. AI is not above the system
+AI must be described as operating within Globular’s architecture, not outside it.
+
+AI must obey:
+- etcd as source of truth
+- workflow-driven convergence
+- explicit actions
+- auditability
+- deterministic boundaries
+- RBAC / security model
+- service contracts
+
+### 4. Distinguish reality from recommendation
+For every important AI feature or rule, classify it as:
+- Implemented
+- Partially implemented
+- Architectural intent
+- Recommended future rule
+
+### 5. Write for real usage
+The documentation must be useful for:
+- defining AI agent behavior
+- implementing new AI services
+- constraining Claude/Codex-style agents
+- understanding what AI is allowed to do in Globular
+
+---
+
+## REQUIRED OUTPUTS
+
+You must generate the following documentation set.
+
+---
+
+# 1. ai-overview.md
+
+Explain:
+- what the AI layer of Globular is
+- why AI exists in Globular
+- how AI differs from ordinary automation
+- what AI services exist or are planned
+- how AI fits into workflows, convergence, observability, and operations
+
+This must be a real architecture page, not a vision statement.
+
+---
+
+# 2. ai-rules.md
+
+This is the core rulebook for AI agents operating in Globular.
+
+It must define strict rules such as:
+
+- AI must not bypass source of truth
+- AI must not mutate state through ad-hoc shortcuts
+- AI must act through explicit APIs / workflows / actors
+- AI must not hide changes
+- AI must produce auditable actions
+- AI must not invent infrastructure state
+- AI must respect RBAC and security boundaries
+- AI must prefer diagnosis before mutation
+- AI must verify outcomes after action
+- AI must distinguish observation, recommendation, and execution
+
+This file should read like constitutional law for AI inside Globular.
+
+---
+
+# 3. ai-agent-model.md
+
+Define what an AI agent is in Globular terms.
+
+Explain:
+- what inputs an agent can observe
+- what tools it may use
+- what actions it may recommend
+- what actions it may execute
+- what state it may read
+- what state it may never invent
+- how it interacts with workflow, cluster_doctor, telemetry, repository, node-agent, controller, etc.
+
+Include explicit sections:
+- observation
+- reasoning
+- action boundaries
+- verification
+- audit trail
+
+---
+
+# 4. ai-services.md
+
+Document the AI-related services, existing or intended, such as:
+- ai-watcher
+- ai-executor
+- ai-memory
+- ai-router
+
+For each service explain:
+- role
+- inputs
+- outputs
+- decision scope
+- what it is allowed to change
+- what it must never change directly
+- how it integrates with workflows / xDS / observability / control plane
+
+If implementation is partial, say so.
+
+---
+
+# 5. ai-operator-guide.md
+
+Explain to operators:
+- what AI can do in the cluster
+- what AI cannot do
+- how to trust or verify AI actions
+- how AI recommendations become execution
+- how to inspect AI-triggered workflows
+- how to disable or constrain AI behavior
+- how to debug bad AI decisions
+
+This must be practical.
+
+---
+
+# 6. ai-developer-guide.md
+
+Explain to developers:
+- how to build AI-aware services in Globular
+- how to expose safe actions to AI
+- how to make systems readable by AI
+- how to design APIs and workflows that AI can use safely
+- how to avoid unsafe free-form execution patterns
+- how to make actions typed, minimal, reversible, and auditable
+
+This document must help developers design systems that AI can operate safely.
+
+---
+
+# 7. ai-patterns-and-anti-patterns.md
+
+Document good and bad patterns.
+
+Good patterns:
+- workflow-triggered remediation
+- typed actions
+- read -> diagnose -> recommend -> execute -> verify
+- explicit state mutation
+- audit-first design
+
+Bad patterns:
+- shell-first automation
+- hidden config mutation
+- env-var overrides as control plane
+- bypassing workflows
+- AI mutating infra directly without verification
+- AI inventing state from partial evidence
+
+Make this very concrete.
+
+---
+
+## REQUIRED ANALYSIS METHOD
+
+Before writing docs, do the following:
+
+1. Read docs_old_content and extract all AI-related intent
+2. Read the codebase and identify:
+   - AI-related services
+   - workflow hooks
+   - control-plane integration points
+   - observability links
+   - xDS / routing / watcher connections
+   - cluster_doctor and remediation links
+3. Build a map of:
+   - what exists
+   - what is implied
+   - what is missing
+4. Then write the docs
+
+Do not skip the analysis phase.
+
+---
+
+## REQUIRED WRITING STYLE
+
+Write like serious platform documentation.
+
+Tone:
+- neutral
+- precise
+- architectural
+- operational
+- non-marketing
+
+Do not write like a blog post.
+Do not write like speculative AI futurism.
+Do not exaggerate.
+
+---
+
+## MANDATORY SECTIONS IN EACH DOCUMENT
+
+Each page should contain, when applicable:
+
+- Purpose
+- Why it exists
+- System context
+- Internal behavior
+- Boundaries and constraints
+- Practical examples
+- Failure cases / misuse cases
+- Relationship to workflows / source of truth / verification
+
+---
+
+## SPECIAL INSTRUCTION: AI RULES MUST BE STRICT
+
+The AI rules are the most important output.
+
+They must make it impossible for an AI agent to drift into:
+- ad-hoc mutation
+- source-of-truth violations
+- invisible state changes
+- unsafe shortcuts
+- non-auditable behavior
+
+These rules must reflect Globular’s real architecture:
+- workflows over plans
+- etcd over config sprawl
+- explicit convergence
+- verification after action
+- strongly bounded execution
+
+---
+
+## REQUIRED FINAL DELIVERABLE FORMAT
+
+Produce:
+
+1. A short gap report:
+   - What is already supported by code
+   - What is only documented intent
+   - What is missing and should be recommended
+
+2. Then generate the full documentation files in Markdown.
+
+---
+
+## IMPORTANT
+
+If something is unclear in old docs but obvious in code, use code.
+If something is described in docs but absent in code, mark it as intent or planned.
+Do not present planned behavior as implemented reality.
+
+Your job is to make the AI layer of Globular understandable, enforceable, and safe.
