@@ -36,7 +36,9 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 	// Route to a specific peer if requested.
 	// Ensure the user ID is on the request so the peer stores the
 	// conversation under the correct user (not "anonymous").
-	if req.TargetNode != "" && req.TargetNode != hostname {
+	// Match both bare hostname and FQDN (hostname.domain) so that
+	// the request is handled locally regardless of naming convention.
+	if req.TargetNode != "" && !hostnameMatches(req.TargetNode, hostname, srv.Domain) {
 		if req.UserId == "" {
 			req.UserId = userID
 		}
@@ -262,15 +264,14 @@ func (srv *server) DeleteConversation(ctx context.Context, req *ai_executorpb.De
 
 // proxyPromptToPeer forwards a SendPrompt to a target peer node.
 func (srv *server) proxyPromptToPeer(req *ai_executorpb.SendPromptRequest, stream ai_executorpb.AiExecutorService_SendPromptServer) error {
-	srv.peers.mu.RLock()
-	var peer *peerConn
-	for _, p := range srv.peers.peers {
-		if p.Hostname == req.TargetNode {
-			peer = p
-			break
-		}
+	peer := srv.findPeerByHostname(req.TargetNode)
+
+	// If not found, trigger a re-discovery and try once more.
+	// Peers may have come online after the last discovery cycle.
+	if peer == nil {
+		srv.peers.discoverPeers()
+		peer = srv.findPeerByHostname(req.TargetNode)
 	}
-	srv.peers.mu.RUnlock()
 
 	if peer == nil {
 		return status.Errorf(codes.NotFound, "peer node %q not found", req.TargetNode)
@@ -419,4 +420,40 @@ You help operators manage, diagnose, and understand their distributed infrastruc
 You have access to MCP tools for cluster health, memory, RBAC, DNS, and service management.
 Be helpful, concise, and specific. When you need more information, ask the user.
 When suggesting actions that could affect the cluster, explain the impact first.`, hostname)
+}
+
+// findPeerByHostname searches the peer list for a node matching the given name.
+func (srv *server) findPeerByHostname(target string) *peerConn {
+	srv.peers.mu.RLock()
+	defer srv.peers.mu.RUnlock()
+	for _, p := range srv.peers.peers {
+		if hostnameMatches(target, p.Hostname, srv.Domain) {
+			return p
+		}
+	}
+	return nil
+}
+
+// hostnameMatches returns true if target refers to the same host as hostname,
+// considering bare hostnames and FQDNs (hostname.domain). For example,
+// "globule-ryzen" matches "globule-ryzen.globular.internal" and vice versa.
+func hostnameMatches(target, hostname, domain string) bool {
+	if strings.EqualFold(target, hostname) {
+		return true
+	}
+	fqdn := hostname
+	if domain != "" && !strings.Contains(hostname, ".") {
+		fqdn = hostname + "." + domain
+	}
+	if strings.EqualFold(target, fqdn) {
+		return true
+	}
+	// Also match if target is an FQDN and hostname is bare.
+	if domain != "" && strings.HasSuffix(strings.ToLower(target), "."+strings.ToLower(domain)) {
+		bare := strings.TrimSuffix(strings.ToLower(target), "."+strings.ToLower(domain))
+		if strings.EqualFold(bare, hostname) {
+			return true
+		}
+	}
+	return false
 }
