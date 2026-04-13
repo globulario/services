@@ -1,0 +1,135 @@
+name: Documentation
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install mkdocs-material
+        run: pip install mkdocs-material
+
+      - name: Build documentation site
+        run: mkdocs build --strict
+        # --strict fails on warnings (broken links, missing pages)
+
+  validate-cli-commands:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: golang/go.sum
+
+      - name: Build CLI
+        working-directory: golang
+        run: go build -o /tmp/globular ./globularcli
+
+      - name: Extract documented CLI commands
+        run: |
+          # Extract all "globular <subcommand>" patterns from docs
+          grep -rh "^globular \|^  globular " docs/ | \
+            sed 's/^[ ]*//' | \
+            grep "^globular " | \
+            sed 's/ --.*//; s/ <.*//; s/ [A-Z].*//; s/ \$.*//; s/ ".*//; s/ [0-9].*//; s/ \\.*//; s/ |.*//' | \
+            sort -u > /tmp/documented_commands.txt
+
+          echo "Documented commands:"
+          cat /tmp/documented_commands.txt
+
+      - name: Validate commands exist
+        run: |
+          ERRORS=0
+          while IFS= read -r cmd; do
+            # Skip empty lines and comments
+            [[ -z "$cmd" ]] && continue
+            [[ "$cmd" == "#"* ]] && continue
+
+            # Extract subcommands (e.g., "globular workflow list" → "workflow list")
+            SUBCMD="${cmd#globular }"
+
+            # Test if the command exists (--help should work for valid commands)
+            if /tmp/globular $SUBCMD --help > /dev/null 2>&1; then
+              echo "  OK: $cmd"
+            else
+              # Check if it's a parent command (e.g., "globular workflow" exists but "globular workflow list" is what we test)
+              PARENT="${SUBCMD%% *}"
+              if /tmp/globular $PARENT --help > /dev/null 2>&1; then
+                echo "  OK: $cmd (parent: $PARENT)"
+              else
+                echo "  MISSING: $cmd"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+          done < /tmp/documented_commands.txt
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo ""
+            echo "WARNING: $ERRORS documented commands not found in CLI"
+            echo "These commands may need to be implemented or removed from docs"
+            # Don't fail the build — just warn
+            # exit 1
+          else
+            echo ""
+            echo "All documented commands verified"
+          fi
+
+  check-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for stale paths
+        run: |
+          ERRORS=0
+
+          # Check for /etc/globular/creds/ (removed — should be /var/lib/globular/pki/)
+          if grep -r "/etc/globular/creds" docs/; then
+            echo "ERROR: Found /etc/globular/creds/ references (should be /var/lib/globular/pki/)"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for wrong controller port
+          if grep -r "localhost:10000" docs/ | grep -v "10000}" | grep -qi "controller"; then
+            echo "ERROR: Found controller on port 10000 (should be 12000)"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for broken directory names
+          if grep -r "clustercontroller/" docs/; then
+            echo "ERROR: Found clustercontroller/ (should be cluster_controller/)"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for environment variable config patterns
+          if grep -rn "GLOBULAR_DATA_PATH\|GLOBULAR_CONFIG_PATH\|GLOBULAR_LOG_LEVEL" docs/ | grep -v "known-issues\|anti-pattern"; then
+            echo "WARNING: Found environment variable references (etcd is source of truth)"
+            # Warning only, not error
+          fi
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo ""
+            echo "FAILED: $ERRORS stale path issues found"
+            exit 1
+          else
+            echo "All path checks passed"
+          fi

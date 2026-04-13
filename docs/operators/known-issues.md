@@ -123,11 +123,17 @@ sudo ln -sfn /var/lib/globular/domains/{domain} /var/lib/globular/config/tls/acm
 
 ## Build and Release
 
-### No Pre-Built Releases
+### GitHub Releases
 
-**Issue**: No binary releases on GitHub. Users must build from source (4 repositories, 5 build stages).
+**Status**: Release workflow implemented (`.github/workflows/release.yml`). Push a Git tag (`v0.1.0`) to trigger automated build and release.
 
-**Planned fix**: GitHub Actions release workflow that produces a single downloadable tarball.
+**To create a release**:
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow builds everything and uploads `globular-0.1.0-linux-amd64.tar.gz` with SHA256 checksums to GitHub Releases.
 
 ### All Service Versions Are 0.0.1
 

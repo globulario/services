@@ -26,14 +26,17 @@ There are two ways to install Globular: from a release tarball (recommended) or 
 Download the latest release from GitHub:
 
 ```bash
-# Download latest release
-curl -LO https://github.com/globulario/globular-installer/releases/latest/download/globular-linux-amd64.tar.gz
+# Download latest release (replace VERSION with the actual version, e.g., 0.1.0)
+VERSION="0.1.0"
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 
-# Extract
-tar xzf globular-linux-amd64.tar.gz
-cd globular
+# Verify checksum
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
+sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
 
-# Install (installs all services, certificates, and infrastructure)
+# Extract and install
+tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
+cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
 

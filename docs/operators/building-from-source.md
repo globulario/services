@@ -170,40 +170,39 @@ globular-installer/
 
 Currently, Globular is built from source. The plan is to move to **GitHub Releases** for a professional distribution experience:
 
-### Planned Release Workflow
+### Release Workflow
 
-```
-Developer pushes tag (v0.1.0)
-    │
-    ▼
-GitHub Actions:
-    ├── Run tests
-    ├── Generate code
-    ├── Build all service binaries
-    ├── Download infrastructure binaries
-    ├── Build all packages (.tgz)
-    ├── Build installer binary
-    ├── Create release tarball:
-    │     globular-v0.1.0-linux-amd64.tar.gz
-    │     ├── install.sh
-    │     ├── globular-installer
-    │     ├── packages/*.tgz
-    │     └── checksums.sha256
-    └── Upload to GitHub Releases
+The release workflow is defined in `.github/workflows/release.yml`. It triggers on Git tags:
+
+```bash
+# Create a release
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-### For End Users (Future)
+This triggers GitHub Actions to:
+1. Checkout all 4 repositories (services, Globular, packages, globular-installer)
+2. Generate code and build all service binaries
+3. Download infrastructure binaries and build all packages
+4. Build the installer binary
+5. Build the MkDocs documentation site
+6. Create a release tarball with checksums
+7. Upload to GitHub Releases
+
+### For End Users
 
 ```bash
 # Download the latest release
-curl -LO https://github.com/globulario/globular-installer/releases/latest/download/globular-v0.1.0-linux-amd64.tar.gz
+VERSION="0.1.0"
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 
 # Verify checksum
-sha256sum -c checksums.sha256
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
+sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
 
 # Extract and install
-tar xzf globular-v0.1.0-linux-amd64.tar.gz
-cd globular-v0.1.0
+tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
+cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 
 # Bootstrap
@@ -211,11 +210,14 @@ globular cluster bootstrap \
   --node localhost:11000 \
   --domain mycluster.local \
   --profile core --profile gateway
+
+# Deploy documentation site
+bash deploy-docs.sh --domain docs.mycluster.local
 ```
 
 ### Version Management
 
-All packages should use a unified version derived from the Git tag:
+All packages use a unified version derived from the Git tag:
 - `v0.1.0` → all service packages version `0.1.0`
 - Infrastructure packages keep their upstream version (etcd 3.5.14, etc.)
 
