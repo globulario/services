@@ -14,6 +14,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -973,14 +974,23 @@ func nodeClientWith(override string) (*grpc.ClientConn, error) {
 }
 
 // tokenCredentials implements grpc.PerRPCCredentials to attach the auth token
-// on every RPC call (unary and streaming) without callers having to add it to
-// each context manually.
+// and cluster domain on every RPC call (unary and streaming) without callers
+// having to add it to each context manually.
+//
+// The "domain" metadata key carries the cluster_id, which the gRPC interceptor
+// requires after cluster initialization. Without it, services like DNS reject
+// requests with "cluster_id required".
 type tokenCredentials struct {
-	token string
+	token  string
+	domain string // cluster domain (e.g., "globular.internal")
 }
 
 func (t tokenCredentials) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	return map[string]string{"token": t.token}, nil
+	md := map[string]string{"token": t.token}
+	if t.domain != "" {
+		md["domain"] = t.domain
+	}
+	return md, nil
 }
 
 func (t tokenCredentials) RequireTransportSecurity() bool {
@@ -1013,10 +1023,14 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	// Centralized token injection: attach token on every RPC (unary + streaming).
-	// This ensures all commands inherit auth without per-call metadata wiring.
+	// Centralized token + cluster_id injection: attach on every RPC (unary + streaming).
+	// The domain metadata carries the cluster_id required by the gRPC interceptor.
 	if rootCfg.token != "" {
-		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
+		domain, _ := config.GetDomain()
+		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{
+			token:  rootCfg.token,
+			domain: domain,
+		}))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
