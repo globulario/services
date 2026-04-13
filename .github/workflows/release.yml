@@ -26,6 +26,12 @@ jobs:
           repository: globulario/utility
           path: utility
 
+      - name: Checkout globular-installer
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/globular-installer
+          path: globular-installer
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
