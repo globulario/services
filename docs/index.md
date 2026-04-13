@@ -9,6 +9,7 @@ Globular is an open-source microservices platform for building and operating sel
 New to Globular? Start here.
 
 - [Getting Started](getting-started.md) — Go from zero to a running cluster in 15 minutes
+- [MCP Setup](operators/mcp-setup.md) — Connect Claude Code to your cluster for AI-assisted management
 - [What is Globular](operators/what-is-globular.md) — Platform overview, core components, and how it compares to Kubernetes
 - [Architecture Overview](operators/architecture-overview.md) — How the control plane, data plane, and state management work together
 
