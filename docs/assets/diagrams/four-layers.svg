@@ -1,0 +1,73 @@
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.28); stroke-width: 1; rx: 12; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.55); stroke-width: 1.2; rx: 12; }
+      .panel-active { fill: #1a1a2e; stroke: rgba(0,173,216,0.88); stroke-width: 1.4; rx: 12; }
+      .panel-dim { fill: rgba(26,26,46,0.78); stroke: rgba(0,173,216,0.18); stroke-width: 1; rx: 12; }
+      .panel-success { fill: rgba(0,173,216,0.08); stroke: rgba(0,173,216,0.85); stroke-width: 1.4; rx: 12; }
+      .panel-warn { fill: rgba(255,158,64,0.07); stroke: rgba(255,158,64,0.75); stroke-width: 1.4; rx: 12; }
+      .panel-glow { fill: #1a1a2e; stroke: rgba(0,173,216,0.95); stroke-width: 1.4; rx: 12; filter: url(#glow); }
+      .section { fill: rgba(15,25,35,0.55); stroke: rgba(0,173,216,0.22); stroke-width: 1; rx: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 18px; }
+      .subtitle { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 14px; }
+      .text { fill: #d7e1ea; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .muted { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 11px; }
+      .tiny { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 10px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 13px; }
+      .arrow { stroke: rgba(0,173,216,0.68); stroke-width: 1.6; fill: none; marker-end: url(#arrowhead); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-thin { stroke: rgba(0,173,216,0.55); stroke-width: 1.2; fill: none; marker-end: url(#arrowheadSmall); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 5 4; }
+      .link { stroke: rgba(0,173,216,0.38); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+      .divider { stroke: rgba(0,173,216,0.18); stroke-width: 1; }
+      .chip { fill: rgba(0,173,216,0.09); stroke: rgba(0,173,216,0.30); stroke-width: 1; rx: 8; }
+      .pill { fill: #1a1a2e; stroke: rgba(0,173,216,0.38); stroke-width: 1.15; rx: 15; }
+      .pill-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.92); stroke-width: 1.35; rx: 15; }
+      .pill-dim { fill: rgba(26,26,46,0.74); stroke: rgba(0,173,216,0.18); stroke-width: 1.05; rx: 15; }
+      .num { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#00ADD8" opacity="0.75"></polygon>
+    </marker>
+    <marker id="arrowheadSmall" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#00ADD8" opacity="0.65"></polygon>
+    </marker>
+    
+  </defs>
+  <rect width="600" height="400" class="bg"></rect>
+  <text x="300" y="34" text-anchor="middle" class="title">Four Truth Layers</text>
+  <circle cx="85" cy="98" r="18" fill="#00ADD8" opacity="0.4"></circle>
+  <text x="85" y="99" class="num">1</text>
+  <rect x="125" y="70" width="390" height="56" class="panel-strong" opacity="0.55"></rect>
+  <text x="148" y="93" class="subtitle">Artifact (Repository)</text>
+  <text x="148" y="111" class="muted">Does this version exist?</text>
+  <path d="M85 116 L85 138" class="arrow"></path>
+  <text x="96" y="114.0" class="tiny">Repository</text>
+  <circle cx="85" cy="178" r="18" fill="#00ADD8" opacity="0.6"></circle>
+  <text x="85" y="179" class="num">2</text>
+  <rect x="125" y="150" width="390" height="56" class="panel-strong" opacity="0.65"></rect>
+  <text x="148" y="173" class="subtitle">Desired Release (Controller)</text>
+  <text x="148" y="191" class="muted">What should be running?</text>
+  <path d="M85 196 L85 218" class="arrow"></path>
+  <text x="96" y="194.0" class="tiny">Controller</text>
+  <circle cx="85" cy="258" r="18" fill="#00ADD8" opacity="0.8"></circle>
+  <text x="85" y="259" class="num">3</text>
+  <rect x="125" y="230" width="390" height="56" class="panel-strong" opacity="0.75"></rect>
+  <text x="148" y="253" class="subtitle">Installed (Node Agent)</text>
+  <text x="148" y="271" class="muted">What is actually installed?</text>
+  <path d="M85 276 L85 298" class="arrow"></path>
+  <text x="96" y="274.0" class="tiny">Node Agent</text>
+  <circle cx="85" cy="338" r="18" fill="#00ADD8" opacity="1.0"></circle>
+  <text x="85" y="339" class="num">4</text>
+  <rect x="125" y="310" width="390" height="56" class="panel-strong" opacity="0.8500000000000001"></rect>
+  <text x="148" y="333" class="subtitle">Runtime (systemd + gRPC)</text>
+  <text x="148" y="351" class="muted">Is it running and healthy?</text>
+</svg>

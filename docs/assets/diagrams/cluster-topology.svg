@@ -1,0 +1,101 @@
+<svg width="900" height="550" viewBox="0 0 900 550" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.28); stroke-width: 1; rx: 12; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.55); stroke-width: 1.2; rx: 12; }
+      .panel-active { fill: #1a1a2e; stroke: rgba(0,173,216,0.88); stroke-width: 1.4; rx: 12; }
+      .panel-dim { fill: rgba(26,26,46,0.78); stroke: rgba(0,173,216,0.18); stroke-width: 1; rx: 12; }
+      .panel-success { fill: rgba(0,173,216,0.08); stroke: rgba(0,173,216,0.85); stroke-width: 1.4; rx: 12; }
+      .panel-warn { fill: rgba(255,158,64,0.07); stroke: rgba(255,158,64,0.75); stroke-width: 1.4; rx: 12; }
+      .panel-glow { fill: #1a1a2e; stroke: rgba(0,173,216,0.95); stroke-width: 1.4; rx: 12; filter: url(#glow); }
+      .section { fill: rgba(15,25,35,0.55); stroke: rgba(0,173,216,0.22); stroke-width: 1; rx: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 18px; }
+      .subtitle { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 14px; }
+      .text { fill: #d7e1ea; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .muted { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 11px; }
+      .tiny { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 10px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 13px; }
+      .arrow { stroke: rgba(0,173,216,0.68); stroke-width: 1.6; fill: none; marker-end: url(#arrowhead); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-thin { stroke: rgba(0,173,216,0.55); stroke-width: 1.2; fill: none; marker-end: url(#arrowheadSmall); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 5 4; }
+      .link { stroke: rgba(0,173,216,0.38); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+      .divider { stroke: rgba(0,173,216,0.18); stroke-width: 1; }
+      .chip { fill: rgba(0,173,216,0.09); stroke: rgba(0,173,216,0.30); stroke-width: 1; rx: 8; }
+      .pill { fill: #1a1a2e; stroke: rgba(0,173,216,0.38); stroke-width: 1.15; rx: 15; }
+      .pill-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.92); stroke-width: 1.35; rx: 15; }
+      .pill-dim { fill: rgba(26,26,46,0.74); stroke: rgba(0,173,216,0.18); stroke-width: 1.05; rx: 15; }
+      .num { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#00ADD8" opacity="0.75"></polygon>
+    </marker>
+    <marker id="arrowheadSmall" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#00ADD8" opacity="0.65"></polygon>
+    </marker>
+    
+  </defs>
+  <rect width="900" height="550" class="bg"></rect>
+  <rect x="25" y="20" width="850" height="510" class="section"></rect>
+  <text x="450" y="48" text-anchor="middle" class="title">Globular Cluster</text>
+  <rect x="200" y="78" width="500" height="95" class="panel-active"></rect>
+  <text x="450" y="103" text-anchor="middle" class="title">Cluster Controller (leader)</text>
+  <text x="285" y="132" text-anchor="middle" class="muted">Desired-state store</text>
+  <text x="525" y="132" text-anchor="middle" class="muted">Membership manager</text>
+  <text x="285" y="153" text-anchor="middle" class="muted">Workflow dispatcher</text>
+  <text x="525" y="153" text-anchor="middle" class="muted">Health monitor</text>
+  <text x="285" y="174" text-anchor="middle" class="muted">Release pipeline</text>
+  <text x="525" y="174" text-anchor="middle" class="muted">Infrastructure scaler</text>
+  <path d="M450 173 L450 222" class="arrow"></path>
+  <text x="462" y="205" class="tiny">gRPC</text>
+  <path d="M450 222 L165 222" class="link"></path>
+  <path d="M450 222 L450 222" class="link"></path>
+  <path d="M450 222 L735 222" class="link"></path>
+  <path d="M165 222 L165 245" class="arrow"></path>
+  <path d="M450 222 L450 245" class="arrow"></path>
+  <path d="M735 222 L735 245" class="arrow"></path>
+  <rect x="70" y="245" width="190" height="180" class="panel-strong"></rect>
+  <text x="165" y="272" text-anchor="middle" class="subtitle">Node Agent</text>
+  <text x="165" y="290" text-anchor="middle" class="muted">(node-1)</text>
+  <rect x="90" y="306" width="150" height="98" class="panel"></rect>
+  <text x="108" y="326" class="text">etcd</text>
+  <text x="108" y="341" class="text">controller</text>
+  <text x="108" y="356" class="text">gateway</text>
+  <text x="108" y="371" class="text">workflow</text>
+  <text x="108" y="386" class="text">repository</text>
+  <text x="108" y="401" class="text">minio</text>
+  <rect x="355" y="245" width="190" height="180" class="panel-strong"></rect>
+  <text x="450" y="272" text-anchor="middle" class="subtitle">Node Agent</text>
+  <text x="450" y="290" text-anchor="middle" class="muted">(node-2)</text>
+  <rect x="375" y="306" width="150" height="98" class="panel"></rect>
+  <text x="393" y="326" class="text">etcd</text>
+  <text x="393" y="341" class="text">repository</text>
+  <text x="393" y="356" class="text">auth</text>
+  <text x="393" y="371" class="text">rbac</text>
+  <text x="393" y="386" class="text">event</text>
+  <text x="393" y="401" class="text">minio</text>
+  <rect x="640" y="245" width="190" height="180" class="panel-strong"></rect>
+  <text x="735" y="272" text-anchor="middle" class="subtitle">Node Agent</text>
+  <text x="735" y="290" text-anchor="middle" class="muted">(node-3)</text>
+  <rect x="660" y="306" width="150" height="98" class="panel"></rect>
+  <text x="678" y="326" class="text">etcd</text>
+  <text x="678" y="341" class="text">monitoring</text>
+  <text x="678" y="356" class="text">dns</text>
+  <text x="678" y="371" class="text">search</text>
+  <text x="678" y="386" class="text">mail</text>
+  <text x="678" y="401" class="text">minio</text>
+  <rect x="60" y="445" width="780" height="65" class="panel"></rect>
+  <text x="450" y="468" text-anchor="middle" class="subtitle">Shared Infrastructure</text>
+  <text x="90" y="487" class="muted">etcd cluster (2379/2380)  — distributed state + config</text>
+  <text x="90" y="499" class="muted">MinIO cluster (9000)      — object storage for artifacts</text>
+  <text x="90" y="511" class="muted">Envoy Gateway (443/8443)  — TLS termination, xDS routing</text>
+  <text x="90" y="523" class="muted">Prometheus (9090)         — metrics scraping + alerting</text>
+  <text x="90" y="535" class="muted">ScyllaDB                  — high-throughput data (AI memory)</text>
+</svg>

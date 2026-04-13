@@ -1,0 +1,76 @@
+<svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.28); stroke-width: 1; rx: 12; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.55); stroke-width: 1.2; rx: 12; }
+      .panel-active { fill: #1a1a2e; stroke: rgba(0,173,216,0.88); stroke-width: 1.4; rx: 12; }
+      .panel-dim { fill: rgba(26,26,46,0.78); stroke: rgba(0,173,216,0.18); stroke-width: 1; rx: 12; }
+      .panel-success { fill: rgba(0,173,216,0.08); stroke: rgba(0,173,216,0.85); stroke-width: 1.4; rx: 12; }
+      .panel-warn { fill: rgba(255,158,64,0.07); stroke: rgba(255,158,64,0.75); stroke-width: 1.4; rx: 12; }
+      .panel-glow { fill: #1a1a2e; stroke: rgba(0,173,216,0.95); stroke-width: 1.4; rx: 12; filter: url(#glow); }
+      .section { fill: rgba(15,25,35,0.55); stroke: rgba(0,173,216,0.22); stroke-width: 1; rx: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 18px; }
+      .subtitle { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 14px; }
+      .text { fill: #d7e1ea; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .muted { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 11px; }
+      .tiny { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 10px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 13px; }
+      .arrow { stroke: rgba(0,173,216,0.68); stroke-width: 1.6; fill: none; marker-end: url(#arrowhead); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-thin { stroke: rgba(0,173,216,0.55); stroke-width: 1.2; fill: none; marker-end: url(#arrowheadSmall); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 5 4; }
+      .link { stroke: rgba(0,173,216,0.38); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+      .divider { stroke: rgba(0,173,216,0.18); stroke-width: 1; }
+      .chip { fill: rgba(0,173,216,0.09); stroke: rgba(0,173,216,0.30); stroke-width: 1; rx: 8; }
+      .pill { fill: #1a1a2e; stroke: rgba(0,173,216,0.38); stroke-width: 1.15; rx: 15; }
+      .pill-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.92); stroke-width: 1.35; rx: 15; }
+      .pill-dim { fill: rgba(26,26,46,0.74); stroke: rgba(0,173,216,0.18); stroke-width: 1.05; rx: 15; }
+      .num { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#00ADD8" opacity="0.75"></polygon>
+    </marker>
+    <marker id="arrowheadSmall" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#00ADD8" opacity="0.65"></polygon>
+    </marker>
+    
+<path id="cloudShape" d="M0,18 C0,8 8,0 18,0 C24,0 30,3 34,8 C38,4 44,2 50,2 C61,2 70,11 70,22 C79,23 86,31 86,41 C86,52 77,61 66,61 H18 C8,61 0,53 0,43 C0,35 5,28 13,25 C12,23 12,21 12,18 Z" />
+
+  </defs>
+  <rect width="800" height="500" class="bg"></rect>
+  <text x="400" y="35" text-anchor="middle" class="title">Keepalived VIP / Network Topology</text>
+  <g transform="translate(357,55)"><use href="#cloudShape" fill="rgba(26,26,46,0.95)" stroke="rgba(0,173,216,0.45)" stroke-width="1.2"></use><text x="43" y="37" text-anchor="middle" class="subtitle">Internet</text></g>
+  <path d="M400 116 L400 145" class="arrow"></path>
+  <rect x="305" y="145" width="190" height="62" class="panel-strong"></rect>
+  <text x="400" y="170" text-anchor="middle" class="subtitle">ISP Router</text>
+  <text x="400" y="190" text-anchor="middle" class="muted">96.20.133.54  •  DMZ → 10.0.0.100</text>
+  <path d="M400 207 L400 245" class="arrow"></path>
+  <rect x="310" y="245" width="180" height="62" class="panel-glow"></rect>
+  <text x="400" y="270" text-anchor="middle" class="subtitle">VIP 10.0.0.100</text>
+  <text x="400" y="289" text-anchor="middle" class="muted">floating • keepalived manages</text>
+  <path d="M400 307 L250 350" class="arrow"></path>
+  <path d="M400 307 L550 350" class="arrow"></path>
+  <rect x="95" y="350" width="240" height="118" class="panel-active"></rect>
+  <text x="215" y="375" text-anchor="middle" class="subtitle">globule-ryzen</text>
+  <text x="215" y="394" text-anchor="middle" class="muted">10.0.0.63</text>
+  <text x="215" y="410" text-anchor="middle" class="muted">MASTER (priority 120)</text>
+  <text x="215" y="426" text-anchor="middle" class="muted">wlp5s0 (WiFi)</text>
+  <rect x="153" y="438" width="124" height="20" class="chip"></rect>
+  <text x="215" y="452" text-anchor="middle" class="tiny">Envoy 443 / 8443</text>
+  <rect x="465" y="350" width="240" height="118" class="panel-strong"></rect>
+  <text x="585" y="375" text-anchor="middle" class="subtitle">globule-nuc</text>
+  <text x="585" y="394" text-anchor="middle" class="muted">10.0.0.8</text>
+  <text x="585" y="410" text-anchor="middle" class="muted">BACKUP (priority 110)</text>
+  <text x="585" y="426" text-anchor="middle" class="muted">eno1 (wired)</text>
+  <rect x="523" y="438" width="124" height="20" class="chip"></rect>
+  <text x="585" y="452" text-anchor="middle" class="tiny">Envoy 443 / 8443</text>
+  <path d="M335 368 C400 330, 465 330, 530 368" class="arrow-thin arrow-dashed"></path>
+  <text x="400" y="330" text-anchor="middle" class="tiny">VRRP failover</text>
+</svg>

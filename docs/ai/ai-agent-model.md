@@ -223,32 +223,7 @@ The remediation workflow includes a `verify_convergence` step that re-runs the d
 
 ## Interaction Map
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                     External AI Agent (Claude Code)             │
-│                          via MCP Server                         │
-│   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
-│   │ Observe  │  │ Diagnose │  │ Remember │  │ Act      │     │
-│   │ (65+     │  │ (doctor, │  │ (memory  │  │ (executor│     │
-│   │  tools)  │  │  explain)│  │  store)  │  │  prompt) │     │
-│   └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘     │
-└────────┼──────────────┼──────────────┼──────────────┼──────────┘
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-┌────────────────────────────────────────────────────────────────┐
-│                    Globular Platform Services                    │
-│                                                                  │
-│  Controller ←→ Doctor ←→ Workflow ←→ Node Agent                 │
-│       ↕             ↕           ↕           ↕                    │
-│     etcd         Findings    Runs/Steps   systemd               │
-│                                                                  │
-│  AI Memory ←→ AI Executor ←→ AI Watcher ←→ Event Service       │
-│  (ScyllaDB)    (Anthropic)    (rules)       (pub/sub)           │
-│                                                                  │
-│  AI Router ←→ Monitoring ←→ Prometheus                          │
-│  (policies)    (adapter)                                         │
-└────────────────────────────────────────────────────────────────┘
-```
+<img src="../assets/diagrams/ai-agent-map.svg" alt="AI agent interaction map" style="width:100%;max-width:850px">
 
 ## Multi-Agent Coordination
 

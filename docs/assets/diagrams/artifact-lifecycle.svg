@@ -1,0 +1,64 @@
+<svg width="600" height="140" viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.28); stroke-width: 1; rx: 12; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.55); stroke-width: 1.2; rx: 12; }
+      .panel-active { fill: #1a1a2e; stroke: rgba(0,173,216,0.88); stroke-width: 1.4; rx: 12; }
+      .panel-dim { fill: rgba(26,26,46,0.78); stroke: rgba(0,173,216,0.18); stroke-width: 1; rx: 12; }
+      .panel-success { fill: rgba(0,173,216,0.08); stroke: rgba(0,173,216,0.85); stroke-width: 1.4; rx: 12; }
+      .panel-warn { fill: rgba(255,158,64,0.07); stroke: rgba(255,158,64,0.75); stroke-width: 1.4; rx: 12; }
+      .panel-glow { fill: #1a1a2e; stroke: rgba(0,173,216,0.95); stroke-width: 1.4; rx: 12; filter: url(#glow); }
+      .section { fill: rgba(15,25,35,0.55); stroke: rgba(0,173,216,0.22); stroke-width: 1; rx: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 18px; }
+      .subtitle { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 14px; }
+      .text { fill: #d7e1ea; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .muted { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 11px; }
+      .tiny { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 10px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 13px; }
+      .arrow { stroke: rgba(0,173,216,0.68); stroke-width: 1.6; fill: none; marker-end: url(#arrowhead); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-thin { stroke: rgba(0,173,216,0.55); stroke-width: 1.2; fill: none; marker-end: url(#arrowheadSmall); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 5 4; }
+      .link { stroke: rgba(0,173,216,0.38); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+      .divider { stroke: rgba(0,173,216,0.18); stroke-width: 1; }
+      .chip { fill: rgba(0,173,216,0.09); stroke: rgba(0,173,216,0.30); stroke-width: 1; rx: 8; }
+      .pill { fill: #1a1a2e; stroke: rgba(0,173,216,0.38); stroke-width: 1.15; rx: 15; }
+      .pill-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.92); stroke-width: 1.35; rx: 15; }
+      .pill-dim { fill: rgba(26,26,46,0.74); stroke: rgba(0,173,216,0.18); stroke-width: 1.05; rx: 15; }
+      .num { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#00ADD8" opacity="0.75"></polygon>
+    </marker>
+    <marker id="arrowheadSmall" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#00ADD8" opacity="0.65"></polygon>
+    </marker>
+    
+  </defs>
+  <rect width="600" height="140" class="bg"></rect>
+  <text x="300" y="26" text-anchor="middle" class="subtitle">Artifact Lifecycle</text>
+  <rect x="40" y="52" width="110" height="34" class="pill"></rect>
+  <text x="95" y="74" text-anchor="middle" class="state">STAGING</text>
+  <rect x="170" y="52" width="110" height="34" class="pill"></rect>
+  <text x="225" y="74" text-anchor="middle" class="state">VERIFIED</text>
+  <rect x="310" y="52" width="110" height="34" class="pill-strong"></rect>
+  <text x="365" y="74" text-anchor="middle" class="state">PUBLISHED</text>
+  <path d="M150 69 L170 69" class="arrow-thin"></path>
+  <path d="M280 69 L310 69" class="arrow-thin"></path>
+  <rect x="455" y="25" width="110" height="28" class="pill-dim"></rect>
+  <text x="510" y="43" text-anchor="middle" class="tiny">DEPRECATED</text>
+  <rect x="455" y="60" width="110" height="28" class="pill-dim"></rect>
+  <text x="510" y="78" text-anchor="middle" class="tiny">YANKED</text>
+  <rect x="455" y="95" width="110" height="28" class="pill-dim"></rect>
+  <text x="510" y="113" text-anchor="middle" class="tiny">REVOKED</text>
+  <path d="M420 69 C438 69, 440 39, 455 39" class="arrow-thin"></path>
+  <path d="M420 69 C438 69, 440 74, 455 74" class="arrow-thin"></path>
+  <path d="M420 69 C438 69, 440 109, 455 109" class="arrow-thin"></path>
+</svg>

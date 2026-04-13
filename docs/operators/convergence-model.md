@@ -8,22 +8,7 @@ This page explains how convergence works in detail: the four truth layers it ope
 
 Globular's convergence model operates across four independent truth layers. Each layer represents a different question about the state of a package, and each layer has its own authoritative data source and owner.
 
-```
-Layer 1: Artifact (Repository)
-    "Does this version exist and is it a valid, publishable artifact?"
-         │
-         ▼
-Layer 2: Desired Release (Controller)
-    "What version should be running on which nodes?"
-         │
-         ▼
-Layer 3: Installed Observed (Node Agent)
-    "What version is actually installed on each node?"
-         │
-         ▼
-Layer 4: Runtime Health (systemd + gRPC)
-    "Is the installed service actually running and healthy?"
-```
+<img src="../assets/diagrams/four-layers.svg" alt="Four truth layers" style="width:100%;max-width:600px">
 
 ### Layer 1: Artifact
 
@@ -33,11 +18,7 @@ Layer 4: Runtime Health (systemd + gRPC)
 
 An artifact enters this layer when it is published to the repository. It progresses through lifecycle states:
 
-```
-STAGING ──→ VERIFIED ──→ PUBLISHED ──→ DEPRECATED
-                                   ──→ YANKED
-                                   ──→ REVOKED
-```
+<img src="../assets/diagrams/artifact-lifecycle.svg" alt="Artifact lifecycle states" style="width:100%;max-width:600px">
 
 - **STAGING**: Upload in progress, not yet validated
 - **VERIFIED**: Checksum validated, discoverable by the platform
@@ -207,14 +188,7 @@ For each drifted service, the controller creates or updates a **ServiceRelease**
 
 The release object tracks the lifecycle of bringing a specific service to its desired version:
 
-```
-PENDING ──→ RESOLVED ──→ APPLYING ──→ AVAILABLE
-                                   ──→ DEGRADED
-                                   ──→ FAILED
-                                   ──→ ROLLED_BACK
-
-REMOVING ──→ REMOVED
-```
+<img src="../assets/diagrams/release-lifecycle.svg" alt="Service release lifecycle" style="width:100%;max-width:650px">
 
 - **PENDING**: Release created, awaiting resolution
 - **RESOLVED**: Artifact found in repository, checksums validated, ready for deployment

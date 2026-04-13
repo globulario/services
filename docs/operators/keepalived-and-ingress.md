@@ -43,33 +43,7 @@ This means: you change the ingress spec in etcd, and every node auto-configures 
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        Internet                                │
-│                           │                                    │
-│                   ┌───────▼──────────┐                         │
-│                   │  ISP Router      │                         │
-│                   │  DMZ → 10.0.0.100|                         │
-│                   └───────┬──────────┘                         │
-│                           │                                    │
-│                   ┌───────▼────────┐                           │
-│                   │  VIP 10.0.0.100│  ← keepalived manages     │
-│                   │  (floating)    │                           │
-│                   └───┬────────┬───┘                           │
-│                       │        │                               │
-│          ┌────────────▼──┐  ┌──▼─────────────┐                 │
-│          │ globule-ryzen │  │  globule-nuc   │                 │
-│          │ 10.0.0.63     │  │  10.0.0.8      │                 │
-│          │ MASTER (p=120)│  │  BACKUP (p=110)│                 │
-│          │ wlp5s0 (WiFi) │  │  eno1 (wired)  │                 │
-│          │               │  │                │                 │
-│          │ ┌───────────┐ │  │ ┌───────────┐  │                 │
-│          │ │ Envoy 443 │ │  │ │ Envoy 443 │  │                 │
-│          │ │ Envoy 8443│ │  │ │ Envoy 8443│  │                 │
-│          │ └───────────┘ │  │ └───────────┘  │                 │
-│          └───────────────┘  └────────────────┘                 │
-└────────────────────────────────────────────────────────────────┘
-```
+<img src="../assets/diagrams/network-topology.svg" alt="Keepalived VIP network topology" style="width:100%;max-width:800px">
 
 ### Failover Scenarios
 

@@ -1,0 +1,123 @@
+<svg width="850" height="450" viewBox="0 0 850 450" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.28); stroke-width: 1; rx: 12; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.55); stroke-width: 1.2; rx: 12; }
+      .panel-active { fill: #1a1a2e; stroke: rgba(0,173,216,0.88); stroke-width: 1.4; rx: 12; }
+      .panel-dim { fill: rgba(26,26,46,0.78); stroke: rgba(0,173,216,0.18); stroke-width: 1; rx: 12; }
+      .panel-success { fill: rgba(0,173,216,0.08); stroke: rgba(0,173,216,0.85); stroke-width: 1.4; rx: 12; }
+      .panel-warn { fill: rgba(255,158,64,0.07); stroke: rgba(255,158,64,0.75); stroke-width: 1.4; rx: 12; }
+      .panel-glow { fill: #1a1a2e; stroke: rgba(0,173,216,0.95); stroke-width: 1.4; rx: 12; filter: url(#glow); }
+      .section { fill: rgba(15,25,35,0.55); stroke: rgba(0,173,216,0.22); stroke-width: 1; rx: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 18px; }
+      .subtitle { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 14px; }
+      .text { fill: #d7e1ea; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .muted { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 11px; }
+      .tiny { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 10px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 600; font-size: 13px; }
+      .arrow { stroke: rgba(0,173,216,0.68); stroke-width: 1.6; fill: none; marker-end: url(#arrowhead); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-thin { stroke: rgba(0,173,216,0.55); stroke-width: 1.2; fill: none; marker-end: url(#arrowheadSmall); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 5 4; }
+      .link { stroke: rgba(0,173,216,0.38); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+      .divider { stroke: rgba(0,173,216,0.18); stroke-width: 1; }
+      .chip { fill: rgba(0,173,216,0.09); stroke: rgba(0,173,216,0.30); stroke-width: 1; rx: 8; }
+      .pill { fill: #1a1a2e; stroke: rgba(0,173,216,0.38); stroke-width: 1.15; rx: 15; }
+      .pill-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.92); stroke-width: 1.35; rx: 15; }
+      .pill-dim { fill: rgba(26,26,46,0.74); stroke: rgba(0,173,216,0.18); stroke-width: 1.05; rx: 15; }
+      .num { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#00ADD8" opacity="0.75"></polygon>
+    </marker>
+    <marker id="arrowheadSmall" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0 0, 6 3, 0 6" fill="#00ADD8" opacity="0.65"></polygon>
+    </marker>
+    
+  </defs>
+  <rect width="850" height="450" class="bg"></rect>
+  <text x="425" y="30" text-anchor="middle" class="title">AI Agent Interaction Map</text>
+  <rect x="35" y="55" width="780" height="118" class="section"></rect>
+  <text x="425" y="80" text-anchor="middle" class="title">External AI Agent (Claude Code) via MCP Server</text>
+  <rect x="75" y="102" width="120" height="46" class="panel-strong"></rect>
+  <text x="135" y="122" text-anchor="middle" class="state">Observe</text>
+  <text x="135" y="139" text-anchor="middle" class="tiny">65+ tools</text>
+  <path d="M135 148 L135 188" class="arrow"></path>
+  <rect x="260" y="102" width="120" height="46" class="panel-strong"></rect>
+  <text x="320" y="122" text-anchor="middle" class="state">Diagnose</text>
+  <text x="320" y="139" text-anchor="middle" class="tiny">doctor, explain</text>
+  <path d="M320 148 L320 188" class="arrow"></path>
+  <rect x="445" y="102" width="120" height="46" class="panel-strong"></rect>
+  <text x="505" y="122" text-anchor="middle" class="state">Remember</text>
+  <text x="505" y="139" text-anchor="middle" class="tiny">memory store</text>
+  <path d="M505 148 L505 188" class="arrow"></path>
+  <rect x="630" y="102" width="120" height="46" class="panel-strong"></rect>
+  <text x="690" y="122" text-anchor="middle" class="state">Act</text>
+  <text x="690" y="139" text-anchor="middle" class="tiny">executor prompt</text>
+  <path d="M690 148 L690 188" class="arrow"></path>
+  <rect x="35" y="195" width="780" height="225" class="section"></rect>
+  <text x="425" y="220" text-anchor="middle" class="title">Globular Platform Services</text>
+  <rect x="90" y="245" width="120" height="42" class="panel-strong"></rect>
+  <text x="150" y="271" text-anchor="middle" class="state">Controller</text>
+  <rect x="108" y="305" width="84" height="22" class="chip"></rect>
+  <text x="150" y="320" text-anchor="middle" class="tiny">etcd</text>
+  <path d="M150 287 L150 305" class="arrow-thin"></path>
+  <rect x="265" y="245" width="120" height="42" class="panel-strong"></rect>
+  <text x="325" y="271" text-anchor="middle" class="state">Doctor</text>
+  <rect x="283" y="305" width="84" height="22" class="chip"></rect>
+  <text x="325" y="320" text-anchor="middle" class="tiny">Findings</text>
+  <path d="M325 287 L325 305" class="arrow-thin"></path>
+  <rect x="440" y="245" width="120" height="42" class="panel-active"></rect>
+  <text x="500" y="271" text-anchor="middle" class="state">Workflow</text>
+  <rect x="458" y="305" width="84" height="22" class="chip"></rect>
+  <text x="500" y="320" text-anchor="middle" class="tiny">Runs / Steps</text>
+  <path d="M500 287 L500 305" class="arrow-thin"></path>
+  <rect x="615" y="245" width="120" height="42" class="panel-strong"></rect>
+  <text x="675" y="271" text-anchor="middle" class="state">Node Agent</text>
+  <rect x="633" y="305" width="84" height="22" class="chip"></rect>
+  <text x="675" y="320" text-anchor="middle" class="tiny">systemd</text>
+  <path d="M675 287 L675 305" class="arrow-thin"></path>
+  <path d="M210 266 L265 266" class="arrow-thin"></path>
+  <path d="M265 279 L210 279" class="arrow-thin"></path>
+  <path d="M385 266 L440 266" class="arrow-thin"></path>
+  <path d="M440 279 L385 279" class="arrow-thin"></path>
+  <path d="M560 266 L615 266" class="arrow-thin"></path>
+  <path d="M615 279 L560 279" class="arrow-thin"></path>
+  <rect x="90" y="348" width="120" height="42" class="panel-strong"></rect>
+  <text x="150" y="373" text-anchor="middle" class="state">AI Memory</text>
+  <text x="150" y="390" text-anchor="middle" class="tiny">(ScyllaDB)</text>
+  <rect x="265" y="348" width="120" height="42" class="panel-strong"></rect>
+  <text x="325" y="373" text-anchor="middle" class="state">AI Executor</text>
+  <text x="325" y="390" text-anchor="middle" class="tiny">(Anthropic)</text>
+  <rect x="440" y="348" width="120" height="42" class="panel-strong"></rect>
+  <text x="500" y="373" text-anchor="middle" class="state">AI Watcher</text>
+  <text x="500" y="390" text-anchor="middle" class="tiny">(rules)</text>
+  <rect x="615" y="348" width="120" height="42" class="panel-strong"></rect>
+  <text x="675" y="373" text-anchor="middle" class="state">Event Service</text>
+  <text x="675" y="390" text-anchor="middle" class="tiny">(pub/sub)</text>
+  <path d="M210 369 L265 369" class="arrow-thin"></path>
+  <path d="M265 382 L210 382" class="arrow-thin"></path>
+  <path d="M385 369 L440 369" class="arrow-thin"></path>
+  <path d="M440 382 L385 382" class="arrow-thin"></path>
+  <path d="M560 369 L615 369" class="arrow-thin"></path>
+  <path d="M615 382 L560 382" class="arrow-thin"></path>
+  <rect x="190" y="404" width="120" height="28" class="chip"></rect>
+  <text x="250" y="421" text-anchor="middle" class="tiny">AI Router • policies</text>
+  <rect x="365" y="404" width="120" height="28" class="chip"></rect>
+  <text x="425" y="421" text-anchor="middle" class="tiny">Monitoring • adapter</text>
+  <rect x="540" y="404" width="120" height="28" class="chip"></rect>
+  <text x="600" y="421" text-anchor="middle" class="tiny">Prometheus • metrics</text>
+  <path d="M310 418 L365 418" class="arrow-thin"></path>
+  <path d="M485 418 L540 418" class="arrow-thin"></path>
+  <path d="M135 188 L150 245" class="link"></path>
+  <path d="M320 188 L325 245" class="link"></path>
+  <path d="M505 188 L150 245" class="link"></path>
+  <path d="M690 188 L325 245" class="link"></path>
+</svg>
