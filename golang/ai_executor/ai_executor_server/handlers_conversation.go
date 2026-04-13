@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -32,6 +33,17 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 	}
 
 	hostname, _ := os.Hostname()
+
+	// Resolve the "__leader__" sentinel to the actual leader node hostname.
+	if req.TargetNode == "__leader__" {
+		resolved := srv.resolveLeaderHostname()
+		if resolved != "" {
+			req.TargetNode = resolved
+		} else {
+			// Could not determine leader — handle locally as best-effort.
+			req.TargetNode = ""
+		}
+	}
 
 	// Route to a specific peer if requested.
 	// Ensure the user ID is on the request so the peer stores the
@@ -432,6 +444,52 @@ func (srv *server) findPeerByHostname(target string) *peerConn {
 		}
 	}
 	return nil
+}
+
+// resolveLeaderHostname reads the cluster controller leader address from etcd
+// and resolves it to a hostname. Returns empty string on failure.
+func (srv *server) resolveLeaderHostname() string {
+	addr, err := etcdGet("/globular/clustercontroller/leader/addr")
+	if err != nil || addr == "" {
+		logger.Warn("leader: could not read leader addr from etcd", "err", err)
+		return ""
+	}
+
+	ip, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// addr might be a bare IP without port.
+		ip = addr
+	}
+
+	// Check if the leader IP is local — if so, return empty so we handle locally.
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, a := range addrs {
+			if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.String() == ip {
+				return "" // local — handle here
+			}
+		}
+	}
+
+	// Try to resolve IP to hostname via /etc/hosts first.
+	if name := resolveHostnameFromHosts(ip); name != "" {
+		return name
+	}
+
+	// Try peer list — peers already have resolved hostnames.
+	if srv.peers != nil {
+		srv.peers.mu.RLock()
+		for _, p := range srv.peers.peers {
+			peerHost, _, _ := net.SplitHostPort(p.Endpoint)
+			if peerHost == ip {
+				srv.peers.mu.RUnlock()
+				return p.Hostname
+			}
+		}
+		srv.peers.mu.RUnlock()
+	}
+
+	// Last resort: return the IP itself — the routing logic will match it.
+	return ip
 }
 
 // hostnameMatches returns true if target refers to the same host as hostname,

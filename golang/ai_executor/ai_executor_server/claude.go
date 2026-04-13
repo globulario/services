@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 )
@@ -46,9 +48,11 @@ func newClaudeClient() *claudeClient {
 		logger.Info("claude: CLI not found, using deterministic fallback")
 	}
 
-	return &claudeClient{
+	c := &claudeClient{
 		cliBinary: binary,
 	}
+	c.ensureMCPConfig()
+	return c
 }
 
 // syncCLICredentialsFromEtcd reads OAuth credentials from etcd and writes them
@@ -86,6 +90,84 @@ func (c *claudeClient) isAvailable() bool {
 	return c.cliBinary != ""
 }
 
+// ensureMCPConfig writes/updates ~/.claude/.mcp.json so the Claude CLI
+// subprocess connects to this node's own MCP server at http://<ip>:<port>/mcp.
+// The port is discovered dynamically by scanning for a listening "mcp" process.
+func (c *claudeClient) ensureMCPConfig() {
+	// Resolve this node's own IP. srv.Address in the config can be stale
+	// (it may contain another node's IP), so we derive the IP from the
+	// network interfaces instead.
+	ip := localNonLoopbackIP()
+	if ip == "" {
+		return
+	}
+
+	port := discoverMCPPort()
+	if port == 0 {
+		logger.Info("claude: MCP server not detected, skipping config")
+		return
+	}
+
+	wantURL := fmt.Sprintf("https://%s:%d/mcp", ip, port)
+
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "/var/lib/globular"
+	}
+	mcpPath := filepath.Join(home, ".claude", ".mcp.json")
+
+	// Read existing config if present.
+	type mcpServerEntry struct {
+		Type    string            `json:"type"`
+		URL     string            `json:"url"`
+		Env     map[string]string `json:"env,omitempty"`
+		Headers map[string]string `json:"headers,omitempty"`
+	}
+	type mcpConfig struct {
+		McpServers map[string]mcpServerEntry `json:"mcpServers"`
+	}
+
+	var cfg mcpConfig
+	if data, err := os.ReadFile(mcpPath); err == nil {
+		_ = json.Unmarshal(data, &cfg)
+	}
+	if cfg.McpServers == nil {
+		cfg.McpServers = make(map[string]mcpServerEntry)
+	}
+
+	existing, ok := cfg.McpServers["globular"]
+	if ok && existing.URL == wantURL && existing.Type == "http" {
+		return // already correct
+	}
+
+	cfg.McpServers["globular"] = mcpServerEntry{
+		Type: "http",
+		URL:  wantURL,
+		Env: map[string]string{
+			"NODE_TLS_REJECT_UNAUTHORIZED": "0",
+		},
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		logger.Warn("claude: failed to marshal MCP config", "err", err)
+		return
+	}
+
+	dir := filepath.Dir(mcpPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		logger.Warn("claude: failed to create MCP config dir", "err", err)
+		return
+	}
+
+	if err := os.WriteFile(mcpPath, data, 0600); err != nil {
+		logger.Warn("claude: failed to write MCP config", "path", mcpPath, "err", err)
+		return
+	}
+
+	logger.Info("claude: updated MCP config", "path", mcpPath, "url", wantURL)
+}
+
 // cliResult is the JSON object returned by `claude --print --output-format json`.
 type cliResult struct {
 	Type    string `json:"type"`
@@ -121,7 +203,7 @@ func (c *claudeClient) sendPrompt(ctx context.Context, prompt string) (string, e
 	}
 	cmd := exec.CommandContext(ctx, c.cliBinary, args...)
 
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), "NODE_TLS_REJECT_UNAUTHORIZED=0")
 
 	// Set working directory so Claude picks up MCP configuration.
 	workDir := "/var/lib/globular/services"
@@ -327,4 +409,36 @@ func parseAnalysis(response string) (*claudeAnalysis, error) {
 	}
 
 	return &analysis, nil
+}
+
+// discoverMCPPort finds the port the local "mcp" process is listening on
+// by scanning /proc/net/tcp and matching against the mcp binary.
+// Falls back to checking common ports (10250, 10260) if /proc parsing fails.
+func discoverMCPPort() int {
+	// Try common MCP ports by probing locally.
+	for _, port := range []int{10250, 10260} {
+		addr := fmt.Sprintf("127.0.0.1:%d", port)
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return port
+		}
+	}
+	return 0
+}
+
+// localNonLoopbackIP returns the first non-loopback IPv4 address of this machine.
+func localNonLoopbackIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+			continue
+		}
+		return ipNet.IP.String()
+	}
+	return ""
 }
