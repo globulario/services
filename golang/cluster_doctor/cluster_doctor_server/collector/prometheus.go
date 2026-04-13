@@ -40,7 +40,7 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	queries := map[string]string{
-		"controller_loop_heartbeat_age": "time() - globular_controller_loop_heartbeat_unix",
+		"controller_loop_heartbeat_age": "time() - max(globular_controller_loop_heartbeat_unix)",
 		"workflow_oldest_active_age":    "globular_workflow_oldest_active_age_seconds",
 		"workflow_active_runs":          "globular_workflow_active_runs",
 		"node_heartbeat_age_max":        "max(time() - globular_node_agent_heartbeat_success_unix)",

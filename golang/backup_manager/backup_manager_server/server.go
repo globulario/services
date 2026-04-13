@@ -312,11 +312,9 @@ func (srv *server) Init() error {
 		srv.HookTimeoutSeconds = 30
 	}
 	// MinIO endpoint + credentials come from etcd (the single source of truth).
-	// tryLoadMinioCredentials() populates MinioEndpoint, MinioAccessKey,
-	// MinioSecretKey, MinioSecure from /globular/cluster/minio/config.
-	if srv.MinioEndpoint == "" || srv.MinioAccessKey == "" || srv.MinioSecretKey == "" {
-		srv.tryLoadMinioCredentials()
-	}
+	// Always load from /globular/cluster/minio/config to prevent stale
+	// service-level values (e.g. loopback addresses) from persisting.
+	srv.tryLoadMinioCredentials()
 	if len(srv.Destinations) == 0 {
 		srv.Destinations = []DestinationConfig{
 			{Name: "local", Type: "local", Path: srv.DataDir, Primary: true},
