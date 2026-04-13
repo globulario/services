@@ -230,7 +230,7 @@ globular dns domains list
 globular dns domains set globular.internal. globular.io.
 ```
 
-**Important**: Managed domain lists are per-instance. If the DNS service restarts, zones may need to be re-added. The zone data (records) is stored in ScyllaDB and persists across restarts, but the domain list is in memory.
+**Note**: Managed domain lists are stored in ScyllaDB and persist across restarts. All DNS instances in the cluster share the same store. If zones appear missing after restart, verify the domains were set via an authenticated gRPC call (the CLI may fail with "cluster_id required" — use grpcurl directly if needed).
 
 ### DNS Records for External Access
 

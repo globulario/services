@@ -188,7 +188,7 @@ Full docs in `docs/` (49 files, 16k+ lines). Key references:
 
 ## KNOWN ISSUES (check before assuming things work)
 
-1. **DNS zones are in-memory** — after DNS restart, re-register: `globular dns domains set globular.internal. globular.io.`
+1. **DNS zones persist to ScyllaDB** — if zones appear missing, the CLI may have auth issues. Use grpcurl directly to `localhost:10006` to set domains.
 2. **Split-horizon DNS not supported** — `/etc/hosts` override needed for hairpin NAT
 3. **ACME cert path mismatch** — reconciler writes to `/var/lib/globular/domains/{d}/`, xDS reads from `/var/lib/globular/config/tls/acme/{d}/`. Symlink required.
 4. **compute_server not in build** — code exists but not compiled or packaged

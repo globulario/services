@@ -89,15 +89,19 @@ These commands exist but are documented with wrong names:
 
 ### DNS Zone Persistence
 
-**Issue**: Managed domain lists (zones) are stored in memory, not persisted. After DNS service restart, zones like `globular.io` must be re-registered manually.
+**Status**: Fixed. DNS zones persist to ScyllaDB across restarts. All three DNS instances share the same ScyllaDB-backed store.
 
-**Workaround**:
+**Previous issue**: Zones appeared to be lost after restart because the CLI and MCP tools failed to authenticate to the DNS service (missing `cluster_id`). Domains set through those broken paths never persisted. When set directly via authenticated gRPC (grpcurl or the local DNS provider fix), persistence works correctly.
+
+**If zones are missing after restart** (legacy installations):
 ```bash
-# After DNS restart, re-add zones on each DNS instance
-globular dns domains set globular.internal. yourdomain.com.
+# Set domains directly via grpcurl (authenticated)
+grpcurl -cacert /var/lib/globular/pki/ca.crt \
+  -cert /var/lib/globular/pki/issued/services/service.crt \
+  -key /var/lib/globular/pki/issued/services/service.key \
+  -d '{"domains": ["globular.internal.", "yourdomain.com."]}' \
+  localhost:10006 dns.DnsService/SetDomains
 ```
-
-**Planned fix**: Persist managed domain list to ScyllaDB alongside zone records.
 
 ### Split-Horizon DNS
 
