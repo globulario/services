@@ -20,6 +20,9 @@
 .md-header {
   background-color: #00ADD8;
 }
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #1a1a2e;
+}
 
 /* Ensure header icons (dark mode toggle, search, repo) are visible */
 .md-header__button {
