@@ -177,6 +177,13 @@ type Run struct {
 // Engine
 // --------------------------------------------------------------------------
 
+// ControlPlaneEventEmitter allows the engine to emit self-monitoring events
+// so the AI layer can observe control plane health. Optional — if nil, events
+// are only logged. Callers wire this to their event service client.
+type ControlPlaneEventEmitter interface {
+	EmitControlPlaneEvent(ctx context.Context, name string, data map[string]any)
+}
+
 // Engine executes compiled workflows to completion.
 type Engine struct {
 	Router       *Router
@@ -185,6 +192,7 @@ type Engine struct {
 	OnStepDone   func(run *Run, step *StepState) // optional callback for observability
 	PreCompleted map[string]StepStatus            // steps already completed (for resume after crash)
 	IsResume     bool                             // true when re-executing after orphan claim (enables resume policies)
+	Events       ControlPlaneEventEmitter          // optional: emit workflow.* events for AI observability
 }
 
 // Execute compiles a v1alpha1 definition and executes it. This is the
@@ -202,9 +210,24 @@ func (e *Engine) Execute(ctx context.Context, def *v1alpha1.WorkflowDefinition, 
 
 // ExecuteCompiled runs a pre-compiled workflow with the given inputs.
 // It blocks until the workflow completes or the context is canceled.
+//
+// Pre-flight validation: before creating the run, all (actor, action)
+// pairs in the workflow are checked against the Router. If any action
+// has no handler, execution is rejected with a PreflightError listing
+// every missing handler. This prevents silent step skipping.
 func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkflow, inputs map[string]any) (*Run, error) {
 	if cw == nil {
 		return nil, fmt.Errorf("compiled workflow is nil")
+	}
+
+	// Pre-flight: verify all actions in the workflow have handlers.
+	if err := ValidatePreflight(cw, e.Router); err != nil {
+		log.Printf("workflow %s: PREFLIGHT FAILED — %v", cw.Name, err)
+		e.emitEvent(ctx, "workflow.preflight_failed", map[string]any{
+			"workflow": cw.Name,
+			"error":    err.Error(),
+		})
+		return nil, fmt.Errorf("preflight %s: %w", cw.Name, err)
 	}
 
 	// Merge defaults + inputs.
@@ -249,14 +272,28 @@ func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkf
 	err := e.executeDAG(ctx, run, cw)
 
 	run.FinishedAt = time.Now()
+	duration := run.FinishedAt.Sub(run.StartedAt)
 	if err != nil {
 		run.Status = RunFailed
 		run.Error = err.Error()
+		e.emitEvent(ctx, "workflow.run_failed", map[string]any{
+			"workflow":    cw.Name,
+			"run_id":      run.ID,
+			"error":       err.Error(),
+			"duration_ms": duration.Milliseconds(),
+			"steps_total": len(run.Steps),
+		})
 		if cw.OnFailure != nil {
 			e.dispatchHook(ctx, run, cw.OnFailure)
 		}
 	} else {
 		run.Status = RunSucceeded
+		e.emitEvent(ctx, "workflow.run_succeeded", map[string]any{
+			"workflow":    cw.Name,
+			"run_id":      run.ID,
+			"duration_ms": duration.Milliseconds(),
+			"steps_total": len(run.Steps),
+		})
 		if cw.OnSuccess != nil {
 			e.dispatchHook(ctx, run, cw.OnSuccess)
 		}
@@ -841,6 +878,16 @@ func (e *Engine) notifyStep(run *Run, st *StepState) {
 	if e.OnStepDone != nil {
 		e.OnStepDone(run, st)
 	}
+	// Emit event for step failures so the AI layer can observe them.
+	if st.Status == StepFailed {
+		e.emitEvent(context.Background(), "workflow.step_failed", map[string]any{
+			"workflow": run.Definition,
+			"run_id":   run.ID,
+			"step_id":  st.ID,
+			"error":    st.Error,
+			"attempt":  st.Attempt,
+		})
+	}
 }
 
 // --------------------------------------------------------------------------
@@ -930,5 +977,13 @@ func resolveValue(v any, inputs, outputs map[string]any) any {
 		return resolveWith(val, inputs, outputs)
 	default:
 		return v
+	}
+}
+
+// emitEvent sends a control-plane event if an emitter is configured.
+// Safe to call with nil Events — silently no-ops.
+func (e *Engine) emitEvent(ctx context.Context, name string, data map[string]any) {
+	if e.Events != nil {
+		e.Events.EmitControlPlaneEvent(ctx, name, data)
 	}
 }
