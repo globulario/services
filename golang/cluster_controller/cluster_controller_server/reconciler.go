@@ -16,8 +16,14 @@ import (
 
 // driftReconciler periodically compares desired state against installed state
 // on each node and dispatches ApplyPackageRelease for any drift detected.
-// Only the leader runs reconciliation. This is the convergence backstop that
-// ensures desired == installed without relying on manual intervention.
+// Only the leader runs reconciliation.
+//
+// IMPORTANT: As of the workflow pipeline fix, the cluster.reconcile workflow
+// handles drift remediation through proper auditable steps (scan_drift →
+// classify_drift → dispatch_remediations). The drift reconciler now ONLY
+// detects drift and emits events — it no longer applies packages directly.
+// This prevents duplicate applies and ensures all deployments have an
+// audit trail through the workflow system.
 type driftReconciler struct {
 	srv      *server
 	interval time.Duration
@@ -196,59 +202,17 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			log.Printf("drift-reconciler: node=%s pkg=%s desired=%s-b%d (resolved build=%d) installed=%s — dispatching",
 				node.Identity.Hostname, name, dv.version, dv.buildNumber, resolvedBuild, installedVer)
 
-			r.markInflight(inflightKey)
-
-			// Capture loop variables for goroutine.
-			nID, endpoint := nodeID, node.AgentEndpoint
-			pkgName, pkgKind := name, kind
-			version, buildNumber := resolved.Version, resolvedBuild
-
-			go func() {
-				r.sem <- struct{}{}        // acquire
-				defer func() { <-r.sem }() // release
-				defer r.clearInflight(inflightKey)
-				if r.srv.dispatchReg != nil {
-					defer r.srv.dispatchReg.Release(inflightKey)
-				}
-
-				rctx, cancel := context.WithTimeout(ctx, r.timeout)
-				defer cancel()
-
-				r.srv.emitClusterEvent("cluster.drift_apply_started", map[string]interface{}{
-					"node_id": nID, "package": pkgName, "kind": pkgKind,
-					"version": version, "build_number": buildNumber,
-				})
-				err := r.srv.remoteApplyPackageRelease(rctx, nID, endpoint,
-					pkgName, pkgKind, version, "", repo.Address, buildNumber, false)
-				if err != nil {
-					log.Printf("drift-reconciler: apply failed node=%s pkg=%s: %v", nID, pkgName, err)
-					r.srv.emitClusterEvent("cluster.drift_apply_failed", map[string]interface{}{
-						"node_id": nID, "package": pkgName, "kind": pkgKind,
-						"version": version, "error": err.Error(),
-					})
-				} else {
-					log.Printf("drift-reconciler: apply succeeded node=%s pkg=%s@%s", nID, pkgName, version)
-					r.srv.emitClusterEvent("cluster.drift_apply_succeeded", map[string]interface{}{
-						"node_id": nID, "package": pkgName, "kind": pkgKind,
-						"version": version, "build_number": buildNumber,
-					})
-				}
-
-				// Record the apply for loop detection. If threshold exceeded,
-				// quarantine this package/node and emit a finding.
-				if r.srv.applyLoopDet != nil {
-					if r.srv.applyLoopDet.RecordApply(inflightKey) {
-						r.srv.emitClusterEvent("cluster.apply_loop_detected", map[string]interface{}{
-							"severity": "WARNING",
-							"node_id":  nID,
-							"package":  pkgName,
-							"kind":     pkgKind,
-							"key":      inflightKey,
-							"message":  fmt.Sprintf("package %s on node %s quarantined — repeated applies without convergence", pkgName, nID),
-						})
-					}
-				}
-			}()
+			// Drift detected — emit event for observability. Actual remediation
+			// is handled by the cluster.reconcile workflow (scan_drift →
+			// classify_drift → dispatch_remediations). No direct apply here.
+			r.srv.emitClusterEvent("cluster.drift_detected", map[string]interface{}{
+				"node_id":           nodeID,
+				"hostname":          node.Identity.Hostname,
+				"package":           name,
+				"kind":              kind,
+				"desired_version":   fmt.Sprintf("%s-b%d", dv.version, resolvedBuild),
+				"installed_version": installedVer,
+			})
 		}
 	}
 }
