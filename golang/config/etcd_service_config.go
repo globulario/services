@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -95,9 +97,40 @@ func sanitizeMAC(mac string) string {
 // PutInstance writes per-node instance data for a service.
 // Each node writes its own instance key so xDS can discover all endpoints.
 // The data includes Address, Port, PID, State, and MAC.
+//
+// HARD RULE: rejects loopback addresses (127.0.0.1, ::1, localhost).
+// If the address would be loopback, the instance is not registered — callers
+// must resolve a routable address before calling PutInstance.
 func PutInstance(serviceID, mac string, data map[string]any) error {
 	if serviceID == "" || mac == "" {
 		return errors.New("PutInstance: missing serviceID or mac")
+	}
+	// Reject zero MAC — all-zeros means MAC detection failed.
+	// In Docker/containers, multiple nodes get 00:00:00:00:00:00 which
+	// causes identity collision (they all write to the same etcd key,
+	// overwriting each other's address). Use hostname as fallback key.
+	if mac == "00:00:00:00:00:00" {
+		hostname, err := os.Hostname()
+		if err != nil || hostname == "" {
+			return fmt.Errorf("PutInstance: zero MAC and hostname unavailable for service %s", serviceID)
+		}
+		mac = sanitizeMAC(hostname) // use hostname as unique node key
+		data["Mac"] = mac
+		slog.Warn("PutInstance: zero MAC detected, using hostname as instance key",
+			"service", serviceID, "hostname", hostname)
+	}
+	// Reject loopback addresses — they are unreachable from other nodes.
+	if addr, ok := data["Address"].(string); ok {
+		host := addr
+		if h, _, err := net.SplitHostPort(addr); err == nil {
+			host = h
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			return fmt.Errorf("PutInstance: refusing to register loopback address %q for service %s (resolve a routable address)", addr, serviceID)
+		}
+		if host == "localhost" {
+			return fmt.Errorf("PutInstance: refusing to register localhost for service %s (resolve a routable address)", serviceID)
+		}
 	}
 	data["UpdatedAt"] = time.Now().Unix()
 	data["Mac"] = mac
@@ -353,6 +386,21 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			var inst map[string]interface{}
 			if err := json.Unmarshal(kv.Value, &inst); err != nil {
 				continue
+			}
+			// Defense in depth: skip instances with loopback addresses.
+			// These are unreachable from other nodes and should never
+			// have been registered (PutInstance now rejects them).
+			if addr, ok := inst["Address"].(string); ok {
+				h := addr
+				if hp, _, e := net.SplitHostPort(addr); e == nil {
+					h = hp
+				}
+				if ip := net.ParseIP(h); ip != nil && ip.IsLoopback() {
+					continue
+				}
+				if h == "localhost" {
+					continue
+				}
 			}
 			instancesByID[id] = append(instancesByID[id], inst)
 		}
