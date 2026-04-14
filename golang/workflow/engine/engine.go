@@ -508,6 +508,15 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 		st.FinishedAt = time.Now()
 		if result != nil {
 			st.Output = result.Output
+			// Merge all result outputs into the run's output map so
+			// subsequent steps can reference them via $.key expressions.
+			// Without this, actions that write to req.Outputs (e.g.
+			// scan_drift writing drift_report) lose their data when the
+			// action executes remotely (the handler's req.Outputs is a
+			// serialized copy, not the engine's live run.Outputs).
+			for k, v := range result.Output {
+				run.Outputs[k] = v
+			}
 		}
 		if step.Export != "" {
 			run.Outputs[step.Export] = st.Output

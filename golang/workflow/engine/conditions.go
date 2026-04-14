@@ -83,6 +83,11 @@ func evalContains(expr string, inputs, outputs map[string]any) (bool, error) {
 }
 
 // evalLen handles: len(selected_targets) == 0, len(X) > 0
+//
+// SAFETY: if the variable is undefined (nil), len() returns -1 so that
+// "len(X) == 0" evaluates to false. This prevents the clean-path
+// short-circuit when a prior step was skipped and never populated the
+// variable. Fail-closed: undefined ≠ empty.
 func evalLen(expr string, inputs, outputs map[string]any) (bool, error) {
 	// Parse: len(VARNAME) OP NUMBER
 	closeParen := strings.Index(expr, ")")
@@ -93,9 +98,12 @@ func evalLen(expr string, inputs, outputs map[string]any) (bool, error) {
 	varName := strings.TrimSpace(expr[len("len("):closeParen])
 	rest := strings.TrimSpace(expr[closeParen+1:])
 
-	// Resolve variable.
+	// Resolve variable. If undefined, use -1 (fail-closed: not zero).
 	val := resolveVar(varName, inputs, outputs)
-	length := collectionLength(val)
+	length := -1
+	if val != nil {
+		length = collectionLength(val)
+	}
 
 	// Parse operator and number.
 	if strings.HasPrefix(rest, "==") {

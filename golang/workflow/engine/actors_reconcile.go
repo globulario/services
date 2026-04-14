@@ -70,10 +70,13 @@ func reconcileScanDrift(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("scan drift: %w", err)
 			}
 			req.Outputs["drift_report"] = items
-			return &ActionResult{OK: true, Output: map[string]any{"count": len(items)}}, nil
+			// Return drift_report in Output so the engine merges it into
+			// run.Outputs. Without this, remote actions lose req.Outputs
+			// writes because the handler runs on a serialized copy.
+			return &ActionResult{OK: true, Output: map[string]any{"count": len(items), "drift_report": items}}, nil
 		}
 		req.Outputs["drift_report"] = []any{}
-		return &ActionResult{OK: true, Output: map[string]any{"count": 0}}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"count": 0, "drift_report": []any{}}}, nil
 	}
 }
 
@@ -85,6 +88,7 @@ func reconcileClassifyDrift(cfg ReconcileControllerConfig) ActionHandler {
 				driftReport = dr
 			}
 		}
+		log.Printf("reconcile-workflow: classify_drift received %d drift items", len(driftReport))
 		maxRem := 50
 		if m, ok := req.With["max_remediations"].(int); ok {
 			maxRem = m
@@ -95,10 +99,10 @@ func reconcileClassifyDrift(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("classify drift: %w", err)
 			}
 			req.Outputs["remediation_items"] = items
-			return &ActionResult{OK: true, Output: map[string]any{"count": len(items)}}, nil
+			return &ActionResult{OK: true, Output: map[string]any{"count": len(items), "remediation_items": items}}, nil
 		}
 		req.Outputs["remediation_items"] = []any{}
-		return &ActionResult{OK: true, Output: map[string]any{"count": 0}}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"count": 0, "remediation_items": []any{}}}, nil
 	}
 }
 
@@ -280,4 +284,12 @@ func workflowWaitChildTerminal(cfg WorkflowServiceConfig) ActionHandler {
 		req.Outputs["child_result"] = result
 		return &ActionResult{OK: true, Output: result}, nil
 	}
+}
+
+func mapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
