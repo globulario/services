@@ -59,6 +59,7 @@ nav:
 
   - Concepts:
     - Why Globular: concepts/why-globular.md
+    - Glossary: concepts/glossary.md
 
   - Operators:
     - Day-0 / Day-1 / Day-2: operators/day-0-1-2-operations.md
@@ -105,6 +106,7 @@ nav:
     - RBAC Integration: developers/rbac-integration.md
     - Application Deployment: developers/application-deployment.md
     - Workflow Integration: developers/workflow-integration.md
+    - Docker Simulation: developers/docker-simulation.md
 
   - AI Layer:
     - AI Overview: ai/ai-overview.md
@@ -113,4 +115,5 @@ nav:
     - AI Services: ai/ai-services.md
     - AI Operator Guide: ai/ai-operator-guide.md
     - AI Developer Guide: ai/ai-developer-guide.md
+    - AI Diagnosis Walkthrough: ai/ai-diagnosis-walkthrough.md
     - AI Patterns: ai/ai-patterns-and-anti-patterns.md

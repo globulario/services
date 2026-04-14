@@ -218,5 +218,5 @@ The repair command compares all four layers, identifies which packages are drift
 
 - [Architecture Overview](architecture-overview.md): Deep dive into how the components interact, data flows, and the control plane design
 - [Convergence Model](convergence-model.md): Detailed explanation of how Globular drives desired state to reality through workflows
-- Building a Service (coming soon): How to create, package, and deploy your own gRPC microservice on Globular
-- Operations Guide (coming soon): Day-2 operations — backup, restore, upgrades, monitoring, and troubleshooting
+- [Writing a Microservice](../developers/writing-a-microservice.md): How to create, package, and deploy your own gRPC microservice on Globular
+- [Day-0 / Day-1 / Day-2 Operations](day-0-1-2-operations.md): Backup, restore, upgrades, monitoring, and troubleshooting

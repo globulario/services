@@ -20,6 +20,7 @@ New to Globular? Start here.
 Understand how Globular works before operating it.
 
 - [Why Globular](concepts/why-globular.md) — Design philosophy: why workflows, why no containers, why etcd
+- [Glossary](concepts/glossary.md) — Key terms and definitions for the Globular platform
 - [Convergence Model](operators/convergence-model.md) — How desired state becomes reality through 4 truth layers
 - [Workflows](operators/workflows.md) — The execution engine: phases, failure classification, retry, audit
 - [Services and Packages](operators/services-and-packages.md) — How services are structured, built, packaged, and published
@@ -84,6 +85,7 @@ How AI operates within Globular — rules, services, agent model, and integratio
 - [AI Services](ai/ai-services.md) — AI Memory, Executor, Watcher, and Router
 - [AI Operator Guide](ai/ai-operator-guide.md) — Monitor, trust, constrain, and debug AI behavior
 - [AI Developer Guide](ai/ai-developer-guide.md) — Build AI-safe services and MCP tools
+- [AI Diagnosis Walkthrough](ai/ai-diagnosis-walkthrough.md) — End-to-end example: observe, diagnose, act, verify, record
 - [AI Patterns and Anti-Patterns](ai/ai-patterns-and-anti-patterns.md) — Good and bad AI integration patterns
 
 ---
