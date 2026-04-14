@@ -659,7 +659,21 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 
 	base := pickTLSBaseDir()
 
-	// 0) Highest priority: user PKI directory (~/.config/globular/pki/).
+	// 0a) Highest priority: system PKI directory (/var/lib/globular/pki/).
+	// Services run as the globular user and have direct access to the
+	// canonical service certificate and cluster CA here.
+	systemPKI := filepath.Join(config.GetStateRootDir(), "pki", "issued", "services")
+	systemCA := filepath.Join(config.GetStateRootDir(), "pki", "ca.crt")
+	if _, err := os.Stat(systemCA); err == nil {
+		if k, c, _, ok := tryUseExistingClientCerts(systemPKI, ""); ok {
+			client.SetKeyFile(k)
+			client.SetCertFile(c)
+			client.SetCaFile(systemCA)
+			return nil
+		}
+	}
+
+	// 0b) User PKI directory (~/.config/globular/pki/).
 	// This is where 'globular auth install-certs' stores credentials.
 	// base is ~/.config/globular/tls; pki is a sibling directory.
 	pkiDir := filepath.Join(filepath.Dir(base), "pki")
