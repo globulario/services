@@ -74,6 +74,10 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 				log.Printf("leader election: publish addr failed: %v", err)
 			} else {
 				log.Printf("leader election: became leader id=%s addr=%s", candidateID, addr)
+				srv.emitClusterEvent("controller.leader_elected", map[string]interface{}{
+					"leader_id": candidateID,
+					"address":   addr,
+				})
 			}
 			refreshTicker := time.NewTicker(10 * time.Second)
 		loop:

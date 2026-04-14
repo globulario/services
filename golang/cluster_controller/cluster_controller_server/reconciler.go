@@ -214,12 +214,24 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				rctx, cancel := context.WithTimeout(ctx, r.timeout)
 				defer cancel()
 
+				r.srv.emitClusterEvent("cluster.drift_apply_started", map[string]interface{}{
+					"node_id": nID, "package": pkgName, "kind": pkgKind,
+					"version": version, "build_number": buildNumber,
+				})
 				err := r.srv.remoteApplyPackageRelease(rctx, nID, endpoint,
 					pkgName, pkgKind, version, "", repo.Address, buildNumber, false)
 				if err != nil {
 					log.Printf("drift-reconciler: apply failed node=%s pkg=%s: %v", nID, pkgName, err)
+					r.srv.emitClusterEvent("cluster.drift_apply_failed", map[string]interface{}{
+						"node_id": nID, "package": pkgName, "kind": pkgKind,
+						"version": version, "error": err.Error(),
+					})
 				} else {
 					log.Printf("drift-reconciler: apply succeeded node=%s pkg=%s@%s", nID, pkgName, version)
+					r.srv.emitClusterEvent("cluster.drift_apply_succeeded", map[string]interface{}{
+						"node_id": nID, "package": pkgName, "kind": pkgKind,
+						"version": version, "build_number": buildNumber,
+					})
 				}
 
 				// Record the apply for loop detection. If threshold exceeded,

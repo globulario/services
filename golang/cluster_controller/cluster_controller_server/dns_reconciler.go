@@ -328,6 +328,10 @@ func (r *DNSReconciler) reconcile() error {
 	r.lastGeneration = generation
 	atomic.AddUint64(&r.reconcileSuccess, 1)
 	log.Printf("dns reconciler: SUCCESS - applied generation %d to %d domain(s)", generation, len(domains))
+	r.srv.emitClusterEvent("cluster.dns_reconciled", map[string]interface{}{
+		"generation": generation,
+		"domains":    len(domains),
+	})
 	return nil
 }
 
