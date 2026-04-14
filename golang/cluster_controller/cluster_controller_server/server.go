@@ -499,10 +499,27 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 			// Try local workflow service first (same node, avoids mesh routing).
 			wfAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
 			if wfAddr == "" {
-				// Fallback: any workflow service in the cluster. This handles
-				// cold boot where the shared etcd client may not yet see the
-				// local instance due to initialization ordering.
-				wfAddr = config.ResolveServiceAddr("workflow.WorkflowService", "")
+				// Fallback: any workflow service in the cluster via DIRECT port
+				// (not mesh-routed through Envoy). The controller needs direct
+				// gRPC with mTLS+token auth which Envoy would strip.
+				if svcs, err := config.GetServicesConfigurationsByName("workflow.WorkflowService"); err == nil {
+					for _, s := range svcs {
+						addr, _ := s["Address"].(string)
+						addr = strings.TrimSpace(addr)
+						// Strip port suffix if embedded in address
+						if idx := strings.LastIndex(addr, ":"); idx > 0 {
+							addr = addr[:idx]
+						}
+						port := 0
+						if p, ok := s["Port"].(float64); ok {
+							port = int(p)
+						}
+						if addr != "" && port > 0 {
+							wfAddr = fmt.Sprintf("%s:%d", addr, port)
+							break
+						}
+					}
+				}
 			}
 			if wfAddr != "" {
 				dt := config.ResolveDialTarget(wfAddr)
