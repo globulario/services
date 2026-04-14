@@ -55,7 +55,7 @@ Steps execute sequentially within a run. If a step fails, subsequent steps are n
 
 A workflow run progresses through a well-defined lifecycle:
 
-<img src="../assets/diagrams/workflow-lifecycle.svg" alt="Workflow run lifecycle" style="width:100%;max-width:700px">
+<img src="../../assets/diagrams/workflow-lifecycle.svg" alt="Workflow run lifecycle" style="width:100%;max-width:700px">
 
 **PENDING**: The workflow is created but waiting for a semaphore slot. The controller limits concurrent workflows (default: 3) to prevent overwhelming the cluster.
 

@@ -223,7 +223,7 @@ The remediation workflow includes a `verify_convergence` step that re-runs the d
 
 ## Interaction Map
 
-<img src="../assets/diagrams/ai-agent-map.svg" alt="AI agent interaction map" style="width:100%;max-width:850px">
+<img src="../../assets/diagrams/ai-agent-map.svg" alt="AI agent interaction map" style="width:100%;max-width:850px">
 
 ## Multi-Agent Coordination
 
