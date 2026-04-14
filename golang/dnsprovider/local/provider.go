@@ -23,7 +23,7 @@ func init() {
 // LocalProvider manages DNS records via the globular-dns gRPC service.
 type LocalProvider struct {
 	zone    string
-	address string // gRPC address of the DNS service (e.g. "localhost:10006")
+	address string // gRPC address of the DNS service (resolved from etcd)
 
 	ensureOnce sync.Once
 	ensureErr  error
@@ -32,11 +32,14 @@ type LocalProvider struct {
 // NewLocalProvider creates a LocalProvider.
 // Config.Credentials may contain:
 //
-//	"address" — gRPC endpoint (default "localhost:10006")
+//	"address" — gRPC endpoint (resolved from etcd if not specified)
 func NewLocalProvider(cfg dnsprovider.Config) (dnsprovider.Provider, error) {
 	addr := cfg.Credentials["address"]
 	if addr == "" {
-		addr = "localhost:10006"
+		addr = config.ResolveDNSGrpcEndpoint("")
+	}
+	if addr == "" {
+		return nil, fmt.Errorf("dns provider: no address configured and service discovery failed")
 	}
 	return &LocalProvider{zone: cfg.Zone, address: addr}, nil
 }

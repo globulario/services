@@ -291,14 +291,14 @@ func tryLocalServiceConfig(serviceName string) string {
 	}
 
 	if port > 0 {
-		host := "localhost"
 		if addr, ok := svcConfig["Address"].(string); ok && addr != "" {
 			if strings.Contains(addr, ":") {
 				return addr
 			}
-			host = addr
+			return fmt.Sprintf("%s:%d", addr, port)
 		}
-		return fmt.Sprintf("%s:%d", host, port)
+		// No address available — do NOT fall back to localhost.
+		// Let the caller try the next discovery method.
 	}
 
 	return ""
@@ -326,14 +326,13 @@ func tryEtcdServiceConfig(serviceID string) string {
 	}
 
 	if port > 0 {
-		host := "localhost"
 		if addr, ok := svc["Address"].(string); ok && addr != "" {
 			if strings.Contains(addr, ":") {
 				return addr
 			}
-			host = addr
+			return fmt.Sprintf("%s:%d", addr, port)
 		}
-		return fmt.Sprintf("%s:%d", host, port)
+		// No address in etcd — do NOT fall back to localhost.
 	}
 
 	return ""
@@ -360,12 +359,8 @@ func ResolveDNSGrpcEndpoint(fallback string) string {
 		binPath, err := FindServiceBinary(root, "dns")
 		if err == nil {
 			desc, err := RunDescribe(binPath, 1*time.Second, nil)
-			if err == nil && desc.Port > 0 {
-				host := "localhost"
-				if desc.Address != "" {
-					host = desc.Address
-				}
-				endpoint := fmt.Sprintf("%s:%d", host, desc.Port)
+			if err == nil && desc.Port > 0 && desc.Address != "" {
+				endpoint := fmt.Sprintf("%s:%d", desc.Address, desc.Port)
 				return endpoint
 			}
 		}
@@ -387,8 +382,16 @@ func ResolveDNSGrpcEndpoint(fallback string) string {
 //
 // Returns the DNS resolver endpoint as "ip:port".
 func ResolveDNSResolverEndpoint() string {
-	// Standard DNS port — the DNS service always listens on :53.
-	return "127.0.0.1:53"
+	// Standard DNS port (53) on the local node's advertise address.
+	// Never use 127.0.0.1 — remote clients cannot reach loopback.
+	if addr, err := GetAddress(); err == nil && addr != "" {
+		host := addr
+		if h, _, e := net.SplitHostPort(addr); e == nil {
+			host = h
+		}
+		return net.JoinHostPort(host, "53")
+	}
+	return "0.0.0.0:53"
 }
 
 // svcPort extracts the Port field from a service config map.
@@ -406,7 +409,8 @@ func svcPort(svc map[string]interface{}) int {
 }
 
 // svcHost extracts the host from a service config map.
-// The Address field may be "host:port" or just "host"; Domain is a fallback.
+// The Address field may be "host:port" or just "host".
+// Returns empty string if no address is available — callers must handle this.
 func svcHost(svc map[string]interface{}) string {
 	if addr, ok := svc["Address"].(string); ok && addr != "" {
 		if h, _, err := net.SplitHostPort(addr); err == nil {
@@ -414,7 +418,7 @@ func svcHost(svc map[string]interface{}) string {
 		}
 		return addr
 	}
-	return "localhost"
+	return ""
 }
 
 // NOTE: tryLocalServicesDir was removed. Disk JSON files are no longer written
@@ -428,7 +432,7 @@ func svcHost(svc map[string]interface{}) string {
 func tryGatewayConfig(serviceName string) []string {
 	domain, err := GetDomain()
 	if err != nil || domain == "" {
-		domain = "localhost"
+		return nil // cannot determine domain — skip gateway discovery
 	}
 
 	// Load CA cert from user home dir (written by generate-user-client-cert.sh).
@@ -454,11 +458,18 @@ func tryGatewayConfig(serviceName string) []string {
 		scheme string
 		port   int
 	}
+	// Resolve gateway host from config — never use localhost.
+	gwHost, _ := GetName()
+	if gwHost == "" {
+		return nil
+	}
+	gwHost = gwHost + "." + domain
+
 	// Try HTTPS (8443) first, then plain HTTP (8080).
 	attempts := []attempt{{"https", 8443}, {"http", 8080}}
 
 	for _, a := range attempts {
-		url := fmt.Sprintf("%s://localhost:%d/config", a.scheme, a.port)
+		url := fmt.Sprintf("%s://%s:%d/config", a.scheme, gwHost, a.port)
 		var client *http.Client
 		if a.scheme == "https" {
 			client = &http.Client{
@@ -530,10 +541,11 @@ func ResolveServiceAddrs(serviceName string) []string {
 		var addrs []string
 		for _, s := range svcs {
 			port := svcPort(s)
-			if port == 0 {
+			host := svcHost(s)
+			if port == 0 || host == "" {
 				continue
 			}
-			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(s), port))
+			addrs = append(addrs, fmt.Sprintf("%s:%d", host, port))
 		}
 		if len(addrs) > 0 {
 			addrs = meshRouteAddrs(addrs)

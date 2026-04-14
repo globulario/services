@@ -328,7 +328,7 @@ func (srv *server) eventLoop() {
 
 func (srv *server) resolveEventEndpoint() string {
 	// Discover from etcd/gateway, fallback to default port.
-	return config.ResolveServiceAddr("event.EventService", "localhost:10010")
+	return config.ResolveServiceAddr("event.EventService", "")
 }
 
 // handleEvent processes a single event from the event service.

@@ -1088,7 +1088,7 @@ func initServiceEvents(s Service) {
 	// Retry until we connect — event service may start well after us.
 	var client *event_client.Event_Client
 	for attempt := 1; ; attempt++ {
-		addr := config.ResolveServiceAddr("event.EventService", "localhost:10010")
+		addr := config.ResolveServiceAddr("event.EventService", "")
 		c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
 		if err == nil {
 			if ec, ok := c.(*event_client.Event_Client); ok {

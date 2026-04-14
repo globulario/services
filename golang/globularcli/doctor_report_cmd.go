@@ -21,6 +21,7 @@ import (
 	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -92,7 +93,10 @@ func init() {
 func dialDoctor() (*grpc.ClientConn, error) {
 	endpoint := doctorReportEndpoint
 	if endpoint == "" {
-		endpoint = "localhost:10080"
+		endpoint = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
+	}
+	if endpoint == "" {
+		return nil, fmt.Errorf("cluster-doctor endpoint not found (use --endpoint or check service registration)")
 	}
 	return grpc.NewClient(
 		endpoint,

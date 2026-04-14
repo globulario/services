@@ -316,7 +316,7 @@ func printDiagnostic(diag authDiagnostic) error {
 func runRecentDenials(cmd *cobra.Command) error {
 	// Query the RBAC service's audit log for recent denials.
 	// This uses the log service to fetch recent permission-denied entries.
-	logAddr := config.ResolveServiceAddr("log.LogService", "localhost:10013")
+	logAddr := config.ResolveServiceAddr("log.LogService", "")
 	cc, err := dialGRPC(logAddr)
 	if err != nil {
 		return fmt.Errorf("cannot connect to log service: %v", err)
