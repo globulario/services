@@ -339,7 +339,24 @@ func (r *DNSReconciler) collectPoolMemberships() map[string][]string {
 	defer r.srv.unlock()
 	pools := map[string][]string{}
 	if len(r.srv.state.MinioPoolNodes) > 0 {
-		pools["minio"] = append([]string(nil), r.srv.state.MinioPoolNodes...)
+		// MinioPoolNodes stores FQDNs (e.g. "node-2.globular.internal").
+		// DNS A records require IPv4 addresses. Resolve each FQDN to
+		// its IP from the controller's node state.
+		fqdnToIP := make(map[string]string)
+		for _, node := range r.srv.state.Nodes {
+			if node != nil && node.AdvertiseFqdn != "" && node.PrimaryIP() != "" {
+				fqdnToIP[node.AdvertiseFqdn] = node.PrimaryIP()
+			}
+		}
+		var ips []string
+		for _, fqdn := range r.srv.state.MinioPoolNodes {
+			if ip, ok := fqdnToIP[fqdn]; ok {
+				ips = append(ips, ip)
+			}
+		}
+		if len(ips) > 0 {
+			pools["minio"] = ips
+		}
 	}
 	return pools
 }
