@@ -3,6 +3,8 @@ package security
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 )
@@ -65,35 +67,72 @@ func (cv *ClusterValidator) GetLocalClusterID() string {
 	return cv.localClusterID
 }
 
-// DefaultClusterValidator is the global cluster validator instance.
-// Initialized on first use.
-var defaultValidator *ClusterValidator
+// validatorTTL controls how long the cached validator is trusted before
+// re-reading the domain from config. This prevents a bad first read
+// (e.g. before config.json is written) from being stuck forever.
+const validatorTTL = 2 * time.Minute
+
+var (
+	validatorMu   sync.RWMutex
+	validatorInst *ClusterValidator
+	validatorAt   time.Time
+)
+
+// refreshValidator re-reads the domain from config and updates the cached
+// validator if the domain has changed or was previously unset.
+func refreshValidator() (*ClusterValidator, error) {
+	cv, err := NewClusterValidator()
+	if err != nil {
+		return nil, err
+	}
+	validatorMu.Lock()
+	validatorInst = cv
+	validatorAt = time.Now()
+	validatorMu.Unlock()
+	return cv, nil
+}
+
+// getValidator returns the cached validator, refreshing it if the TTL has
+// expired or if no validator exists yet.
+func getValidator() (*ClusterValidator, error) {
+	validatorMu.RLock()
+	cv := validatorInst
+	at := validatorAt
+	validatorMu.RUnlock()
+
+	if cv != nil && time.Since(at) < validatorTTL {
+		return cv, nil
+	}
+
+	// TTL expired or no validator — refresh from config.
+	return refreshValidator()
+}
 
 // ValidateClusterID is a package-level convenience function that uses the
 // default cluster validator.
 func ValidateClusterID(ctx context.Context, claimedClusterID string) error {
-	if defaultValidator == nil {
-		var err error
-		defaultValidator, err = NewClusterValidator()
-		if err != nil {
-			return fmt.Errorf("failed to initialize cluster validator: %w", err)
-		}
+	cv, err := getValidator()
+	if err != nil {
+		return fmt.Errorf("failed to initialize cluster validator: %w", err)
 	}
-
-	return defaultValidator.ValidateClusterID(ctx, claimedClusterID)
+	return cv.ValidateClusterID(ctx, claimedClusterID)
 }
 
 // GetLocalClusterID returns the local cluster ID using the default validator.
 func GetLocalClusterID() (string, error) {
-	if defaultValidator == nil {
-		var err error
-		defaultValidator, err = NewClusterValidator()
-		if err != nil {
-			return "", fmt.Errorf("failed to initialize cluster validator: %w", err)
-		}
+	cv, err := getValidator()
+	if err != nil {
+		return "", fmt.Errorf("failed to initialize cluster validator: %w", err)
 	}
+	return cv.GetLocalClusterID(), nil
+}
 
-	return defaultValidator.GetLocalClusterID(), nil
+// InvalidateClusterValidator forces the next GetLocalClusterID / ValidateClusterID
+// call to re-read from config. Call this after changing the local domain.
+func InvalidateClusterValidator() {
+	validatorMu.Lock()
+	validatorInst = nil
+	validatorMu.Unlock()
 }
 
 // OverrideLocalClusterID temporarily sets the local cluster ID to the given
@@ -102,11 +141,17 @@ func GetLocalClusterID() (string, error) {
 //
 // This function is intended for testing only.
 func OverrideLocalClusterID(t interface{ Cleanup(func()) }, clusterID string) {
-	saved := defaultValidator
-	defaultValidator = &ClusterValidator{localClusterID: clusterID}
+	validatorMu.Lock()
+	saved := validatorInst
+	validatorInst = &ClusterValidator{localClusterID: clusterID}
+	validatorAt = time.Now()
+	validatorMu.Unlock()
+
 	InvalidateClusterInitCache()
 	t.Cleanup(func() {
-		defaultValidator = saved
+		validatorMu.Lock()
+		validatorInst = saved
+		validatorMu.Unlock()
 		InvalidateClusterInitCache()
 	})
 }

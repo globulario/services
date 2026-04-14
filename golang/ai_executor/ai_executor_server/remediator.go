@@ -149,10 +149,8 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 		return
 	}
 
-	cc, err := grpc.Dial(addr,
-		globular.InternalDialOption(),
-		grpc.WithTimeout(2*time.Second),
-	)
+	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return
 	}

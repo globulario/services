@@ -99,41 +99,43 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 	if token != "" {
 		claims, err := ValidateToken(token)
 		if err != nil {
-			// Token validation failed - treat as anonymous but log warning
+			// Token validation failed - treat as anonymous but log warning.
+			// Do NOT return early: fall through to mTLS extraction and
+			// cluster_id metadata fallback so callers with valid client
+			// certs or cluster_id metadata can still authenticate.
 			slog.Warn("token validation failed in AuthContext",
 				"method", grpcMethod,
 				"error", err,
 			)
-			return authCtx, nil
-		}
-
-		authCtx.rawClaims = claims
-		authCtx.AuthMethod = "jwt"
-
-		// Blocker Fix #7: Use canonical PrincipalID for AuthContext.Subject
-		// This ensures AuthContext identity matches the identity used by interceptor
-		// Fallback chain: PrincipalID → RegisteredClaims.Subject → legacy ID
-		authCtx.Subject = claims.PrincipalID
-		if authCtx.Subject == "" {
-			authCtx.Subject = claims.Subject // Standard JWT subject
-		}
-		if authCtx.Subject == "" {
-			authCtx.Subject = claims.ID // Legacy fallback for old tokens
-		}
-
-		// Determine principal type from claims
-		// TODO: Add proper type field to Claims instead of inferring
-		// Blocker Fix #7: Removed hardcoded "sa" admin detection
-		if claims.Email != "" {
-			authCtx.PrincipalType = "user"
 		} else {
-			authCtx.PrincipalType = "application"
-		}
+			authCtx.rawClaims = claims
+			authCtx.AuthMethod = "jwt"
 
-		// Blocker Fix #8: Use explicit ClusterID claim (not Issuer)
-		// ClusterID is set to domain by token generator (same as GetLocalClusterID())
-		// Issuer is MAC address, which creates mismatch with cluster validation
-		authCtx.ClusterID = claims.ClusterID
+			// Blocker Fix #7: Use canonical PrincipalID for AuthContext.Subject
+			// This ensures AuthContext identity matches the identity used by interceptor
+			// Fallback chain: PrincipalID → RegisteredClaims.Subject → legacy ID
+			authCtx.Subject = claims.PrincipalID
+			if authCtx.Subject == "" {
+				authCtx.Subject = claims.Subject // Standard JWT subject
+			}
+			if authCtx.Subject == "" {
+				authCtx.Subject = claims.ID // Legacy fallback for old tokens
+			}
+
+			// Determine principal type from claims
+			// TODO: Add proper type field to Claims instead of inferring
+			// Blocker Fix #7: Removed hardcoded "sa" admin detection
+			if claims.Email != "" {
+				authCtx.PrincipalType = "user"
+			} else {
+				authCtx.PrincipalType = "application"
+			}
+
+			// Blocker Fix #8: Use explicit ClusterID claim (not Issuer)
+			// ClusterID is set to domain by token generator (same as GetLocalClusterID())
+			// Issuer is MAC address, which creates mismatch with cluster validation
+			authCtx.ClusterID = claims.ClusterID
+		}
 	}
 
 	// If no JWT identity, try mTLS peer certificate identity.

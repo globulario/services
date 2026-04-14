@@ -504,8 +504,8 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 		return
 	}
 
-	// Internal service call — use platform TLS credentials.
-	cc, err := grpc.Dial(addr, globular.InternalDialOption())
+	// Internal service call — use platform TLS credentials + cluster_id metadata.
+	cc, err := grpc.Dial(addr, globular.InternalDialOptions()...)
 	if err != nil {
 		logger.Error("connect to ai_executor failed", "err", err)
 		incident.Diagnosis = "Executor connection failed: " + err.Error()

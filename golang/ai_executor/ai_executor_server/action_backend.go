@@ -187,10 +187,8 @@ func getClusterHealthForVerification(ctx context.Context) (*cluster_controllerpb
 		return nil, fmt.Errorf("cluster controller not found")
 	}
 
-	cc, err := grpc.Dial(addr,
-		globular.InternalDialOption(),
-		grpc.WithTimeout(2*time.Second),
-	)
+	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil, err
 	}

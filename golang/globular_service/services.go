@@ -43,6 +43,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 )
 
 // IsBootstrapMode reports whether the process is running in bootstrap mode.
@@ -519,7 +520,27 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 // InternalDialOption returns a grpc.DialOption with TLS credentials for
 // service-to-service calls. Uses the node's service certificate and CA.
 // Falls back to insecure if certs are not available (e.g. during bootstrap).
+//
+// Deprecated: Use InternalDialOptions() which also attaches cluster_id metadata.
 func InternalDialOption() grpc.DialOption {
+	return internalTLSDialOption()
+}
+
+// InternalDialOptions returns the standard set of grpc.DialOption for
+// service-to-service calls: TLS credentials + a client interceptor that
+// attaches cluster_id to every outgoing RPC via metadata.
+//
+// This ensures cross-node calls are authenticated even when mTLS silently
+// degrades to insecure (e.g. certs not yet available during startup).
+func InternalDialOptions() []grpc.DialOption {
+	return []grpc.DialOption{
+		internalTLSDialOption(),
+		grpc.WithUnaryInterceptor(clusterIDUnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(clusterIDStreamClientInterceptor()),
+	}
+}
+
+func internalTLSDialOption() grpc.DialOption {
 	certPath := config.GetLocalServerCertificatePath()
 	keyPath := config.GetLocalServerKeyPath()
 	caPath := config.GetLocalCACertificate()
@@ -549,6 +570,42 @@ func InternalDialOption() grpc.DialOption {
 		RootCAs:      caPool, // Verify server cert against cluster CA.
 	}
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
+}
+
+// clusterIDUnaryClientInterceptor returns a gRPC unary client interceptor
+// that attaches cluster_id to outgoing metadata on every call.
+// Belt-and-suspenders: even if mTLS provides cluster identity through the
+// cert Organization field, having it in metadata ensures the server-side
+// interceptor can validate cluster membership when mTLS is unavailable.
+func clusterIDUnaryClientInterceptor() grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{},
+		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		ctx = ensureClusterIDMetadata(ctx)
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+// clusterIDStreamClientInterceptor returns a gRPC stream client interceptor
+// that attaches cluster_id to outgoing metadata on every stream.
+func clusterIDStreamClientInterceptor() grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
+		method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		ctx = ensureClusterIDMetadata(ctx)
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
+
+// ensureClusterIDMetadata adds cluster_id to outgoing metadata if not already
+// present. Safe to call multiple times — won't duplicate.
+func ensureClusterIDMetadata(ctx context.Context) context.Context {
+	if md, ok := metadata.FromOutgoingContext(ctx); ok && len(md.Get("cluster_id")) > 0 {
+		return ctx // already set
+	}
+	clusterID, err := security.GetLocalClusterID()
+	if err != nil || clusterID == "" {
+		return ctx // can't determine — proceed without (server will use other auth)
+	}
+	return metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 }
 
 // Keepalive / concurrency parameters for gRPC servers.

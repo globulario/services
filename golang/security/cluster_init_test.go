@@ -69,15 +69,11 @@ func TestIsMutatingRPC(t *testing.T) {
 }
 
 // TestIsClusterInitialized_NoClusterID verifies that when GetLocalClusterID
-// fails the cluster is reported as not initialized.
+// returns an empty string the cluster is reported as not initialized.
 func TestIsClusterInitialized_NoClusterID(t *testing.T) {
-	// Reset default validator so GetLocalClusterID returns an error.
-	saved := defaultValidator
-	defaultValidator = nil
-	t.Cleanup(func() {
-		defaultValidator = saved
-		InvalidateClusterInitCache()
-	})
+	// Override the validator with an empty cluster ID to simulate
+	// a node that hasn't been configured yet.
+	OverrideLocalClusterID(t, "")
 	InvalidateClusterInitCache()
 
 	initialized, err := IsClusterInitialized(context.Background())
@@ -154,12 +150,8 @@ func TestBootstrapGate_IsActive(t *testing.T) {
 // TestIsClusterInitialized_Cache verifies that repeated calls use the cache.
 func TestIsClusterInitialized_Cache(t *testing.T) {
 	// Just test that the function can be called multiple times without panic.
-	saved := defaultValidator
-	defaultValidator = nil
-	t.Cleanup(func() {
-		defaultValidator = saved
-		InvalidateClusterInitCache()
-	})
+	// Use a known cluster ID so the test doesn't depend on local config.
+	OverrideLocalClusterID(t, "test.cluster")
 	InvalidateClusterInitCache()
 
 	for i := 0; i < 5; i++ {
