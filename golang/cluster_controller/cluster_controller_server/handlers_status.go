@@ -211,6 +211,45 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			changed = true
 		}
 	}
+	// Auto-derive profiles from installed services when profiles are empty.
+	// This handles cold boot (all nodes auto-register with empty profiles)
+	// and post-restore scenarios. Once profiles are set by SetNodeProfiles,
+	// this auto-derivation is skipped.
+	if len(node.Profiles) == 0 && len(installedVersions) > 0 {
+		derived := deriveProfilesFromInstalled(installedVersions)
+		if len(derived) > 0 {
+			log.Printf("ReportNodeStatus: auto-derived profiles for %s: %v (from %d installed packages)",
+				nodeID, derived, len(installedVersions))
+			node.Profiles = derived
+			// Set advertise FQDN from hostname + cluster domain
+			if node.Identity.Hostname != "" {
+				domain := "globular.internal"
+				if srv.state.ClusterNetworkSpec != nil && srv.state.ClusterNetworkSpec.ClusterDomain != "" {
+					domain = srv.state.ClusterNetworkSpec.ClusterDomain
+				}
+				node.AdvertiseFqdn = node.Identity.Hostname + "." + domain
+			}
+			srv.state.NetworkingGeneration++
+			changed = true
+
+			// Update MinIO pool if this node has storage profile
+			for _, p := range derived {
+				if p == "storage" && node.AdvertiseFqdn != "" {
+					found := false
+					for _, existing := range srv.state.MinioPoolNodes {
+						if existing == node.AdvertiseFqdn {
+							found = true
+							break
+						}
+					}
+					if !found {
+						srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, node.AdvertiseFqdn)
+						log.Printf("ReportNodeStatus: added %s to MinIO pool", node.AdvertiseFqdn)
+					}
+				}
+			}
+		}
+	}
 	if oldEndpoint != newEndpoint {
 		changed = true
 	}
@@ -712,4 +751,60 @@ func (srv *server) Watch(req *cluster_controllerpb.WatchRequest, stream cluster_
 		}
 	}
 	return nil
+}
+
+// deriveProfilesFromInstalled infers node profiles from the set of installed
+// packages. This allows cold-boot auto-registration to assign meaningful
+// profiles without requiring an explicit SetNodeProfiles call.
+//
+// Mapping rules:
+//   - Has dns/cluster-controller/workflow → control-plane
+//   - Has any Globular service → core
+//   - Has minio/repository → storage
+//   - Has ai-memory/ai-executor → ai (implies core)
+//   - Has gateway/envoy → gateway
+//   - No control-plane services → compute
+func deriveProfilesFromInstalled(installed map[string]string) []string {
+	has := func(names ...string) bool {
+		for _, n := range names {
+			// Installed versions may use bare names ("dns") or qualified
+			// ("SERVICE/dns") depending on the reporter.
+			if _, ok := installed[n]; ok {
+				return true
+			}
+			if _, ok := installed["SERVICE/"+n]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	profiles := map[string]bool{}
+
+	if has("dns", "cluster-controller", "workflow", "authentication", "rbac") {
+		profiles["control-plane"] = true
+		profiles["core"] = true
+	}
+	if has("minio", "repository", "monitoring", "backup-manager") {
+		profiles["storage"] = true
+		profiles["core"] = true
+	}
+	if has("ai-memory", "ai-executor", "ai-watcher", "ai-router") {
+		profiles["ai"] = true
+		profiles["core"] = true
+	}
+	if has("gateway", "envoy") {
+		profiles["gateway"] = true
+	}
+
+	// If nothing matched, it's a compute-only node
+	if len(profiles) == 0 && len(installed) > 0 {
+		profiles["compute"] = true
+	}
+
+	result := make([]string, 0, len(profiles))
+	for p := range profiles {
+		result = append(result, p)
+	}
+	return result
 }
