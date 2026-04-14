@@ -848,7 +848,9 @@ func writePromTargetFile(serviceName string, port int) {
     // distinct per-node instances.
     nodeIP, ipErr := config.GetRoutableIP()
     if ipErr != nil || nodeIP == "" {
-        nodeIP = "127.0.0.1"
+        // If we truly cannot detect a routable IP, skip metrics registration
+        // rather than poisoning the scrape config with a loopback address.
+        return
     }
     hostname, _ := os.Hostname()
 

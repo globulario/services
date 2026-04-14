@@ -165,13 +165,14 @@ func detectPrimaryIP() (string, error) {
 
 // resolveScyllaHost returns the first Scylla host from etcd (Tier-0 list).
 // DNS cannot be used here because DNS records live in Scylla.
+// Retries the etcd lookup to handle startup ordering where the seed service
+// may not have written the key yet.
 func resolveScyllaHost(port int) string {
-	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
-		return hosts[0]
-	}
-	// Emergency fallback: node's own routable IP (scylla likely runs here).
-	if ip, err := detectPrimaryIP(); err == nil {
-		return ip
+	for attempt := 0; attempt < 30; attempt++ {
+		if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+			return hosts[0]
+		}
+		time.Sleep(2 * time.Second)
 	}
 	return ""
 }

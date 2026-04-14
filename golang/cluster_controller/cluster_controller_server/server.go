@@ -440,18 +440,30 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// Disabled by default for safety.
 
 	// Connect to EventService for reconciliation event publishing.
-	// Route through the Envoy gateway so it works on any node.
-	eventAddr := config.ResolveServiceAddr("event.EventService", "")
-	if eventAddr == "" {
-		if addr, err := config.GetMeshAddress(); err == nil {
-			eventAddr = addr // routes through Envoy service mesh (:443)
+	// On cold boot the event service may not be registered yet —
+	// retry in background so we don't permanently miss it.
+	go func() {
+		for attempt := 0; attempt < 60; attempt++ {
+			eventAddr := config.ResolveServiceAddr("event.EventService", "")
+			if eventAddr == "" {
+				if addr, err := config.GetMeshAddress(); err == nil {
+					eventAddr = addr
+				}
+			}
+			if eventAddr != "" {
+				if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
+					srv.eventClient = ec
+					log.Printf("cluster-controller: event client connected (attempt %d)", attempt+1)
+					return
+				}
+			}
+			if attempt == 0 {
+				log.Printf("cluster-controller: event service not yet available — will retry")
+			}
+			time.Sleep(5 * time.Second)
 		}
-	}
-	if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
-		srv.eventClient = ec
-	} else {
-		log.Printf("cluster-controller: event client unavailable: %v", err)
-	}
+		log.Printf("cluster-controller: WARNING — event client not available after 60 attempts")
+	}()
 
 	// Connect to WorkflowService for reconciliation workflow tracing.
 	// Prefer the LOCAL workflow service (same as workflowClient) so the
@@ -478,26 +490,42 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// The workflow service runs on every node — we always use the local
 	// instance so execution stays on this node. HA durability is handled by
 	// executor leases and orphan recovery, not by routing to remote instances.
-	wfDirectAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
-	if wfDirectAddr == "" {
-		log.Printf("cluster-controller: workflow service not found in registry — centralized execution unavailable")
-	}
-	if wfDirectAddr != "" {
-		dt := config.ResolveDialTarget(wfDirectAddr)
-		log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfDirectAddr)
-		dialOpts := []grpc.DialOption{
-			grpc.WithTransportCredentials(buildControllerClientTLSCreds(dt.ServerName)),
+	//
+	// On cold boot (e.g. Docker quickstart), the workflow service may not be
+	// registered in etcd yet when the controller starts. Resolve lazily in
+	// a background goroutine so we don't permanently miss it.
+	go func() {
+		for attempt := 0; attempt < 60; attempt++ {
+			// Try local workflow service first (same node, avoids mesh routing).
+			wfAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
+			if wfAddr == "" {
+				// Fallback: any workflow service in the cluster. This handles
+				// cold boot where the shared etcd client may not yet see the
+				// local instance due to initialization ordering.
+				wfAddr = config.ResolveServiceAddr("workflow.WorkflowService", "")
+			}
+			if wfAddr != "" {
+				dt := config.ResolveDialTarget(wfAddr)
+				log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfAddr)
+				dialOpts := []grpc.DialOption{
+					grpc.WithTransportCredentials(buildControllerClientTLSCreds(dt.ServerName)),
+					grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)),
+				}
+				if wfConn, err := grpc.NewClient(dt.Address, dialOpts...); err == nil {
+					srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
+					log.Printf("cluster-controller: workflow client connected (attempt %d)", attempt+1)
+					return
+				} else {
+					log.Printf("cluster-controller: workflow client dial failed: %v", err)
+				}
+			}
+			if attempt == 0 {
+				log.Printf("cluster-controller: workflow service not yet in registry — will retry")
+			}
+			time.Sleep(5 * time.Second)
 		}
-		// Token is resolved lazily on every call — never captured at startup.
-		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)))
-		log.Printf("cluster-controller: workflow client using mTLS+lazy-token auth")
-		if wfConn, err := grpc.NewClient(dt.Address, dialOpts...); err == nil {
-			srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
-			log.Printf("cluster-controller: workflow client connected")
-		} else {
-			log.Printf("cluster-controller: workflow client unavailable: %v", err)
-		}
-	}
+		log.Printf("cluster-controller: WARNING — workflow client not available after 60 attempts")
+	}()
 
 	srv.setLeader(false, "", "")
 

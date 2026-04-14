@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -64,7 +63,7 @@ func DefaultConfig() *Config {
 	cfg := &Config{
 		Name:              "dns.DnsService",
 		Domain:            netutil.DefaultClusterDomain(),
-		Address:           "127.0.0.1:10006",
+		Address:           "", // resolved from etcd/routable IP at InitService
 		Port:              defaultPort,
 		Proxy:             defaultProxy,
 		Protocol:          "grpc",
@@ -92,8 +91,10 @@ func DefaultConfig() *Config {
 	}
 
 	cfg.Root = config.GetDataDir()
-	// fill Address using actual port in case defaults are tweaked
-	cfg.Address = "127.0.0.1:" + strconv.Itoa(cfg.Port)
+	// Address is resolved at InitService from etcd/routable IP — leave empty
+	// so the framework fills it with the correct routable address. Never
+	// default to 127.0.0.1 as it poisons the etcd service registry.
+	cfg.Address = ""
 
 	return cfg
 }

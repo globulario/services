@@ -380,14 +380,15 @@ func (srv *server) openConnection() error {
 		return nil
 	}
 
-	// Use ScyllaDB for shared cluster-wide DNS storage.
-	// ScyllaDB binds to the node's routable IP, not localhost.
+	// ScyllaDB hosts from the Tier-0 cluster key in etcd — never hardcode.
 	hosts := srv.ScyllaHosts
 	if len(hosts) == 0 {
-		if ip := detectLocalIP(); ip != "" {
+		if h, err := config.GetScyllaHosts(); err == nil && len(h) > 0 {
+			hosts = h
+		} else if ip := detectLocalIP(); ip != "" {
 			hosts = []string{ip}
 		} else {
-			hosts = []string{"127.0.0.1"}
+			return fmt.Errorf("scylla hosts: no hosts available (etcd key missing and IP detection failed)")
 		}
 	}
 	port := srv.ScyllaPort
@@ -555,9 +556,11 @@ func initializeServerDefaults() *server {
 	}
 	_ = Utility.CreateDirIfNotExist(s.Root)
 
-	// Ensure default address uses current port
+	// Ensure default address uses current port with routable IP
 	if s.Address == "" {
-		s.Address = fmt.Sprintf("127.0.0.1:%d", s.Port)
+		if ip := detectLocalIP(); ip != "" {
+			s.Address = fmt.Sprintf("%s:%d", ip, s.Port)
+		}
 	}
 
 	// set package-global for UDP handler
@@ -675,7 +678,9 @@ func main() {
 		srv.Domain = netutil.DefaultClusterDomain()
 	}
 	if srv.Address == "" || strings.HasPrefix(srv.Address, "127.0.0.1:") || strings.HasPrefix(srv.Address, "localhost:") {
-		srv.Address = fmt.Sprintf("127.0.0.1:%d", srv.Port)
+		if ip := detectLocalIP(); ip != "" {
+			srv.Address = fmt.Sprintf("%s:%d", ip, srv.Port)
+		}
 	}
 
 	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)

@@ -319,23 +319,14 @@ func (srv *server) Init() error {
 	}
 	srv.grpcServer = gs
 
-	// ScyllaDB hosts come from etcd (Tier-0 — DNS depends on Scylla).
-	// Always override stale service-config entries (which may contain 127.0.0.1).
+	// ScyllaDB hosts MUST come from etcd (Tier-0 cluster key). The service
+	// config may contain stale addresses from a previous boot; the cluster
+	// key is the sole source of truth for infrastructure addresses.
 	if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
 		srv.ScyllaHosts = hosts
-	}
-
-	// Legacy fallback: if etcd lookup failed, use advertised address.
-	if len(srv.ScyllaHosts) == 0 {
-		if srv.Address != "" {
-			host := srv.Address
-			if h, _, ok := strings.Cut(host, ":"); ok && h != "" {
-				host = h
-			}
-			if host != "" {
-				srv.ScyllaHosts = []string{host}
-			}
-		}
+	} else if len(srv.ScyllaHosts) == 0 {
+		return fmt.Errorf("scylla hosts unavailable (etcd key %s): %w",
+			"/globular/cluster/scylla/hosts", err)
 	}
 
 	if err := srv.connectScylla(); err != nil {
@@ -2200,7 +2191,7 @@ func initializeServerDefaults() *server {
 		Discoveries:             make([]string, 0),
 		Dependencies:            []string{},
 		Permissions:             make([]interface{}, 0),
-		ScyllaHosts:             scyllaHostsOrRoutable(),
+		ScyllaHosts:             nil, // resolved from etcd at Init() — never hardcode
 		ScyllaPort:              9042,
 		ScyllaReplicationFactor: 1,
 	}

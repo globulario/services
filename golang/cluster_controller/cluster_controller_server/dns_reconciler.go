@@ -166,6 +166,19 @@ func (r *DNSReconciler) reconcileLoop() {
 func (r *DNSReconciler) refreshEndpoints() {
 	fresh := discoverDNSEndpoints(r.srv)
 	if len(fresh) == 0 {
+		// Fallback: on cold boot, cluster membership may be empty but the
+		// DNS service config should exist in etcd. Build endpoint from
+		// the node's routable IP + the DNS gRPC port from service config.
+		if dnsCfg, err := config.GetServiceConfigurationsByName("dns.DnsService"); err == nil && dnsCfg != nil {
+			port := Utility.ToInt(dnsCfg["Port"])
+			if port > 0 {
+				if ip := config.GetRoutableIPv4(); ip != "" {
+					fresh = []string{fmt.Sprintf("%s:%d", ip, port)}
+				}
+			}
+		}
+	}
+	if len(fresh) == 0 {
 		return
 	}
 
