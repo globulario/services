@@ -26,6 +26,8 @@ func TestIsMutatingRPC(t *testing.T) {
 		{"/clustercontroller.ClusterControllerService/GetClusterInfo", false},
 		{"/dns.DnsService/GetA", false},
 		{"/repository.PackageRepository/GetArtifactManifest", false},
+		{"/event.EventService/Subscribe", false},
+		{"/event.EventService/OnEvent", false},
 
 		// Mutating → true
 		{"/rbac.RbacService/CreateAccount", true},

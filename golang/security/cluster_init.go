@@ -89,6 +89,7 @@ var readOnlyPrefixes = []string{
 	"get", "list", "watch", "read", "fetch", "query",
 	"check", "status", "health", "metrics", "info",
 	"search", "describe", "inspect", "resolve",
+	"subscribe", "onevent", "on",
 }
 
 // IsMutatingRPC returns true when the full gRPC method name represents a
