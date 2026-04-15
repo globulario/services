@@ -157,11 +157,11 @@ func (m *FileManager) EnsurePublicACMECert(
 }
 
 
-func (m *FileManager) EnsureServerCert(dir string, subject string, dns []string, ttl time.Duration) (key, crt, ca string, err error) {
+func (m *FileManager) EnsureServerCert(dir string, subject string, dns []string, ips []string, ttl time.Duration) (key, crt, ca string, err error) {
 	if ttl <= 0 {
 		ttl = time.Duration(m.LocalCA.ValidDays) * 24 * time.Hour
 	}
-	if _, _, err = ensureKeyAndCSRWithSANs(dir, "server", subject, dns, nil); err != nil {
+	if _, _, err = ensureKeyAndCSRWithSANs(dir, "server", subject, dns, ips); err != nil {
 		return "", "", "", err
 	}
 

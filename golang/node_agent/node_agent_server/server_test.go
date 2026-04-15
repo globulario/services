@@ -129,7 +129,7 @@ func (f *fakePKIManager) EnsurePeerCert(dir string, subject string, dns []string
 	return "", "", "", nil
 }
 
-func (f *fakePKIManager) EnsureServerCert(dir string, subject string, dns []string, ttl time.Duration) (string, string, string, error) {
+func (f *fakePKIManager) EnsureServerCert(dir string, subject string, dns []string, ips []string, ttl time.Duration) (string, string, string, error) {
 	f.serverCalled = true
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", "", "", err

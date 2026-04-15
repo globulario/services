@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/user"
 	"os/exec"
@@ -17,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ingress"
 	"github.com/globulario/services/golang/pki"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -340,6 +343,14 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		dns = append(dns, host, host+"."+domain)
 	}
 	dns = append(dns, spec.GetAlternateDomains()...)
+
+	// Collect IP SANs: node's routable IPs + ingress VIP (if this node
+	// participates in keepalived). Without the VIP in the cert, any gRPC
+	// client connecting via the floating VIP will fail TLS verification.
+	ips := collectNodeIPs()
+	if vip := srv.lookupIngressVIP(); vip != "" {
+		ips = append(ips, vip)
+	}
 	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
 	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
 		return fmt.Errorf("create tls dir: %w", err)
@@ -434,7 +445,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 			return err
 		}
 	} else {
-		keyFile, leafFile, caFile, err := manager.EnsureServerCert(canonicalPKIDir, domain, dns, 90*24*time.Hour)
+		keyFile, leafFile, caFile, err := manager.EnsureServerCert(canonicalPKIDir, domain, dns, ips, 90*24*time.Hour)
 		if err != nil {
 			return fmt.Errorf("issue server certs: %w", err)
 		}
@@ -478,6 +489,68 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		}
 	}
 	return nil
+}
+
+// collectNodeIPs returns the non-loopback unicast IPs of this node.
+func collectNodeIPs() []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, ipNet.IP.String())
+	}
+	return out
+}
+
+// lookupIngressVIP reads the ingress spec from etcd and returns the VIP
+// if this node is a participant. Returns "" if no VIP is configured or
+// this node is not a keepalived participant.
+func (srv *NodeAgentServer) lookupIngressVIP() string {
+	etcdClient, err := config.GetEtcdClient()
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := etcdClient.Get(ctx, ingressSpecKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return ""
+	}
+	var spec ingress.Spec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return ""
+	}
+	if spec.Mode != ingress.ModeVIPFailover || spec.VIPFailover == nil {
+		return ""
+	}
+	// Only include the VIP if this node participates in keepalived.
+	if srv.nodeID != "" {
+		found := false
+		for _, p := range spec.VIPFailover.Participants {
+			if p == srv.nodeID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return ""
+		}
+	}
+	// Strip CIDR if present (e.g. "10.0.0.100/24" → "10.0.0.100").
+	vip := strings.TrimSpace(spec.VIPFailover.VIP)
+	if ip, _, err := net.ParseCIDR(vip); err == nil {
+		return ip.String()
+	}
+	if net.ParseIP(vip) != nil {
+		return vip
+	}
+	return ""
 }
 
 func (srv *NodeAgentServer) isIssuerNode() bool {

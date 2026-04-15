@@ -11,7 +11,7 @@ type Manager interface {
 	// For nodes/peers that need IP SANs (local CA path)
 	EnsurePeerCert(dir string, subject string, dns []string, ips []string, ttl time.Duration) (key, crt, ca string, err error)
 	// For public-facing servers (ACME if enabled; else local CA)
-	EnsureServerCert(dir string, subject string, dns []string, ttl time.Duration) (key, crt, ca string, err error)
+	EnsureServerCert(dir string, subject string, dns []string, ips []string, ttl time.Duration) (key, crt, ca string, err error)
 	// Obtain a public ACME certificate for the given DNS names, writing:
 	//   <base>.key, <base>.csr, <base>.crt (leaf), <base>.issuer.crt (issuer), <base>.fullchain.pem (leaf+issuer)
 	// Does NOT affect server.crt/server.key which remain local-CA for mTLS.
