@@ -1297,6 +1297,67 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getClus
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.GetControllerSubsystemHealthRequest,
+ *   !proto.cluster_controller.GetControllerSubsystemHealthResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetSubsystemHealth = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/GetSubsystemHealth',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.GetControllerSubsystemHealthRequest,
+  proto.cluster_controller.GetControllerSubsystemHealthResponse,
+  /**
+   * @param {!proto.cluster_controller.GetControllerSubsystemHealthRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.GetControllerSubsystemHealthResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.GetControllerSubsystemHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.GetControllerSubsystemHealthResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.GetControllerSubsystemHealthResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.getSubsystemHealth =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetSubsystemHealth',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetSubsystemHealth,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.GetControllerSubsystemHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.GetControllerSubsystemHealthResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getSubsystemHealth =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetSubsystemHealth',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetSubsystemHealth);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.cluster_controller.GetNodeHealthDetailV1Request,
  *   !proto.cluster_controller.GetNodeHealthDetailV1Response>}
  */

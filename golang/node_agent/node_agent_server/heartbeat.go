@@ -20,6 +20,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -46,6 +47,7 @@ func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 }
 
 func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
+	hb := globular_service.RegisterSubsystem("heartbeat", 30*time.Second)
 	// Initial sync: populate installed-state etcd records for packages
 	// installed by the Day-0 installer (which doesn't go through plan execution).
 	srv.syncInstalledStateToEtcd(ctx)
@@ -93,12 +95,14 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 				log.Printf("node heartbeat failed (state=%s): %v", srv.controllerConnState, err)
 				loggedMissingEndpoint = false
 			}
+			hb.TickError(err)
 		} else {
 			srv.controllerConnState = ConnStateConnected
 			srv.lastControllerContact = now
 			srv.consecutiveHeartbeatFail = 0
 			recordHeartbeatSuccess(now)
 			loggedMissingEndpoint = false
+			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
 		select {

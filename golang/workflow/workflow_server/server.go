@@ -359,15 +359,18 @@ func (srv *server) Init() error {
 
 	// Close stale DISPATCHED runs that the node agent never finished
 	// (e.g. workflow service was down when the node agent tried to call FinishRun).
+	globular.RegisterSubsystem("reap-stale-runs", 5*time.Minute)
 	go srv.reapStaleRuns()
 
 	// Scan convergence telemetry and emit threshold events so ai-watcher
 	// (or any subscriber) can react when step failure rates rise, drift
 	// gets stuck, or periodic workflows stop firing.
+	globular.RegisterSubsystem("telemetry-scan", 60*time.Second)
 	go srv.scanTelemetryAndEmit()
 
 	// Aggregate telemetry into operator-facing incidents per minute.
 	// See docs/incidents-design.md.
+	globular.RegisterSubsystem("incident-scanner", 60*time.Second)
 	go srv.runIncidentScanner()
 
 	return nil

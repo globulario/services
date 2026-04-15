@@ -12,6 +12,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc/codes"
@@ -193,3 +194,43 @@ func parseCertInfo(certPath string) *node_agentpb.CertificateInfo {
 	}
 }
 
+// GetSubsystemHealth returns the health state of all registered background
+// subsystems (goroutines) in this node agent process.
+func (srv *NodeAgentServer) GetSubsystemHealth(_ context.Context, _ *node_agentpb.GetSubsystemHealthRequest) (*node_agentpb.GetSubsystemHealthResponse, error) {
+	entries := globular_service.SubsystemSnapshot()
+	resp := &node_agentpb.GetSubsystemHealthResponse{
+		Subsystems: make([]*node_agentpb.SubsystemHealth, 0, len(entries)),
+		Overall:    toProtoSubsystemState(globular_service.SubsystemOverallState()),
+	}
+	for _, e := range entries {
+		sh := &node_agentpb.SubsystemHealth{
+			Name:       e.Name,
+			State:      toProtoSubsystemState(e.State),
+			LastError:  e.LastError,
+			ErrorCount: e.ErrorCount,
+			Metadata:   e.Metadata,
+		}
+		if !e.LastTick.IsZero() {
+			sh.LastTick = timestamppb.New(e.LastTick)
+		}
+		resp.Subsystems = append(resp.Subsystems, sh)
+	}
+	return resp, nil
+}
+
+func toProtoSubsystemState(s globular_service.SubsystemState) node_agentpb.SubsystemState {
+	switch s {
+	case globular_service.SubsystemHealthy:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_HEALTHY
+	case globular_service.SubsystemDegraded:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_DEGRADED
+	case globular_service.SubsystemFailed:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_FAILED
+	case globular_service.SubsystemStarting:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_STARTING
+	case globular_service.SubsystemStopped:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_STOPPED
+	default:
+		return node_agentpb.SubsystemState_SUBSYSTEM_STATE_UNSPECIFIED
+	}
+}

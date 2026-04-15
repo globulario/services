@@ -330,6 +330,16 @@ service NodeAgentService {
     };
   };
 
+  // Observability: subsystem health registry
+  rpc GetSubsystemHealth(GetSubsystemHealthRequest) returns (GetSubsystemHealthResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.subsystem_health.read"
+      permission: "read"
+      resource_template: "/node_agent/subsystems"
+      default_role_hint: "viewer"
+    };
+  };
+
   // Workflow execution: run a workflow definition on this node
   rpc RunWorkflow(RunWorkflowRequest) returns (RunWorkflowResponse) {
     option (globular.auth.authz) = {
@@ -486,6 +496,33 @@ message GetCertificateStatusRequest {}
 message GetCertificateStatusResponse {
   CertificateInfo server_cert = 1;
   CertificateInfo ca_cert = 2;
+}
+
+// ── Subsystem health ──
+
+enum SubsystemState {
+  SUBSYSTEM_STATE_UNSPECIFIED = 0;
+  SUBSYSTEM_STATE_HEALTHY     = 1;
+  SUBSYSTEM_STATE_DEGRADED    = 2;
+  SUBSYSTEM_STATE_FAILED      = 3;
+  SUBSYSTEM_STATE_STARTING    = 4;
+  SUBSYSTEM_STATE_STOPPED     = 5;
+}
+
+message SubsystemHealth {
+  string                    name         = 1;
+  SubsystemState            state        = 2;
+  google.protobuf.Timestamp last_tick    = 3;
+  string                    last_error   = 4;
+  int64                     error_count  = 5;
+  map<string, string>       metadata     = 6;
+}
+
+message GetSubsystemHealthRequest {}
+
+message GetSubsystemHealthResponse {
+  repeated SubsystemHealth subsystems = 1;
+  SubsystemState           overall    = 2;
 }
 
 // ── Workflow execution ──

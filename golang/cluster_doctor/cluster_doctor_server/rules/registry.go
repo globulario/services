@@ -49,6 +49,9 @@ func NewRegistry(cfg Config) *Registry {
 		certificateExpiry{},
 		certificateSANCoverage{},
 		certificateChainValid{},
+		// Subsystem health: detects stuck/failed background goroutines.
+		// Consumes per-node GetSubsystemHealth collected in Snapshot.SubsystemHealth.
+		subsystemStuck{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

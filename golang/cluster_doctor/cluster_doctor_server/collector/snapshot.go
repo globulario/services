@@ -28,6 +28,12 @@ type Snapshot struct {
 	NodeHealths map[string]*cluster_controllerpb.NodeHealth // keyed by NodeId
 	Inventories map[string]*node_agentpb.Inventory          // keyed by NodeId
 
+	// Per-node subsystem health, populated from the
+	// GetSubsystemHealth RPC. Consumed by the "subsystem.stuck"
+	// invariant family in rules/ to surface stuck/failed goroutines.
+	// Keyed by NodeId.
+	SubsystemHealth map[string]*node_agentpb.GetSubsystemHealthResponse
+
 	// Per-node certificate status, populated from the
 	// GetCertificateStatus RPC. Consumed by the "security.certs.*"
 	// invariant family in rules/ to surface expiring certs and
@@ -86,6 +92,7 @@ func newSnapshot(id string) *Snapshot {
 		GeneratedAt:      time.Now(),
 		NodeHealths:      make(map[string]*cluster_controllerpb.NodeHealth),
 		Inventories:      make(map[string]*node_agentpb.Inventory),
+		SubsystemHealth:   make(map[string]*node_agentpb.GetSubsystemHealthResponse),
 		CertificateStatus: make(map[string]*node_agentpb.GetCertificateStatusResponse),
 		IntegrityReports:  make(map[string]*IntegrityReport),
 	}

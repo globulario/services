@@ -1053,6 +1053,67 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getCertificateStatus =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetSubsystemHealthRequest,
+ *   !proto.node_agent.GetSubsystemHealthResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetSubsystemHealth = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetSubsystemHealth',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetSubsystemHealthRequest,
+  proto.node_agent.GetSubsystemHealthResponse,
+  /**
+   * @param {!proto.node_agent.GetSubsystemHealthRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetSubsystemHealthResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetSubsystemHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetSubsystemHealthResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetSubsystemHealthResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getSubsystemHealth =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetSubsystemHealth',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetSubsystemHealth,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetSubsystemHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetSubsystemHealthResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getSubsystemHealth =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetSubsystemHealth',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetSubsystemHealth);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.node_agent.RunWorkflowRequest,
  *   !proto.node_agent.RunWorkflowResponse>}
  */

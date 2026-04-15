@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
@@ -651,12 +652,33 @@ func (srv *server) unlock() {
 }
 
 func safeGo(tag string, fn func()) {
+	h := globular_service.RegisterSubsystem(tag, 0)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("panic in %s: %v\n%s", tag, r, debug.Stack())
+				h.SetState(globular_service.SubsystemFailed)
+				h.SetError(fmt.Sprintf("panic: %v", r))
 			}
 		}()
+		defer h.SetState(globular_service.SubsystemStopped)
+		fn()
+	}()
+}
+
+// safeGoTicker is like safeGo but registers an expected tick interval.
+// Use for goroutines with periodic loops.
+func safeGoTicker(tag string, interval time.Duration, fn func()) {
+	h := globular_service.RegisterSubsystem(tag, interval)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in %s: %v\n%s", tag, r, debug.Stack())
+				h.SetState(globular_service.SubsystemFailed)
+				h.SetError(fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		defer h.SetState(globular_service.SubsystemStopped)
 		fn()
 	}()
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -568,4 +569,45 @@ func (srv *server) startHealthMonitorLoop(ctx context.Context) {
 			}
 		}
 	})
+}
+
+// GetSubsystemHealth returns the health state of all registered background
+// subsystems (goroutines) in this controller process.
+func (srv *server) GetSubsystemHealth(_ context.Context, _ *cluster_controllerpb.GetControllerSubsystemHealthRequest) (*cluster_controllerpb.GetControllerSubsystemHealthResponse, error) {
+	entries := globular_service.SubsystemSnapshot()
+	resp := &cluster_controllerpb.GetControllerSubsystemHealthResponse{
+		Subsystems: make([]*cluster_controllerpb.ControllerSubsystemHealth, 0, len(entries)),
+		Overall:    toControllerSubsystemState(globular_service.SubsystemOverallState()),
+	}
+	for _, e := range entries {
+		sh := &cluster_controllerpb.ControllerSubsystemHealth{
+			Name:       e.Name,
+			State:      toControllerSubsystemState(e.State),
+			LastError:  e.LastError,
+			ErrorCount: e.ErrorCount,
+			Metadata:   e.Metadata,
+		}
+		if !e.LastTick.IsZero() {
+			sh.LastTick = timestamppb.New(e.LastTick)
+		}
+		resp.Subsystems = append(resp.Subsystems, sh)
+	}
+	return resp, nil
+}
+
+func toControllerSubsystemState(s globular_service.SubsystemState) cluster_controllerpb.ControllerSubsystemState {
+	switch s {
+	case globular_service.SubsystemHealthy:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_HEALTHY
+	case globular_service.SubsystemDegraded:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_DEGRADED
+	case globular_service.SubsystemFailed:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_FAILED
+	case globular_service.SubsystemStarting:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_STARTING
+	case globular_service.SubsystemStopped:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_STOPPED
+	default:
+		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED
+	}
 }

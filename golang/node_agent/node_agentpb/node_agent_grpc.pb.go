@@ -35,6 +35,7 @@ const (
 	NodeAgentService_ControlService_FullMethodName         = "/node_agent.NodeAgentService/ControlService"
 	NodeAgentService_SearchServiceLogs_FullMethodName      = "/node_agent.NodeAgentService/SearchServiceLogs"
 	NodeAgentService_GetCertificateStatus_FullMethodName   = "/node_agent.NodeAgentService/GetCertificateStatus"
+	NodeAgentService_GetSubsystemHealth_FullMethodName     = "/node_agent.NodeAgentService/GetSubsystemHealth"
 	NodeAgentService_RunWorkflow_FullMethodName            = "/node_agent.NodeAgentService/RunWorkflow"
 	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
@@ -69,6 +70,8 @@ type NodeAgentServiceClient interface {
 	SearchServiceLogs(ctx context.Context, in *SearchServiceLogsRequest, opts ...grpc.CallOption) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(ctx context.Context, in *GetCertificateStatusRequest, opts ...grpc.CallOption) (*GetCertificateStatusResponse, error)
+	// Observability: subsystem health registry
+	GetSubsystemHealth(ctx context.Context, in *GetSubsystemHealthRequest, opts ...grpc.CallOption) (*GetSubsystemHealthResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error)
 	// Remote package apply: fetch from repository, install, restart, health check.
@@ -271,6 +274,16 @@ func (c *nodeAgentServiceClient) GetCertificateStatus(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) GetSubsystemHealth(ctx context.Context, in *GetSubsystemHealthRequest, opts ...grpc.CallOption) (*GetSubsystemHealthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSubsystemHealthResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetSubsystemHealth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeAgentServiceClient) RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunWorkflowResponse)
@@ -339,6 +352,8 @@ type NodeAgentServiceServer interface {
 	SearchServiceLogs(context.Context, *SearchServiceLogsRequest) (*SearchServiceLogsResponse, error)
 	// Observability: TLS certificate status
 	GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error)
+	// Observability: subsystem health registry
+	GetSubsystemHealth(context.Context, *GetSubsystemHealthRequest) (*GetSubsystemHealthResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error)
 	// Remote package apply: fetch from repository, install, restart, health check.
@@ -418,6 +433,9 @@ func (UnimplementedNodeAgentServiceServer) SearchServiceLogs(context.Context, *S
 }
 func (UnimplementedNodeAgentServiceServer) GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCertificateStatus not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) GetSubsystemHealth(context.Context, *GetSubsystemHealthRequest) (*GetSubsystemHealthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSubsystemHealth not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunWorkflow not implemented")
@@ -732,6 +750,24 @@ func _NodeAgentService_GetCertificateStatus_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_GetSubsystemHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSubsystemHealthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetSubsystemHealth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetSubsystemHealth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetSubsystemHealth(ctx, req.(*GetSubsystemHealthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeAgentService_RunWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RunWorkflowRequest)
 	if err := dec(in); err != nil {
@@ -870,6 +906,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCertificateStatus",
 			Handler:    _NodeAgentService_GetCertificateStatus_Handler,
+		},
+		{
+			MethodName: "GetSubsystemHealth",
+			Handler:    _NodeAgentService_GetSubsystemHealth_Handler,
 		},
 		{
 			MethodName: "RunWorkflow",

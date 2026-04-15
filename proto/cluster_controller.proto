@@ -571,6 +571,16 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // Subsystem health registry: reports the health of all background goroutines
+  // (leader election, reconciler, drift detector, event publisher, etc.)
+  rpc GetSubsystemHealth(GetControllerSubsystemHealthRequest) returns (GetControllerSubsystemHealthResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.subsystem_health.read"
+      permission: "read"
+      resource_template: "/cluster_controller/subsystems"
+      default_role_hint: "viewer"
+    };
+  };
   rpc GetNodeHealthDetailV1(GetNodeHealthDetailV1Request) returns (GetNodeHealthDetailV1Response) {
     option (globular.auth.authz) = {
       action: "cluster_controller.node.health_detail"
@@ -896,4 +906,31 @@ message DeployControlPlanePackageResponse {
   string workflow_name = 6;      // "release.apply.controller"
   string accepted_by_node_id = 7;  // node that accepted the deploy
   string current_leader_node_id = 8; // leader at time of acceptance
+}
+
+// ── Controller subsystem health ──
+
+enum ControllerSubsystemState {
+  CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED = 0;
+  CONTROLLER_SUBSYSTEM_STATE_HEALTHY     = 1;
+  CONTROLLER_SUBSYSTEM_STATE_DEGRADED    = 2;
+  CONTROLLER_SUBSYSTEM_STATE_FAILED      = 3;
+  CONTROLLER_SUBSYSTEM_STATE_STARTING    = 4;
+  CONTROLLER_SUBSYSTEM_STATE_STOPPED     = 5;
+}
+
+message ControllerSubsystemHealth {
+  string                         name         = 1;
+  ControllerSubsystemState       state        = 2;
+  google.protobuf.Timestamp      last_tick    = 3;
+  string                         last_error   = 4;
+  int64                          error_count  = 5;
+  map<string, string>            metadata     = 6;
+}
+
+message GetControllerSubsystemHealthRequest {}
+
+message GetControllerSubsystemHealthResponse {
+  repeated ControllerSubsystemHealth subsystems = 1;
+  ControllerSubsystemState           overall    = 2;
 }

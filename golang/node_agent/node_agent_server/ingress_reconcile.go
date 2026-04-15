@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ingress"
 )
@@ -21,11 +22,13 @@ const (
 // ingressReconcileLoop periodically reconciles the ingress configuration
 // by reading the spec from etcd and applying it via the keepalived action
 func (srv *NodeAgentServer) ingressReconcileLoop(ctx context.Context) {
+	ih := globular_service.RegisterSubsystem("ingress-reconcile", ingressReconcileInterval)
 	ticker := time.NewTicker(ingressReconcileInterval)
 	defer ticker.Stop()
 
 	// Initial reconciliation
 	srv.reconcileIngress(ctx)
+	ih.Tick()
 
 	for {
 		select {
@@ -33,6 +36,7 @@ func (srv *NodeAgentServer) ingressReconcileLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			srv.reconcileIngress(ctx)
+			ih.Tick()
 		}
 	}
 }

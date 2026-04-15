@@ -131,6 +131,64 @@ func (OperationPhase) EnumDescriptor() ([]byte, []int) {
 	return file_cluster_controller_proto_rawDescGZIP(), []int{1}
 }
 
+type ControllerSubsystemState int32
+
+const (
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED ControllerSubsystemState = 0
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_HEALTHY     ControllerSubsystemState = 1
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_DEGRADED    ControllerSubsystemState = 2
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_FAILED      ControllerSubsystemState = 3
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_STARTING    ControllerSubsystemState = 4
+	ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_STOPPED     ControllerSubsystemState = 5
+)
+
+// Enum value maps for ControllerSubsystemState.
+var (
+	ControllerSubsystemState_name = map[int32]string{
+		0: "CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED",
+		1: "CONTROLLER_SUBSYSTEM_STATE_HEALTHY",
+		2: "CONTROLLER_SUBSYSTEM_STATE_DEGRADED",
+		3: "CONTROLLER_SUBSYSTEM_STATE_FAILED",
+		4: "CONTROLLER_SUBSYSTEM_STATE_STARTING",
+		5: "CONTROLLER_SUBSYSTEM_STATE_STOPPED",
+	}
+	ControllerSubsystemState_value = map[string]int32{
+		"CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED": 0,
+		"CONTROLLER_SUBSYSTEM_STATE_HEALTHY":     1,
+		"CONTROLLER_SUBSYSTEM_STATE_DEGRADED":    2,
+		"CONTROLLER_SUBSYSTEM_STATE_FAILED":      3,
+		"CONTROLLER_SUBSYSTEM_STATE_STARTING":    4,
+		"CONTROLLER_SUBSYSTEM_STATE_STOPPED":     5,
+	}
+)
+
+func (x ControllerSubsystemState) Enum() *ControllerSubsystemState {
+	p := new(ControllerSubsystemState)
+	*p = x
+	return p
+}
+
+func (x ControllerSubsystemState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ControllerSubsystemState) Descriptor() protoreflect.EnumDescriptor {
+	return file_cluster_controller_proto_enumTypes[2].Descriptor()
+}
+
+func (ControllerSubsystemState) Type() protoreflect.EnumType {
+	return &file_cluster_controller_proto_enumTypes[2]
+}
+
+func (x ControllerSubsystemState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ControllerSubsystemState.Descriptor instead.
+func (ControllerSubsystemState) EnumDescriptor() ([]byte, []int) {
+	return file_cluster_controller_proto_rawDescGZIP(), []int{2}
+}
+
 type DomainMigration_MigrationState int32
 
 const (
@@ -164,11 +222,11 @@ func (x DomainMigration_MigrationState) String() string {
 }
 
 func (DomainMigration_MigrationState) Descriptor() protoreflect.EnumDescriptor {
-	return file_cluster_controller_proto_enumTypes[2].Descriptor()
+	return file_cluster_controller_proto_enumTypes[3].Descriptor()
 }
 
 func (DomainMigration_MigrationState) Type() protoreflect.EnumType {
-	return &file_cluster_controller_proto_enumTypes[2]
+	return &file_cluster_controller_proto_enumTypes[3]
 }
 
 func (x DomainMigration_MigrationState) Number() protoreflect.EnumNumber {
@@ -210,11 +268,11 @@ func (x SeedDesiredStateRequest_Mode) String() string {
 }
 
 func (SeedDesiredStateRequest_Mode) Descriptor() protoreflect.EnumDescriptor {
-	return file_cluster_controller_proto_enumTypes[3].Descriptor()
+	return file_cluster_controller_proto_enumTypes[4].Descriptor()
 }
 
 func (SeedDesiredStateRequest_Mode) Type() protoreflect.EnumType {
-	return &file_cluster_controller_proto_enumTypes[3]
+	return &file_cluster_controller_proto_enumTypes[4]
 }
 
 func (x SeedDesiredStateRequest_Mode) Number() protoreflect.EnumNumber {
@@ -256,11 +314,11 @@ func (x ValidationIssue_Severity) String() string {
 }
 
 func (ValidationIssue_Severity) Descriptor() protoreflect.EnumDescriptor {
-	return file_cluster_controller_proto_enumTypes[4].Descriptor()
+	return file_cluster_controller_proto_enumTypes[5].Descriptor()
 }
 
 func (ValidationIssue_Severity) Type() protoreflect.EnumType {
-	return &file_cluster_controller_proto_enumTypes[4]
+	return &file_cluster_controller_proto_enumTypes[5]
 }
 
 func (x ValidationIssue_Severity) Number() protoreflect.EnumNumber {
@@ -5498,6 +5556,178 @@ func (x *DeployControlPlanePackageResponse) GetCurrentLeaderNodeId() string {
 	return ""
 }
 
+type ControllerSubsystemHealth struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Name          string                   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	State         ControllerSubsystemState `protobuf:"varint,2,opt,name=state,proto3,enum=cluster_controller.ControllerSubsystemState" json:"state,omitempty"`
+	LastTick      *timestamppb.Timestamp   `protobuf:"bytes,3,opt,name=last_tick,json=lastTick,proto3" json:"last_tick,omitempty"`
+	LastError     string                   `protobuf:"bytes,4,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	ErrorCount    int64                    `protobuf:"varint,5,opt,name=error_count,json=errorCount,proto3" json:"error_count,omitempty"`
+	Metadata      map[string]string        `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControllerSubsystemHealth) Reset() {
+	*x = ControllerSubsystemHealth{}
+	mi := &file_cluster_controller_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControllerSubsystemHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControllerSubsystemHealth) ProtoMessage() {}
+
+func (x *ControllerSubsystemHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_controller_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControllerSubsystemHealth.ProtoReflect.Descriptor instead.
+func (*ControllerSubsystemHealth) Descriptor() ([]byte, []int) {
+	return file_cluster_controller_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *ControllerSubsystemHealth) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ControllerSubsystemHealth) GetState() ControllerSubsystemState {
+	if x != nil {
+		return x.State
+	}
+	return ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED
+}
+
+func (x *ControllerSubsystemHealth) GetLastTick() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastTick
+	}
+	return nil
+}
+
+func (x *ControllerSubsystemHealth) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+func (x *ControllerSubsystemHealth) GetErrorCount() int64 {
+	if x != nil {
+		return x.ErrorCount
+	}
+	return 0
+}
+
+func (x *ControllerSubsystemHealth) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type GetControllerSubsystemHealthRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetControllerSubsystemHealthRequest) Reset() {
+	*x = GetControllerSubsystemHealthRequest{}
+	mi := &file_cluster_controller_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetControllerSubsystemHealthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetControllerSubsystemHealthRequest) ProtoMessage() {}
+
+func (x *GetControllerSubsystemHealthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_controller_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetControllerSubsystemHealthRequest.ProtoReflect.Descriptor instead.
+func (*GetControllerSubsystemHealthRequest) Descriptor() ([]byte, []int) {
+	return file_cluster_controller_proto_rawDescGZIP(), []int{81}
+}
+
+type GetControllerSubsystemHealthResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Subsystems    []*ControllerSubsystemHealth `protobuf:"bytes,1,rep,name=subsystems,proto3" json:"subsystems,omitempty"`
+	Overall       ControllerSubsystemState     `protobuf:"varint,2,opt,name=overall,proto3,enum=cluster_controller.ControllerSubsystemState" json:"overall,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetControllerSubsystemHealthResponse) Reset() {
+	*x = GetControllerSubsystemHealthResponse{}
+	mi := &file_cluster_controller_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetControllerSubsystemHealthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetControllerSubsystemHealthResponse) ProtoMessage() {}
+
+func (x *GetControllerSubsystemHealthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_controller_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetControllerSubsystemHealthResponse.ProtoReflect.Descriptor instead.
+func (*GetControllerSubsystemHealthResponse) Descriptor() ([]byte, []int) {
+	return file_cluster_controller_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *GetControllerSubsystemHealthResponse) GetSubsystems() []*ControllerSubsystemHealth {
+	if x != nil {
+		return x.Subsystems
+	}
+	return nil
+}
+
+func (x *GetControllerSubsystemHealthResponse) GetOverall() ControllerSubsystemState {
+	if x != nil {
+		return x.Overall
+	}
+	return ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED
+}
+
 var File_cluster_controller_proto protoreflect.FileDescriptor
 
 const file_cluster_controller_proto_rawDesc = "" +
@@ -5976,7 +6206,25 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\amessage\x18\x05 \x01(\tR\amessage\x12#\n" +
 	"\rworkflow_name\x18\x06 \x01(\tR\fworkflowName\x12-\n" +
 	"\x13accepted_by_node_id\x18\a \x01(\tR\x10acceptedByNodeId\x123\n" +
-	"\x16current_leader_node_id\x18\b \x01(\tR\x13currentLeaderNodeId*u\n" +
+	"\x16current_leader_node_id\x18\b \x01(\tR\x13currentLeaderNodeId\"\x82\x03\n" +
+	"\x19ControllerSubsystemHealth\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12B\n" +
+	"\x05state\x18\x02 \x01(\x0e2,.cluster_controller.ControllerSubsystemStateR\x05state\x127\n" +
+	"\tlast_tick\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastTick\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x04 \x01(\tR\tlastError\x12\x1f\n" +
+	"\verror_count\x18\x05 \x01(\x03R\n" +
+	"errorCount\x12W\n" +
+	"\bmetadata\x18\x06 \x03(\v2;.cluster_controller.ControllerSubsystemHealth.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"%\n" +
+	"#GetControllerSubsystemHealthRequest\"\xbd\x01\n" +
+	"$GetControllerSubsystemHealthResponse\x12M\n" +
+	"\n" +
+	"subsystems\x18\x01 \x03(\v2-.cluster_controller.ControllerSubsystemHealthR\n" +
+	"subsystems\x12F\n" +
+	"\aoverall\x18\x02 \x01(\x0e2,.cluster_controller.ControllerSubsystemStateR\aoverall*u\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10ARTIFACT_SERVICE\x10\x01\x12\x18\n" +
@@ -5988,7 +6236,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"OP_RUNNING\x10\x02\x12\x10\n" +
 	"\fOP_SUCCEEDED\x10\x03\x12\r\n" +
-	"\tOP_FAILED\x10\x042\xbc0\n" +
+	"\tOP_FAILED\x10\x04*\x8f\x02\n" +
+	"\x18ControllerSubsystemState\x12*\n" +
+	"&CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"CONTROLLER_SUBSYSTEM_STATE_HEALTHY\x10\x01\x12'\n" +
+	"#CONTROLLER_SUBSYSTEM_STATE_DEGRADED\x10\x02\x12%\n" +
+	"!CONTROLLER_SUBSYSTEM_STATE_FAILED\x10\x03\x12'\n" +
+	"#CONTROLLER_SUBSYSTEM_STATE_STARTING\x10\x04\x12&\n" +
+	"\"CONTROLLER_SUBSYSTEM_STATE_STOPPED\x10\x052\xa42\n" +
 	"\x18ClusterControllerService\x12\x9f\x01\n" +
 	"\x0eGetClusterInfo\x12\x1a.google.protobuf.Timestamp\x1a\x1f.cluster_controller.ClusterInfo\"P\x82\xb5\x18L\n" +
 	"\x1fcluster_controller.cluster.info\x12\x04read\x1a\x1b/cluster_controller/cluster*\x06viewer\x12\xc5\x01\n" +
@@ -6031,7 +6286,9 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x0fWatchOperations\x12*.cluster_controller.WatchOperationsRequest\x1a\".cluster_controller.OperationEvent\"u\x82\xb5\x18q\n" +
 	"\"cluster_controller.operation.watch\x12\x04read\x1a=/cluster_controller/nodes/{node_id}/operations/{operation_id}*\x06viewer0\x01\x12\xd1\x01\n" +
 	"\x12GetClusterHealthV1\x12-.cluster_controller.GetClusterHealthV1Request\x1a..cluster_controller.GetClusterHealthV1Response\"\\\x82\xb5\x18X\n" +
-	"$cluster_controller.cluster.health_v1\x12\x04read\x1a\"/cluster_controller/cluster/health*\x06viewer\x12\xe3\x01\n" +
+	"$cluster_controller.cluster.health_v1\x12\x04read\x1a\"/cluster_controller/cluster/health*\x06viewer\x12\xe5\x01\n" +
+	"\x12GetSubsystemHealth\x127.cluster_controller.GetControllerSubsystemHealthRequest\x1a8.cluster_controller.GetControllerSubsystemHealthResponse\"\\\x82\xb5\x18X\n" +
+	"(cluster_controller.subsystem_health.read\x12\x04read\x1a\x1e/cluster_controller/subsystems*\x06viewer\x12\xe3\x01\n" +
 	"\x15GetNodeHealthDetailV1\x120.cluster_controller.GetNodeHealthDetailV1Request\x1a1.cluster_controller.GetNodeHealthDetailV1Response\"e\x82\xb5\x18a\n" +
 	"%cluster_controller.node.health_detail\x12\x04read\x1a*/cluster_controller/nodes/{node_id}/health*\x06viewer\x12\xe2\x01\n" +
 	"\x13PreviewNodeProfiles\x12..cluster_controller.PreviewNodeProfilesRequest\x1a/.cluster_controller.PreviewNodeProfilesResponse\"j\x82\xb5\x18f\n" +
@@ -6065,222 +6322,234 @@ func file_cluster_controller_proto_rawDescGZIP() []byte {
 	return file_cluster_controller_proto_rawDescData
 }
 
-var file_cluster_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_cluster_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
+var file_cluster_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_cluster_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
 var file_cluster_controller_proto_goTypes = []any{
-	(ArtifactKind)(0),                         // 0: cluster_controller.ArtifactKind
-	(OperationPhase)(0),                       // 1: cluster_controller.OperationPhase
-	(DomainMigration_MigrationState)(0),       // 2: cluster_controller.DomainMigration.MigrationState
-	(SeedDesiredStateRequest_Mode)(0),         // 3: cluster_controller.SeedDesiredStateRequest.Mode
-	(ValidationIssue_Severity)(0),             // 4: cluster_controller.ValidationIssue.Severity
-	(*ClusterInfo)(nil),                       // 5: cluster_controller.ClusterInfo
-	(*ClusterNetworkSpec)(nil),                // 6: cluster_controller.ClusterNetworkSpec
-	(*DomainMigration)(nil),                   // 7: cluster_controller.DomainMigration
-	(*ExternalDNSConfig)(nil),                 // 8: cluster_controller.ExternalDNSConfig
-	(*NodeIdentity)(nil),                      // 9: cluster_controller.NodeIdentity
-	(*NodeCapabilities)(nil),                  // 10: cluster_controller.NodeCapabilities
-	(*NodeRecord)(nil),                        // 11: cluster_controller.NodeRecord
-	(*CreateJoinTokenRequest)(nil),            // 12: cluster_controller.CreateJoinTokenRequest
-	(*CreateJoinTokenResponse)(nil),           // 13: cluster_controller.CreateJoinTokenResponse
-	(*RequestJoinRequest)(nil),                // 14: cluster_controller.RequestJoinRequest
-	(*RequestJoinResponse)(nil),               // 15: cluster_controller.RequestJoinResponse
-	(*GetJoinRequestStatusRequest)(nil),       // 16: cluster_controller.GetJoinRequestStatusRequest
-	(*GetJoinRequestStatusResponse)(nil),      // 17: cluster_controller.GetJoinRequestStatusResponse
-	(*JoinRequestRecord)(nil),                 // 18: cluster_controller.JoinRequestRecord
-	(*ListJoinRequestsRequest)(nil),           // 19: cluster_controller.ListJoinRequestsRequest
-	(*ListJoinRequestsResponse)(nil),          // 20: cluster_controller.ListJoinRequestsResponse
-	(*ApproveJoinRequest)(nil),                // 21: cluster_controller.ApproveJoinRequest
-	(*ApproveJoinResponse)(nil),               // 22: cluster_controller.ApproveJoinResponse
-	(*RejectJoinRequest)(nil),                 // 23: cluster_controller.RejectJoinRequest
-	(*RejectJoinResponse)(nil),                // 24: cluster_controller.RejectJoinResponse
-	(*NodeIdentityProjection)(nil),            // 25: cluster_controller.NodeIdentityProjection
-	(*ResolveNodeRequest)(nil),                // 26: cluster_controller.ResolveNodeRequest
-	(*ResolveNodeResponse)(nil),               // 27: cluster_controller.ResolveNodeResponse
-	(*ListNodesRequest)(nil),                  // 28: cluster_controller.ListNodesRequest
-	(*ListNodesResponse)(nil),                 // 29: cluster_controller.ListNodesResponse
-	(*SetNodeProfilesRequest)(nil),            // 30: cluster_controller.SetNodeProfilesRequest
-	(*SetNodeProfilesResponse)(nil),           // 31: cluster_controller.SetNodeProfilesResponse
-	(*SetNodeBootstrapPhaseRequest)(nil),      // 32: cluster_controller.SetNodeBootstrapPhaseRequest
-	(*SetNodeBootstrapPhaseResponse)(nil),     // 33: cluster_controller.SetNodeBootstrapPhaseResponse
-	(*EmitWorkflowEventRequest)(nil),          // 34: cluster_controller.EmitWorkflowEventRequest
-	(*EmitWorkflowEventResponse)(nil),         // 35: cluster_controller.EmitWorkflowEventResponse
-	(*RemoveNodeRequest)(nil),                 // 36: cluster_controller.RemoveNodeRequest
-	(*RemoveNodeResponse)(nil),                // 37: cluster_controller.RemoveNodeResponse
-	(*GetClusterHealthRequest)(nil),           // 38: cluster_controller.GetClusterHealthRequest
-	(*GetClusterHealthResponse)(nil),          // 39: cluster_controller.GetClusterHealthResponse
-	(*NodeHealthStatus)(nil),                  // 40: cluster_controller.NodeHealthStatus
-	(*UpdateClusterNetworkRequest)(nil),       // 41: cluster_controller.UpdateClusterNetworkRequest
-	(*UpdateClusterNetworkResponse)(nil),      // 42: cluster_controller.UpdateClusterNetworkResponse
-	(*ArtifactRef)(nil),                       // 43: cluster_controller.ArtifactRef
-	(*UnitAction)(nil),                        // 44: cluster_controller.UnitAction
-	(*UpgradeGlobularRequest)(nil),            // 45: cluster_controller.UpgradeGlobularRequest
-	(*UpgradeGlobularResponse)(nil),           // 46: cluster_controller.UpgradeGlobularResponse
-	(*StartApplyRequest)(nil),                 // 47: cluster_controller.StartApplyRequest
-	(*StartApplyResponse)(nil),                // 48: cluster_controller.StartApplyResponse
-	(*OperationEvent)(nil),                    // 49: cluster_controller.OperationEvent
-	(*CompleteOperationRequest)(nil),          // 50: cluster_controller.CompleteOperationRequest
-	(*CompleteOperationResponse)(nil),         // 51: cluster_controller.CompleteOperationResponse
-	(*NodeUnitStatus)(nil),                    // 52: cluster_controller.NodeUnitStatus
-	(*NodeStatus)(nil),                        // 53: cluster_controller.NodeStatus
-	(*ReportNodeStatusRequest)(nil),           // 54: cluster_controller.ReportNodeStatusRequest
-	(*ReportNodeStatusResponse)(nil),          // 55: cluster_controller.ReportNodeStatusResponse
-	(*WatchOperationsRequest)(nil),            // 56: cluster_controller.WatchOperationsRequest
-	(*DesiredNetwork)(nil),                    // 57: cluster_controller.DesiredNetwork
-	(*GetClusterHealthV1Request)(nil),         // 58: cluster_controller.GetClusterHealthV1Request
-	(*NodeHealth)(nil),                        // 59: cluster_controller.NodeHealth
-	(*ServiceSummary)(nil),                    // 60: cluster_controller.ServiceSummary
-	(*GetClusterHealthV1Response)(nil),        // 61: cluster_controller.GetClusterHealthV1Response
-	(*NodeHealthCheck)(nil),                   // 62: cluster_controller.NodeHealthCheck
-	(*GetNodeHealthDetailV1Request)(nil),      // 63: cluster_controller.GetNodeHealthDetailV1Request
-	(*GetNodeHealthDetailV1Response)(nil),     // 64: cluster_controller.GetNodeHealthDetailV1Response
-	(*PreviewNodeProfilesRequest)(nil),        // 65: cluster_controller.PreviewNodeProfilesRequest
-	(*ConfigFileDiff)(nil),                    // 66: cluster_controller.ConfigFileDiff
-	(*AffectedNodeDiff)(nil),                  // 67: cluster_controller.AffectedNodeDiff
-	(*PreviewNodeProfilesResponse)(nil),       // 68: cluster_controller.PreviewNodeProfilesResponse
-	(*DesiredService)(nil),                    // 69: cluster_controller.DesiredService
-	(*DesiredState)(nil),                      // 70: cluster_controller.DesiredState
-	(*UpsertDesiredServiceRequest)(nil),       // 71: cluster_controller.UpsertDesiredServiceRequest
-	(*RemoveDesiredServiceRequest)(nil),       // 72: cluster_controller.RemoveDesiredServiceRequest
-	(*SeedDesiredStateRequest)(nil),           // 73: cluster_controller.SeedDesiredStateRequest
-	(*ValidateArtifactRequest)(nil),           // 74: cluster_controller.ValidateArtifactRequest
-	(*ValidationIssue)(nil),                   // 75: cluster_controller.ValidationIssue
-	(*ValidationReport)(nil),                  // 76: cluster_controller.ValidationReport
-	(*DesiredServicesDelta)(nil),              // 77: cluster_controller.DesiredServicesDelta
-	(*NodeChange)(nil),                        // 78: cluster_controller.NodeChange
-	(*ServiceChangePreview)(nil),              // 79: cluster_controller.ServiceChangePreview
-	(*InstallPolicy)(nil),                     // 80: cluster_controller.InstallPolicy
-	(*ResignLeadershipRequest)(nil),           // 81: cluster_controller.ResignLeadershipRequest
-	(*ResignLeadershipResponse)(nil),          // 82: cluster_controller.ResignLeadershipResponse
-	(*DeployControlPlanePackageRequest)(nil),  // 83: cluster_controller.DeployControlPlanePackageRequest
-	(*DeployControlPlanePackageResponse)(nil), // 84: cluster_controller.DeployControlPlanePackageResponse
-	nil,                           // 85: cluster_controller.ExternalDNSConfig.ProviderConfigEntry
-	nil,                           // 86: cluster_controller.NodeRecord.MetadataEntry
-	nil,                           // 87: cluster_controller.RequestJoinRequest.LabelsEntry
-	nil,                           // 88: cluster_controller.JoinRequestRecord.MetadataEntry
-	nil,                           // 89: cluster_controller.ApproveJoinRequest.MetadataEntry
-	nil,                           // 90: cluster_controller.EmitWorkflowEventRequest.DataEntry
-	nil,                           // 91: cluster_controller.NodeStatus.InstalledVersionsEntry
-	nil,                           // 92: cluster_controller.NodeHealth.InstalledVersionsEntry
-	(*timestamppb.Timestamp)(nil), // 93: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 94: google.protobuf.Empty
+	(ArtifactKind)(0),                            // 0: cluster_controller.ArtifactKind
+	(OperationPhase)(0),                          // 1: cluster_controller.OperationPhase
+	(ControllerSubsystemState)(0),                // 2: cluster_controller.ControllerSubsystemState
+	(DomainMigration_MigrationState)(0),          // 3: cluster_controller.DomainMigration.MigrationState
+	(SeedDesiredStateRequest_Mode)(0),            // 4: cluster_controller.SeedDesiredStateRequest.Mode
+	(ValidationIssue_Severity)(0),                // 5: cluster_controller.ValidationIssue.Severity
+	(*ClusterInfo)(nil),                          // 6: cluster_controller.ClusterInfo
+	(*ClusterNetworkSpec)(nil),                   // 7: cluster_controller.ClusterNetworkSpec
+	(*DomainMigration)(nil),                      // 8: cluster_controller.DomainMigration
+	(*ExternalDNSConfig)(nil),                    // 9: cluster_controller.ExternalDNSConfig
+	(*NodeIdentity)(nil),                         // 10: cluster_controller.NodeIdentity
+	(*NodeCapabilities)(nil),                     // 11: cluster_controller.NodeCapabilities
+	(*NodeRecord)(nil),                           // 12: cluster_controller.NodeRecord
+	(*CreateJoinTokenRequest)(nil),               // 13: cluster_controller.CreateJoinTokenRequest
+	(*CreateJoinTokenResponse)(nil),              // 14: cluster_controller.CreateJoinTokenResponse
+	(*RequestJoinRequest)(nil),                   // 15: cluster_controller.RequestJoinRequest
+	(*RequestJoinResponse)(nil),                  // 16: cluster_controller.RequestJoinResponse
+	(*GetJoinRequestStatusRequest)(nil),          // 17: cluster_controller.GetJoinRequestStatusRequest
+	(*GetJoinRequestStatusResponse)(nil),         // 18: cluster_controller.GetJoinRequestStatusResponse
+	(*JoinRequestRecord)(nil),                    // 19: cluster_controller.JoinRequestRecord
+	(*ListJoinRequestsRequest)(nil),              // 20: cluster_controller.ListJoinRequestsRequest
+	(*ListJoinRequestsResponse)(nil),             // 21: cluster_controller.ListJoinRequestsResponse
+	(*ApproveJoinRequest)(nil),                   // 22: cluster_controller.ApproveJoinRequest
+	(*ApproveJoinResponse)(nil),                  // 23: cluster_controller.ApproveJoinResponse
+	(*RejectJoinRequest)(nil),                    // 24: cluster_controller.RejectJoinRequest
+	(*RejectJoinResponse)(nil),                   // 25: cluster_controller.RejectJoinResponse
+	(*NodeIdentityProjection)(nil),               // 26: cluster_controller.NodeIdentityProjection
+	(*ResolveNodeRequest)(nil),                   // 27: cluster_controller.ResolveNodeRequest
+	(*ResolveNodeResponse)(nil),                  // 28: cluster_controller.ResolveNodeResponse
+	(*ListNodesRequest)(nil),                     // 29: cluster_controller.ListNodesRequest
+	(*ListNodesResponse)(nil),                    // 30: cluster_controller.ListNodesResponse
+	(*SetNodeProfilesRequest)(nil),               // 31: cluster_controller.SetNodeProfilesRequest
+	(*SetNodeProfilesResponse)(nil),              // 32: cluster_controller.SetNodeProfilesResponse
+	(*SetNodeBootstrapPhaseRequest)(nil),         // 33: cluster_controller.SetNodeBootstrapPhaseRequest
+	(*SetNodeBootstrapPhaseResponse)(nil),        // 34: cluster_controller.SetNodeBootstrapPhaseResponse
+	(*EmitWorkflowEventRequest)(nil),             // 35: cluster_controller.EmitWorkflowEventRequest
+	(*EmitWorkflowEventResponse)(nil),            // 36: cluster_controller.EmitWorkflowEventResponse
+	(*RemoveNodeRequest)(nil),                    // 37: cluster_controller.RemoveNodeRequest
+	(*RemoveNodeResponse)(nil),                   // 38: cluster_controller.RemoveNodeResponse
+	(*GetClusterHealthRequest)(nil),              // 39: cluster_controller.GetClusterHealthRequest
+	(*GetClusterHealthResponse)(nil),             // 40: cluster_controller.GetClusterHealthResponse
+	(*NodeHealthStatus)(nil),                     // 41: cluster_controller.NodeHealthStatus
+	(*UpdateClusterNetworkRequest)(nil),          // 42: cluster_controller.UpdateClusterNetworkRequest
+	(*UpdateClusterNetworkResponse)(nil),         // 43: cluster_controller.UpdateClusterNetworkResponse
+	(*ArtifactRef)(nil),                          // 44: cluster_controller.ArtifactRef
+	(*UnitAction)(nil),                           // 45: cluster_controller.UnitAction
+	(*UpgradeGlobularRequest)(nil),               // 46: cluster_controller.UpgradeGlobularRequest
+	(*UpgradeGlobularResponse)(nil),              // 47: cluster_controller.UpgradeGlobularResponse
+	(*StartApplyRequest)(nil),                    // 48: cluster_controller.StartApplyRequest
+	(*StartApplyResponse)(nil),                   // 49: cluster_controller.StartApplyResponse
+	(*OperationEvent)(nil),                       // 50: cluster_controller.OperationEvent
+	(*CompleteOperationRequest)(nil),             // 51: cluster_controller.CompleteOperationRequest
+	(*CompleteOperationResponse)(nil),            // 52: cluster_controller.CompleteOperationResponse
+	(*NodeUnitStatus)(nil),                       // 53: cluster_controller.NodeUnitStatus
+	(*NodeStatus)(nil),                           // 54: cluster_controller.NodeStatus
+	(*ReportNodeStatusRequest)(nil),              // 55: cluster_controller.ReportNodeStatusRequest
+	(*ReportNodeStatusResponse)(nil),             // 56: cluster_controller.ReportNodeStatusResponse
+	(*WatchOperationsRequest)(nil),               // 57: cluster_controller.WatchOperationsRequest
+	(*DesiredNetwork)(nil),                       // 58: cluster_controller.DesiredNetwork
+	(*GetClusterHealthV1Request)(nil),            // 59: cluster_controller.GetClusterHealthV1Request
+	(*NodeHealth)(nil),                           // 60: cluster_controller.NodeHealth
+	(*ServiceSummary)(nil),                       // 61: cluster_controller.ServiceSummary
+	(*GetClusterHealthV1Response)(nil),           // 62: cluster_controller.GetClusterHealthV1Response
+	(*NodeHealthCheck)(nil),                      // 63: cluster_controller.NodeHealthCheck
+	(*GetNodeHealthDetailV1Request)(nil),         // 64: cluster_controller.GetNodeHealthDetailV1Request
+	(*GetNodeHealthDetailV1Response)(nil),        // 65: cluster_controller.GetNodeHealthDetailV1Response
+	(*PreviewNodeProfilesRequest)(nil),           // 66: cluster_controller.PreviewNodeProfilesRequest
+	(*ConfigFileDiff)(nil),                       // 67: cluster_controller.ConfigFileDiff
+	(*AffectedNodeDiff)(nil),                     // 68: cluster_controller.AffectedNodeDiff
+	(*PreviewNodeProfilesResponse)(nil),          // 69: cluster_controller.PreviewNodeProfilesResponse
+	(*DesiredService)(nil),                       // 70: cluster_controller.DesiredService
+	(*DesiredState)(nil),                         // 71: cluster_controller.DesiredState
+	(*UpsertDesiredServiceRequest)(nil),          // 72: cluster_controller.UpsertDesiredServiceRequest
+	(*RemoveDesiredServiceRequest)(nil),          // 73: cluster_controller.RemoveDesiredServiceRequest
+	(*SeedDesiredStateRequest)(nil),              // 74: cluster_controller.SeedDesiredStateRequest
+	(*ValidateArtifactRequest)(nil),              // 75: cluster_controller.ValidateArtifactRequest
+	(*ValidationIssue)(nil),                      // 76: cluster_controller.ValidationIssue
+	(*ValidationReport)(nil),                     // 77: cluster_controller.ValidationReport
+	(*DesiredServicesDelta)(nil),                 // 78: cluster_controller.DesiredServicesDelta
+	(*NodeChange)(nil),                           // 79: cluster_controller.NodeChange
+	(*ServiceChangePreview)(nil),                 // 80: cluster_controller.ServiceChangePreview
+	(*InstallPolicy)(nil),                        // 81: cluster_controller.InstallPolicy
+	(*ResignLeadershipRequest)(nil),              // 82: cluster_controller.ResignLeadershipRequest
+	(*ResignLeadershipResponse)(nil),             // 83: cluster_controller.ResignLeadershipResponse
+	(*DeployControlPlanePackageRequest)(nil),     // 84: cluster_controller.DeployControlPlanePackageRequest
+	(*DeployControlPlanePackageResponse)(nil),    // 85: cluster_controller.DeployControlPlanePackageResponse
+	(*ControllerSubsystemHealth)(nil),            // 86: cluster_controller.ControllerSubsystemHealth
+	(*GetControllerSubsystemHealthRequest)(nil),  // 87: cluster_controller.GetControllerSubsystemHealthRequest
+	(*GetControllerSubsystemHealthResponse)(nil), // 88: cluster_controller.GetControllerSubsystemHealthResponse
+	nil,                           // 89: cluster_controller.ExternalDNSConfig.ProviderConfigEntry
+	nil,                           // 90: cluster_controller.NodeRecord.MetadataEntry
+	nil,                           // 91: cluster_controller.RequestJoinRequest.LabelsEntry
+	nil,                           // 92: cluster_controller.JoinRequestRecord.MetadataEntry
+	nil,                           // 93: cluster_controller.ApproveJoinRequest.MetadataEntry
+	nil,                           // 94: cluster_controller.EmitWorkflowEventRequest.DataEntry
+	nil,                           // 95: cluster_controller.NodeStatus.InstalledVersionsEntry
+	nil,                           // 96: cluster_controller.NodeHealth.InstalledVersionsEntry
+	nil,                           // 97: cluster_controller.ControllerSubsystemHealth.MetadataEntry
+	(*timestamppb.Timestamp)(nil), // 98: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 99: google.protobuf.Empty
 }
 var file_cluster_controller_proto_depIdxs = []int32{
-	93, // 0: cluster_controller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
-	8,  // 1: cluster_controller.ClusterNetworkSpec.external_dns:type_name -> cluster_controller.ExternalDNSConfig
-	7,  // 2: cluster_controller.ClusterNetworkSpec.domain_migration:type_name -> cluster_controller.DomainMigration
-	2,  // 3: cluster_controller.DomainMigration.state:type_name -> cluster_controller.DomainMigration.MigrationState
-	85, // 4: cluster_controller.ExternalDNSConfig.provider_config:type_name -> cluster_controller.ExternalDNSConfig.ProviderConfigEntry
-	9,  // 5: cluster_controller.NodeRecord.identity:type_name -> cluster_controller.NodeIdentity
-	93, // 6: cluster_controller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
-	86, // 7: cluster_controller.NodeRecord.metadata:type_name -> cluster_controller.NodeRecord.MetadataEntry
-	10, // 8: cluster_controller.NodeRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
-	93, // 9: cluster_controller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
-	93, // 10: cluster_controller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	9,  // 11: cluster_controller.RequestJoinRequest.identity:type_name -> cluster_controller.NodeIdentity
-	87, // 12: cluster_controller.RequestJoinRequest.labels:type_name -> cluster_controller.RequestJoinRequest.LabelsEntry
-	10, // 13: cluster_controller.RequestJoinRequest.capabilities:type_name -> cluster_controller.NodeCapabilities
-	9,  // 14: cluster_controller.JoinRequestRecord.identity:type_name -> cluster_controller.NodeIdentity
-	88, // 15: cluster_controller.JoinRequestRecord.metadata:type_name -> cluster_controller.JoinRequestRecord.MetadataEntry
-	10, // 16: cluster_controller.JoinRequestRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
-	18, // 17: cluster_controller.ListJoinRequestsResponse.pending:type_name -> cluster_controller.JoinRequestRecord
-	89, // 18: cluster_controller.ApproveJoinRequest.metadata:type_name -> cluster_controller.ApproveJoinRequest.MetadataEntry
-	25, // 19: cluster_controller.ResolveNodeResponse.identity:type_name -> cluster_controller.NodeIdentityProjection
-	11, // 20: cluster_controller.ListNodesResponse.nodes:type_name -> cluster_controller.NodeRecord
-	90, // 21: cluster_controller.EmitWorkflowEventRequest.data:type_name -> cluster_controller.EmitWorkflowEventRequest.DataEntry
-	40, // 22: cluster_controller.GetClusterHealthResponse.node_health:type_name -> cluster_controller.NodeHealthStatus
-	93, // 23: cluster_controller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
-	6,  // 24: cluster_controller.UpdateClusterNetworkRequest.spec:type_name -> cluster_controller.ClusterNetworkSpec
+	98, // 0: cluster_controller.ClusterInfo.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 1: cluster_controller.ClusterNetworkSpec.external_dns:type_name -> cluster_controller.ExternalDNSConfig
+	8,  // 2: cluster_controller.ClusterNetworkSpec.domain_migration:type_name -> cluster_controller.DomainMigration
+	3,  // 3: cluster_controller.DomainMigration.state:type_name -> cluster_controller.DomainMigration.MigrationState
+	89, // 4: cluster_controller.ExternalDNSConfig.provider_config:type_name -> cluster_controller.ExternalDNSConfig.ProviderConfigEntry
+	10, // 5: cluster_controller.NodeRecord.identity:type_name -> cluster_controller.NodeIdentity
+	98, // 6: cluster_controller.NodeRecord.last_seen:type_name -> google.protobuf.Timestamp
+	90, // 7: cluster_controller.NodeRecord.metadata:type_name -> cluster_controller.NodeRecord.MetadataEntry
+	11, // 8: cluster_controller.NodeRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
+	98, // 9: cluster_controller.CreateJoinTokenRequest.expires_at:type_name -> google.protobuf.Timestamp
+	98, // 10: cluster_controller.CreateJoinTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	10, // 11: cluster_controller.RequestJoinRequest.identity:type_name -> cluster_controller.NodeIdentity
+	91, // 12: cluster_controller.RequestJoinRequest.labels:type_name -> cluster_controller.RequestJoinRequest.LabelsEntry
+	11, // 13: cluster_controller.RequestJoinRequest.capabilities:type_name -> cluster_controller.NodeCapabilities
+	10, // 14: cluster_controller.JoinRequestRecord.identity:type_name -> cluster_controller.NodeIdentity
+	92, // 15: cluster_controller.JoinRequestRecord.metadata:type_name -> cluster_controller.JoinRequestRecord.MetadataEntry
+	11, // 16: cluster_controller.JoinRequestRecord.capabilities:type_name -> cluster_controller.NodeCapabilities
+	19, // 17: cluster_controller.ListJoinRequestsResponse.pending:type_name -> cluster_controller.JoinRequestRecord
+	93, // 18: cluster_controller.ApproveJoinRequest.metadata:type_name -> cluster_controller.ApproveJoinRequest.MetadataEntry
+	26, // 19: cluster_controller.ResolveNodeResponse.identity:type_name -> cluster_controller.NodeIdentityProjection
+	12, // 20: cluster_controller.ListNodesResponse.nodes:type_name -> cluster_controller.NodeRecord
+	94, // 21: cluster_controller.EmitWorkflowEventRequest.data:type_name -> cluster_controller.EmitWorkflowEventRequest.DataEntry
+	41, // 22: cluster_controller.GetClusterHealthResponse.node_health:type_name -> cluster_controller.NodeHealthStatus
+	98, // 23: cluster_controller.NodeHealthStatus.last_seen:type_name -> google.protobuf.Timestamp
+	7,  // 24: cluster_controller.UpdateClusterNetworkRequest.spec:type_name -> cluster_controller.ClusterNetworkSpec
 	0,  // 25: cluster_controller.ArtifactRef.kind:type_name -> cluster_controller.ArtifactKind
 	1,  // 26: cluster_controller.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
-	93, // 27: cluster_controller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
-	9,  // 28: cluster_controller.NodeStatus.identity:type_name -> cluster_controller.NodeIdentity
-	52, // 29: cluster_controller.NodeStatus.units:type_name -> cluster_controller.NodeUnitStatus
-	93, // 30: cluster_controller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
-	91, // 31: cluster_controller.NodeStatus.installed_versions:type_name -> cluster_controller.NodeStatus.InstalledVersionsEntry
-	10, // 32: cluster_controller.NodeStatus.capabilities:type_name -> cluster_controller.NodeCapabilities
-	53, // 33: cluster_controller.ReportNodeStatusRequest.status:type_name -> cluster_controller.NodeStatus
-	92, // 34: cluster_controller.NodeHealth.installed_versions:type_name -> cluster_controller.NodeHealth.InstalledVersionsEntry
-	59, // 35: cluster_controller.GetClusterHealthV1Response.nodes:type_name -> cluster_controller.NodeHealth
-	60, // 36: cluster_controller.GetClusterHealthV1Response.services:type_name -> cluster_controller.ServiceSummary
-	62, // 37: cluster_controller.GetNodeHealthDetailV1Response.checks:type_name -> cluster_controller.NodeHealthCheck
-	93, // 38: cluster_controller.GetNodeHealthDetailV1Response.last_seen:type_name -> google.protobuf.Timestamp
-	66, // 39: cluster_controller.AffectedNodeDiff.config_diff:type_name -> cluster_controller.ConfigFileDiff
-	44, // 40: cluster_controller.PreviewNodeProfilesResponse.unit_diff:type_name -> cluster_controller.UnitAction
-	66, // 41: cluster_controller.PreviewNodeProfilesResponse.config_diff:type_name -> cluster_controller.ConfigFileDiff
-	67, // 42: cluster_controller.PreviewNodeProfilesResponse.affected_nodes:type_name -> cluster_controller.AffectedNodeDiff
-	69, // 43: cluster_controller.DesiredState.services:type_name -> cluster_controller.DesiredService
-	69, // 44: cluster_controller.UpsertDesiredServiceRequest.service:type_name -> cluster_controller.DesiredService
-	3,  // 45: cluster_controller.SeedDesiredStateRequest.mode:type_name -> cluster_controller.SeedDesiredStateRequest.Mode
-	4,  // 46: cluster_controller.ValidationIssue.severity:type_name -> cluster_controller.ValidationIssue.Severity
-	75, // 47: cluster_controller.ValidationReport.issues:type_name -> cluster_controller.ValidationIssue
-	69, // 48: cluster_controller.DesiredServicesDelta.upserts:type_name -> cluster_controller.DesiredService
-	78, // 49: cluster_controller.ServiceChangePreview.node_changes:type_name -> cluster_controller.NodeChange
-	75, // 50: cluster_controller.ServiceChangePreview.blocking_issues:type_name -> cluster_controller.ValidationIssue
-	93, // 51: cluster_controller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
-	12, // 52: cluster_controller.ClusterControllerService.CreateJoinToken:input_type -> cluster_controller.CreateJoinTokenRequest
-	14, // 53: cluster_controller.ClusterControllerService.RequestJoin:input_type -> cluster_controller.RequestJoinRequest
-	19, // 54: cluster_controller.ClusterControllerService.ListJoinRequests:input_type -> cluster_controller.ListJoinRequestsRequest
-	21, // 55: cluster_controller.ClusterControllerService.ApproveJoin:input_type -> cluster_controller.ApproveJoinRequest
-	23, // 56: cluster_controller.ClusterControllerService.RejectJoin:input_type -> cluster_controller.RejectJoinRequest
-	28, // 57: cluster_controller.ClusterControllerService.ListNodes:input_type -> cluster_controller.ListNodesRequest
-	26, // 58: cluster_controller.ClusterControllerService.ResolveNode:input_type -> cluster_controller.ResolveNodeRequest
-	30, // 59: cluster_controller.ClusterControllerService.SetNodeProfiles:input_type -> cluster_controller.SetNodeProfilesRequest
-	32, // 60: cluster_controller.ClusterControllerService.SetNodeBootstrapPhase:input_type -> cluster_controller.SetNodeBootstrapPhaseRequest
-	34, // 61: cluster_controller.ClusterControllerService.EmitWorkflowEvent:input_type -> cluster_controller.EmitWorkflowEventRequest
-	36, // 62: cluster_controller.ClusterControllerService.RemoveNode:input_type -> cluster_controller.RemoveNodeRequest
-	38, // 63: cluster_controller.ClusterControllerService.GetClusterHealth:input_type -> cluster_controller.GetClusterHealthRequest
-	41, // 64: cluster_controller.ClusterControllerService.UpdateClusterNetwork:input_type -> cluster_controller.UpdateClusterNetworkRequest
-	54, // 65: cluster_controller.ClusterControllerService.ReportNodeStatus:input_type -> cluster_controller.ReportNodeStatusRequest
-	16, // 66: cluster_controller.ClusterControllerService.GetJoinRequestStatus:input_type -> cluster_controller.GetJoinRequestStatusRequest
-	45, // 67: cluster_controller.ClusterControllerService.UpgradeGlobular:input_type -> cluster_controller.UpgradeGlobularRequest
-	50, // 68: cluster_controller.ClusterControllerService.CompleteOperation:input_type -> cluster_controller.CompleteOperationRequest
-	56, // 69: cluster_controller.ClusterControllerService.WatchOperations:input_type -> cluster_controller.WatchOperationsRequest
-	58, // 70: cluster_controller.ClusterControllerService.GetClusterHealthV1:input_type -> cluster_controller.GetClusterHealthV1Request
-	63, // 71: cluster_controller.ClusterControllerService.GetNodeHealthDetailV1:input_type -> cluster_controller.GetNodeHealthDetailV1Request
-	65, // 72: cluster_controller.ClusterControllerService.PreviewNodeProfiles:input_type -> cluster_controller.PreviewNodeProfilesRequest
-	94, // 73: cluster_controller.ClusterControllerService.GetDesiredState:input_type -> google.protobuf.Empty
-	71, // 74: cluster_controller.ClusterControllerService.UpsertDesiredService:input_type -> cluster_controller.UpsertDesiredServiceRequest
-	72, // 75: cluster_controller.ClusterControllerService.RemoveDesiredService:input_type -> cluster_controller.RemoveDesiredServiceRequest
-	73, // 76: cluster_controller.ClusterControllerService.SeedDesiredState:input_type -> cluster_controller.SeedDesiredStateRequest
-	74, // 77: cluster_controller.ClusterControllerService.ValidateArtifact:input_type -> cluster_controller.ValidateArtifactRequest
-	77, // 78: cluster_controller.ClusterControllerService.PreviewDesiredServices:input_type -> cluster_controller.DesiredServicesDelta
-	81, // 79: cluster_controller.ClusterControllerService.ResignLeadership:input_type -> cluster_controller.ResignLeadershipRequest
-	83, // 80: cluster_controller.ClusterControllerService.DeployControlPlanePackage:input_type -> cluster_controller.DeployControlPlanePackageRequest
-	5,  // 81: cluster_controller.ClusterControllerService.GetClusterInfo:output_type -> cluster_controller.ClusterInfo
-	13, // 82: cluster_controller.ClusterControllerService.CreateJoinToken:output_type -> cluster_controller.CreateJoinTokenResponse
-	15, // 83: cluster_controller.ClusterControllerService.RequestJoin:output_type -> cluster_controller.RequestJoinResponse
-	20, // 84: cluster_controller.ClusterControllerService.ListJoinRequests:output_type -> cluster_controller.ListJoinRequestsResponse
-	22, // 85: cluster_controller.ClusterControllerService.ApproveJoin:output_type -> cluster_controller.ApproveJoinResponse
-	24, // 86: cluster_controller.ClusterControllerService.RejectJoin:output_type -> cluster_controller.RejectJoinResponse
-	29, // 87: cluster_controller.ClusterControllerService.ListNodes:output_type -> cluster_controller.ListNodesResponse
-	27, // 88: cluster_controller.ClusterControllerService.ResolveNode:output_type -> cluster_controller.ResolveNodeResponse
-	31, // 89: cluster_controller.ClusterControllerService.SetNodeProfiles:output_type -> cluster_controller.SetNodeProfilesResponse
-	33, // 90: cluster_controller.ClusterControllerService.SetNodeBootstrapPhase:output_type -> cluster_controller.SetNodeBootstrapPhaseResponse
-	35, // 91: cluster_controller.ClusterControllerService.EmitWorkflowEvent:output_type -> cluster_controller.EmitWorkflowEventResponse
-	37, // 92: cluster_controller.ClusterControllerService.RemoveNode:output_type -> cluster_controller.RemoveNodeResponse
-	39, // 93: cluster_controller.ClusterControllerService.GetClusterHealth:output_type -> cluster_controller.GetClusterHealthResponse
-	42, // 94: cluster_controller.ClusterControllerService.UpdateClusterNetwork:output_type -> cluster_controller.UpdateClusterNetworkResponse
-	55, // 95: cluster_controller.ClusterControllerService.ReportNodeStatus:output_type -> cluster_controller.ReportNodeStatusResponse
-	17, // 96: cluster_controller.ClusterControllerService.GetJoinRequestStatus:output_type -> cluster_controller.GetJoinRequestStatusResponse
-	46, // 97: cluster_controller.ClusterControllerService.UpgradeGlobular:output_type -> cluster_controller.UpgradeGlobularResponse
-	51, // 98: cluster_controller.ClusterControllerService.CompleteOperation:output_type -> cluster_controller.CompleteOperationResponse
-	49, // 99: cluster_controller.ClusterControllerService.WatchOperations:output_type -> cluster_controller.OperationEvent
-	61, // 100: cluster_controller.ClusterControllerService.GetClusterHealthV1:output_type -> cluster_controller.GetClusterHealthV1Response
-	64, // 101: cluster_controller.ClusterControllerService.GetNodeHealthDetailV1:output_type -> cluster_controller.GetNodeHealthDetailV1Response
-	68, // 102: cluster_controller.ClusterControllerService.PreviewNodeProfiles:output_type -> cluster_controller.PreviewNodeProfilesResponse
-	70, // 103: cluster_controller.ClusterControllerService.GetDesiredState:output_type -> cluster_controller.DesiredState
-	70, // 104: cluster_controller.ClusterControllerService.UpsertDesiredService:output_type -> cluster_controller.DesiredState
-	70, // 105: cluster_controller.ClusterControllerService.RemoveDesiredService:output_type -> cluster_controller.DesiredState
-	70, // 106: cluster_controller.ClusterControllerService.SeedDesiredState:output_type -> cluster_controller.DesiredState
-	76, // 107: cluster_controller.ClusterControllerService.ValidateArtifact:output_type -> cluster_controller.ValidationReport
-	79, // 108: cluster_controller.ClusterControllerService.PreviewDesiredServices:output_type -> cluster_controller.ServiceChangePreview
-	82, // 109: cluster_controller.ClusterControllerService.ResignLeadership:output_type -> cluster_controller.ResignLeadershipResponse
-	84, // 110: cluster_controller.ClusterControllerService.DeployControlPlanePackage:output_type -> cluster_controller.DeployControlPlanePackageResponse
-	81, // [81:111] is the sub-list for method output_type
-	51, // [51:81] is the sub-list for method input_type
-	51, // [51:51] is the sub-list for extension type_name
-	51, // [51:51] is the sub-list for extension extendee
-	0,  // [0:51] is the sub-list for field type_name
+	98, // 27: cluster_controller.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	10, // 28: cluster_controller.NodeStatus.identity:type_name -> cluster_controller.NodeIdentity
+	53, // 29: cluster_controller.NodeStatus.units:type_name -> cluster_controller.NodeUnitStatus
+	98, // 30: cluster_controller.NodeStatus.reported_at:type_name -> google.protobuf.Timestamp
+	95, // 31: cluster_controller.NodeStatus.installed_versions:type_name -> cluster_controller.NodeStatus.InstalledVersionsEntry
+	11, // 32: cluster_controller.NodeStatus.capabilities:type_name -> cluster_controller.NodeCapabilities
+	54, // 33: cluster_controller.ReportNodeStatusRequest.status:type_name -> cluster_controller.NodeStatus
+	96, // 34: cluster_controller.NodeHealth.installed_versions:type_name -> cluster_controller.NodeHealth.InstalledVersionsEntry
+	60, // 35: cluster_controller.GetClusterHealthV1Response.nodes:type_name -> cluster_controller.NodeHealth
+	61, // 36: cluster_controller.GetClusterHealthV1Response.services:type_name -> cluster_controller.ServiceSummary
+	63, // 37: cluster_controller.GetNodeHealthDetailV1Response.checks:type_name -> cluster_controller.NodeHealthCheck
+	98, // 38: cluster_controller.GetNodeHealthDetailV1Response.last_seen:type_name -> google.protobuf.Timestamp
+	67, // 39: cluster_controller.AffectedNodeDiff.config_diff:type_name -> cluster_controller.ConfigFileDiff
+	45, // 40: cluster_controller.PreviewNodeProfilesResponse.unit_diff:type_name -> cluster_controller.UnitAction
+	67, // 41: cluster_controller.PreviewNodeProfilesResponse.config_diff:type_name -> cluster_controller.ConfigFileDiff
+	68, // 42: cluster_controller.PreviewNodeProfilesResponse.affected_nodes:type_name -> cluster_controller.AffectedNodeDiff
+	70, // 43: cluster_controller.DesiredState.services:type_name -> cluster_controller.DesiredService
+	70, // 44: cluster_controller.UpsertDesiredServiceRequest.service:type_name -> cluster_controller.DesiredService
+	4,  // 45: cluster_controller.SeedDesiredStateRequest.mode:type_name -> cluster_controller.SeedDesiredStateRequest.Mode
+	5,  // 46: cluster_controller.ValidationIssue.severity:type_name -> cluster_controller.ValidationIssue.Severity
+	76, // 47: cluster_controller.ValidationReport.issues:type_name -> cluster_controller.ValidationIssue
+	70, // 48: cluster_controller.DesiredServicesDelta.upserts:type_name -> cluster_controller.DesiredService
+	79, // 49: cluster_controller.ServiceChangePreview.node_changes:type_name -> cluster_controller.NodeChange
+	76, // 50: cluster_controller.ServiceChangePreview.blocking_issues:type_name -> cluster_controller.ValidationIssue
+	2,  // 51: cluster_controller.ControllerSubsystemHealth.state:type_name -> cluster_controller.ControllerSubsystemState
+	98, // 52: cluster_controller.ControllerSubsystemHealth.last_tick:type_name -> google.protobuf.Timestamp
+	97, // 53: cluster_controller.ControllerSubsystemHealth.metadata:type_name -> cluster_controller.ControllerSubsystemHealth.MetadataEntry
+	86, // 54: cluster_controller.GetControllerSubsystemHealthResponse.subsystems:type_name -> cluster_controller.ControllerSubsystemHealth
+	2,  // 55: cluster_controller.GetControllerSubsystemHealthResponse.overall:type_name -> cluster_controller.ControllerSubsystemState
+	98, // 56: cluster_controller.ClusterControllerService.GetClusterInfo:input_type -> google.protobuf.Timestamp
+	13, // 57: cluster_controller.ClusterControllerService.CreateJoinToken:input_type -> cluster_controller.CreateJoinTokenRequest
+	15, // 58: cluster_controller.ClusterControllerService.RequestJoin:input_type -> cluster_controller.RequestJoinRequest
+	20, // 59: cluster_controller.ClusterControllerService.ListJoinRequests:input_type -> cluster_controller.ListJoinRequestsRequest
+	22, // 60: cluster_controller.ClusterControllerService.ApproveJoin:input_type -> cluster_controller.ApproveJoinRequest
+	24, // 61: cluster_controller.ClusterControllerService.RejectJoin:input_type -> cluster_controller.RejectJoinRequest
+	29, // 62: cluster_controller.ClusterControllerService.ListNodes:input_type -> cluster_controller.ListNodesRequest
+	27, // 63: cluster_controller.ClusterControllerService.ResolveNode:input_type -> cluster_controller.ResolveNodeRequest
+	31, // 64: cluster_controller.ClusterControllerService.SetNodeProfiles:input_type -> cluster_controller.SetNodeProfilesRequest
+	33, // 65: cluster_controller.ClusterControllerService.SetNodeBootstrapPhase:input_type -> cluster_controller.SetNodeBootstrapPhaseRequest
+	35, // 66: cluster_controller.ClusterControllerService.EmitWorkflowEvent:input_type -> cluster_controller.EmitWorkflowEventRequest
+	37, // 67: cluster_controller.ClusterControllerService.RemoveNode:input_type -> cluster_controller.RemoveNodeRequest
+	39, // 68: cluster_controller.ClusterControllerService.GetClusterHealth:input_type -> cluster_controller.GetClusterHealthRequest
+	42, // 69: cluster_controller.ClusterControllerService.UpdateClusterNetwork:input_type -> cluster_controller.UpdateClusterNetworkRequest
+	55, // 70: cluster_controller.ClusterControllerService.ReportNodeStatus:input_type -> cluster_controller.ReportNodeStatusRequest
+	17, // 71: cluster_controller.ClusterControllerService.GetJoinRequestStatus:input_type -> cluster_controller.GetJoinRequestStatusRequest
+	46, // 72: cluster_controller.ClusterControllerService.UpgradeGlobular:input_type -> cluster_controller.UpgradeGlobularRequest
+	51, // 73: cluster_controller.ClusterControllerService.CompleteOperation:input_type -> cluster_controller.CompleteOperationRequest
+	57, // 74: cluster_controller.ClusterControllerService.WatchOperations:input_type -> cluster_controller.WatchOperationsRequest
+	59, // 75: cluster_controller.ClusterControllerService.GetClusterHealthV1:input_type -> cluster_controller.GetClusterHealthV1Request
+	87, // 76: cluster_controller.ClusterControllerService.GetSubsystemHealth:input_type -> cluster_controller.GetControllerSubsystemHealthRequest
+	64, // 77: cluster_controller.ClusterControllerService.GetNodeHealthDetailV1:input_type -> cluster_controller.GetNodeHealthDetailV1Request
+	66, // 78: cluster_controller.ClusterControllerService.PreviewNodeProfiles:input_type -> cluster_controller.PreviewNodeProfilesRequest
+	99, // 79: cluster_controller.ClusterControllerService.GetDesiredState:input_type -> google.protobuf.Empty
+	72, // 80: cluster_controller.ClusterControllerService.UpsertDesiredService:input_type -> cluster_controller.UpsertDesiredServiceRequest
+	73, // 81: cluster_controller.ClusterControllerService.RemoveDesiredService:input_type -> cluster_controller.RemoveDesiredServiceRequest
+	74, // 82: cluster_controller.ClusterControllerService.SeedDesiredState:input_type -> cluster_controller.SeedDesiredStateRequest
+	75, // 83: cluster_controller.ClusterControllerService.ValidateArtifact:input_type -> cluster_controller.ValidateArtifactRequest
+	78, // 84: cluster_controller.ClusterControllerService.PreviewDesiredServices:input_type -> cluster_controller.DesiredServicesDelta
+	82, // 85: cluster_controller.ClusterControllerService.ResignLeadership:input_type -> cluster_controller.ResignLeadershipRequest
+	84, // 86: cluster_controller.ClusterControllerService.DeployControlPlanePackage:input_type -> cluster_controller.DeployControlPlanePackageRequest
+	6,  // 87: cluster_controller.ClusterControllerService.GetClusterInfo:output_type -> cluster_controller.ClusterInfo
+	14, // 88: cluster_controller.ClusterControllerService.CreateJoinToken:output_type -> cluster_controller.CreateJoinTokenResponse
+	16, // 89: cluster_controller.ClusterControllerService.RequestJoin:output_type -> cluster_controller.RequestJoinResponse
+	21, // 90: cluster_controller.ClusterControllerService.ListJoinRequests:output_type -> cluster_controller.ListJoinRequestsResponse
+	23, // 91: cluster_controller.ClusterControllerService.ApproveJoin:output_type -> cluster_controller.ApproveJoinResponse
+	25, // 92: cluster_controller.ClusterControllerService.RejectJoin:output_type -> cluster_controller.RejectJoinResponse
+	30, // 93: cluster_controller.ClusterControllerService.ListNodes:output_type -> cluster_controller.ListNodesResponse
+	28, // 94: cluster_controller.ClusterControllerService.ResolveNode:output_type -> cluster_controller.ResolveNodeResponse
+	32, // 95: cluster_controller.ClusterControllerService.SetNodeProfiles:output_type -> cluster_controller.SetNodeProfilesResponse
+	34, // 96: cluster_controller.ClusterControllerService.SetNodeBootstrapPhase:output_type -> cluster_controller.SetNodeBootstrapPhaseResponse
+	36, // 97: cluster_controller.ClusterControllerService.EmitWorkflowEvent:output_type -> cluster_controller.EmitWorkflowEventResponse
+	38, // 98: cluster_controller.ClusterControllerService.RemoveNode:output_type -> cluster_controller.RemoveNodeResponse
+	40, // 99: cluster_controller.ClusterControllerService.GetClusterHealth:output_type -> cluster_controller.GetClusterHealthResponse
+	43, // 100: cluster_controller.ClusterControllerService.UpdateClusterNetwork:output_type -> cluster_controller.UpdateClusterNetworkResponse
+	56, // 101: cluster_controller.ClusterControllerService.ReportNodeStatus:output_type -> cluster_controller.ReportNodeStatusResponse
+	18, // 102: cluster_controller.ClusterControllerService.GetJoinRequestStatus:output_type -> cluster_controller.GetJoinRequestStatusResponse
+	47, // 103: cluster_controller.ClusterControllerService.UpgradeGlobular:output_type -> cluster_controller.UpgradeGlobularResponse
+	52, // 104: cluster_controller.ClusterControllerService.CompleteOperation:output_type -> cluster_controller.CompleteOperationResponse
+	50, // 105: cluster_controller.ClusterControllerService.WatchOperations:output_type -> cluster_controller.OperationEvent
+	62, // 106: cluster_controller.ClusterControllerService.GetClusterHealthV1:output_type -> cluster_controller.GetClusterHealthV1Response
+	88, // 107: cluster_controller.ClusterControllerService.GetSubsystemHealth:output_type -> cluster_controller.GetControllerSubsystemHealthResponse
+	65, // 108: cluster_controller.ClusterControllerService.GetNodeHealthDetailV1:output_type -> cluster_controller.GetNodeHealthDetailV1Response
+	69, // 109: cluster_controller.ClusterControllerService.PreviewNodeProfiles:output_type -> cluster_controller.PreviewNodeProfilesResponse
+	71, // 110: cluster_controller.ClusterControllerService.GetDesiredState:output_type -> cluster_controller.DesiredState
+	71, // 111: cluster_controller.ClusterControllerService.UpsertDesiredService:output_type -> cluster_controller.DesiredState
+	71, // 112: cluster_controller.ClusterControllerService.RemoveDesiredService:output_type -> cluster_controller.DesiredState
+	71, // 113: cluster_controller.ClusterControllerService.SeedDesiredState:output_type -> cluster_controller.DesiredState
+	77, // 114: cluster_controller.ClusterControllerService.ValidateArtifact:output_type -> cluster_controller.ValidationReport
+	80, // 115: cluster_controller.ClusterControllerService.PreviewDesiredServices:output_type -> cluster_controller.ServiceChangePreview
+	83, // 116: cluster_controller.ClusterControllerService.ResignLeadership:output_type -> cluster_controller.ResignLeadershipResponse
+	85, // 117: cluster_controller.ClusterControllerService.DeployControlPlanePackage:output_type -> cluster_controller.DeployControlPlanePackageResponse
+	87, // [87:118] is the sub-list for method output_type
+	56, // [56:87] is the sub-list for method input_type
+	56, // [56:56] is the sub-list for extension type_name
+	56, // [56:56] is the sub-list for extension extendee
+	0,  // [0:56] is the sub-list for field type_name
 }
 
 func init() { file_cluster_controller_proto_init() }
@@ -6293,8 +6562,8 @@ func file_cluster_controller_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cluster_controller_proto_rawDesc), len(file_cluster_controller_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   88,
+			NumEnums:      6,
+			NumMessages:   92,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -279,6 +279,21 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.addSource("node_agent.GetInventory@" + nid)
 			}
 
+			// GetSubsystemHealth — read background goroutine health.
+			shCtx, shCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout)
+			shResp, shErr := agentClient.GetSubsystemHealth(shCtx, &node_agentpb.GetSubsystemHealthRequest{})
+			shCancel()
+			if shErr != nil {
+				if !strings.Contains(shErr.Error(), "Unimplemented") {
+					snap.addError("node_agent@"+nid, "GetSubsystemHealth", shErr)
+				}
+			} else {
+				snap.mu.Lock()
+				snap.SubsystemHealth[nid] = shResp
+				snap.mu.Unlock()
+				snap.addSource("node_agent.GetSubsystemHealth@" + nid)
+			}
+
 			// GetCertificateStatus — read cert SANs, expiry, chain validity.
 			certCtx, certCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout)
 			certResp, certErr := agentClient.GetCertificateStatus(certCtx, &node_agentpb.GetCertificateStatusRequest{})
