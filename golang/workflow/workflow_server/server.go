@@ -716,6 +716,25 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 	)
 	err := srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
 		runStartedAt = startedAt
+
+		// ── Protect successful runs from downgrade ──────────────────
+		// A previously SUCCEEDED run must never be overwritten to FAILED
+		// (e.g., by orphan resume timing). This is the last-resort guard.
+		if req.Status == workflowpb.RunStatus_RUN_STATUS_FAILED {
+			var currentStatus int
+			if scanErr := srv.session.Query(`
+				SELECT status FROM workflow_runs
+				WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
+				req.ClusterId, startedAt, req.Id,
+			).Scan(&currentStatus); scanErr == nil {
+				if workflowpb.RunStatus(currentStatus) == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
+					slog.Warn("FinishRun: refusing to downgrade SUCCEEDED run to FAILED",
+						"run_id", req.Id, "requested_status", req.Status.String())
+					return nil // silently skip the downgrade
+				}
+			}
+		}
+
 		// Load workflow_name to update the summary table after the run row is updated.
 		_ = srv.session.Query(`
 			SELECT workflow_name FROM workflow_runs

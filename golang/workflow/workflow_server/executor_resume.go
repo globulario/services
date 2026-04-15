@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -37,10 +38,11 @@ func (srv *server) resumeOrphanedRun(ctx context.Context, runID string) error {
 	if clusterID == "" {
 		return fmt.Errorf("run %s not found in workflow_runs", runID)
 	}
-	// Resume with no actor endpoints — the workflow will fail on actor
-	// dispatch, but this is correct: the controller/doctor needs to
-	// re-register their actor routers for the run to actually succeed.
-	// For now, this handles the terminal state cleanup and logging.
+	// Resume with nil endpoints — the all-steps-succeeded guard in
+	// ResumeRun will finalize completed runs without re-execution.
+	// For incomplete runs, the preflight will fail (no handlers), but
+	// the error is returned to the orphan scanner which will retry on
+	// the next cycle when the controller has registered its actors.
 	return srv.ResumeRun(ctx, clusterID, runID, nil)
 }
 
@@ -76,16 +78,38 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 
 	// Build a map of step_key → terminal status for completed steps.
 	completedSteps := make(map[string]engine.StepStatus)
+	allTerminalSuccess := len(steps) > 0
 	for _, step := range steps {
 		switch step.Status {
 		case workflowpb.StepStatus_STEP_STATUS_SUCCEEDED:
 			completedSteps[step.StepKey] = engine.StepSucceeded
-		case workflowpb.StepStatus_STEP_STATUS_FAILED:
-			completedSteps[step.StepKey] = engine.StepFailed
 		case workflowpb.StepStatus_STEP_STATUS_SKIPPED:
 			completedSteps[step.StepKey] = engine.StepSkipped
-		// RUNNING and PENDING steps will be re-executed.
+		case workflowpb.StepStatus_STEP_STATUS_FAILED:
+			completedSteps[step.StepKey] = engine.StepFailed
+			allTerminalSuccess = false
+		default:
+			// RUNNING or PENDING — not terminal-success.
+			allTerminalSuccess = false
 		}
+	}
+
+	// ── Guard: all steps already succeeded — finalize without re-execution ──
+	// This prevents the orphan scanner from poisoning a successful run.
+	// "Orphan recovery may continue unfinished work, but it must never
+	// rewrite finished truth."
+	if allTerminalSuccess {
+		slog.Info("resume: all steps already terminal-success, finalizing without re-execution",
+			"run_id", runID,
+			"workflow", run.WorkflowName,
+			"completed_steps", len(completedSteps))
+		srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
+			Id:        runID,
+			ClusterId: clusterID,
+			Status:    workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
+			Summary:   "orphan resume: all steps already succeeded, finalized",
+		})
+		return nil
 	}
 
 	slog.Info("resume: loading workflow for re-execution",
@@ -144,9 +168,19 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 	_, execErr := eng.Execute(ctx, def, inputs)
 
 	if execErr != nil {
+		// If the error is a preflight/infrastructure failure (no handlers,
+		// controller not ready), return it to the orphan scanner so it
+		// retries later. Never mark a run FAILED from startup timing alone.
+		errMsg := execErr.Error()
+		if strings.Contains(errMsg, "preflight") ||
+			strings.Contains(errMsg, "no registered handler") ||
+			strings.Contains(errMsg, "handler not found") {
+			slog.Info("resume: deferring — infrastructure not ready",
+				"run_id", runID, "err", execErr)
+			return execErr // orphan scanner will retry next cycle
+		}
 		slog.Warn("resume: re-execution failed",
 			"run_id", runID, "err", execErr)
-		// Record failure.
 		srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
 			Id:           runID,
 			ClusterId:    clusterID,
