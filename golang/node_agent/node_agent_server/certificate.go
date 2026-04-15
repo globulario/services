@@ -449,6 +449,15 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		if err != nil {
 			return fmt.Errorf("issue server certs: %w", err)
 		}
+		// Post-issuance validation: fail loud if the cert is missing
+		// required IP SANs. Without this, a missing VIP in the cert
+		// causes silent gRPC timeouts that are extremely hard to diagnose.
+		if len(ips) > 0 {
+			if err := manager.ValidateCertPair(leafFile, keyFile, nil, nil, ips); err != nil {
+				log.Printf("CRITICAL: issued cert is missing required IP SANs: %v", err)
+				return fmt.Errorf("cert validation failed after issuance: %w", err)
+			}
+		}
 		if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
 			return err
 		}
