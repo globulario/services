@@ -666,9 +666,9 @@ func safeGo(tag string, fn func()) {
 	}()
 }
 
-// safeGoTicker is like safeGo but registers an expected tick interval.
-// Use for goroutines with periodic loops.
-func safeGoTicker(tag string, interval time.Duration, fn func()) {
+// safeGoTracked is like safeGo but passes a SubsystemHandle to the function
+// so the goroutine can report Tick()/TickError() from inside its loop.
+func safeGoTracked(tag string, interval time.Duration, fn func(h *globular_service.SubsystemHandle)) {
 	h := globular_service.RegisterSubsystem(tag, interval)
 	go func() {
 		defer func() {
@@ -679,7 +679,7 @@ func safeGoTicker(tag string, interval time.Duration, fn func()) {
 			}
 		}()
 		defer h.SetState(globular_service.SubsystemStopped)
-		fn()
+		fn(h)
 	}()
 }
 

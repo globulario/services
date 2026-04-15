@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/google/uuid"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -29,7 +30,7 @@ func seedRand() {
 
 func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server, addr string) {
 	seedRand()
-	safeGo("leader-election", func() {
+	safeGoTracked("leader-election", 15*time.Second, func(h *globular_service.SubsystemHandle) {
 		backoff := 250 * time.Millisecond
 		maxBackoff := 5 * time.Second
 		resetBackoff := func() { backoff = 250 * time.Millisecond }
@@ -44,6 +45,7 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			sess, err := concurrency.NewSession(cli, concurrency.WithTTL(ttl))
 			if err != nil {
 				log.Printf("leader election: create session failed: %v", err)
+				h.TickError(err)
 				backoff = sleepWithJitter(backoff, maxBackoff)
 				continue
 			}
@@ -53,6 +55,7 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			if err := election.Campaign(ctx, candidateID); err != nil {
 				log.Printf("leader election: campaign failed: %v", err)
 				_ = sess.Close()
+				h.TickError(err)
 				backoff = sleepWithJitter(backoff, maxBackoff)
 				continue
 			}
@@ -70,6 +73,8 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			log.Printf("leader election: epoch incremented to %d", epoch)
 
 			srv.setLeader(true, candidateID, addr)
+			h.Tick()
+			h.SetMeta("role", "leader")
 			if err := publishLeaderAddr(ctx, cli, sess.Lease(), addr); err != nil {
 				log.Printf("leader election: publish addr failed: %v", err)
 			} else {

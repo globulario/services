@@ -62,6 +62,12 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 			return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, callOpts...)
 		}))
 	}
+	// TLS pre-flight: surface real x509 errors before WithBlock swallows them.
+	if !insecureEnabled {
+		if tlsErr := config.ProbeTLS(target.Address); tlsErr != nil {
+			return nil, tlsErr
+		}
+	}
 	conn, err := grpc.DialContext(dialCtx, target.Address, opts...)
 	if err != nil {
 		return nil, err

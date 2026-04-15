@@ -348,6 +348,10 @@ func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.Cl
 	}
 	opts = append(opts, grpc.WithBlock())
 
+	// TLS pre-flight: surface real x509 errors before WithBlock swallows them.
+	if tlsErr := config.ProbeTLS(dt.Address); tlsErr != nil {
+		slog.Warn("TLS pre-flight failed", "endpoint", dt.Address, "error", tlsErr)
+	}
 	return grpc.DialContext(dialCtx, dt.Address, opts...)
 }
 

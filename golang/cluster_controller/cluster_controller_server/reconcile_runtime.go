@@ -9,6 +9,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -291,7 +292,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// scans (ScyllaDB, MinIO join phases + probes) and detects package
 	// drift. Runs every 30s when leader, replacing the old direct calls
 	// in reconcileNodes().
-	safeGo("periodic-cluster-reconcile", func() {
+	safeGoTracked("periodic-cluster-reconcile", 30*time.Second, func(h *globular_service.SubsystemHandle) {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -300,9 +301,11 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				return
 			case <-ticker.C:
 				if !srv.isLeader() {
+					h.Tick()
 					continue
 				}
 				srv.runClusterReconcileIfIdle(ctx, "periodic")
+				h.Tick()
 			}
 		}
 	})
@@ -320,7 +323,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	//
 	// Runs every 2 minutes with a 60-second startup delay to avoid contributing
 	// to the restart storm.
-	safeGo("periodic-release-bridge", func() {
+	safeGoTracked("periodic-release-bridge", 120*time.Second, func(h *globular_service.SubsystemHandle) {
 		// Startup delay: let initial enqueue and heartbeats settle first.
 		select {
 		case <-ctx.Done():
@@ -338,6 +341,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				if srv.isLeader() {
 					srv.ensureServiceReleasesFromDesired(ctx)
 				}
+				h.Tick()
 			}
 		}
 	})

@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/dnsprovider"
+	"github.com/globulario/services/golang/globular_service"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
@@ -138,6 +139,7 @@ func (r *DNSReconciler) Stop() {
 
 // reconcileLoop runs periodic reconciliation
 func (r *DNSReconciler) reconcileLoop() {
+	h := globular_service.RegisterSubsystem("dns-reconciler", dnsReconcileInterval)
 	ticker := time.NewTicker(dnsReconcileInterval)
 	defer ticker.Stop()
 
@@ -146,6 +148,9 @@ func (r *DNSReconciler) reconcileLoop() {
 	// Initial reconciliation
 	if err := r.reconcile(); err != nil {
 		log.Printf("dns reconciler: initial reconciliation failed: %v", err)
+		h.TickError(err)
+	} else {
+		h.Tick()
 	}
 
 	for {
@@ -153,9 +158,13 @@ func (r *DNSReconciler) reconcileLoop() {
 		case <-ticker.C:
 			if err := r.reconcile(); err != nil {
 				log.Printf("dns reconciler: reconciliation error: %v (will retry in %v)", err, dnsReconcileInterval)
+				h.TickError(err)
+			} else {
+				h.Tick()
 			}
 		case <-r.stopCh:
 			log.Printf("dns reconciler: stopped")
+			h.SetState(globular_service.SubsystemStopped)
 			return
 		}
 	}
@@ -486,6 +495,9 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	dialCtx, dialCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer dialCancel()
 
+	if tlsErr := config.ProbeTLS(endpoint); tlsErr != nil {
+		return fmt.Errorf("dial %s: %w", endpoint, tlsErr)
+	}
 	cc, err := r.dialDNSDirect(dialCtx, endpoint)
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", endpoint, err)

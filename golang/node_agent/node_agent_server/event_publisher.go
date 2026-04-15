@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"crypto/x509"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -118,6 +120,7 @@ func (ep *eventPublisher) connect() error {
 
 // run polls systemd unit states every 5 seconds and publishes events on changes.
 func (ep *eventPublisher) run(ctx context.Context) {
+	h := globular_service.RegisterSubsystem("event-publisher", 5*time.Second)
 	// Brief stabilization delay — long enough for systemd to start units,
 	// short enough to catch early failures.
 	time.Sleep(10 * time.Second)
@@ -131,6 +134,11 @@ func (ep *eventPublisher) run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			ep.checkAndPublish(ctx)
+			if ep.client != nil {
+				h.Tick()
+			} else {
+				h.TickError(fmt.Errorf("event service not connected"))
+			}
 		}
 	}
 }

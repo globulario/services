@@ -553,7 +553,7 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 
 func (srv *server) startHealthMonitorLoop(ctx context.Context) {
 	ticker := time.NewTicker(healthCheckInterval)
-	safeGo("health-monitor", func() {
+	safeGoTracked("health-monitor", healthCheckInterval, func(h *globular_service.SubsystemHandle) {
 		defer ticker.Stop()
 		for {
 			select {
@@ -563,9 +563,11 @@ func (srv *server) startHealthMonitorLoop(ctx context.Context) {
 				// Controller self-update runs on all instances (followers and leader).
 				srv.reconcileControllerSelfUpdate(ctx)
 				if !srv.isLeader() {
+					h.Tick()
 					continue
 				}
 				srv.monitorNodeHealth(ctx)
+				h.Tick()
 			}
 		}
 	})

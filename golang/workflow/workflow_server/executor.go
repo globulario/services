@@ -349,6 +349,10 @@ func (d *actorDispatcher) getClient(actorType string) (workflowpb.WorkflowActorS
 		return nil, fmt.Errorf("load TLS for %s: %w", actorType, err)
 	}
 
+	if tlsErr := config.ProbeTLS(dt.Address); tlsErr != nil {
+		return nil, fmt.Errorf("dial %s at %s: %w", actorType, dt.Address, tlsErr)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

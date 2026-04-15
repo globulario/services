@@ -434,6 +434,10 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 
 	slog.Info("dialRepositoryDirect", "target", dt.Address, "serverName", dt.ServerName, "hasCert", len(tlsCfg.Certificates) > 0)
 
+	if tlsErr := config.ProbeTLS(dt.Address); tlsErr != nil {
+		return nil, nil, fmt.Errorf("dial repository %s: %w", dt.Address, tlsErr)
+	}
+
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

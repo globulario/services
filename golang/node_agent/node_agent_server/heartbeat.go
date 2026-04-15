@@ -659,42 +659,7 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	return srv.sendStatusWithRetry(ctx, statusReq)
 }
 
-// probeTLS performs a raw TLS handshake to the target address using the
-// same CA and ServerName that the gRPC dialer will use. This surfaces
-// the real x509 error (expired, wrong CA, SAN mismatch, etc.) instead
-// of the generic "context deadline exceeded" that grpc.WithBlock() returns.
-func probeTLS(ctx context.Context, addr string, grpcOpts []grpc.DialOption) error {
-	// Extract the TLS config from the gRPC dial options by building
-	// a minimal tls.Config from the same CA pool and ServerName.
-	// We can't easily pull the config out of the grpc options, so
-	// we do a direct TLS dial with a short timeout.
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		host = addr
-		port = "443"
-	}
-	tlsCfg := &tls.Config{
-		ServerName: host,
-	}
-	// Use the cluster CA if available.
-	caFile := config.GetTLSFile("", "", "ca.crt")
-	if caFile != "" {
-		data, err := os.ReadFile(caFile)
-		if err == nil {
-			pool := x509.NewCertPool()
-			if pool.AppendCertsFromPEM(data) {
-				tlsCfg.RootCAs = pool
-			}
-		}
-	}
-	dialer := &net.Dialer{Timeout: 3 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), tlsCfg)
-	if err != nil {
-		return err // real x509 error: "certificate is valid for X, not Y"
-	}
-	conn.Close()
-	return nil
-}
+// probeTLS moved to config.ProbeTLS — shared by all gRPC dialers.
 
 func leaderAddrFromError(err error) string {
 	st, ok := status.FromError(err)
@@ -810,9 +775,8 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	// "context deadline exceeded". Do a raw TLS dial first so any
 	// certificate error is surfaced explicitly.
 	if !srv.useInsecure {
-		if tlsErr := probeTLS(dialCtx, target.Address, opts); tlsErr != nil {
-			return fmt.Errorf("TLS pre-flight to %s (ServerName=%s) failed: %w",
-				target.Address, target.ServerName, tlsErr)
+		if tlsErr := config.ProbeTLS(target.Address); tlsErr != nil {
+			return tlsErr
 		}
 	}
 	conn, err := dialer(dialCtx, target.Address, opts...)
