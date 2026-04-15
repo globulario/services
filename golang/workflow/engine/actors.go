@@ -665,7 +665,10 @@ func releaseSelectTargets(cfg ReleaseControllerConfig) ActionHandler {
 		// to the array (not a wrapper map). The export mechanism would
 		// store the whole Output map, but we need a bare []any.
 		req.Outputs["selected_targets"] = targets
-		return &ActionResult{OK: true, Output: map[string]any{"count": len(targets)}}, nil
+		return &ActionResult{OK: true, Output: map[string]any{
+			"count":            len(targets),
+			"selected_targets": targets,
+		}}, nil
 	}
 }
 
@@ -693,7 +696,10 @@ func releaseSelectPackageTargets(cfg ReleaseControllerConfig) ActionHandler {
 			targets = candidates
 		}
 		req.Outputs["selected_targets"] = targets
-		return &ActionResult{OK: true, Output: map[string]any{"count": len(targets)}}, nil
+		return &ActionResult{OK: true, Output: map[string]any{
+			"count":            len(targets),
+			"selected_targets": targets,
+		}}, nil
 	}
 }
 
