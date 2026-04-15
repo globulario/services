@@ -316,7 +316,11 @@ func (d *diagnoser) queryPastIncidents(ctx context.Context, ruleID, eventName st
 		return nil
 	}
 
-	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	baseOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		return nil
+	}
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil
@@ -357,7 +361,11 @@ func (d *diagnoser) getClusterHealth(ctx context.Context) (*cluster_controllerpb
 		return nil, fmt.Errorf("cluster controller not found")
 	}
 
-	opts2 := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	baseOpts2, err := globular.InternalDialOptions()
+	if err != nil {
+		return nil, fmt.Errorf("internal TLS: %w", err)
+	}
+	opts2 := append(baseOpts2, grpc.WithTimeout(2*time.Second))
 	cc, err := grpc.Dial(addr, opts2...)
 	if err != nil {
 		return nil, err

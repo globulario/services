@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 // ScyllaDB schema for the AI Memory service.
 //
 // Keyspace: ai_memory (SimpleStrategy, RF=1 for single-node; adjust for cluster)
@@ -53,10 +55,14 @@ package main
 
 const keyspace = "ai_memory"
 
-const createKeyspaceCQL = `
+// createKeyspaceCQL returns the CQL for creating the ai_memory keyspace,
+// adjusting the replication factor to the number of available ScyllaDB nodes.
+func createKeyspaceCQL(rf int) string {
+	return fmt.Sprintf(`
 CREATE KEYSPACE IF NOT EXISTS ai_memory
-  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3}
-`
+  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}
+`, rf)
+}
 
 const createMemoriesTableCQL = `
 CREATE TABLE IF NOT EXISTS ai_memory.memories (

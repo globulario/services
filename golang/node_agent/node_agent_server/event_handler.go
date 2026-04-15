@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -72,50 +70,14 @@ func (eh *eventHandler) run(ctx context.Context) {
 }
 
 // handleEvent dispatches operation events to the appropriate handler.
+// NOTE: operation.restart_requested is handled by the cluster controller,
+// which validates the request, tracks it as a workflow, and calls
+// ControlService RPC on the target node agent. The node agent MUST NOT
+// act on restart_requested directly — that would bypass the controller's
+// policy enforcement, cooldown checks, and audit trail.
 func (eh *eventHandler) handleEvent(ctx context.Context, evt *eventpb.Event) {
 	switch evt.GetName() {
 	case "operation.restart_requested":
-		eh.handleRestart(ctx, evt)
+		log.Printf("event-handler: ignoring %s (handled by cluster controller)", evt.GetName())
 	}
-}
-
-// handleRestart restarts a globular service unit.
-// The target field from the executor is "restart_service:<unit>" or just "<unit>".
-func (eh *eventHandler) handleRestart(ctx context.Context, evt *eventpb.Event) {
-	var payload struct {
-		Target string `json:"target"`
-		Source string `json:"source"`
-	}
-	if err := json.Unmarshal(evt.GetData(), &payload); err != nil {
-		log.Printf("event-handler: restart: bad payload: %v", err)
-		return
-	}
-
-	if payload.Target == "" {
-		log.Printf("event-handler: restart: missing target")
-		return
-	}
-
-	// Extract unit name from "restart_service:<unit>" format.
-	unit := payload.Target
-	if strings.Contains(unit, ":") {
-		unit = unit[strings.LastIndex(unit, ":")+1:]
-	}
-
-	// Ensure it's a proper systemd unit name.
-	if !strings.HasPrefix(unit, "globular-") {
-		unit = "globular-" + strings.ReplaceAll(unit, "_", "-") + ".service"
-	}
-	if !strings.HasSuffix(unit, ".service") {
-		unit = unit + ".service"
-	}
-
-	log.Printf("event-handler: restarting %s (requested by %s)", unit, payload.Source)
-
-	if err := eh.srv.performRestartUnits([]string{unit}, nil); err != nil {
-		log.Printf("event-handler: restart failed: %s: %v", unit, err)
-		return
-	}
-
-	log.Printf("event-handler: restart succeeded: %s", unit)
 }

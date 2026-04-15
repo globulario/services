@@ -76,15 +76,20 @@ func (b *restartServiceBackend) Supports(t ai_executorpb.ActionType) bool {
 	return t == ai_executorpb.ActionType_ACTION_RESTART_SERVICE
 }
 
-func (b *restartServiceBackend) Execute(ctx context.Context, target string, _ *ai_executorpb.Diagnosis) (string, error) {
+func (b *restartServiceBackend) Execute(ctx context.Context, target string, diag *ai_executorpb.Diagnosis) (string, error) {
 	// Publish the restart request as an event.
-	// The cluster controller's reconciliation loop will pick this up
-	// and dispatch a plan to the node agent.
-	globular.PublishEvent("operation.restart_requested", map[string]interface{}{
+	// The cluster controller subscribes to this and dispatches a
+	// workflow-tracked restart through the node agent.
+	payload := map[string]interface{}{
 		"severity": "WARNING",
 		"target":   target,
 		"source":   "ai_executor",
-	})
+	}
+	if diag != nil {
+		payload["incident_id"] = diag.GetIncidentId()
+		payload["root_cause"] = diag.GetRootCause()
+	}
+	globular.PublishEvent("operation.restart_requested", payload)
 
 	logger.Info("restart_service: request published", "target", target)
 	return fmt.Sprintf("restart requested for %s", target), nil
@@ -187,7 +192,11 @@ func getClusterHealthForVerification(ctx context.Context) (*cluster_controllerpb
 		return nil, fmt.Errorf("cluster controller not found")
 	}
 
-	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	baseOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		return nil, fmt.Errorf("internal TLS: %w", err)
+	}
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil, err

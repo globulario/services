@@ -178,6 +178,7 @@ func resolveScyllaHost(port int) string {
 }
 
 // buildPermsOpts builds the JSON options string for the ScyllaStore.
+// It adapts replication_factor and consistency to the number of ScyllaDB hosts.
 func (srv *server) buildPermsOpts(host string) string {
 	port := 9042
 	tls := false
@@ -185,14 +186,29 @@ func (srv *server) buildPermsOpts(host string) string {
 		port = 9142
 		tls = true
 	}
+
+	// Detect host count to adapt rf and consistency.
+	hosts, _ := config.GetScyllaHosts()
+	rf := len(hosts)
+	if rf > 3 {
+		rf = 3
+	}
+	if rf < 1 {
+		rf = 1
+	}
+	consistency := "quorum"
+	if rf < 2 {
+		consistency = "one"
+	}
+
 	return fmt.Sprintf(`{
   "hosts": ["%s:%d"],
   "keyspace": "rbac_permissions",
   "table": "permissions",
-  "replication_factor": 3,
+  "replication_factor": %d,
   "connect_timeout_ms": 5000,
   "timeout_ms": 5000,
-  "consistency": "quorum",
+  "consistency": "%s",
   "disable_initial_host_lookup": true,
   "ca_file": "%s",
   "cert_file": "%s",
@@ -200,7 +216,7 @@ func (srv *server) buildPermsOpts(host string) string {
   "insecure_skip_verify": false,
   "ssl_port": 9142,
   "tls": %t
-}`, host, port, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), tls)
+}`, host, port, rf, consistency, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), tls)
 }
 
 // getPermissionsStore returns the permissions store, reconnecting if the

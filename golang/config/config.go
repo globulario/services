@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -277,7 +278,16 @@ func AllocatePortForService(id string) (int, error) {
 func GetLocalIP() string {
 	ip, err := GetRoutableIP()
 	if err != nil {
-		return "127.0.0.1"
+		// MAC-based lookup failed (common in containers with zero/virtual MACs).
+		// Fall back to interface scanning which works reliably in Docker.
+		if v4 := GetRoutableIPv4(); v4 != "" {
+			return v4
+		}
+		// No routable IP found. Return empty — callers must handle this
+		// explicitly. Returning 127.0.0.1 would silently poison service
+		// registration with a loopback address.
+		slog.Error("GetLocalIP: no routable IP detected (MAC-based and interface scan both failed)")
+		return ""
 	}
 	return ip
 }

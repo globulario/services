@@ -120,8 +120,17 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 				continue
 			}
 			if oldStates[strings.ToLower(u.Name)] == "active" {
-				srv.emitClusterEvent("service.exited", map[string]interface{}{
-					"severity":       "ERROR",
+				// Distinguish crash from clean stop:
+				//   "failed"   → service.exited (crash — triggers remediation)
+				//   "inactive" → service.stopped (clean — observe only)
+				eventName := "service.stopped"
+				severity := "WARNING"
+				if newState == "failed" {
+					eventName = "service.exited"
+					severity = "ERROR"
+				}
+				srv.emitClusterEvent(eventName, map[string]interface{}{
+					"severity":       severity,
 					"node_id":        nodeID,
 					"unit":           u.Name,
 					"previous_state": "active",

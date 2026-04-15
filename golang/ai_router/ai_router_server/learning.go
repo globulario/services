@@ -36,7 +36,11 @@ func (ls *learningStore) connect() error {
 	}
 	ls.memoryAddr = addr
 
-	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	baseOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		return fmt.Errorf("internal TLS: %w", err)
+	}
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return fmt.Errorf("connect to ai_memory %s: %w", addr, err)

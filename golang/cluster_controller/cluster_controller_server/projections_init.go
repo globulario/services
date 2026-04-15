@@ -67,10 +67,17 @@ func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
 		return nil, fmt.Errorf("cannot resolve ScyllaDB hosts from etcd: %v", err)
 	}
 
+	// Adapt consistency to the number of ScyllaDB nodes.
+	// With a single node, QUORUM is impossible (requires 2 of 3).
+	consistency := gocql.Quorum
+	if len(hosts) < 2 {
+		consistency = gocql.One
+	}
+
 	// First session: no keyspace, used only to create the keyspace.
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Port = 9042
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = consistency
 	cluster.Timeout = 5 * time.Second
 	cluster.ConnectTimeout = 5 * time.Second
 

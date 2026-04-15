@@ -544,6 +544,11 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		log.Printf("cluster-controller: WARNING — workflow client not available after 60 attempts")
 	}()
 
+	// Subscribe to AI remediation events (operation.restart_requested).
+	// The consumer waits for the event client to become available, so
+	// it's safe to start immediately.
+	newRemediationConsumer(srv).Start()
+
 	srv.setLeader(false, "", "")
 
 	// Register built-in operators

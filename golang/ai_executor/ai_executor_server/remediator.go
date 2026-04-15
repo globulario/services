@@ -149,7 +149,12 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 		return
 	}
 
-	opts := append(globular.InternalDialOptions(), grpc.WithTimeout(2*time.Second))
+	baseOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		logger.Error("internal TLS unavailable for memory store", "err", err)
+		return
+	}
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return

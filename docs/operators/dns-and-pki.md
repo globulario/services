@@ -7,27 +7,27 @@ Globular operates two independent certificate systems and a dual-purpose DNS ser
 Globular maintains a strict separation between internal and external certificates:
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    Certificate Architecture                    │
-│                                                                │
-│  INTERNAL (cluster mTLS)          EXTERNAL (public HTTPS)     │
-│  ─────────────────────            ────────────────────────     │
-│  Issuer: Globular Root CA         Issuer: Let's Encrypt       │
-│  Scope:  *.globular.internal      Scope:  *.globular.io       │
-│  Used by: gRPC services,          Used by: Envoy gateway      │
-│           node agents,                     for browser/API     │
-│           controller               clients from internet      │
-│  Managed: Internal CA (auto)      Managed: ACME DNS-01 (auto) │
-│  Lifetime: 1 year                 Lifetime: 90 days           │
-│  Renewal: On node restart         Renewal: 30 days before exp │
-│                                                                │
-│  File locations:                  File locations:              │
-│  /var/lib/globular/pki/           /var/lib/globular/domains/   │
-│    issued/services/service.crt      {domain}/fullchain.pem     │
-│    issued/services/service.key      {domain}/privkey.pem       │
-│    ca.crt                           {domain}/chain.pem         │
-│                                     {domain}/account.json      │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    Certificate Architecture                     │
+│                                                                 │
+│  INTERNAL (cluster mTLS)          EXTERNAL (public HTTPS)       │
+│  ─────────────────────            ────────────────────────      │
+│  Issuer: Globular Root CA         Issuer: Let's Encrypt         │
+│  Scope:  *.globular.internal      Scope:  *.globular.io         │
+│  Used by: gRPC services,          Used by: Envoy gateway        │
+│           node agents,                     for browser/API      │
+│           controller               clients from internet        │
+│  Managed: Internal CA (auto)      Managed: ACME DNS-01 (auto)   │
+│  Lifetime: 1 year                 Lifetime: 90 days             │
+│  Renewal: On node restart         Renewal: 30 days before exp   │
+│                                                                 │
+│  File locations:                  File locations:               │
+│  /var/lib/globular/pki/           /var/lib/globular/domains/    │
+│    issued/services/service.crt      {domain}/fullchain.pem      │
+│    issued/services/service.key      {domain}/privkey.pem        │
+│    ca.crt                           {domain}/chain.pem          │
+│                                     {domain}/account.json       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why Two Systems

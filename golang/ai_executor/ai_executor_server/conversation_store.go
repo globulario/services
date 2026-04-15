@@ -12,9 +12,6 @@ import (
 const (
 	conversationKeyspace = "ai_conversations"
 
-	cqlCreateKeyspace = `CREATE KEYSPACE IF NOT EXISTS ai_conversations
-		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3}`
-
 	cqlCreateConversations = `CREATE TABLE IF NOT EXISTS ai_conversations.conversations (
 		user_id         text,
 		id              text,
@@ -66,17 +63,30 @@ func (cs *conversationStore) connect() error {
 		return fmt.Errorf("no ScyllaDB hosts configured")
 	}
 
+	// Adapt replication factor and consistency to the number of ScyllaDB nodes.
+	// With a single node, QUORUM is impossible (requires 2 of 3).
+	rf := len(hosts)
+	if rf > 3 {
+		rf = 3
+	}
+	consistency := gocql.Quorum
+	if rf < 2 {
+		consistency = gocql.One
+	}
+
 	// Create keyspace first (connect without keyspace).
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Timeout = 10 * time.Second
 	cluster.ConnectTimeout = 10 * time.Second
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = consistency
 
 	initSession, err := cluster.CreateSession()
 	if err != nil {
 		return fmt.Errorf("scylla connect: %w", err)
 	}
 
+	cqlCreateKeyspace := fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS ai_conversations
+		WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`, rf)
 	if err := initSession.Query(cqlCreateKeyspace).Exec(); err != nil {
 		initSession.Close()
 		return fmt.Errorf("create keyspace: %w", err)

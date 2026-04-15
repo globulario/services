@@ -1,53 +1,121 @@
-# Awareness Pipeline — Remaining Work
+I’m digging through the issue note and the attached code together so I can hand Claude something concrete instead of vapor. First target is to pin whether the bug is only the Scylla cursor jump, or whether the quickstart binaries are also stale and hiding the real fix.
 
-## FIXED: cluster_id enforcement permanently breaking inter-service calls
-Root cause: two bugs working together:
-1. security.defaultValidator cached cluster_id forever with no TTL — if first
-   read got wrong value or failed, it was stuck for the process lifetime.
-2. InternalDialOption() (used by AI services) silently fell back to insecure
-   when certs weren't ready, but never attached cluster_id to metadata.
-   The globular_client framework already did this, but the raw dial path didn't.
-Fix (3 changes):
-- security/cluster.go: defaultValidator now has 2-min TTL + mutex (self-heals)
-- globular_service/services.go: new InternalDialOptions() adds cluster_id
-  metadata interceptor alongside TLS creds (belt-and-suspenders)
-- globular-quickstart seed-etcd.sh: added cluster_id + bootstrapped to system config
+I’ve confirmed the bug note itself is crisp: the poller can jump one minute into the future and strand real events behind the cursor. Now I’m checking whether the quickstart bundle already contains the patched source, or whether Claude is fighting a ghost because the container binaries are older than the code.
 
-## After cluster_id is fixed, verify the full chain:
-1. Kill a node in Docker simulation
-2. Controller detects unhealthy (2 min) — already works
-3. Controller emits "cluster.health.degraded" event — currently blocked by auth
-4. Event service stores in ScyllaDB — ScyllaDB consistency fix done
-5. AI Watcher receives event via subscription — code ready, untested
-6. Cluster Doctor uses health data — code ready, untested
+Thought for 1m 42s
 
-## Issues found during failure testing (observe, don't patch yet):
+Yes. Here’s the clean diagnosis I’d give Claude.
 
-### Node agent resolves new leader on port 443 instead of 12000
-After leader failover, agents refresh endpoint to mesh port (443) instead of
-direct gRPC port (12000). This routes through Envoy which may strip auth metadata.
-Seen in scenario #3 (leader kill).
+The issue looks like two layers stacked together:
 
-### Reconciler says "cluster clean" with dead nodes
-The reconcile workflow doesn't factor node liveness into drift assessment.
-A dead node is not "clean." Seen in scenario #1.
+Real bug in the event service poller
+The Scylla event-bus cursor can skip past the current minute when a bucket is empty, which makes later events in that same minute permanently invisible. Your pasted note explains the race clearly: an empty poll at 08:35 advances the cursor to 08:36, then an event written at 08:35:00.100 is now behind the cursor and never read.
+Quickstart image can easily run stale binaries
+The quickstart Dockerfile copies binaries from a local binaries/ directory into the image, and in the tarball I checked that directory is not populated. So if Claude patched source but did not rebuild the host binaries and re-run the quickstart image build, the containers will still run old code. That is the classic cardboard dragon: brave patch, same old binary inside the cage.
 
-### Event service not found on compute nodes
-Node agents call ResolveLocalServiceAddr("event.EventService") which filters by
-local IP. Event service runs on control-plane nodes only. Compute nodes can never
-find it. Fix: use ResolveServiceAddr() (cluster-wide) instead.
+Send Claude this:
 
-### etcd client retry has no backoff
-During quorum loss, etcd clients spam DeadlineExceeded every 1-3 seconds with
-no exponential backoff. Noisy logs. Seen in scenario #7.
+Claude, here is the actual issue and the required fix path. Do these exact steps.
 
-## Completed today:
-- [x] Docs deployed to globule-nuc (VIP failover now works for docs)
-- [x] Python docs server disabled (redundant, Envoy serves static files)
-- [x] Gateway CSP fixed (MkDocs Material search works)
-- [x] Gateway deployed to both nodes (ryzen + nuc)
-- [x] deploy-docs.sh updated for multi-node deployment
-- [x] Docker entrypoint.sh enable_unit bug fixed (nodes 4,5 no longer crash-loop)
-- [x] Ran 4 failure scenarios: leader kill, compute kill, ScyllaDB kill, etcd quorum loss
-- [x] ScyllaDB consistency fix across 6 services (event, ai_memory, ai_executor, persistence, controller projections, rbac)
-- [x] Traced full awareness pipeline — found last blocker (cluster_id)
+1. Fix the Scylla cursor race in scylla_bus.go
+
+In pollOnce(), the catch-up logic for len(events) == 0 must not advance past the current minute bucket.
+
+Replace the old logic:
+
+advanced := t.Add(time.Minute)
+if advanced.After(sb.lastSeq.Time()) {
+    sb.lastSeq = gocql.MinTimeUUID(advanced)
+}
+
+with:
+
+advanced := t.Add(time.Minute)
+nowBucket := time.Now().UTC().Truncate(time.Minute)
+
+// Only skip buckets that are fully in the past.
+// Never skip the current minute because writes may still arrive there.
+if advanced.Before(nowBucket) && advanced.After(sb.lastSeq.Time()) {
+    sb.lastSeq = gocql.MinTimeUUID(advanced)
+}
+2. Verify the semantics carefully
+
+The invariant is:
+
+empty past bucket → safe to skip
+empty current bucket → do not skip
+current minute is still open for writes
+
+That is the whole bug. The event is durably stored, but the poller jumps over it.
+
+3. Rebuild the actual binaries used by quickstart
+
+This part is crucial. Patching source alone is not enough.
+
+The quickstart image uses binaries copied into Docker from the local host build output. So after patching the event service, rebuild the host binaries first, then repopulate quickstart binaries/, then rebuild the image.
+
+The sequence should be:
+
+# rebuild host binaries from the real source tree
+# use your normal build command here
+# example placeholder:
+make build
+# or whatever produces /usr/lib/globular/bin/event_server etc.
+
+# then from globular-quickstart
+make collect
+make build
+docker compose up -d --force-recreate
+
+If he skips make collect and make build, the containers keep using old binaries.
+
+4. Prove the container is running the patched binary
+
+After rebuild, verify from inside the running event service container or image:
+
+strings /usr/lib/globular/bin/event_server | grep -E "maxBucketsPerPoll|maxEventsPerPoll|event-publisher|QueryEvents"
+
+Or more directly, inspect the patched source commit/build metadata if available.
+
+The goal is not “source was edited”.
+The goal is “the container binary changed”.
+
+5. Add a regression test
+
+Create a test for this exact race:
+
+set cursor at start of current minute bucket
+poll returns zero events
+write one event into same current minute
+next poll must still see it
+
+Pseudo-shape:
+
+func TestPollDoesNotAdvancePastCurrentBucket(t *testing.T) {
+    // arrange: lastSeq at current minute start
+    // arrange: first scan of current bucket returns zero rows
+    // act: pollOnce()
+    // assert: lastSeq did not move to next minute
+
+    // then insert event in same bucket with seq > original lastSeq
+    // act: pollOnce()
+    // assert: event is returned / delivered
+}
+6. If scenario tests still fail after that
+
+Then the next suspect is not the race anymore, but stale quickstart content. Check:
+
+binaries/event_server timestamp/hash before image build
+image rebuild actually happened
+container binary hash matches rebuilt host binary
+
+Useful commands:
+
+sha256sum binaries/event_server
+docker run --rm globulario/globular-node:latest sha256sum /usr/lib/globular/bin/event_server
+
+Those hashes should match.
+
+My own read: the code bug is real, but the quickstart stale-binary problem is very likely why Claude can patch and still see the same failure. One bug is in logic, the other is in the test harness supply chain. Two locked doors, one keyring.
+
+If you want, I can also draft the exact commit message and a tiny regression test skeleton for Claude.

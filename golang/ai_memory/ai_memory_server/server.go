@@ -203,15 +203,22 @@ func (srv *server) connectScylla() error {
 	if port == 0 {
 		port = 9042
 	}
-	rf := srv.ScyllaReplicationFactor
-	if rf == 0 {
-		rf = 1
+
+	// Adapt replication factor and consistency to the number of ScyllaDB nodes.
+	// With a single node, QUORUM is impossible (requires 2 of 3).
+	rf := len(hosts)
+	if rf > 3 {
+		rf = 3
+	}
+	consistency := gocql.Quorum
+	if rf < 2 {
+		consistency = gocql.One
 	}
 
 	// Connect without keyspace first to create keyspace + tables.
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Port = port
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = consistency
 	cluster.Timeout = 10 * time.Second
 	cluster.ConnectTimeout = 10 * time.Second
 
@@ -220,7 +227,7 @@ func (srv *server) connectScylla() error {
 		return fmt.Errorf("scylla connect: %w", err)
 	}
 
-	// Create keyspace with configured replication factor.
+	// Create keyspace with adapted replication factor.
 	cql := fmt.Sprintf(
 		`CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`,
 		keyspace, rf,

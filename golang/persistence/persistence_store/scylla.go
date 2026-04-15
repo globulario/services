@@ -293,20 +293,27 @@ func (store *ScyllaStore) buildCluster(hosts []string, port int, keyspace string
 		cluster.Keyspace = keyspace
 	}
 
-	// Consistency
-	switch strings.ToUpper(opts["consistency"]) {
-	case "ONE":
+	// Consistency — adapt to host count. With a single node, QUORUM is
+	// impossible so we downgrade to ONE regardless of the requested level.
+	requested := strings.ToUpper(opts["consistency"])
+	if len(hosts) < 2 && (requested == "QUORUM" || requested == "LOCAL_QUORUM" || requested == "ALL") {
+		slog.Warn("scylla: downgrading consistency to ONE (single-node cluster)", "requested", requested)
 		cluster.Consistency = gocql.One
-	case "LOCAL_ONE":
-		cluster.Consistency = gocql.LocalOne
-	case "QUORUM":
-		cluster.Consistency = gocql.Quorum
-	case "LOCAL_QUORUM":
-		cluster.Consistency = gocql.LocalQuorum
-	case "ALL":
-		cluster.Consistency = gocql.All
-	default:
-		cluster.Consistency = gocql.One // default safe on single node
+	} else {
+		switch requested {
+		case "ONE":
+			cluster.Consistency = gocql.One
+		case "LOCAL_ONE":
+			cluster.Consistency = gocql.LocalOne
+		case "QUORUM":
+			cluster.Consistency = gocql.Quorum
+		case "LOCAL_QUORUM":
+			cluster.Consistency = gocql.LocalQuorum
+		case "ALL":
+			cluster.Consistency = gocql.All
+		default:
+			cluster.Consistency = gocql.One // default safe on single node
+		}
 	}
 
 	// Auth
@@ -402,11 +409,18 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	}
 	defer adminSession.Close()
 
-	// Strategy: default RF=1 unless options specify otherwise
+	// Strategy: adapt RF to cluster size unless options specify otherwise.
 	rf := connection.Options["rf"]
 	dc := connection.Options["dc"]
 	if rf == "" {
-		rf = "1"
+		hostRF := len(connection.Hosts)
+		if hostRF > 3 {
+			hostRF = 3
+		}
+		if hostRF < 1 {
+			hostRF = 1
+		}
+		rf = strconv.Itoa(hostRF)
 	}
 	var cql string
 	if rf != "" && dc != "" {
