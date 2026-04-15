@@ -655,6 +655,14 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	return srv.sendStatusWithRetry(ctx, statusReq)
 }
 
+// isDeadlineErr returns true if the error is a context deadline exceeded,
+// which often masks TLS certificate verification failures when using
+// grpc.WithBlock().
+func isDeadlineErr(err error) bool {
+	return err != nil && (errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "context deadline exceeded"))
+}
+
 func leaderAddrFromError(err error) string {
 	st, ok := status.FromError(err)
 	if !ok {
@@ -766,6 +774,13 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	}
 	conn, err := dialer(dialCtx, target.Address, opts...)
 	if err != nil {
+		// Surface the underlying TLS error (e.g. x509 SAN mismatch)
+		// instead of the generic "context deadline exceeded" that
+		// grpc.WithBlock() produces when the handshake keeps failing.
+		if isDeadlineErr(err) {
+			log.Printf("WARN heartbeat: dial %s failed (possible TLS issue — check cert SANs for %s): %v",
+				target.Address, target.ServerName, err)
+		}
 		return err
 	}
 	srv.controllerConn = conn
