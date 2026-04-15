@@ -662,19 +662,22 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 	// Enable gRPC latency histograms (grpc_server_handling_seconds_bucket).
 	grpc_prometheus.EnableHandlingTimeHistogram()
 
-	// Interceptors + Prometheus.
+	// Interceptors + Prometheus + RPC health tracking.
+	// The RPC health interceptor records success/failure per-service into
+	// the subsystem registry, making every service automatically visible
+	// to the cluster doctor without per-service wiring.
 	switch {
 	case unaryInterceptor != nil && streamInterceptor != nil:
 		opts = append(
 			opts,
-			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)),
-			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)),
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, interceptors.RPCHealthUnaryInterceptor(), grpc_prometheus.UnaryServerInterceptor)),
+			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, interceptors.RPCHealthStreamInterceptor(), grpc_prometheus.StreamServerInterceptor)),
 		)
 	default:
 		opts = append(
 			opts,
-			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
-			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(interceptors.RPCHealthUnaryInterceptor(), grpc_prometheus.UnaryServerInterceptor)),
+			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(interceptors.RPCHealthStreamInterceptor(), grpc_prometheus.StreamServerInterceptor)),
 		)
 	}
 
