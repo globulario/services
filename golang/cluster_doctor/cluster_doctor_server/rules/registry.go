@@ -44,6 +44,11 @@ func NewRegistry(cfg Config) *Registry {
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
 		artifactIntegrity{},
+		// Certificate health invariants: expiry, SAN coverage, chain validity.
+		// Consumes per-node GetCertificateStatus collected in Snapshot.CertificateStatus.
+		certificateExpiry{},
+		certificateSANCoverage{},
+		certificateChainValid{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

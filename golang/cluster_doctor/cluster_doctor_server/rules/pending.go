@@ -64,13 +64,7 @@ func pendingInvariants() []Invariant {
 			proposedRPC:     "GetDiscoveryStatus()",
 			proposedService: "ClusterControllerService or DiscoveryService",
 		},
-		pendingInvariant{
-			id:              "security.certs.not_expired",
-			category:        "tls",
-			scope:           "node",
-			summary:         "Certificate expiry check pending: GetCertificateStatus() not yet available in NodeAgentService",
-			proposedRPC:     "GetCertificateStatus(node_id)",
-			proposedService: "NodeAgentService or SecurityService",
-		},
+		// security.certs.* — implemented in certificate_health.go
+		// (expiry, SAN coverage, chain validity).
 	}
 }

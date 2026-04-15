@@ -279,6 +279,21 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.addSource("node_agent.GetInventory@" + nid)
 			}
 
+			// GetCertificateStatus — read cert SANs, expiry, chain validity.
+			certCtx, certCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout)
+			certResp, certErr := agentClient.GetCertificateStatus(certCtx, &node_agentpb.GetCertificateStatusRequest{})
+			certCancel()
+			if certErr != nil {
+				if !strings.Contains(certErr.Error(), "Unimplemented") {
+					snap.addError("node_agent@"+nid, "GetCertificateStatus", certErr)
+				}
+			} else {
+				snap.mu.Lock()
+				snap.CertificateStatus[nid] = certResp
+				snap.mu.Unlock()
+				snap.addSource("node_agent.GetCertificateStatus@" + nid)
+			}
+
 			// VerifyPackageIntegrity — reads installed_state, the local
 			// artifact cache, and the repository manifest. Read-only.
 			//
