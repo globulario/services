@@ -138,6 +138,9 @@ func (srv *server) run() {
 			for _, ev := range events {
 				srv.dispatchToLocal(ev.name, ev.data, channels, streams, quits)
 			}
+			// Commit cursor AFTER dispatch. Also save when pollOnce advanced
+			// past empty catch-up buckets (cursor moves even with 0 events).
+			srv.bus.saveCursor()
 
 		case a := <-srv.actions:
 			action, _ := a["action"].(string)
@@ -390,7 +393,23 @@ func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*
 	return &eventpb.PublishResponse{Result: true}, nil
 }
 
-// QueryEvents reads recent events from ScyllaDB.
+// QueryEvents reads events from ScyllaDB with true cursor semantics.
+//
+// The afterSequence field is a durable cursor: it is the UnixNano timestamp
+// of the last event the caller received. QueryEvents returns all events
+// strictly after that timestamp, scanning from the cursor's time bucket to
+// now. This is exact continuation — not a "recent-ish" heuristic.
+//
+// Usage pattern:
+//   1. First call: afterSequence = 0 → returns events from TTL horizon (1h)
+//   2. Subsequent calls: afterSequence = response.latest_sequence
+//   3. Each call returns at most `limit` events (default 100)
+//   4. If response has `limit` events, caller should poll again immediately
+//
+// The Sequence field in each PersistedEvent is time.UnixNano() of the
+// event's TimeUUID. This is monotonic and unique enough for cursor use.
+// Two events in the same nanosecond (theoretically possible across nodes)
+// may both be returned — this is safe because consumers must be idempotent.
 func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsRequest) (*eventpb.QueryEventsResponse, error) {
 	if srv.bus == nil {
 		return &eventpb.QueryEventsResponse{}, nil
@@ -405,14 +424,19 @@ func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsReque
 		limit = int(rqst.GetLimit())
 	}
 
-	// Convert afterSequence to a TimeUUID for the ScyllaDB query.
+	// Convert afterSequence (UnixNano) to a TimeUUID for the ScyllaDB query.
+	// afterSequence == 0 means "start from the replay horizon" (cold start).
+	// afterSequence > 0 means "continue from this exact position".
 	var afterSeq gocql.UUID
 	if rqst != nil && rqst.GetAfterSequence() > 0 {
-		// Map the uint64 sequence to a time-based UUID.
-		// afterSequence was from the ring buffer era; for ScyllaDB we use
-		// the zero UUID to start from the beginning.
-		afterSeq = gocql.MinTimeUUID(time.Now().Add(-10 * time.Minute))
+		// Reconstruct the time from UnixNano and create the minimum TimeUUID
+		// at that timestamp. MinTimeUUID ensures we don't skip events that
+		// share the same nanosecond (safe — consumers are idempotent).
+		cursorTime := time.Unix(0, int64(rqst.GetAfterSequence()))
+		afterSeq = gocql.MinTimeUUID(cursorTime)
 	}
+	// If afterSeq is zero UUID, bucketsFrom will clamp to maxReplayBuckets
+	// (1 hour) — bounded, not unbounded. This is the cold-start path.
 
 	events, _ := srv.bus.queryEvents(nameFilter, afterSeq, limit)
 

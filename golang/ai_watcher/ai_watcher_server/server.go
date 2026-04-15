@@ -327,7 +327,13 @@ func (srv *server) eventLoop() {
 }
 
 func (srv *server) resolveEventEndpoint() string {
-	// Discover from etcd/gateway, fallback to default port.
+	// Prefer the local event service instance (direct port, bypasses envoy).
+	// The OnEvent stream is long-lived and server-push; envoy's stream idle
+	// timeout kills it silently, breaking the watcher's event pipeline.
+	if addr := config.ResolveLocalServiceAddr("event.EventService"); addr != "" {
+		return addr
+	}
+	// Fall back to any available instance if no local one exists.
 	return config.ResolveServiceAddr("event.EventService", "")
 }
 
@@ -505,7 +511,14 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 	}
 
 	// Internal service call — use platform TLS credentials + cluster_id metadata.
-	cc, err := grpc.Dial(addr, globular.InternalDialOptions()...)
+	dialOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		logger.Error("internal TLS unavailable, cannot call executor", "err", err)
+		incident.Diagnosis = "TLS credentials unavailable: " + err.Error()
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		return
+	}
+	cc, err := grpc.Dial(addr, dialOpts...)
 	if err != nil {
 		logger.Error("connect to ai_executor failed", "err", err)
 		incident.Diagnosis = "Executor connection failed: " + err.Error()

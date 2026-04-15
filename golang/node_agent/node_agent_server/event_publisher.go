@@ -29,6 +29,7 @@ type serviceState struct {
 	MainPID        string // main process ID — changes on restart
 	Result         string // "success", "exit-code", "signal", etc.
 	ExecMainStatus string // exit code (e.g., "203" = binary not found)
+	NRestarts      string // systemd restart counter — increments on auto-restart after failure, NOT on manual restart
 }
 
 // eventPublisher monitors systemd unit states and publishes changes
@@ -115,12 +116,13 @@ func (ep *eventPublisher) connect() error {
 	return nil
 }
 
-// run polls systemd unit states every 10 seconds and publishes events on changes.
+// run polls systemd unit states every 5 seconds and publishes events on changes.
 func (ep *eventPublisher) run(ctx context.Context) {
-	// Wait for services to stabilize before starting.
-	time.Sleep(30 * time.Second)
+	// Brief stabilization delay — long enough for systemd to start units,
+	// short enough to catch early failures.
+	time.Sleep(10 * time.Second)
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -171,7 +173,7 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 		prev, existed := ep.lastStates[u.Name]
 		current := serviceState{
 			ActiveState: u.ActiveState, SubState: u.SubState, MainPID: u.MainPID,
-			Result: u.Result, ExecMainStatus: u.ExecMainStatus,
+			Result: u.Result, ExecMainStatus: u.ExecMainStatus, NRestarts: u.NRestarts,
 		}
 
 		// Crash-loops sit in activating/auto-restart permanently — publish
@@ -199,27 +201,65 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 		svcName := strings.TrimPrefix(u.Name, "globular-")
 		svcName = strings.TrimSuffix(svcName, ".service")
 
-		// Detect crash-loop: PID changed while state stayed active/running.
+		// ── Service State Machine ─────────────────────────────────────
+		// Event semantics (each is a FACT, not a guess):
+		//
+		//   service.exited   — unit crashed or failed (non-zero exit, signal, crash-loop)
+		//                      Triggers awareness loop: watcher → executor → remediation.
+		//   service.failed   — unit is in systemd "failed" state (terminal failure).
+		//   service.stopped  — unit cleanly stopped (active → inactive, result=success).
+		//                      Informational — NOT a crash, should NOT trigger remediation.
+		//   service.started  — unit became active from a non-active state.
+		//   service.state_changed — any other state transition (informational).
+		//
+		// The controller ALSO detects active→non-active via 30s heartbeat and
+		// emits service.exited. The two paths are complementary:
+		// - Node agent publisher: fast (5s poll), local detection
+		// - Controller heartbeat: authoritative, cross-node visibility
+
 		pidChanged := prev.MainPID != "" && u.MainPID != "" && prev.MainPID != u.MainPID
 		crashRestart := pidChanged && u.ActiveState == "active" && prev.ActiveState == "active"
 
 		var eventName string
 		switch {
 		case crashRestart:
-			eventName = "service.exited"
+			// PID changed while unit stayed active — systemd restarted it.
+			// Use NRestarts to distinguish crashes from clean restarts:
+			//   NRestarts > prev.NRestarts → systemd auto-restarted after failure (crash)
+			//   NRestarts unchanged or 0  → manual restart (systemctl restart, stop+start)
+			// NRestarts only increments on Restart=on-failure/always auto-recovery,
+			// NOT on manual systemctl restart.
+			if u.NRestarts != prev.NRestarts && u.NRestarts != "0" {
+				eventName = "service.exited" // Crash recovery.
+			} else {
+				eventName = "service.started" // Clean restart — not a crash.
+			}
+
 		case u.ActiveState == "failed":
-			eventName = "service.exited"
+			// Terminal failure state. Distinct from exited because the unit
+			// won't recover without manual intervention or Restart=on-failure.
+			eventName = "service.failed"
+
 		case u.ActiveState == "activating" && u.SubState == "auto-restart":
-			// Crash-loop: systemd is auto-restarting after failure.
-			// The unit flips so fast between failed→activating that polls
-			// may never see "failed" — treat auto-restart as a crash signal.
+			// Crash-loop: systemd is auto-restarting after failure. Polls may
+			// never catch the brief "failed" state — treat auto-restart as crash.
 			eventName = "service.exited"
+
 		case u.ActiveState == "inactive" && prev.ActiveState == "active":
-			eventName = "service.stopped"
+			// Transition from running to stopped. Check the Result field to
+			// distinguish clean stops from unexpected exits.
+			if u.Result == "success" || u.Result == "" {
+				eventName = "service.stopped" // Clean stop — no remediation needed.
+			} else {
+				eventName = "service.exited" // Non-zero exit — treat as crash.
+			}
+
 		case u.ActiveState == "active" && u.SubState == "running" && prev.ActiveState != "active":
 			eventName = "service.started"
+
 		case u.ActiveState == "activating":
-			continue // Transient state (starting up normally), skip.
+			continue // Transient startup state, skip.
+
 		default:
 			eventName = "service.state_changed"
 		}
@@ -247,11 +287,11 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 			},
 		})
 		if err != nil {
-			log.Printf("event-publisher: publish %s failed: %v", eventName, err)
+			log.Printf("event-publisher: publish %s failed: %v (will reconnect)", eventName, err)
 			ep.conn.Close()
-			ep.client = nil // Reconnect on next cycle.
+			ep.client = nil // Reconnect on next tick.
 			ep.conn = nil
-			return
+			break // Exit unit loop, not run(). Next tick will reconnect.
 		}
 
 		if isBadState {
@@ -273,13 +313,39 @@ type unitInfo struct {
 	MainPID        string
 	Result         string // "success", "exit-code", "signal", etc.
 	ExecMainStatus string // numeric exit code: "0", "203", etc.
+	NRestarts      string // systemd auto-restart counter
 }
 
 // listGlobularUnits queries systemd for all globular-* service units.
 func listGlobularUnits(ctx context.Context) []unitInfo {
-	out, err := exec.CommandContext(ctx, "systemctl", "show",
-		"--property=Id,ActiveState,SubState,MainPID,Result,ExecMainStatus",
-		"--no-pager", "globular-*.service").Output()
+	// Step 1: Discover all globular-* units including stopped/inactive ones.
+	// "systemctl show globular-*.service" only returns active units because
+	// the glob is expanded by systemd against running units. We need --all
+	// to also see inactive/dead units (e.g., after a clean stop).
+	listOut, err := exec.CommandContext(ctx, "systemctl", "list-units",
+		"--all", "--no-legend", "--no-pager", "--plain",
+		"--type=service", "globular-*").Output()
+	if err != nil {
+		return nil
+	}
+
+	// Parse unit names from list-units output (first column).
+	var unitNames []string
+	for _, line := range strings.Split(string(listOut), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && strings.HasPrefix(fields[0], "globular-") {
+			unitNames = append(unitNames, fields[0])
+		}
+	}
+	if len(unitNames) == 0 {
+		return nil
+	}
+
+	// Step 2: Query properties for all discovered units by name (not glob).
+	args := append([]string{"show",
+		"--property=Id,ActiveState,SubState,MainPID,Result,ExecMainStatus,NRestarts",
+		"--no-pager"}, unitNames...)
+	out, err := exec.CommandContext(ctx, "systemctl", args...).Output()
 	if err != nil {
 		return nil
 	}
@@ -315,6 +381,8 @@ func listGlobularUnits(ctx context.Context) []unitInfo {
 			current.Result = v
 		case "ExecMainStatus":
 			current.ExecMainStatus = v
+		case "NRestarts":
+			current.NRestarts = v
 		}
 	}
 	// Don't forget the last unit.

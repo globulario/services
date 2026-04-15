@@ -109,6 +109,106 @@ func TestScyllaBusQueryEvents(t *testing.T) {
 	}
 }
 
+// TestBucketsFrom verifies the replay window calculation.
+func TestBucketsFrom(t *testing.T) {
+	// Normal: 2 minutes ago → should produce ~3 buckets (2 ago, 1 ago, now).
+	buckets := bucketsFrom(time.Now().Add(-2 * time.Minute))
+	if len(buckets) < 2 || len(buckets) > 4 {
+		t.Errorf("expected 2-4 buckets for 2min gap, got %d", len(buckets))
+	}
+
+	// Large gap: 90 minutes ago → should cap at maxReplayBuckets (60).
+	buckets = bucketsFrom(time.Now().Add(-90 * time.Minute))
+	if len(buckets) != maxReplayBuckets {
+		t.Errorf("expected %d buckets for 90min gap, got %d", maxReplayBuckets, len(buckets))
+	}
+
+	// Future: should return just current bucket.
+	buckets = bucketsFrom(time.Now().Add(5 * time.Minute))
+	if len(buckets) != 1 {
+		t.Errorf("expected 1 bucket for future time, got %d", len(buckets))
+	}
+
+	// Zero/empty: time.Time{} → should cap at maxReplayBuckets.
+	buckets = bucketsFrom(time.Time{})
+	if len(buckets) > maxReplayBuckets {
+		t.Errorf("expected <= %d buckets for zero time, got %d", maxReplayBuckets, len(buckets))
+	}
+}
+
+// TestPollDoesNotAdvancePastCurrentBucket is a regression test for the cursor
+// race condition where pollOnce() would advance the cursor past the current
+// minute bucket when it found no events. Events written to the current bucket
+// after the poll would then be permanently invisible (cursor already past them).
+//
+// The invariant: empty past bucket → safe to skip; empty current bucket → do not skip.
+func TestPollDoesNotAdvancePastCurrentBucket(t *testing.T) {
+	bus := newScyllaBus(logger)
+	if err := bus.connect(); err != nil {
+		t.Skipf("ScyllaDB unavailable, skipping: %v", err)
+	}
+	defer bus.close()
+
+	// Set cursor to the start of the current minute.
+	now := time.Now().UTC()
+	currentMinute := now.Truncate(time.Minute)
+	bus.lastSeq = gocql.MinTimeUUID(currentMinute)
+
+	// Poll with no events in the current bucket.
+	events := bus.pollOnce()
+	t.Logf("first poll: %d events, cursor=%v", len(events), bus.lastSeq.Time())
+
+	// The cursor must NOT have advanced past the current minute.
+	// If the cursor jumped to currentMinute+1m, the bug is present.
+	if bus.lastSeq.Time().After(currentMinute.Add(time.Minute)) {
+		t.Fatalf("cursor advanced past current bucket: cursor=%v, current_minute=%v",
+			bus.lastSeq.Time(), currentMinute)
+	}
+
+	// Now write an event into the current bucket.
+	if err := bus.publish("regression.cursor_race", []byte(`{"test":"cursor_race"}`)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	// Poll again — the event must be visible.
+	events = bus.pollOnce()
+	found := false
+	for _, ev := range events {
+		if ev.name == "regression.cursor_race" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("event written to current bucket was not returned by pollOnce (cursor race regression)")
+	}
+	t.Logf("regression test passed: event in current bucket was visible after empty poll")
+}
+
+// TestPollAdvancesPastOldEmptyBuckets verifies that the catch-up optimization
+// still works for buckets that are fully in the past.
+func TestPollAdvancesPastOldEmptyBuckets(t *testing.T) {
+	bus := newScyllaBus(logger)
+	if err := bus.connect(); err != nil {
+		t.Skipf("ScyllaDB unavailable, skipping: %v", err)
+	}
+	defer bus.close()
+
+	// Set cursor to 5 minutes ago. Those buckets are empty (TTL'd or never written).
+	fiveMinAgo := time.Now().UTC().Add(-5 * time.Minute).Truncate(time.Minute)
+	bus.lastSeq = gocql.MinTimeUUID(fiveMinAgo)
+
+	// Poll — should advance past the old empty buckets.
+	bus.pollOnce()
+
+	// Cursor should have advanced beyond the 5-minutes-ago bucket.
+	if !bus.lastSeq.Time().After(fiveMinAgo.Add(time.Minute)) {
+		t.Errorf("cursor did not advance past old empty buckets: cursor=%v, start=%v",
+			bus.lastSeq.Time(), fiveMinAgo)
+	}
+	t.Logf("catch-up works: cursor advanced from %v to %v", fiveMinAgo, bus.lastSeq.Time())
+}
+
 // TestMatchesChannel verifies wildcard pattern matching.
 func TestMatchesChannel(t *testing.T) {
 	cases := []struct {
