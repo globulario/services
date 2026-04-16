@@ -77,6 +77,13 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		if err := srv.reportStatus(ctx); err != nil {
 			srv.consecutiveHeartbeatFail++
 			recordHeartbeatFailure(srv.consecutiveHeartbeatFail)
+			// After 3 consecutive failures, reset the cached gRPC client
+			// so the next cycle dials fresh. This recovers from transient
+			// Envoy/mesh outages where the TLS probe or connection dies
+			// but the underlying service comes back.
+			if srv.consecutiveHeartbeatFail >= 3 {
+				srv.resetControllerClient()
+			}
 			switch {
 			case srv.controllerEndpoint == "":
 				srv.controllerConnState = ConnStateRediscovering
