@@ -475,7 +475,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 		outputs["reused_task"] = "true"
 
 		startArgs := []string{"start", "--cluster", cluster, taskID}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if apiURL != "" {
 			startArgs = append(startArgs, "--api-url", apiURL)
 		}
 		stdout, stderr, err := runCmdCtx(ctx, "sctool", startArgs...)
@@ -492,7 +492,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 	if taskID == "" {
 		// Create a new backup task
 		args := []string{"backup", "--cluster", cluster}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if apiURL != "" {
 			args = append(args, "--api-url", apiURL)
 		}
 		for _, loc := range locations {
@@ -552,7 +552,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 	pollStatus := ""
 	if taskID != "" {
 		progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if apiURL != "" {
 			progressArgs = append(progressArgs, "--api-url", apiURL)
 		}
 
@@ -642,7 +642,7 @@ done:
 // that can be restarted, avoiding "another task is running" conflicts.
 func (srv *server) findExistingScyllaBackupTask(cluster, apiURL string) string {
 	args := []string{"tasks", "--cluster", cluster}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if apiURL != "" {
 		args = append(args, "--api-url", apiURL)
 	}
 	stdout, _, err := runCmd("sctool", args...)
@@ -669,7 +669,7 @@ func (srv *server) extractScyllaSnapshotTag(cluster, apiURL string, locations []
 	}
 
 	args := []string{"backup", "list", "--cluster", cluster}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if apiURL != "" {
 		args = append(args, "--api-url", apiURL)
 	}
 	for _, loc := range locations {

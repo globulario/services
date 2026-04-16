@@ -93,7 +93,7 @@ func (srv *server) ensureScyllaRegistered() {
 		// If not (e.g. registered without auth token), update it with credentials.
 		if clusterName != "" {
 			statusArgs := []string{"status", "-c", clusterName}
-			if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+			if srv.ScyllaManagerAPI != "" {
 				statusArgs = append(statusArgs, "--api-url", srv.ScyllaManagerAPI)
 			}
 			statusCmd := exec.Command("sctool", statusArgs...)
@@ -104,7 +104,7 @@ func (srv *server) ensureScyllaRegistered() {
 				agentArgs := scyllaAgentArgs()
 				if agentArgs != nil {
 					updateArgs := []string{"cluster", "update", "-c", clusterName}
-					if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+					if srv.ScyllaManagerAPI != "" {
 						updateArgs = append(updateArgs, "--api-url", srv.ScyllaManagerAPI)
 					}
 					updateArgs = append(updateArgs, agentArgs...)
@@ -142,7 +142,7 @@ func (srv *server) ensureScyllaRegistered() {
 		"cluster_name", clusterName, "host", scyllaHost, "native_name", nativeName)
 
 	args := []string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}
-	if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+	if srv.ScyllaManagerAPI != "" {
 		args = append(args, "--api-url", srv.ScyllaManagerAPI)
 	}
 	agentArgs := scyllaAgentArgs()
@@ -241,7 +241,7 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 					slog.Info("preflight: auto-registering ScyllaDB",
 						"cluster_name", clusterName, "host", scyllaHost)
 					regArgs := []string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}
-					if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+					if srv.ScyllaManagerAPI != "" {
 						regArgs = append(regArgs, "--api-url", srv.ScyllaManagerAPI)
 					}
 					regArgs = append(regArgs, prefAgentArgs...)
@@ -316,7 +316,7 @@ func detectScyllaClusters(apiURL string) []string {
 
 	// 1. Try sctool cluster list (scylla-manager registered clusters)
 	args := []string{"cluster", "list"}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if apiURL != "" {
 		args = append(args, "--api-url", apiURL)
 	}
 
@@ -472,7 +472,7 @@ func parseScyllaClusterList(output string) []string {
 // every sctool command that uses --cluster <name>.
 func deduplicateScyllaManagerClusters(apiURL string) {
 	args := []string{"cluster", "list"}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if apiURL != "" {
 		args = append(args, "--api-url", apiURL)
 	}
 	out, err := exec.Command("sctool", args...).CombinedOutput()
@@ -564,7 +564,7 @@ func deduplicateScyllaManagerClusters(apiURL string) {
 		activeID := ""
 		for _, e := range group {
 			taskArgs := []string{"tasks", "-c", e.id}
-			if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+			if apiURL != "" {
 				taskArgs = append(taskArgs, "--api-url", apiURL)
 			}
 			tOut, tErr := exec.Command("sctool", taskArgs...).CombinedOutput()
@@ -599,7 +599,7 @@ func deduplicateScyllaManagerClusters(apiURL string) {
 				continue
 			}
 			delArgs := []string{"cluster", "delete", "-c", e.id}
-			if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+			if apiURL != "" {
 				delArgs = append(delArgs, "--api-url", apiURL)
 			}
 			if err := exec.Command("sctool", delArgs...).Run(); err != nil {
@@ -688,7 +688,7 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 
 	apiURL := srv.ScyllaManagerAPI
 	apiArgs := func(args []string) []string {
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if apiURL != "" {
 			return append(args, "--api-url", apiURL)
 		}
 		return args

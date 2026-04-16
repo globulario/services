@@ -48,10 +48,10 @@ func TestLoadConfigNormalizesLoopback(t *testing.T) {
 			wantWorkflow:   "wf.globular.internal:10220",
 		},
 		{
-			name:           "empty-controller-fills-default",
+			name:           "empty-controller-stays-empty",
 			json:           `{"controller_endpoint":""}`,
-			wantController: "localhost:12000", // default
-			wantWorkflow:   "localhost:10220", // default (originally 127.0.0.1:10220)
+			wantController: "", // resolved from etcd at runtime
+			wantWorkflow:   "",
 		},
 	}
 	for _, tc := range cases {

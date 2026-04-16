@@ -1,121 +1,49 @@
-I’m digging through the issue note and the attached code together so I can hand Claude something concrete instead of vapor. First target is to pin whether the bug is only the Scylla cursor jump, or whether the quickstart binaries are also stale and hiding the real fix.
+Good. Do not add new fixes yet.
 
-I’ve confirmed the bug note itself is crisp: the poller can jump one minute into the future and strand real events behind the cursor. Now I’m checking whether the quickstart bundle already contains the patched source, or whether Claude is fighting a ghost because the container binaries are older than the code.
+Next task is validation of the hardening changes under stress.
 
-Thought for 1m 42s
+Run focused tests for these scenarios and report exact behavior:
 
-Yes. Here’s the clean diagnosis I’d give Claude.
+1. Restart storm test
 
-The issue looks like two layers stacked together:
+   * Trigger 4 concurrent workflows that would call maybe_restart/restart on the same service/node
+   * Verify only one actual restart occurs
+   * Verify waiters return cleanly
+   * Verify no stuck dedup entry remains after completion
+   * Verify no systemd start-limit-hit
 
-Real bug in the event service poller
-The Scylla event-bus cursor can skip past the current minute when a bucket is empty, which makes later events in that same minute permanently invisible. Your pasted note explains the race clearly: an empty poll at 08:35 advances the cursor to 08:36, then an event written at 08:35:00.100 is now behind the cursor and never read.
-Quickstart image can easily run stale binaries
-The quickstart Dockerfile copies binaries from a local binaries/ directory into the image, and in the tarball I checked that directory is not populated. So if Claude patched source but did not rebuild the host binaries and re-run the quickstart image build, the containers will still run old code. That is the classic cardboard dragon: brave patch, same old binary inside the cage.
+2. Controller restart during active workflow
 
-Send Claude this:
+   * Start deploy
+   * Restart controller mid-flight
+   * Verify completed runs are not resumed incorrectly
+   * Verify no bogus FAILED transition
+   * Verify reconciliation continues
 
-Claude, here is the actual issue and the required fix path. Do these exact steps.
+3. Controller endpoint resolution
 
-1. Fix the Scylla cursor race in scylla_bus.go
+   * On a non-colocated node, verify cluster-doctor resolves controller from etcd
+   * Verify leader change updates resolution correctly
+   * Verify fallback path only occurs when etcd is unavailable
+   * Log when fallback is used
 
-In pollOnce(), the catch-up logic for len(events) == 0 must not advance past the current minute bucket.
+4. Version metadata validation
 
-Replace the old logic:
+   * Verify cluster-controller, cluster-doctor, node-agent, workflow, and other core services report the correct runtime version/build
+   * Show evidence from logs or status APIs
 
-advanced := t.Add(time.Minute)
-if advanced.After(sb.lastSeq.Time()) {
-    sb.lastSeq = gocql.MinTimeUUID(advanced)
-}
+5. workflow_engine_error retry behavior
 
-with:
+   * Simulate a transient engine-side error
+   * Verify release stays retryable and is reconciled successfully later
+   * Verify real business failure still becomes FAILED
 
-advanced := t.Add(time.Minute)
-nowBucket := time.Now().UTC().Truncate(time.Minute)
+For each test, provide:
 
-// Only skip buckets that are fully in the past.
-// Never skip the current minute because writes may still arrive there.
-if advanced.Before(nowBucket) && advanced.After(sb.lastSeq.Time()) {
-    sb.lastSeq = gocql.MinTimeUUID(advanced)
-}
-2. Verify the semantics carefully
+* commands run
+* observed logs
+* before/after behavior
+* pass/fail
+* any remaining gap
 
-The invariant is:
-
-empty past bucket → safe to skip
-empty current bucket → do not skip
-current minute is still open for writes
-
-That is the whole bug. The event is durably stored, but the poller jumps over it.
-
-3. Rebuild the actual binaries used by quickstart
-
-This part is crucial. Patching source alone is not enough.
-
-The quickstart image uses binaries copied into Docker from the local host build output. So after patching the event service, rebuild the host binaries first, then repopulate quickstart binaries/, then rebuild the image.
-
-The sequence should be:
-
-# rebuild host binaries from the real source tree
-# use your normal build command here
-# example placeholder:
-make build
-# or whatever produces /usr/lib/globular/bin/event_server etc.
-
-# then from globular-quickstart
-make collect
-make build
-docker compose up -d --force-recreate
-
-If he skips make collect and make build, the containers keep using old binaries.
-
-4. Prove the container is running the patched binary
-
-After rebuild, verify from inside the running event service container or image:
-
-strings /usr/lib/globular/bin/event_server | grep -E "maxBucketsPerPoll|maxEventsPerPoll|event-publisher|QueryEvents"
-
-Or more directly, inspect the patched source commit/build metadata if available.
-
-The goal is not “source was edited”.
-The goal is “the container binary changed”.
-
-5. Add a regression test
-
-Create a test for this exact race:
-
-set cursor at start of current minute bucket
-poll returns zero events
-write one event into same current minute
-next poll must still see it
-
-Pseudo-shape:
-
-func TestPollDoesNotAdvancePastCurrentBucket(t *testing.T) {
-    // arrange: lastSeq at current minute start
-    // arrange: first scan of current bucket returns zero rows
-    // act: pollOnce()
-    // assert: lastSeq did not move to next minute
-
-    // then insert event in same bucket with seq > original lastSeq
-    // act: pollOnce()
-    // assert: event is returned / delivered
-}
-6. If scenario tests still fail after that
-
-Then the next suspect is not the race anymore, but stale quickstart content. Check:
-
-binaries/event_server timestamp/hash before image build
-image rebuild actually happened
-container binary hash matches rebuilt host binary
-
-Useful commands:
-
-sha256sum binaries/event_server
-docker run --rm globulario/globular-node:latest sha256sum /usr/lib/globular/bin/event_server
-
-Those hashes should match.
-
-My own read: the code bug is real, but the quickstart stale-binary problem is very likely why Claude can patch and still see the same failure. One bug is in logic, the other is in the test harness supply chain. Two locked doors, one keyring.
-
-If you want, I can also draft the exact commit message and a tiny regression test skeleton for Claude.
+Do not implement more code unless a test reveals a real defect.

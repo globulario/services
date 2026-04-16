@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
@@ -266,7 +268,11 @@ func (srv *server) Init() error {
 		srv.MaxConcurrentJobs = 1
 	}
 	if srv.EtcdEndpoints == "" {
-		srv.EtcdEndpoints = "127.0.0.1:2379"
+		eps := config.GetEtcdEndpointsHostPorts()
+		if len(eps) == 0 {
+			return fmt.Errorf("etcd endpoints not configured and could not be resolved from config")
+		}
+		srv.EtcdEndpoints = strings.Join(eps, ",")
 	}
 	if srv.EtcdCACert == "" {
 		srv.EtcdCACert = "/var/lib/globular/pki/ca.pem"
@@ -305,9 +311,7 @@ func (srv *server) Init() error {
 	if srv.RcloneSource == "" {
 		srv.RcloneSource = "/var/lib/globular/minio/data"
 	}
-	if srv.ScyllaManagerAPI == "" {
-		srv.ScyllaManagerAPI = "http://127.0.0.1:5080"
-	}
+	// ScyllaManagerAPI left empty when not configured — sctool uses its own default.
 	if srv.HookTimeoutSeconds <= 0 {
 		srv.HookTimeoutSeconds = 30
 	}
@@ -666,7 +670,7 @@ func initializeServerDefaults() *server {
 		{Name: "local", Type: "local", Path: "/var/backups/globular", Primary: true},
 	}
 
-	srv.EtcdEndpoints = "127.0.0.1:2379"
+	srv.EtcdEndpoints = "" // resolved at runtime from config.GetEtcdEndpointsHostPorts()
 	srv.EtcdCACert = "/var/lib/globular/pki/ca.pem"
 	srv.EtcdCert = "/var/lib/globular/pki/issued/services/service.crt"
 	srv.EtcdKey = "/var/lib/globular/pki/issued/services/service.key"
@@ -678,7 +682,7 @@ func initializeServerDefaults() *server {
 	srv.RcloneRemote = ""
 	srv.RcloneSource = "/var/lib/globular/minio/data"
 
-	srv.ScyllaManagerAPI = "http://127.0.0.1:5080"
+	srv.ScyllaManagerAPI = ""
 	srv.ScyllaCluster = ""
 	srv.ScyllaLocation = ""
 

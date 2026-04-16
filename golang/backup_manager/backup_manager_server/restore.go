@@ -417,7 +417,7 @@ func (srv *server) restoreViaNodeAgent(
 
 	start := time.Now().UnixMilli()
 
-	endpoint := fmt.Sprintf("127.0.0.1:%d", nodeAgentDefaultPort)
+	endpoint := fmt.Sprintf("%s:%d", srv.Address, nodeAgentDefaultPort)
 	slog.Info("dispatching restore to node-agent", "provider", provName, "endpoint", endpoint)
 
 	conn, err := srv.dialNodeAgent(ctx, endpoint)

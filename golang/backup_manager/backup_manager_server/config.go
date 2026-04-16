@@ -45,7 +45,7 @@ type Config struct {
 	Destinations      []DestinationConfig `json:"Destinations"` // where to store backups (replicate to all)
 
 	// etcd provider
-	EtcdEndpoints string `json:"EtcdEndpoints"` // comma-separated, default "127.0.0.1:2379"
+	EtcdEndpoints string `json:"EtcdEndpoints"` // comma-separated; resolved at runtime from config.GetEtcdEndpointsHostPorts()
 	EtcdCACert    string `json:"EtcdCACert"`
 	EtcdCert      string `json:"EtcdCert"`
 	EtcdKey       string `json:"EtcdKey"`
@@ -88,7 +88,7 @@ type Config struct {
 	RcloneSource string `json:"RcloneSource"` // local path to sync, default minio data dir
 
 	// scylla provider
-	ScyllaManagerAPI string `json:"ScyllaManagerAPI"` // scylla-manager API, default "http://127.0.0.1:5080"
+	ScyllaManagerAPI string `json:"ScyllaManagerAPI"` // scylla-manager API; empty = use sctool default
 	ScyllaCluster    string `json:"ScyllaCluster"`    // cluster name in scylla-manager
 	ScyllaLocation   string `json:"ScyllaLocation"`   // backup location, e.g. "s3:scylla-backups"
 
@@ -163,7 +163,7 @@ func DefaultConfig() *Config {
 			},
 		},
 
-		EtcdEndpoints: "127.0.0.1:2379",
+		EtcdEndpoints: "", // resolved at runtime from config.GetEtcdEndpointsHostPorts()
 		EtcdCACert:    "/var/lib/globular/pki/ca.pem",
 		EtcdCert:      "/var/lib/globular/pki/issued/services/service.crt",
 		EtcdKey:       "/var/lib/globular/pki/issued/services/service.key",
@@ -175,7 +175,7 @@ func DefaultConfig() *Config {
 		RcloneRemote: "",
 		RcloneSource: "/var/lib/globular/minio/data",
 
-		ScyllaManagerAPI: "http://127.0.0.1:5080",
+		ScyllaManagerAPI: "",
 		ScyllaCluster:    "",
 		ScyllaLocation:   "",
 

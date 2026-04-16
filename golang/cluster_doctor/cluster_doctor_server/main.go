@@ -196,9 +196,14 @@ func main() {
 	// Start the periodic healer loop (leader-only, configurable).
 	srv.startHealerLoop(electionCtx)
 
+	// Log the resolved controller endpoint (from etcd, not config default).
+	resolvedCC := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", cfg.ControllerEndpoint)
+	if resolvedCC == "" {
+		resolvedCC = cfg.ControllerEndpoint
+	}
 	logger.Info("cluster doctor ready",
 		"address", address,
-		"controller", cfg.ControllerEndpoint,
+		"controller", resolvedCC,
 		"version", Version,
 	)
 

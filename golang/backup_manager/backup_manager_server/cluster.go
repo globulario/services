@@ -331,7 +331,7 @@ func (srv *server) restoreTestScylla(ctx context.Context, pr *backup_managerpb.B
 
 	// LIGHT: confirm task success
 	progressArgs := []string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}
-	if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+	if srv.ScyllaManagerAPI != "" {
 		progressArgs = append(progressArgs, "--api-url", srv.ScyllaManagerAPI)
 	}
 	stdout, stderr, err := runCmdCtx(ctx, "sctool", progressArgs...)

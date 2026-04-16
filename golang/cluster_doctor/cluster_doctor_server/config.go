@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -44,11 +43,9 @@ type clusterdoctorConfig struct {
 func defaultConfig() *clusterdoctorConfig {
 	return &clusterdoctorConfig{
 		Port:                       12100,
-		// Use "localhost" not "127.0.0.1" everywhere: the cluster CA
-		// issues service certs with DNS:localhost in the SAN set but
-		// not the loopback IP literally, so any 127.0.0.1 dial fails
-		// TLS verification. See docs/endpoint_resolution_policy.md.
-		ControllerEndpoint:         "localhost:12000",
+		// Resolved from etcd at startup via config.ResolveServiceAddr.
+		// Empty default — falls back only if etcd is unreachable.
+		ControllerEndpoint:         "",
 		// Fallback only — the real endpoint is resolved from etcd at startup
 		// via config.ResolveServiceAddr("workflow.WorkflowService", ...).
 		// This default fires only if etcd is unreachable during doctor startup.
@@ -94,16 +91,12 @@ func loadConfig(path string) (*clusterdoctorConfig, error) {
 		}
 	}
 
-	// Backward compatibility: older packaged configs may set controller_endpoint
-	// to an empty string. If missing, fall back to the default localhost:12000.
-	if strings.TrimSpace(cfg.ControllerEndpoint) == "" {
-		cfg.ControllerEndpoint = defaultConfig().ControllerEndpoint
-	}
 	// Normalize loopback IP literals to "localhost" via the shared
 	// resolver — the service cert's SAN covers DNS:localhost, not the
-	// IPs 127.0.0.1/::1. Existing deployed configs wrote "127.0.0.1:12000"
-	// which now fails TLS verify.
-	cfg.ControllerEndpoint = config.NormalizeLoopback(cfg.ControllerEndpoint)
+	// IPs 127.0.0.1/::1.
+	if cfg.ControllerEndpoint != "" {
+		cfg.ControllerEndpoint = config.NormalizeLoopback(cfg.ControllerEndpoint)
+	}
 	cfg.WorkflowEndpoint = config.NormalizeLoopback(cfg.WorkflowEndpoint)
 	return cfg, nil
 }
@@ -112,9 +105,7 @@ func (c *clusterdoctorConfig) validate() error {
 	if c.Port <= 0 {
 		return errors.New("config: port must be > 0")
 	}
-	if c.ControllerEndpoint == "" {
-		return errors.New("config: controller_endpoint must be set")
-	}
+	// ControllerEndpoint may be empty — resolved from etcd at runtime.
 	return nil
 }
 

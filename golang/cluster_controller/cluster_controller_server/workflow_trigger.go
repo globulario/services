@@ -89,6 +89,9 @@ func (srv *server) triggerBootstrapWorkflow(nodeID string) {
 // dialNodeAgent creates a direct gRPC connection to a node-agent.
 // Uses config.ResolveDialTarget for canonical endpoint resolution.
 func (srv *server) dialNodeAgent(endpoint string) (*grpc.ClientConn, error) {
+	if srv.testDialNodeAgent != nil {
+		return srv.testDialNodeAgent(endpoint)
+	}
 	dt := config.ResolveDialTarget(endpoint)
 
 	certFile := "/var/lib/globular/pki/issued/services/service.crt"

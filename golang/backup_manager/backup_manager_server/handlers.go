@@ -1060,7 +1060,7 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 			}
 			// Check task status
 			scyllaArgs := []string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}
-			if srv.ScyllaManagerAPI != "" && srv.ScyllaManagerAPI != "http://127.0.0.1:5080" {
+			if srv.ScyllaManagerAPI != "" {
 				scyllaArgs = append(scyllaArgs, "--api-url", srv.ScyllaManagerAPI)
 			}
 			stdout, stderr, err := runCmd("sctool", scyllaArgs...)

@@ -255,8 +255,14 @@ type server struct {
 	// to the in-memory srv.state. Governed by docs/architecture/projection-clauses.md.
 	nodeIdentityProj *projections.NodeIdentityProjector
 
+	// inflightRestarts deduplicates concurrent restart/maybe_restart actions
+	// for the same (node, unit) pair. If a restart is already in progress,
+	// new callers wait for it to complete rather than piling on.
+	inflightRestarts sync.Map // key: "nodeID::unit" → chan struct{} (closed on completion)
+
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
+	testDialNodeAgent        func(endpoint string) (*grpc.ClientConn, error)
 	// Plan test seams removed.
 }
 

@@ -367,13 +367,18 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		// release phase and per-node status. Controller does not re-patch.
 		if err != nil {
 			errMsg := err.Error()
-			// Preflight/infrastructure errors (handlers not registered, workflow
-			// service not ready) are transient — reset to RESOLVED so the drift
-			// reconciler can retry. Only mark FAILED for real execution errors.
+			// Engine-level errors (preflight failures, missing handlers,
+			// circuit breakers, unavailable backends) are transient — reset
+			// to RESOLVED so the drift reconciler retries on the next cycle.
+			// Only workflow callbacks (MarkNodeFailed, MarkReleaseFailed) set
+			// FAILED for real execution errors; the engine path stays retryable.
 			if strings.Contains(errMsg, "preflight") ||
 				strings.Contains(errMsg, "no registered handler") ||
 				strings.Contains(errMsg, "handler not found") ||
-				strings.Contains(errMsg, "Unavailable") {
+				strings.Contains(errMsg, "Unavailable") ||
+				strings.Contains(errMsg, "circuit breaker") ||
+				strings.Contains(errMsg, "DeadlineExceeded") ||
+				strings.Contains(errMsg, "connection refused") {
 				log.Printf("%s %s: release workflow transient error, staying RESOLVED for retry: %v", h.ResourceType, h.Name, err)
 				h.PatchStatus(ctx, statusPatch{
 					Phase:                cluster_controllerpb.ReleasePhaseResolved,

@@ -493,7 +493,7 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	for _, ex := range excludes {
 		args = append(args, "--exclude", ex)
 	}
-	cmd := exec.CommandContext(ctx, "restic", args...)
+	cmd := exec.CommandContext(ctx, resolveBin("restic"), args...)
 	cmd.Env = env
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -1624,8 +1624,25 @@ func restoreFail(provider, msg string, outputs map[string]string) *node_agentpb.
 	}
 }
 
+// resolveBin resolves a bare binary name to its full path.
+// The node-agent's $PATH may not include /usr/lib/globular/bin,
+// so we check there as a fallback.
+func resolveBin(name string) string {
+	if filepath.Base(name) != name {
+		return name // already a path
+	}
+	if p, err := exec.LookPath(name); err == nil {
+		return p
+	}
+	candidate := filepath.Join("/usr/lib/globular/bin", name)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return name // let exec fail with a clear error
+}
+
 func runRestore(ctx context.Context, name string, args ...string) (stdout, stderr string, err error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, resolveBin(name), args...)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf

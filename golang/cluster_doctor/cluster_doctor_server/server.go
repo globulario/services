@@ -119,9 +119,17 @@ func buildClientTLSCreds(serverName string) credentials.TransportCredentials {
 }
 
 func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, error) {
-	// Dial ClusterController with TLS. Endpoint resolution (loopback
-	// rewrite + SNI) happens once, here — not scattered across helpers.
-	ccTarget := config.ResolveDialTarget(cfg.ControllerEndpoint)
+	// Resolve controller endpoint from etcd (source of truth), falling
+	// back to config file value only if etcd is unreachable.
+	ccEndpoint := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", cfg.ControllerEndpoint)
+	if ccEndpoint == "" {
+		ccEndpoint = cfg.ControllerEndpoint
+	}
+	if ccEndpoint == "" {
+		return nil, fmt.Errorf("controller endpoint not configured and not found in etcd")
+	}
+
+	ccTarget := config.ResolveDialTarget(ccEndpoint)
 	ccConn, err := grpc.NewClient(
 		ccTarget.Address,
 		grpc.WithTransportCredentials(buildClientTLSCreds(ccTarget.ServerName)),

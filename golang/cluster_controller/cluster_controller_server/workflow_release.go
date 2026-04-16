@@ -550,19 +550,8 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			conn, err := srv.dialNodeAgent(endpoint)
-			if err != nil {
-				return fmt.Errorf("connect to node %s: %w", nodeID, err)
-			}
-			defer conn.Close()
-
 			unit := "globular-" + name + ".service"
-			client := node_agentpb.NewNodeAgentServiceClient(conn)
-			_, err = client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
-				Unit:   unit,
-				Action: "restart",
-			})
-			if err != nil {
+			if err := srv.dedupRestart(ctx, nodeID, endpoint, unit); err != nil {
 				return fmt.Errorf("restart %s on node %s: %w", unit, nodeID, err)
 			}
 			return nil
@@ -594,19 +583,8 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			conn, err := srv.dialNodeAgent(endpoint)
-			if err != nil {
-				return fmt.Errorf("connect to node %s: %w", nodeID, err)
-			}
-			defer conn.Close()
-
 			unit := "globular-" + name + ".service"
-			client := node_agentpb.NewNodeAgentServiceClient(conn)
-			_, err = client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
-				Unit:   unit,
-				Action: "restart",
-			})
-			if err != nil {
+			if err := srv.dedupRestart(ctx, nodeID, endpoint, unit); err != nil {
 				return fmt.Errorf("restart %s on node %s: %w", unit, nodeID, err)
 			}
 			return nil
@@ -856,4 +834,44 @@ func skipRuntimeCheck(name string) bool {
 		return true
 	}
 	return false
+}
+
+// dedupRestart ensures only one restart is in progress for a given (node, unit)
+// pair. If another goroutine is already restarting the same unit on the same
+// node, this call waits for it to complete and returns nil (the restart already
+// happened). This prevents systemd start-limit-hit from concurrent workflow
+// restart storms.
+func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit string) error {
+	key := nodeID + "::" + unit
+	done := make(chan struct{})
+
+	if existing, loaded := srv.inflightRestarts.LoadOrStore(key, done); loaded {
+		// Another restart is already in progress — wait for it.
+		log.Printf("dedup: skip restart for %s on node %s (already in progress)", unit, nodeID)
+		select {
+		case <-existing.(chan struct{}):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// We own this restart. Execute and clean up.
+	defer func() {
+		close(done)
+		srv.inflightRestarts.Delete(key)
+	}()
+
+	conn, err := srv.dialNodeAgent(endpoint)
+	if err != nil {
+		return fmt.Errorf("connect to node %s: %w", nodeID, err)
+	}
+	defer conn.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(conn)
+	_, err = client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
+		Unit:   unit,
+		Action: "restart",
+	})
+	return err
 }
