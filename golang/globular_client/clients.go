@@ -1225,21 +1225,39 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 // GetClientContext returns a metadata-enriched context (token/domain/mac).
 func GetClientContext(client Client) context.Context {
-	mac := client.GetMac()
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
 
-	// Generate a fresh service-account token on the fly so it is never expired.
-	token, _ := security.GenerateServiceToken(mac)
+	// Use the LOCAL node's MAC for token signing — not the target service's MAC.
+	// The target service's MAC (client.GetMac()) is the remote service's identity;
+	// the Ed25519 private key for that MAC only exists on the remote node.
+	// We must sign with OUR key so the token can be validated by the server.
+	localMac, err := config.GetMacAddress()
+	if err != nil {
+		slog.Warn("GetClientContext: local MAC lookup failed — falling back to client MAC",
+			"error", err)
+		localMac = client.GetMac()
+	}
 
-	clusterID, _ := security.GetLocalClusterID()
+	// Generate a fresh service-account token on the fly so it is never expired.
+	token, err := security.GenerateServiceToken(localMac)
+	if err != nil {
+		slog.Warn("GetClientContext: service token generation failed — RPCs will be unauthenticated",
+			"mac", localMac, "address", address, "error", err)
+	}
+
+	clusterID, err := security.GetLocalClusterID()
+	if err != nil {
+		slog.Warn("GetClientContext: cluster ID lookup failed — RPCs may be rejected",
+			"error", err)
+	}
 
 	md := metadata.New(map[string]string{
 		"token":      token,
 		"domain":     address,
-		"mac":        mac,
+		"mac":        localMac,
 		"cluster_id": clusterID,
 	})
 	return metadata.NewOutgoingContext(context.Background(), md)

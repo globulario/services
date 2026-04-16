@@ -1121,6 +1121,12 @@ func initServiceEvents(s Service) {
 		if decision.Reason == "bootstrap_method_blocked" || decision.Reason == "bootstrap_remote" {
 			return
 		}
+		// Break feedback loop: don't publish auth failures about the event
+		// service itself — the Publish call would fail auth too, triggering
+		// another OnSecurityEvent, looping until the circuit breaker opens.
+		if strings.Contains(decision.GRPCMethod, "EventService") {
+			return
+		}
 
 		// Pick event name based on the type of security event.
 		eventName := "alert.auth.denied"

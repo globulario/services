@@ -74,7 +74,7 @@ If etcd can't provide an infrastructure address, the service must error out — 
 Don't resolve peer addresses once at startup. Use lazy retry goroutines or re-resolve on each call. The service registry is empty during the first few seconds of a cold boot.
 
 ### Direct gRPC vs. mesh routing
-When a service needs mTLS + token auth on an inter-service call, use the direct service port — not the Envoy mesh port (443). Envoy may strip auth metadata that the target service's interceptor requires.
+Envoy forwards all HTTP/2 headers (including gRPC metadata like `token`, `authorization`, `domain`, `cluster_id`) to upstream services. The mesh port (443) works for authenticated calls as long as the client sets auth metadata via `GetClientContext()`. If `GenerateServiceToken()` fails silently, the metadata will contain empty strings — check logs for "service token generation failed" warnings.
 
 ### DNS A records need IPs, not hostnames
 Any code that generates DNS A records must resolve hostnames to IPv4 addresses first. `net.ParseIP()` on a hostname returns nil, producing malformed DNS wire-format packets.
