@@ -420,6 +420,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 //	*rbacpb.SetResourcePermissionsRsp - The response indicating success.
 //	error - An error if validation fails, the client is not authorized, or the operation fails.
 func (srv *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	if len(rqst.Path) == 0 {
 		return nil, errors.New("no resource path given")
@@ -870,6 +873,9 @@ func parentPath(p string) string {
 //
 //	A response indicating the result of the delete operation, or an error if the operation fails.
 func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
@@ -902,6 +908,10 @@ func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.D
 // - If the resource has no permission record, it returns success.
 // - If the action isn't present, it returns success without persisting.
 func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	path := rqst.Path
 	action := rqst.Name
 	kind := rqst.Type // ALLOWED or DENIED
@@ -984,6 +994,9 @@ func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.De
 //	*rbacpb.GetResourcePermissionRsp - The response containing the found permission.
 //	error - An error if the permission is not found or if there is an internal issue.
 func (srv *server) GetResourcePermission(ctx context.Context, rqst *rbacpb.GetResourcePermissionRqst) (*rbacpb.GetResourcePermissionRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
@@ -1039,6 +1052,10 @@ func upsertPermission(list []*rbacpb.Permission, p *rbacpb.Permission) []*rbacpb
 //	*rbacpb.SetResourcePermissionRsp - The response indicating success.
 //	error - An error if the operation fails.
 func (srv *server) SetResourcePermission(ctx context.Context, rqst *rbacpb.SetResourcePermissionRqst) (*rbacpb.SetResourcePermissionRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	// Try to fetch existing permissions
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 
@@ -1105,6 +1122,10 @@ func (srv *server) SetResourcePermission(ctx context.Context, rqst *rbacpb.SetRe
 // It takes a context and a GetResourcePermissionsRqst containing the resource path.
 // Returns a GetResourcePermissionsRsp with the permissions or an error if retrieval fails.
 func (srv *server) GetResourcePermissions(ctx context.Context, rqst *rbacpb.GetResourcePermissionsRqst) (*rbacpb.GetResourcePermissionsRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(

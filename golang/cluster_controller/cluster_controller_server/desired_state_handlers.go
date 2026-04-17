@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -242,15 +243,24 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 		}
 	}
 
+	// Phase 1: verify the artifact exists in the repository before writing
+	// desired state. Fail closed: if repository is unreachable, reject.
+	// Phase 2: also resolve build_id from the artifact manifest.
+	buildID, err := srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
+	if err != nil {
+		return err
+	}
+
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
 			ServiceName: canon,
 			Version:     version,
 			BuildNumber: svc.BuildNumber,
+			BuildID:     buildID,
 		},
 	}
-	_, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
+	_, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
 	if err != nil {
 		return err
 	}
@@ -293,6 +303,70 @@ func (srv *server) highestHealthyInstalledVersion(serviceName string) string {
 		}
 	}
 	return best
+}
+
+// validateArtifactInRepo verifies that the specified artifact exists in the
+// repository and is reachable. This prevents desired state from referencing
+// non-existent artifacts. Fails closed: if the repository is unreachable,
+// the write is rejected.
+// validateArtifactInRepo verifies the artifact exists in the repository and
+// returns its build_id. Phase 2: the build_id is persisted into desired-state
+// so convergence can use exact identity.
+func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, version string, buildNumber int64) (string, error) {
+	// Resolve repository address — same path used by the release resolver.
+	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if addr == "" {
+		return "", status.Errorf(codes.Unavailable,
+			"repository address not configured; cannot validate artifact for %s@%s", serviceName, version)
+	}
+
+	// Use the system default publisher — same as ensureServiceRelease,
+	// RemoveDesiredService, and the reconciler.
+	publisher := defaultPublisherID()
+
+	// Default platform — same as release_resolver.go:120-124.
+	platform := "linux_amd64"
+
+	repoClient, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
+	if err != nil {
+		return "", status.Errorf(codes.Unavailable,
+			"repository unreachable at %s; cannot validate artifact for %s@%s: %v", addr, serviceName, version, err)
+	}
+	defer repoClient.Close()
+
+	ref := &repositorypb.ArtifactRef{
+		PublisherId: publisher,
+		Name:        serviceName,
+		Version:     version,
+		Platform:    platform,
+	}
+
+	manifest, err := repoClient.GetArtifactManifest(ref, buildNumber)
+	if err != nil {
+		code := status.Code(err)
+		switch code {
+		case codes.NotFound:
+			return "", status.Errorf(codes.NotFound,
+				"artifact %s@%s (build %d) not found in repository; "+
+					"cannot set desired state for non-existent artifact",
+				serviceName, version, buildNumber)
+		case codes.Unavailable:
+			return "", status.Errorf(codes.Unavailable,
+				"repository unreachable at %s; cannot validate artifact for %s@%s: %v",
+				addr, serviceName, version, err)
+		default:
+			return "", status.Errorf(codes.Internal,
+				"repository validation failed for %s@%s: %v",
+				serviceName, version, err)
+		}
+	}
+
+	// Phase 2: extract build_id from the manifest.
+	buildID := ""
+	if manifest != nil {
+		buildID = manifest.GetBuildId()
+	}
+	return buildID, nil
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────

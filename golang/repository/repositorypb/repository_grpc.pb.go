@@ -19,21 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PackageRepository_DownloadBundle_FullMethodName       = "/repository.PackageRepository/DownloadBundle"
-	PackageRepository_UploadBundle_FullMethodName         = "/repository.PackageRepository/UploadBundle"
-	PackageRepository_ListArtifacts_FullMethodName        = "/repository.PackageRepository/ListArtifacts"
-	PackageRepository_UploadArtifact_FullMethodName       = "/repository.PackageRepository/UploadArtifact"
-	PackageRepository_DownloadArtifact_FullMethodName     = "/repository.PackageRepository/DownloadArtifact"
-	PackageRepository_GetArtifactManifest_FullMethodName  = "/repository.PackageRepository/GetArtifactManifest"
-	PackageRepository_ListBundles_FullMethodName          = "/repository.PackageRepository/ListBundles"
-	PackageRepository_SearchArtifacts_FullMethodName      = "/repository.PackageRepository/SearchArtifacts"
-	PackageRepository_GetArtifactVersions_FullMethodName  = "/repository.PackageRepository/GetArtifactVersions"
-	PackageRepository_DescribePackage_FullMethodName      = "/repository.PackageRepository/DescribePackage"
-	PackageRepository_DeleteArtifact_FullMethodName       = "/repository.PackageRepository/DeleteArtifact"
-	PackageRepository_PromoteArtifact_FullMethodName      = "/repository.PackageRepository/PromoteArtifact"
-	PackageRepository_SetArtifactState_FullMethodName     = "/repository.PackageRepository/SetArtifactState"
-	PackageRepository_GetNamespace_FullMethodName         = "/repository.PackageRepository/GetNamespace"
-	PackageRepository_UpdateArtifactBinary_FullMethodName = "/repository.PackageRepository/UpdateArtifactBinary"
+	PackageRepository_DownloadBundle_FullMethodName            = "/repository.PackageRepository/DownloadBundle"
+	PackageRepository_UploadBundle_FullMethodName              = "/repository.PackageRepository/UploadBundle"
+	PackageRepository_ListArtifacts_FullMethodName             = "/repository.PackageRepository/ListArtifacts"
+	PackageRepository_UploadArtifact_FullMethodName            = "/repository.PackageRepository/UploadArtifact"
+	PackageRepository_DownloadArtifact_FullMethodName          = "/repository.PackageRepository/DownloadArtifact"
+	PackageRepository_GetArtifactManifest_FullMethodName       = "/repository.PackageRepository/GetArtifactManifest"
+	PackageRepository_ListBundles_FullMethodName               = "/repository.PackageRepository/ListBundles"
+	PackageRepository_SearchArtifacts_FullMethodName           = "/repository.PackageRepository/SearchArtifacts"
+	PackageRepository_GetArtifactVersions_FullMethodName       = "/repository.PackageRepository/GetArtifactVersions"
+	PackageRepository_DescribePackage_FullMethodName           = "/repository.PackageRepository/DescribePackage"
+	PackageRepository_DeleteArtifact_FullMethodName            = "/repository.PackageRepository/DeleteArtifact"
+	PackageRepository_PromoteArtifact_FullMethodName           = "/repository.PackageRepository/PromoteArtifact"
+	PackageRepository_SetArtifactState_FullMethodName          = "/repository.PackageRepository/SetArtifactState"
+	PackageRepository_GetNamespace_FullMethodName              = "/repository.PackageRepository/GetNamespace"
+	PackageRepository_UpdateArtifactBinary_FullMethodName      = "/repository.PackageRepository/UpdateArtifactBinary"
+	PackageRepository_ImportProvisionalArtifact_FullMethodName = "/repository.PackageRepository/ImportProvisionalArtifact"
+	PackageRepository_AllocateUpload_FullMethodName            = "/repository.PackageRepository/AllocateUpload"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -81,6 +83,15 @@ type PackageRepositoryClient interface {
 	// assigns the next build_number, and promotes to PUBLISHED.
 	// This enables delta deploys where only the binary changed.
 	UpdateArtifactBinary(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse], error)
+	// Phase 6: Imports a day-0 provisionally installed artifact into the repository.
+	// Validates version/digest against the release ledger, assigns confirmed build_id,
+	// and adds to the ledger as RELEASED. Rejects conflicts (same version, different digest).
+	ImportProvisionalArtifact(ctx context.Context, in *ImportProvisionalRequest, opts ...grpc.CallOption) (*ImportProvisionalResponse, error)
+	// Phase 4: Reserves a version and pre-assigns a build_id before upload.
+	// The repository allocates or validates the version, enforces monotonicity,
+	// and returns a short-lived reservation token. The client then uploads
+	// the artifact using the reservation_id.
+	AllocateUpload(ctx context.Context, in *AllocateUploadRequest, opts ...grpc.CallOption) (*AllocateUploadResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -268,6 +279,26 @@ func (c *packageRepositoryClient) UpdateArtifactBinary(ctx context.Context, opts
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PackageRepository_UpdateArtifactBinaryClient = grpc.ClientStreamingClient[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]
 
+func (c *packageRepositoryClient) ImportProvisionalArtifact(ctx context.Context, in *ImportProvisionalRequest, opts ...grpc.CallOption) (*ImportProvisionalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportProvisionalResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ImportProvisionalArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) AllocateUpload(ctx context.Context, in *AllocateUploadRequest, opts ...grpc.CallOption) (*AllocateUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AllocateUploadResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_AllocateUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -313,6 +344,15 @@ type PackageRepositoryServer interface {
 	// assigns the next build_number, and promotes to PUBLISHED.
 	// This enables delta deploys where only the binary changed.
 	UpdateArtifactBinary(grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]) error
+	// Phase 6: Imports a day-0 provisionally installed artifact into the repository.
+	// Validates version/digest against the release ledger, assigns confirmed build_id,
+	// and adds to the ledger as RELEASED. Rejects conflicts (same version, different digest).
+	ImportProvisionalArtifact(context.Context, *ImportProvisionalRequest) (*ImportProvisionalResponse, error)
+	// Phase 4: Reserves a version and pre-assigns a build_id before upload.
+	// The repository allocates or validates the version, enforces monotonicity,
+	// and returns a short-lived reservation token. The client then uploads
+	// the artifact using the reservation_id.
+	AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -366,6 +406,12 @@ func (UnimplementedPackageRepositoryServer) GetNamespace(context.Context, *GetNa
 }
 func (UnimplementedPackageRepositoryServer) UpdateArtifactBinary(grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]) error {
 	return status.Error(codes.Unimplemented, "method UpdateArtifactBinary not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ImportProvisionalArtifact(context.Context, *ImportProvisionalRequest) (*ImportProvisionalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportProvisionalArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AllocateUpload not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -610,6 +656,42 @@ func _PackageRepository_UpdateArtifactBinary_Handler(srv interface{}, stream grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PackageRepository_UpdateArtifactBinaryServer = grpc.ClientStreamingServer[UpdateArtifactBinaryRequest, UpdateArtifactBinaryResponse]
 
+func _PackageRepository_ImportProvisionalArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportProvisionalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ImportProvisionalArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ImportProvisionalArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ImportProvisionalArtifact(ctx, req.(*ImportProvisionalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_AllocateUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AllocateUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).AllocateUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_AllocateUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).AllocateUpload(ctx, req.(*AllocateUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -656,6 +738,14 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNamespace",
 			Handler:    _PackageRepository_GetNamespace_Handler,
+		},
+		{
+			MethodName: "ImportProvisionalArtifact",
+			Handler:    _PackageRepository_ImportProvisionalArtifact_Handler,
+		},
+		{
+			MethodName: "AllocateUpload",
+			Handler:    _PackageRepository_AllocateUpload_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

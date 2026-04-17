@@ -25,7 +25,7 @@ type ControllerDeployConfig struct {
 	ConfirmLeadershipMoved func(ctx context.Context, oldLeaderNodeID string) error
 
 	// ApplyPackageRelease calls the remote node-agent to install a package.
-	ApplyPackageRelease func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool) error
+	ApplyPackageRelease func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error
 }
 
 // ControllerDiscovery is the result of replica discovery.
@@ -265,11 +265,19 @@ func deployApplyPackageRelease(cfg ControllerDeployConfig) ActionHandler {
 		if bn, ok := req.With["build_number"].(float64); ok {
 			buildNumber = int64(bn)
 		}
+		// Phase 2: read build_id from workflow inputs.
+		buildID := ""
+		if id, ok := req.Inputs["resolved_build_id"].(string); ok {
+			buildID = id
+		}
+		if id, ok := req.With["build_id"].(string); ok && id != "" {
+			buildID = id
+		}
 
 		if cfg.ApplyPackageRelease == nil {
 			return nil, fmt.Errorf("ApplyPackageRelease not configured")
 		}
-		if err := cfg.ApplyPackageRelease(ctx, nodeID, endpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force); err != nil {
+		if err := cfg.ApplyPackageRelease(ctx, nodeID, endpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID); err != nil {
 			return nil, fmt.Errorf("apply %s@%s on node %s: %w", pkgName, version, nodeID, err)
 		}
 

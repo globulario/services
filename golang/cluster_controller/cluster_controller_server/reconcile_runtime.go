@@ -127,7 +127,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				continue
 			}
 			canon := canonicalServiceName(sdv.Meta.Name)
-			if srv.isServiceConverged(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber) {
+			if srv.isServiceConverged(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.BuildID) {
 				suppressed++
 				continue
 			}

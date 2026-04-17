@@ -14,7 +14,7 @@ Globular's convergence model operates across four independent truth layers. Each
 
 **Source**: Repository service (MinIO object storage + etcd manifest registry)
 **Owner**: `globular pkg publish` command or CI pipeline
-**Key data**: `ArtifactManifest` — publisher, name, version, platform, build number, SHA256 checksum, provenance, publish state
+**Key data**: `ArtifactManifest` — publisher, name, version, platform, `build_id` (UUIDv7, sole authoritative identity), SHA256 digest, provenance, publish state
 
 An artifact enters this layer when it is published to the repository. It progresses through lifecycle states:
 
@@ -33,7 +33,7 @@ The artifact layer is the foundation. If a version doesn't exist here as `PUBLIS
 
 **Source**: Cluster Controller etcd store at `/globular/resources/DesiredService/{name}`
 **Owner**: Operator via `globular services desired set` or automated seeding
-**Key data**: `DesiredService` — service name, target version, publisher, platform, build number
+**Key data**: `DesiredService` — service name, target version, `build_id` (resolved from repository on write). The controller resolves version → `build_id` once, then persists it. Convergence compares `build_id` only — never version or build_number.
 
 The desired release layer captures operator intent. It answers: "What version of each service should be running across the cluster?"
 

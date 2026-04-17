@@ -399,6 +399,19 @@ func (s *MinioStorage) MkdirAll(ctx context.Context, path string, perm fs.FileMo
 	return err
 }
 
+// Ping verifies that the MinIO bucket is reachable. Returns an error if the
+// backend is down, the bucket does not exist, or credentials are invalid.
+func (s *MinioStorage) Ping(ctx context.Context) error {
+	exists, err := s.client.BucketExists(ctx, s.bucket)
+	if err != nil {
+		return fmt.Errorf("minio ping: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("minio ping: bucket %q does not exist", s.bucket)
+	}
+	return nil
+}
+
 // TempDir returns the local temp directory (for scratch files).
 func (s *MinioStorage) TempDir() string {
 	return os.TempDir()

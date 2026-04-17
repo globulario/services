@@ -655,9 +655,9 @@ func (srv *server) storageForPath(path string) storage_backend.Storage {
 		// Paths starting with /public/ are MinIO-backed and handled below.
 		return storage_backend.NewOSStorage("")
 	}
-	// MinIO /public/ prefix: route to MinIO storage.
-	// The path already contains "public/" so use an empty prefix to avoid double-prefixing.
-	if strings.HasPrefix(path, "/public/") && srv.minioEnabled() {
+	// MinIO-backed paths: /public/, /webroot/, and all non-user content.
+	// MinIO is the distributed source of truth for web content.
+	if (strings.HasPrefix(path, "/public/") || strings.HasPrefix(path, "/webroot/")) && srv.minioEnabled() {
 		if err := srv.ensureMinioClient(); err == nil {
 			m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, "")
 			if err == nil {
@@ -666,6 +666,17 @@ func (srv *server) storageForPath(path string) storage_backend.Storage {
 		}
 	}
 	if !strings.HasPrefix(path, "/users/") {
+		// Non-user paths: prefer MinIO (distributed) over local filesystem.
+		// This ensures all nodes serve the same content from shared storage.
+		if srv.minioEnabled() {
+			if err := srv.ensureMinioClient(); err == nil {
+				m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, "")
+				if err == nil {
+					return m
+				}
+			}
+		}
+		// Fallback to local OS only if MinIO is unavailable.
 		if srv.publicStorage == nil {
 			srv.publicStorage = storage_backend.NewOSStorage(srv.Root)
 		}

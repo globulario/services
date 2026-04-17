@@ -436,6 +436,9 @@ func (srv *server) saveIncident(inc *workflowpb.Incident, absentScans int) {
 // ListIncidents returns incidents for a cluster, optionally filtered by status.
 // Applies ordering rules from §4.4.
 func (srv *server) ListIncidents(_ context.Context, req *workflowpb.ListIncidentsRequest) (*workflowpb.ListIncidentsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
@@ -486,6 +489,9 @@ func (srv *server) ListIncidents(_ context.Context, req *workflowpb.ListIncident
 }
 
 func (srv *server) GetIncident(_ context.Context, req *workflowpb.GetIncidentRequest) (*workflowpb.Incident, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.IncidentId == "" {
 		return nil, fmt.Errorf("cluster_id and incident_id are required")
 	}
@@ -500,6 +506,9 @@ func (srv *server) GetIncident(_ context.Context, req *workflowpb.GetIncidentReq
 // ApplyIncidentAction records an operator action and updates incident state.
 // Actions are append-only; state updates are derived from the action verb.
 func (srv *server) ApplyIncidentAction(_ context.Context, req *workflowpb.IncidentAction) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.IncidentId == "" || req.Action == "" {
 		return &emptypb.Empty{}, fmt.Errorf("incident_id and action are required")
 	}
@@ -545,6 +554,9 @@ func (srv *server) ApplyIncidentAction(_ context.Context, req *workflowpb.Incide
 // SubmitProposedFix attaches an AI-proposed fix to an incident. Validates
 // that the fix cites evidence or diagnosis (§4 citation rule).
 func (srv *server) SubmitProposedFix(_ context.Context, req *workflowpb.SubmitProposedFixRequest) (*workflowpb.ProposedFix, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.IncidentId == "" || req.Fix == nil {
 		return nil, fmt.Errorf("cluster_id, incident_id, fix are required")
 	}

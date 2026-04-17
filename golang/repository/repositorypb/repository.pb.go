@@ -157,6 +157,62 @@ func (PublishState) EnumDescriptor() ([]byte, []int) {
 	return file_repository_proto_rawDescGZIP(), []int{1}
 }
 
+// VersionIntent specifies how the repository should allocate a version.
+type VersionIntent int32
+
+const (
+	VersionIntent_VERSION_INTENT_UNSPECIFIED VersionIntent = 0
+	VersionIntent_BUMP_PATCH                 VersionIntent = 1 // increment patch: 1.4.2 → 1.4.3
+	VersionIntent_BUMP_MINOR                 VersionIntent = 2 // increment minor: 1.4.2 → 1.5.0
+	VersionIntent_BUMP_MAJOR                 VersionIntent = 3 // increment major: 1.4.2 → 2.0.0
+	VersionIntent_EXACT                      VersionIntent = 4 // use the exact version specified in exact_version field
+)
+
+// Enum value maps for VersionIntent.
+var (
+	VersionIntent_name = map[int32]string{
+		0: "VERSION_INTENT_UNSPECIFIED",
+		1: "BUMP_PATCH",
+		2: "BUMP_MINOR",
+		3: "BUMP_MAJOR",
+		4: "EXACT",
+	}
+	VersionIntent_value = map[string]int32{
+		"VERSION_INTENT_UNSPECIFIED": 0,
+		"BUMP_PATCH":                 1,
+		"BUMP_MINOR":                 2,
+		"BUMP_MAJOR":                 3,
+		"EXACT":                      4,
+	}
+)
+
+func (x VersionIntent) Enum() *VersionIntent {
+	p := new(VersionIntent)
+	*p = x
+	return p
+}
+
+func (x VersionIntent) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VersionIntent) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[2].Descriptor()
+}
+
+func (VersionIntent) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[2]
+}
+
+func (x VersionIntent) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VersionIntent.Descriptor instead.
+func (VersionIntent) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{2}
+}
+
 type ArtifactRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
@@ -283,7 +339,14 @@ type ArtifactManifest struct {
 	// Publish pipeline state — tracks artifact lifecycle from upload through promotion.
 	PublishState PublishState `protobuf:"varint,40,opt,name=publish_state,json=publishState,proto3,enum=repository.PublishState" json:"publish_state,omitempty"`
 	// Provenance record — immutable record of who published this artifact.
-	Provenance    *ProvenanceRecord `protobuf:"bytes,41,opt,name=provenance,proto3" json:"provenance,omitempty"`
+	Provenance *ProvenanceRecord `protobuf:"bytes,41,opt,name=provenance,proto3" json:"provenance,omitempty"`
+	// Phase 2: exact artifact identity. Repository-allocated UUIDv7, the sole
+	// authoritative identifier for convergence, rollback, and installed-state.
+	// Semantic version + build_number remain human-facing; build_id is machine-facing.
+	BuildId string `protobuf:"bytes,42,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
+	// Phase 6: true for day-0 provisionally installed packages that have not
+	// yet been imported into the repository. Cleared on successful import.
+	Provisional   bool `protobuf:"varint,43,opt,name=provisional,proto3" json:"provisional,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -567,6 +630,20 @@ func (x *ArtifactManifest) GetProvenance() *ProvenanceRecord {
 		return x.Provenance
 	}
 	return nil
+}
+
+func (x *ArtifactManifest) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetProvisional() bool {
+	if x != nil {
+		return x.Provisional
+	}
+	return false
 }
 
 type isArtifactManifest_TypeDetail interface {
@@ -1313,7 +1390,8 @@ type UploadArtifactRequest struct {
 	Organization  string                 `protobuf:"bytes,2,opt,name=organization,proto3" json:"organization,omitempty"`
 	Ref           *ArtifactRef           `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
 	Data          []byte                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
-	BuildNumber   int64                  `protobuf:"varint,5,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // build iteration within version (0 = legacy)
+	BuildNumber   int64                  `protobuf:"varint,5,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`      // build iteration within version (0 = legacy)
+	ReservationId string                 `protobuf:"bytes,6,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"` // Phase 4: optional, links to AllocateUpload reservation
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1383,9 +1461,17 @@ func (x *UploadArtifactRequest) GetBuildNumber() int64 {
 	return 0
 }
 
+func (x *UploadArtifactRequest) GetReservationId() string {
+	if x != nil {
+		return x.ReservationId
+	}
+	return ""
+}
+
 type UploadArtifactResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"`
+	BuildId       string                 `protobuf:"bytes,2,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"` // Phase 2: repository-allocated artifact identity (UUIDv7)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1425,6 +1511,13 @@ func (x *UploadArtifactResponse) GetResult() bool {
 		return x.Result
 	}
 	return false
+}
+
+func (x *UploadArtifactResponse) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
 }
 
 type DownloadArtifactRequest struct {
@@ -3082,6 +3175,326 @@ func (x *UpdateArtifactBinaryResponse) GetStatus() string {
 	return ""
 }
 
+type AllocateUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`    // e.g. "core@globular.io"
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                     // package name
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`                             // e.g. "linux_amd64"
+	Intent        VersionIntent          `protobuf:"varint,4,opt,name=intent,proto3,enum=repository.VersionIntent" json:"intent,omitempty"`  // how to compute the version
+	ExactVersion  string                 `protobuf:"bytes,5,opt,name=exact_version,json=exactVersion,proto3" json:"exact_version,omitempty"` // required when intent=EXACT
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllocateUploadRequest) Reset() {
+	*x = AllocateUploadRequest{}
+	mi := &file_repository_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocateUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocateUploadRequest) ProtoMessage() {}
+
+func (x *AllocateUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocateUploadRequest.ProtoReflect.Descriptor instead.
+func (*AllocateUploadRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *AllocateUploadRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *AllocateUploadRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AllocateUploadRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *AllocateUploadRequest) GetIntent() VersionIntent {
+	if x != nil {
+		return x.Intent
+	}
+	return VersionIntent_VERSION_INTENT_UNSPECIFIED
+}
+
+func (x *AllocateUploadRequest) GetExactVersion() string {
+	if x != nil {
+		return x.ExactVersion
+	}
+	return ""
+}
+
+type AllocateUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`                                  // allocated version (e.g. "1.4.3")
+	ReservationId string                 `protobuf:"bytes,2,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"` // short-lived token (5 min TTL)
+	BuildId       string                 `protobuf:"bytes,3,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`                   // pre-assigned UUIDv7
+	BuildNumber   int64                  `protobuf:"varint,4,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`      // derived monotonic counter
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllocateUploadResponse) Reset() {
+	*x = AllocateUploadResponse{}
+	mi := &file_repository_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocateUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocateUploadResponse) ProtoMessage() {}
+
+func (x *AllocateUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocateUploadResponse.ProtoReflect.Descriptor instead.
+func (*AllocateUploadResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *AllocateUploadResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *AllocateUploadResponse) GetReservationId() string {
+	if x != nil {
+		return x.ReservationId
+	}
+	return ""
+}
+
+func (x *AllocateUploadResponse) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
+func (x *AllocateUploadResponse) GetBuildNumber() int64 {
+	if x != nil {
+		return x.BuildNumber
+	}
+	return 0
+}
+
+type ImportProvisionalRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId        string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`                        // e.g. "core@globular.io"
+	Name               string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                                         // package name
+	Version            string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`                                                   // declared version from day-0 install
+	Platform           string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`                                                 // e.g. "linux_amd64"
+	Digest             string                 `protobuf:"bytes,5,opt,name=digest,proto3" json:"digest,omitempty"`                                                     // SHA256 of the .tgz content (trusted)
+	ProvisionalBuildId string                 `protobuf:"bytes,6,opt,name=provisional_build_id,json=provisionalBuildId,proto3" json:"provisional_build_id,omitempty"` // locally-generated build_id from day-0
+	Data               []byte                 `protobuf:"bytes,7,opt,name=data,proto3" json:"data,omitempty"`                                                         // optional: .tgz content for re-upload
+	Kind               string                 `protobuf:"bytes,8,opt,name=kind,proto3" json:"kind,omitempty"`                                                         // SERVICE, INFRASTRUCTURE, COMMAND
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ImportProvisionalRequest) Reset() {
+	*x = ImportProvisionalRequest{}
+	mi := &file_repository_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportProvisionalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportProvisionalRequest) ProtoMessage() {}
+
+func (x *ImportProvisionalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportProvisionalRequest.ProtoReflect.Descriptor instead.
+func (*ImportProvisionalRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ImportProvisionalRequest) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetProvisionalBuildId() string {
+	if x != nil {
+		return x.ProvisionalBuildId
+	}
+	return ""
+}
+
+func (x *ImportProvisionalRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ImportProvisionalRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+type ImportProvisionalResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Ok               bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ConfirmedBuildId string                 `protobuf:"bytes,2,opt,name=confirmed_build_id,json=confirmedBuildId,proto3" json:"confirmed_build_id,omitempty"` // repository-issued build_id
+	ConfirmedVersion string                 `protobuf:"bytes,3,opt,name=confirmed_version,json=confirmedVersion,proto3" json:"confirmed_version,omitempty"`   // may differ if admin re-versioned
+	State            string                 `protobuf:"bytes,4,opt,name=state,proto3" json:"state,omitempty"`                                                 // "RELEASED"
+	Message          string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ImportProvisionalResponse) Reset() {
+	*x = ImportProvisionalResponse{}
+	mi := &file_repository_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportProvisionalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportProvisionalResponse) ProtoMessage() {}
+
+func (x *ImportProvisionalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportProvisionalResponse.ProtoReflect.Descriptor instead.
+func (*ImportProvisionalResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *ImportProvisionalResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ImportProvisionalResponse) GetConfirmedBuildId() string {
+	if x != nil {
+		return x.ConfirmedBuildId
+	}
+	return ""
+}
+
+func (x *ImportProvisionalResponse) GetConfirmedVersion() string {
+	if x != nil {
+		return x.ConfirmedVersion
+	}
+	return ""
+}
+
+func (x *ImportProvisionalResponse) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *ImportProvisionalResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -3093,7 +3506,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12,\n" +
-	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\xf6\v\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\xb3\f\n" +
 	"\x10ArtifactManifest\x12)\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
@@ -3133,7 +3546,9 @@ const file_repository_proto_rawDesc = "" +
 	"\rpublish_state\x18( \x01(\x0e2\x18.repository.PublishStateR\fpublishState\x12<\n" +
 	"\n" +
 	"provenance\x18) \x01(\v2\x1c.repository.ProvenanceRecordR\n" +
-	"provenance\x1a;\n" +
+	"provenance\x12\x19\n" +
+	"\bbuild_id\x18* \x01(\tR\abuildId\x12 \n" +
+	"\vprovisional\x18+ \x01(\bR\vprovisional\x1a;\n" +
 	"\rDefaultsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\r\n" +
@@ -3197,16 +3612,18 @@ const file_repository_proto_rawDesc = "" +
 	"\tnamespace\x18\x01 \x01(\v2\x19.repository.NamespaceInfoR\tnamespace\"\x16\n" +
 	"\x14ListArtifactsRequest\"S\n" +
 	"\x15ListArtifactsResponse\x12:\n" +
-	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\xc4\x01\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\xeb\x01\n" +
 	"\x15UploadArtifactRequest\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x125\n" +
 	"\forganization\x18\x02 \x01(\tB\x11\x8a\xb5\x18\r\n" +
 	"\tnamespace\x10\x01R\forganization\x12)\n" +
 	"\x03ref\x18\x03 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x12\n" +
 	"\x04data\x18\x04 \x01(\fR\x04data\x12!\n" +
-	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\"0\n" +
+	"\fbuild_number\x18\x05 \x01(\x03R\vbuildNumber\x12%\n" +
+	"\x0ereservation_id\x18\x06 \x01(\tR\rreservationId\"K\n" +
 	"\x16UploadArtifactResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"y\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\x12\x19\n" +
+	"\bbuild_id\x18\x02 \x01(\tR\abuildId\"y\n" +
 	"\x17DownloadArtifactRequest\x12;\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
 	"\bartifact\x10\x01R\x03ref\x12!\n" +
@@ -3339,7 +3756,33 @@ const file_repository_proto_rawDesc = "" +
 	"\x1cUpdateArtifactBinaryResponse\x12!\n" +
 	"\fbuild_number\x18\x01 \x01(\x03R\vbuildNumber\x12\x1a\n" +
 	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status*\x86\x01\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\"\xc2\x01\n" +
+	"\x15AllocateUploadRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\x121\n" +
+	"\x06intent\x18\x04 \x01(\x0e2\x19.repository.VersionIntentR\x06intent\x12#\n" +
+	"\rexact_version\x18\x05 \x01(\tR\fexactVersion\"\x97\x01\n" +
+	"\x16AllocateUploadResponse\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12%\n" +
+	"\x0ereservation_id\x18\x02 \x01(\tR\rreservationId\x12\x19\n" +
+	"\bbuild_id\x18\x03 \x01(\tR\abuildId\x12!\n" +
+	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\"\xf9\x01\n" +
+	"\x18ImportProvisionalRequest\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12\x16\n" +
+	"\x06digest\x18\x05 \x01(\tR\x06digest\x120\n" +
+	"\x14provisional_build_id\x18\x06 \x01(\tR\x12provisionalBuildId\x12\x12\n" +
+	"\x04data\x18\a \x01(\fR\x04data\x12\x12\n" +
+	"\x04kind\x18\b \x01(\tR\x04kind\"\xb6\x01\n" +
+	"\x19ImportProvisionalResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12,\n" +
+	"\x12confirmed_build_id\x18\x02 \x01(\tR\x10confirmedBuildId\x12+\n" +
+	"\x11confirmed_version\x18\x03 \x01(\tR\x10confirmedVersion\x12\x14\n" +
+	"\x05state\x18\x04 \x01(\tR\x05state\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage*\x86\x01\n" +
 	"\fArtifactKind\x12\x1d\n" +
 	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aSERVICE\x10\x01\x12\x0f\n" +
@@ -3361,7 +3804,16 @@ const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"\x06YANKED\x10\a\x12\x0f\n" +
 	"\vQUARANTINED\x10\b\x12\v\n" +
-	"\aREVOKED\x10\t2\xea\x14\n" +
+	"\aREVOKED\x10\t*j\n" +
+	"\rVersionIntent\x12\x1e\n" +
+	"\x1aVERSION_INTENT_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"BUMP_PATCH\x10\x01\x12\x0e\n" +
+	"\n" +
+	"BUMP_MINOR\x10\x02\x12\x0e\n" +
+	"\n" +
+	"BUMP_MAJOR\x10\x03\x12\t\n" +
+	"\x05EXACT\x10\x042\xf0\x17\n" +
 	"\x11PackageRepository\x12\xa7\x01\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse\"L\x82\xb5\x18H\n" +
 	"\x16repository.bundle.read\x12\x04read\x1a /repository/bundles/{descriptor}*\x06viewer0\x01\x12\xb0\x01\n" +
@@ -3392,7 +3844,11 @@ const file_repository_proto_rawDesc = "" +
 	"\fGetNamespace\x12\x1f.repository.GetNamespaceRequest\x1a .repository.GetNamespaceResponse\"T\x82\xb5\x18P\n" +
 	"\x19repository.namespace.read\x12\x04read\x1a%/repository/namespaces/{namespace_id}*\x06viewer\x12\xd7\x01\n" +
 	"\x14UpdateArtifactBinary\x12'.repository.UpdateArtifactBinaryRequest\x1a(.repository.UpdateArtifactBinaryResponse\"j\x82\xb5\x18f\n" +
-	"\x19repository.artifact.write\x12\x05write\":/repository/namespaces/{header.ref.publisher_id}/artifacts*\x06editor(\x01B?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\x19repository.artifact.write\x12\x05write\":/repository/namespaces/{header.ref.publisher_id}/artifacts*\x06editor(\x01\x12\xc8\x01\n" +
+	"\x19ImportProvisionalArtifact\x12$.repository.ImportProvisionalRequest\x1a%.repository.ImportProvisionalResponse\"^\x82\xb5\x18Z\n" +
+	"\x19repository.artifact.write\x12\x05admin\"//repository/namespaces/{publisher_id}/artifacts*\x05admin\x12\xb8\x01\n" +
+	"\x0eAllocateUpload\x12!.repository.AllocateUploadRequest\x1a\".repository.AllocateUploadResponse\"_\x82\xb5\x18[\n" +
+	"\x19repository.artifact.write\x12\x05write\"//repository/namespaces/{publisher_id}/artifacts*\x06editorB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -3406,129 +3862,139 @@ func file_repository_proto_rawDescGZIP() []byte {
 	return file_repository_proto_rawDescData
 }
 
-var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_repository_proto_goTypes = []any{
 	(ArtifactKind)(0),                    // 0: repository.ArtifactKind
 	(PublishState)(0),                    // 1: repository.PublishState
-	(*ArtifactRef)(nil),                  // 2: repository.ArtifactRef
-	(*ArtifactManifest)(nil),             // 3: repository.ArtifactManifest
-	(*ServiceDetail)(nil),                // 4: repository.ServiceDetail
-	(*ApplicationDetail)(nil),            // 5: repository.ApplicationDetail
-	(*InfrastructureDetail)(nil),         // 6: repository.InfrastructureDetail
-	(*ProvenanceRecord)(nil),             // 7: repository.ProvenanceRecord
-	(*SetArtifactStateRequest)(nil),      // 8: repository.SetArtifactStateRequest
-	(*SetArtifactStateResponse)(nil),     // 9: repository.SetArtifactStateResponse
-	(*GetNamespaceRequest)(nil),          // 10: repository.GetNamespaceRequest
-	(*NamespaceInfo)(nil),                // 11: repository.NamespaceInfo
-	(*GetNamespaceResponse)(nil),         // 12: repository.GetNamespaceResponse
-	(*ListArtifactsRequest)(nil),         // 13: repository.ListArtifactsRequest
-	(*ListArtifactsResponse)(nil),        // 14: repository.ListArtifactsResponse
-	(*UploadArtifactRequest)(nil),        // 15: repository.UploadArtifactRequest
-	(*UploadArtifactResponse)(nil),       // 16: repository.UploadArtifactResponse
-	(*DownloadArtifactRequest)(nil),      // 17: repository.DownloadArtifactRequest
-	(*DownloadArtifactResponse)(nil),     // 18: repository.DownloadArtifactResponse
-	(*GetArtifactManifestRequest)(nil),   // 19: repository.GetArtifactManifestRequest
-	(*GetArtifactManifestResponse)(nil),  // 20: repository.GetArtifactManifestResponse
-	(*UploadBundleRequest)(nil),          // 21: repository.UploadBundleRequest
-	(*UploadBundleResponse)(nil),         // 22: repository.UploadBundleResponse
-	(*DownloadBundleRequest)(nil),        // 23: repository.DownloadBundleRequest
-	(*DownloadBundleResponse)(nil),       // 24: repository.DownloadBundleResponse
-	(*BundleSummary)(nil),                // 25: repository.BundleSummary
-	(*ListBundlesRequest)(nil),           // 26: repository.ListBundlesRequest
-	(*ListBundlesResponse)(nil),          // 27: repository.ListBundlesResponse
-	(*SearchArtifactsRequest)(nil),       // 28: repository.SearchArtifactsRequest
-	(*SearchArtifactsResponse)(nil),      // 29: repository.SearchArtifactsResponse
-	(*GetArtifactVersionsRequest)(nil),   // 30: repository.GetArtifactVersionsRequest
-	(*GetArtifactVersionsResponse)(nil),  // 31: repository.GetArtifactVersionsResponse
-	(*DeleteArtifactRequest)(nil),        // 32: repository.DeleteArtifactRequest
-	(*DeleteArtifactResponse)(nil),       // 33: repository.DeleteArtifactResponse
-	(*PromoteArtifactRequest)(nil),       // 34: repository.PromoteArtifactRequest
-	(*PromoteArtifactResponse)(nil),      // 35: repository.PromoteArtifactResponse
-	(*DescribePackageRequest)(nil),       // 36: repository.DescribePackageRequest
-	(*NodeInstallation)(nil),             // 37: repository.NodeInstallation
-	(*DesiredInfo)(nil),                  // 38: repository.DesiredInfo
-	(*PackageInfo)(nil),                  // 39: repository.PackageInfo
-	(*DescribePackageResponse)(nil),      // 40: repository.DescribePackageResponse
-	(*UpdateArtifactBinaryRequest)(nil),  // 41: repository.UpdateArtifactBinaryRequest
-	(*UpdateArtifactBinaryHeader)(nil),   // 42: repository.UpdateArtifactBinaryHeader
-	(*UpdateArtifactBinaryResponse)(nil), // 43: repository.UpdateArtifactBinaryResponse
-	nil,                                  // 44: repository.ArtifactManifest.DefaultsEntry
-	nil,                                  // 45: repository.ApplicationDetail.AppConfigEntry
-	(*resourcepb.PackageDescriptor)(nil), // 46: resource.PackageDescriptor
+	(VersionIntent)(0),                   // 2: repository.VersionIntent
+	(*ArtifactRef)(nil),                  // 3: repository.ArtifactRef
+	(*ArtifactManifest)(nil),             // 4: repository.ArtifactManifest
+	(*ServiceDetail)(nil),                // 5: repository.ServiceDetail
+	(*ApplicationDetail)(nil),            // 6: repository.ApplicationDetail
+	(*InfrastructureDetail)(nil),         // 7: repository.InfrastructureDetail
+	(*ProvenanceRecord)(nil),             // 8: repository.ProvenanceRecord
+	(*SetArtifactStateRequest)(nil),      // 9: repository.SetArtifactStateRequest
+	(*SetArtifactStateResponse)(nil),     // 10: repository.SetArtifactStateResponse
+	(*GetNamespaceRequest)(nil),          // 11: repository.GetNamespaceRequest
+	(*NamespaceInfo)(nil),                // 12: repository.NamespaceInfo
+	(*GetNamespaceResponse)(nil),         // 13: repository.GetNamespaceResponse
+	(*ListArtifactsRequest)(nil),         // 14: repository.ListArtifactsRequest
+	(*ListArtifactsResponse)(nil),        // 15: repository.ListArtifactsResponse
+	(*UploadArtifactRequest)(nil),        // 16: repository.UploadArtifactRequest
+	(*UploadArtifactResponse)(nil),       // 17: repository.UploadArtifactResponse
+	(*DownloadArtifactRequest)(nil),      // 18: repository.DownloadArtifactRequest
+	(*DownloadArtifactResponse)(nil),     // 19: repository.DownloadArtifactResponse
+	(*GetArtifactManifestRequest)(nil),   // 20: repository.GetArtifactManifestRequest
+	(*GetArtifactManifestResponse)(nil),  // 21: repository.GetArtifactManifestResponse
+	(*UploadBundleRequest)(nil),          // 22: repository.UploadBundleRequest
+	(*UploadBundleResponse)(nil),         // 23: repository.UploadBundleResponse
+	(*DownloadBundleRequest)(nil),        // 24: repository.DownloadBundleRequest
+	(*DownloadBundleResponse)(nil),       // 25: repository.DownloadBundleResponse
+	(*BundleSummary)(nil),                // 26: repository.BundleSummary
+	(*ListBundlesRequest)(nil),           // 27: repository.ListBundlesRequest
+	(*ListBundlesResponse)(nil),          // 28: repository.ListBundlesResponse
+	(*SearchArtifactsRequest)(nil),       // 29: repository.SearchArtifactsRequest
+	(*SearchArtifactsResponse)(nil),      // 30: repository.SearchArtifactsResponse
+	(*GetArtifactVersionsRequest)(nil),   // 31: repository.GetArtifactVersionsRequest
+	(*GetArtifactVersionsResponse)(nil),  // 32: repository.GetArtifactVersionsResponse
+	(*DeleteArtifactRequest)(nil),        // 33: repository.DeleteArtifactRequest
+	(*DeleteArtifactResponse)(nil),       // 34: repository.DeleteArtifactResponse
+	(*PromoteArtifactRequest)(nil),       // 35: repository.PromoteArtifactRequest
+	(*PromoteArtifactResponse)(nil),      // 36: repository.PromoteArtifactResponse
+	(*DescribePackageRequest)(nil),       // 37: repository.DescribePackageRequest
+	(*NodeInstallation)(nil),             // 38: repository.NodeInstallation
+	(*DesiredInfo)(nil),                  // 39: repository.DesiredInfo
+	(*PackageInfo)(nil),                  // 40: repository.PackageInfo
+	(*DescribePackageResponse)(nil),      // 41: repository.DescribePackageResponse
+	(*UpdateArtifactBinaryRequest)(nil),  // 42: repository.UpdateArtifactBinaryRequest
+	(*UpdateArtifactBinaryHeader)(nil),   // 43: repository.UpdateArtifactBinaryHeader
+	(*UpdateArtifactBinaryResponse)(nil), // 44: repository.UpdateArtifactBinaryResponse
+	(*AllocateUploadRequest)(nil),        // 45: repository.AllocateUploadRequest
+	(*AllocateUploadResponse)(nil),       // 46: repository.AllocateUploadResponse
+	(*ImportProvisionalRequest)(nil),     // 47: repository.ImportProvisionalRequest
+	(*ImportProvisionalResponse)(nil),    // 48: repository.ImportProvisionalResponse
+	nil,                                  // 49: repository.ArtifactManifest.DefaultsEntry
+	nil,                                  // 50: repository.ApplicationDetail.AppConfigEntry
+	(*resourcepb.PackageDescriptor)(nil), // 51: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
 	0,  // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
-	2,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
-	44, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
-	4,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
-	5,  // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
-	6,  // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
+	3,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
+	49, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	5,  // 3: repository.ArtifactManifest.service_detail:type_name -> repository.ServiceDetail
+	6,  // 4: repository.ArtifactManifest.application_detail:type_name -> repository.ApplicationDetail
+	7,  // 5: repository.ArtifactManifest.infrastructure_detail:type_name -> repository.InfrastructureDetail
 	1,  // 6: repository.ArtifactManifest.publish_state:type_name -> repository.PublishState
-	7,  // 7: repository.ArtifactManifest.provenance:type_name -> repository.ProvenanceRecord
-	45, // 8: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
-	2,  // 9: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
+	8,  // 7: repository.ArtifactManifest.provenance:type_name -> repository.ProvenanceRecord
+	50, // 8: repository.ApplicationDetail.app_config:type_name -> repository.ApplicationDetail.AppConfigEntry
+	3,  // 9: repository.SetArtifactStateRequest.ref:type_name -> repository.ArtifactRef
 	1,  // 10: repository.SetArtifactStateRequest.target_state:type_name -> repository.PublishState
 	1,  // 11: repository.SetArtifactStateResponse.previous_state:type_name -> repository.PublishState
 	1,  // 12: repository.SetArtifactStateResponse.current_state:type_name -> repository.PublishState
-	11, // 13: repository.GetNamespaceResponse.namespace:type_name -> repository.NamespaceInfo
-	3,  // 14: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
-	2,  // 15: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
-	2,  // 16: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
-	2,  // 17: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
-	3,  // 18: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
-	46, // 19: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
-	25, // 20: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
+	12, // 13: repository.GetNamespaceResponse.namespace:type_name -> repository.NamespaceInfo
+	4,  // 14: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
+	3,  // 15: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	3,  // 16: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	3,  // 17: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
+	4,  // 18: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
+	51, // 19: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	26, // 20: repository.ListBundlesResponse.bundles:type_name -> repository.BundleSummary
 	0,  // 21: repository.SearchArtifactsRequest.kind:type_name -> repository.ArtifactKind
-	3,  // 22: repository.SearchArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
-	3,  // 23: repository.GetArtifactVersionsResponse.versions:type_name -> repository.ArtifactManifest
-	2,  // 24: repository.DeleteArtifactRequest.ref:type_name -> repository.ArtifactRef
-	2,  // 25: repository.PromoteArtifactRequest.ref:type_name -> repository.ArtifactRef
+	4,  // 22: repository.SearchArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
+	4,  // 23: repository.GetArtifactVersionsResponse.versions:type_name -> repository.ArtifactManifest
+	3,  // 24: repository.DeleteArtifactRequest.ref:type_name -> repository.ArtifactRef
+	3,  // 25: repository.PromoteArtifactRequest.ref:type_name -> repository.ArtifactRef
 	1,  // 26: repository.PromoteArtifactRequest.target_state:type_name -> repository.PublishState
 	1,  // 27: repository.PromoteArtifactResponse.previous_state:type_name -> repository.PublishState
 	1,  // 28: repository.PromoteArtifactResponse.current_state:type_name -> repository.PublishState
 	0,  // 29: repository.PackageInfo.kind:type_name -> repository.ArtifactKind
-	38, // 30: repository.PackageInfo.desired:type_name -> repository.DesiredInfo
-	37, // 31: repository.PackageInfo.installed_on:type_name -> repository.NodeInstallation
-	37, // 32: repository.PackageInfo.failing_on:type_name -> repository.NodeInstallation
-	39, // 33: repository.DescribePackageResponse.info:type_name -> repository.PackageInfo
-	42, // 34: repository.UpdateArtifactBinaryRequest.header:type_name -> repository.UpdateArtifactBinaryHeader
-	2,  // 35: repository.UpdateArtifactBinaryHeader.ref:type_name -> repository.ArtifactRef
-	23, // 36: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	21, // 37: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	13, // 38: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
-	15, // 39: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
-	17, // 40: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
-	19, // 41: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
-	26, // 42: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
-	28, // 43: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
-	30, // 44: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
-	36, // 45: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
-	32, // 46: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
-	34, // 47: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
-	8,  // 48: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
-	10, // 49: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
-	41, // 50: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
-	24, // 51: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	22, // 52: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	14, // 53: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
-	16, // 54: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
-	18, // 55: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
-	20, // 56: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
-	27, // 57: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
-	29, // 58: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
-	31, // 59: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
-	40, // 60: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
-	33, // 61: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
-	35, // 62: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
-	9,  // 63: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
-	12, // 64: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
-	43, // 65: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
-	51, // [51:66] is the sub-list for method output_type
-	36, // [36:51] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	39, // 30: repository.PackageInfo.desired:type_name -> repository.DesiredInfo
+	38, // 31: repository.PackageInfo.installed_on:type_name -> repository.NodeInstallation
+	38, // 32: repository.PackageInfo.failing_on:type_name -> repository.NodeInstallation
+	40, // 33: repository.DescribePackageResponse.info:type_name -> repository.PackageInfo
+	43, // 34: repository.UpdateArtifactBinaryRequest.header:type_name -> repository.UpdateArtifactBinaryHeader
+	3,  // 35: repository.UpdateArtifactBinaryHeader.ref:type_name -> repository.ArtifactRef
+	2,  // 36: repository.AllocateUploadRequest.intent:type_name -> repository.VersionIntent
+	24, // 37: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	22, // 38: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	14, // 39: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	16, // 40: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	18, // 41: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	20, // 42: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	27, // 43: repository.PackageRepository.ListBundles:input_type -> repository.ListBundlesRequest
+	29, // 44: repository.PackageRepository.SearchArtifacts:input_type -> repository.SearchArtifactsRequest
+	31, // 45: repository.PackageRepository.GetArtifactVersions:input_type -> repository.GetArtifactVersionsRequest
+	37, // 46: repository.PackageRepository.DescribePackage:input_type -> repository.DescribePackageRequest
+	33, // 47: repository.PackageRepository.DeleteArtifact:input_type -> repository.DeleteArtifactRequest
+	35, // 48: repository.PackageRepository.PromoteArtifact:input_type -> repository.PromoteArtifactRequest
+	9,  // 49: repository.PackageRepository.SetArtifactState:input_type -> repository.SetArtifactStateRequest
+	11, // 50: repository.PackageRepository.GetNamespace:input_type -> repository.GetNamespaceRequest
+	42, // 51: repository.PackageRepository.UpdateArtifactBinary:input_type -> repository.UpdateArtifactBinaryRequest
+	47, // 52: repository.PackageRepository.ImportProvisionalArtifact:input_type -> repository.ImportProvisionalRequest
+	45, // 53: repository.PackageRepository.AllocateUpload:input_type -> repository.AllocateUploadRequest
+	25, // 54: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	23, // 55: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	15, // 56: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	17, // 57: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	19, // 58: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	21, // 59: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	28, // 60: repository.PackageRepository.ListBundles:output_type -> repository.ListBundlesResponse
+	30, // 61: repository.PackageRepository.SearchArtifacts:output_type -> repository.SearchArtifactsResponse
+	32, // 62: repository.PackageRepository.GetArtifactVersions:output_type -> repository.GetArtifactVersionsResponse
+	41, // 63: repository.PackageRepository.DescribePackage:output_type -> repository.DescribePackageResponse
+	34, // 64: repository.PackageRepository.DeleteArtifact:output_type -> repository.DeleteArtifactResponse
+	36, // 65: repository.PackageRepository.PromoteArtifact:output_type -> repository.PromoteArtifactResponse
+	10, // 66: repository.PackageRepository.SetArtifactState:output_type -> repository.SetArtifactStateResponse
+	13, // 67: repository.PackageRepository.GetNamespace:output_type -> repository.GetNamespaceResponse
+	44, // 68: repository.PackageRepository.UpdateArtifactBinary:output_type -> repository.UpdateArtifactBinaryResponse
+	48, // 69: repository.PackageRepository.ImportProvisionalArtifact:output_type -> repository.ImportProvisionalResponse
+	46, // 70: repository.PackageRepository.AllocateUpload:output_type -> repository.AllocateUploadResponse
+	54, // [54:71] is the sub-list for method output_type
+	37, // [37:54] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -3550,8 +4016,8 @@ func file_repository_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   44,
+			NumEnums:      3,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

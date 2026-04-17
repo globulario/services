@@ -226,9 +226,23 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		// No-op: workflow is executing; its callbacks will transition the
-		// release to AVAILABLE/FAILED. If the workflow crashed, the run
-		// reaper marks it terminal and a fresh generation re-enters PENDING.
+		// Workflow is executing; its callbacks will normally transition the
+		// release to AVAILABLE/FAILED. However, if the desired state changed
+		// (generation advanced) while the workflow is in-flight, the generation
+		// guard blocks all callback writes, leaving the release stuck in
+		// APPLYING. Detect this and re-enter PENDING so a new workflow is
+		// dispatched once the in-flight slot clears.
+		if h.Generation > h.ObservedGeneration {
+			log.Printf("release %s: APPLYING → PENDING (generation %d > observed %d, desired state changed mid-flight)",
+				h.Name, h.Generation, h.ObservedGeneration)
+			srv.cancelInflightWorkflow(fmt.Sprintf("%s/%s", h.ResourceType, h.Name))
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "generation_changed_mid_flight",
+				SetFields:        "phase",
+			})
+			return
+		}
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case ReleasePhaseRemoving:
@@ -549,9 +563,23 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		// No-op: workflow is executing; its callbacks will transition the
-		// release to AVAILABLE/FAILED. If the workflow crashed, the run
-		// reaper marks it terminal and a fresh generation re-enters PENDING.
+		// Workflow is executing; its callbacks will normally transition the
+		// release to AVAILABLE/FAILED. However, if the desired state changed
+		// (generation advanced) while the workflow is in-flight, the generation
+		// guard blocks all callback writes, leaving the release stuck in
+		// APPLYING. Detect this and re-enter PENDING so a new workflow is
+		// dispatched once the in-flight slot clears.
+		if h.Generation > h.ObservedGeneration {
+			log.Printf("release %s: APPLYING → PENDING (generation %d > observed %d, desired state changed mid-flight)",
+				h.Name, h.Generation, h.ObservedGeneration)
+			srv.cancelInflightWorkflow(fmt.Sprintf("%s/%s", h.ResourceType, h.Name))
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "generation_changed_mid_flight",
+				SetFields:        "phase",
+			})
+			return
+		}
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case ReleasePhaseRemoving:
@@ -638,9 +666,23 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
-		// No-op: workflow is executing; its callbacks will transition the
-		// release to AVAILABLE/FAILED. If the workflow crashed, the run
-		// reaper marks it terminal and a fresh generation re-enters PENDING.
+		// Workflow is executing; its callbacks will normally transition the
+		// release to AVAILABLE/FAILED. However, if the desired state changed
+		// (generation advanced) while the workflow is in-flight, the generation
+		// guard blocks all callback writes, leaving the release stuck in
+		// APPLYING. Detect this and re-enter PENDING so a new workflow is
+		// dispatched once the in-flight slot clears.
+		if h.Generation > h.ObservedGeneration {
+			log.Printf("release %s: APPLYING → PENDING (generation %d > observed %d, desired state changed mid-flight)",
+				h.Name, h.Generation, h.ObservedGeneration)
+			srv.cancelInflightWorkflow(fmt.Sprintf("%s/%s", h.ResourceType, h.Name))
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "generation_changed_mid_flight",
+				SetFields:        "phase",
+			})
+			return
+		}
 	case cluster_controllerpb.ReleasePhaseAvailable, cluster_controllerpb.ReleasePhaseDegraded:
 		srv.reconcileAvailable(ctx, h)
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:

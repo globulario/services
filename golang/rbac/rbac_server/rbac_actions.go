@@ -163,6 +163,9 @@ func (srv *server) setActionResourcesPermissions(permissions map[string]interfac
 //	*rbacpb.SetActionResourcesPermissionsRsp - The response indicating success.
 //	error - An error if the operation fails.
 func (srv *server) SetActionResourcesPermissions(ctx context.Context, rqst *rbacpb.SetActionResourcesPermissionsRqst) (*rbacpb.SetActionResourcesPermissionsRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	err := srv.setActionResourcesPermissions(rqst.Permissions.AsMap())
 	if err != nil {
@@ -208,6 +211,10 @@ func (srv *server) getActionResourcesPermissions(action string) ([]*rbacpb.Resou
 // It takes a context and a request containing the action name, and returns a response with resource info or an error.
 // In case of failure, it returns a gRPC internal error with detailed information.
 func (srv *server) GetActionResourceInfos(ctx context.Context, rqst *rbacpb.GetActionResourceInfosRqst) (*rbacpb.GetActionResourceInfosRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	infos, err := srv.getActionResourcesPermissions(rqst.Action)
 	if err != nil {
 		return nil, status.Errorf(
@@ -444,6 +451,9 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 // Returns a response indicating if access is granted and any access denial reasons.
 // In case of errors (e.g., missing action or internal validation failure), returns a gRPC error.
 func (srv *server) ValidateAction(ctx context.Context, rqst *rbacpb.ValidateActionRqst) (*rbacpb.ValidateActionRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	// So here From the context I will validate if the application can execute the action...
 	var err error

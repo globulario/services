@@ -1762,7 +1762,9 @@ updatedUnix: jspb.Message.getFieldWithDefault(msg, 9, 0),
 status: jspb.Message.getFieldWithDefault(msg, 10, ""),
 operationId: jspb.Message.getFieldWithDefault(msg, 11, ""),
 metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : [],
-buildNumber: jspb.Message.getFieldWithDefault(msg, 13, 0)
+buildNumber: jspb.Message.getFieldWithDefault(msg, 13, 0),
+buildId: jspb.Message.getFieldWithDefault(msg, 14, ""),
+provisional: jspb.Message.getBooleanFieldWithDefault(msg, 15, false)
   };
 
   if (includeInstance) {
@@ -1852,6 +1854,14 @@ proto.node_agent.InstalledPackage.deserializeBinaryFromReader = function(msg, re
     case 13:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setBuildNumber(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
+      break;
+    case 15:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setProvisional(value);
       break;
     default:
       reader.skipField();
@@ -1967,6 +1977,20 @@ proto.node_agent.InstalledPackage.serializeBinaryToWriter = function(message, wr
   if (f !== 0) {
     writer.writeInt64(
       13,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
+      f
+    );
+  }
+  f = message.getProvisional();
+  if (f) {
+    writer.writeBool(
+      15,
       f
     );
   }
@@ -2209,6 +2233,42 @@ proto.node_agent.InstalledPackage.prototype.getBuildNumber = function() {
  */
 proto.node_agent.InstalledPackage.prototype.setBuildNumber = function(value) {
   return jspb.Message.setProto3IntField(this, 13, value);
+};
+
+
+/**
+ * optional string build_id = 14;
+ * @return {string}
+ */
+proto.node_agent.InstalledPackage.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.InstalledPackage} returns this
+ */
+proto.node_agent.InstalledPackage.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 14, value);
+};
+
+
+/**
+ * optional bool provisional = 15;
+ * @return {boolean}
+ */
+proto.node_agent.InstalledPackage.prototype.getProvisional = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 15, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.node_agent.InstalledPackage} returns this
+ */
+proto.node_agent.InstalledPackage.prototype.setProvisional = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 15, value);
 };
 
 
@@ -10970,7 +11030,8 @@ force: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
 expectedSha256: jspb.Message.getFieldWithDefault(msg, 7, ""),
 operationId: jspb.Message.getFieldWithDefault(msg, 8, ""),
 repositoryAddr: jspb.Message.getFieldWithDefault(msg, 9, ""),
-buildNumber: jspb.Message.getFieldWithDefault(msg, 10, 0)
+buildNumber: jspb.Message.getFieldWithDefault(msg, 10, 0),
+buildId: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -11046,6 +11107,10 @@ proto.node_agent.ApplyPackageReleaseRequest.deserializeBinaryFromReader = functi
     case 10:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setBuildNumber(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
       break;
     default:
       reader.skipField();
@@ -11143,6 +11208,13 @@ proto.node_agent.ApplyPackageReleaseRequest.serializeBinaryToWriter = function(m
   if (f !== 0) {
     writer.writeInt64(
       10,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
       f
     );
   }
@@ -11329,6 +11401,24 @@ proto.node_agent.ApplyPackageReleaseRequest.prototype.setBuildNumber = function(
 };
 
 
+/**
+ * optional string build_id = 11;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
 
 
 
@@ -11368,7 +11458,8 @@ version: jspb.Message.getFieldWithDefault(msg, 4, ""),
 status: jspb.Message.getFieldWithDefault(msg, 5, ""),
 errorDetail: jspb.Message.getFieldWithDefault(msg, 6, ""),
 checksum: jspb.Message.getFieldWithDefault(msg, 7, ""),
-operationId: jspb.Message.getFieldWithDefault(msg, 8, "")
+operationId: jspb.Message.getFieldWithDefault(msg, 8, ""),
+buildId: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -11436,6 +11527,10 @@ proto.node_agent.ApplyPackageReleaseResponse.deserializeBinaryFromReader = funct
     case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.setOperationId(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
       break;
     default:
       reader.skipField();
@@ -11519,6 +11614,13 @@ proto.node_agent.ApplyPackageReleaseResponse.serializeBinaryToWriter = function(
   if (f.length > 0) {
     writer.writeString(
       8,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
       f
     );
   }
@@ -11666,6 +11768,24 @@ proto.node_agent.ApplyPackageReleaseResponse.prototype.getOperationId = function
  */
 proto.node_agent.ApplyPackageReleaseResponse.prototype.setOperationId = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string build_id = 9;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseResponse.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseResponse} returns this
+ */
+proto.node_agent.ApplyPackageReleaseResponse.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 

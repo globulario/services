@@ -108,8 +108,8 @@ func (srv *server) buildControllerDeployConfig() engine.ControllerDeployConfig {
 			return srv.confirmLeadershipMoved(ctx, oldLeaderNodeID)
 		},
 
-		ApplyPackageRelease: func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool) error {
-			return srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force)
+		ApplyPackageRelease: func(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error {
+			return srv.remoteApplyPackageRelease(ctx, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr, buildNumber, force, buildID)
 		},
 	}
 }
@@ -256,7 +256,7 @@ func (srv *server) confirmLeadershipMoved(ctx context.Context, oldLeaderNodeID s
 
 // remoteApplyPackageRelease calls the node-agent's ApplyPackageRelease RPC
 // on a remote node to install a package.
-func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool) error {
+func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentEndpoint, pkgName, pkgKind, version, publisher, repoAddr string, buildNumber int64, force bool, buildID string) error {
 	conn, err := srv.dialNodeAgent(agentEndpoint)
 	if err != nil {
 		return fmt.Errorf("connect to node %s at %s: %w", nodeID, agentEndpoint, err)
@@ -272,6 +272,7 @@ func (srv *server) remoteApplyPackageRelease(ctx context.Context, nodeID, agentE
 		Publisher:      publisher,
 		RepositoryAddr: repoAddr,
 		BuildNumber:    buildNumber,
+		BuildId:        buildID,
 		Force:          force,
 		OperationId:    fmt.Sprintf("controller-deploy/%s@%s-b%d", pkgName, version, buildNumber),
 	})

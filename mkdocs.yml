@@ -87,6 +87,7 @@ nav:
     - Computing: operators/computing.md
     - MCP Setup: operators/mcp-setup.md
     - Building from Source: operators/building-from-source.md
+    - Repository Repair: operators/repository-repair.md
     - Ports Reference: operators/ports-reference.md
     - Known Issues: operators/known-issues.md
 
@@ -107,6 +108,10 @@ nav:
     - Application Deployment: developers/application-deployment.md
     - Workflow Integration: developers/workflow-integration.md
     - Docker Simulation: developers/docker-simulation.md
+
+  - Design:
+    - Version Control Redesign: design/version-control-redesign-v2.md
+    - Version Control Audit: design/version-control-audit.md
 
   - AI Layer:
     - AI Overview: ai/ai-overview.md

@@ -31,11 +31,17 @@ const releaseRetryBackoff = 5 * time.Minute
 // Without profile filtering, a service targeting only "core" nodes would
 // require all nodes (including "gateway-only") to have it installed — causing
 // false drift and unnecessary work.
-func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64) bool {
+func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64, desiredBuildID ...string) bool {
 	if serviceName == "" || desiredVersion == "" {
 		return false
 	}
 	canon := canonicalServiceName(serviceName)
+
+	// Phase 2: extract optional build_id.
+	buildID := ""
+	if len(desiredBuildID) > 0 {
+		buildID = desiredBuildID[0]
+	}
 
 	// Check installed-state registry across all nodes.
 	pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", canon)
@@ -43,17 +49,19 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		return false // can't verify → treat as unconverged
 	}
 
-	// Build a set of node IDs that have the package installed at the right version.
+	// Build a set of node IDs that have the package installed at the right build_id.
+	// Phase 2: build_id is the sole convergence identity. No version/build_number fallback.
 	installedNodes := make(map[string]bool)
 	for _, pkg := range pkgs {
 		nodeID := pkg.GetNodeId()
 		if nodeID == "" {
 			continue
 		}
-		if pkg.GetVersion() == desiredVersion &&
-			(desiredBuildNumber == 0 || pkg.GetBuildNumber() == desiredBuildNumber) {
+		if buildID != "" && pkg.GetBuildId() == buildID {
 			installedNodes[nodeID] = true
 		}
+		// If desired build_id is empty or installed build_id is empty,
+		// the node is treated as unconverged — needs re-deploy to gain exact identity.
 	}
 
 	// Look up catalog entry for profile-based placement rules.
@@ -118,6 +126,7 @@ type releaseHandle struct {
 	Phase                  string
 	ObservedGeneration     int64
 	ResolvedVersion        string
+	ResolvedBuildID        string // Phase 2: exact artifact identity
 	ResolvedArtifactDigest string
 	DesiredHash            string
 	LastTransitionUnixMs   int64
@@ -151,6 +160,7 @@ type releaseHandle struct {
 type statusPatch struct {
 	Phase                  string
 	ResolvedVersion        string
+	ResolvedBuildID        string // Phase 2: exact artifact identity
 	ResolvedArtifactDigest string
 	DesiredHash            string
 	ObservedGeneration     int64
@@ -248,6 +258,7 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
 		ResolvedVersion:        resolved.Version,
+		ResolvedBuildID:        resolved.BuildID,
 		ResolvedArtifactDigest: resolved.Digest,
 		DesiredHash:            desiredHash,
 		ObservedGeneration:     h.Generation,
@@ -325,12 +336,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// overwrites + deletes the actor router, causing "no router registered"
 	// errors on the first workflow's callbacks.
 	srv.inflightMu.Lock()
-	if _, running := srv.inflightWorkflows[releaseID]; running {
+	if cancel, running := srv.inflightWorkflows[releaseID]; running {
 		srv.inflightMu.Unlock()
+		_ = cancel // suppress unused warning; already running, don't cancel here
 		log.Printf("%s %s: workflow already in-flight, skipping dispatch", h.ResourceType, h.Name)
 		return
 	}
-	srv.inflightWorkflows[releaseID] = struct{}{}
+	// Create a cancellable context for this workflow. If desired state changes
+	// mid-flight, cancelInflightWorkflow() cancels this context so the engine's
+	// DAG loop exits promptly via ctx.Err().
+	wfCtx, wfCancel := context.WithCancel(ctx)
+	srv.inflightWorkflows[releaseID] = wfCancel
 	srv.inflightMu.Unlock()
 
 	// Execute the release workflow asynchronously so the work queue worker
@@ -341,6 +357,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
 	go func() {
+		defer wfCancel()
 		defer func() {
 			srv.inflightMu.Lock()
 			delete(srv.inflightWorkflows, releaseID)
@@ -349,17 +366,31 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 
 		// Acquire semaphore to limit concurrent workflows and prevent
 		// systemd overload on target nodes from too many parallel restarts.
-		srv.workflowSem <- struct{}{}
+		// Use a timeout so a stuck workflow doesn't starve the pipeline
+		// indefinitely. If the timeout fires, the release stays RESOLVED
+		// and will be retried on the next reconcile cycle.
+		select {
+		case srv.workflowSem <- struct{}{}:
+			// acquired
+		case <-wfCtx.Done():
+			log.Printf("%s %s: workflow context cancelled while waiting for semaphore", h.ResourceType, h.Name)
+			return
+		case <-time.After(2 * time.Minute):
+			log.Printf("%s %s: workflow semaphore timeout (all slots busy for 2m), deferring", h.ResourceType, h.Name)
+			return
+		}
 		defer func() { <-srv.workflowSem }()
 
-		_, err := srv.RunPackageReleaseWorkflow(ctx,
+		_, err := srv.RunPackageReleaseWorkflow(wfCtx,
 			releaseID,
 			h.Name,
 			h.InstalledStateName,
 			pkgKind,
 			h.ResolvedVersion,
 			h.DesiredHash,
+			h.ResolvedBuildID,
 			nodeIDs,
+			h.Generation, // generation guard: callbacks skip writes if generation advanced
 		)
 
 		// Success path: workflow callbacks (MarkNodeSucceeded/Failed,
@@ -376,6 +407,7 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				strings.Contains(errMsg, "no registered handler") ||
 				strings.Contains(errMsg, "handler not found") ||
 				strings.Contains(errMsg, "Unavailable") ||
+				strings.Contains(errMsg, "Unimplemented") ||
 				strings.Contains(errMsg, "circuit breaker") ||
 				strings.Contains(errMsg, "DeadlineExceeded") ||
 				strings.Contains(errMsg, "connection refused") {
@@ -399,6 +431,34 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			}
 		}
 	}()
+}
+
+// cancelInflightWorkflow cancels the context of a running workflow for the
+// given release ID. Called when desired state changes mid-flight so the
+// engine's DAG loop exits promptly instead of running to completion.
+func (srv *server) cancelInflightWorkflow(releaseID string) {
+	srv.inflightMu.Lock()
+	if cancel, ok := srv.inflightWorkflows[releaseID]; ok {
+		cancel()
+		log.Printf("release %s: cancelled in-flight workflow (desired state changed)", releaseID)
+	}
+	srv.inflightMu.Unlock()
+}
+
+// cancelAllInflightWorkflows cancels every running workflow goroutine.
+// Called on leadership demotion so the old leader stops writing release
+// state — the new leader owns all reconciliation from this point.
+func (srv *server) cancelAllInflightWorkflows() {
+	srv.inflightMu.Lock()
+	n := len(srv.inflightWorkflows)
+	for id, cancel := range srv.inflightWorkflows {
+		cancel()
+		log.Printf("release %s: cancelled in-flight workflow (leadership lost)", id)
+	}
+	srv.inflightMu.Unlock()
+	if n > 0 {
+		log.Printf("leader demotion: cancelled %d in-flight workflow(s)", n)
+	}
 }
 
 // reconcileAvailable is the shared AVAILABLE/DEGRADED phase: detect spec
@@ -505,6 +565,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		Phase:                  rel.Status.Phase,
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
+		ResolvedBuildID:        rel.Status.ResolvedBuildID,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -539,6 +600,7 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		Phase:                  rel.Status.Phase,
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
+		ResolvedBuildID:        rel.Status.ResolvedBuildID,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -585,6 +647,7 @@ func applyPatchToAppStatus(s *cluster_controllerpb.ApplicationReleaseStatus, p s
 	case "resolve":
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
+		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
@@ -626,6 +689,7 @@ func applyPatchToInfraStatus(s *cluster_controllerpb.InfrastructureReleaseStatus
 	case "resolve":
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
+		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
@@ -661,6 +725,7 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		Phase:                  rel.Status.Phase,
 		ObservedGeneration:     rel.Status.ObservedGeneration,
 		ResolvedVersion:        rel.Status.ResolvedVersion,
+		ResolvedBuildID:        rel.Status.ResolvedBuildID,
 		ResolvedArtifactDigest: rel.Status.ResolvedArtifactDigest,
 		DesiredHash:            rel.Status.DesiredHash,
 		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
@@ -711,6 +776,7 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 	case "resolve":
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
+		s.ResolvedBuildID = p.ResolvedBuildID
 		s.ResolvedArtifactDigest = p.ResolvedArtifactDigest
 		s.DesiredHash = p.DesiredHash
 		s.ObservedGeneration = p.ObservedGeneration
@@ -764,17 +830,30 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		node := srv.state.Nodes[nodeID]
 		srv.unlock()
 
+		// Skip drift decisions for nodes with stale heartbeats. Trusting
+		// old data causes false DEGRADED transitions and reconcile storms
+		// when heartbeats are delayed by network issues.
+		if node != nil && !node.LastSeen.IsZero() && time.Since(node.LastSeen) > unhealthyThreshold {
+			continue
+		}
+
 		versionMatch := false
 		healthy := false
 		serviceHealthy := false
 		if node != nil && rel.Spec != nil {
 			healthy = strings.EqualFold(node.Status, "ready")
 			serviceHealthy = srv.serviceHealthyForRelease(node, rel)
-			if node.InstalledVersions != nil && h.ResolvedVersion != "" {
-				if node.InstalledVersions[rel.Spec.ServiceName] == h.ResolvedVersion {
-					versionMatch = true
+			// Phase 2: build_id is the sole convergence identity for drift detection.
+			// Read installed build_id from etcd (authoritative).
+			if rel.Status != nil && rel.Status.ResolvedBuildID != "" {
+				if pkg, pkgErr := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", rel.Spec.ServiceName); pkgErr == nil && pkg != nil {
+					if pkg.GetBuildId() == rel.Status.ResolvedBuildID {
+						versionMatch = true
+					}
 				}
 			}
+			// If resolved build_id is empty (pre-Phase-2 release), versionMatch stays false
+			// → treated as drifted → triggers re-resolve with build_id.
 		}
 		if versionMatch && healthy && serviceHealthy {
 			ok++
@@ -873,6 +952,22 @@ func (srv *server) reconcileRemoving(ctx context.Context, h *releaseHandle) {
 		pkgKind = "SERVICE"
 	}
 	releaseID := fmt.Sprintf("%s/%s", h.ResourceType, h.Name)
+
+	// Cancel any in-flight install workflow — removal takes precedence.
+	// Without this, install and remove workflows can race on the same
+	// release, leaving the service in a half-installed zombie state.
+	srv.cancelInflightWorkflow(releaseID)
+
+	// Wait for the inflight slot to clear (the goroutine's defer cleans it up
+	// after context cancellation). If it doesn't clear quickly, skip this
+	// cycle — the next reconcile will retry.
+	srv.inflightMu.Lock()
+	if _, running := srv.inflightWorkflows[releaseID]; running {
+		srv.inflightMu.Unlock()
+		log.Printf("%s %s: install workflow still winding down, deferring removal", h.ResourceType, h.Name)
+		return
+	}
+	srv.inflightMu.Unlock()
 
 	log.Printf("%s %s: executing removal workflow across %d nodes", h.ResourceType, h.Name, len(nodeIDs))
 

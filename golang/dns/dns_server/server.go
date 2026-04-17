@@ -17,6 +17,7 @@ import (
 
 	"github.com/globulario/services/golang/backup_hook"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/globular_client"
@@ -119,6 +120,10 @@ type server struct {
 	store              storage_store.Store
 	connection_is_open bool
 
+	// Dependency health watchdog — gates RPCs when ScyllaDB is unreachable.
+	depHealth *dephealth.Watchdog
+	depCancel context.CancelFunc
+
 	mu sync.RWMutex
 }
 
@@ -133,6 +138,9 @@ func (srv *server) SetAddress(address string)        { srv.Address = address }
 func (srv *server) GetProcess() int                  { return srv.Process }
 func (srv *server) SetProcess(pid int) {
 	if pid == -1 {
+		if srv.depCancel != nil {
+			srv.depCancel()
+		}
 		if srv.store != nil {
 			_ = srv.store.Close()
 		}
@@ -266,18 +274,34 @@ func (srv *server) Init() error {
 		return err
 	}
 
-	// I will get the existing domains from storage
-	value, err := srv.store.GetItem("domains")
+	// Dependency health watchdog — gates RPCs when ScyllaDB is unreachable.
+	srv.depHealth = dephealth.NewWatchdog(srv.Logger,
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			// Use a lightweight read to verify ScyllaDB connectivity.
+			_, err := srv.store.GetItem("__healthcheck__")
+			// GetItem returns an error for missing keys on some stores;
+			// any error that is NOT "not found" indicates a real problem.
+			// A nil-data / not-found response means ScyllaDB is reachable.
+			if err != nil && !strings.Contains(err.Error(), "not found") {
+				return err
+			}
+			return nil
+		}),
+	)
+	depCtx, depCancel := context.WithCancel(context.Background())
+	srv.depCancel = depCancel
+	go srv.depHealth.Start(depCtx)
 
-	// If there is no error and I have a value, I will unmarshal it
-	if err == nil && value != nil {
-		var domains []string
-		if err := json.Unmarshal(value, &domains); err == nil {
-			srv.mu.Lock()
-			srv.Domains = domains
-			srv.mu.Unlock()
-		}
+	// I will get the existing domains from storage
+	domains, err := srv.loadDomainsFromStore()
+	if err == nil && domains != nil {
+		srv.mu.Lock()
+		srv.Domains = domains
+		srv.mu.Unlock()
 	}
+
+	// Keep the hot-path domain cache fresh with changes from other nodes.
+	srv.startDomainCacheRefresh(depCtx)
 
 	// Bootstrap default internal zone if no domains configured
 	if err := srv.ensureDefaultInternalZone(); err != nil {
@@ -291,11 +315,9 @@ func (srv *server) Init() error {
 // ensureDefaultInternalZone creates a default internal DNS zone if none exist.
 // This is called during Init() to bootstrap Day-0 installations.
 func (srv *server) ensureDefaultInternalZone() error {
-	srv.mu.RLock()
-	hasZones := len(srv.Domains) > 0
-	srv.mu.RUnlock()
-
-	if hasZones {
+	// Read from ScyllaDB to get the current state across the mesh.
+	domains, _ := srv.loadDomainsFromStore()
+	if len(domains) > 0 {
 		// Already have zones configured
 		return nil
 	}
@@ -445,6 +467,66 @@ func (srv *server) isManaged(domain string) bool {
 		}
 	}
 	return false
+}
+
+// requireHealthy gates RPCs when distributed dependencies are down.
+func (srv *server) requireHealthy() error {
+	if srv.depHealth == nil {
+		return nil
+	}
+	return srv.depHealth.RequireHealthy()
+}
+
+// loadDomainsFromStore reads the domain list from ScyllaDB on demand.
+// Returns nil (empty list) if no domains are stored yet.
+func (srv *server) loadDomainsFromStore() ([]string, error) {
+	data, err := srv.store.GetItem("domains")
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, nil
+	}
+	var domains []string
+	if err := json.Unmarshal(data, &domains); err != nil {
+		return nil, fmt.Errorf("unmarshal domains: %w", err)
+	}
+	return domains, nil
+}
+
+// refreshDomainCache reloads srv.Domains from ScyllaDB so that the in-memory
+// cache used by the UDP/TCP hot path stays current with changes made on other
+// nodes in the mesh.
+func (srv *server) refreshDomainCache() {
+	domains, err := srv.loadDomainsFromStore()
+	if err != nil {
+		logger.Warn("domain cache refresh failed", "err", err)
+		return
+	}
+	if domains == nil {
+		return
+	}
+	srv.mu.Lock()
+	srv.Domains = domains
+	srv.mu.Unlock()
+}
+
+// startDomainCacheRefresh launches a background goroutine that re-reads the
+// domain list from ScyllaDB every 30 seconds. This keeps the hot-path cache
+// consistent with changes made by other DNS instances in the cluster.
+func (srv *server) startDomainCacheRefresh(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				srv.refreshDomainCache()
+			}
+		}
+	}()
 }
 
 // orderIPsByPrivacy: private first, stable-ish order

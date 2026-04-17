@@ -799,5 +799,127 @@ proto.repository.PackageRepositoryPromiseClient.prototype.getNamespace =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ImportProvisionalRequest,
+ *   !proto.repository.ImportProvisionalResponse>}
+ */
+const methodDescriptor_PackageRepository_ImportProvisionalArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ImportProvisionalArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ImportProvisionalRequest,
+  proto.repository.ImportProvisionalResponse,
+  /**
+   * @param {!proto.repository.ImportProvisionalRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ImportProvisionalResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ImportProvisionalRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ImportProvisionalResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ImportProvisionalResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.importProvisionalArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ImportProvisionalArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ImportProvisionalArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ImportProvisionalRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ImportProvisionalResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.importProvisionalArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ImportProvisionalArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ImportProvisionalArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.AllocateUploadRequest,
+ *   !proto.repository.AllocateUploadResponse>}
+ */
+const methodDescriptor_PackageRepository_AllocateUpload = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/AllocateUpload',
+  grpc.web.MethodType.UNARY,
+  proto.repository.AllocateUploadRequest,
+  proto.repository.AllocateUploadResponse,
+  /**
+   * @param {!proto.repository.AllocateUploadRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.AllocateUploadResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.AllocateUploadRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.AllocateUploadResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.AllocateUploadResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.allocateUpload =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/AllocateUpload',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_AllocateUpload,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.AllocateUploadRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.AllocateUploadResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.allocateUpload =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/AllocateUpload',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_AllocateUpload);
+};
+
+
 module.exports = proto.repository;
 

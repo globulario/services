@@ -203,8 +203,10 @@ type server struct {
 	// goroutines for the same release, which would cause a router
 	// registration race (the second goroutine overwrites + deletes the
 	// first's router on lease contention failure).
+	// The cancel func is called when desired state changes mid-flight
+	// so the engine's ctx.Err() check stops the DAG walk promptly.
 	inflightMu        sync.Mutex
-	inflightWorkflows map[string]struct{}
+	inflightWorkflows map[string]context.CancelFunc
 
 	// workflowGate is a circuit breaker that prevents dispatching workflows
 	// when the backend is unhealthy (repeated RPC failures).
@@ -435,7 +437,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		watchers:         make(map[*operationWatcher]struct{}),
 		workflowSem:       make(chan struct{}, 3), // max 3 concurrent release workflows
 		resolveSem:        make(chan struct{}, 2), // max 2 concurrent repository resolve calls
-		inflightWorkflows: make(map[string]struct{}),
+		inflightWorkflows: make(map[string]context.CancelFunc),
 		resignCh:          make(chan struct{}, 1),
 		actorServer:       NewControllerActorServer(),
 		workflowGate:      newWorkflowHealthGate(),
@@ -738,6 +740,10 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	srv.leaderAddr.Store(addr)
 	if !isLeader {
 		srv.leaderEpoch.Store(0) // clear epoch on demotion
+		// Cancel all in-flight workflow goroutines. After demotion, this
+		// node must not write release state — the new leader owns that.
+		// The engine's ctx.Err() check will stop the DAG walk promptly.
+		srv.cancelAllInflightWorkflows()
 	}
 	// When gaining leadership, update the service registry so Envoy routes
 	// to this node's controller (the leader). Without this, the registry

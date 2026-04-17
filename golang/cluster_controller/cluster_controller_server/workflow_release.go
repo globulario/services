@@ -19,9 +19,13 @@ import (
 // RunPackageReleaseWorkflow delegates execution of the release.apply.package
 // workflow to the centralized WorkflowService. The controller orchestrates;
 // per-node steps call node-agents via gRPC actor callbacks.
-func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
+func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID string, candidateNodes []string, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
+	var dispatchGen int64
+	if len(opts) > 0 {
+		dispatchGen = opts[0]
+	}
 	router := engine.NewRouter()
-	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfig(releaseName, pkgKind))
+	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfigWithGen(releaseName, pkgKind, dispatchGen))
 	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
 
 	nodesAny := make([]any, len(candidateNodes))
@@ -30,14 +34,15 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":       srv.cfg.ClusterDomain,
-		"release_id":       releaseID,
-		"release_name":     releaseName,
-		"package_name":     pkgName,
-		"package_kind":     pkgKind,
-		"resolved_version": version,
-		"desired_hash":     desiredHash,
-		"candidate_nodes":  nodesAny,
+		"cluster_id":        srv.cfg.ClusterDomain,
+		"release_id":        releaseID,
+		"release_name":      releaseName,
+		"package_name":      pkgName,
+		"package_kind":      pkgKind,
+		"resolved_version":  version,
+		"desired_hash":      desiredHash,
+		"resolved_build_id": resolvedBuildID, // Phase 2: exact artifact identity
+		"candidate_nodes":   nodesAny,
 	}
 
 	correlationID := releaseID
@@ -71,8 +76,8 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 
 // RunInfraReleaseWorkflow executes the infrastructure-specific release workflow.
 // Delegates to RunPackageReleaseWorkflow with kind=INFRASTRUCTURE.
-func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
-	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, candidateNodes)
+func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash, resolvedBuildID string, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
+	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, resolvedBuildID, candidateNodes)
 }
 
 // RunRemovePackageWorkflow delegates execution of the release.remove.package
@@ -169,6 +174,17 @@ func isSyntheticReleaseName(releaseName string) bool {
 
 // patchReleasePhase updates the phase of a release resource (Service or Infrastructure).
 func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseName, newPhase, reason string) error {
+	return srv.patchReleasePhaseGuarded(ctx, resourceType, releaseName, newPhase, reason, 0)
+}
+
+// patchReleasePhaseGuarded is like patchReleasePhase but skips the write if the
+// release's generation has advanced past expectedGeneration (stale callback),
+// or if this controller is no longer the leader (post-demotion callback).
+func (srv *server) patchReleasePhaseGuarded(ctx context.Context, resourceType, releaseName, newPhase, reason string, expectedGeneration int64) error {
+	if !srv.isLeader() {
+		log.Printf("release-workflow: skip phase patch %s for %s (no longer leader)", newPhase, releaseName)
+		return nil
+	}
 	if isSyntheticReleaseName(releaseName) {
 		// Synthetic release from cluster.reconcile dispatch — nothing
 		// to patch. Log so the transition is still observable.
@@ -180,12 +196,29 @@ func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseN
 		return fmt.Errorf("get %s %s: %w", resourceType, releaseName, err)
 	}
 	if obj == nil {
-		// Distinguish "not found" from a real error: wrapping nil with %w
-		// produces the uninterpretable "%!w(<nil>)" we were shipping in
-		// workflow run errors, making debugging much harder than it needed
-		// to be.
 		return fmt.Errorf("get %s %s: not found", resourceType, releaseName)
 	}
+
+	// Generation guard: skip stale callback writes.
+	if expectedGeneration > 0 {
+		var currentGen int64
+		switch rel := obj.(type) {
+		case *cluster_controllerpb.ServiceRelease:
+			if rel.Meta != nil {
+				currentGen = rel.Meta.Generation
+			}
+		case *cluster_controllerpb.InfrastructureRelease:
+			if rel.Meta != nil {
+				currentGen = rel.Meta.Generation
+			}
+		}
+		if currentGen > expectedGeneration {
+			log.Printf("release-workflow: skip stale phase patch %s for %s (workflow gen=%d, current gen=%d)",
+				newPhase, releaseName, expectedGeneration, currentGen)
+			return nil
+		}
+	}
+
 	nowMs := time.Now().UnixMilli()
 
 	switch rel := obj.(type) {
@@ -194,6 +227,11 @@ func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseN
 			rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 		}
 		prev := rel.Status.Phase
+		// Idempotency: skip write if phase is already at the target value.
+		// Duplicate callbacks must not trigger etcd watchers or reconcile storms.
+		if prev == newPhase && reason == "" {
+			return nil
+		}
 		rel.Status.Phase = newPhase
 		rel.Status.LastTransitionUnixMs = nowMs
 		if reason != "" {
@@ -214,6 +252,9 @@ func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseN
 			rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
 		}
 		prev := rel.Status.Phase
+		if prev == newPhase && reason == "" {
+			return nil
+		}
 		rel.Status.Phase = newPhase
 		rel.Status.LastTransitionUnixMs = nowMs
 		if reason != "" {
@@ -230,8 +271,19 @@ func (srv *server) patchReleasePhase(ctx context.Context, resourceType, releaseN
 }
 
 // patchReleaseNodeStatus updates (or inserts) a NodeReleaseStatus entry for the
-// given node on the release.
+// given node on the release. If expectedGeneration > 0, the write is skipped
+// when the release's current generation has advanced (desired state changed
+// mid-flight). This prevents stale workflow callbacks from overwriting a
+// release that now targets a different version.
 func (srv *server) patchReleaseNodeStatus(ctx context.Context, resourceType, releaseName, nodeID string, update func(*cluster_controllerpb.NodeReleaseStatus)) error {
+	return srv.patchReleaseNodeStatusGuarded(ctx, resourceType, releaseName, nodeID, 0, update)
+}
+
+func (srv *server) patchReleaseNodeStatusGuarded(ctx context.Context, resourceType, releaseName, nodeID string, expectedGeneration int64, update func(*cluster_controllerpb.NodeReleaseStatus)) error {
+	if !srv.isLeader() {
+		log.Printf("release-workflow: skip node-status patch for %s node=%s (no longer leader)", releaseName, nodeID)
+		return nil
+	}
 	if isSyntheticReleaseName(releaseName) {
 		log.Printf("release-workflow: skip node-status patch on synthetic release %s (node=%s)", releaseName, nodeID)
 		return nil
@@ -242,6 +294,28 @@ func (srv *server) patchReleaseNodeStatus(ctx context.Context, resourceType, rel
 	}
 	if obj == nil {
 		return fmt.Errorf("get %s %s: not found", resourceType, releaseName)
+	}
+
+	// Generation guard: if the release's spec generation has advanced since
+	// this workflow was dispatched, skip the write. The callback is from a
+	// stale workflow targeting an old version.
+	if expectedGeneration > 0 {
+		var currentGen int64
+		switch rel := obj.(type) {
+		case *cluster_controllerpb.ServiceRelease:
+			if rel.Meta != nil {
+				currentGen = rel.Meta.Generation
+			}
+		case *cluster_controllerpb.InfrastructureRelease:
+			if rel.Meta != nil {
+				currentGen = rel.Meta.Generation
+			}
+		}
+		if currentGen > expectedGeneration {
+			log.Printf("release-workflow: skip stale node-status patch for %s node=%s (workflow gen=%d, current gen=%d)",
+				releaseName, nodeID, expectedGeneration, currentGen)
+			return nil
+		}
 	}
 
 	var nodes *[]*cluster_controllerpb.NodeReleaseStatus
@@ -282,6 +356,14 @@ func (srv *server) patchReleaseNodeStatus(ctx context.Context, resourceType, rel
 // authoritative state mutations. releaseName is the resource name (Meta.Name)
 // and pkgKind determines whether this is a ServiceRelease or InfrastructureRelease.
 func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) engine.ReleaseControllerConfig {
+	return srv.buildReleaseControllerConfigWithGen(releaseName, pkgKind, 0)
+}
+
+// buildReleaseControllerConfigWithGen creates the config with a generation
+// guard. Callbacks will skip writes if the release's generation has advanced
+// past dispatchGeneration, preventing stale workflows from corrupting the
+// release projection after desired state changes mid-flight.
+func (srv *server) buildReleaseControllerConfigWithGen(releaseName, pkgKind string, dispatchGeneration int64) engine.ReleaseControllerConfig {
 	resourceType := releaseResourceType(pkgKind)
 	return engine.ReleaseControllerConfig{
 		MarkReleaseResolved: func(ctx context.Context, relID string) error {
@@ -297,7 +379,7 @@ func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) eng
 		},
 		MarkReleaseFailed: func(ctx context.Context, relID, reason string) error {
 			log.Printf("release-workflow: mark %s FAILED: %s", releaseName, reason)
-			return srv.patchReleasePhase(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseFailed, reason)
+			return srv.patchReleasePhaseGuarded(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseFailed, reason, dispatchGeneration)
 		},
 		RecheckConvergence: func(ctx context.Context, relID string) error {
 			log.Printf("release-workflow: recheck convergence for %s", releaseName)
@@ -327,7 +409,7 @@ func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) eng
 		},
 		MarkNodeSucceeded: func(ctx context.Context, releaseID, nodeID, version, hash string) error {
 			log.Printf("release-workflow: node %s succeeded for %s (v=%s h=%s)", nodeID, releaseName, version, hash)
-			return srv.patchReleaseNodeStatus(ctx, resourceType, releaseName, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+			return srv.patchReleaseNodeStatusGuarded(ctx, resourceType, releaseName, nodeID, dispatchGeneration, func(n *cluster_controllerpb.NodeReleaseStatus) {
 				n.Phase = cluster_controllerpb.ReleasePhaseAvailable
 				n.InstalledVersion = version
 				n.UpdatedUnixMs = time.Now().UnixMilli()
@@ -336,7 +418,7 @@ func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) eng
 		},
 		MarkNodeFailed: func(ctx context.Context, releaseID, nodeID, reason string) error {
 			log.Printf("release-workflow: node %s FAILED for %s: %s", nodeID, releaseName, reason)
-			return srv.patchReleaseNodeStatus(ctx, resourceType, releaseName, nodeID, func(n *cluster_controllerpb.NodeReleaseStatus) {
+			return srv.patchReleaseNodeStatusGuarded(ctx, resourceType, releaseName, nodeID, dispatchGeneration, func(n *cluster_controllerpb.NodeReleaseStatus) {
 				n.Phase = cluster_controllerpb.ReleasePhaseFailed
 				n.ErrorMessage = reason
 				n.UpdatedUnixMs = time.Now().UnixMilli()
@@ -347,13 +429,11 @@ func (srv *server) buildReleaseControllerConfig(releaseName, pkgKind string) eng
 		},
 		FinalizeDirectApply: func(ctx context.Context, releaseID string, aggregate map[string]any) error {
 			log.Printf("release-workflow: finalize %s (aggregate=%v)", releaseName, aggregate)
-			// Check aggregate for any failures — if any node failed, mark release DEGRADED.
-			// Otherwise, transition to AVAILABLE.
 			finalPhase := cluster_controllerpb.ReleasePhaseAvailable
 			if status, ok := aggregate["status"].(string); ok && status != "ok" {
 				finalPhase = cluster_controllerpb.ReleasePhaseDegraded
 			}
-			return srv.patchReleasePhase(ctx, resourceType, releaseName, finalPhase, "")
+			return srv.patchReleasePhaseGuarded(ctx, resourceType, releaseName, finalPhase, "", dispatchGeneration)
 		},
 	}
 }
@@ -369,7 +449,7 @@ type releaseTargetCandidate struct {
 
 // selectReleaseTargets filters candidate nodes: only include nodes that are
 // bootstrap-ready and have the package's required profiles.
-func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) ([]any, error) {
+func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string, resolvedBuildID ...string) ([]any, error) {
 	isInfra := strings.EqualFold(pkgKind, "INFRASTRUCTURE")
 	catalogEntry := CatalogByName(pkgName)
 
@@ -435,33 +515,18 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			log.Printf("release-workflow: installed check %s/%s on %s: %v", ec.installedKind, pkgName, ec.nodeID, err)
 		}
 		if pkg != nil {
-			// The desired hash is a synthetic release hash (sha256 of metadata
-			// like "core@globular.io/dns=0.0.1"), while the installed checksum
-			// is the real file content hash ("sha256:abcdef..."). These are
-			// different hash domains and cannot be compared directly.
-			//
-			// Recompute the synthetic hash from the installed version+publisher
-			// and compare that to the desired hash. If they match, the node has
-			// the correct version installed.
-			installedVersion := pkg.GetVersion()
-			installedBuild := pkg.GetBuildNumber()
-			publisher := pkg.GetPublisherId()
-			if publisher == "" {
-				publisher = "core@globular.io"
+			// Phase 2: build_id is the sole convergence identity. No hash fallback.
+			wantBuildID := ""
+			if len(resolvedBuildID) > 0 {
+				wantBuildID = resolvedBuildID[0]
 			}
-			var computedHash string
-			if isInfra {
-				computedHash = ComputeInfrastructureDesiredHash(publisher, pkgName, installedVersion, installedBuild)
-			} else {
-				computedHash = ComputeReleaseDesiredHash(publisher, pkgName, installedVersion, installedBuild, nil)
-			}
-			if desiredHash == "" || computedHash == desiredHash {
-				log.Printf("release-workflow: skip node %s for %s (already installed v=%s)",
-					ec.nodeID, pkgName, installedVersion)
+			if wantBuildID != "" && pkg.GetBuildId() == wantBuildID {
+				log.Printf("release-workflow: skip node %s for %s (build_id match: %s)",
+					ec.nodeID, pkgName, wantBuildID)
 				continue
 			}
-			log.Printf("release-workflow: node %s needs update for %s (installed_v=%s computed=%s desired=%s)",
-				ec.nodeID, pkgName, installedVersion, computedHash, desiredHash)
+			log.Printf("release-workflow: node %s needs update for %s (installed_build_id=%s desired_build_id=%s)",
+				ec.nodeID, pkgName, pkg.GetBuildId(), wantBuildID)
 		} else {
 			log.Printf("release-workflow: node %s has no installed record for %s/%s", ec.nodeID, ec.installedKind, pkgName)
 		}

@@ -3,6 +3,7 @@ package supervisor
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -174,15 +175,38 @@ func ReadJournalctl(ctx context.Context, unit string, lines int, priority string
 }
 
 // LaunchUpgrader starts the globular-upgrader binary as a detached process
-// that survives the node-agent's shutdown. The upgrader handles stop → swap
-// binary → report plan success → start for services that cannot upgrade
+// that survives the node-agent's shutdown. The upgrader handles restart →
+// health verify → installed-state write for services that cannot upgrade
 // themselves (e.g. node-agent).
+//
+// We use `systemd-run --scope` to place the upgrader in its own transient
+// cgroup. Without this, `systemctl restart globular-node-agent.service`
+// kills all processes in the service's cgroup — including the upgrader.
 func LaunchUpgrader(args []string) error {
 	binary := "/usr/lib/globular/bin/globular-upgrader"
-	cmd := exec.Command(binary, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	// SysProcAttr with Setsid detaches from parent — survives our shutdown.
+	// systemd-run (without --scope) creates a transient service unit and
+	// returns immediately. The upgrader runs in its own cgroup, surviving
+	// the node-agent restart. --scope would keep systemd-run alive as a
+	// foreground process, which gets killed with the node-agent cgroup.
+	sdArgs := []string{
+		"--unit=globular-upgrader",
+		"--description=Globular self-upgrade",
+		"--property=Type=oneshot",
+		"--property=RemainAfterExit=no",
+		binary,
+	}
+	sdArgs = append(sdArgs, args...)
+	cmd := exec.Command("systemd-run", sdArgs...)
+	// Log to a file so upgrader output is observable.
+	logFile, err := os.OpenFile("/var/log/globular-upgrader.log",
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+	} else {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
 }

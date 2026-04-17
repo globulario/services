@@ -875,8 +875,13 @@ func executableForService(svc string) string {
 			return id.Binary
 		}
 	}
-	// Fallback for unknown services: convention is name_server.
-	return strings.ReplaceAll(name, "-", "_") + "_server"
+	// If the service is not in the identity registry, skip binary verification.
+	// The old fallback ({name}_server) was a false assumption that broke
+	// COMMAND packages (etcdctl, ffmpeg, etc.) and INFRASTRUCTURE packages
+	// (prometheus, alertmanager, etc.) whose binaries don't follow the
+	// _server naming convention. Artifact integrity is already verified
+	// upstream by artifact.fetch (sha256 match vs manifest digest).
+	return ""
 }
 
 // resolveServiceId returns the gRPC FQN for a service using the identity registry.
@@ -943,16 +948,43 @@ func renderTemplateVars(path, stateRoot, binDir string) error {
 	}
 	content := string(data)
 	prefix := filepath.Dir(binDir) // e.g. /usr/lib/globular/bin -> /usr/lib/globular
+
+	// Resolve NodeIP from the machine's routable network interfaces.
+	// This matches the globular-installer's detectPrimaryIP() behavior.
+	nodeIP := resolveNodeIP()
+
 	replacer := strings.NewReplacer(
 		"{{.StateDir}}", stateRoot,
 		"{{.Prefix}}", prefix,
 		"{{.BinDir}}", binDir,
+		"{{.NodeIP}}", nodeIP,
 	)
 	rendered := replacer.Replace(content)
 	if rendered == content {
 		return nil // no templates found, skip write
 	}
 	return os.WriteFile(path, []byte(rendered), 0o644)
+}
+
+// resolveNodeIP returns the node's primary routable IPv4 address.
+// Skips loopback and link-local addresses.
+func resolveNodeIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		ip := ipNet.IP
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.To4() == nil {
+			continue
+		}
+		return ip.String()
+	}
+	return ""
 }
 
 func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {

@@ -38,6 +38,9 @@ import (
 // dispatch router for actor callbacks, runs the engine, and auto-records
 // the entire run to ScyllaDB.
 func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteWorkflowRequest) (*workflowpb.ExecuteWorkflowResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req.WorkflowName == "" {
 		return nil, fmt.Errorf("workflow_name is required")
 	}

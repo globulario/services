@@ -120,6 +120,14 @@ func pkgSHA256(path string) string {
 	return fmt.Sprintf("sha256:%x", h.Sum(nil))
 }
 
+// pkgSHA256Bytes returns the SHA-256 digest of a byte slice in "sha256:hex" format.
+// Used by publishOne to compute the digest from already-loaded file data, avoiding
+// a double-read race where the file could change between reads.
+func pkgSHA256Bytes(data []byte) string {
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("sha256:%x", h[:])
+}
+
 // pkgBundleID returns the stable bundle identifier "name@version:platform".
 func pkgBundleID(name, version, platform string) string {
 	return fmt.Sprintf("%s@%s:%s", name, version, platform)

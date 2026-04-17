@@ -115,6 +115,15 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 	}
 	srv.workflowRec.CompleteStep(ctx, runID, promStep, "promoted to PUBLISHED", durationMs)
 
+	// ── Step 3: Append to release ledger ────────────────────────────────
+	if err := srv.appendToLedger(ctx,
+		publisherID, name, version,
+		manifest.GetBuildId(), manifest.GetChecksum(),
+		ref.GetPlatform(), manifest.GetSizeBytes()); err != nil {
+		slog.Warn("publish workflow: ledger append failed (non-fatal)",
+			"key", key, "err", err)
+	}
+
 	// ── Finish: success ──────────────────────────────────────────────────
 	srv.workflowRec.FinishRun(ctx, runID, workflow.Succeeded,
 		fmt.Sprintf("%s/%s@%s published", publisherID, name, version),

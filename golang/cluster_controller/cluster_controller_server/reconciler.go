@@ -12,6 +12,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // driftReconciler periodically compares desired state against installed state
@@ -90,6 +91,11 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			continue
 		}
 
+		// Load suspended services for this node. Services suspended by
+		// crash-loop suppression should not be re-dispatched until the
+		// operator or doctor clears the marker.
+		suspendedSet := r.loadSuspendedServices(ctx, nodeID)
+
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
 		if err != nil {
 			log.Printf("drift-reconciler: list installed for node %s: %v", nodeID, err)
@@ -119,6 +125,13 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				continue
 			}
 
+			// Skip services suspended by crash-loop suppression.
+			parts0 := strings.SplitN(desiredKey, "/", 2)
+			if len(parts0) == 2 && suspendedSet[parts0[1]] {
+				log.Printf("drift-reconciler: skipping %s on node %s (crash-loop suspended)", parts0[1], nodeID)
+				continue
+			}
+
 			inflightKey := nodeID + "/" + desiredKey
 			if r.isInflight(inflightKey) {
 				continue
@@ -134,6 +147,17 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			if r.srv.dispatchReg != nil && !r.srv.dispatchReg.TryAcquire(inflightKey, "drift-reconciler") {
 				continue
 			}
+			// The drift-reconciler is observation-only — it emits events
+			// but does not dispatch workflows. Release the dispatch slot
+			// when done so the release pipeline can dispatch corrections.
+			// Without this, slots are held until 15m TTL, permanently
+			// blocking convergence.
+			releaseDedupSlot := func() {
+				if r.srv.dispatchReg != nil {
+					r.srv.dispatchReg.Release(inflightKey)
+				}
+			}
+			defer releaseDedupSlot()
 
 			parts := strings.SplitN(desiredKey, "/", 2)
 			if len(parts) != 2 {
@@ -251,4 +275,33 @@ func (r *driftReconciler) expireStale() {
 			delete(r.inflight, key)
 		}
 	}
+}
+
+// loadSuspendedServices reads the /globular/nodes/{nodeID}/suspended/ prefix
+// from etcd and returns a set of service names that are crash-loop suspended.
+// The controller skips these during drift reconciliation. Operators clear
+// suspension by deleting the etcd key and re-enabling the systemd unit.
+func (r *driftReconciler) loadSuspendedServices(ctx context.Context, nodeID string) map[string]bool {
+	prefix := fmt.Sprintf("/globular/nodes/%s/suspended/", nodeID)
+	cli := r.srv.etcdClient
+	if cli == nil {
+		return nil
+	}
+	getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := cli.Get(getCtx, prefix, clientv3.WithPrefix(), clientv3.WithKeysOnly())
+	if err != nil || resp == nil {
+		return nil
+	}
+	if len(resp.Kvs) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		svcName := strings.TrimPrefix(string(kv.Key), prefix)
+		if svcName != "" {
+			set[svcName] = true
+		}
+	}
+	return set
 }

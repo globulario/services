@@ -478,6 +478,10 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 
 // ValidateAccess RPC
 func (srv *server) ValidateAccess(ctx context.Context, rqst *rbacpb.ValidateAccessRqst) (*rbacpb.ValidateAccessRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	hasAccess, accessDenied, err := srv.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(

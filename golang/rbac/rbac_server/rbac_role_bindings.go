@@ -74,6 +74,9 @@ func (srv *server) requireAdmin(ctx context.Context) error {
 // SetRoleBinding creates or replaces the role binding for a subject.
 // Requires globular-admin role (or bootstrap mode).
 func (srv *server) SetRoleBinding(ctx context.Context, rqst *rbacpb.SetRoleBindingRqst) (*rbacpb.SetRoleBindingRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if err := srv.requireAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -106,6 +109,10 @@ func (srv *server) SetRoleBinding(ctx context.Context, rqst *rbacpb.SetRoleBindi
 // Returns an empty binding (not an error) if no binding exists.
 // Requires globular-admin role OR the caller is reading their own binding.
 func (srv *server) GetRoleBinding(ctx context.Context, rqst *rbacpb.GetRoleBindingRqst) (*rbacpb.GetRoleBindingRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	if rqst.GetSubject() == "" {
 		return nil, status.Error(codes.InvalidArgument, "subject must not be empty")
 	}
@@ -160,6 +167,9 @@ func (srv *server) GetRoleBinding(ctx context.Context, rqst *rbacpb.GetRoleBindi
 // ListRoleBindings streams all stored role bindings.
 // Requires globular-admin role (or bootstrap mode).
 func (srv *server) ListRoleBindings(rqst *rbacpb.ListRoleBindingsRqst, stream rbacpb.RbacService_ListRoleBindingsServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 	if err := srv.requireAdmin(stream.Context()); err != nil {
 		return err
 	}

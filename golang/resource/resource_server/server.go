@@ -23,6 +23,7 @@ import (
 
 	// Gate calls into config/etcd until after we handle --describe/--health
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/globular_client"
@@ -31,7 +32,6 @@ import (
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -122,9 +122,8 @@ type server struct {
 	storeMu        sync.Mutex
 	storeLastCheck time.Time
 
-	// In-memory cache to speed up things.
-	cache    *storage_store.BigCache_store
-	cacheTTL time.Duration
+	// Dependency health watchdog — gates RPCs when ScyllaDB is down.
+	depHealth *dephealth.Watchdog
 
 	isReady bool
 
@@ -520,6 +519,12 @@ func (srv *server) SetAccountAllocatedSpace(token, accountId string, space uint6
  * Connection to mongo db local store.
  */
 func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
+	// Fast-path: if the dependency watchdog has flagged ScyllaDB as down,
+	// reject immediately with codes.Unavailable instead of blocking.
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	srv.storeMu.Lock()
 	defer srv.storeMu.Unlock()
 
@@ -779,6 +784,16 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 	return srv.store, nil
 }
 
+// requireHealthy gates an RPC: if the dependency watchdog reports that ScyllaDB
+// is unreachable, the caller receives codes.Unavailable immediately instead of
+// hanging on a dead session.
+func (srv *server) requireHealthy() error {
+	if srv.depHealth == nil {
+		return nil // watchdog not yet wired (early startup)
+	}
+	return srv.depHealth.RequireHealthy()
+}
+
 // -----------------------------------------------------------------------------
 // main()
 // -----------------------------------------------------------------------------
@@ -842,14 +857,6 @@ func main() {
 	s.AllowedOrigins = allowedOriginsStr
 	s.KeepAlive = true
 	s.KeepUpToDate = true
-	s.cacheTTL = 5 * time.Minute // adjust
-
-	// init BigCache
-	s.cache = storage_store.NewBigCache_store()
-
-	// pass lifeWindow via JSON (your Open() already supports options)
-	// e.g. shards/lifeWindow are bigcache options; tune to your traffic
-	_ = s.cache.Open(`{"lifeWindow":"5m","shards":64}`)
 
 	// Try loading permissions from external policy file; fall back to compiled defaults.
 	if extPerms, ok, _ := policy.LoadPermissions("resource"); ok {
@@ -938,6 +945,21 @@ func main() {
 	if err != nil {
 		logger.Error("fail to create account dir", "error", err)
 	}
+
+	// Wire dependency health watchdog — pings ScyllaDB every 15s and gates
+	// RPCs with codes.Unavailable when the store is unreachable.
+	s.depHealth = dephealth.NewWatchdog(logger,
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			s.storeMu.Lock()
+			st := s.store
+			s.storeMu.Unlock()
+			if st == nil {
+				return fmt.Errorf("persistence store not initialised")
+			}
+			return st.Ping(ctx, "local_resource")
+		}),
+	)
+	go s.depHealth.Start(context.Background())
 
 	// Resolve RBAC endpoint before starting service (for error classification)
 	rbacEndpoint, _ := resolveRbacEndpoint(s.bootstrapMode)

@@ -43,6 +43,9 @@ type Storage interface {
 	Rename(ctx context.Context, oldPath, newPath string) error
 	MkdirAll(ctx context.Context, path string, perm fs.FileMode) error
 
+	// Health
+	Ping(ctx context.Context) error // verify the backend is reachable
+
 	// Environment helpers
 	TempDir() string
 	Getwd() (string, error)

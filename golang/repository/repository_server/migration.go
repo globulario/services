@@ -11,13 +11,20 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
 )
+
+// syntheticBuildIDNamespace is the fixed UUIDv5 namespace for generating
+// deterministic build_id values for pre-Phase-2 artifacts. Hardcoded constant,
+// identical across all nodes, never changed.
+var syntheticBuildIDNamespace = uuid.MustParse("d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f90")
 
 const trustMigrationMarker = "artifacts/.trust-migration-complete"
 const unclaimedNamespacesFile = "artifacts/.unclaimed-namespaces.json"
@@ -137,6 +144,106 @@ func (srv *server) MigrateToTrustModel(ctx context.Context) {
 		"migrated", migrated,
 		"skipped", skipped,
 		"unclaimed", len(unclaimedList),
+	)
+}
+
+// ── Phase 2: build_id backfill ──────────────────────────────────────────────
+
+const buildIDMigrationMarker = "artifacts/.build-id-migration-complete"
+
+// MigrateBuildIDs ensures every artifact in the repository has a build_id.
+// New artifacts (uploaded after Phase 2 Step 2) already have a UUIDv7 build_id.
+// Old artifacts receive a deterministic synthetic build_id (UUIDv5) so that
+// the entire catalog carries exact identity.
+//
+// Idempotent — skips if marker file exists. Re-running is safe: existing
+// build_id values (UUIDv7 or synthetic) are never overwritten.
+func (srv *server) MigrateBuildIDs(ctx context.Context) {
+	if _, err := srv.Storage().ReadFile(ctx, buildIDMigrationMarker); err == nil {
+		slog.Debug("build_id migration already complete")
+		return
+	}
+
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		slog.Debug("no artifacts directory, skipping build_id migration")
+		return
+	}
+
+	var backfilled, skipped, alreadySet int
+
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(name, ".manifest.json")
+
+		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
+		if readErr != nil {
+			slog.Warn("build_id migration: skip unreadable manifest", "key", key, "err", readErr)
+			skipped++
+			continue
+		}
+
+		// Already has build_id — leave it alone.
+		if m.GetBuildId() != "" {
+			alreadySet++
+			continue
+		}
+
+		// Generate deterministic synthetic build_id from artifact identity.
+		ref := m.GetRef()
+		input := fmt.Sprintf("%s/%s/%s/%s/%d",
+			ref.GetPublisherId(),
+			ref.GetName(),
+			ref.GetVersion(),
+			ref.GetPlatform(),
+			m.GetBuildNumber(),
+		)
+		syntheticID := uuid.NewSHA1(syntheticBuildIDNamespace, []byte(input)).String()
+		m.BuildId = syntheticID
+
+		// Rewrite manifest with build_id populated.
+		mjson, err := marshalManifestWithState(m, state)
+		if err != nil {
+			slog.Warn("build_id migration: marshal failed", "key", key, "err", err)
+			skipped++
+			continue
+		}
+		if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+			slog.Warn("build_id migration: write failed", "key", key, "err", err)
+			skipped++
+			continue
+		}
+
+		// Sync to ScyllaDB.
+		srv.syncManifestToScylla(ctx, key, m, state, mjson)
+
+		// Invalidate cache for this manifest.
+		if srv.cache != nil {
+			srv.cache.invalidateManifest(manifestStorageKey(key))
+		}
+
+		backfilled++
+	}
+
+	// Write marker file.
+	marker := map[string]any{
+		"migrated_at":  time.Now().UTC().Format(time.RFC3339),
+		"backfilled":   backfilled,
+		"already_set":  alreadySet,
+		"skipped":      skipped,
+	}
+	data, _ := json.MarshalIndent(marker, "", "  ")
+	if err := srv.Storage().WriteFile(ctx, buildIDMigrationMarker, data, 0o644); err != nil {
+		slog.Warn("build_id migration: marker write failed", "err", err)
+	}
+
+	slog.Info("build_id migration complete",
+		"backfilled", backfilled,
+		"already_set", alreadySet,
+		"skipped", skipped,
 	)
 }
 

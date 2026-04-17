@@ -25,6 +25,9 @@ import (
 
 // Set multiple domain names.
 func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest) (*dnspb.SetDomainsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if len(rqst.Domains) == 0 {
 		err := errors.New("no domains provided")
 		srv.Logger.Error("SetDomains no domains", "err", err)
@@ -149,9 +152,10 @@ func (srv *server) ensureZoneAuthority(domain string) {
 }
 
 // Get multiple domain names.
-func (srv *server) GetDomains(context.Context, *dnspb.GetDomainsRequest) (*dnspb.GetDomainsResponse, error) {
-	srv.mu.RLock()
-	defer srv.mu.RUnlock()
+func (srv *server) GetDomains(_ context.Context, _ *dnspb.GetDomainsRequest) (*dnspb.GetDomainsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	domainsData, err := srv.store.GetItem("domains")
 	if err != nil {
 		srv.Logger.Error("GetDomains getItem", "err", err)
@@ -181,6 +185,9 @@ func (srv *server) GetDomains(context.Context, *dnspb.GetDomainsRequest) (*dnspb
 //   - *dnspb.SetAResponse: The response containing a message with the domain name.
 //   - error: An error if the operation fails at any step.
 func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.SetAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("SetA unmanaged domain", "domain", rqst.Domain, "err", err)
@@ -241,6 +248,9 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 //   - *dnspb.RemoveAResponse: The response indicating the result of the operation.
 //   - error: An error if the operation fails.
 func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	_, token, err := security.GetClientId(ctx)
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
@@ -340,6 +350,9 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 //	*dnspb.GetAResponse - The response containing the list of A records (IPv4 addresses).
 //	error - An error if the retrieval or unmarshalling fails.
 func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
 		domain += "."
@@ -378,6 +391,9 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 //   - *dnspb.SetAAAAResponse: The response containing a message with the domain.
 //   - error: An error if the operation fails.
 func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dnspb.SetAAAAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("SetAAAA unmanaged domain", "domain", rqst.Domain, "err", err)
@@ -430,6 +446,9 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 //   - *dnspb.RemoveAAAAResponse: The response indicating the result of the operation.
 //   - error: An error if the operation failed.
 func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest) (*dnspb.RemoveAAAAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		srv.Logger.Error("RemoveAAAA getClientId", "err", err)
@@ -523,6 +542,9 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 //	*dnspb.GetAAAAResponse - The response containing the list of IPv6 addresses.
 //	error                  - An error if the domain is not found or unmarshalling fails.
 func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
 		domain += "."
@@ -561,6 +583,9 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 //	*dnspb.SetTextResponse - The response indicating the result of the operation.
 //	error                  - An error if the operation fails.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
@@ -633,6 +658,9 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 //	*dnspb.GetTextResponse - The response containing the TXT record values.
 //	error - An error if the operation fails, otherwise nil.
 func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	srv.mu.RLock()
 	defer srv.mu.RUnlock()
 	id := strings.ToLower(rqst.Id)
@@ -661,6 +689,9 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 //	*dnspb.RemoveTextResponse - The response indicating the result of the removal operation.
 //	error                     - An error if the removal fails, otherwise nil.
 func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	_, token, err := security.GetClientId(ctx)
@@ -689,6 +720,9 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 // Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 // Enforces managed domain rule, persists record with TTL default 300.
 func (srv *server) SetTXT(ctx context.Context, rqst *dnspb.SetTXTRequest) (*dnspb.SetTXTResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	// Normalize domain first for isManaged check
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -745,6 +779,9 @@ func (srv *server) SetTXT(ctx context.Context, rqst *dnspb.SetTXTRequest) (*dnsp
 // GetTXT retrieves all TXT records for a given domain.
 // Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 func (srv *server) GetTXT(ctx context.Context, rqst *dnspb.GetTXTRequest) (*dnspb.GetTXTResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
 		domain += "."
@@ -771,6 +808,9 @@ func (srv *server) GetTXT(ctx context.Context, rqst *dnspb.GetTXTRequest) (*dnsp
 // Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 // If txt is empty, removes all TXT records for the domain. Otherwise, removes only the specific txt value.
 func (srv *server) RemoveTXT(ctx context.Context, rqst *dnspb.RemoveTXTRequest) (*dnspb.RemoveTXTResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	// Normalize domain first for isManaged check
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -883,6 +923,9 @@ func (srv *server) get_txt(domain string) ([]string, uint32, error) {
 //	*dnspb.SetNsResponse - response indicating success
 //	error                - error if the operation fails
 func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -948,6 +991,9 @@ func (srv *server) getNs(id string) ([]string, uint32, error) {
 // and unmarshals the stored data into a slice of strings representing the NS records.
 // Returns a GetNsResponse containing the NS records, or an error if unmarshalling fails.
 func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.GetNsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -967,6 +1013,9 @@ func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.
 // it deletes the domain entry and its associated permissions. Returns a RemoveNsResponse
 // indicating success, or an error if the operation fails at any step.
 func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*dnspb.RemoveNsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		srv.Logger.Error("RemoveNs getClientId", "err", err)
@@ -1046,6 +1095,9 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 //	*dnspb.SetCNameResponse - The response indicating the result of the operation.
 //	error                   - An error if the operation fails.
 func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
 	if err := srv.store.SetItem(uuid, []byte(rqst.Cname)); err != nil {
@@ -1082,6 +1134,9 @@ func (srv *server) getCName(id string) (string, uint32, error) {
 //	*dnspb.GetCNameResponse - The response containing the CNAME string.
 //	error                   - An error if the retrieval fails.
 func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*dnspb.GetCNameResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -1106,6 +1161,9 @@ func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*
 //	*dnspb.RemoveCNameResponse - The response indicating whether the removal was successful.
 //	error                      - An error if the removal failed, otherwise nil.
 func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		srv.Logger.Error("RemoveCName getClientId", "err", err)
@@ -1146,6 +1204,9 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 //	*dnspb.SetMxResponse - The response indicating the result of the operation.
 //	error                - An error if the operation fails.
 func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -1226,6 +1287,9 @@ func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 // If a specific MX value is provided in the request, it filters and returns only the matching record.
 // Returns a GetMxResponse containing the list of MX records or an error if unmarshalling fails.
 func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -1254,6 +1318,9 @@ func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.
 // and updates the storage. If no MX records remain after removal, it deletes the domain's MX entry
 // and associated RBAC permissions. Returns a RemoveMxResponse indicating success or an error if the operation fails.
 func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*dnspb.RemoveMxResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1336,6 +1403,9 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 //	*dnspb.SetSrvResponse - The response indicating the result of the operation.
 //	error                 - An error if the operation fails.
 func (srv *server) SetSrv(ctx context.Context, rqst *dnspb.SetSrvRequest) (*dnspb.SetSrvResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -1387,6 +1457,9 @@ func (srv *server) SetSrv(ctx context.Context, rqst *dnspb.SetSrvRequest) (*dnsp
 // It generates a UUID key based on the service ID and attempts to fetch the corresponding SRV records.
 // Returns a GetSrvResponse containing the list of SRV records or an error if unmarshalling fails.
 func (srv *server) GetSrv(ctx context.Context, rqst *dnspb.GetSrvRequest) (*dnspb.GetSrvResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -1409,6 +1482,9 @@ func (srv *server) GetSrv(ctx context.Context, rqst *dnspb.GetSrvRequest) (*dnsp
 // it deletes the service's SRV entry and associated RBAC permissions.
 // Returns a RemoveSrvResponse indicating success or an error if the operation fails.
 func (srv *server) RemoveSrv(ctx context.Context, rqst *dnspb.RemoveSrvRequest) (*dnspb.RemoveSrvResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1507,6 +1583,9 @@ func (srv *server) RemoveSrv(ctx context.Context, rqst *dnspb.RemoveSrvRequest) 
 //	*dnspb.SetSoaResponse - The response indicating success.
 //	error                 - An error if the operation fails.
 func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id += "."
@@ -1592,6 +1671,9 @@ func (srv *server) getSoa(id, ns string) ([]*dnspb.SOA, uint32, error) {
 // found for the given ID. Returns an error if data unmarshalling fails or if there are issues
 // accessing the store.
 func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -1617,6 +1699,9 @@ func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnsp
 // If no SOA records remain after removal, it deletes the SOA entry and associated RBAC permissions.
 // Returns a RemoveSoaResponse indicating success, or an error if the operation fails.
 func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1700,6 +1785,9 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
 //   - *dnspb.SetUriResponse: The response indicating the result of the operation.
 //   - error: An error if the operation fails.
 func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnspb.SetUriResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
 
@@ -1762,6 +1850,9 @@ func (srv *server) getUri(id, target string) ([]*dnspb.URI, uint32, error) {
 // If a specific target is provided in the request, it filters and returns only the matching URI.
 // Returns a GetUriResponse containing the matched URIs or an error if the operation fails.
 func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -1795,6 +1886,9 @@ func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnsp
 //   - *dnspb.RemoveUriResponse: The response indicating the result of the operation.
 //   - error: An error if the operation fails.
 func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) (*dnspb.RemoveUriResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1871,6 +1965,9 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 //	*dnspb.SetAfsdbResponse - The response indicating the result of the operation.
 //	error                   - An error if the operation fails.
 func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	values, err := json.Marshal(rqst.Afsdb)
 	if err != nil {
 		srv.Logger.Error("SetAfsdb marshal", "id", rqst.Id, "err", err)
@@ -1917,6 +2014,9 @@ func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 //	*dnspb.GetAfsdbResponse - The response containing the AFSDB record if found.
 //	error                   - An error if the record could not be retrieved or unmarshaled.
 func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -1931,6 +2031,9 @@ func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*
 }
 
 func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequest) (*dnspb.RemoveAfsdbResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1970,6 +2073,9 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
 //	*dnspb.SetCaaResponse - The response indicating the result of the operation.
 //	error                 - An error if the operation fails at any step.
 func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
 
@@ -2050,6 +2156,9 @@ func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 // Returns a GetCaaResponse containing the matched CAA records, or an error if retrieval or decoding fails.
 // Logs errors and debug information if a logger is configured.
 func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
 
@@ -2096,6 +2205,9 @@ func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnsp
 // the stored key is deleted and related RBAC permissions are purged.
 // Public RPC — signature MUST NOT change.
 func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) (*dnspb.RemoveCaaResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {

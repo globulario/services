@@ -24,6 +24,9 @@ import (
 // For other subjects, it retrieves the available space and compares it to the required space specified in the request.
 // Returns a response indicating whether the subject has enough space, or an error if space retrieval fails.
 func (srv *server) ValidateSubjectSpace(ctx context.Context, rqst *rbacpb.ValidateSubjectSpaceRqst) (*rbacpb.ValidateSubjectSpaceRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	// in case of sa not space validation must be done...
 	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
@@ -392,6 +395,10 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 //	*rbacpb.GetSubjectAvailableSpaceRsp - The response containing the available space.
 //	error - An error if the operation fails.
 func (srv *server) GetSubjectAvailableSpace(ctx context.Context, rqst *rbacpb.GetSubjectAvailableSpaceRqst) (*rbacpb.GetSubjectAvailableSpaceRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	available_space, err := srv.getSubjectAvailableSpace(rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(
@@ -416,6 +423,9 @@ func (srv *server) GetSubjectAvailableSpace(ctx context.Context, rqst *rbacpb.Ge
 //	*rbacpb.GetSubjectAllocatedSpaceRsp - The response containing the allocated space.
 //	error - An error if the retrieval fails.
 func (srv *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.GetSubjectAllocatedSpaceRqst) (*rbacpb.GetSubjectAllocatedSpaceRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	allocated_space, err := srv.getSubjectAllocatedSpace(rqst.Subject, rqst.Type)
 	if err != nil {
@@ -444,6 +454,9 @@ func (srv *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Ge
 //	*rbacpb.SetSubjectAllocatedSpaceRsp - The response object (empty on success).
 //	error - An error if the operation fails or the user is not authorized.
 func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.SetSubjectAllocatedSpaceRqst) (*rbacpb.SetSubjectAllocatedSpaceRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	// So here only admin must be abble to set the allocated space, or members of admin role...
 	// Here I will add additional validation...

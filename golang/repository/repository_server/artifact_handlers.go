@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -37,6 +38,54 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// syncManifestToScylla writes manifest metadata to ScyllaDB for distributed
+// consistency. Best-effort: failure is logged but does not block the MinIO write.
+// The manifest JSON in MinIO remains the authoritative copy during migration.
+func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifest *repopb.ArtifactManifest, state repopb.PublishState, mjson []byte) {
+	if srv.scylla == nil {
+		return
+	}
+	ref := manifest.GetRef()
+	row := manifestRow{
+		ArtifactKey:  key,
+		ManifestJSON: mjson,
+		PublishState: state.String(),
+		PublisherID:  ref.GetPublisherId(),
+		Name:         ref.GetName(),
+		Version:      ref.GetVersion(),
+		Platform:     ref.GetPlatform(),
+		BuildNumber:  manifest.GetBuildNumber(),
+		Checksum:     manifest.GetChecksum(),
+		SizeBytes:    manifest.GetSizeBytes(),
+		ModifiedUnix: manifest.GetModifiedUnix(),
+		Kind:         ref.GetKind().String(),
+		CreatedAt:    time.Now(),
+	}
+	if err := srv.scylla.PutManifest(ctx, row); err != nil {
+		slog.Warn("scylladb manifest sync failed (non-fatal)", "key", key, "err", err)
+	}
+}
+
+// syncStateToScylla updates only the publish state in ScyllaDB.
+func (srv *server) syncStateToScylla(ctx context.Context, key string, state repopb.PublishState) {
+	if srv.scylla == nil {
+		return
+	}
+	if err := srv.scylla.UpdatePublishState(ctx, key, state.String()); err != nil {
+		slog.Warn("scylladb state sync failed (non-fatal)", "key", key, "state", state, "err", err)
+	}
+}
+
+// deleteManifestFromScylla removes a manifest from ScyllaDB.
+func (srv *server) deleteManifestFromScylla(ctx context.Context, key string) {
+	if srv.scylla == nil {
+		return
+	}
+	if err := srv.scylla.DeleteManifest(ctx, key); err != nil {
+		slog.Warn("scylladb manifest delete failed (non-fatal)", "key", key, "err", err)
+	}
+}
 
 const artifactsDir = "artifacts"
 
@@ -117,6 +166,24 @@ func unmarshalManifestWithState(data []byte) (*repopb.ArtifactManifest, repopb.P
 		}
 	}
 	return m, state, nil
+}
+
+// isTerminalState returns true if the artifact has reached a state where
+// its content is sealed and must not be overwritten. This includes PUBLISHED
+// and all post-PUBLISHED lifecycle states where the artifact was successfully
+// delivered. FAILED and ORPHANED are NOT terminal — they represent broken
+// publish attempts where overwrite is allowed for recovery.
+func isTerminalState(s repopb.PublishState) bool {
+	switch s {
+	case repopb.PublishState_PUBLISHED,
+		repopb.PublishState_DEPRECATED,
+		repopb.PublishState_YANKED,
+		repopb.PublishState_QUARANTINED,
+		repopb.PublishState_REVOKED:
+		return true
+	default:
+		return false
+	}
 }
 
 // ── manifest helpers ──────────────────────────────────────────────────────
@@ -460,6 +527,9 @@ func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*
 // ListArtifacts returns all manifests stored in the repository.
 // If the artifacts directory does not yet exist, an empty list is returned.
 func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsRequest) (*repopb.ListArtifactsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		// Directory not yet created → empty catalog (not an error for the caller).
@@ -502,6 +572,9 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 // The build_number is read from the manifest's build_number field in the request.
 // When build_number is 0, also tries legacy 4-field key for backward compat.
 func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtifactManifestRequest) (*repopb.GetArtifactManifestResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -559,6 +632,9 @@ func (srv *server) GetArtifactManifest(ctx context.Context, req *repopb.GetArtif
 // the upload is treated as idempotent (success, no overwrite). If the checksum
 // differs, the upload is rejected with AlreadyExists.
 func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifactServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 	ref, data, buildNumber, err := recvArtifactStream(stream)
 	if err != nil {
 		return status.Errorf(codes.Internal, "receive stream: %v", err)
@@ -610,14 +686,39 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 			} else {
 				slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
 			}
-			return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
+			return stream.SendAndClose(&repopb.UploadArtifactResponse{
+				Result:  true,
+				BuildId: existingManifest.GetBuildId(), // preserve existing build_id
+			})
 		}
-		// Different content at same version — overwrite. This happens when
-		// the binary is rebuilt without a version bump (bug fixes, Day-0 rebuilds).
-		slog.Warn("artifact overwrite (same version, different content)",
-			"key", key,
+		// Different content at same version.
+		// If the artifact is in a terminal state (PUBLISHED, DEPRECATED, YANKED,
+		// QUARANTINED, or REVOKED), overwrite is forbidden — the content is sealed.
+		if isTerminalState(existingState) {
+			return status.Errorf(codes.AlreadyExists,
+				"artifact %s is in state %s with different content (existing=%s, new=%s); "+
+					"overwrite of published artifacts is forbidden",
+				key, existingState.String(), existingManifest.GetChecksum(), newChecksum)
+		}
+		// Pre-terminal state (STAGING, VERIFIED, FAILED, ORPHANED, UNSPECIFIED):
+		// allow overwrite for staging iteration.
+		slog.Warn("artifact overwrite (pre-publish, same version, different content)",
+			"key", key, "state", existingState.String(),
 			"old_checksum", existingManifest.GetChecksum(),
 			"new_checksum", newChecksum)
+	}
+
+	// Phase 3: Monotonic version enforcement. If a PUBLISHED release exists for
+	// this package at a higher version, reject the upload. This prevents version
+	// regression (e.g., uploading 0.0.2 after 0.0.8 is already PUBLISHED).
+	// Same version is allowed (additional builds at the same version).
+	if latestVer, _ := srv.getLatestRelease(ctx, ref.GetPublisherId(), ref.GetName(), ref.GetPlatform()); latestVer != "" {
+		cmp, cmpErr := versionutil.Compare(ref.GetVersion(), latestVer)
+		if cmpErr == nil && cmp < 0 {
+			return status.Errorf(codes.FailedPrecondition,
+				"version %s is less than latest PUBLISHED version %s for %s/%s — versions must be monotonically increasing",
+				ref.GetVersion(), latestVer, ref.GetPublisherId(), ref.GetName())
+		}
 	}
 
 	// Ensure artifacts directory exists.
@@ -633,9 +734,15 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// Build and persist manifest with VERIFIED state.
 	// The artifact is uploaded and checksum-verified but not yet discoverable
 	// (the caller must PromoteArtifact to PUBLISHED after descriptor registration).
+	//
+	// Phase 2: allocate a repository-owned build_id (UUIDv7). This is the sole
+	// authoritative artifact identity — clients cannot provide or override it.
+	buildID := uuid.Must(uuid.NewV7()).String()
+
 	manifest := &repopb.ArtifactManifest{
 		Ref:          ref,
 		BuildNumber:  buildNumber,
+		BuildId:      buildID,
 		Checksum:     newChecksum,
 		SizeBytes:    int64(len(data)),
 		ModifiedUnix: time.Now().Unix(),
@@ -652,6 +759,9 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
+
+	// Sync manifest metadata to ScyllaDB (distributed consistency).
+	srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_VERIFIED, mjson)
 
 	// Invalidate cache for this artifact and its directory listing.
 	if srv.cache != nil {
@@ -674,6 +784,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 
 	slog.Info("artifact uploaded",
 		"key", key,
+		"build_id", buildID,
 		"kind", ref.GetKind(),
 		"build", buildNumber,
 		"size", len(data),
@@ -705,13 +816,16 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		// The publish error is recorded in the workflow run for observability.
 	}
 
-	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true})
+	return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: buildID})
 }
 
 // SearchArtifacts queries the artifact catalog with optional text/filter criteria.
 // It scans all manifests and applies in-memory filtering. For the expected catalog
 // sizes (hundreds, not millions) this is efficient and avoids a secondary index.
 func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifactsRequest) (*repopb.SearchArtifactsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return &repopb.SearchArtifactsResponse{}, nil
@@ -804,6 +918,9 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 // optionally filtered by platform. Results are sorted by semver desc then
 // build_number desc.
 func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtifactVersionsRequest) (*repopb.GetArtifactVersionsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	pub := strings.TrimSpace(req.GetPublisherId())
 	name := strings.TrimSpace(req.GetName())
 	if name == "" {
@@ -850,6 +967,9 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 // this artifact installed. Set force=true to remove repository availability
 // while leaving installed instances in place.
 func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifactRequest) (*repopb.DeleteArtifactResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -905,6 +1025,9 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 		return nil, status.Errorf(codes.Internal, "delete manifest %q: %v", key, err)
 	}
 	_ = srv.Storage().Remove(ctx, bKey)
+
+	// Remove from ScyllaDB.
+	srv.deleteManifestFromScylla(ctx, key)
 
 	// Invalidate cache.
 	if srv.cache != nil {
@@ -1017,6 +1140,9 @@ func parseInt32(s string) (int32, error) {
 
 // PromoteArtifact implements the gRPC PromoteArtifact RPC.
 func (srv *server) PromoteArtifact(ctx context.Context, req *repopb.PromoteArtifactRequest) (*repopb.PromoteArtifactResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	return srv.promoteArtifactInternal(ctx, req.GetRef(), req.GetBuildNumber(), req.GetTargetState())
 }
 
@@ -1066,6 +1192,9 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
+	// Sync state change to ScyllaDB.
+	srv.syncStateToScylla(ctx, key, targetState)
+
 	// Invalidate cached manifest (state changed).
 	if srv.cache != nil {
 		srv.cache.invalidateManifest(manifestStorageKey(key))
@@ -1096,6 +1225,9 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 
 // SetArtifactState transitions an artifact's lifecycle state (deprecate, yank, quarantine, revoke).
 func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifactStateRequest) (*repopb.SetArtifactStateResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	ref := req.GetRef()
 	if ref == nil {
 		return nil, status.Error(codes.InvalidArgument, "ref is required")
@@ -1179,6 +1311,9 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
+	// Sync state change to ScyllaDB.
+	srv.syncStateToScylla(ctx, key, targetState)
+
 	// Invalidate cached manifest (state changed).
 	if srv.cache != nil {
 		srv.cache.invalidateManifest(manifestStorageKey(key))
@@ -1212,6 +1347,9 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 
 // DownloadArtifact streams the binary for a stored artifact.
 func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream repopb.PackageRepository_DownloadArtifactServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 	ref := req.GetRef()
 	if ref == nil {
 		return status.Error(codes.InvalidArgument, "ref is required")
@@ -1293,6 +1431,9 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 //  6. Complete publish pipeline (register descriptor + promote)
 //  7. Return new build_number
 func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateArtifactBinaryServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 	// ── Receive header ──────────────────────────────────────────────────
 	firstMsg, err := stream.Recv()
 	if err != nil {
@@ -1372,9 +1513,13 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	}
 
 	// ── Create new manifest (clone from latest, update binary fields) ──
+	// Phase 2: allocate a new build_id for the delta-deploy artifact.
+	newBuildID := uuid.Must(uuid.NewV7()).String()
+
 	newManifest := &repopb.ArtifactManifest{
 		Ref:                       ref,
 		BuildNumber:               newBuild,
+		BuildId:                   newBuildID,
 		Checksum:                  actualChecksum,
 		SizeBytes:                 int64(len(data)),
 		ModifiedUnix:              time.Now().Unix(),
@@ -1421,6 +1566,9 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(newKey), mjson, 0o644); err != nil {
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
+
+	// Sync manifest metadata to ScyllaDB.
+	srv.syncManifestToScylla(ctx, newKey, newManifest, repopb.PublishState_VERIFIED, mjson)
 
 	// ── Provenance ──────────────────────────────────────────────────────
 	prov := buildProvenanceRecord(ctx, newManifest)

@@ -306,6 +306,9 @@ func matchesChannel(pattern, eventName string) bool {
 }
 
 func (srv *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventpb.QuitResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if rqst == nil || rqst.Uuid == "" {
 		srv.logger.Error("Quit: invalid request", "err", errMissingUUID)
 		return &eventpb.QuitResponse{Result: false}, errMissingUUID
@@ -317,6 +320,9 @@ func (srv *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventp
 }
 
 func (srv *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 	if stream == nil {
 		srv.logger.Error("OnEvent: missing stream", "err", errMissingStream)
 		return errMissingStream
@@ -341,6 +347,9 @@ func (srv *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventSer
 }
 
 func (srv *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeRequest) (*eventpb.SubscribeResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if rqst == nil || rqst.Uuid == "" {
 		srv.logger.Error("Subscribe: invalid request", "err", errMissingUUID)
 		return &eventpb.SubscribeResponse{Result: false}, errMissingUUID
@@ -356,6 +365,9 @@ func (srv *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeRequest
 }
 
 func (srv *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeRequest) (*eventpb.UnSubscribeResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if rqst == nil || rqst.Uuid == "" {
 		srv.logger.Error("UnSubscribe: invalid request", "err", errMissingUUID)
 		return &eventpb.UnSubscribeResponse{Result: false}, errMissingUUID
@@ -373,6 +385,9 @@ func (srv *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeReq
 // Publish writes the event to ScyllaDB. All instances will pick it up via
 // their poll loop and dispatch to local subscribers.
 func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if rqst == nil || rqst.Evt == nil || rqst.Evt.Name == "" {
 		srv.logger.Error("Publish: invalid request", "err", errMissingChanName)
 		return &eventpb.PublishResponse{Result: false}, errMissingChanName
@@ -411,6 +426,9 @@ func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*
 // Two events in the same nanosecond (theoretically possible across nodes)
 // may both be returned — this is safe because consumers must be idempotent.
 func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsRequest) (*eventpb.QueryEventsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if srv.bus == nil {
 		return &eventpb.QueryEventsResponse{}, nil
 	}

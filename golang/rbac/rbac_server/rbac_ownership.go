@@ -156,6 +156,9 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 // resource type, subject, and ownership type. If the operation fails, it returns
 // an error with details; otherwise, it returns an empty AddResourceOwnerRsp on success.
 func (srv *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	err := srv.addResourceOwner(rqst.Path, rqst.Subject, rqst.ResourceType, rqst.Type)
 
@@ -206,6 +209,10 @@ func (srv *server) removeResourceOwner(path string, subject string, subjectType 
 // Remove all explicit access (Allowed/Denied) for a subject across resources.
 // IMPORTANT: This intentionally does NOT touch Owners — owners keep implicit rights.
 func (srv *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	subject := rqst.Subject
 	stype := rqst.Type
 
@@ -416,6 +423,10 @@ func (srv *server) removeResourceSubject(subject string, subjectType rbacpb.Subj
 }
 
 func (srv *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb.RemoveResourceOwnerRqst) (*rbacpb.RemoveResourceOwnerRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+
 	err := srv.removeResourceOwner(rqst.Path, rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(

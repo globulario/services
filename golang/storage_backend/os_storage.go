@@ -113,6 +113,11 @@ func (s *OSStorage) MkdirAll(ctx context.Context, path string, perm fs.FileMode)
 	return os.MkdirAll(s.resolve(path), perm)
 }
 
+// Ping always succeeds for local filesystem — the OS is always reachable.
+func (s *OSStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
 // TempDir returns the host temp directory (used by callers to place scratch files).
 func (s *OSStorage) TempDir() string {
 	return os.TempDir()

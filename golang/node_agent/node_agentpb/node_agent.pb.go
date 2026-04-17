@@ -280,6 +280,8 @@ type InstalledPackage struct {
 	OperationId   string                 `protobuf:"bytes,11,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`                                                  // last operation that modified this
 	Metadata      map[string]string      `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // additional key-value pairs
 	BuildNumber   int64                  `protobuf:"varint,13,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`                                                 // build iteration within version (0 = legacy)
+	BuildId       string                 `protobuf:"bytes,14,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`                                                              // Phase 2: exact artifact identity (UUIDv7, repository-allocated)
+	Provisional   bool                   `protobuf:"varint,15,opt,name=provisional,proto3" json:"provisional,omitempty"`                                                                    // Phase 6: true for day-0 packages not yet imported into repository
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -403,6 +405,20 @@ func (x *InstalledPackage) GetBuildNumber() int64 {
 		return x.BuildNumber
 	}
 	return 0
+}
+
+func (x *InstalledPackage) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
+func (x *InstalledPackage) GetProvisional() bool {
+	if x != nil {
+		return x.Provisional
+	}
+	return false
 }
 
 type ListInstalledPackagesRequest struct {
@@ -3003,6 +3019,7 @@ type ApplyPackageReleaseRequest struct {
 	OperationId    string                 `protobuf:"bytes,8,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`          // caller-provided correlation ID
 	RepositoryAddr string                 `protobuf:"bytes,9,opt,name=repository_addr,json=repositoryAddr,proto3" json:"repository_addr,omitempty"` // gRPC address of repository (auto-discovered if empty)
 	BuildNumber    int64                  `protobuf:"varint,10,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`        // build iteration within version
+	BuildId        string                 `protobuf:"bytes,11,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`                     // Phase 2: exact artifact identity (takes precedence over version+build_number)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -3107,6 +3124,13 @@ func (x *ApplyPackageReleaseRequest) GetBuildNumber() int64 {
 	return 0
 }
 
+func (x *ApplyPackageReleaseRequest) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
+	}
+	return ""
+}
+
 type ApplyPackageReleaseResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
@@ -3117,6 +3141,7 @@ type ApplyPackageReleaseResponse struct {
 	ErrorDetail   string                 `protobuf:"bytes,6,opt,name=error_detail,json=errorDetail,proto3" json:"error_detail,omitempty"` // non-empty on failure
 	Checksum      string                 `protobuf:"bytes,7,opt,name=checksum,proto3" json:"checksum,omitempty"`                          // SHA256 of installed artifact
 	OperationId   string                 `protobuf:"bytes,8,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	BuildId       string                 `protobuf:"bytes,9,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"` // Phase 2: exact artifact identity of what was installed
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3203,6 +3228,13 @@ func (x *ApplyPackageReleaseResponse) GetChecksum() string {
 func (x *ApplyPackageReleaseResponse) GetOperationId() string {
 	if x != nil {
 		return x.OperationId
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseResponse) GetBuildId() string {
+	if x != nil {
+		return x.BuildId
 	}
 	return ""
 }
@@ -3341,7 +3373,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x12InstalledComponent\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +
-	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"\xf5\x03\n" +
+	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"\xb2\x04\n" +
 	"\x10InstalledPackage\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -3356,7 +3388,9 @@ const file_node_agent_proto_rawDesc = "" +
 	" \x01(\tR\x06status\x12!\n" +
 	"\foperation_id\x18\v \x01(\tR\voperationId\x12F\n" +
 	"\bmetadata\x18\f \x03(\v2*.node_agent.InstalledPackage.MetadataEntryR\bmetadata\x12!\n" +
-	"\fbuild_number\x18\r \x01(\x03R\vbuildNumber\x1a;\n" +
+	"\fbuild_number\x18\r \x01(\x03R\vbuildNumber\x12\x19\n" +
+	"\bbuild_id\x18\x0e \x01(\tR\abuildId\x12 \n" +
+	"\vprovisional\x18\x0f \x01(\bR\vprovisional\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Y\n" +
@@ -3582,7 +3616,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"stepsTotal\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\a \x01(\x03R\n" +
-	"durationMs\"\xe4\x02\n" +
+	"durationMs\"\xff\x02\n" +
 	"\x1aApplyPackageReleaseRequest\x12!\n" +
 	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12!\n" +
 	"\fpackage_kind\x18\x02 \x01(\tR\vpackageKind\x12\x18\n" +
@@ -3594,7 +3628,8 @@ const file_node_agent_proto_rawDesc = "" +
 	"\foperation_id\x18\b \x01(\tR\voperationId\x12'\n" +
 	"\x0frepository_addr\x18\t \x01(\tR\x0erepositoryAddr\x12!\n" +
 	"\fbuild_number\x18\n" +
-	" \x01(\x03R\vbuildNumber\"\xfe\x01\n" +
+	" \x01(\x03R\vbuildNumber\x12\x19\n" +
+	"\bbuild_id\x18\v \x01(\tR\abuildId\"\x99\x02\n" +
 	"\x1bApplyPackageReleaseResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12!\n" +
@@ -3603,7 +3638,8 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\tR\x06status\x12!\n" +
 	"\ferror_detail\x18\x06 \x01(\tR\verrorDetail\x12\x1a\n" +
 	"\bchecksum\x18\a \x01(\tR\bchecksum\x12!\n" +
-	"\foperation_id\x18\b \x01(\tR\voperationId\"b\n" +
+	"\foperation_id\x18\b \x01(\tR\voperationId\x12\x19\n" +
+	"\bbuild_id\x18\t \x01(\tR\abuildId\"b\n" +
 	"\x1aDeleteCacheArtifactRequest\x12!\n" +
 	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12!\n" +
 	"\fpublisher_id\x18\x02 \x01(\tR\vpublisherId\"[\n" +

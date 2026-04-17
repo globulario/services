@@ -19,6 +19,10 @@ import (
 // Returns:
 //   - error: An error if permission retrieval fails; otherwise, nil.
 func (srv *server) GetResourcePermissionsByResourceType(rqst *rbacpb.GetResourcePermissionsByResourceTypeRqst, stream rbacpb.RbacService_GetResourcePermissionsByResourceTypeServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
+
 	permissions, err := srv.getResourceTypePathIndexation(rqst.ResourceType)
 
 	if err != nil {
@@ -50,6 +54,9 @@ func (srv *server) GetResourcePermissionsByResourceType(rqst *rbacpb.GetResource
 // Returns:
 //   - error: An error if the permissions could not be retrieved or sent; otherwise, nil.
 func (srv *server) GetResourcePermissionsBySubject(rqst *rbacpb.GetResourcePermissionsBySubjectRqst, stream rbacpb.RbacService_GetResourcePermissionsBySubjectServer) error {
+	if err := srv.requireHealthy(); err != nil {
+		return err
+	}
 
 	permissions, err := srv.getSubjectResourcePermissions(rqst.Subject, rqst.ResourceType, rqst.SubjectType)
 

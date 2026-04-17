@@ -82,8 +82,10 @@ before publishing.`,
 		Short: "Register or update a package descriptor in ResourceService (no upload)",
 		Long: `Register package metadata in ResourceService without uploading binaries.
 
-Useful in CI/governance workflows where metadata registration and binary
-upload are separate approval steps.
+TRANSITIONAL (Phase 7): The repository now registers descriptors automatically
+on publish via completePublish(). This command remains for manual corrections
+and CI workflows, but should not be needed for normal publish operations.
+Repository is the authoritative registrar (INV-8).
 
 The descriptor is upserted (created or updated) using the caller's JWT token,
 so RBAC applies correctly.`,
@@ -577,8 +579,17 @@ func publishOne(file, token string) pkgPublishOne {
 		artifactKind = repopb.ArtifactKind_COMMAND
 	}
 
-	// Step 1: compute digest before upload.
-	r.digest = pkgSHA256(file)
+	// Step 1: read file once and compute digest from the same bytes.
+	// Previously we read the file twice (once for SHA256, once for upload data),
+	// which caused checksum mismatches if the file changed between reads.
+	archiveData, err := os.ReadFile(file)
+	if err != nil {
+		r.err = fmt.Errorf("read package file: %w", err)
+		r.duration = time.Since(start)
+		return r
+	}
+	r.sizeBytes = int64(len(archiveData))
+	r.digest = pkgSHA256Bytes(archiveData)
 
 	// Step 2: connect to repository.
 	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
@@ -604,14 +615,6 @@ func publishOne(file, token string) pkgPublishOne {
 		Platform:    summary.Platform,
 		Kind:        artifactKind,
 	}
-
-	archiveData, err := os.ReadFile(file)
-	if err != nil {
-		r.err = fmt.Errorf("read package file: %w", err)
-		r.duration = time.Since(start)
-		return r
-	}
-	r.sizeBytes = int64(len(archiveData))
 
 	if err := client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber); err != nil {
 		// --force: if artifact exists with different content, delete and re-upload.

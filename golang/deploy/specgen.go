@@ -117,6 +117,8 @@ steps:
           Environment=PATH={{.Prefix}}/bin:/usr/local/bin:/usr/bin:/bin
 <<%- end %>>
           ExecStart={{.Prefix}}/bin/<<% .ExecName %>>
+          Type=notify
+          WatchdogSec=60
           Restart=on-failure
           RestartSec=2
           LimitNOFILE=524288

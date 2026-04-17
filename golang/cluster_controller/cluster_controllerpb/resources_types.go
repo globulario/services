@@ -27,6 +27,7 @@ type ServiceDesiredVersionSpec struct {
 	ServiceName string `json:"service_name,omitempty"`
 	Version     string `json:"version,omitempty"`
 	BuildNumber int64  `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	BuildID     string `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7, repository-allocated)
 }
 
 // ServiceDesiredVersion is the cluster-wide desired version pointer for a
@@ -90,6 +91,7 @@ type ServiceReleaseSpec struct {
 	ServiceName      string            `json:"service_name,omitempty"`
 	Version          string            `json:"version,omitempty"`      // Exact; empty = resolve latest published
 	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	BuildID          string            `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7)
 	Channel          string            `json:"channel,omitempty"`      // Deprecated: functionally ignored, will be removed
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`         // e.g. "linux_amd64"
@@ -116,6 +118,7 @@ type NodeReleaseStatus struct {
 	Phase                 string `json:"phase,omitempty"` // ReleasePhase* constants
 	InstalledVersion      string `json:"installed_version,omitempty"`
 	InstalledBuildNumber  int64  `json:"installed_build_number,omitempty"` // build iteration on this node
+	InstalledBuildID      string `json:"installed_build_id,omitempty"`     // Phase 2: exact installed artifact identity
 	ErrorMessage          string `json:"error_message,omitempty"`
 	UpdatedUnixMs         int64  `json:"updated_unix_ms,omitempty"`
 	FailedStepID          string `json:"failed_step_id,omitempty"` // step that failed (from plan status)
@@ -126,6 +129,7 @@ type ServiceReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
 	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`    // resolved build iteration
+	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2: resolved exact artifact identity
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"` // SHA256 hex
 	DesiredHash            string               `json:"desired_hash,omitempty"`             // SHA256 of (publisher+name+version+build_number+config)
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
@@ -153,6 +157,7 @@ type ApplicationReleaseSpec struct {
 	AppName         string            `json:"app_name,omitempty"`
 	Version         string            `json:"version,omitempty"`
 	BuildNumber     int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	BuildID         string            `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7)
 	Channel         string            `json:"channel,omitempty"` // Deprecated: functionally ignored
 	RepositoryID    string            `json:"repository_id,omitempty"`
 	Platform        string            `json:"platform,omitempty"`
@@ -167,6 +172,7 @@ type ApplicationReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
 	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
+	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
 	DesiredHash            string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
@@ -193,6 +199,7 @@ type InfrastructureReleaseSpec struct {
 	Component        string            `json:"component,omitempty"` // e.g. "etcd", "minio", "envoy"
 	Version          string            `json:"version,omitempty"`
 	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	BuildID          string            `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7)
 	Channel          string            `json:"channel,omitempty"` // Deprecated: functionally ignored
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`
@@ -211,6 +218,7 @@ type InfrastructureReleaseStatus struct {
 	Phase                  string               `json:"phase,omitempty"`
 	ResolvedVersion        string               `json:"resolved_version,omitempty"`
 	ResolvedBuildNumber    int64                `json:"resolved_build_number,omitempty"`
+	ResolvedBuildID        string               `json:"resolved_build_id,omitempty"`       // Phase 2
 	ResolvedArtifactDigest string               `json:"resolved_artifact_digest,omitempty"`
 	DesiredHash            string               `json:"desired_hash,omitempty"`
 	Nodes                  []*NodeReleaseStatus `json:"nodes,omitempty"`
@@ -273,8 +281,10 @@ type PackageAlignmentStatus struct {
 	Status              string `json:"status"`                            // aligned, repaired, missing_in_repo, unmanaged, drifted, orphaned
 	InstalledVersion    string `json:"installed_version,omitempty"`       // from installed-state registry
 	InstalledBuildNum   int64  `json:"installed_build_number,omitempty"`  // installed build iteration
+	InstalledBuildID    string `json:"installed_build_id,omitempty"`      // Phase 2: exact installed artifact identity
 	DesiredVersion      string `json:"desired_version,omitempty"`         // from desired release
 	DesiredBuildNum     int64  `json:"desired_build_number,omitempty"`    // desired build iteration
+	DesiredBuildID      string `json:"desired_build_id,omitempty"`        // Phase 2: exact desired artifact identity
 	RepoVersion         string `json:"repo_version,omitempty"`            // latest available in repository
 	RepoBuildNum        int64  `json:"repo_build_number,omitempty"`       // latest build in repository
 	Message             string `json:"message,omitempty"`                 // human-readable explanation

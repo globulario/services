@@ -43,11 +43,17 @@ globular pkg publish globular-inventory-0.0.1-linux_amd64-1.tgz
 
 3. **Streaming upload**: The package archive is streamed to the repository via gRPC. Large packages are uploaded in chunks.
 
-4. **MinIO storage**: The repository stores the archive in MinIO object storage. The storage key includes the publisher, name, version, platform, and build number.
+4. **MinIO storage**: The repository stores the archive in MinIO distributed object storage. All repository instances share the same MinIO cluster.
 
-5. **Checksum computation**: The repository computes the SHA256 checksum of the archive and records it in the artifact manifest.
+5. **Identity allocation**: The repository generates a `build_id` (UUIDv7) for the artifact — the sole authoritative identity used for convergence, rollback, and installed-state comparison. The client never provides or controls this value.
 
-6. **Manifest creation**: An `ArtifactManifest` is created in etcd:
+6. **Checksum computation**: The repository computes the SHA256 digest of the archive.
+
+7. **Monotonic version check**: If a PUBLISHED release already exists for this package at a higher version, the upload is rejected with `FailedPrecondition`. Same version is allowed (new build at same version).
+
+8. **Immutability check**: If a PUBLISHED artifact already exists at the same (publisher, name, version, platform) with a different digest, the upload is rejected with `AlreadyExists`. Published artifacts are immutable.
+
+9. **Manifest creation**: An `ArtifactManifest` is created in MinIO and ScyllaDB:
    ```
    {
      "ref": {
@@ -57,11 +63,12 @@ globular pkg publish globular-inventory-0.0.1-linux_amd64-1.tgz
        "platform": "linux_amd64",
        "kind": "SERVICE"
      },
+     "build_id": "019d986b-3632-7297-...",
      "checksum": "sha256:a1b2c3d4e5f6...",
      "build_number": 1,
      "profiles": ["custom"],
      "install_mode": "repository",
-     "publish_state": "STAGING",
+     "publish_state": "VERIFIED",
      "provenance": {
        "published_by": "dev@example.com",
        "published_at": 1712937600,

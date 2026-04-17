@@ -17,7 +17,7 @@ globular services desired set my_service 0.0.4
 globular services desired list
 ```
 
-The controller detects that the desired version (0.0.4) differs from the installed version (0.0.3), creates workflows for each affected node, and the Workflow Service orchestrates the upgrade.
+The controller resolves the desired version to a repository-issued `build_id`, then compares it against each node's installed `build_id`. If they differ, the controller creates a workflow for that node, and the Workflow Service orchestrates the upgrade. The node-agent blocks until the new service is confirmed running before reporting success.
 
 ## Service Upgrades
 

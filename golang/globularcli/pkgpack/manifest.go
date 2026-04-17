@@ -10,7 +10,8 @@ type Manifest struct {
 	Type        string          `json:"type"`
 	Name        string          `json:"name"`
 	Version     string          `json:"version"`
-	BuildNumber int64           `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
+	BuildNumber int64           `json:"build_number,omitempty"` // Display-only monotonic counter (NOT used in convergence)
+	BuildID     string          `json:"build_id,omitempty"`     // Repository-allocated UUIDv7 (populated after upload)
 	Platform    string          `json:"platform"`
 	Publisher   string          `json:"publisher"`
 	Entrypoint  string          `json:"entrypoint"`

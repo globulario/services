@@ -807,6 +807,9 @@ func StartService(s Service, srv *grpc.Server) error {
 					slog.Info("putRuntimeRunning succeeded after retries",
 						"service", s.GetId(), "attempts", attempt+1)
 				}
+				// Notify systemd that the service is ready (Type=notify).
+				// Safe no-op when NOTIFY_SOCKET is not set (Type=simple).
+				sdNotify("READY=1")
 				return
 			} else if attempt == 0 {
 				slog.Warn("putRuntimeRunning failed, will retry until etcd is reachable",
@@ -820,6 +823,11 @@ func StartService(s Service, srv *grpc.Server) error {
 		}
 	}()
 
+	// Start systemd watchdog ticker. If WatchdogSec is set in the unit file,
+	// systemd will kill the service if it doesn't receive WATCHDOG=1 within
+	// the configured interval. We tick at half the interval for safety margin.
+	go sdWatchdogLoop()
+
 	// Etcd watch for desired config changes on this service id.
 	go watchDesiredConfig(s, srv)
 
@@ -832,6 +840,7 @@ func StartService(s Service, srv *grpc.Server) error {
 	<-ch
 
 	// Graceful shutdown.
+	sdNotify("STOPPING=1")
 	publishServiceEvent("service.stopped", s, nil)
 	StopService(s, srv)
 	return nil
@@ -1063,7 +1072,50 @@ func gracefulStopWithTimeout(srv *grpc.Server, d time.Duration) {
 	}
 }
 
-// in StopService:
+// ── systemd sd_notify helpers ─────────────────────────────────────────────────
+
+// sdNotify sends a notification to systemd via the NOTIFY_SOCKET.
+// It is a no-op when the socket is not set (i.e., Type=simple units or
+// non-systemd environments). Errors are logged but never fatal.
+func sdNotify(state string) {
+	sock := os.Getenv("NOTIFY_SOCKET")
+	if sock == "" {
+		return
+	}
+	conn, err := net.Dial("unixgram", sock)
+	if err != nil {
+		slog.Debug("sd_notify: dial failed", "err", err)
+		return
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte(state)); err != nil {
+		slog.Debug("sd_notify: write failed", "state", state, "err", err)
+	}
+}
+
+// sdWatchdogLoop sends WATCHDOG=1 to systemd at half the WatchdogSec interval.
+// If WATCHDOG_USEC is not set (no WatchdogSec in unit file), this is a no-op.
+func sdWatchdogLoop() {
+	usecStr := os.Getenv("WATCHDOG_USEC")
+	if usecStr == "" {
+		return
+	}
+	usec, err := strconv.ParseInt(usecStr, 10, 64)
+	if err != nil || usec <= 0 {
+		return
+	}
+	interval := time.Duration(usec) * time.Microsecond / 2
+	if interval < time.Second {
+		interval = time.Second
+	}
+	slog.Info("sd_watchdog: started", "interval", interval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		sdNotify("WATCHDOG=1")
+	}
+}
+
 func StopService(s Service, srv *grpc.Server) error {
 	s.SetState("closed")
 	s.SetProcess(-1)

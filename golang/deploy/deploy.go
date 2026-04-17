@@ -34,6 +34,7 @@ type DeployResult struct {
 	Service     string
 	Version     string
 	BuildNumber int64
+	BuildID     string // Repository-allocated UUIDv7 (populated after publish)
 	Action      string // "skipped", "binary-only", "full", "dry-run"
 	Checksum    string
 	Duration    time.Duration
@@ -60,7 +61,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 
 	// Defaults.
 	if opts.Version == "" {
-		opts.Version = "0.0.2"
+		return nil, fmt.Errorf("version is required — use --version or let the repository allocate via AllocateUpload")
 	}
 	if opts.Publisher == "" {
 		opts.Publisher = "core@globular.io"
@@ -87,7 +88,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		fmt.Printf("  [dry-run] Would build %s → %s\n", paths.GoPackageRelative(goPkgDir), binaryPath)
 	} else {
 		goPkgRel := paths.GoPackageRelative(goPkgDir)
-		cmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, goPkgRel)
+		cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", binaryPath, goPkgRel)
 		cmd.Dir = paths.Golang
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -265,7 +266,6 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		"pkg", "publish",
 		"--file", tgzPath,
 		"--repository", repoAddr,
-		"--force",
 	)
 	runPublish := func() (string, error) {
 		cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)

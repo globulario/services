@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -114,6 +116,9 @@ type server struct {
 	MinioConfig *config.MinioProxyConfig
 
 	minioClient *minio.Client
+
+	// Dependency health watchdog — gates RPCs when ScyllaDB/MinIO are down.
+	depHealth *dephealth.Watchdog
 }
 
 // -----------------------------------------------------------------------------
@@ -723,6 +728,11 @@ func (srv *server) Stop(ctx context.Context, _ *rbacpb.StopRqst) (*rbacpb.StopRe
 	return &rbacpb.StopResponse{}, srv.StopService()
 }*/
 
+// requireHealthy gates RPCs — returns codes.Unavailable if ScyllaDB or MinIO are down.
+func (srv *server) requireHealthy() error {
+	return srv.depHealth.RequireHealthy()
+}
+
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	// etcd-only — no env vars, no loopback.
 	cfg, err := config.BuildMinioProxyConfig()
@@ -1060,13 +1070,15 @@ func main() {
 		}
 	}
 
-	// Open in-memory cache store
+	// Open in-memory cache store with a 30-second TTL.
+	// RBAC is the ONE exception allowed to cache ScyllaDB data, but entries
+	// must expire quickly so permission changes propagate across replicas.
 	logger.Debug("initializing bigcache store")
 	srv.cache = storage_store.NewBigCache_store()
-	if err := srv.cache.Open(""); err != nil {
+	if err := srv.cache.Open(`{"lifeWindowSec": 30}`); err != nil {
 		logger.Error("cache open failed", "path", config.GetDataDir()+"/cache", "err", err)
 	} else {
-		logger.Info("bigcache store opened successfully")
+		logger.Info("bigcache store opened successfully", "ttl", "30s")
 	}
 
 	// Resolve the Scylla host: probe loopback first, then primary node IP.
@@ -1102,6 +1114,35 @@ func main() {
 			"bucket", srv.MinioConfig.Bucket,
 			"secure", srv.MinioConfig.Secure)
 	}
+
+	// --- Dependency health watchdog ---
+	// Gates all RPCs with codes.Unavailable when ScyllaDB (or MinIO) is down.
+	deps := []dephealth.Dependency{
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			store, err := srv.getPermissionsStore()
+			if err != nil {
+				return err
+			}
+			if scylla, ok := store.(*storage_store.ScyllaStore); ok {
+				return scylla.Ping()
+			}
+			return nil
+		}),
+	}
+	if srv.minioEnabled() {
+		deps = append(deps, dephealth.Dep("minio", func(ctx context.Context) error {
+			if err := srv.ensureMinioClient(); err != nil {
+				return err
+			}
+			_, err := srv.minioClient.BucketExists(ctx, srv.MinioConfig.Bucket)
+			return err
+		}))
+	}
+	srv.depHealth = dephealth.NewWatchdog(logger, deps...)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go srv.depHealth.Start(ctx)
+	logger.Info("dependency health watchdog started", "deps", len(deps))
 
 	// Clear precomputed USED_SPACE keys on startup (ensures fresh computation)
 	logger.Debug("clearing precomputed USED_SPACE cache keys")

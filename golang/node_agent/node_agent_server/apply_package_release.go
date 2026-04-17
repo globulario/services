@@ -33,6 +33,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	repoAddr := strings.TrimSpace(req.GetRepositoryAddr())
 	operationID := req.GetOperationId()
 	platform := strings.TrimSpace(req.GetPlatform())
+	buildID := strings.TrimSpace(req.GetBuildId()) // Phase 2: exact artifact identity
 
 	if name == "" {
 		return nil, fmt.Errorf("package_name is required")
@@ -60,9 +61,16 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	if !req.GetForce() {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
 		if existing != nil && existing.Status == "installed" {
-			if existing.Version == version && existing.BuildNumber == req.GetBuildNumber() {
-				log.Printf("apply-package: %s/%s@%s (build %d) already installed, skipping",
-					kind, name, version, req.GetBuildNumber())
+			// Phase 2: build_id is the sole identity for idempotency. No version/build_number fallback.
+			alreadyInstalled := false
+			if buildID != "" && existing.GetBuildId() == buildID {
+				alreadyInstalled = true
+			}
+			// If build_id is empty on either side, treat as not installed
+			// (pre-Phase-2 record needs re-deploy to gain exact identity).
+			if alreadyInstalled {
+				log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
+					kind, name, version, req.GetBuildNumber(), buildID)
 				return &node_agentpb.ApplyPackageReleaseResponse{
 					Ok:          true,
 					Message:     "already installed at requested version",
@@ -70,6 +78,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 					Version:     version,
 					Status:      "skipped",
 					OperationId: operationID,
+					BuildId:     existing.GetBuildId(),
 				}, nil
 			}
 			// Compare version+build using the canonical semver comparator so
@@ -132,6 +141,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		UpdatedUnix: now,
 		OperationId: operationID,
 		BuildNumber: req.GetBuildNumber(),
+		BuildId:     buildID,
 	})
 
 	// Use the existing InstallPackage method which handles:
@@ -172,13 +182,137 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		}, nil
 	}
 
-	// Restart the service.
+	// Restart the service and verify it is running before reporting success.
+	// installed-state is written AFTER the service is confirmed active — never before.
+	// This is the convergence truth boundary: OK=true means the service IS running.
 	unit := "globular-" + strings.ReplaceAll(name, "_", "-") + ".service"
 	log.Printf("apply-package: restarting %s", unit)
 
-	// Mark installed before restart — the restart may kill the caller
-	// (e.g. when upgrading the cluster-controller, the workflow engine
-	// IS the cluster-controller, and restarting it drops the gRPC stream).
+	// ── Self-update edge case ───────────────────────────────────────────
+	// When the package being updated IS the node-agent, a synchronous restart
+	// would kill this process before the RPC response is sent. Delegate to
+	// the external upgrader process which survives our shutdown.
+	if name == "node-agent" {
+		log.Printf("apply-package: self-update detected — delegating to upgrader")
+		upgraderArgs := []string{
+			"--unit", unit,
+			"--node-id", srv.nodeID,
+			"--name", name,
+			"--version", version,
+			"--build", fmt.Sprintf("%d", req.GetBuildNumber()),
+			"--kind", kind,
+			"--platform", platform,
+			"--operation-id", operationID,
+		}
+		if req.GetExpectedSha256() != "" {
+			upgraderArgs = append(upgraderArgs, "--checksum", req.GetExpectedSha256())
+		}
+		if buildID != "" {
+			upgraderArgs = append(upgraderArgs, "--build-id", buildID)
+		}
+		if err := supervisor.LaunchUpgrader(upgraderArgs); err != nil {
+			errMsg := fmt.Sprintf("launch upgrader failed: %v", err)
+			log.Printf("apply-package: %s", errMsg)
+			_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+				NodeId:      srv.nodeID,
+				Name:        name,
+				Version:     version,
+				Kind:        kind,
+				Status:      "failed",
+				UpdatedUnix: time.Now().Unix(),
+				OperationId: operationID,
+				BuildNumber: req.GetBuildNumber(),
+				Metadata:    map[string]string{"error": errMsg},
+			})
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          false,
+				Message:     errMsg,
+				PackageName: name,
+				Version:     version,
+				Status:      "failed",
+				ErrorDetail: errMsg,
+				OperationId: operationID,
+			}, nil
+		}
+		// Upgrader is running — it will restart us, wait for active, and write
+		// installed-state. Return success for the install portion; the upgrader
+		// owns the restart truth boundary.
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          true,
+			Message:     fmt.Sprintf("installed %s/%s@%s, upgrader handling restart", kind, name, version),
+			PackageName: name,
+			Version:     version,
+			Status:      "upgrading",
+			OperationId: operationID,
+		}, nil
+	}
+
+	// ── Normal path: synchronous restart + health verification ──────────
+	restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Ensure the unit is enabled before restarting. Crash-loop suppression
+	// disables units via systemctl disable; without re-enabling here, the
+	// unit stays disabled and won't auto-start on reboot.
+	if err := supervisor.Enable(restartCtx, unit); err != nil {
+		log.Printf("apply-package: enable %s failed (proceeding to restart): %v", unit, err)
+	}
+
+	if err := supervisor.Restart(restartCtx, unit); err != nil {
+		errMsg := fmt.Sprintf("restart failed for %s: %v", unit, err)
+		log.Printf("apply-package: %s", errMsg)
+		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+			NodeId:      srv.nodeID,
+			Name:        name,
+			Version:     version,
+			Kind:        kind,
+			Status:      "failed",
+			UpdatedUnix: time.Now().Unix(),
+			OperationId: operationID,
+			BuildNumber: req.GetBuildNumber(),
+			Metadata:    map[string]string{"error": errMsg},
+		})
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          false,
+			Message:     errMsg,
+			PackageName: name,
+			Version:     version,
+			Status:      "failed",
+			ErrorDetail: errMsg,
+			OperationId: operationID,
+		}, nil
+	}
+
+	// Wait for the service to become active (systemd is-active).
+	if err := supervisor.WaitActive(restartCtx, unit, 30*time.Second); err != nil {
+		errMsg := fmt.Sprintf("service %s did not become active within 30s after restart: %v", unit, err)
+		log.Printf("apply-package: %s", errMsg)
+		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+			NodeId:      srv.nodeID,
+			Name:        name,
+			Version:     version,
+			Kind:        kind,
+			Status:      "failed",
+			UpdatedUnix: time.Now().Unix(),
+			OperationId: operationID,
+			BuildNumber: req.GetBuildNumber(),
+			Metadata:    map[string]string{"error": errMsg},
+		})
+		return &node_agentpb.ApplyPackageReleaseResponse{
+			Ok:          false,
+			Message:     errMsg,
+			PackageName: name,
+			Version:     version,
+			Status:      "failed",
+			ErrorDetail: errMsg,
+			OperationId: operationID,
+		}, nil
+	}
+
+	// ── Success: service is running ─────────────────────────────────────
+	// Write installed-state ONLY after the service is confirmed active.
+	// This is the convergence truth boundary.
+	log.Printf("apply-package: %s active after restart — writing installed-state", unit)
 	_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
 		NodeId:      srv.nodeID,
 		Name:        name,
@@ -188,47 +322,20 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		UpdatedUnix: time.Now().Unix(),
 		OperationId: operationID,
 		BuildNumber: req.GetBuildNumber(),
+		BuildId:     buildID,
 		Platform:    platform,
-		Checksum:    req.GetExpectedSha256(), // store artifact checksum for build-aware readiness
+		Checksum:    req.GetExpectedSha256(),
 	})
 
-	// Defer the restart so the RPC response reaches the caller before
-	// the service process is killed. This is critical for self-deploy
-	// scenarios where the caller IS the service being restarted.
-	go func() {
-		time.Sleep(500 * time.Millisecond) // let the response flush
-		restartCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := supervisor.Restart(restartCtx, unit); err != nil {
-			log.Printf("apply-package: deferred restart failed for %s: %v", unit, err)
-			return
-		}
-		// Health check after restart.
-		healthCtx, hcancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer hcancel()
-		for {
-			select {
-			case <-healthCtx.Done():
-				log.Printf("apply-package: %s health check timed out after restart", unit)
-				return
-			default:
-			}
-			if active, err := supervisor.IsActive(healthCtx, unit); err == nil && active {
-				log.Printf("apply-package: %s healthy after restart", unit)
-				return
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}()
-
-	log.Printf("apply-package: completed %s/%s@%s (restart deferred)", kind, name, version)
+	log.Printf("apply-package: completed %s/%s@%s (running and verified)", kind, name, version)
 
 	return &node_agentpb.ApplyPackageReleaseResponse{
 		Ok:          true,
-		Message:     fmt.Sprintf("installed %s/%s@%s, restart scheduled", kind, name, version),
+		Message:     fmt.Sprintf("installed %s/%s@%s, service active and verified", kind, name, version),
 		PackageName: name,
 		Version:     version,
 		Status:      "installed",
 		OperationId: operationID,
+		BuildId:     buildID,
 	}, nil
 }

@@ -15,9 +15,10 @@ import (
 	"crypto/x509"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/event/eventpb"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/security"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	grpcInsecure "google.golang.org/grpc/credentials/insecure"
@@ -34,12 +35,19 @@ type serviceState struct {
 	NRestarts      string // systemd restart counter — increments on auto-restart after failure, NOT on manual restart
 }
 
+// crashRecord tracks rapid restarts for a single unit.
+type crashRecord struct {
+	timestamps []time.Time // timestamps of recent crash-restarts
+	suspended  bool        // true if we've disabled this unit
+}
+
 // eventPublisher monitors systemd unit states and publishes changes
 // to the event service so the ai_watcher can react.
 type eventPublisher struct {
 	mu             sync.Mutex
 	lastStates     map[string]serviceState
 	badStatePublished map[string]time.Time // cooldown for crash-loop/failed re-publishing
+	crashRecords   map[string]*crashRecord // crash-loop suppression tracker
 	conn           *grpc.ClientConn
 	client         eventpb.EventServiceClient
 	nodeID         string
@@ -47,10 +55,18 @@ type eventPublisher struct {
 
 const badStateCooldown = 60 * time.Second // re-publish crash-loop/failed at most once per minute
 
+// Crash-loop suppression thresholds: if a unit crashes crashLoopThreshold
+// times within crashLoopWindow, disable it and mark it suspended in etcd.
+const (
+	crashLoopThreshold = 5
+	crashLoopWindow    = 60 * time.Second
+)
+
 func newEventPublisher(nodeID string) *eventPublisher {
 	return &eventPublisher{
 		lastStates:     make(map[string]serviceState),
 		badStatePublished: make(map[string]time.Time),
+		crashRecords:   make(map[string]*crashRecord),
 		nodeID:         nodeID,
 	}
 }
@@ -272,6 +288,17 @@ func (ep *eventPublisher) checkAndPublish(ctx context.Context) {
 			eventName = "service.state_changed"
 		}
 
+		// ── Crash-loop suppression ────────────────────────────────────
+		// Track crash-restart timestamps. If a unit crashes too many times
+		// within the window, disable it and write a suspended marker to etcd
+		// so the controller stops trying to reconcile it.
+		if eventName == "service.exited" {
+			ep.trackCrashAndSuppress(ctx, u.Name, svcName)
+		} else if eventName == "service.started" {
+			// Service recovered — clear crash history.
+			delete(ep.crashRecords, u.Name)
+		}
+
 		payload := map[string]string{
 			"unit":          u.Name,
 			"service":       svcName,
@@ -426,5 +453,121 @@ func exitReason(code string) string {
 			return "exit code " + code
 		}
 		return ""
+	}
+}
+
+// trackCrashAndSuppress records a crash timestamp for the unit and, if the
+// threshold is exceeded, disables the unit via systemctl and writes a
+// suspended marker to etcd so the controller skips it during reconciliation.
+//
+// Caller must hold ep.mu.
+func (ep *eventPublisher) trackCrashAndSuppress(ctx context.Context, unitName, svcName string) {
+	rec := ep.crashRecords[unitName]
+	if rec == nil {
+		rec = &crashRecord{}
+		ep.crashRecords[unitName] = rec
+	}
+	if rec.suspended {
+		return // Already suppressed.
+	}
+
+	now := time.Now()
+	rec.timestamps = append(rec.timestamps, now)
+
+	// Prune timestamps outside the window.
+	cutoff := now.Add(-crashLoopWindow)
+	start := 0
+	for start < len(rec.timestamps) && rec.timestamps[start].Before(cutoff) {
+		start++
+	}
+	rec.timestamps = rec.timestamps[start:]
+
+	if len(rec.timestamps) < crashLoopThreshold {
+		return
+	}
+
+	// Threshold exceeded — suppress.
+	rec.suspended = true
+	log.Printf("crash-loop-suppressor: %s crashed %d times in %v — disabling unit",
+		unitName, len(rec.timestamps), crashLoopWindow)
+
+	// Disable the unit so systemd stops auto-restarting it.
+	stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if out, err := exec.CommandContext(stopCtx, "systemctl", "stop", unitName).CombinedOutput(); err != nil {
+		log.Printf("crash-loop-suppressor: stop %s failed: %v (%s)", unitName, err, string(out))
+	}
+	if out, err := exec.CommandContext(stopCtx, "systemctl", "disable", unitName).CombinedOutput(); err != nil {
+		log.Printf("crash-loop-suppressor: disable %s failed: %v (%s)", unitName, err, string(out))
+	}
+
+	// Write suspended marker to etcd so the controller knows not to
+	// re-reconcile this service on this node.
+	ep.writeSuspendedMarker(ctx, svcName)
+
+	// Publish a distinct event so the AI watcher / operator knows.
+	if ep.client != nil {
+		payload := map[string]string{
+			"unit":    unitName,
+			"service": svcName,
+			"node_id": ep.nodeID,
+			"reason":  fmt.Sprintf("%d crashes in %v", crashLoopThreshold, crashLoopWindow),
+		}
+		data, _ := json.Marshal(payload)
+		_, _ = ep.client.Publish(ctx, &eventpb.PublishRequest{
+			Evt: &eventpb.Event{
+				Name: "service.suspended",
+				Data: data,
+			},
+		})
+	}
+}
+
+// suspendedMarkerTTL is the time-to-live for crash-loop suspension markers.
+// After this period the marker auto-expires, giving the service a retry
+// window. If it crash-loops again, the marker is re-written.
+const suspendedMarkerTTL = 30 * 60 // 30 minutes in seconds
+
+// writeSuspendedMarker writes a key to etcd marking this service as suspended
+// on this node. The controller's reconciler checks for this key before
+// creating install/start workflows. The marker has a TTL so it auto-expires
+// and the service gets a retry window without requiring manual intervention.
+func (ep *eventPublisher) writeSuspendedMarker(ctx context.Context, svcName string) {
+	key := fmt.Sprintf("/globular/nodes/%s/suspended/%s", ep.nodeID, svcName)
+	val := fmt.Sprintf(`{"suspended_at":"%s","reason":"crash_loop_suppression","ttl_seconds":%d}`,
+		time.Now().UTC().Format(time.RFC3339), suspendedMarkerTTL)
+
+	cli, err := config.NewEtcdClient()
+	if err != nil {
+		log.Printf("crash-loop-suppressor: etcd connect failed: %v", err)
+		return
+	}
+	defer cli.Close()
+
+	// Create a lease so the marker auto-expires. Without this, a crash-loop
+	// suspension persists forever and requires manual etcd key deletion.
+	leaseCtx, leaseCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer leaseCancel()
+	lease, err := cli.Grant(leaseCtx, suspendedMarkerTTL)
+	if err != nil {
+		log.Printf("crash-loop-suppressor: etcd lease grant failed: %v (writing without TTL)", err)
+		// Fall through to write without lease — better to have a permanent
+		// marker than no marker at all.
+		putCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if _, err := cli.Put(putCtx, key, val); err != nil {
+			log.Printf("crash-loop-suppressor: etcd put %s failed: %v", key, err)
+		} else {
+			log.Printf("crash-loop-suppressor: wrote suspended marker %s (no TTL)", key)
+		}
+		return
+	}
+
+	putCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := cli.Put(putCtx, key, val, clientv3.WithLease(lease.ID)); err != nil {
+		log.Printf("crash-loop-suppressor: etcd put %s failed: %v", key, err)
+	} else {
+		log.Printf("crash-loop-suppressor: wrote suspended marker %s (TTL=%ds)", key, suspendedMarkerTTL)
 	}
 }

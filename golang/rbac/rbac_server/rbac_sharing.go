@@ -393,6 +393,9 @@ func sanitizeShareLists(share *rbacpb.Share) {
 // of each shared resource and applies ownership logic accordingly.
 // Returns a response containing the filtered shared resources or an error if retrieval fails.
 func (srv *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	// retreive all shared resource for a given subject.
 	share, err := srv.getSharedResource(rqst.Subject, rqst.Type)
@@ -572,6 +575,9 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 //	*rbacpb.RemoveSubjectFromShareRsp - The response indicating successful removal.
 //	error - An error if the removal fails.
 func (srv *server) RemoveSubjectFromShare(ctx context.Context, rqst *rbacpb.RemoveSubjectFromShareRqst) (*rbacpb.RemoveSubjectFromShareRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	// Here I will get the share and remove the subject from it.
 	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
@@ -668,6 +674,9 @@ func (srv *server) deleteSubjectShare(subject string, subjectType rbacpb.Subject
 //	*rbacpb.DeleteSubjectShareRsp - The response object for the deletion operation.
 //	error - An error if the deletion fails, otherwise nil.
 func (srv *server) DeleteSubjectShare(ctx context.Context, rqst *rbacpb.DeleteSubjectShareRqst) (*rbacpb.DeleteSubjectShareRsp, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 
 	err := srv.deleteSubjectShare(rqst.Subject, rqst.Type)
 

@@ -235,8 +235,9 @@ ArtifactManifest {
     platform: "linux_amd64"
     kind: SERVICE
   }
+  build_id: "019d986b-3632-7297-..."       # Repository-issued UUIDv7 — SOLE authoritative identity
   checksum: "sha256:a1b2c3d4e5f6..."     # SHA256 of the .tgz archive
-  build_number: 1                          # Differentiates rebuilds of same version
+  build_number: 1                          # Display-only monotonic counter (NOT used in convergence)
   profiles: ["core", "database"]           # Which profiles use this package
   install_mode: "repository"               # "repository" or "day0_join"
   publish_state: PUBLISHED                 # Lifecycle state
@@ -332,6 +333,7 @@ After the workflow successfully installs the package, the Node Agent writes an `
   "name": "my_service",
   "version": "0.0.3",
   "checksum": "sha256:a1b2c3...",
+  "build_id": "019d986b-3632-7297-...",
   "status": "installed",
   "installed_unix": 1712937600,
   "build_number": 1,

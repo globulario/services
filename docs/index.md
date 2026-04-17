@@ -56,6 +56,7 @@ Day-0 through Day-2 operational guides.
 - [Backup and Restore](operators/backup-and-restore.md) — Providers, scheduling, retention, disaster recovery
 - [Building from Source](operators/building-from-source.md) — Clone, build, and install from Git repositories
 - [Ports Reference](operators/ports-reference.md) — All ports, firewall rules, network requirements
+- [Repository Repair](operators/repository-repair.md) — Diagnose and repair repository, desired-state, and installed-state inconsistencies
 - [Known Issues](operators/known-issues.md) — CLI gaps, infrastructure limitations, planned fixes
 
 ---

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -12,6 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+// hashEnqueueCooldown debounces per-node hash-change re-enqueue.
+// Prevents reconcile storms when delayed heartbeats arrive in bursts.
+var hashEnqueueCooldown sync.Map
 
 func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controllerpb.ReportNodeStatusRequest) (*cluster_controllerpb.ReportNodeStatusResponse, error) {
 	if err := srv.requireLeader(ctx); err != nil {
@@ -322,32 +327,46 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// When the applied services hash changes, re-enqueue any ServiceReleases that
 	// include this node so drift detection can re-evaluate and potentially recover
 	// DEGRADED releases without waiting for the next spec change.
+	// Debounced per-node: skip if the same node triggered re-enqueue within the
+	// last 30 seconds. This prevents reconcile storms when delayed heartbeats
+	// arrive in rapid succession after a network partition.
 	if hashChanged && srv.releaseEnqueue != nil && srv.resources != nil {
-		enqueue := srv.releaseEnqueue
-		resources := srv.resources
-		nID := nodeID
-		go func() {
-			items, _, err := resources.List(context.Background(), "ServiceRelease", "")
-			if err != nil {
-				return
+		now := time.Now()
+		cooldownKey := "hash-enqueue:" + nodeID
+		if last, ok := hashEnqueueCooldown.Load(cooldownKey); ok {
+			if now.Sub(last.(time.Time)) < 30*time.Second {
+				goto skipHashEnqueue
 			}
-			for _, obj := range items {
-				rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
-				if !ok || rel.Meta == nil {
-					continue
+		}
+		hashEnqueueCooldown.Store(cooldownKey, now)
+		{
+			enqueue := srv.releaseEnqueue
+			resources := srv.resources
+			nID := nodeID
+			go func() {
+				items, _, err := resources.List(context.Background(), "ServiceRelease", "")
+				if err != nil {
+					return
 				}
-				if rel.Status == nil {
-					continue
-				}
-				for _, nrs := range rel.Status.Nodes {
-					if nrs != nil && nrs.NodeID == nID {
-						enqueue(rel.Meta.Name)
-						break
+				for _, obj := range items {
+					rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+					if !ok || rel.Meta == nil {
+						continue
+					}
+					if rel.Status == nil {
+						continue
+					}
+					for _, nrs := range rel.Status.Nodes {
+						if nrs != nil && nrs.NodeID == nID {
+							enqueue(rel.Meta.Name)
+							break
+						}
 					}
 				}
-			}
-		}()
+			}()
+		}
 	}
+skipHashEnqueue:
 
 	// Trigger B: When a node reports installed versions and desired state is
 	// empty, auto-import from installed. This catches the case where a node

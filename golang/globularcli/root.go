@@ -80,4 +80,6 @@ func init() {
 	rootCmd.AddCommand(pkgCmd)
 	rootCmd.AddCommand(servicesCmd)
 	rootCmd.AddCommand(namespaceCmd)
+	rootCmd.AddCommand(stateCmd)
+	rootCmd.AddCommand(repoCmd)
 }

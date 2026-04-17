@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,11 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/gocql/gocql"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -86,6 +89,7 @@ type server struct {
 	actions    chan map[string]interface{}
 	exit       chan bool
 	bus        *scyllaBus
+	depHealth  *dephealth.Watchdog
 
 	logger *slog.Logger
 }
@@ -215,6 +219,17 @@ func (srv *server) StartService() error {
 		srv.bus = nil
 	}
 
+	// Dependency health watchdog — gates RPCs when ScyllaDB is unreachable.
+	srv.depHealth = dephealth.NewWatchdog(srv.logger,
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			if srv.bus == nil {
+				return fmt.Errorf("scylladb bus not connected")
+			}
+			return srv.bus.session.Query("SELECT now() FROM system.local").Consistency(gocql.One).Exec()
+		}),
+	)
+	go srv.depHealth.Start(context.Background())
+
 	go srv.run()
 	return globular.StartService(srv, srv.grpcServer)
 }
@@ -229,6 +244,14 @@ func (srv *server) StopService() error {
 		srv.bus.close()
 	}
 	return globular.StopService(srv, srv.grpcServer)
+}
+
+// requireHealthy gates RPCs when distributed dependencies are down.
+func (srv *server) requireHealthy() error {
+	if srv.depHealth == nil {
+		return nil
+	}
+	return srv.depHealth.RequireHealthy()
 }
 
 func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }

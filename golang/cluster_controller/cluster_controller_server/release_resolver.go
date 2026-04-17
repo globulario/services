@@ -35,6 +35,7 @@ type ResolvedArtifact struct {
 	Version     string
 	Digest      string // SHA256 lowercase hex
 	BuildNumber int64
+	BuildID     string                   // Phase 2: repository-allocated exact artifact identity
 	RepoKind    repositorypb.ArtifactKind // actual kind from repository manifest
 }
 
@@ -160,6 +161,7 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 		Version:     version,
 		Digest:      checksum,
 		BuildNumber: manifest.GetBuildNumber(),
+		BuildID:     manifest.GetBuildId(),
 		RepoKind:    manifest.GetRef().GetKind(),
 	}, nil
 }

@@ -2,63 +2,61 @@
 // cannot safely upgrade themselves (e.g. node-agent). It is deployed once
 // with the initial install and never upgraded through the pipeline.
 //
+// The caller (node-agent apply handler) has already installed the new binary
+// via InstallPackage. The upgrader's job is:
+//  1. Restart the systemd unit (which picks up the new binary)
+//  2. Wait for the service to become active
+//  3. Write installed-state to etcd (the convergence truth boundary)
+//
+// If restart or health check fails, installed-state is written as "failed".
+//
 // Usage:
 //
 //	globular-upgrader \
+//	  --unit globular-node-agent.service \
 //	  --node-id <id> \
-//	  --plan-id <id> \
-//	  --plan-generation <gen> \
-//	  --artifact <path> \
-//	  --service <name> \
-//	  --version <ver> \
-//	  --unit <systemd-unit> \
-//	  --etcd-endpoints <endpoints> \
-//	  --etcd-cert <path> --etcd-key <path> --etcd-ca <path>
-//
-// Steps:
-//  1. Stop the target systemd unit
-//  2. Extract the artifact (tar.gz) into the install paths
-//  3. Write a version marker
-//  4. Write PLAN_SUCCEEDED to etcd
-//  5. Start the target systemd unit
+//	  --name node-agent \
+//	  --version 0.0.8 \
+//	  --build 2 \
+//	  --kind SERVICE \
+//	  --platform linux_amd64 \
+//	  --operation-id <op> \
+//	  --checksum <sha256>
 package main
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
-
 )
 
 func main() {
 	var (
-		nodeID         = flag.String("node-id", "", "Node ID")
-		planID         = flag.String("plan-id", "", "Plan ID to report status for")
-		planGeneration = flag.Uint64("plan-generation", 0, "Plan generation")
-		artifactPath   = flag.String("artifact", "", "Path to artifact tar.gz")
-		service        = flag.String("service", "", "Service name (e.g. node-agent)")
-		version        = flag.String("version", "", "Target version")
-		unit           = flag.String("unit", "", "Systemd unit name (e.g. globular-node-agent.service)")
-		etcdEndpoints  = flag.String("etcd-endpoints", "https://localhost:2379", "Comma-separated etcd endpoints")
-		etcdCert       = flag.String("etcd-cert", "", "Client TLS cert for etcd")
-		etcdKey        = flag.String("etcd-key", "", "Client TLS key for etcd")
-		etcdCA         = flag.String("etcd-ca", "", "CA cert for etcd")
+		unit        = flag.String("unit", "", "Systemd unit name (e.g. globular-node-agent.service)")
+		nodeID      = flag.String("node-id", "", "Node ID")
+		name        = flag.String("name", "", "Package name (e.g. node-agent)")
+		version     = flag.String("version", "", "Target version")
+		build       = flag.Int64("build", 0, "Build number")
+		kind        = flag.String("kind", "SERVICE", "Package kind (SERVICE, INFRASTRUCTURE, COMMAND)")
+		platform    = flag.String("platform", "", "Platform (e.g. linux_amd64)")
+		operationID = flag.String("operation-id", "", "Operation ID for tracing")
+		checksum    = flag.String("checksum", "", "Artifact SHA256 checksum")
+		buildIDFlag = flag.String("build-id", "", "Phase 2: exact artifact identity (UUIDv7)")
 	)
 	flag.Parse()
 
-	if *nodeID == "" || *planID == "" || *artifactPath == "" || *service == "" || *unit == "" {
+	if *unit == "" || *nodeID == "" || *name == "" || *version == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -66,43 +64,33 @@ func main() {
 	log.SetPrefix("globular-upgrader: ")
 	log.SetFlags(log.Ltime)
 
-	// Step 1: Stop the service.
-	log.Printf("stopping %s", *unit)
-	if err := systemctl("stop", *unit); err != nil {
-		fail(*etcdEndpoints, *etcdCert, *etcdKey, *etcdCA, *nodeID, *planID, *planGeneration,
-			fmt.Sprintf("stop %s: %v", *unit, err))
-	}
+	log.Printf("starting self-upgrade: %s → %s@%s (build %d, build_id=%s)", *unit, *name, *version, *build, *buildIDFlag)
 
-	// Step 2: Extract artifact.
-	log.Printf("installing artifact %s for %s", *artifactPath, *service)
-	if err := installArtifact(*artifactPath, *service); err != nil {
-		fail(*etcdEndpoints, *etcdCert, *etcdKey, *etcdCA, *nodeID, *planID, *planGeneration,
-			fmt.Sprintf("install artifact: %v", err))
-	}
-
-	// Step 3: Write version marker.
-	// Must match versionutil.MarkerPath: /var/lib/globular/services/{service}/version
-	if *version != "" {
-		markerPath := fmt.Sprintf("/var/lib/globular/services/%s/version", *service)
-		if err := os.MkdirAll(filepath.Dir(markerPath), 0o755); err == nil {
-			_ = os.WriteFile(markerPath, []byte(*version+"\n"), 0o644)
-		}
-	}
-
-	// Step 4: Write PLAN_SUCCEEDED to etcd.
-	log.Printf("reporting plan %s succeeded", *planID)
-	if err := reportSuccess(*etcdEndpoints, *etcdCert, *etcdKey, *etcdCA, *nodeID, *planID, *planGeneration); err != nil {
-		log.Printf("WARNING: failed to write plan status: %v (service will still be started)", err)
-	}
-
-	// Step 5: Start the service.
-	log.Printf("starting %s", *unit)
-	if err := systemctl("start", *unit); err != nil {
-		log.Printf("ERROR: failed to start %s: %v", *unit, err)
+	// Step 1: Restart the service. The new binary is already installed by
+	// the caller (InstallPackage ran before LaunchUpgrader).
+	log.Printf("restarting %s", *unit)
+	if err := systemctl("restart", *unit); err != nil {
+		errMsg := fmt.Sprintf("restart %s failed: %v", *unit, err)
+		log.Printf("ERROR: %s", errMsg)
+		writeInstalledState(*nodeID, *name, *version, *kind, *platform, *operationID, *checksum, *buildIDFlag, *build, "failed", errMsg)
 		os.Exit(1)
 	}
 
-	log.Printf("upgrade complete: %s → %s", *service, *version)
+	// Step 2: Wait for active (up to 30s).
+	log.Printf("waiting for %s to become active", *unit)
+	if err := waitActive(*unit, 30*time.Second); err != nil {
+		errMsg := fmt.Sprintf("%s did not become active: %v", *unit, err)
+		log.Printf("ERROR: %s", errMsg)
+		writeInstalledState(*nodeID, *name, *version, *kind, *platform, *operationID, *checksum, *buildIDFlag, *build, "failed", errMsg)
+		os.Exit(1)
+	}
+
+	// Step 3: Write installed-state to etcd. This is the convergence truth
+	// boundary — only reached after the service is confirmed running.
+	log.Printf("%s is active — writing installed-state", *unit)
+	writeInstalledState(*nodeID, *name, *version, *kind, *platform, *operationID, *checksum, *buildIDFlag, *build, "installed", "")
+
+	log.Printf("self-upgrade complete: %s@%s (build %d) running and verified", *name, *version, *build)
 }
 
 func systemctl(action, unit string) error {
@@ -112,66 +100,104 @@ func systemctl(action, unit string) error {
 	return cmd.Run()
 }
 
-func installArtifact(artifactPath, service string) error {
-	f, err := os.Open(artifactPath)
-	if err != nil {
-		return fmt.Errorf("open artifact: %w", err)
-	}
-	defer f.Close()
-
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("gzip reader: %w", err)
-	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
-	binDir := "/usr/lib/globular/bin"
-	systemdDir := "/etc/systemd/system"
-	configDir := "/var/lib/globular"
-
+func waitActive(unit string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
 	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
+		err := exec.Command("systemctl", "is-active", "--quiet", unit).Run()
+		if err == nil {
+			return nil
 		}
-		if err != nil {
-			return fmt.Errorf("read tar: %w", err)
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout after %s", timeout)
 		}
-		if hdr.FileInfo().IsDir() {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		name := strings.TrimLeft(hdr.Name, "./")
-		var dest string
-		switch {
-		case strings.HasPrefix(name, "bin/"):
-			dest = filepath.Join(binDir, filepath.Base(name))
-		case strings.HasPrefix(name, "systemd/"), strings.HasPrefix(name, "units/"):
-			dest = filepath.Join(systemdDir, filepath.Base(name))
-		case strings.HasPrefix(name, "config/"):
-			dest = filepath.Join(configDir, service, strings.TrimPrefix(name, "config/"))
-		default:
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return fmt.Errorf("mkdir %s: %w", filepath.Dir(dest), err)
-		}
-		out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, hdr.FileInfo().Mode())
-		if err != nil {
-			return fmt.Errorf("create %s: %w", dest, err)
-		}
-		if _, err := io.Copy(out, tr); err != nil {
-			out.Close()
-			return fmt.Errorf("write %s: %w", dest, err)
-		}
-		out.Close()
+		return err
 	}
-	return nil
 }
 
-func etcdClient(endpoints, certFile, keyFile, caFile string) (*clientv3.Client, error) {
-	tlsCfg := &tls.Config{}
-	if caFile != "" {
+// writeInstalledState writes the installed package record directly to etcd.
+// This is the ONLY place where self-update success is recorded — matching
+// the convergence truth invariant.
+func writeInstalledState(nodeID, name, version, kind, platform, operationID, checksum, buildID string, buildNumber int64, status, errMsg string) {
+	etcdKey := fmt.Sprintf("/globular/nodes/%s/packages/%s/%s", nodeID, kind, name)
+
+	now := time.Now().Unix()
+	pkg := map[string]interface{}{
+		"nodeId":        nodeID,
+		"name":          name,
+		"version":       version,
+		"kind":          kind,
+		"status":        status,
+		"updatedUnix":   fmt.Sprintf("%d", now),
+		"installedUnix": fmt.Sprintf("%d", now),
+		"buildNumber":   fmt.Sprintf("%d", buildNumber),
+	}
+	if platform != "" {
+		pkg["platform"] = platform
+	}
+	if operationID != "" {
+		pkg["operationId"] = operationID
+	}
+	if checksum != "" {
+		pkg["checksum"] = checksum
+	}
+	if buildID != "" {
+		pkg["buildId"] = buildID
+	}
+	if errMsg != "" {
+		pkg["metadata"] = map[string]string{"error": errMsg}
+	}
+
+	data, err := json.Marshal(pkg)
+	if err != nil {
+		log.Printf("WARNING: marshal installed-state failed: %v", err)
+		return
+	}
+
+	cli, err := newEtcdClient()
+	if err != nil {
+		log.Printf("WARNING: etcd connect failed: %v (installed-state NOT written)", err)
+		return
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := cli.Put(ctx, etcdKey, string(data)); err != nil {
+		log.Printf("WARNING: etcd put %s failed: %v", etcdKey, err)
+		return
+	}
+	log.Printf("installed-state written: %s = %s", etcdKey, status)
+}
+
+// etcdEndpointsFile is the cluster-rendered list of etcd member URLs.
+// Written by the controller during reconciliation. One URL per line.
+const etcdEndpointsFile = "/var/lib/globular/config/etcd_endpoints"
+
+func newEtcdClient() (*clientv3.Client, error) {
+	// Read endpoints from the cluster config file (same source the node-agent uses).
+	endpoints := readEndpointsFile(etcdEndpointsFile)
+	if len(endpoints) == 0 {
+		// Fallback to localhost (works on control-plane nodes where etcd runs locally).
+		endpoints = []string{"https://localhost:2379"}
+	}
+
+	certFile := "/var/lib/globular/pki/issued/services/service.crt"
+	keyFile := "/var/lib/globular/pki/issued/services/service.key"
+	caFile := "/var/lib/globular/pki/ca.crt"
+
+	cfg := clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	}
+
+	if _, err := os.Stat(caFile); err == nil {
+		tlsCfg := &tls.Config{}
 		caPEM, err := os.ReadFile(caFile)
 		if err != nil {
 			return nil, fmt.Errorf("read CA: %w", err)
@@ -179,30 +205,32 @@ func etcdClient(endpoints, certFile, keyFile, caFile string) (*clientv3.Client, 
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caPEM)
 		tlsCfg.RootCAs = pool
-	}
-	if certFile != "" && keyFile != "" {
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("load client cert: %w", err)
+
+		if _, err := os.Stat(certFile); err == nil {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil, fmt.Errorf("load client cert: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
 		}
-		tlsCfg.Certificates = []tls.Certificate{cert}
+		cfg.TLS = tlsCfg
 	}
-	return clientv3.New(clientv3.Config{
-		Endpoints:   strings.Split(endpoints, ","),
-		TLS:         tlsCfg,
-		DialTimeout: 5 * time.Second,
-	})
+
+	return clientv3.New(cfg)
 }
 
-// writeStatus deleted — plan system removed.
-func writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64, state int, errMsg string) error { return nil }
-
-func reportSuccess(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64) error {
-	return writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, 0, "")
-}
-
-func fail(endpoints, certFile, keyFile, caFile, nodeID, planID string, generation uint64, errMsg string) {
-	log.Printf("FAILED: %s", errMsg)
-	_ = writeStatus(endpoints, certFile, keyFile, caFile, nodeID, planID, generation, 1, errMsg)
-	os.Exit(1)
+// readEndpointsFile reads a newline-separated list of URLs from a file.
+func readEndpointsFile(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var eps []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			eps = append(eps, line)
+		}
+	}
+	return eps
 }

@@ -42,6 +42,8 @@ message InstalledPackage {
   string operation_id = 11;      // last operation that modified this
   map<string, string> metadata = 12; // additional key-value pairs
   int64 build_number = 13;      // build iteration within version (0 = legacy)
+  string build_id = 14;         // Phase 2: exact artifact identity (UUIDv7, repository-allocated)
+  bool provisional = 15;       // Phase 6: true for day-0 packages not yet imported into repository
 }
 
 message ListInstalledPackagesRequest {
@@ -556,6 +558,7 @@ message ApplyPackageReleaseRequest {
   string operation_id = 8;       // caller-provided correlation ID
   string repository_addr = 9;    // gRPC address of repository (auto-discovered if empty)
   int64 build_number = 10;       // build iteration within version
+  string build_id = 11;          // Phase 2: exact artifact identity (takes precedence over version+build_number)
 }
 
 message ApplyPackageReleaseResponse {
@@ -567,6 +570,7 @@ message ApplyPackageReleaseResponse {
   string error_detail = 6;       // non-empty on failure
   string checksum = 7;           // SHA256 of installed artifact
   string operation_id = 8;
+  string build_id = 9;           // Phase 2: exact artifact identity of what was installed
 }
 
 

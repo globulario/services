@@ -3,6 +3,7 @@ package event_client
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -120,17 +121,19 @@ func (client *Event_Client) run() error {
 	keep_alive := make(chan *eventpb.KeepAlive, 1)
 	exit := make(chan bool, 1)
 
+	// Circuit breaker: 3 consecutive stream failures → 30s cooldown.
+	cb := globular.NewStreamCircuitBreaker(3, 30*time.Second)
+
 	// start listenting to events from the server...
 	err := client.onEvent(client.uuid, data_channel, keep_alive, exit)
 	if err != nil {
 		return err
 	}
+	cb.RecordSuccess()
 
 	// the map that will contain the event handler.
 	handlers := make(map[string]map[string]func(*eventpb.Event))
 	client.isRunning.Store(true)
-
-	//
 
 	for {
 		select {
@@ -141,13 +144,33 @@ func (client *Event_Client) run() error {
 				client.cc.Close()
 			}
 
+			// Circuit breaker gate: if too many consecutive reconnect
+			// failures, wait for cooldown before attempting again.
+			if !cb.Allow() {
+				wait := cb.TimeUntilHalfOpen()
+				slog.Warn("event stream circuit breaker open, backing off",
+					"wait", wait)
+				time.Sleep(wait)
+			}
+
 			// Give the server a moment to come back.
 			time.Sleep(2 * time.Second)
 
-			/** So here I will try to reconnect **/
 			err := client.Reconnect()
 			if err != nil {
-				return err
+				cb.RecordFailure()
+				// Don't return — let the circuit breaker gate the next attempt.
+				// Drain stale exit signals and re-enter the loop.
+				select {
+				case <-exit:
+				default:
+				}
+				// Re-signal exit so we retry on next iteration.
+				select {
+				case exit <- true:
+				default:
+				}
+				continue
 			}
 
 			// Drain any stale exit signals from the old stream goroutine.
@@ -162,6 +185,7 @@ func (client *Event_Client) run() error {
 				// Now I will reconnect the stream...
 				err = client.onEvent(client.uuid, data_channel, keep_alive, exit)
 				if err == nil {
+					cb.RecordSuccess()
 					// Re-subscribe all handlers on the server.
 					for name, listeners := range handlers {
 						for uuid := range listeners {
@@ -183,7 +207,15 @@ func (client *Event_Client) run() error {
 			}
 
 			if err != nil {
-				return err
+				cb.RecordFailure()
+				slog.Warn("event stream reconnect failed, will retry",
+					"circuit", cb.State(), "err", err)
+				// Re-signal exit for retry with circuit breaker gating.
+				select {
+				case exit <- true:
+				default:
+				}
+				continue
 			}
 			
 		case <-keep_alive:
@@ -370,6 +402,22 @@ func (client *Event_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &eventpb.StopRequest{})
 }
 
+// eventDropCount tracks how many events were dropped due to a full handler
+// channel. Logged on first drop and every 100th drop thereafter.
+var eventDropCount atomic.Int64
+
+// publishDropCount tracks how many Publish calls were suppressed by the
+// circuit breaker. Logged when the circuit closes.
+var publishDropCount atomic.Int64
+
+// EventDropCount returns the number of events dropped by subscribers due
+// to full handler channels. Exported for diagnostics and doctor checks.
+func EventDropCount() int64 { return eventDropCount.Load() }
+
+// PublishDropCount returns the number of Publish calls suppressed by the
+// circuit breaker. Exported for diagnostics and doctor checks.
+func PublishDropCount() int64 { return publishDropCount.Load() }
+
 // publishCircuitOpenUntil is a per-process circuit breaker for event publishing.
 // When a Publish call fails, the circuit opens for 30 seconds. During that
 // window all Publish calls return immediately without making an RPC, preventing
@@ -384,9 +432,16 @@ func (client *Event_Client) Publish(name string, data []byte) error {
 	// Circuit breaker: skip RPC if recently failed.
 	if openUntil := publishCircuitOpenUntil.Load(); openUntil > 0 {
 		if time.Now().UnixNano() < openUntil {
+			publishDropCount.Add(1)
 			return errors.New("event publish circuit breaker open")
 		}
+		// Circuit closed — log how many were suppressed during the window.
+		dropped := publishDropCount.Swap(0)
 		publishCircuitOpenUntil.Store(0)
+		if dropped > 0 {
+			slog.Warn("event client: publish circuit breaker closed",
+				"dropped_during_window", dropped)
+		}
 	}
 
 	rqst := &eventpb.PublishRequest{
@@ -440,7 +495,14 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
 				select {
 				case data_channel <- op.Evt:
 				default:
-					// drop event if handler is too slow
+					// Channel full — handler is too slow. Drop event
+					// and increment counter so drops are observable.
+					dropped := eventDropCount.Add(1)
+					if dropped == 1 || dropped%100 == 0 {
+						slog.Warn("event client: dropped event (handler too slow)",
+							"event", op.Evt.GetName(),
+							"total_dropped", dropped)
+					}
 				}
 			case *eventpb.OnEventResponse_Ka:
 				select {

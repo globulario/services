@@ -46,7 +46,7 @@ to force a full package rebuild.`,
 
 func init() {
 	deployCmd.Flags().StringVarP(&deployComment, "comment", "c", "", "Deployment comment")
-	deployCmd.Flags().StringVar(&deployVersion, "version", "0.0.2", "Package version")
+	deployCmd.Flags().StringVar(&deployVersion, "version", "", "Package version (required)")
 	deployCmd.Flags().StringVar(&deployRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	deployCmd.Flags().BoolVar(&deployFull, "full", false, "Force full package rebuild (skip delta detection)")
 	deployCmd.Flags().BoolVar(&deployDryRun, "dry-run", false, "Print actions without executing")

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
+	"time"
 
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -90,12 +92,12 @@ func (s *etcdStore) Apply(ctx context.Context, typ string, obj interface{}) (int
 	if err != nil {
 		return nil, err
 	}
+	// Set ResourceVersion in-memory from the etcd revision so callers can
+	// use it for watch resumption. A second Put to persist the RV in etcd
+	// is unnecessary and creates a race window where errors are ignored.
 	meta.ResourceVersion = fmt.Sprintf("%d", resp.Header.Revision)
-	// Re-encode with RV.
-	b, _ = json.Marshal(obj)
-	_, _ = s.cli.Put(ctx, keyFor(typ, meta.Name), string(b))
 	_ = prevRV
-	return decodeObject(typ, b)
+	return obj, nil
 }
 
 func (s *etcdStore) Delete(ctx context.Context, typ, name string) error {
@@ -124,13 +126,28 @@ func (s *etcdStore) Watch(ctx context.Context, typ, prefix, fromRV string) (<-ch
 					return
 				}
 				if wr.Err() == rpctypes.ErrCompacted {
-					// Resync
-					resp, err := s.cli.Get(ctx, fmt.Sprintf("%s/%s/", resourceKeyPrefix, typ), clientv3.WithPrefix())
-					if err != nil {
-						continue
+					// Resync: re-read all keys and restart the watch from
+					// current revision. Retry with backoff — silently continuing
+					// with a stale revision loses events in the compacted window.
+					var synced bool
+					for attempt := 0; attempt < 5; attempt++ {
+						resp, err := s.cli.Get(ctx, fmt.Sprintf("%s/%s/", resourceKeyPrefix, typ), clientv3.WithPrefix())
+						if err == nil {
+							currentRev = resp.Header.Revision + 1
+							wch = s.cli.Watch(ctx, fmt.Sprintf("%s/%s/", resourceKeyPrefix, typ), clientv3.WithPrefix(), clientv3.WithRev(currentRev))
+							synced = true
+							break
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(time.Duration(attempt+1) * time.Second):
+						}
 					}
-					currentRev = resp.Header.Revision + 1
-					wch = s.cli.Watch(ctx, fmt.Sprintf("%s/%s/", resourceKeyPrefix, typ), clientv3.WithPrefix(), clientv3.WithRev(currentRev))
+					if !synced {
+						log.Printf("resourcestore: watch %s resync failed after 5 attempts, restarting from latest", typ)
+						wch = s.cli.Watch(ctx, fmt.Sprintf("%s/%s/", resourceKeyPrefix, typ), clientv3.WithPrefix())
+					}
 					continue
 				}
 				for _, ev := range wr.Events {

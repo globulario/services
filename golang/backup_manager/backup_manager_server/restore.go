@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	Utility "github.com/globulario/utility"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -769,7 +771,13 @@ func (srv *server) restartAllServices(ctx context.Context) {
 		}
 	}
 
-	// 2b. Reset node-agent plan generation file. After an etcd restore, plan
+	// 2b. Reset stale release phases in etcd. After an etcd restore, releases
+	// may be stuck in APPLYING or RESOLVED pointing to workflow runs that have
+	// already completed in ScyllaDB. Reset them to PENDING so the controller
+	// re-evaluates from scratch instead of trying to resume stale workflow state.
+	srv.resetStaleReleasesAfterRestore(ctx)
+
+	// 2c. Reset node-agent plan generation file. After an etcd restore, plan
 	// generation numbers in etcd are from an older snapshot while the node-agent's
 	// on-disk high water mark is from the current timeline. New plans arrive with
 	// generation <= lastApplied, causing the node-agent to reject them as "replay"
@@ -790,6 +798,81 @@ func (srv *server) restartAllServices(ctx context.Context) {
 		}
 	}
 	slog.Info("restartAllServices: phase 2 done (control-plane)", "restarted", restarted)
+}
+
+// resetStaleReleasesAfterRestore scans etcd for ServiceRelease and
+// InfrastructureRelease resources in non-terminal phases (APPLYING, RESOLVED)
+// and resets them to PENDING. After an etcd restore, these phases point to
+// workflow state in ScyllaDB that may be from a different timeline.
+func (srv *server) resetStaleReleasesAfterRestore(ctx context.Context) {
+	cli, err := config.NewEtcdClient()
+	if err != nil {
+		slog.Warn("resetStaleReleases: etcd connect failed", "err", err)
+		return
+	}
+	defer cli.Close()
+
+	resetPhases := map[string]bool{
+		"RESOLVED": true,
+		"APPLYING": true,
+	}
+
+	prefixes := []string{
+		"/globular/resources/ServiceRelease/",
+		"/globular/resources/InfrastructureRelease/",
+	}
+	var resetCount int
+	for _, prefix := range prefixes {
+		getCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		resp, err := cli.Get(getCtx, prefix, clientv3.WithPrefix())
+		cancel()
+		if err != nil {
+			slog.Warn("resetStaleReleases: list failed", "prefix", prefix, "err", err)
+			continue
+		}
+		for _, kv := range resp.Kvs {
+			// Quick JSON check for phase field without full unmarshal.
+			var obj map[string]json.RawMessage
+			if err := json.Unmarshal(kv.Value, &obj); err != nil {
+				continue
+			}
+			statusRaw, ok := obj["status"]
+			if !ok {
+				continue
+			}
+			var status map[string]json.RawMessage
+			if err := json.Unmarshal(statusRaw, &status); err != nil {
+				continue
+			}
+			phaseRaw, ok := status["phase"]
+			if !ok {
+				continue
+			}
+			var phase string
+			if err := json.Unmarshal(phaseRaw, &phase); err != nil {
+				continue
+			}
+			if !resetPhases[phase] {
+				continue
+			}
+			// Reset phase to PENDING.
+			status["phase"], _ = json.Marshal("PENDING")
+			status["transition_reason"], _ = json.Marshal("post_restore_reset")
+			obj["status"], _ = json.Marshal(status)
+			newVal, _ := json.Marshal(obj)
+			putCtx, putCancel := context.WithTimeout(ctx, 5*time.Second)
+			if _, err := cli.Put(putCtx, string(kv.Key), string(newVal)); err != nil {
+				slog.Warn("resetStaleReleases: reset failed", "key", string(kv.Key), "err", err)
+			} else {
+				slog.Info("resetStaleReleases: reset to PENDING", "key", string(kv.Key), "was", phase)
+				resetCount++
+			}
+			putCancel()
+		}
+	}
+	if resetCount > 0 {
+		slog.Info("resetStaleReleases: reset releases after restore", "count", resetCount)
+	}
 }
 
 func isPortOpen(host string, port int) bool {

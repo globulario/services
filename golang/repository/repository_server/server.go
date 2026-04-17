@@ -113,10 +113,12 @@ type server struct {
 
 	// --- Repository-Specific Fields ---
 	Root        string                    // Base data directory (artifacts/ lives under this)
-	MinioConfig *config.MinioProxyConfig  // nil → use local filesystem
+	MinioConfig *config.MinioProxyConfig  // MinIO config from etcd (required in multi-node)
 	minioClient *minio.Client
 	storage     storage_backend.Storage
 	cache       *manifestCache            // in-memory TTL cache for manifest reads
+	scylla      *scyllaStore              // ScyllaDB manifest metadata store
+	depHealth   *depHealthWatchdog        // dependency health monitor
 
 	// --- Workflow tracing ---
 	workflowRec *workflow.Recorder
@@ -584,31 +586,40 @@ func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig 
 }
 
 func (srv *server) initStorage() error {
-	if srv.minioEnabled() {
-		if err := srv.ensureMinioClient(); err != nil {
-			return err
-		}
-		m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
-		if err != nil {
-			return err
-		}
-		srv.storage = m
-		logger.Info("minio storage initialized",
-			"endpoint", srv.MinioConfig.Endpoint,
-			"bucket", srv.MinioConfig.Bucket)
-		return nil
+	if !srv.minioEnabled() {
+		return fmt.Errorf("MinIO configuration missing — the repository requires distributed " +
+			"object storage (etcd key %s must be set by the cluster controller)",
+			config.EtcdKeyMinioConfig)
 	}
-	srv.storage = storage_backend.NewOSStorage(srv.Root)
+	if err := srv.ensureMinioClient(); err != nil {
+		return fmt.Errorf("MinIO client init: %w", err)
+	}
+	m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
+	if err != nil {
+		return fmt.Errorf("MinIO storage init: %w", err)
+	}
+	srv.storage = m
+	logger.Info("minio storage initialized",
+		"endpoint", srv.MinioConfig.Endpoint,
+		"bucket", srv.MinioConfig.Bucket)
 	return nil
 }
 
-// Storage returns the configured backend, initializing it on first call if needed.
+// requireHealthy gates RPCs behind the dependency health check.
+// Returns a gRPC UNAVAILABLE error if MinIO or ScyllaDB is down.
+func (srv *server) requireHealthy() error {
+	if srv.depHealth == nil {
+		return nil // watchdog not yet started (startup)
+	}
+	return srv.depHealth.RequireHealthy()
+}
+
+// Storage returns the configured backend. MinIO is required — there is no
+// local filesystem fallback. If storage was not initialized, the service is
+// broken and RPCs should not reach this point (dep_health gates them).
 func (srv *server) Storage() storage_backend.Storage {
 	if srv.storage == nil {
-		if err := srv.initStorage(); err != nil {
-			logger.Error("storage init failed, falling back to local fs", "err", err)
-			srv.storage = storage_backend.NewOSStorage(srv.Root)
-		}
+		logger.Error("BUG: Storage() called but storage backend is nil — MinIO not initialized")
 	}
 	return srv.storage
 }
@@ -774,7 +785,17 @@ func main() {
 	// Always override Root after Init() so a stale etcd value can't redirect packages
 	// to the wrong local path.
 	s.Root = config.GetDataDir()
-	// Load MinIO config (etcd → env → contract file → credentials file).
+
+	// 7a. Connect to ScyllaDB (distributed manifest metadata store).
+	// ScyllaDB is a hard dependency — if unreachable, the service starts degraded
+	// and the health watchdog will mark it NOT_SERVING.
+	scylla, scyllaErr := connectScylla()
+	if scyllaErr != nil {
+		logger.Error("scylladb connection failed — service will start degraded", "err", scyllaErr)
+	}
+	s.scylla = scylla
+
+	// 7b. Load MinIO config (etcd only — no env vars, no disk fallbacks).
 	s.MinioConfig = s.loadMinioConfig()
 	if s.MinioConfig != nil {
 		logger.Info("minio storage configured",
@@ -783,16 +804,40 @@ func main() {
 			"prefix", s.MinioConfig.Prefix)
 	}
 	if err := s.initStorage(); err != nil {
-		logger.Error("storage init failed, falling back to local filesystem", "err", err)
-		s.storage = storage_backend.NewOSStorage(s.Root)
+		logger.Error("minio storage init failed — service will start degraded", "err", err)
+		// Do NOT fall back to local filesystem. The repository requires distributed
+		// storage. The health watchdog will mark us NOT_SERVING.
 	}
 
-	// 7b. Run trust model migration (idempotent — only on first run).
-	s.MigrateToTrustModel(context.Background())
+	// 7c. Start dependency health watchdog.
+	// Continuously monitors MinIO + ScyllaDB. Gates RPCs with UNAVAILABLE when
+	// either dependency is down. Recovery is automatic.
+	s.depHealth = newDepHealthWatchdog(s.storage, s.scylla, logger)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.depHealth.Start(ctx)
 
-	// 7c. Start publish reconciler (retries stuck VERIFIED artifacts).
+	// 7d. Run trust model migration (idempotent — only on first run).
+	if s.storage != nil {
+		s.MigrateToTrustModel(ctx)
+	}
+
+	// 7d2. Phase 2: backfill build_id for existing artifacts (idempotent).
+	if s.storage != nil {
+		s.MigrateBuildIDs(ctx)
+	}
+
+	// 7d3. Phase 3: build release ledger from existing PUBLISHED artifacts (idempotent).
+	if s.storage != nil {
+		s.MigrateReleaseLedger(ctx)
+	}
+
+	// 7e. Start publish reconciler (retries stuck VERIFIED artifacts).
 	pr := newPublishReconciler(s)
-	pr.Start(context.Background())
+	pr.Start(ctx)
+
+	// 7f. Phase 4: start reservation cleanup goroutine.
+	startReservationCleanup(ctx)
 
 	// 8. Register gRPC service and reflection
 	setupGrpcService(s)
@@ -803,6 +848,8 @@ func main() {
 		"proxy", s.Proxy,
 		"protocol", s.Protocol,
 		"domain", s.Domain,
+		"scylladb", scyllaErr == nil,
+		"minio", s.storage != nil,
 		"init_ms", time.Since(start).Milliseconds())
 
 	// 9. Start service using shared lifecycle manager

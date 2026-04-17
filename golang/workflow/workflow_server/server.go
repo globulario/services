@@ -19,6 +19,7 @@ import (
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/dephealth"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 
@@ -108,6 +109,9 @@ type server struct {
 	aiMemoryClient    ai_memorypb.AiMemoryServiceClient
 	incidentDedupeMu  sync.RWMutex
 	incidentDedupeMap map[string]time.Time
+
+	// Dependency health watchdog (gates RPCs when ScyllaDB is down).
+	depHealth *dephealth.Watchdog
 
 	// Metrics bookkeeping (low cardinality, held locally)
 	metricsMu    sync.Mutex
@@ -213,6 +217,14 @@ func (srv *server) Save() error                              { return globular.S
 func (srv *server) StartService() error                      { return globular.StartService(srv, srv.grpcServer) }
 func (srv *server) StopService() error                       { return globular.StopService(srv, srv.grpcServer) }
 func (srv *server) RolesDefault() []resourcepb.Role          { return []resourcepb.Role{} }
+
+// requireHealthy gates RPCs — returns codes.Unavailable when dependencies are down.
+func (srv *server) requireHealthy() error {
+	if srv.depHealth == nil {
+		return nil
+	}
+	return srv.depHealth.RequireHealthy()
+}
 
 // ---------------------------------------------------------------------------
 // ScyllaDB connection
@@ -332,6 +344,17 @@ func (srv *server) Init() error {
 	if err := srv.connectScylla(); err != nil {
 		return fmt.Errorf("scylla init: %w", err)
 	}
+
+	// Dependency health watchdog — gates RPCs when ScyllaDB is unreachable.
+	srv.depHealth = dephealth.NewWatchdog(logger,
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			if srv.session == nil {
+				return fmt.Errorf("scylladb not connected")
+			}
+			return srv.session.Query("SELECT now() FROM system.local").Consistency(gocql.One).Exec()
+		}),
+	)
+	go srv.depHealth.Start(context.Background())
 
 	// Initialize executor lease manager for HA run ownership.
 	srv.leaseManager = newExecutorLeaseManager(srv)
@@ -576,6 +599,17 @@ func isTerminalStatus(s workflowpb.RunStatus) bool {
 	return false
 }
 
+// isTerminalStepStatus returns true if the step status is a terminal outcome.
+func isTerminalStepStatus(s workflowpb.StepStatus) bool {
+	switch s {
+	case workflowpb.StepStatus_STEP_STATUS_SUCCEEDED,
+		workflowpb.StepStatus_STEP_STATUS_FAILED,
+		workflowpb.StepStatus_STEP_STATUS_SKIPPED:
+		return true
+	}
+	return false
+}
+
 // supersedePriorRuns finds non-terminal runs with the same correlation_id
 // as the new run and marks them SUPERSEDED with superseded_by=newRunID.
 // Called from StartRun so each correlation_id has at most one active run.
@@ -583,11 +617,14 @@ func (srv *server) supersedePriorRuns(clusterID, correlationID, newRunID string)
 	if srv.session == nil || correlationID == "" {
 		return
 	}
+	// PageSize limits the scan to avoid O(N²) degradation after many retries.
+	// Most runs will be terminal (SUPERSEDED/SUCCEEDED/FAILED); we only need
+	// to find and mark the few non-terminal ones.
 	iter := srv.session.Query(`
 		SELECT id, started_at, status FROM workflow_runs
 		WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
 		clusterID, correlationID,
-	).Iter()
+	).PageSize(100).Iter()
 
 	var (
 		id        string
@@ -625,6 +662,9 @@ func (srv *server) supersedePriorRuns(clusterID, correlationID, newRunID string)
 // ---------------------------------------------------------------------------
 
 func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) (*workflowpb.WorkflowRun, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	run := req.GetRun()
 	if run == nil {
 		return nil, fmt.Errorf("run is required")
@@ -696,6 +736,9 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 }
 
 func (srv *server) UpdateRun(_ context.Context, req *workflowpb.UpdateRunRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	// ScyllaDB doesn't support subqueries in UPDATE WHERE. Use two-step approach.
 	return nil, srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
@@ -709,6 +752,9 @@ func (srv *server) UpdateRun(_ context.Context, req *workflowpb.UpdateRunRequest
 }
 
 func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	var (
 		runStartedAt time.Time
@@ -717,21 +763,23 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 	err := srv.updateRunByID(req.ClusterId, req.Id, func(startedAt time.Time) error {
 		runStartedAt = startedAt
 
-		// ── Protect successful runs from downgrade ──────────────────
-		// A previously SUCCEEDED run must never be overwritten to FAILED
-		// (e.g., by orphan resume timing). This is the last-resort guard.
-		if req.Status == workflowpb.RunStatus_RUN_STATUS_FAILED {
-			var currentStatus int
-			if scanErr := srv.session.Query(`
-				SELECT status FROM workflow_runs
-				WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
-				req.ClusterId, startedAt, req.Id,
-			).Scan(&currentStatus); scanErr == nil {
-				if workflowpb.RunStatus(currentStatus) == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
-					slog.Warn("FinishRun: refusing to downgrade SUCCEEDED run to FAILED",
-						"run_id", req.Id, "requested_status", req.Status.String())
-					return nil // silently skip the downgrade
-				}
+		// ── Protect terminal runs from stale overwrites ─────────────
+		// A run that is already SUCCEEDED, SUPERSEDED, or CANCELLED must
+		// never be overwritten by a stale callback. This prevents out-of-
+		// order FinishRun calls from corrupting truth.
+		var currentStatus int
+		if scanErr := srv.session.Query(`
+			SELECT status FROM workflow_runs
+			WHERE cluster_id=? AND started_at=? AND id=? LIMIT 1`,
+			req.ClusterId, startedAt, req.Id,
+		).Scan(&currentStatus); scanErr == nil {
+			cs := workflowpb.RunStatus(currentStatus)
+			if isTerminalStatus(cs) && cs != req.Status {
+				slog.Warn("FinishRun: refusing to overwrite terminal run",
+					"run_id", req.Id,
+					"current", cs.String(),
+					"requested", req.Status.String())
+				return nil
 			}
 		}
 
@@ -771,6 +819,9 @@ func (srv *server) FinishRun(_ context.Context, req *workflowpb.FinishRunRequest
 }
 
 func (srv *server) RecordStep(_ context.Context, req *workflowpb.RecordStepRequest) (*workflowpb.WorkflowStep, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	step := req.GetStep()
 	if step == nil {
 		return nil, fmt.Errorf("step is required")
@@ -801,6 +852,27 @@ func (srv *server) RecordStep(_ context.Context, req *workflowpb.RecordStepReque
 }
 
 func (srv *server) UpdateStep(_ context.Context, req *workflowpb.UpdateStepRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+	// Guard: never overwrite a terminal step status (SUCCEEDED/FAILED) with a
+	// stale result. Out-of-order or retried callbacks must not corrupt truth.
+	if srv.session != nil {
+		var currentStatus int
+		if err := srv.session.Query(`
+			SELECT status FROM workflow_steps
+			WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
+			req.ClusterId, req.RunId, req.Seq,
+		).Scan(&currentStatus); err == nil {
+			if isTerminalStepStatus(workflowpb.StepStatus(currentStatus)) {
+				slog.Warn("UpdateStep: refusing to overwrite terminal step",
+					"run_id", req.RunId, "seq", req.Seq,
+					"current", workflowpb.StepStatus(currentStatus).String(),
+					"requested", req.Status.String())
+				return &emptypb.Empty{}, nil
+			}
+		}
+	}
 	if err := srv.session.Query(`
 		UPDATE workflow_steps SET status=?, message=?, duration_ms=?, finished_at=?
 		WHERE cluster_id=? AND run_id=? AND seq=?`,
@@ -813,6 +885,26 @@ func (srv *server) UpdateStep(_ context.Context, req *workflowpb.UpdateStepReque
 }
 
 func (srv *server) FailStep(_ context.Context, req *workflowpb.FailStepRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+	// Guard: never overwrite a SUCCEEDED step with FAILED. A stale failure
+	// from an earlier attempt or network retry must not corrupt truth.
+	if srv.session != nil {
+		var currentStatus int
+		if err := srv.session.Query(`
+			SELECT status FROM workflow_steps
+			WHERE cluster_id=? AND run_id=? AND seq=? LIMIT 1`,
+			req.ClusterId, req.RunId, req.Seq,
+		).Scan(&currentStatus); err == nil {
+			cs := workflowpb.StepStatus(currentStatus)
+			if cs == workflowpb.StepStatus_STEP_STATUS_SUCCEEDED {
+				slog.Warn("FailStep: refusing to downgrade SUCCEEDED step to FAILED",
+					"run_id", req.RunId, "seq", req.Seq)
+				return &emptypb.Empty{}, nil
+			}
+		}
+	}
 	now := time.Now()
 	if err := srv.session.Query(`
 		UPDATE workflow_steps SET status=?, error_code=?, error_message=?, action_hint=?,
@@ -835,6 +927,9 @@ func (srv *server) FailStep(_ context.Context, req *workflowpb.FailStepRequest) 
 }
 
 func (srv *server) AddArtifactRef(_ context.Context, req *workflowpb.AddArtifactRefRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	a := req.GetArtifact()
 	if a == nil {
 		return nil, fmt.Errorf("artifact is required")
@@ -867,6 +962,9 @@ func (srv *server) AddArtifactRef(_ context.Context, req *workflowpb.AddArtifact
 }
 
 func (srv *server) AppendEvent(_ context.Context, req *workflowpb.AppendEventRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	ev := req.GetEvent()
 	if ev == nil {
 		return nil, fmt.Errorf("event is required")
@@ -901,6 +999,9 @@ func (srv *server) AppendEvent(_ context.Context, req *workflowpb.AppendEventReq
 // ---------------------------------------------------------------------------
 
 func (srv *server) GetRun(_ context.Context, req *workflowpb.GetRunRequest) (*workflowpb.WorkflowRunDetail, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	run, err := srv.loadRunByID(req.ClusterId, req.Id)
 	if err != nil {
 		return nil, err
@@ -924,6 +1025,9 @@ func (srv *server) GetRun(_ context.Context, req *workflowpb.GetRunRequest) (*wo
 }
 
 func (srv *server) ListRuns(_ context.Context, req *workflowpb.ListRunsRequest) (*workflowpb.ListRunsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
@@ -969,6 +1073,9 @@ func (srv *server) ListRuns(_ context.Context, req *workflowpb.ListRunsRequest) 
 }
 
 func (srv *server) GetRunEvents(_ context.Context, req *workflowpb.GetRunEventsRequest) (*workflowpb.GetRunEventsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	iter := srv.session.Query(`
 		SELECT run_id, event_id, step_seq, event_type, actor, old_value, new_value, message, event_at
 		FROM workflow_events WHERE cluster_id=? AND run_id=?`,
@@ -1002,6 +1109,9 @@ func (srv *server) GetRunEvents(_ context.Context, req *workflowpb.GetRunEventsR
 }
 
 func (srv *server) GetCurrentRunsForNode(ctx context.Context, req *workflowpb.GetCurrentRunsForNodeRequest) (*workflowpb.ListRunsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	return srv.ListRuns(ctx, &workflowpb.ListRunsRequest{
 		ClusterId:  req.ClusterId,
 		NodeId:     req.NodeId,
@@ -1011,6 +1121,9 @@ func (srv *server) GetCurrentRunsForNode(ctx context.Context, req *workflowpb.Ge
 }
 
 func (srv *server) GetComponentHistory(ctx context.Context, req *workflowpb.GetComponentHistoryRequest) (*workflowpb.ListRunsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 20
@@ -1023,6 +1136,9 @@ func (srv *server) GetComponentHistory(ctx context.Context, req *workflowpb.GetC
 }
 
 func (srv *server) GetWorkflowGraph(_ context.Context, req *workflowpb.GetWorkflowGraphRequest) (*workflowpb.WorkflowGraph, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	detail, err := srv.GetRun(context.Background(), &workflowpb.GetRunRequest{
 		ClusterId: req.ClusterId,
 		Id:        req.RunId,
@@ -1141,6 +1257,9 @@ func (srv *server) WatchNodeRuns(req *workflowpb.WatchNodeRunsRequest, stream wo
 // ---------------------------------------------------------------------------
 
 func (srv *server) RetryRun(_ context.Context, req *workflowpb.RetryRunRequest) (*workflowpb.WorkflowRun, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	original, err := srv.loadRunByID(req.ClusterId, req.RunId)
 	if err != nil {
 		return nil, fmt.Errorf("load original run: %w", err)
@@ -1174,6 +1293,9 @@ func (srv *server) RetryRun(_ context.Context, req *workflowpb.RetryRunRequest) 
 }
 
 func (srv *server) CancelRun(_ context.Context, req *workflowpb.CancelRunRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	run, err := srv.loadRunByID(req.ClusterId, req.RunId)
 	if err != nil {
 		return nil, fmt.Errorf("load run: %w", err)
@@ -1202,6 +1324,9 @@ func (srv *server) CancelRun(_ context.Context, req *workflowpb.CancelRunRequest
 }
 
 func (srv *server) AcknowledgeRun(_ context.Context, req *workflowpb.AcknowledgeRunRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	return &emptypb.Empty{}, srv.updateRunByID(req.ClusterId, req.RunId, func(startedAt time.Time) error {
 		return srv.session.Query(`
@@ -1214,6 +1339,9 @@ func (srv *server) AcknowledgeRun(_ context.Context, req *workflowpb.Acknowledge
 }
 
 func (srv *server) DiagnoseRun(_ context.Context, req *workflowpb.DiagnoseRunRequest) (*workflowpb.DiagnoseRunResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	run, err := srv.loadRunByID(req.ClusterId, req.RunId)
 	if err != nil {
 		return nil, fmt.Errorf("load run: %w", err)
@@ -1313,6 +1441,9 @@ func (srv *server) DiagnoseRun(_ context.Context, req *workflowpb.DiagnoseRunReq
 // ListWorkflowDefinitions returns the list of YAML workflow definitions stored
 // in MinIO under globular-config/workflows/.
 func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.ListWorkflowDefinitionsRequest) (*workflowpb.ListWorkflowDefinitionsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	keys, err := config.ListClusterConfigPrefix("workflows/")
 	if err != nil {
 		return nil, fmt.Errorf("list workflow definitions: %w", err)
@@ -1346,6 +1477,9 @@ func (srv *server) ListWorkflowDefinitions(_ context.Context, _ *workflowpb.List
 
 // GetWorkflowDefinition returns the raw YAML content for a workflow definition.
 func (srv *server) GetWorkflowDefinition(_ context.Context, req *workflowpb.GetWorkflowDefinitionRequest) (*workflowpb.GetWorkflowDefinitionResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req.Name == "" {
 		return nil, fmt.Errorf("workflow name is required")
 	}
@@ -1507,6 +1641,9 @@ func tsTimeOrNil(t time.Time) interface{} {
 // Used by periodic workflows (e.g. cluster.reconcile firing every 30s) that
 // would otherwise inflate storage with per-run detail.
 func (srv *server) RecordOutcome(_ context.Context, req *workflowpb.RecordOutcomeRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return &emptypb.Empty{}, nil
 	}
@@ -1522,6 +1659,9 @@ func (srv *server) RecordOutcome(_ context.Context, req *workflowpb.RecordOutcom
 // ListWorkflowSummaries returns all summary rows for a cluster, optionally
 // filtered by workflow_name.
 func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.ListWorkflowSummariesRequest) (*workflowpb.ListWorkflowSummariesResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
@@ -1590,6 +1730,9 @@ func (srv *server) ListWorkflowSummaries(_ context.Context, req *workflowpb.List
 // RecordStepOutcome upserts per-step aggregate counters. Called from the
 // workflow engine's OnStepDone hook. Bounded cardinality: O(#workflows × #steps).
 func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordStepOutcomeRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.WorkflowName == "" || req.StepId == "" {
 		return &emptypb.Empty{}, nil
 	}
@@ -1642,6 +1785,9 @@ func (srv *server) RecordStepOutcome(_ context.Context, req *workflowpb.RecordSt
 // ListStepOutcomes returns per-step aggregate counters, optionally filtered
 // by workflow_name.
 func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepOutcomesRequest) (*workflowpb.ListStepOutcomesResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}
@@ -1698,6 +1844,9 @@ func (srv *server) ListStepOutcomes(_ context.Context, req *workflowpb.ListStepO
 // RecordPhaseTransition appends a phase transition event (TTL 7 days).
 // Called whenever a resource's phase changes or an invariant guard rejects a transition.
 func (srv *server) RecordPhaseTransition(_ context.Context, req *workflowpb.RecordPhaseTransitionRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
 		return &emptypb.Empty{}, nil
 	}
@@ -1718,6 +1867,9 @@ func (srv *server) RecordPhaseTransition(_ context.Context, req *workflowpb.Reco
 
 // ListPhaseTransitions returns the transition history for a single resource.
 func (srv *server) ListPhaseTransitions(_ context.Context, req *workflowpb.ListPhaseTransitionsRequest) (*workflowpb.ListPhaseTransitionsResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.ResourceType == "" || req.ResourceName == "" {
 		return nil, fmt.Errorf("cluster_id, resource_type, resource_name are required")
 	}
@@ -1764,6 +1916,9 @@ func (srv *server) ListPhaseTransitions(_ context.Context, req *workflowpb.ListP
 // inserts it as a new observation. Callers should invoke this once per
 // reconcile cycle for each drift item still present.
 func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.RecordDriftObservationRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.DriftType == "" || req.EntityRef == "" {
 		return &emptypb.Empty{}, nil
 	}
@@ -1800,6 +1955,9 @@ func (srv *server) RecordDriftObservation(_ context.Context, req *workflowpb.Rec
 
 // ClearDriftObservation removes a drift item when it's no longer observed.
 func (srv *server) ClearDriftObservation(_ context.Context, req *workflowpb.ClearDriftObservationRequest) (*emptypb.Empty, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" || req.DriftType == "" || req.EntityRef == "" {
 		return &emptypb.Empty{}, nil
 	}
@@ -1815,6 +1973,9 @@ func (srv *server) ClearDriftObservation(_ context.Context, req *workflowpb.Clea
 // ListDriftUnresolved returns drift items that have been observed >= min_cycles
 // consecutive reconcile cycles without being cleared.
 func (srv *server) ListDriftUnresolved(_ context.Context, req *workflowpb.ListDriftUnresolvedRequest) (*workflowpb.ListDriftUnresolvedResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
 	if req == nil || req.ClusterId == "" {
 		return nil, fmt.Errorf("cluster_id is required")
 	}

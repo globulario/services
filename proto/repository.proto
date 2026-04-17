@@ -96,6 +96,15 @@ message ArtifactManifest {
 
   // Provenance record — immutable record of who published this artifact.
   ProvenanceRecord provenance = 41;
+
+  // Phase 2: exact artifact identity. Repository-allocated UUIDv7, the sole
+  // authoritative identifier for convergence, rollback, and installed-state.
+  // Semantic version + build_number remain human-facing; build_id is machine-facing.
+  string build_id = 42;
+
+  // Phase 6: true for day-0 provisionally installed packages that have not
+  // yet been imported into the repository. Cleared on successful import.
+  bool provisional = 43;
 }
 
 // ServiceDetail contains fields specific to SERVICE packages.
@@ -183,10 +192,12 @@ message UploadArtifactRequest {
   ArtifactRef ref = 3;
   bytes data = 4;
   int64 build_number = 5;       // build iteration within version (0 = legacy)
+  string reservation_id = 6;   // Phase 4: optional, links to AllocateUpload reservation
 }
 
 message UploadArtifactResponse {
   bool result = 1;
+  string build_id = 2;  // Phase 2: repository-allocated artifact identity (UUIDv7)
 }
 
 message DownloadArtifactRequest {
@@ -539,6 +550,31 @@ service PackageRepository {
       default_role_hint: "editor"
     };
   };
+
+  // Phase 6: Imports a day-0 provisionally installed artifact into the repository.
+  // Validates version/digest against the release ledger, assigns confirmed build_id,
+  // and adds to the ledger as RELEASED. Rejects conflicts (same version, different digest).
+  rpc ImportProvisionalArtifact(ImportProvisionalRequest) returns(ImportProvisionalResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.write"
+      permission: "admin"
+      collection_template: "/repository/namespaces/{publisher_id}/artifacts"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Phase 4: Reserves a version and pre-assigns a build_id before upload.
+  // The repository allocates or validates the version, enforces monotonicity,
+  // and returns a short-lived reservation token. The client then uploads
+  // the artifact using the reservation_id.
+  rpc AllocateUpload(AllocateUploadRequest) returns(AllocateUploadResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.write"
+      permission: "write"
+      collection_template: "/repository/namespaces/{publisher_id}/artifacts"
+      default_role_hint: "editor"
+    };
+  };
 }
 
 // ── UpdateArtifactBinary (delta deploy) ─────────────────────────────────────
@@ -560,4 +596,51 @@ message UpdateArtifactBinaryResponse {
   int64 build_number = 1;    // assigned by repository (max + 1)
   string checksum = 2;       // verified checksum
   string status = 3;         // "published" | "error"
+}
+
+// ── Phase 4: Upload Allocation ──────────────────────────────────────────────
+
+// VersionIntent specifies how the repository should allocate a version.
+enum VersionIntent {
+  VERSION_INTENT_UNSPECIFIED = 0;
+  BUMP_PATCH = 1;    // increment patch: 1.4.2 → 1.4.3
+  BUMP_MINOR = 2;    // increment minor: 1.4.2 → 1.5.0
+  BUMP_MAJOR = 3;    // increment major: 1.4.2 → 2.0.0
+  EXACT = 4;         // use the exact version specified in exact_version field
+}
+
+message AllocateUploadRequest {
+  string publisher_id = 1;  // e.g. "core@globular.io"
+  string name = 2;          // package name
+  string platform = 3;      // e.g. "linux_amd64"
+  VersionIntent intent = 4; // how to compute the version
+  string exact_version = 5; // required when intent=EXACT
+}
+
+message AllocateUploadResponse {
+  string version = 1;          // allocated version (e.g. "1.4.3")
+  string reservation_id = 2;  // short-lived token (5 min TTL)
+  string build_id = 3;        // pre-assigned UUIDv7
+  int64 build_number = 4;     // derived monotonic counter
+}
+
+// ── Phase 6: Provisional Import ─────────────────────────────────────────────
+
+message ImportProvisionalRequest {
+  string publisher_id = 1;          // e.g. "core@globular.io"
+  string name = 2;                  // package name
+  string version = 3;               // declared version from day-0 install
+  string platform = 4;              // e.g. "linux_amd64"
+  string digest = 5;                // SHA256 of the .tgz content (trusted)
+  string provisional_build_id = 6;  // locally-generated build_id from day-0
+  bytes data = 7;                   // optional: .tgz content for re-upload
+  string kind = 8;                  // SERVICE, INFRASTRUCTURE, COMMAND
+}
+
+message ImportProvisionalResponse {
+  bool ok = 1;
+  string confirmed_build_id = 2;    // repository-issued build_id
+  string confirmed_version = 3;     // may differ if admin re-versioned
+  string state = 4;                 // "RELEASED"
+  string message = 5;
 }
