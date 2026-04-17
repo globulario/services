@@ -753,6 +753,18 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 		routing = strings.Join(md["routing"], "")
+		// Accept "authorization" header (canonical) when "token" is empty.
+		// Needed for requests routed through Envoy mesh.
+		if token == "" {
+			if authVals := md.Get("authorization"); len(authVals) > 0 {
+				v := strings.TrimSpace(authVals[0])
+				if strings.HasPrefix(strings.ToLower(v), "bearer ") {
+					token = v[7:]
+				} else if v != "" {
+					token = v
+				}
+			}
+		}
 	}
 
 	// Phase 1: Create AuthContext for audit logging and future authorization
@@ -1212,6 +1224,17 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 		routing = strings.Join(md["routing"], "")
+		// Accept "authorization" header (canonical) when "token" is empty.
+		if token == "" {
+			if authVals := md.Get("authorization"); len(authVals) > 0 {
+				v := strings.TrimSpace(authVals[0])
+				if strings.HasPrefix(strings.ToLower(v), "bearer ") {
+					token = v[7:]
+				} else if v != "" {
+					token = v
+				}
+			}
+		}
 	}
 
 	// Phase 1: Create AuthContext for audit logging

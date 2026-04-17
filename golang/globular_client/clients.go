@@ -1255,10 +1255,11 @@ func GetClientContext(client Client) context.Context {
 	}
 
 	md := metadata.New(map[string]string{
-		"token":      token,
-		"domain":     address,
-		"mac":        localMac,
-		"cluster_id": clusterID,
+		"token":         token,
+		"authorization": "Bearer " + token,
+		"domain":        address,
+		"mac":           localMac,
+		"cluster_id":    clusterID,
 	})
 	return metadata.NewOutgoingContext(context.Background(), md)
 }

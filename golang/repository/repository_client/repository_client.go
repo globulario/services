@@ -122,10 +122,11 @@ func (client *Repository_Service_Client) GetCtx() context.Context {
 // local service token from GetLocalToken.
 func (client *Repository_Service_Client) SetToken(token string) {
 	md := metadata.New(map[string]string{
-		"token":   token,
-		"domain":  client.domain,
-		"mac":     client.GetMac(),
-		"address": client.GetAddress(),
+		"token":         token,
+		"authorization": "Bearer " + token,
+		"domain":        client.domain,
+		"mac":           client.GetMac(),
+		"address":       client.GetAddress(),
 	})
 	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 }
