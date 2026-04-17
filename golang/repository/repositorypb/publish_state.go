@@ -13,6 +13,7 @@ package repositorypb
 // | REVOKED       | no     | no             | no       | no          | no       | yes        | hard error    | admin or owner (self-revoke)|
 // | ORPHANED      | no     | no             | no       | no          | no       | no         | none          | system                      |
 // | FAILED        | no     | no             | no       | no          | no       | no         | none          | system                      |
+// | CORRUPTED     | no     | no             | no       | no          | no       | yes        | hard error    | system (integrity check)    |
 // | STAGING       | no     | no             | no       | no          | no       | no         | none          | system                      |
 // | VERIFIED      | no     | no             | yes      | no          | no       | no         | none          | system (auto-promote)       |
 //
@@ -109,6 +110,15 @@ func ValidStateTransition(from, to PublishState) bool {
 		}
 		return false
 
+	case PublishState_CORRUPTED:
+		switch to {
+		case PublishState_PUBLISHED: // re-verified after fix
+			return true
+		case PublishState_REVOKED:
+			return true
+		}
+		return false
+
 	case PublishState_REVOKED:
 		// Terminal — no transitions out.
 		return false
@@ -125,9 +135,9 @@ func IsTerminalState(s PublishState) bool {
 }
 
 // IsDownloadBlocked returns true if artifacts in this state should not be downloadable
-// by non-owners/non-admins. Per behavior semantics: YANKED, QUARANTINED, REVOKED.
+// by non-owners/non-admins. Per behavior semantics: YANKED, QUARANTINED, REVOKED, CORRUPTED.
 func IsDownloadBlocked(s PublishState) bool {
-	return s == PublishState_YANKED || s == PublishState_QUARANTINED || s == PublishState_REVOKED
+	return s == PublishState_YANKED || s == PublishState_QUARANTINED || s == PublishState_REVOKED || s == PublishState_CORRUPTED
 }
 
 // IsDiscoveryHidden returns true if artifacts in this state should be hidden from
@@ -135,7 +145,7 @@ func IsDownloadBlocked(s PublishState) bool {
 // Per behavior semantics: YANKED, QUARANTINED, REVOKED, ORPHANED, FAILED, STAGING.
 func IsDiscoveryHidden(s PublishState) bool {
 	switch s {
-	case PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED:
+	case PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED, PublishState_CORRUPTED:
 		return true
 	case PublishState_ORPHANED, PublishState_FAILED, PublishState_STAGING, PublishState_VERIFIED:
 		return true

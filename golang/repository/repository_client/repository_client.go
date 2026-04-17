@@ -839,6 +839,24 @@ func (client *Repository_Service_Client) SetArtifactState(ref *repositorypb.Arti
 	return &repositorypb.SetArtifactStateResponse{CurrentState: targetState}, nil
 }
 
+// ResolveByEntrypointChecksum performs a reverse lookup from a binary's SHA256
+// checksum to the artifact manifest that produced it. The checksum should be a
+// bare hex string (no "sha256:" prefix). Returns nil manifest if not found.
+func (client *Repository_Service_Client) ResolveByEntrypointChecksum(checksum, platform string) (*repositorypb.ArtifactManifest, error) {
+	req := &repositorypb.ResolveByEntrypointChecksumRequest{
+		Checksum: checksum,
+		Platform: platform,
+	}
+	rsp, err := client.Invoke("ResolveByEntrypointChecksum", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.ResolveByEntrypointChecksumResponse); ok {
+		return resp.GetManifest(), nil
+	}
+	return nil, fmt.Errorf("unexpected response type from ResolveByEntrypointChecksum")
+}
+
 // GetNamespace queries namespace ownership information.
 func (client *Repository_Service_Client) GetNamespace(namespaceID string) (*repositorypb.GetNamespaceResponse, error) {
 	req := &repositorypb.GetNamespaceRequest{

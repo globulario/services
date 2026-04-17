@@ -30,38 +30,42 @@ const (
 // Schema DDL — executed idempotently at startup.
 var schemaDDL = []string{
 	`CREATE TABLE IF NOT EXISTS ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (
-		artifact_key   text,
-		manifest_json  blob,
-		publish_state  text,
-		publisher_id   text,
-		name           text,
-		version        text,
-		platform       text,
-		build_number   bigint,
-		checksum       text,
-		size_bytes     bigint,
-		modified_unix  bigint,
-		kind           text,
-		created_at     timestamp,
+		artifact_key          text,
+		manifest_json         blob,
+		publish_state         text,
+		publisher_id          text,
+		name                  text,
+		version               text,
+		platform              text,
+		build_number          bigint,
+		checksum              text,
+		entrypoint_checksum   text,
+		size_bytes            bigint,
+		modified_unix         bigint,
+		kind                  text,
+		created_at            timestamp,
 		PRIMARY KEY (artifact_key)
 	)`,
+	// Secondary index for reverse-lookup: binary checksum → artifact.
+	`CREATE INDEX IF NOT EXISTS idx_entrypoint_checksum ON ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (entrypoint_checksum)`,
 }
 
 // manifestRow is a single row from the manifests table.
 type manifestRow struct {
-	ArtifactKey  string
-	ManifestJSON []byte
-	PublishState string
-	PublisherID  string
-	Name         string
-	Version      string
-	Platform     string
-	BuildNumber  int64
-	Checksum     string
-	SizeBytes    int64
-	ModifiedUnix int64
-	Kind         string
-	CreatedAt    time.Time
+	ArtifactKey        string
+	ManifestJSON       []byte
+	PublishState       string
+	PublisherID        string
+	Name               string
+	Version            string
+	Platform           string
+	BuildNumber        int64
+	Checksum           string
+	EntrypointChecksum string
+	SizeBytes          int64
+	ModifiedUnix       int64
+	Kind               string
+	CreatedAt          time.Time
 }
 
 // scyllaStore manages the ScyllaDB session for the repository service.
@@ -251,13 +255,13 @@ func (s *scyllaStore) PutManifest(ctx context.Context, row manifestRow) error {
 
 	return sess.Query(`INSERT INTO manifests (
 		artifact_key, manifest_json, publish_state, publisher_id, name,
-		version, platform, build_number, checksum, size_bytes,
-		modified_unix, kind, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		version, platform, build_number, checksum, entrypoint_checksum,
+		size_bytes, modified_unix, kind, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.ArtifactKey, row.ManifestJSON, row.PublishState,
 		row.PublisherID, row.Name, row.Version, row.Platform,
-		row.BuildNumber, row.Checksum, row.SizeBytes,
-		row.ModifiedUnix, row.Kind, row.CreatedAt,
+		row.BuildNumber, row.Checksum, row.EntrypointChecksum,
+		row.SizeBytes, row.ModifiedUnix, row.Kind, row.CreatedAt,
 	).WithContext(ctx).Exec()
 }
 
@@ -272,14 +276,14 @@ func (s *scyllaStore) GetManifest(ctx context.Context, artifactKey string) (*man
 
 	row := &manifestRow{}
 	err := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
-		name, version, platform, build_number, checksum, size_bytes,
-		modified_unix, kind, created_at
+		name, version, platform, build_number, checksum, entrypoint_checksum,
+		size_bytes, modified_unix, kind, created_at
 		FROM manifests WHERE artifact_key = ?`, artifactKey).
 		WithContext(ctx).
 		Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
 			&row.PublisherID, &row.Name, &row.Version, &row.Platform,
-			&row.BuildNumber, &row.Checksum, &row.SizeBytes,
-			&row.ModifiedUnix, &row.Kind, &row.CreatedAt)
+			&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
+			&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -297,16 +301,16 @@ func (s *scyllaStore) ListManifests(ctx context.Context) ([]manifestRow, error) 
 	}
 
 	iter := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
-		name, version, platform, build_number, checksum, size_bytes,
-		modified_unix, kind, created_at
+		name, version, platform, build_number, checksum, entrypoint_checksum,
+		size_bytes, modified_unix, kind, created_at
 		FROM manifests`).WithContext(ctx).Iter()
 
 	var rows []manifestRow
 	var row manifestRow
 	for iter.Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
 		&row.PublisherID, &row.Name, &row.Version, &row.Platform,
-		&row.BuildNumber, &row.Checksum, &row.SizeBytes,
-		&row.ModifiedUnix, &row.Kind, &row.CreatedAt) {
+		&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
+		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt) {
 		rows = append(rows, row)
 		row = manifestRow{}
 	}
@@ -327,6 +331,37 @@ func (s *scyllaStore) DeleteManifest(ctx context.Context, artifactKey string) er
 
 	return sess.Query(`DELETE FROM manifests WHERE artifact_key = ?`, artifactKey).
 		WithContext(ctx).Exec()
+}
+
+// FindByEntrypointChecksum queries the secondary index for manifests matching
+// the given entrypoint_checksum. Returns all matches (caller filters by state/platform).
+func (s *scyllaStore) FindByEntrypointChecksum(ctx context.Context, checksum string) ([]manifestRow, error) {
+	s.mu.Lock()
+	sess := s.session
+	s.mu.Unlock()
+	if sess == nil {
+		return nil, fmt.Errorf("scylla: not connected")
+	}
+
+	iter := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
+		name, version, platform, build_number, checksum, entrypoint_checksum,
+		size_bytes, modified_unix, kind, created_at
+		FROM manifests WHERE entrypoint_checksum = ?`, checksum).
+		WithContext(ctx).Iter()
+
+	var rows []manifestRow
+	var row manifestRow
+	for iter.Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
+		&row.PublisherID, &row.Name, &row.Version, &row.Platform,
+		&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
+		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt) {
+		rows = append(rows, row)
+		row = manifestRow{}
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("scylla find by entrypoint_checksum: %w", err)
+	}
+	return rows, nil
 }
 
 // UpdatePublishState updates only the publish_state column for an artifact.

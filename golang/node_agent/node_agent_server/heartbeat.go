@@ -623,16 +623,16 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		log.Printf("nodeagent: compute installed services: %v", err)
 	}
 	statusReq.InstalledVersions = make(map[string]string)
+	statusReq.InstalledBuildIds = make(map[string]string)
 
 	// Phase 1: local discovery (systemd units, version markers, config files).
+	// This provides a baseline of known services and their self-reported versions.
 	for key, info := range installed {
 		statusReq.InstalledVersions[key.String()] = info.Version
 	}
 
-	// Phase 2: merge from etcd installed_state registry (canonical source of
-	// truth). This covers packages synced by syncRepoArtifactsToEtcd (Phase 2)
-	// which may not have local markers or config files (e.g. infrastructure
-	// packages installed by the spec-based installer on Day-0).
+	// Phase 2: etcd installed_state (from repository) overrides local versions.
+	// The repository is the source of truth for version numbers.
 	if srv.nodeID != "" {
 		for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
@@ -644,11 +644,87 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 				if canon == "" || pkg.GetVersion() == "" {
 					continue
 				}
-				// etcd version takes precedence over local 0.0.1 fallback.
-				if existing, ok := statusReq.InstalledVersions[canon]; !ok || existing == "0.1.0" {
-					statusReq.InstalledVersions[canon] = pkg.GetVersion()
+				statusReq.InstalledVersions[canon] = pkg.GetVersion()
+				if bid := pkg.GetBuildId(); bid != "" {
+					statusReq.InstalledBuildIds[canon] = bid
 				}
 			}
+		}
+	}
+
+	// Phase 3: process fingerprinting — ground truth.
+	// Scan running processes whose binary is in /usr/lib/globular/bin,
+	// compute checksums, and cross-reference with etcd installed_state.
+	// If the binary checksum doesn't match what etcd recorded, the binary
+	// was deployed out-of-band and the etcd version may be stale.
+	running := DiscoverRunningBinaries()
+	if len(running) > 0 {
+		// Build checksum→version index from etcd installed_state.
+		checksumToVersion := make(map[string]string)
+		checksumToBuildID := make(map[string]string)
+		if srv.nodeID != "" {
+			for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
+				pkgs, _ := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
+				for _, pkg := range pkgs {
+					if cs := pkg.GetChecksum(); cs != "" {
+						checksumToVersion[cs] = pkg.GetVersion()
+						if bid := pkg.GetBuildId(); bid != "" {
+							checksumToBuildID[cs] = bid
+						}
+					}
+				}
+			}
+		}
+
+		// Lazily connect to repository for reverse-lookup (only if needed).
+		var repoClient *repository_client.Repository_Service_Client
+		var repoClientErr error
+		var repoClientOnce bool
+
+		for svcName, rb := range running {
+			// Check if the running binary checksum matches any known package.
+			fullCS := "sha256:" + rb.Checksum
+			if ver, ok := checksumToVersion[fullCS]; ok {
+				// Binary matches a known package — use its version.
+				statusReq.InstalledVersions[svcName] = ver
+				if bid, ok := checksumToBuildID[fullCS]; ok {
+					statusReq.InstalledBuildIds[svcName] = bid
+				}
+			} else {
+				// Binary doesn't match etcd — reverse-lookup from repository.
+				// Ask the repository which artifact has this entrypoint_checksum.
+				if !repoClientOnce {
+					repoClientOnce = true
+					repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+					repoClient, repoClientErr = repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+				}
+				resolved := false
+				if repoClientErr == nil && repoClient != nil {
+					if m, err := repoClient.ResolveByEntrypointChecksum(rb.Checksum, runtime.GOOS+"_"+runtime.GOARCH); err == nil && m != nil {
+						ref := m.GetRef()
+						if ref != nil && ref.GetVersion() != "" {
+							statusReq.InstalledVersions[svcName] = ref.GetVersion()
+							if bid := m.GetBuildId(); bid != "" {
+								statusReq.InstalledBuildIds[svcName] = bid
+							}
+							log.Printf("process-fingerprint: %s resolved via repository entrypoint_checksum → %s (build_id=%s)",
+								svcName, ref.GetVersion(), m.GetBuildId())
+							resolved = true
+						}
+					}
+				}
+				if !resolved {
+					// Fall back to whatever version Phase 1/2 reported.
+					if existing, ok := statusReq.InstalledVersions[svcName]; ok {
+						log.Printf("process-fingerprint: %s binary checksum %s doesn't match etcd installed_state (reporting %s from etcd)",
+							svcName, rb.Checksum[:12], existing)
+					}
+				}
+			}
+		}
+
+		if repoClient != nil {
+			repoClient.Close()
 		}
 	}
 

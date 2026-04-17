@@ -165,6 +165,7 @@ type server struct {
 	reconcileRunning            atomic.Bool
 	clusterReconcileRunning     atomic.Bool
 	clusterReconcilePending     atomic.Bool
+	workflowRepairNeeded        []string // set under lock, repaired after unlock
 	resources            resourcestore.Store
 	etcdClient           *clientv3.Client
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can

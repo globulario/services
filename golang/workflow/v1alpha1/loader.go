@@ -17,10 +17,14 @@ type Loader struct{}
 
 func NewLoader() *Loader { return &Loader{} }
 
+// EtcdFetcher is an optional callback that loads a workflow definition
+// by name from etcd. Core workflows live in etcd so they're available even
+// when MinIO is down. Checked FIRST — before MinIO and disk.
+var EtcdFetcher func(name string) ([]byte, error)
+
 // MinIOFetcher is an optional callback that loads a workflow definition
-// by name from MinIO (globular-config bucket). When set, LoadFile tries
-// MinIO first and falls back to disk if the definition isn't found.
-// This indirection avoids a hard dependency of v1alpha1 on the config package.
+// by name from MinIO (globular-config bucket). Checked after etcd.
+// Service-owned workflows (compute, doctor) live here.
 var MinIOFetcher func(name string) ([]byte, error)
 
 // workflowNameFromPath extracts the workflow name from a disk path like
@@ -31,18 +35,27 @@ func workflowNameFromPath(path string) string {
 }
 
 func (l *Loader) LoadFile(path string) (*WorkflowDefinition, error) {
-	// Try MinIO first if a fetcher is configured (single source of truth)
-	if MinIOFetcher != nil {
-		name := workflowNameFromPath(path)
-		if b, err := MinIOFetcher(name); err == nil && len(b) > 0 {
-			def, derr := l.LoadBytes(b)
-			if derr == nil {
+	name := workflowNameFromPath(path)
+
+	// Priority 1: etcd (core workflows — always available if etcd is up)
+	if EtcdFetcher != nil {
+		if b, err := EtcdFetcher(name); err == nil && len(b) > 0 {
+			if def, derr := l.LoadBytes(b); derr == nil {
 				return def, nil
 			}
-			// MinIO returned bad data — fall through to disk
 		}
 	}
-	// Fallback: read from disk
+
+	// Priority 2: MinIO (service-owned workflows)
+	if MinIOFetcher != nil {
+		if b, err := MinIOFetcher(name); err == nil && len(b) > 0 {
+			if def, derr := l.LoadBytes(b); derr == nil {
+				return def, nil
+			}
+		}
+	}
+
+	// Priority 3: local disk (fallback)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read workflow definition %q: %w", path, err)

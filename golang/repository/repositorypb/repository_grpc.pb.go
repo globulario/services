@@ -19,23 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PackageRepository_DownloadBundle_FullMethodName            = "/repository.PackageRepository/DownloadBundle"
-	PackageRepository_UploadBundle_FullMethodName              = "/repository.PackageRepository/UploadBundle"
-	PackageRepository_ListArtifacts_FullMethodName             = "/repository.PackageRepository/ListArtifacts"
-	PackageRepository_UploadArtifact_FullMethodName            = "/repository.PackageRepository/UploadArtifact"
-	PackageRepository_DownloadArtifact_FullMethodName          = "/repository.PackageRepository/DownloadArtifact"
-	PackageRepository_GetArtifactManifest_FullMethodName       = "/repository.PackageRepository/GetArtifactManifest"
-	PackageRepository_ListBundles_FullMethodName               = "/repository.PackageRepository/ListBundles"
-	PackageRepository_SearchArtifacts_FullMethodName           = "/repository.PackageRepository/SearchArtifacts"
-	PackageRepository_GetArtifactVersions_FullMethodName       = "/repository.PackageRepository/GetArtifactVersions"
-	PackageRepository_DescribePackage_FullMethodName           = "/repository.PackageRepository/DescribePackage"
-	PackageRepository_DeleteArtifact_FullMethodName            = "/repository.PackageRepository/DeleteArtifact"
-	PackageRepository_PromoteArtifact_FullMethodName           = "/repository.PackageRepository/PromoteArtifact"
-	PackageRepository_SetArtifactState_FullMethodName          = "/repository.PackageRepository/SetArtifactState"
-	PackageRepository_GetNamespace_FullMethodName              = "/repository.PackageRepository/GetNamespace"
-	PackageRepository_UpdateArtifactBinary_FullMethodName      = "/repository.PackageRepository/UpdateArtifactBinary"
-	PackageRepository_ImportProvisionalArtifact_FullMethodName = "/repository.PackageRepository/ImportProvisionalArtifact"
-	PackageRepository_AllocateUpload_FullMethodName            = "/repository.PackageRepository/AllocateUpload"
+	PackageRepository_DownloadBundle_FullMethodName              = "/repository.PackageRepository/DownloadBundle"
+	PackageRepository_UploadBundle_FullMethodName                = "/repository.PackageRepository/UploadBundle"
+	PackageRepository_ListArtifacts_FullMethodName               = "/repository.PackageRepository/ListArtifacts"
+	PackageRepository_UploadArtifact_FullMethodName              = "/repository.PackageRepository/UploadArtifact"
+	PackageRepository_DownloadArtifact_FullMethodName            = "/repository.PackageRepository/DownloadArtifact"
+	PackageRepository_GetArtifactManifest_FullMethodName         = "/repository.PackageRepository/GetArtifactManifest"
+	PackageRepository_ListBundles_FullMethodName                 = "/repository.PackageRepository/ListBundles"
+	PackageRepository_SearchArtifacts_FullMethodName             = "/repository.PackageRepository/SearchArtifacts"
+	PackageRepository_GetArtifactVersions_FullMethodName         = "/repository.PackageRepository/GetArtifactVersions"
+	PackageRepository_DescribePackage_FullMethodName             = "/repository.PackageRepository/DescribePackage"
+	PackageRepository_DeleteArtifact_FullMethodName              = "/repository.PackageRepository/DeleteArtifact"
+	PackageRepository_PromoteArtifact_FullMethodName             = "/repository.PackageRepository/PromoteArtifact"
+	PackageRepository_SetArtifactState_FullMethodName            = "/repository.PackageRepository/SetArtifactState"
+	PackageRepository_GetNamespace_FullMethodName                = "/repository.PackageRepository/GetNamespace"
+	PackageRepository_UpdateArtifactBinary_FullMethodName        = "/repository.PackageRepository/UpdateArtifactBinary"
+	PackageRepository_ImportProvisionalArtifact_FullMethodName   = "/repository.PackageRepository/ImportProvisionalArtifact"
+	PackageRepository_AllocateUpload_FullMethodName              = "/repository.PackageRepository/AllocateUpload"
+	PackageRepository_ResolveByEntrypointChecksum_FullMethodName = "/repository.PackageRepository/ResolveByEntrypointChecksum"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -92,6 +93,12 @@ type PackageRepositoryClient interface {
 	// and returns a short-lived reservation token. The client then uploads
 	// the artifact using the reservation_id.
 	AllocateUpload(ctx context.Context, in *AllocateUploadRequest, opts ...grpc.CallOption) (*AllocateUploadResponse, error)
+	// Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
+	// find the artifact manifest that produced it. Used by the node-agent
+	// process fingerprinting to resolve "which version is this binary?"
+	// Returns the matching manifest or NOT_FOUND if no published artifact
+	// has this entrypoint checksum.
+	ResolveByEntrypointChecksum(ctx context.Context, in *ResolveByEntrypointChecksumRequest, opts ...grpc.CallOption) (*ResolveByEntrypointChecksumResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -299,6 +306,16 @@ func (c *packageRepositoryClient) AllocateUpload(ctx context.Context, in *Alloca
 	return out, nil
 }
 
+func (c *packageRepositoryClient) ResolveByEntrypointChecksum(ctx context.Context, in *ResolveByEntrypointChecksumRequest, opts ...grpc.CallOption) (*ResolveByEntrypointChecksumResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveByEntrypointChecksumResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ResolveByEntrypointChecksum_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -353,6 +370,12 @@ type PackageRepositoryServer interface {
 	// and returns a short-lived reservation token. The client then uploads
 	// the artifact using the reservation_id.
 	AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error)
+	// Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
+	// find the artifact manifest that produced it. Used by the node-agent
+	// process fingerprinting to resolve "which version is this binary?"
+	// Returns the matching manifest or NOT_FOUND if no published artifact
+	// has this entrypoint checksum.
+	ResolveByEntrypointChecksum(context.Context, *ResolveByEntrypointChecksumRequest) (*ResolveByEntrypointChecksumResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -412,6 +435,9 @@ func (UnimplementedPackageRepositoryServer) ImportProvisionalArtifact(context.Co
 }
 func (UnimplementedPackageRepositoryServer) AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AllocateUpload not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ResolveByEntrypointChecksum(context.Context, *ResolveByEntrypointChecksumRequest) (*ResolveByEntrypointChecksumResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveByEntrypointChecksum not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -692,6 +718,24 @@ func _PackageRepository_AllocateUpload_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_ResolveByEntrypointChecksum_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveByEntrypointChecksumRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ResolveByEntrypointChecksum(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ResolveByEntrypointChecksum_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ResolveByEntrypointChecksum(ctx, req.(*ResolveByEntrypointChecksumRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -746,6 +790,10 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AllocateUpload",
 			Handler:    _PackageRepository_AllocateUpload_Handler,
+		},
+		{
+			MethodName: "ResolveByEntrypointChecksum",
+			Handler:    _PackageRepository_ResolveByEntrypointChecksum_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -48,13 +48,24 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		return nil, fmt.Errorf("cluster_id is required")
 	}
 
-	// ── 1. Load definition from MinIO ────────────────────────────────────
-	defYAML, err := config.GetClusterConfig("workflows/" + req.WorkflowName + ".yaml")
-	if err != nil {
-		return nil, fmt.Errorf("load definition %s: %w", req.WorkflowName, err)
+	// ── 1. Load definition: etcd (core) → MinIO (service-owned) ─────────
+	// Core workflows live in etcd so they're always available.
+	// Service-owned workflows live in MinIO.
+	var defYAML []byte
+	if v1alpha1.EtcdFetcher != nil {
+		if b, ferr := v1alpha1.EtcdFetcher(req.WorkflowName); ferr == nil && len(b) > 0 {
+			defYAML = b
+		}
 	}
-	if defYAML == nil {
-		return nil, fmt.Errorf("workflow definition %q not found in MinIO", req.WorkflowName)
+	if len(defYAML) == 0 {
+		var err error
+		defYAML, err = config.GetClusterConfig("workflows/" + req.WorkflowName + ".yaml")
+		if err != nil {
+			return nil, fmt.Errorf("load definition %s: %w", req.WorkflowName, err)
+		}
+	}
+	if len(defYAML) == 0 {
+		return nil, fmt.Errorf("workflow definition %q not found (checked etcd and MinIO)", req.WorkflowName)
 	}
 
 	loader := v1alpha1.NewLoader()

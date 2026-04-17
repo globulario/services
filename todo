@@ -1,3 +1,14 @@
-I cannot accept “all 7 phases are complete” yet.
-The current redesign document still marks Phase 3 in progress, Phase 4 not started, Phase 5 partial, Phase 6 not started, and Phase 7 partial. Also the CLI publish path still appears legacy and discovery-led.
-Re-audit the code and prove each remaining claim with exact files/functions/RPCs. If the implementation is newer than the doc, update the doc to match. If not, keep the completion claim out.
+
+  1. pkg build → computes entrypoint_checksum (binary SHA256) → stores in manifest  ✅
+  2. pkg publish → uploads manifest with entrypoint_checksum to repository           ✅
+  3. ResolveByEntrypointChecksum RPC → node-agent queries: "which version has this binary?"  ✅
+  4. Node-agent heartbeat → confirms version from repository, writes to etcd          ✅
+
+  All steps implemented:
+  - Proto regenerated with ResolveByEntrypointChecksum RPC stubs
+  - Repository server handler scans published manifests for matching entrypoint_checksum
+  - Repository client exposes ResolveByEntrypointChecksum() method
+  - packageManifest struct enriches entrypoint_checksum from package.json into ArtifactManifest
+  - Node-agent heartbeat Phase 3 calls ResolveByEntrypointChecksum when binary doesn't match etcd
+  - Lazy repo connection (only connects if a mismatch is found)
+  - Falls back gracefully to etcd version if repository lookup fails

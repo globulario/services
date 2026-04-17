@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,19 +50,20 @@ func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifes
 	}
 	ref := manifest.GetRef()
 	row := manifestRow{
-		ArtifactKey:  key,
-		ManifestJSON: mjson,
-		PublishState: state.String(),
-		PublisherID:  ref.GetPublisherId(),
-		Name:         ref.GetName(),
-		Version:      ref.GetVersion(),
-		Platform:     ref.GetPlatform(),
-		BuildNumber:  manifest.GetBuildNumber(),
-		Checksum:     manifest.GetChecksum(),
-		SizeBytes:    manifest.GetSizeBytes(),
-		ModifiedUnix: manifest.GetModifiedUnix(),
-		Kind:         ref.GetKind().String(),
-		CreatedAt:    time.Now(),
+		ArtifactKey:        key,
+		ManifestJSON:       mjson,
+		PublishState:       state.String(),
+		PublisherID:        ref.GetPublisherId(),
+		Name:               ref.GetName(),
+		Version:            ref.GetVersion(),
+		Platform:           ref.GetPlatform(),
+		BuildNumber:        manifest.GetBuildNumber(),
+		Checksum:           manifest.GetChecksum(),
+		EntrypointChecksum: manifest.GetEntrypointChecksum(),
+		SizeBytes:          manifest.GetSizeBytes(),
+		ModifiedUnix:       manifest.GetModifiedUnix(),
+		Kind:               ref.GetKind().String(),
+		CreatedAt:          time.Now(),
 	}
 	if err := srv.scylla.PutManifest(ctx, row); err != nil {
 		slog.Warn("scylladb manifest sync failed (non-fatal)", "key", key, "err", err)
@@ -418,6 +421,7 @@ type packageManifest struct {
 	RuntimeLocalDependencies []string `json:"runtime_local_dependencies,omitempty"`
 	HealthCheckUnit          string   `json:"health_check_unit,omitempty"`
 	HealthCheckPort          int      `json:"health_check_port,omitempty"`
+	EntrypointChecksum       string   `json:"entrypoint_checksum,omitempty"`
 	Description              string   `json:"description,omitempty"`
 	Keywords                 []string `json:"keywords,omitempty"`
 	License                  string   `json:"license,omitempty"`
@@ -485,6 +489,9 @@ func enrichManifestFromPackageJSON(manifest *repopb.ArtifactManifest, pkg *packa
 	}
 	if pkg.HealthCheckPort > 0 {
 		manifest.HealthCheckPort = int32(pkg.HealthCheckPort)
+	}
+	if pkg.EntrypointChecksum != "" {
+		manifest.EntrypointChecksum = pkg.EntrypointChecksum
 	}
 	if pkg.Description != "" && manifest.Description == "" {
 		manifest.Description = pkg.Description
@@ -645,16 +652,25 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	if strings.TrimSpace(ref.GetName()) == "" {
 		return status.Error(codes.InvalidArgument, "ref.name is required")
 	}
-	if strings.TrimSpace(ref.GetVersion()) == "" {
-		return status.Error(codes.InvalidArgument, "ref.version is required")
-	}
-	if canonVer, err := versionutil.Canonical(ref.GetVersion()); err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid version %q: %v", ref.GetVersion(), err)
-	} else {
-		ref.Version = canonVer
-	}
-
 	ctx := stream.Context()
+
+	// ── Version resolution ───────────────────────────────────────────────
+	// The repository is the sole authority on versioning. The client-provided
+	// version is ignored — the repository always auto-bumps patch from the
+	// latest PUBLISHED version. This eliminates version collisions, removes
+	// versioning responsibility from clients, and makes build scripts trivial.
+	autoVer, err := srv.resolveVersionIntent(ctx,
+		ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
+		repopb.VersionIntent_BUMP_PATCH, "")
+	if err != nil {
+		return status.Errorf(codes.Internal, "auto-version resolution failed: %v", err)
+	}
+	if ref.GetVersion() != "" && ref.GetVersion() != autoVer {
+		slog.Info("version overridden by repository",
+			"client_version", ref.GetVersion(), "assigned_version", autoVer,
+			"name", ref.GetName())
+	}
+	ref.Version = autoVer
 
 	// ── Publisher namespace + package-level validation ────────────────────
 	publisherID := ref.GetPublisherId()
@@ -664,62 +680,11 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 
 	newChecksum := checksumBytes(data)
 
-	// buildNumber was extracted from the first UploadArtifactRequest message
-	// by recvArtifactStream. Zero means legacy (no build iteration tracking).
+	// buildNumber is auto-assigned by the repository to the next available
+	// number for this version, ensuring uniqueness.
+	buildNumber = srv.resolveLatestBuildNumber(ctx, ref) + 1
 
 	key := artifactKeyWithBuild(ref, buildNumber)
-
-	// ── Uniqueness check ──────────────────────────────────────────────────
-	// If an artifact with this exact identity already exists:
-	//   - same checksum = idempotent (skip)
-	//   - different checksum = overwrite (rebuild at same version)
-	if _, existingState, existingManifest, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
-		if existingManifest.GetChecksum() == newChecksum {
-			// Idempotent re-upload — but if publish pipeline didn't complete
-			// (artifact stuck in VERIFIED), retry completePublish now.
-			if existingState != repopb.PublishState_PUBLISHED {
-				slog.Info("artifact re-upload: retrying publish pipeline (stuck in "+existingState.String()+")", "key", key)
-				prov := buildProvenanceRecord(ctx, existingManifest)
-				if err := srv.completePublish(ctx, existingManifest, key, prov); err != nil {
-					slog.Warn("retry publish pipeline failed", "key", key, "err", err)
-				}
-			} else {
-				slog.Info("artifact re-upload (idempotent, same checksum)", "key", key)
-			}
-			return stream.SendAndClose(&repopb.UploadArtifactResponse{
-				Result:  true,
-				BuildId: existingManifest.GetBuildId(), // preserve existing build_id
-			})
-		}
-		// Different content at same version.
-		// If the artifact is in a terminal state (PUBLISHED, DEPRECATED, YANKED,
-		// QUARANTINED, or REVOKED), overwrite is forbidden — the content is sealed.
-		if isTerminalState(existingState) {
-			return status.Errorf(codes.AlreadyExists,
-				"artifact %s is in state %s with different content (existing=%s, new=%s); "+
-					"overwrite of published artifacts is forbidden",
-				key, existingState.String(), existingManifest.GetChecksum(), newChecksum)
-		}
-		// Pre-terminal state (STAGING, VERIFIED, FAILED, ORPHANED, UNSPECIFIED):
-		// allow overwrite for staging iteration.
-		slog.Warn("artifact overwrite (pre-publish, same version, different content)",
-			"key", key, "state", existingState.String(),
-			"old_checksum", existingManifest.GetChecksum(),
-			"new_checksum", newChecksum)
-	}
-
-	// Phase 3: Monotonic version enforcement. If a PUBLISHED release exists for
-	// this package at a higher version, reject the upload. This prevents version
-	// regression (e.g., uploading 0.0.2 after 0.0.8 is already PUBLISHED).
-	// Same version is allowed (additional builds at the same version).
-	if latestVer, _ := srv.getLatestRelease(ctx, ref.GetPublisherId(), ref.GetName(), ref.GetPlatform()); latestVer != "" {
-		cmp, cmpErr := versionutil.Compare(ref.GetVersion(), latestVer)
-		if cmpErr == nil && cmp < 0 {
-			return status.Errorf(codes.FailedPrecondition,
-				"version %s is less than latest PUBLISHED version %s for %s/%s — versions must be monotonically increasing",
-				ref.GetVersion(), latestVer, ref.GetPublisherId(), ref.GetName())
-		}
-	}
 
 	// Ensure artifacts directory exists.
 	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
@@ -1594,5 +1559,267 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 		BuildNumber: newBuild,
 		Checksum:    actualChecksum,
 		Status:      "published",
+	})
+}
+
+// ResolveByEntrypointChecksum performs a reverse lookup: given a binary's SHA256
+// checksum, find the artifact manifest that produced it. Used by node-agent
+// process fingerprinting to resolve "which version is this binary?"
+//
+// Two-phase approach:
+//   1. Fast lookup via ScyllaDB secondary index on entrypoint_checksum.
+//   2. Validate from MinIO: crack open the .tgz, verify the binary inside
+//      matches the declared checksum. If mismatch → mark CORRUPTED.
+//
+// Falls back to MinIO full scan if ScyllaDB is unavailable or has no match
+// (handles packages published before entrypoint_checksum was indexed).
+func (srv *server) ResolveByEntrypointChecksum(ctx context.Context, req *repopb.ResolveByEntrypointChecksumRequest) (*repopb.ResolveByEntrypointChecksumResponse, error) {
+	if err := srv.requireHealthy(); err != nil {
+		return nil, err
+	}
+	checksum := strings.TrimSpace(req.GetChecksum())
+	if checksum == "" {
+		return nil, status.Error(codes.InvalidArgument, "checksum is required")
+	}
+	platform := strings.TrimSpace(req.GetPlatform())
+	if platform == "" {
+		platform = "linux_amd64"
+	}
+
+	prefixed := "sha256:" + checksum
+
+	// ── Phase 1: ScyllaDB fast lookup ───────────────────────────────────
+	if srv.scylla != nil {
+		// Try both with and without prefix — callers may use either form.
+		for _, query := range []string{prefixed, checksum} {
+			rows, err := srv.scylla.FindByEntrypointChecksum(ctx, query)
+			if err != nil {
+				slog.Warn("scylla entrypoint_checksum lookup failed, falling back to MinIO", "err", err)
+				break
+			}
+			if m := srv.pickBestCandidate(ctx, rows, platform, prefixed, checksum); m != nil {
+				return &repopb.ResolveByEntrypointChecksumResponse{Manifest: m}, nil
+			}
+		}
+	}
+
+	// ── Phase 2: MinIO full scan (fallback) ─────────────────────────────
+	// Handles packages published before entrypoint_checksum was indexed,
+	// or when ScyllaDB is unavailable.
+	names := srv.cachedDirNames(ctx)
+	if names == nil {
+		return nil, status.Error(codes.Internal, "cannot list artifacts directory")
+	}
+
+	var bestManifest *repopb.ArtifactManifest
+	for _, name := range names {
+		if !strings.HasSuffix(name, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(name, ".manifest.json")
+		_, st, m, err := srv.readManifestAndStateByKey(ctx, key)
+		if err != nil || st != repopb.PublishState_PUBLISHED {
+			continue
+		}
+		if ref := m.GetRef(); ref != nil && !strings.EqualFold(ref.GetPlatform(), platform) {
+			continue
+		}
+
+		// Read .tgz and extract package.json for ground truth.
+		binData, binErr := srv.Storage().ReadFile(ctx, binaryStorageKey(key))
+		if binErr != nil {
+			continue
+		}
+		pkg := extractPackageManifest(binData)
+		if pkg == nil || pkg.EntrypointChecksum == "" {
+			continue
+		}
+		if pkg.EntrypointChecksum != prefixed && pkg.EntrypointChecksum != checksum {
+			continue
+		}
+
+		// Validate binary integrity.
+		if !srv.validateBinaryIntegrity(ctx, key, m, pkg, binData) {
+			continue
+		}
+
+		// Keep highest version/build_number.
+		if bestManifest == nil {
+			bestManifest = m
+		} else if isBetter(m, bestManifest) {
+			bestManifest = m
+		}
+	}
+
+	if bestManifest == nil {
+		return nil, status.Errorf(codes.NotFound,
+			"no published artifact with entrypoint_checksum %s found", checksum)
+	}
+
+	slog.Debug("resolved entrypoint checksum (MinIO fallback)",
+		"checksum", checksum[:12],
+		"name", bestManifest.GetRef().GetName(),
+		"version", bestManifest.GetRef().GetVersion(),
+		"build", bestManifest.GetBuildNumber(),
+	)
+	return &repopb.ResolveByEntrypointChecksumResponse{Manifest: bestManifest}, nil
+}
+
+// pickBestCandidate filters ScyllaDB rows by state/platform, validates against
+// MinIO, and returns the best matching manifest.
+func (srv *server) pickBestCandidate(ctx context.Context, rows []manifestRow, platform, prefixed, checksum string) *repopb.ArtifactManifest {
+	var best *repopb.ArtifactManifest
+	for _, row := range rows {
+		if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+			continue
+		}
+		if !strings.EqualFold(row.Platform, platform) {
+			continue
+		}
+
+		// Read the manifest from the canonical source (MinIO/cache).
+		_, st, m, err := srv.readManifestAndStateByKey(ctx, row.ArtifactKey)
+		if err != nil || st != repopb.PublishState_PUBLISHED {
+			continue
+		}
+
+		// Validate from MinIO: crack open .tgz and verify binary integrity.
+		binData, binErr := srv.Storage().ReadFile(ctx, binaryStorageKey(row.ArtifactKey))
+		if binErr != nil {
+			continue
+		}
+		pkg := extractPackageManifest(binData)
+		if pkg == nil || pkg.EntrypointChecksum == "" {
+			continue
+		}
+		if pkg.EntrypointChecksum != prefixed && pkg.EntrypointChecksum != checksum {
+			// ScyllaDB had it but the .tgz doesn't match — stale index.
+			slog.Warn("scylla/minio entrypoint_checksum mismatch",
+				"key", row.ArtifactKey,
+				"scylla", row.EntrypointChecksum,
+				"tgz", pkg.EntrypointChecksum,
+			)
+			continue
+		}
+
+		if !srv.validateBinaryIntegrity(ctx, row.ArtifactKey, m, pkg, binData) {
+			continue
+		}
+
+		slog.Debug("resolved entrypoint checksum (ScyllaDB)",
+			"checksum", checksum[:12],
+			"name", m.GetRef().GetName(),
+			"version", m.GetRef().GetVersion(),
+			"build", m.GetBuildNumber(),
+		)
+
+		if best == nil || isBetter(m, best) {
+			best = m
+		}
+	}
+	return best
+}
+
+// validateBinaryIntegrity extracts the binary from the archive and verifies
+// its checksum matches the declared entrypoint_checksum in package.json.
+// Returns false and marks the package CORRUPTED if they don't match.
+func (srv *server) validateBinaryIntegrity(ctx context.Context, key string, m *repopb.ArtifactManifest, pkg *packageManifest, binData []byte) bool {
+	actualCS := computeBinaryChecksumFromArchive(binData)
+	if actualCS == "" {
+		return true // can't verify — allow it through
+	}
+	actualPrefixed := "sha256:" + actualCS
+	if pkg.EntrypointChecksum == actualPrefixed || pkg.EntrypointChecksum == actualCS {
+		return true
+	}
+
+	slog.Warn("integrity check failed — binary doesn't match declared entrypoint_checksum",
+		"key", key,
+		"declared", pkg.EntrypointChecksum,
+		"actual", actualPrefixed,
+	)
+	srv.markCorrupted(ctx, key, m, pkg.EntrypointChecksum, actualPrefixed)
+	return false
+}
+
+// isBetter returns true if candidate has a higher version or build_number than current.
+func isBetter(candidate, current *repopb.ArtifactManifest) bool {
+	cmp, err := versionutil.Compare(
+		candidate.GetRef().GetVersion(),
+		current.GetRef().GetVersion(),
+	)
+	if err == nil && cmp > 0 {
+		return true
+	}
+	return cmp == 0 && candidate.GetBuildNumber() > current.GetBuildNumber()
+}
+
+// computeBinaryChecksumFromArchive extracts the first regular executable file
+// from a .tgz archive and returns its SHA256 hex digest.
+// Returns empty string if the archive can't be read or contains no binary.
+func computeBinaryChecksumFromArchive(data []byte) string {
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return ""
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return ""
+		}
+		// Look for the entrypoint binary: files in bin/ that are executable.
+		name := path.Clean(hdr.Name)
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		if !strings.HasPrefix(name, "bin/") && !strings.Contains(name, "/bin/") {
+			continue
+		}
+		if hdr.Mode&0111 == 0 {
+			continue
+		}
+		// Found the binary — compute its SHA256.
+		return checksumReader(tr)
+	}
+}
+
+// checksumReader computes the SHA256 hex digest of all data from r.
+func checksumReader(r io.Reader) string {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// markCorrupted transitions a package to CORRUPTED state and logs an audit event.
+func (srv *server) markCorrupted(ctx context.Context, key string, m *repopb.ArtifactManifest, declared, actual string) {
+	mjson, err := marshalManifestWithState(m, repopb.PublishState_CORRUPTED)
+	if err != nil {
+		slog.Warn("failed to marshal corrupted manifest", "key", key, "err", err)
+		return
+	}
+	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		slog.Warn("failed to write corrupted manifest", "key", key, "err", err)
+		return
+	}
+	srv.syncStateToScylla(ctx, key, repopb.PublishState_CORRUPTED)
+	if srv.cache != nil {
+		srv.cache.invalidateManifest(manifestStorageKey(key))
+	}
+
+	slog.Error("package marked CORRUPTED — binary integrity check failed",
+		"key", key,
+		"declared_checksum", declared,
+		"actual_checksum", actual,
+	)
+
+	srv.publishAuditEvent(ctx, "artifact.corrupted", map[string]any{
+		"key":               key,
+		"declared_checksum": declared,
+		"actual_checksum":   actual,
 	})
 }

@@ -46,7 +46,17 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 - Workflows MUST reach a terminal state (SUCCEEDED or FAILED)
 - The controller DECIDES, the Workflow Service COORDINATES, Node Agents EXECUTE
 
-### 5. Security boundaries
+### 5. Founding node quorum — first 3 nodes MUST have all infrastructure
+
+- **etcd**: runs on ALL nodes — no exceptions
+- **ScyllaDB**: minimum 3 nodes for replication
+- **MinIO**: minimum 3 nodes for erasure coding / redundancy
+- The first 3 nodes of ANY cluster MUST have profiles: `core`, `control-plane`, `storage`
+- This is enforced at join time in `enforceFoundingProfiles()` — cannot be bypassed
+- Without MinIO on 3 nodes, it's a single point of failure that cascades: workflows fail → `completePublish` fails → artifacts stay VERIFIED → reconciler can't find them → services never upgrade
+- `SetNodeProfiles` also enforces this — you cannot remove `storage` from a node if it would drop below 3 storage nodes
+
+### 6. Security boundaries
 
 - `cluster_controller_server` MUST NOT use `os/exec`, `syscall`, or `systemctl`
 - `node_agent_server` can only use `os/exec` within `internal/supervisor/`
@@ -146,9 +156,9 @@ Config fallback chain: etcd → local seed file → global config → hardcoded 
 
 | Node | IP | Profiles |
 |------|-----|----------|
-| globule-ryzen | 10.0.0.63 | compute, control-plane, core, gateway |
+| globule-ryzen | 10.0.0.63 | compute, control-plane, core, gateway, storage |
 | globule-nuc | 10.0.0.8 | compute, control-plane, core, gateway, storage |
-| globule-dell | 10.0.0.20 | compute, core |
+| globule-dell | 10.0.0.20 | compute, core, storage |
 
 - **VIP**: 10.0.0.100 (keepalived, floats between ryzen and nuc)
 - **DMZ**: Router forwards all external traffic to VIP

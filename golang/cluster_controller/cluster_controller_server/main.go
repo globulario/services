@@ -73,7 +73,10 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 func main() {
-	// Enable MinIO as the single source of truth for workflow definitions.
+	// Enable etcd as the primary source for core workflow definitions.
+	// etcd is always available (on every node) — no MinIO dependency.
+	v1alpha1.EnableEtcdFetcher()
+	// MinIO as fallback for service-owned workflows (compute, doctor, etc.).
 	v1alpha1.EnableMinIOFetcher()
 
 	// Define CLI flags

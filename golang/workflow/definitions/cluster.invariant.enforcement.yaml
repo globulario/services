@@ -1,0 +1,147 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: cluster.invariant.enforcement
+  displayName: Cluster Invariant Enforcement
+  description: >-
+    Periodic validation and enforcement of cluster-wide safety invariants.
+    Runs as part of the reconcile loop. Violations are auto-remediated when
+    possible, or flagged for operator attention when not.
+
+    Invariants enforced:
+      1. Workflow completeness — all required workflow definitions exist in MinIO
+      2. Infrastructure quorum — etcd (all nodes), ScyllaDB (≥3), MinIO (≥3)
+      3. Founding profiles — first 3 nodes MUST have core+control-plane+storage
+      4. PKI health — service certs valid, CA present
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+    properties:
+      cluster_id: { type: string }
+      enforce: { type: boolean, default: true }
+  defaults:
+    enforce: true
+  strategy:
+    mode: single
+  steps:
+    # ── Step 1: Validate workflow completeness ─────────────────────────
+    # If workflow definitions are missing from MinIO, the cluster cannot
+    # reconcile, deploy, join, or heal. This is a hard invariant.
+    - id: validate_workflows
+      title: Validate all required workflow definitions exist
+      actor: cluster-controller
+      action: controller.invariant.validate_workflows
+      with:
+        cluster_id: $.cluster_id
+        required_workflows:
+          - cluster.reconcile
+          - cluster.invariant.enforcement
+          - day0.bootstrap
+          - node.bootstrap
+          - node.join
+          - node.repair
+          - release.apply.package
+          - release.apply.infrastructure
+          - release.apply.controller
+          - release.remove.package
+          - remediate.doctor.finding
+      # Handler writes: workflow_report (list of present/missing)
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 2: Re-upload missing workflows from local disk ────────────
+    # If workflows are missing from MinIO, re-upload from the local
+    # definitions directory. This self-heals MinIO data loss.
+    - id: repair_missing_workflows
+      title: Re-upload missing workflow definitions to MinIO
+      dependsOn: [validate_workflows]
+      when:
+        expr: len(workflow_report.missing) > 0
+      actor: cluster-controller
+      action: controller.invariant.repair_workflows
+      with:
+        missing: $.workflow_report.missing
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 3: Validate infrastructure quorum ─────────────────────────
+    # etcd: ALL nodes. ScyllaDB: ≥3. MinIO: ≥3.
+    # If quorum is violated, identify promotion candidates.
+    - id: validate_infra_quorum
+      title: Validate infrastructure quorum (etcd/ScyllaDB/MinIO)
+      dependsOn: [validate_workflows]
+      actor: cluster-controller
+      action: controller.invariant.validate_infra_quorum
+      with:
+        cluster_id: $.cluster_id
+        min_scylla_nodes: 3
+        min_minio_nodes: 3
+        etcd_all_nodes: true
+      # Handler writes: quorum_report with violations and candidates
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 4: Auto-promote nodes to restore quorum ───────────────────
+    # If quorum is violated and candidates exist, promote them.
+    # This adds the storage/control-plane profile and triggers
+    # MinIO/ScyllaDB pool expansion via the bootstrap state machine.
+    - id: enforce_quorum
+      title: Auto-promote nodes to restore infrastructure quorum
+      dependsOn: [validate_infra_quorum]
+      when:
+        expr: len(quorum_report.violations) > 0 && enforce == true
+      actor: cluster-controller
+      action: controller.invariant.enforce_quorum
+      with:
+        quorum_report: $.quorum_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+      verification:
+        actor: cluster-controller
+        action: controller.invariant.verify_quorum
+        with:
+          min_scylla_nodes: 3
+          min_minio_nodes: 3
+
+    # ── Step 5: Validate founding profiles ─────────────────────────────
+    # First 3 nodes (by join order) must have core+control-plane+storage.
+    # Cannot be removed even if the cluster grows beyond 3.
+    - id: validate_founding_profiles
+      title: Validate founding node profiles
+      dependsOn: [validate_infra_quorum]
+      actor: cluster-controller
+      action: controller.invariant.validate_founding_profiles
+      with:
+        cluster_id: $.cluster_id
+      # Handler writes: profile_report with violations
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 6: Emit invariant report ──────────────────────────────────
+    - id: emit_report
+      title: Emit invariant enforcement report
+      dependsOn: [repair_missing_workflows, enforce_quorum, validate_founding_profiles]
+      actor: cluster-controller
+      action: controller.invariant.emit_report
+      with:
+        workflow_report: $.workflow_report
+        quorum_report: $.quorum_report
+        profile_report: $.profile_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.invariant.mark_failed
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.invariant.emit_completed

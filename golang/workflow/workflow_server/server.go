@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/workflow/workflowpb"
 
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -2398,6 +2399,9 @@ func setupGrpcService(s *server) {
 }
 
 func main() {
+	// Enable etcd as the primary source for core workflow definitions.
+	v1alpha1.EnableEtcdFetcher()
+
 	srv := initializeServerDefaults()
 
 	var (

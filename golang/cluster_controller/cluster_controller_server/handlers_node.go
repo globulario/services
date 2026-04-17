@@ -102,12 +102,19 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 		return nil, status.Error(codes.InvalidArgument, "--profile is required")
 	}
 	normalized := normalizeProfiles(req.GetProfiles())
-	srv.lock("unknown")
+	srv.lock("SetNodeProfiles")
 	defer srv.unlock()
 	node := srv.state.Nodes[req.GetNodeId()]
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
+
+	// INVARIANT: Cannot remove foundational profiles from a node if doing so
+	// would drop the cluster below MinQuorumNodes for storage. The first 3
+	// nodes MUST have core + control-plane + storage for etcd/ScyllaDB/MinIO quorum.
+	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	normalized = enforceFoundingProfiles(normalized, storageCount)
+
 	node.Profiles = normalized
 	node.LastSeen = time.Now()
 	if err := srv.persistStateLocked(true); err != nil {

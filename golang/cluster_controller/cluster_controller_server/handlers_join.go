@@ -79,7 +79,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		RequestedAt:       time.Now(),
 		Status:            "pending",
 		Capabilities:      capsToStored(caps),
-		SuggestedProfiles: deduceProfiles(caps),
+		SuggestedProfiles: deduceProfiles(caps, countNodesWithProfile(srv.state.Nodes, "storage")),
 	}
 	srv.state.JoinRequests[reqID] = jr
 	if err := srv.persistStateLocked(true); err != nil {
@@ -154,6 +154,14 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		rawProfiles = srv.cfg.DefaultProfiles
 	}
 	profiles := normalizeProfiles(rawProfiles)
+
+	// INVARIANT: The first 3 nodes MUST have foundational profiles
+	// (core, control-plane, storage) to establish quorum for etcd,
+	// ScyllaDB, and MinIO. Without 3 storage nodes, there is no
+	// redundancy — MinIO becomes a single point of failure that
+	// cascades into workflow execution and artifact publishing.
+	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	profiles = enforceFoundingProfiles(profiles, storageCount)
 	jr.Profiles = profiles
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
 	jr.AssignedNodeID = nodeID

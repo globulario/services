@@ -56,7 +56,22 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		nodes = append(nodes, node)
 	}
 	stateDirty := srv.cleanupJoinStateLocked(time.Now())
+
+	// INVARIANT ENFORCEMENT: Run all cluster invariants during the snapshot
+	// phase. This is the last line of defense — runs without depending on
+	// MinIO or the workflow service.
+	if srv.enforceAllInvariantsLocked() {
+		stateDirty = true
+	}
+	workflowRepair := srv.workflowRepairNeeded
+	srv.workflowRepairNeeded = nil
+
 	srv.unlock()
+
+	// Repair missing workflows AFTER releasing the lock (does MinIO I/O).
+	if len(workflowRepair) > 0 {
+		srv.repairMissingWorkflows(ctx, workflowRepair)
+	}
 	now := time.Now()
 
 	// Pre-reconcile phase 1: drive bootstrap phase state machine.
@@ -333,6 +348,15 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					continue
 				}
 			}
+			// Prefer build_id comparison — immune to version string confusion.
+			if sdv := desiredObjs[name]; sdv != nil && sdv.Spec != nil && sdv.Spec.BuildID != "" {
+				installedBID := node.InstalledBuildIDs[name]
+				if installedBID != sdv.Spec.BuildID {
+					svcNames = append(svcNames, name)
+				}
+				continue
+			}
+			// Fallback to version comparison when build_id not available.
 			installedVer := lookupInstalledVersionFromMap(node.InstalledVersions, name)
 			if installedVer != ver {
 				svcNames = append(svcNames, name)

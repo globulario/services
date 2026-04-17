@@ -72,6 +72,11 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			srv.leaderEpoch.Store(epoch)
 			log.Printf("leader election: epoch incremented to %d", epoch)
 
+			// Seed core workflow definitions to etcd. These must be available
+			// before reconciliation starts — they're the workflows the cluster
+			// uses to deploy, join, and heal itself.
+			srv.seedCoreWorkflowsToEtcd()
+
 			srv.setLeader(true, candidateID, addr)
 			h.Tick()
 			h.SetMeta("role", "leader")

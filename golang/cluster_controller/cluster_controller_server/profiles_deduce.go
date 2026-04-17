@@ -22,8 +22,12 @@ const (
 // capabilities. "core" is always included as the baseline. Additional profiles
 // are added when the node meets the minimum thresholds.
 //
+// When storageNodeCount < MinQuorumNodes, the foundational profiles (core,
+// control-plane, storage) are always included regardless of hardware — the
+// cluster needs quorum before it can function reliably.
+//
 // The returned slice is normalized (sorted, deduplicated, lowercase).
-func deduceProfiles(caps *cluster_controllerpb.NodeCapabilities) []string {
+func deduceProfiles(caps *cluster_controllerpb.NodeCapabilities, storageNodeCount ...int) []string {
 	suggested := []string{"core"}
 
 	if caps == nil {
@@ -45,7 +49,15 @@ func deduceProfiles(caps *cluster_controllerpb.NodeCapabilities) []string {
 		suggested = append(suggested, "gateway")
 	}
 
-	return normalizeProfiles(suggested)
+	profiles := normalizeProfiles(suggested)
+
+	// INVARIANT: If the cluster doesn't have MinQuorumNodes with storage,
+	// every joining node MUST get foundational profiles to reach quorum.
+	if len(storageNodeCount) > 0 {
+		profiles = enforceFoundingProfiles(profiles, storageNodeCount[0])
+	}
+
+	return profiles
 }
 
 // capsToStored converts a proto NodeCapabilities to the JSON-serializable struct.

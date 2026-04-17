@@ -921,5 +921,66 @@ proto.repository.PackageRepositoryPromiseClient.prototype.allocateUpload =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ResolveByEntrypointChecksumRequest,
+ *   !proto.repository.ResolveByEntrypointChecksumResponse>}
+ */
+const methodDescriptor_PackageRepository_ResolveByEntrypointChecksum = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ResolveByEntrypointChecksum',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ResolveByEntrypointChecksumRequest,
+  proto.repository.ResolveByEntrypointChecksumResponse,
+  /**
+   * @param {!proto.repository.ResolveByEntrypointChecksumRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ResolveByEntrypointChecksumResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ResolveByEntrypointChecksumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ResolveByEntrypointChecksumResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ResolveByEntrypointChecksumResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.resolveByEntrypointChecksum =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ResolveByEntrypointChecksum',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ResolveByEntrypointChecksum,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ResolveByEntrypointChecksumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ResolveByEntrypointChecksumResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.resolveByEntrypointChecksum =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ResolveByEntrypointChecksum',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ResolveByEntrypointChecksum);
+};
+
+
 module.exports = proto.repository;
 

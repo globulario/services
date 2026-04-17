@@ -30,6 +30,7 @@ enum PublishState {
   YANKED = 7;                    // Removed from discovery; download blocked for non-owners
   QUARANTINED = 8;               // Admin hold — security review pending; download blocked
   REVOKED = 9;                   // Terminal — permanently removed from all access
+  CORRUPTED = 10;                // Integrity check failed — binary checksum doesn't match manifest
 }
 
 message ArtifactRef {
@@ -105,6 +106,12 @@ message ArtifactManifest {
   // Phase 6: true for day-0 provisionally installed packages that have not
   // yet been imported into the repository. Cleared on successful import.
   bool provisional = 43;
+
+  // SHA256 of the entrypoint binary (not the archive). Computed at build time
+  // and stored alongside the package checksum. Enables reverse lookup:
+  // "which package version contains this binary?" — used by node-agent process
+  // fingerprinting to reconcile etcd installed_state with reality.
+  string entrypoint_checksum = 44;
 }
 
 // ServiceDetail contains fields specific to SERVICE packages.
@@ -575,6 +582,30 @@ service PackageRepository {
       default_role_hint: "editor"
     };
   };
+
+  // Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
+  // find the artifact manifest that produced it. Used by the node-agent
+  // process fingerprinting to resolve "which version is this binary?"
+  // Returns the matching manifest or NOT_FOUND if no published artifact
+  // has this entrypoint checksum.
+  rpc ResolveByEntrypointChecksum(ResolveByEntrypointChecksumRequest) returns(ResolveByEntrypointChecksumResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      collection_template: "/repository/artifacts"
+      default_role_hint: "viewer"
+    };
+  };
+}
+
+// ResolveByEntrypointChecksum — reverse lookup from binary checksum to artifact.
+message ResolveByEntrypointChecksumRequest {
+  string checksum = 1; // sha256 hex string of the binary (no "sha256:" prefix)
+  string platform = 2; // optional filter (default: "linux_amd64")
+}
+
+message ResolveByEntrypointChecksumResponse {
+  ArtifactManifest manifest = 1; // the matching artifact, or nil if not found
 }
 
 // ── UpdateArtifactBinary (delta deploy) ─────────────────────────────────────
