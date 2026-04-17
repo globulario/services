@@ -462,6 +462,12 @@ func (client *Event_Client) Publish(name string, data []byte) error {
 	return nil
 }
 
+// streamRecvTimeout is the maximum time to wait for any message (event or
+// keepalive) before treating the stream as dead. This catches the case where
+// the Envoy mesh keeps the TCP connection alive after the upstream restarts,
+// leaving stream.Recv() hanging indefinitely.
+const streamRecvTimeout = 90 * time.Second
+
 func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event, keep_alive chan *eventpb.KeepAlive, exit chan bool) error {
 
 	rqst := &eventpb.OnEventRequest{
@@ -475,12 +481,62 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
 
 	client.isConnected.Store(true)
 
-	// Run in it own goroutine.
+	// Channel for recv results — decouples Recv() from timeout checking.
+	type recvResult struct {
+		msg *eventpb.OnEventResponse
+		err error
+	}
+	recvCh := make(chan recvResult, 1)
+
+	// Recv goroutine — blocks on stream.Recv() and sends results.
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err != nil || !client.isConnected.Load() || msg == nil {
-				// Stream broke — signal reconnect (don't call Close which stops the run loop).
+			recvCh <- recvResult{msg, err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Main goroutine — processes messages with a timeout watchdog.
+	go func() {
+		for {
+			select {
+			case r := <-recvCh:
+				if r.err != nil || !client.isConnected.Load() || r.msg == nil {
+					client.isConnected.Store(false)
+					select {
+					case exit <- true:
+					default:
+					}
+					return
+				}
+
+				switch op := r.msg.Data.(type) {
+				case *eventpb.OnEventResponse_Evt:
+					select {
+					case data_channel <- op.Evt:
+					default:
+						dropped := eventDropCount.Add(1)
+						if dropped == 1 || dropped%100 == 0 {
+							slog.Warn("event client: dropped event (handler too slow)",
+								"event", op.Evt.GetName(),
+								"total_dropped", dropped)
+						}
+					}
+				case *eventpb.OnEventResponse_Ka:
+					select {
+					case keep_alive <- op.Ka:
+					default:
+					}
+				}
+
+			case <-time.After(streamRecvTimeout):
+				// No message received within timeout — stream is likely dead
+				// (Envoy kept TCP alive but upstream restarted).
+				slog.Warn("event client: stream recv timeout, forcing reconnect",
+					"timeout", streamRecvTimeout)
 				client.isConnected.Store(false)
 				select {
 				case exit <- true:
@@ -488,33 +544,9 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
 				}
 				return
 			}
-
-			// Get the result...
-			switch op := msg.Data.(type) {
-			case *eventpb.OnEventResponse_Evt:
-				select {
-				case data_channel <- op.Evt:
-				default:
-					// Channel full — handler is too slow. Drop event
-					// and increment counter so drops are observable.
-					dropped := eventDropCount.Add(1)
-					if dropped == 1 || dropped%100 == 0 {
-						slog.Warn("event client: dropped event (handler too slow)",
-							"event", op.Evt.GetName(),
-							"total_dropped", dropped)
-					}
-				}
-			case *eventpb.OnEventResponse_Ka:
-				select {
-				case keep_alive <- op.Ka:
-				default:
-				}
-			}
 		}
-
 	}()
 
-	// Wait for subscriber uuid and return it to the function caller.
 	return nil
 }
 
