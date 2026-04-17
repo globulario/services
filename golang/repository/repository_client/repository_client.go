@@ -111,6 +111,9 @@ func (client *Repository_Service_Client) Invoke(method string, rqst interface{},
 }
 
 func (client *Repository_Service_Client) GetCtx() context.Context {
+	if client.ctx != nil {
+		return client.ctx
+	}
 	return globular_client.GetClientContext(client)
 }
 
@@ -488,12 +491,26 @@ func (client *Repository_Service_Client) AllocateUpload(publisher, name, platfor
 		Intent:       intent,
 		ExactVersion: exactVersion,
 	}
-	return client.c.AllocateUpload(client.GetCtx(), req)
+	rsp, err := client.Invoke("AllocateUpload", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.AllocateUploadResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from AllocateUpload")
 }
 
 // ImportProvisionalArtifact calls the Phase 6 RPC to import a day-0 provisional artifact.
 func (client *Repository_Service_Client) ImportProvisionalArtifact(req *repositorypb.ImportProvisionalRequest) (*repositorypb.ImportProvisionalResponse, error) {
-	return client.c.ImportProvisionalArtifact(client.GetCtx(), req)
+	rsp, err := client.Invoke("ImportProvisionalArtifact", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.ImportProvisionalResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from ImportProvisionalArtifact")
 }
 
 // UploadWithReservation uploads an artifact using a pre-allocated reservation.
