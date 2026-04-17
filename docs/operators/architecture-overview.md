@@ -6,7 +6,7 @@ This page describes the architecture of a Globular cluster: how its components a
 
 A Globular cluster consists of one or more Linux machines (nodes), each running a **Node Agent**. One or more nodes also run the **Cluster Controller** (with leader election for high availability). All nodes share a distributed **etcd** cluster for configuration and state storage.
 
-<img src="../../assets/diagrams/cluster-topology.svg" alt="Globular cluster topology" style="width:100%;max-width:900px">
+<img src="/docs/assets/diagrams/cluster-topology.svg" alt="Globular cluster topology" style="width:100%;max-width:900px">
 
 The specific services running on each node are determined by **profiles**. A profile is a named set of services (for example, `core`, `gateway`, `worker`, `compute`). When a node joins the cluster and is assigned profiles, the platform ensures all services in those profiles are installed and running on that node.
 

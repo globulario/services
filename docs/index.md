@@ -104,3 +104,4 @@ Build services and applications for the Globular platform.
 - [RBAC Integration](developers/rbac-integration.md) — Proto annotations, permission model, role design
 - [Application Deployment](developers/application-deployment.md) — Web app packaging, gRPC-Web clients
 - [Workflow Integration](developers/workflow-integration.md) — Health checks, backup hooks, graceful shutdown
+- [Versioning](developers/versioning.md) — Semantic versioning policy, mono-version track, 1.0.0 criteria

@@ -43,7 +43,7 @@ This means: you change the ingress spec in etcd, and every node auto-configures 
 
 ## Architecture
 
-<img src="../../assets/diagrams/network-topology.svg" alt="Keepalived VIP network topology" style="width:100%;max-width:800px">
+<img src="/docs/assets/diagrams/network-topology.svg" alt="Keepalived VIP network topology" style="width:100%;max-width:800px">
 
 ### Failover Scenarios
 

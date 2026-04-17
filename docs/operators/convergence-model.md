@@ -8,7 +8,7 @@ This page explains how convergence works in detail: the four truth layers it ope
 
 Globular's convergence model operates across four independent truth layers. Each layer represents a different question about the state of a package, and each layer has its own authoritative data source and owner.
 
-<img src="../../assets/diagrams/four-layers.svg" alt="Four truth layers" style="width:100%;max-width:600px">
+<img src="/docs/assets/diagrams/four-layers.svg" alt="Four truth layers" style="width:100%;max-width:600px">
 
 ### Layer 1: Artifact
 
@@ -18,7 +18,7 @@ Globular's convergence model operates across four independent truth layers. Each
 
 An artifact enters this layer when it is published to the repository. It progresses through lifecycle states:
 
-<img src="../../assets/diagrams/artifact-lifecycle.svg" alt="Artifact lifecycle states" style="width:100%;max-width:600px">
+<img src="/docs/assets/diagrams/artifact-lifecycle.svg" alt="Artifact lifecycle states" style="width:100%;max-width:600px">
 
 - **STAGING**: Upload in progress, not yet validated
 - **VERIFIED**: Checksum validated, discoverable by the platform
@@ -188,7 +188,7 @@ For each drifted service, the controller creates or updates a **ServiceRelease**
 
 The release object tracks the lifecycle of bringing a specific service to its desired version:
 
-<img src="../../assets/diagrams/release-lifecycle.svg" alt="Service release lifecycle" style="width:100%;max-width:650px">
+<img src="/docs/assets/diagrams/release-lifecycle.svg" alt="Service release lifecycle" style="width:100%;max-width:650px">
 
 - **PENDING**: Release created, awaiting resolution
 - **RESOLVED**: Artifact found in repository, checksums validated, ready for deployment
