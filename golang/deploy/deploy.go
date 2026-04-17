@@ -362,11 +362,24 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 
 	// ── Step 4: Update desired state ────────────────────────────────────
 	fmt.Printf("\n→ Step 4: Updating desired state...\n")
-	desiredArgs := []string{
+
+	// Resolve controller leader address. The VIP (10.0.0.100) floats to the
+	// current leader, so prefer it over auto-discovered node IPs which may
+	// hit a non-leader and get "not leader" redirects.
+	controllerAddr := resolveControllerAddr()
+
+	var desiredArgs []string
+	if opts.Token != "" {
+		desiredArgs = append(desiredArgs, "--token", opts.Token)
+	}
+	if controllerAddr != "" {
+		desiredArgs = append(desiredArgs, "--controller", controllerAddr)
+	}
+	desiredArgs = append(desiredArgs,
 		"services", "desired", "set",
 		entry.Name, opts.Version,
 		"--build-number", fmt.Sprintf("%d", nextBuild),
-	}
+	)
 	updateDesired := func() (string, error) {
 		cmd := exec.CommandContext(ctx, globularCLI, desiredArgs...)
 		cmd.Dir = paths.Root
@@ -378,12 +391,28 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	}
 	var desiredOut string
 	var desiredErr error
-	for attempt := 1; attempt <= 2; attempt++ {
+	for attempt := 1; attempt <= 3; attempt++ {
 		desiredOut, desiredErr = updateDesired()
-		if desiredErr == nil || isTransientDesiredError(desiredErr, desiredOut) == false {
+		if desiredErr == nil || !isTransientDesiredError(desiredErr, desiredOut) {
 			break
 		}
-		fmt.Printf("  retrying desired-state update (%d/2)\n", attempt)
+		// Parse leader address from "not leader" redirect and retry with it.
+		if leaderAddr := extractLeaderAddr(desiredOut); leaderAddr != "" {
+			fmt.Printf("  redirecting to leader %s\n", leaderAddr)
+			// Rebuild args with the leader address.
+			desiredArgs = nil
+			if opts.Token != "" {
+				desiredArgs = append(desiredArgs, "--token", opts.Token)
+			}
+			desiredArgs = append(desiredArgs, "--controller", leaderAddr)
+			desiredArgs = append(desiredArgs,
+				"services", "desired", "set",
+				entry.Name, opts.Version,
+				"--build-number", fmt.Sprintf("%d", nextBuild),
+			)
+		} else {
+			fmt.Printf("  retrying desired-state update (%d/3)\n", attempt)
+		}
 		time.Sleep(time.Duration(attempt) * time.Second)
 	}
 	if desiredErr != nil {
@@ -463,6 +492,22 @@ func DeployAll(ctx context.Context, opts DeployOptions, _ int) ([]*DeployResult,
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+func resolveControllerAddr() string {
+	// Discover the controller via etcd service registration.
+	// If the discovered address routes through the mesh (port 443), the subprocess
+	// needs the direct port (12000) instead, since the CLI's --controller flag
+	// creates a direct gRPC connection, not a mesh connection.
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if addr != "" {
+		// Replace mesh port 443 with direct controller port 12000.
+		if strings.HasSuffix(addr, ":443") {
+			addr = strings.TrimSuffix(addr, ":443") + ":12000"
+		}
+		return addr
+	}
+	return ""
+}
+
 func resolveRepoAddr() string {
 	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if addr != "" {
@@ -534,6 +579,21 @@ func isTransientPublishError(err error, out string) bool {
 }
 
 // isTransientDesiredError classifies desired-state update errors to retry.
+// extractLeaderAddr parses "leader_addr=host:port" from a "not leader" error message.
+func extractLeaderAddr(out string) string {
+	idx := strings.Index(out, "leader_addr=")
+	if idx < 0 {
+		return ""
+	}
+	rest := out[idx+len("leader_addr="):]
+	// Find end of address (comma, paren, space, or end of string).
+	end := strings.IndexAny(rest, ",) \n")
+	if end < 0 {
+		return strings.TrimSpace(rest)
+	}
+	return strings.TrimSpace(rest[:end])
+}
+
 func isTransientDesiredError(err error, out string) bool {
 	msg := strings.ToLower(out + " " + err.Error())
 	// Leader redirects or transient controller outages.
