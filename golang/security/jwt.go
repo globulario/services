@@ -371,15 +371,12 @@ func GetClientId(ctx context.Context) (string, string, error) {
 	return principalID, token, nil
 }
 
-// SetLocalToken generates a token for the given identity and writes it
-// to /etc/globular/config/tokens/<normalized_mac>_token, also caching it in memory.
+// SetLocalToken generates a token for the given identity and caches it in memory.
+// Tokens are ephemeral — never persisted to disk. Each process generates its own
+// tokens on demand with full lifespan, eliminating expired-token-on-disk issues.
 // v1 Breaking Change: Removed domain parameter - identity MUST NOT include domain.
 func SetLocalToken(mac, id, name, email string, timeout int) error {
-	rawMAC := mac                       // keep raw MAC for cache key
-	normMAC := normalizeMACForFile(mac) // for filesystem path
-
-	path := tokenPathForMAC(rawMAC)
-	_ = os.Remove(path) // best-effort cleanup
+	rawMAC := mac
 
 	tokenString, err := GenerateToken(timeout, rawMAC, id, name, email)
 	if err != nil {
@@ -387,18 +384,7 @@ func SetLocalToken(mac, id, name, email string, timeout int) error {
 		return fmt.Errorf("set local token: generate: %w", err)
 	}
 
-	// Ensure token directory exists
-	if err := os.MkdirAll(tokenDir(), 0o755); err != nil {
-		return fmt.Errorf("set local token: ensure token dir: %w", err)
-	}
-
-	// Write file with normalized filename (0600 because tokens are secrets)
-	if err := os.WriteFile(filepath.Join(tokenDir(), normMAC+"_token"), []byte(tokenString), 0o600); err != nil {
-		logger.Error("set local token: write file failed", "mac", rawMAC, "err", err)
-		return fmt.Errorf("set local token: write file: %w", err)
-	}
-
-	// Cache using RAW MAC as key
+	// Cache in memory only — no disk persistence.
 	tokens.Store(rawMAC, tokenString)
 	return nil
 }
@@ -406,49 +392,35 @@ func SetLocalToken(mac, id, name, email string, timeout int) error {
 // GetLocalToken returns a valid local token for the given MAC, refreshing it
 // when possible if it's expired (within 7 days).
 func GetLocalToken(mac string) (string, error) {
-	// 1) Try in-memory cache
+	// 1) Try in-memory cache — valid tokens with enough remaining lifespan.
 	if v, ok := tokens.Load(mac); ok {
 		if token, _ := v.(string); token != "" {
-			if _, err := ValidateToken(token); err == nil {
-				return token, nil
+			if claims, err := ValidateToken(token); err == nil {
+				// Reject tokens about to expire — regenerate with full lifespan
+				// instead of handing out a token that dies mid-request.
+				if claims.ExpiresAt != nil && time.Until(claims.ExpiresAt.Time) > tokenExpirySkew {
+					return token, nil
+				}
 			}
+			// Cached token expired or about to expire — fall through to regenerate.
 		}
 	}
 
-	// 2) Try file
-	token, err := readTokenFromFile(mac)
-	if err != nil || token == "" {
-		// No token on disk — generate a service-account token so internal
-		// service-to-service calls don't fail with "no token found".
-		logger.Info("get local token: none on disk, generating service-account token", "mac", mac)
-		if gErr := SetLocalToken(mac, "sa", "sa", "", 0); gErr != nil {
-			return "", fmt.Errorf("get local token: auto-generate failed: %w", gErr)
-		}
-		// Re-read the freshly written token.
-		token, err = readTokenFromFile(mac)
-		if err != nil || token == "" {
-			return "", fmt.Errorf("get local token: generated but unreadable for mac %s", mac)
+	// 2) Generate fresh token on demand. No disk I/O.
+	// Service tokens are short-lived (5 min) and always have full lifespan
+	// when generated, eliminating the expired-token-on-disk problem.
+	if gErr := SetLocalToken(mac, "sa", "sa", "", 0); gErr != nil {
+		return "", fmt.Errorf("get local token: generate failed: %w", gErr)
+	}
+
+	// 3) Return from cache (SetLocalToken just stored it).
+	if v, ok := tokens.Load(mac); ok {
+		if token, _ := v.(string); token != "" {
+			return token, nil
 		}
 	}
 
-	// 3) Validate or refresh
-	claims, vErr := ValidateToken(token)
-	if vErr == nil {
-		tokens.Store(mac, token)
-		return token, nil
-	}
-
-	// If it's expired, allow refresh within 7 days grace based on original exp.
-	if claims != nil && time.Until(claims.ExpiresAt.Time) > -maxRefreshWindow {
-		newToken, rErr := refreshLocalToken(token)
-		if rErr != nil {
-			return "", fmt.Errorf("get local token: refresh failed: %w", rErr)
-		}
-		tokens.Store(mac, newToken)
-		return newToken, nil
-	}
-
-	return "", errors.New("get local token: token expired beyond refresh window")
+	return "", fmt.Errorf("get local token: generated but not cached for mac %s", mac)
 }
 
 // ----------------------------------------------------------------------------
