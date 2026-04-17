@@ -52,6 +52,7 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 - `node_agent_server` can only use `os/exec` within `internal/supervisor/`
 - Run `make check-services` to verify
 - No token/credential storage in etcd values — use file references
+- **No tokens stored in the codebase** — never commit JWTs, API keys, or credentials to source. Tokens are ephemeral (generated at runtime or cached in `~/.config/globular/token` per user)
 - All gRPC RPCs must have `(globular.auth.authz)` annotations
 
 ---
@@ -253,3 +254,4 @@ Types: feedback, architecture, decision, debug, session, user, project, referenc
 - Writing env var sections in READMEs (etcd is the only config source)
 - Referencing `clustercontroller` directory (it's `cluster_controller` with underscore)
 - Assuming DNS zones persist across restarts (they're in-memory, re-register after restart)
+- Storing tokens/JWTs/credentials in source code, config files, or etcd values — tokens are ephemeral, generated at runtime
