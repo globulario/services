@@ -377,9 +377,11 @@ func (srv *server) GetDesiredState(ctx context.Context, _ *emptypb.Empty) (*clus
 }
 
 // UpsertDesiredService creates or updates a single desired-service entry.
+// If this node is not the leader, the request is transparently forwarded
+// to the current leader — clients never need to know about leader topology.
 func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_controllerpb.UpsertDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		return srv.forwardUpsertDesiredService(ctx, req)
 	}
 	if req.GetService() == nil {
 		return nil, status.Error(codes.InvalidArgument, "service is required")
@@ -394,8 +396,8 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 // flag on the corresponding ServiceRelease, triggering a lifecycle-tracked
 // removal workflow (REMOVING → REMOVED).
 func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_controllerpb.RemoveDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		return srv.forwardRemoveDesiredService(ctx, req)
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
