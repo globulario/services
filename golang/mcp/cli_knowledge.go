@@ -170,8 +170,13 @@ var cliCommands = map[string]CLICommand{
 		Flags: []CLIFlag{
 			{Name: "file", Type: "string", Required: true, Help: "path to a package .tgz"},
 			{Name: "repository", Type: "string", Required: true, Help: "repository service address"},
+			{Name: "bump", Type: "string", Required: false, Allowed: []string{"patch", "minor", "major"}, Help: "version bump intent — calls AllocateUpload before uploading"},
+			{Name: "force", Type: "bool", Required: false, Help: "overwrite existing artifact"},
 		},
-		Examples: []string{"globular pkg publish --file echo-1.0.0.tgz --repository localhost:10200"},
+		Examples: []string{
+			"globular pkg publish --file echo.tgz --repository addr --bump patch",
+			"globular pkg publish --file echo.tgz --repository addr",
+		},
 		FollowUp: []string{"services desired set"},
 	},
 	// Services commands
@@ -190,6 +195,77 @@ var cliCommands = map[string]CLICommand{
 		Examples: []string{
 			"globular services repair --dry-run",
 			"globular services repair",
+		},
+	},
+	// Deploy commands
+	"deploy": {
+		Path:        "deploy",
+		Description: "Build, package, and publish services to the repository with automatic version allocation",
+		Flags: []CLIFlag{
+			{Name: "bump", Type: "string", Required: false, Allowed: []string{"patch", "minor", "major"}, Help: "version bump intent — repository allocates the version"},
+			{Name: "version", Type: "string", Required: false, Help: "explicit version (deprecated, use --bump)"},
+			{Name: "all", Type: "bool", Required: false, Help: "deploy all services from the catalog"},
+			{Name: "comment", Type: "string", Required: false, Help: "deployment comment"},
+			{Name: "full", Type: "bool", Required: false, Help: "force full package rebuild"},
+			{Name: "dry-run", Type: "bool", Required: false, Help: "preview without executing"},
+			{Name: "parallel", Type: "int", Required: false, Default: "4", Help: "max parallel deploys with --all"},
+		},
+		Examples: []string{
+			"globular deploy dns --bump patch",
+			"globular deploy echo dns rbac --bump minor",
+			"globular deploy --all --bump patch",
+			"globular deploy dns --bump patch --dry-run",
+		},
+		Rules: []string{
+			"Use --bump instead of --version to let the repository allocate versions",
+			"--bump calls AllocateUpload RPC which reserves a version with 5-min TTL",
+			"Package names are canonicalized to hyphens (ai_executor -> ai-executor)",
+		},
+	},
+	// Repository commands
+	"repository scan": {
+		Path:        "repository scan",
+		Description: "Scan and classify all repository artifacts",
+		Flags: []CLIFlag{
+			{Name: "package", Type: "string", Required: false, Help: "scan only this package name"},
+		},
+		Examples: []string{
+			"globular repository scan",
+			"globular repository scan --package dns",
+		},
+	},
+	"repository cleanup": {
+		Path:        "repository cleanup",
+		Description: "Remove orphaned and duplicate artifacts from the repository",
+		Flags: []CLIFlag{
+			{Name: "orphans", Type: "bool", Required: false, Help: "delete ORPHANED artifacts"},
+			{Name: "duplicates", Type: "bool", Required: false, Help: "delete DUPLICATE_CONTENT artifacts (keeps latest build)"},
+			{Name: "dry-run", Type: "bool", Required: false, Help: "preview deletions without executing"},
+		},
+		Examples: []string{
+			"globular repository cleanup --orphans --dry-run",
+			"globular repository cleanup --orphans --duplicates",
+		},
+		Rules: []string{"PUBLISHED artifacts referenced by desired-state or installed-state are never deleted"},
+	},
+	// State commands
+	"state canonicalize": {
+		Path:        "state canonicalize",
+		Description: "Scan cluster state for identity anomalies and optionally repair them",
+		Flags: []CLIFlag{
+			{Name: "dry-run", Type: "bool", Required: false, Default: "true", Help: "scan and report only"},
+			{Name: "fix-safe", Type: "bool", Required: false, Help: "repair A4 (repo) and A2 (desired-state) anomalies"},
+			{Name: "fix-installed", Type: "bool", Required: false, Help: "repair A3 (installed-state) anomalies"},
+			{Name: "metadata-only", Type: "bool", Required: false, Help: "write buildId to etcd without reinstalling"},
+			{Name: "cleanup-ghosts", Type: "bool", Required: false, Help: "delete installed-state on non-active nodes"},
+			{Name: "node", Type: "string", Required: false, Help: "target node ID for --fix-installed"},
+			{Name: "include-critical", Type: "bool", Required: false, Help: "include control-plane services in repair"},
+		},
+		Examples: []string{
+			"globular state canonicalize --dry-run",
+			"globular state canonicalize --fix-safe",
+			"globular state canonicalize --fix-installed --node <id> --metadata-only",
+			"globular state canonicalize --cleanup-ghosts",
 		},
 	},
 	// DNS commands
@@ -225,16 +301,35 @@ var cliWorkflows = map[string]CLIWorkflow{
 			{Order: 11, Action: "observe", Description: "Use MCP tools (cluster_get_health, nodeagent_get_inventory) to verify deployment"},
 		},
 	},
+	"deploy_service": {
+		Task:        "deploy_service",
+		Description: "Build, package, publish, and roll out a service using automatic version allocation",
+		Steps: []WorkflowStep{
+			{Order: 1, Action: "run_command", Command: "go build ./...", Description: "Ensure code compiles"},
+			{Order: 2, Action: "run_command", Command: "make test-invariants", Description: "Run invariant tests"},
+			{Order: 3, Action: "run_command", Command: "globular deploy <service> --bump patch", Description: "Build, publish with allocation, update desired state"},
+			{Order: 4, Action: "observe", Command: "cluster_get_convergence_detail", Description: "Watch convergence progress"},
+		},
+	},
 	"publish_package": {
 		Task:        "publish_package",
-		Description: "Build and publish a service package",
+		Description: "Build and publish a service package (manual version)",
 		Steps: []WorkflowStep{
 			{Order: 1, Action: "run_command", Command: "go build ./...", Description: "Ensure code compiles"},
 			{Order: 2, Action: "run_command", Command: "go test ./...", Description: "Run tests"},
 			{Order: 3, Action: "run_command", Command: "globular pkg build --spec <spec> --version <ver>", Description: "Build the package"},
 			{Order: 4, Action: "run_command", Command: "globular pkg publish --file <tgz> --repository <addr>", Description: "Publish to repository"},
-			{Order: 5, Action: "run_command", Command: "globular services desired set --name <name> --version <ver>", Description: "Set desired release"},
-			{Order: 6, Action: "run_command", Command: "globular services repair", Description: "Trigger reconciliation"},
+			{Order: 5, Action: "run_command", Command: "globular services desired set <name> <version>", Description: "Set desired release"},
+		},
+	},
+	"cleanup_repository": {
+		Task:        "cleanup_repository",
+		Description: "Scan and clean up repository artifacts",
+		Steps: []WorkflowStep{
+			{Order: 1, Action: "run_command", Command: "globular repository scan", Description: "Classify all artifacts"},
+			{Order: 2, Action: "run_command", Command: "globular repository cleanup --orphans --duplicates --dry-run", Description: "Preview cleanup"},
+			{Order: 3, Action: "wait_approval", Description: "Confirm before deleting"},
+			{Order: 4, Action: "run_command", Command: "globular repository cleanup --orphans --duplicates", Description: "Execute cleanup"},
 		},
 	},
 	"bootstrap_cluster": {
