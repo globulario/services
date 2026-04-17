@@ -139,7 +139,7 @@ func TestPlannerEvaluate_NoDeps_NoClients(t *testing.T) {
 	plan := OperationPlan{
 		Command:       "generate service",
 		TargetService: "event",
-		TargetVersion: "0.0.1",
+		TargetVersion: "0.1.0",
 		Timestamp:     "2026-03-18T00:00:00Z",
 	}
 
@@ -170,7 +170,7 @@ func TestPlannerEvaluate_MissingDep_NoClients(t *testing.T) {
 	plan := OperationPlan{
 		Command:       "services desired set",
 		TargetService: "ldap",
-		TargetVersion: "0.0.1",
+		TargetVersion: "0.1.0",
 		Timestamp:     "2026-03-18T00:00:00Z",
 	}
 
@@ -191,7 +191,7 @@ func TestNormalizePlan_DesiredSet(t *testing.T) {
 	if plan.TargetService != "ldap" {
 		t.Fatalf("expected target service 'ldap', got %q", plan.TargetService)
 	}
-	if plan.TargetVersion != "0.0.1" {
+	if plan.TargetVersion != "0.1.0" {
 		t.Fatalf("expected target version '0.0.1', got %q", plan.TargetVersion)
 	}
 }

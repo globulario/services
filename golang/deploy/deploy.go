@@ -14,12 +14,14 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globularcli/pkgpack"
 	"github.com/globulario/services/golang/repository/repository_client"
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // DeployOptions holds configuration for a deploy run.
 type DeployOptions struct {
 	ServiceName string
 	Version     string
+	Bump        string // "patch" | "minor" | "major" — calls AllocateUpload
 	Publisher   string
 	Platform    string
 	Comment     string
@@ -60,8 +62,11 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	}
 
 	// Defaults.
-	if opts.Version == "" {
-		return nil, fmt.Errorf("version is required — use --version or let the repository allocate via AllocateUpload")
+	if opts.Version == "" && opts.Bump == "" {
+		return nil, fmt.Errorf("version is required — use --version or --bump patch|minor|major")
+	}
+	if opts.Version != "" && opts.Bump == "" {
+		fmt.Println("  ⚠ deprecated: --version without --bump — use --bump to let the repository allocate versions")
 	}
 	if opts.Publisher == "" {
 		opts.Publisher = "core@globular.io"
@@ -151,12 +156,51 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		client.SetToken(opts.Token)
 	}
 
-	nextBuild, prevChecksum, err := NextBuildNumber(ctx, client, opts.Publisher, entry.Name, opts.Version, opts.Platform)
-	if err != nil {
-		return nil, fmt.Errorf("query build number: %w", err)
-	}
+	var nextBuild int64
+	var prevChecksum string
+	var reservationID string
+	var allocatedBuildID string
 
-	fmt.Printf("  Current build: %d → Next: %d\n", nextBuild-1, nextBuild)
+	if opts.Bump != "" {
+		// Phase A: use AllocateUpload to get version + build_number + reservation_id.
+		var intent repopb.VersionIntent
+		switch strings.ToLower(opts.Bump) {
+		case "patch":
+			intent = repopb.VersionIntent_BUMP_PATCH
+		case "minor":
+			intent = repopb.VersionIntent_BUMP_MINOR
+		case "major":
+			intent = repopb.VersionIntent_BUMP_MAJOR
+		default:
+			return nil, fmt.Errorf("invalid --bump value %q: use patch, minor, or major", opts.Bump)
+		}
+
+		exactVersion := opts.Version // empty if --version not set
+		alloc, err := client.AllocateUpload(opts.Publisher, entry.Name, opts.Platform, intent, exactVersion)
+		if err != nil {
+			return nil, fmt.Errorf("allocate upload: %w", err)
+		}
+		opts.Version = alloc.GetVersion()
+		nextBuild = alloc.GetBuildNumber()
+		reservationID = alloc.GetReservationId()
+		allocatedBuildID = alloc.GetBuildId()
+		fmt.Printf("  Allocated: version=%s build=%d build_id=%s\n",
+			alloc.GetVersion(), nextBuild, allocatedBuildID[:8])
+
+		// Query previous checksum for delta detection.
+		info, _ := QueryLatestBuild(ctx, client, opts.Publisher, entry.Name, opts.Version, opts.Platform)
+		if info != nil {
+			prevChecksum = info.Checksum
+		}
+	} else {
+		// Legacy path: query build number directly.
+		var err error
+		nextBuild, prevChecksum, err = NextBuildNumber(ctx, client, opts.Publisher, entry.Name, opts.Version, opts.Platform)
+		if err != nil {
+			return nil, fmt.Errorf("query build number: %w", err)
+		}
+		fmt.Printf("  Current build: %d → Next: %d\n", nextBuild-1, nextBuild)
+	}
 
 	// ── Step 3: Detect delta ────────────────────────────────────────────
 	binaryChecksum := "sha256:" + newChecksum
@@ -244,57 +288,77 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	tgzPath := buildResults[0].OutputPath
 	fmt.Printf("  ✓ Package built (%s)\n", filepath.Base(tgzPath))
 
-	// Publish via CLI subprocess — handles mTLS auth correctly.
+	// Resolve CLI path for subprocess calls (publish legacy path + desired-state update).
 	globularCLI, err := findGlobularCLI(paths)
 	if err != nil {
 		return nil, err
 	}
-	// Read cached token if not provided — the subprocess needs it explicitly
-	// because its PersistentPreRunE may fail to generate a service token.
-	publishToken := opts.Token
-	if publishToken == "" {
-		if data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".config", "globular", "token")); err == nil {
-			publishToken = strings.TrimSpace(string(data))
-		}
-	}
 
-	var publishArgs []string
-	if publishToken != "" {
-		publishArgs = append(publishArgs, "--token", publishToken)
-	}
-	publishArgs = append(publishArgs,
-		"pkg", "publish",
-		"--file", tgzPath,
-		"--repository", repoAddr,
-	)
-	runPublish := func() (string, error) {
-		cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)
-		cmd.Dir = paths.Root
-		var pubOut strings.Builder
-		cmd.Stdout = &pubOut
-		cmd.Stderr = &pubOut
-		err := cmd.Run()
-		return pubOut.String(), err
-	}
+	// Publish: upload the built package to the repository.
+	if reservationID != "" {
+		// Direct upload with reservation — no subprocess needed.
+		tgzData, err := os.ReadFile(tgzPath)
+		if err != nil {
+			return nil, fmt.Errorf("read package: %w", err)
+		}
+		ref := &repopb.ArtifactRef{
+			PublisherId: opts.Publisher,
+			Name:        entry.Name,
+			Version:     opts.Version,
+			Platform:    opts.Platform,
+			Kind:        repopb.ArtifactKind_SERVICE,
+		}
+		if err := client.UploadWithReservation(ref, tgzData, nextBuild, reservationID); err != nil {
+			return nil, fmt.Errorf("upload with reservation: %w", err)
+		}
+		fmt.Printf("  ✓ Published to %s (with reservation)\n", repoAddr)
+	} else {
+		// Legacy path: publish via CLI subprocess.
+		publishToken := opts.Token
+		if publishToken == "" {
+			if data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".config", "globular", "token")); err == nil {
+				publishToken = strings.TrimSpace(string(data))
+			}
+		}
 
-	var pubOut string
-	var errPub error
-	for attempt := 1; attempt <= 3; attempt++ {
-		pubOut, errPub = runPublish()
-		if errPub == nil || isTransientPublishError(errPub, pubOut) == false {
-			break
+		var publishArgs []string
+		if publishToken != "" {
+			publishArgs = append(publishArgs, "--token", publishToken)
 		}
-		fmt.Printf("  retrying publish (%d/3) after transient error: %v\n", attempt, errPub)
-		time.Sleep(time.Duration(attempt) * time.Second)
-	}
-	if errPub != nil {
-		if !strings.Contains(pubOut, "success") && !strings.Contains(pubOut, "bundle_id") && !strings.Contains(pubOut, "verify uploaded manifest") {
-			fmt.Printf("  %s\n", pubOut)
-			return nil, fmt.Errorf("pkg publish: %w", errPub)
+		publishArgs = append(publishArgs,
+			"pkg", "publish",
+			"--file", tgzPath,
+			"--repository", repoAddr,
+		)
+		runPublish := func() (string, error) {
+			cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)
+			cmd.Dir = paths.Root
+			var pubOut strings.Builder
+			cmd.Stdout = &pubOut
+			cmd.Stderr = &pubOut
+			err := cmd.Run()
+			return pubOut.String(), err
 		}
-		fmt.Printf("  (post-upload verify warning — bundle was uploaded)\n")
+
+		var pubOut string
+		var errPub error
+		for attempt := 1; attempt <= 3; attempt++ {
+			pubOut, errPub = runPublish()
+			if errPub == nil || isTransientPublishError(errPub, pubOut) == false {
+				break
+			}
+			fmt.Printf("  retrying publish (%d/3) after transient error: %v\n", attempt, errPub)
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		if errPub != nil {
+			if !strings.Contains(pubOut, "success") && !strings.Contains(pubOut, "bundle_id") && !strings.Contains(pubOut, "verify uploaded manifest") {
+				fmt.Printf("  %s\n", pubOut)
+				return nil, fmt.Errorf("pkg publish: %w", errPub)
+			}
+			fmt.Printf("  (post-upload verify warning — bundle was uploaded)\n")
+		}
+		fmt.Printf("  ✓ Published to %s\n", repoAddr)
 	}
-	fmt.Printf("  ✓ Published to %s\n", repoAddr)
 
 	// ── Step 4: Update desired state ────────────────────────────────────
 	fmt.Printf("\n→ Step 4: Updating desired state...\n")
@@ -334,6 +398,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		Service:     entry.Name,
 		Version:     opts.Version,
 		BuildNumber: nextBuild,
+		BuildID:     allocatedBuildID,
 		Action:      action,
 		Checksum:    binaryChecksum,
 		Duration:    time.Since(start),

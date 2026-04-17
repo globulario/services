@@ -102,7 +102,7 @@ func main() {
 		DNSIface:                 *dnsIfaceFlag,
 	}
 	if cfg.AgentVersion == "" {
-		cfg.AgentVersion = "0.0.1"
+		cfg.AgentVersion = "0.1.0"
 	}
 
 	srv := NewNodeAgentServer(statePath, state, cfg)

@@ -478,6 +478,71 @@ func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repository
 	return nil
 }
 
+// AllocateUpload calls the repository's AllocateUpload RPC to reserve a version
+// and build_id. The returned reservation_id should be passed to UploadWithReservation.
+func (client *Repository_Service_Client) AllocateUpload(publisher, name, platform string, intent repositorypb.VersionIntent, exactVersion string) (*repositorypb.AllocateUploadResponse, error) {
+	req := &repositorypb.AllocateUploadRequest{
+		PublisherId:  publisher,
+		Name:         name,
+		Platform:     platform,
+		Intent:       intent,
+		ExactVersion: exactVersion,
+	}
+	return client.c.AllocateUpload(client.GetCtx(), req)
+}
+
+// ImportProvisionalArtifact calls the Phase 6 RPC to import a day-0 provisional artifact.
+func (client *Repository_Service_Client) ImportProvisionalArtifact(req *repositorypb.ImportProvisionalRequest) (*repositorypb.ImportProvisionalResponse, error) {
+	return client.c.ImportProvisionalArtifact(client.GetCtx(), req)
+}
+
+// UploadWithReservation uploads an artifact using a pre-allocated reservation.
+// The reservation_id ties this upload to a prior AllocateUpload call.
+func (client *Repository_Service_Client) UploadWithReservation(ref *repositorypb.ArtifactRef, data []byte, buildNumber int64, reservationID string) error {
+	if ref == nil {
+		return errors.New("artifact ref required")
+	}
+	stream, err := client.c.UploadArtifact(client.GetCtx())
+	if err != nil {
+		return err
+	}
+
+	const chunkSize = 1024 * 1024
+	firstChunk := data
+	if len(firstChunk) > chunkSize {
+		firstChunk = data[:chunkSize]
+	}
+	if err := stream.Send(&repositorypb.UploadArtifactRequest{
+		Ref:           ref,
+		Data:          firstChunk,
+		BuildNumber:   buildNumber,
+		ReservationId: reservationID,
+	}); err != nil {
+		return err
+	}
+
+	for offset := len(firstChunk); offset < len(data); offset += chunkSize {
+		end := offset + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		if err := stream.Send(&repositorypb.UploadArtifactRequest{
+			Data: data[offset:end],
+		}); err != nil {
+			return err
+		}
+	}
+
+	resp, err := stream.CloseAndRecv()
+	if err != nil {
+		return err
+	}
+	if resp == nil || !resp.GetResult() {
+		return fmt.Errorf("artifact upload failed")
+	}
+	return nil
+}
+
 /**
  * Get the rbac client.
  */

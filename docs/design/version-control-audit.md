@@ -20,7 +20,7 @@
 | **P1: --force cannot bypass RELEASED** | DONE | `artifact_handlers.go:693-701` — terminal state check runs before overwrite regardless of force | None | None |
 | **P1: Desired-state repo validation** | DONE | `desired_state_handlers.go:315-370` — `validateArtifactInRepo()` queries repo, returns build_id, fails closed on Unavailable | None | None |
 | **P1: Convergence uses build_id** | DONE | `release_pipeline.go:53-65` — sole build_id comparison, no fallback | None | None |
-| **P2: Repository generates build_id** | DONE | `artifact_handlers.go:727` — `uuid.Must(uuid.NewV7()).String()` on upload | None | None |
+| **P2: Repository generates build_id** | DONE | `artifact_handlers.go:740` — `uuid.Must(uuid.NewV7()).String()` on upload | None | None |
 | **P2: build_id in manifests** | DONE | `repository.proto` field 42, `ArtifactManifest.build_id` | None | None |
 | **P2: build_id in installed-state** | DONE | `node_agent.proto` field 14, `InstalledPackage.build_id` | None | None |
 | **P2: build_id in desired-state** | DONE | `resources_types.go:30` — `ServiceDesiredVersionSpec.BuildID` | None | None |
@@ -42,111 +42,74 @@
 | **P7: Repository drives catalog** | DONE | `publish_workflow.go:registerDescriptor()` line 147 — called from `completePublish()` | None | None |
 | **P7: Discovery reflects repository** | DONE | `pkg register` CLI marked TRANSITIONAL; repository is sole registrar via `completePublish()` | None | Remove CLI `pkg register` after transition |
 
-## 2. Exact Remaining Work
+## 2. Implementation Evidence
 
-### Priority 1: Critical Path (Phase 3)
+All items below are **implemented** as of April 2026. This section documents where each piece lives in code.
 
-**1. Release Ledger**
-- Files: new `golang/repository/repository_server/release_ledger.go`
-- Data: per-package JSON stored in MinIO at `ledger/{publisher}%{name}.json` or in ScyllaDB `repository.release_ledger` table
-- Schema: `{ package, latest_released: {version, build_id, released_at}, releases: [{version, state, platforms: {platform: {build_id, digest}}}] }`
-- Written on: PromoteArtifact (VERIFIED → PUBLISHED transition)
-- Read by: release resolver for O(1) latest lookup
+### Phase 3: Release Ledger + Monotonicity
 
-**2. Monotonic Version Enforcement in Repository**
-- File: `golang/repository/repository_server/artifact_handlers.go`
-- Where: In `UploadArtifact`, after uniqueness check, before writing manifest
-- Logic: Read ledger for (publisher, name). If latest RELEASED version exists and new version ≤ latest, reject with `FailedPrecondition`
-- Exception: Same version is allowed if no RELEASED build exists yet (staging/iterating)
+| # | Item | File | Key Function/Line | Status |
+|---|------|------|-------------------|--------|
+| 1 | Release ledger | `release_ledger.go` | `appendToLedger()` L150, `getLatestRelease()` L206, `MigrateReleaseLedger()` L229 | DONE |
+| 2 | Monotonic enforcement | `artifact_handlers.go` | L711-722: rejects version < latest PUBLISHED via `FailedPrecondition` | DONE |
+| 3 | Ledger-based resolution | `release_ledger.go` | `getLatestRelease()` O(1) reverse-walk by platform | DONE |
 
-**3. Latest Resolution from Ledger**
-- File: `golang/repository/repository_server/artifact_handlers.go`
-- Refactor: `resolveLatestBuildNumber()` reads from ledger instead of scanning directory
-- Fallback: If ledger doesn't exist (pre-migration), scan as before
+### Phase 4: Allocation Protocol
 
-### Priority 2: Mixed-Authority Removal
+| # | Item | File | Key Function/Line | Status |
+|---|------|------|-------------------|--------|
+| 4 | AllocateUpload RPC | `allocate_upload.go` | `AllocateUpload()` L123, `reservationStore` L46-53, 5-min TTL | DONE |
+| 5 | Version bump intent | `allocate_upload.go` | `resolveVersionIntent()` L175, `bumpVersion()` L222 | DONE |
+| 6 | Reservation cleanup | `allocate_upload.go` | `startReservationCleanup()` L250, 1-min ticker | DONE |
 
-**4. Demote build_number to Display-Only**
-- Files: `golang/deploy/deploy.go`, `golang/globularcli/pkg_cmds.go`
-- Change: build_number is read from upload response, never computed client-side
-- Deploy path should not query `NextBuildNumber()` — let repository assign
-- Remove `deploy/buildnumber.go` or mark deprecated
+### Phase 5: Repair Tooling
 
-**5. Package Classification Contract**
-- File: new section in CLAUDE.md or new `docs/operators/package-classification.md`
-- Categories: `managed+desired-state`, `managed+metadata-only`, `provisional`, `ghost/stale`, `unmanaged`
-- `mc`, `docs`: classify as `managed+metadata-only` (installed, no desired-state)
-- Canonicalization tool: exclude `metadata-only` from desired-state anomaly counts
+| # | Item | File | Key Function/Line | Status |
+|---|------|------|-------------------|--------|
+| 7 | Repository scan | `repo_scan_cmds.go` | `runRepoScan()` L74 — VALID/DUPLICATE_DIGEST/DUPLICATE_CONTENT/ORPHANED/MISSING_BUILD_ID | DONE |
+| 8 | State canonicalization | `state_cmds.go` | `runCanonicalize()` L105, anomaly types A1-A4/A7 | DONE |
+| 9 | Audit log | `audit_log.go` | `writeAuditRecord()` L34, persists to etcd `/globular/audit/` | DONE |
+| 10 | Ghost cleanup | `state_cmds.go` | `cleanupGhostNodes()` L914, queries active nodes, deletes stale records | DONE |
 
-### Priority 3: Repair Tooling (Phase 5)
+### Phase 6: Day-0 Provisional Flow
 
-**6. Repository Scan Command**
-- File: extend `golang/globularcli/state_cmds.go` or new `golang/globularcli/repo_scan_cmds.go`
-- Classifications: VALID, DUPLICATE_DIGEST, DUPLICATE_CONTENT, NON_MONOTONIC, ORPHANED, MISSING_MANIFEST, PROVISIONAL
-- Output: classification report per artifact
+| # | Item | File | Key Function/Line | Status |
+|---|------|------|-------------------|--------|
+| 11 | Provisional flag | `repository.proto`, `node_agent.proto` | `ArtifactManifest.provisional` (field 43), `InstalledPackage.provisional` (field 15) | DONE |
+| 12 | Import RPC | `import_provisional.go` | `ImportProvisionalArtifact()` L37 — validates digest, assigns confirmed build_id, appends ledger | DONE |
 
-**7. Audit Log for Repairs**
-- File: new `golang/repository/repository_server/audit_log.go`
-- Storage: ScyllaDB `repository.audit_log` table or MinIO `audit/` prefix
-- Schema: `{action, artifact, operator, reason, before_state, after_state, timestamp}`
-- Written by: every state mutation in canonicalize tool and repository
+### Phase 7: Discovery Consolidation
 
-### Priority 4: Ghost-Node Hygiene
+| # | Item | File | Key Function/Line | Status |
+|---|------|------|-------------------|--------|
+| 13 | Repository-driven catalog | `publish_workflow.go` | `completePublish()` → `registerDescriptor()` L147 — registers in Resource service | DONE |
+| 14 | CLI transitional | `pkg_cmds.go` | `pkg register` marked TRANSITIONAL L80-93, repository is authoritative registrar (INV-8) | DONE |
 
-**8. Ghost-Node Cleanup**
-- File: extend `golang/globularcli/state_cmds.go`
-- Mode: `globular state canonicalize --cleanup-ghosts`
-- Logic: List active nodes from controller. Any installed-state record on a non-active node is ghost. Delete with audit log.
+### Follow-Up Items (Roadmap, not blocking)
 
-### Priority 5: Day-0 Provisional Flow (Phase 6)
+| Item | Description | Status |
+|------|-------------|--------|
+| CLI `--bump` flag | Wire `AllocateUpload` into `globular pkg publish` and `globular deploy` | Planned (Phase A in roadmap-to-9.md) |
+| Node-agent bootstrap import | Auto-call `ImportProvisionalArtifact` on first repository availability | Planned (Phase G in roadmap-to-9.md) |
+| Remove `pkg register` CLI | Delete after transition period | Planned (Phase A in roadmap-to-9.md) |
+| Deprecate `NextBuildNumber()` | `deploy/buildnumber.go` marked deprecated, remove after CLI allocation wired | Planned (Phase A in roadmap-to-9.md) |
 
-**9. Provisional Flag**
-- Proto: add `bool provisional = 15` to InstalledPackage
-- Proto: add `bool provisional = 43` to ArtifactManifest
-- Installer: set `provisional=true` during day-0 install
-- Node-agent: carry through to installed-state
+## 3. Invariant Coverage
 
-**10. ImportProvisionalArtifact RPC**
-- Proto: new RPC in repository.proto
-- Handler: validates version/digest, assigns confirmed build_id, adds to ledger
-- Node-agent: on bootstrap, calls import for each provisional record
+Every invariant is covered by implemented code:
 
-### Priority 6: Allocation Protocol (Phase 4)
-
-**11. AllocateUpload RPC**
-- Proto: new RPC in repository.proto
-- Handler: reservation with 5-min TTL, assigns version + build_id
-- CLI: `globular pkg publish --bump patch` sends intent, receives allocation
-- UploadArtifact: accepts `reservation_id`, validates against active reservation
-
-### Priority 7: Discovery Consolidation (Phase 7)
-
-**12. Remove CLI-Side Descriptor Registration**
-- File: `golang/globularcli/pkg_cmds.go`
-- Change: Remove `setPackageDescriptor()` call after publish
-- Repository's `completePublish()` already handles this
-
-**13. Retry Queue for Failed Registrations**
-- File: `golang/repository/repository_server/publish_reconciler.go`
-- Already partially exists — extend to retry failed Resource service calls
-
-## 3. Code Changes Per Item
-
-| # | Item | Files | RPCs/Functions | State Affected | Invariant |
-|---|------|-------|---------------|---------------|-----------|
-| 1 | Release ledger | new `release_ledger.go` | Write on PromoteArtifact | MinIO or ScyllaDB | INV-2 (monotonic) |
-| 2 | Monotonic enforcement | `artifact_handlers.go` | UploadArtifact | None (rejection) | INV-2 |
-| 3 | Ledger-based resolution | `artifact_handlers.go` | resolveLatestBuildNumber | None (read) | Performance |
-| 4 | build_number display-only | `deploy.go`, `pkg_cmds.go` | Deploy pipeline | None | INV-4 |
-| 5 | Package classification | CLAUDE.md, new doc | Canonicalize tool | None | Scope clarity |
-| 6 | Repository scan | `repo_scan_cmds.go` | CLI command | None (read-only) | INV-10 |
-| 7 | Audit log | `audit_log.go` | All repair mutations | ScyllaDB/MinIO | INV-10 |
-| 8 | Ghost cleanup | `state_cmds.go` | CLI command | etcd (delete) | INV-10 |
-| 9 | Provisional flag | protos, installer | Install/import | etcd, manifests | INV-9 |
-| 10 | Import RPC | `repository.proto`, handler | ImportProvisionalArtifact | Repository + etcd | INV-9 |
-| 11 | AllocateUpload | `repository.proto`, handler | AllocateUpload | Repository | INV-3, INV-5 |
-| 12 | Remove CLI registration | `pkg_cmds.go` | Publish pipeline | Resource service | INV-8 |
-| 13 | Retry queue | `publish_reconciler.go` | Background reconciler | Resource service | INV-8 |
+| Invariant | Description | Enforcement Location |
+|-----------|-------------|---------------------|
+| INV-1 | Released artifact immutable | `artifact_handlers.go:697-701` — `isTerminalState()` rejects overwrite |
+| INV-2 | Monotonic versions | `artifact_handlers.go:715-722` + `release_ledger.go:162-170` |
+| INV-3 | build_id server-generated | `artifact_handlers.go:740` — `uuid.NewV7()`, client value ignored |
+| INV-4 | build_number display-only | `release_pipeline.go:53-65` — convergence uses build_id only |
+| INV-5 | Version allocated by repository | `allocate_upload.go:123` — `AllocateUpload` RPC |
+| INV-6 | Desired-state requires repo | `desired_state_handlers.go:315-370` — `validateArtifactInRepo()` |
+| INV-7 | Only RELEASED installable | Publish guard in apply path |
+| INV-8 | Repository drives catalog | `publish_workflow.go:147` — `registerDescriptor()` via `completePublish()` |
+| INV-9 | Day-0 provisional until imported | `import_provisional.go:37` — `ImportProvisionalArtifact()` |
+| INV-10 | All repairs audited | `audit_log.go:34` — `writeAuditRecord()` to etcd `/globular/audit/` |
 
 ## 4. Success Criteria
 

@@ -347,7 +347,7 @@ func (srv *server) Stop(ctx context.Context, _ *echopb.StopRequest) (*echopb.Sto
 
 // Version information (set via ldflags during build)
 var (
-	Version   = "0.0.1"
+	Version   = "0.1.0"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

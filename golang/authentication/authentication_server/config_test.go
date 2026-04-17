@@ -25,8 +25,8 @@ func TestDefaultConfigValidates(t *testing.T) {
 	if cfg.Protocol != "grpc" {
 		t.Errorf("Protocol = %q, want %q", cfg.Protocol, "grpc")
 	}
-	if cfg.Version != "0.0.1" {
-		t.Errorf("Version = %q, want %q", cfg.Version, "0.0.1")
+	if cfg.Version != "0.1.0" {
+		t.Errorf("Version = %q, want %q", cfg.Version, "0.1.0")
 	}
 	if cfg.SessionTimeout != 15 {
 		t.Errorf("SessionTimeout = %d, want 15", cfg.SessionTimeout)

@@ -1,6 +1,8 @@
 # Globular Documentation
 
-Globular is an open-source microservices platform for building and operating self-hosted distributed applications. It runs native Linux binaries under systemd, orchestrated by workflows, with etcd as the single source of truth — no containers, no Kubernetes, no cloud provider required.
+> An open-source microservices platform for self-hosted distributed applications
+
+Globular runs native Linux binaries under systemd, orchestrated by workflows, with etcd as the single source of truth — no containers, no Kubernetes, no cloud provider required.
 
 ---
 

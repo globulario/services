@@ -15,6 +15,7 @@ import (
 var (
 	deployComment    string
 	deployVersion    string
+	deployBump       string // "patch" | "minor" | "major" — calls AllocateUpload
 	deployRepoAddr   string
 	deployFull       bool
 	deployDryRun     bool
@@ -46,7 +47,8 @@ to force a full package rebuild.`,
 
 func init() {
 	deployCmd.Flags().StringVarP(&deployComment, "comment", "c", "", "Deployment comment")
-	deployCmd.Flags().StringVar(&deployVersion, "version", "", "Package version (required)")
+	deployCmd.Flags().StringVar(&deployVersion, "version", "", "Package version (use --bump instead to let repository allocate)")
+	deployCmd.Flags().StringVar(&deployBump, "bump", "", "Version bump intent: patch|minor|major (calls AllocateUpload)")
 	deployCmd.Flags().StringVar(&deployRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	deployCmd.Flags().BoolVar(&deployFull, "full", false, "Force full package rebuild (skip delta detection)")
 	deployCmd.Flags().BoolVar(&deployDryRun, "dry-run", false, "Print actions without executing")
@@ -66,6 +68,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	baseOpts := deploy.DeployOptions{
 		Version:   deployVersion,
+		Bump:      deployBump,
 		Publisher: "core@globular.io",
 		Platform:  "linux_amd64",
 		Comment:   deployComment,

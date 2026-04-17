@@ -101,7 +101,7 @@ func TestServerInitialization(t *testing.T) {
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = "0.1.0"
 	srv.PublisherID = "localhost"
 	srv.Description = "The Hello World of gRPC services."
 	srv.Keywords = []string{"Example", "Echo", "Test", "Service"}
@@ -125,8 +125,8 @@ func TestServerInitialization(t *testing.T) {
 		t.Errorf("Protocol = %q, want %q", srv.Protocol, "grpc")
 	}
 
-	if srv.Version != "0.0.1" {
-		t.Errorf("Version = %q, want %q", srv.Version, "0.0.1")
+	if srv.Version != "0.1.0" {
+		t.Errorf("Version = %q, want %q", srv.Version, "0.1.0")
 	}
 
 	if !srv.KeepAlive {

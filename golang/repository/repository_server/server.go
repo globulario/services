@@ -662,7 +662,7 @@ func initializeServerDefaults() *server {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.0.1"
+	s.Version = "0.1.0"
 	s.PublisherID = "localhost"
 	s.Description = "Repository service where packages are stored."
 	s.Keywords = []string{"Repo", "Repository", "Package", "Service"}

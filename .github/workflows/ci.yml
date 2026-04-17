@@ -48,7 +48,10 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Test
+      - name: Invariant Tests
+        run: go test ./repository/repository_server/... -run "TestINV|TestReservation|TestMigrate" -v -count=1 -race
+
+      - name: Unit Tests
         run: go test ./... -race -short -coverprofile=coverage.out
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 

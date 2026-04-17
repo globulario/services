@@ -100,6 +100,7 @@ type canonReport struct {
 	Anomalies         []anomaly `json:"anomalies"`
 	CanonicalPercent  float64   `json:"canonical_percent"`
 	CountByType       map[string]int `json:"count_by_type"`
+	DesiredServices   map[string]bool `json:"-"` // services with desired-state entries
 }
 
 func runCanonicalize(cmd *cobra.Command, args []string) error {
@@ -325,7 +326,37 @@ func scanDesiredState(ctx context.Context, report *canonReport) error {
 		}
 	}
 
+	// Also scan InfrastructureRelease records.
+	type infraDesiredSpec struct {
+		Component string `json:"component"`
+		Version   string `json:"version"`
+		BuildID   string `json:"build_id"`
+	}
+	type infraDesiredRec struct {
+		Spec *infraDesiredSpec `json:"spec"`
+	}
+	iResp, iErr := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
+		clientv3.WithPrefix(), clientv3.WithLimit(500))
+	if iErr == nil {
+		for _, kv := range iResp.Kvs {
+			var rec infraDesiredRec
+			if json.Unmarshal(kv.Value, &rec) != nil || rec.Spec == nil {
+				continue
+			}
+			name := rec.Spec.Component
+			if name == "" {
+				parts := strings.Split(string(kv.Key), "/")
+				name = parts[len(parts)-1]
+			}
+			if !services[name] {
+				total++
+				services[name] = true
+			}
+		}
+	}
+
 	report.TotalServices = len(services)
+	report.DesiredServices = services
 	fmt.Printf("  %d desired-state records, %d with build_id, %d missing\n",
 		total, withBuildID, total-withBuildID)
 
@@ -399,11 +430,16 @@ func scanInstalledState(ctx context.Context, report *canonReport) error {
 			}
 		}
 
-		// A3: Missing build_id on installed record
+		// A3: Missing build_id on installed record.
+		// Skip metadata-only packages (no desired-state) — they were installed
+		// before the identity model and have no repository artifact to link to.
 		if rec.Status == "installed" {
 			if rec.BuildID != "" {
 				withBuildID++
 				svcNodes[rec.Name][rec.NodeID] = true
+			} else if report.DesiredServices != nil && !report.DesiredServices[rec.Name] {
+				// Metadata-only: no desired-state, skip anomaly.
+				withBuildID++ // count as non-anomalous
 			} else {
 				svcNodes[rec.Name][rec.NodeID] = false
 				report.addAnomaly("A3", rec.NodeID, rec.Name,
@@ -763,24 +799,27 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		fmt.Println("  (use --include-critical to repair them)")
 	}
 
-	// Resolve node-agent endpoint.
-	agentEndpoint := fixAgentEndpoint
-	if agentEndpoint == "" {
-		agentEndpoint = resolveAgentEndpoint(ctx, cli, nodeID)
-	}
-	if agentEndpoint == "" {
-		fmt.Printf("  cannot resolve agent endpoint for node %s — use --agent-endpoint\n", nodeID[:8])
-		return 0, 0
-	}
-	fmt.Printf("  Agent: %s\n", agentEndpoint)
+	// Resolve node-agent endpoint (not needed for --metadata-only).
+	var agentClient node_agentpb.NodeAgentServiceClient
+	if !fixMetadataOnly {
+		agentEndpoint := fixAgentEndpoint
+		if agentEndpoint == "" {
+			agentEndpoint = resolveAgentEndpoint(ctx, cli, nodeID)
+		}
+		if agentEndpoint == "" {
+			fmt.Printf("  cannot resolve agent endpoint for node %s — use --agent-endpoint\n", nodeID[:8])
+			return 0, 0
+		}
+		fmt.Printf("  Agent: %s\n", agentEndpoint)
 
-	conn, err := dialGRPC(agentEndpoint)
-	if err != nil {
-		fmt.Printf("  cannot connect to node-agent at %s: %v\n", agentEndpoint, err)
-		return 0, 0
+		conn, err := dialGRPC(agentEndpoint)
+		if err != nil {
+			fmt.Printf("  cannot connect to node-agent at %s: %v\n", agentEndpoint, err)
+			return 0, 0
+		}
+		defer conn.Close()
+		agentClient = node_agentpb.NewNodeAgentServiceClient(conn)
 	}
-	defer conn.Close()
-	agentClient := node_agentpb.NewNodeAgentServiceClient(conn)
 
 	// Metadata-only repair: write buildId directly to the existing etcd record
 	// without reinstalling. Used for COMMAND/INFRASTRUCTURE packages that are

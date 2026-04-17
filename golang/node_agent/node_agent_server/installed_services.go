@@ -205,11 +205,11 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		if entry := byService[svc]; entry != nil && entry.Version != "" {
 			continue
 		}
-		// Fallback version: "0.0.1" — the default for installer-deployed services.
+		// Fallback version: "0.1.0" — the default for installer-deployed services.
 		entry := ensureServiceEntry(byService, svc)
 		entry.ServiceName = svc
 		if entry.Version == "" {
-			entry.Version = "0.0.1"
+			entry.Version = "0.1.0"
 		}
 	}
 }
@@ -222,7 +222,7 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 	// etcd: installed by Day 0 installer or Day 1 etcd join. Detect via
 	// systemctl and resolve version from etcdctl.
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "globular-etcd.service").Run(); err == nil {
-		if entry := byService["etcd"]; entry == nil || entry.Version == "" || entry.Version == "0.0.1" {
+		if entry := byService["etcd"]; entry == nil || entry.Version == "" || entry.Version == "0.1.0" {
 			version := detectEtcdVersion(ctx)
 			if version == "" {
 				version = "unknown"
@@ -236,7 +236,7 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 	// scylladb: OS package (apt install), not a bundled binary. Detect via
 	// systemctl and resolve version from scylla --version.
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "scylla-server.service").Run(); err == nil {
-		if entry := byService["scylladb"]; entry == nil || entry.Version == "" || entry.Version == "0.0.1" {
+		if entry := byService["scylladb"]; entry == nil || entry.Version == "" || entry.Version == "0.1.0" {
 			version := detectScyllaVersion(ctx)
 			if version == "" {
 				version = "unknown"

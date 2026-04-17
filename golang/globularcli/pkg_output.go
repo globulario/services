@@ -62,6 +62,7 @@ type PkgPublishPackage struct {
 	Name        string `json:"name,omitempty"         yaml:"name,omitempty"`
 	Version     string `json:"version,omitempty"      yaml:"version,omitempty"`
 	BuildNumber int64  `json:"build_number,omitempty" yaml:"build_number,omitempty"`
+	BuildID     string `json:"build_id,omitempty"     yaml:"build_id,omitempty"`
 	Platform    string `json:"platform,omitempty"     yaml:"platform,omitempty"`
 	Publisher   string `json:"publisher,omitempty"    yaml:"publisher,omitempty"`
 }

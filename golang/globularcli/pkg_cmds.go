@@ -141,6 +141,7 @@ var (
 	pkgPublishDryRun     bool
 	pkgPublishForce      bool
 	pkgPublishOutput     string // "table" | "json" | "yaml"
+	pkgPublishBump       string // "patch" | "minor" | "major" — calls AllocateUpload
 
 	// Register command flags (subset)
 	pkgRegisterFile      string
@@ -196,6 +197,8 @@ func init() {
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishDryRun, "dry-run", false, "validate packages without uploading")
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite existing artifact even if checksum differs")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishBump, "bump", "", "version bump intent: patch|minor|major (calls AllocateUpload)")
+
 }
 
 // ── Build ──────────────────────────────────────────────────────────────────
@@ -514,6 +517,7 @@ type pkgPublishOne struct {
 	platform         string
 	publisher        string
 	digest           string
+	buildID          string
 	bundleID         string
 	descriptorAction string
 	sizeBytes        int64
@@ -606,6 +610,40 @@ func publishOne(file, token string) pkgPublishOne {
 		client.SetToken(token)
 	}
 
+	// Step 2b: Allocate version via repository if --bump is set.
+	var reservationID string
+	if pkgPublishBump != "" {
+		var intent repopb.VersionIntent
+		switch strings.ToLower(pkgPublishBump) {
+		case "patch":
+			intent = repopb.VersionIntent_BUMP_PATCH
+		case "minor":
+			intent = repopb.VersionIntent_BUMP_MINOR
+		case "major":
+			intent = repopb.VersionIntent_BUMP_MAJOR
+		default:
+			r.err = fmt.Errorf("invalid --bump value %q: use patch, minor, or major", pkgPublishBump)
+			r.duration = time.Since(start)
+			return r
+		}
+
+		alloc, err := client.AllocateUpload(publisher, summary.Name, summary.Platform, intent, "")
+		if err != nil {
+			r.err = fmt.Errorf("allocate upload: %w", err)
+			r.duration = time.Since(start)
+			return r
+		}
+		// Override version and build number with repository-allocated values.
+		summary.Version = alloc.GetVersion()
+		summary.BuildNumber = alloc.GetBuildNumber()
+		reservationID = alloc.GetReservationId()
+		r.version = alloc.GetVersion()
+		r.buildNumber = alloc.GetBuildNumber()
+		r.buildID = alloc.GetBuildId()
+		fmt.Printf("  allocated: version=%s build=%d reservation=%s\n",
+			alloc.GetVersion(), alloc.GetBuildNumber(), reservationID[:8])
+	}
+
 	// Step 3: upload artifact (primary path — sets state=VERIFIED on server).
 	// Upload happens BEFORE descriptor registration to prevent ghost metadata.
 	ref := &repopb.ArtifactRef{
@@ -616,7 +654,13 @@ func publishOne(file, token string) pkgPublishOne {
 		Kind:        artifactKind,
 	}
 
-	if err := client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber); err != nil {
+	uploadErr := func() error {
+		if reservationID != "" {
+			return client.UploadWithReservation(ref, archiveData, summary.BuildNumber, reservationID)
+		}
+		return client.UploadArtifactWithBuild(ref, archiveData, summary.BuildNumber)
+	}()
+	if err := uploadErr; err != nil {
 		// --force: if artifact exists with different content, delete and re-upload.
 		if pkgPublishForce && status.Code(err) == codes.AlreadyExists {
 			if delErr := client.DeleteArtifact(ref); delErr != nil {
@@ -661,6 +705,9 @@ func publishOne(file, token string) pkgPublishOne {
 	manifest, verifyErr := client.GetArtifactManifest(ref, summary.BuildNumber)
 	if verifyErr == nil && manifest != nil {
 		r.descriptorAction = "published"
+		if r.buildID == "" {
+			r.buildID = manifest.GetBuildId()
+		}
 	} else {
 		r.descriptorAction = "uploaded (verify failed)"
 	}
@@ -677,6 +724,7 @@ func singlePublishOutput(r pkgPublishOne) *PkgPublishOutput {
 			Name:        r.name,
 			Version:     r.version,
 			BuildNumber: r.buildNumber,
+			BuildID:     r.buildID,
 			Platform:    r.platform,
 			Publisher:   r.publisher,
 		},

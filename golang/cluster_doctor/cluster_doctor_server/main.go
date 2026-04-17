@@ -32,7 +32,7 @@ import (
 
 // Version information (set via ldflags during build)
 var (
-	Version   = "0.0.1"
+	Version   = "0.1.0"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

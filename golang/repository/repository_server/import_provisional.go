@@ -32,6 +32,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func truncDigest(d string) string {
+	if len(d) > 16 {
+		return d[:16]
+	}
+	return d
+}
+
 // ImportProvisionalArtifact handles the day-0 → day-1 transition for a
 // provisionally installed package.
 func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.ImportProvisionalRequest) (*repopb.ImportProvisionalResponse, error) {
@@ -66,9 +73,13 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 		version = cv
 	}
 
+	digestLog := digest
+	if len(digestLog) > 16 {
+		digestLog = digestLog[:16] + "..."
+	}
 	slog.Info("import-provisional: starting",
 		"publisher", publisher, "name", name, "version", version,
-		"platform", platform, "digest", digest[:16]+"...",
+		"platform", platform, "digest", digestLog,
 		"provisional_build_id", req.GetProvisionalBuildId())
 
 	// Check release ledger for this package.
@@ -94,7 +105,7 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 				// Conflict: same version, different digest.
 				return &repopb.ImportProvisionalResponse{
 					Ok:      false,
-					Message: fmt.Sprintf("version %s already released with different digest (existing=%s, import=%s) — admin must resolve", version, entry.Digest[:16]+"...", digest[:16]+"..."),
+					Message: fmt.Sprintf("version %s already released with different digest (existing=%s..., import=%s...) — admin must resolve", version, truncDigest(entry.Digest), truncDigest(digest)),
 				}, nil
 			}
 		}

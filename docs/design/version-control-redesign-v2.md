@@ -625,7 +625,7 @@ globular repository repair --package <name> --action <action> [--dry-run]
 **Objective:** Repository generates `build_id` for every upload.
 **Status:** Implemented and deployed (April 2026).
 
-- `artifact_handlers.go`: Generates UUIDv7 `build_id` on upload (line 727). Returns in `UploadArtifactResponse`
+- `artifact_handlers.go`: Generates UUIDv7 `build_id` on upload (line 740). Returns in `UploadArtifactResponse`
 - Proto: `ArtifactManifest.build_id` (field 42), `InstalledPackage.build_id` (field 14), `ApplyPackageReleaseRequest.build_id` (field 11)
 - Desired state: `ServiceDesiredVersionSpec.BuildID` written by controller after resolution
 - Installed state: node-agent persists `buildId` after synchronous restart + health verification
@@ -785,18 +785,17 @@ Key implementation artifacts:
 - `globular state canonicalize --fix-safe` — repairs desired-state build_id via controller API
 - `globular state canonicalize --fix-installed --node <id> --agent-endpoint <addr>` — repairs installed-state via ApplyPackageRelease
 - `globular state canonicalize --metadata-only` — direct etcd build_id write for COMMAND/INFRASTRUCTURE packages
-- Result: 246 anomalies → 11 residuals (ghost nodes + unmanaged packages)
+- Result: 246 anomalies → ~21 residuals (metadata-only packages + INFRASTRUCTURE build_id gaps on active nodes)
 
-### Remaining Work
+### Remaining Operational Work
 
-See `docs/design/version-control-audit.md` for the full audit table and prioritized implementation list.
+**All 7 phases implemented (April 2026).** See `docs/design/version-control-audit.md` for the full audit table.
 
-**All 7 phases implemented (April 2026).** Remaining operational work:
-1. Deploy Phase 3-7 code to all cluster nodes
-2. CLI `--bump` flag wiring (use `AllocateUpload` from CLI/deploy instead of hardcoded version)
-3. Package classification contract document (managed vs metadata-only vs unmanaged)
-4. Remove CLI-side `pkg register` after transition period (Phase 7 cleanup)
-5. Node-agent: trigger `ImportProvisionalArtifact` for provisional installed packages on bootstrap
+Follow-up items tracked in `docs/design/roadmap-to-9.md`:
+1. CLI `--bump` flag wiring — use `AllocateUpload` from CLI/deploy instead of hardcoded version (Phase A)
+2. Remove CLI-side `pkg register` after transition period (Phase A)
+3. Node-agent: trigger `ImportProvisionalArtifact` for provisional packages on bootstrap (Phase G)
+4. Automated invariant tests for INV-1 through INV-10 (Phase C)
 
 ### D4: Channels → deferred
 Single implicit "stable" channel. Data model supports channels (field present, defaults to "stable"). Implementation deferred until multi-environment or canary deployments are needed.

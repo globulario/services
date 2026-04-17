@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-services
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-services test-invariants test-integration test
 
 check-controller-no-exec:
 	@echo "Checking clustercontroller_server has no exec/syscall usage..."
@@ -17,3 +17,16 @@ check-nodeagent-exec-boundary:
 	@echo "OK"
 
 check-services: check-controller-no-exec check-nodeagent-exec-boundary
+
+test-invariants:
+	@echo "Running invariant tests (no cluster required)..."
+	cd golang && go test ./repository/repository_server/... -run "TestINV|TestReservation|TestMigrate" -v -count=1 -race
+	@echo "All invariant tests passed."
+
+test-integration:
+	@echo "Running integration tests (requires cluster)..."
+	cd golang && go test ./... -race -short -count=1
+	@echo "Integration tests complete."
+
+test: check-services test-invariants
+	@echo "All checks and tests passed."

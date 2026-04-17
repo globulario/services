@@ -237,7 +237,7 @@ func (srv *server) Stop(ctx context.Context, _ *{{.PbPackage}}.StopRequest) (*{{
 
 // Version information (set via ldflags during build).
 var (
-	Version   = "0.0.1"
+	Version   = "0.1.0"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

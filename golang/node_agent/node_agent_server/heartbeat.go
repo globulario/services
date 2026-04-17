@@ -119,6 +119,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			srv.syncInstalledStateToEtcd(ctx)
 			srv.syncEtcHosts(ctx)
 			srv.reconcileMinioContract(ctx)
+			srv.importProvisionalPackages(ctx)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
@@ -281,7 +282,7 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			for _, pkg := range pkgs {
 				name := pkg.GetName()
 				ver := pkg.GetVersion()
-				if name == "" || ver == "" || ver == "0.0.1" {
+				if name == "" || ver == "" || ver == "0.1.0" {
 					continue // skip unknown/fallback versions
 				}
 				markerPath := versionutil.MarkerPath(name)
@@ -429,7 +430,7 @@ func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
 // from the repo. It does NOT create new records for packages that weren't
 // discovered locally by Phase 1 — only Phase 1 (systemd/markers/config) knows
 // what's actually installed on this machine. Phase 2 only:
-//   - Updates version for existing records that have the fallback "0.0.1"
+//   - Updates version for existing records that have the fallback "0.1.0"
 //   - Corrects the kind (e.g. SERVICE → INFRASTRUCTURE) for misclassified records
 //   - Creates records ONLY for INFRASTRUCTURE/COMMAND packages that have a
 //     matching systemd unit running (verified via systemctl)
@@ -480,7 +481,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			staleService, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
 		}
 
-		if existing != nil && existing.GetVersion() != "0.0.1" {
+		if existing != nil && existing.GetVersion() != "0.1.0" {
 			// Already has a real version with correct kind — skip.
 			continue
 		}
@@ -644,7 +645,7 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 					continue
 				}
 				// etcd version takes precedence over local 0.0.1 fallback.
-				if existing, ok := statusReq.InstalledVersions[canon]; !ok || existing == "0.0.1" {
+				if existing, ok := statusReq.InstalledVersions[canon]; !ok || existing == "0.1.0" {
 					statusReq.InstalledVersions[canon] = pkg.GetVersion()
 				}
 			}
