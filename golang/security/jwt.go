@@ -97,12 +97,6 @@ func normalizeMACForFile(mac string) string {
 	return strings.ReplaceAll(mac, ":", "_")
 }
 
-func tokenDir() string { return config.GetTokensDir() }
-
-func tokenPathForMAC(mac string) string {
-	return filepath.Join(tokenDir(), normalizeMACForFile(mac)+"_token")
-}
-
 const (
 	defaultSessionTimeoutMinutes = 60                 // fallback if config is missing/zero
 	tokenExpirySkew              = 60 * time.Second   // leeway to handle clock skew
@@ -427,64 +421,6 @@ func GetLocalToken(mac string) (string, error) {
 // Internal functions
 // ----------------------------------------------------------------------------
 
-// refreshLocalToken refreshes a (recently expired) local token using its original claims.
-func refreshLocalToken(token string) (string, error) {
-	claims := &Claims{}
-	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
-		// Enforce EdDSA
-		if t.Method != jwt.SigningMethodEdDSA {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		iss, _ := t.Claims.(*Claims)
-		if iss == nil || iss.Issuer == "" {
-			return nil, errors.New("refresh local token: missing issuer")
-		}
-		var kid string
-		if k, ok := t.Header["kid"].(string); ok {
-			kid = k
-		}
-		if GetPeerPublicKey == nil {
-			return nil, errors.New("refresh local token: GetPeerPublicKey not configured")
-		}
-		return GetPeerPublicKey(iss.Issuer, kid)
-	}, jwt.WithLeeway(tokenExpirySkew))
-	// Ignore expiration errors here; we only need the claims to re-issue.
-
-	if err != nil && !isOnlyExpiryError(err) {
-		return "", fmt.Errorf("refresh local token: parse: %w", err)
-	}
-
-	timeout, err := readSessionTimeout()
-	if err != nil || timeout <= 0 {
-		timeout = defaultSessionTimeoutMinutes
-	}
-
-	// Preserve original audience (peer/service scope) on refresh.
-	var aud string
-	if len(claims.Audience) > 0 {
-		aud = claims.Audience[0]
-	}
-
-	newToken, err := GenerateToken(timeout, aud, claims.ID, claims.Username, claims.Email)
-	if err != nil {
-		return "", fmt.Errorf("refresh local token: generate: %w", err)
-	}
-	return newToken, nil
-}
-
-func readTokenFromFile(mac string) (string, error) {
-	path := tokenPathForMAC(mac)
-	// Backward compat: also try normalized mac in case path layout changed earlier
-	data, err := os.ReadFile(path)
-	if err != nil {
-		alt := filepath.Join(tokenDir(), normalizeMACForFile(mac)+"_token")
-		if data2, err2 := os.ReadFile(alt); err2 == nil {
-			return string(data2), nil
-		}
-		return "", fmt.Errorf("read token: %w", err)
-	}
-	return string(data), nil
-}
 
 // extractTokenFromContext returns token from "token" or "authorization: Bearer <...>".
 func extractTokenFromContext(ctx context.Context) string {
@@ -510,11 +446,3 @@ func extractTokenFromContext(ctx context.Context) string {
 	return ""
 }
 
-// isOnlyExpiryError returns true if err indicates token expiration (and nothing else).
-func isOnlyExpiryError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "token is expired") || strings.Contains(msg, "expired")
-}
