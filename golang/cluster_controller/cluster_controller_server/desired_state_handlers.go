@@ -377,11 +377,13 @@ func (srv *server) GetDesiredState(ctx context.Context, _ *emptypb.Empty) (*clus
 }
 
 // UpsertDesiredService creates or updates a single desired-service entry.
-// If this node is not the leader, the request is transparently forwarded
-// to the current leader — clients never need to know about leader topology.
 func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_controllerpb.UpsertDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
 	if !srv.isLeader() {
-		return srv.forwardUpsertDesiredService(ctx, req)
+		resp := &cluster_controllerpb.DesiredState{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/UpsertDesiredService", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req.GetService() == nil {
 		return nil, status.Error(codes.InvalidArgument, "service is required")
@@ -397,7 +399,11 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 // removal workflow (REMOVING → REMOVED).
 func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_controllerpb.RemoveDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
 	if !srv.isLeader() {
-		return srv.forwardRemoveDesiredService(ctx, req)
+		resp := &cluster_controllerpb.DesiredState{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RemoveDesiredService", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -809,8 +815,12 @@ func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStat
 // DEFAULT_CORE_PROFILE: not yet defined; returns an error until a core
 // profile catalogue is available.
 func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controllerpb.SeedDesiredStateRequest) (*cluster_controllerpb.DesiredState, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.DesiredState{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/SeedDesiredState", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	// Clean up any stale domain-prefixed keys from previous seeds.

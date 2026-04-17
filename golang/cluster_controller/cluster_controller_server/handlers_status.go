@@ -19,8 +19,12 @@ import (
 var hashEnqueueCooldown sync.Map
 
 func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controllerpb.ReportNodeStatusRequest) (*cluster_controllerpb.ReportNodeStatusResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ReportNodeStatusResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ReportNodeStatus", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.GetStatus() == nil || req.GetStatus().GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "status.node_id is required")
@@ -421,8 +425,12 @@ skipHashEnqueue:
 
 // ResourcesService implementation
 func (srv *server) ApplyClusterNetwork(ctx context.Context, req *cluster_controllerpb.ApplyClusterNetworkRequest) (*cluster_controllerpb.ClusterNetwork, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ClusterNetwork{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApplyClusterNetwork", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.Object == nil || req.Object.Spec == nil || strings.TrimSpace(req.Object.Spec.ClusterDomain) == "" {
 		return nil, status.Error(codes.InvalidArgument, "cluster_network.spec.cluster_domain is required")
@@ -457,8 +465,12 @@ func (srv *server) GetClusterNetwork(ctx context.Context, _ *cluster_controllerp
 }
 
 func (srv *server) ApplyServiceDesiredVersion(ctx context.Context, req *cluster_controllerpb.ApplyServiceDesiredVersionRequest) (*cluster_controllerpb.ServiceDesiredVersion, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ServiceDesiredVersion{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApplyServiceDesiredVersion", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -484,8 +496,12 @@ func (srv *server) ApplyServiceDesiredVersion(ctx context.Context, req *cluster_
 }
 
 func (srv *server) DeleteServiceDesiredVersion(ctx context.Context, req *cluster_controllerpb.DeleteServiceDesiredVersionRequest) (*emptypb.Empty, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &emptypb.Empty{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/DeleteServiceDesiredVersion", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -516,8 +532,12 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_co
 }
 
 func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ServiceRelease{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApplyServiceRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -577,8 +597,12 @@ func (srv *server) ListServiceReleases(ctx context.Context, _ *cluster_controlle
 }
 
 func (srv *server) DeleteServiceRelease(ctx context.Context, req *cluster_controllerpb.DeleteServiceReleaseRequest) (*emptypb.Empty, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &emptypb.Empty{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/DeleteServiceRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -596,8 +620,12 @@ func (srv *server) DeleteServiceRelease(ctx context.Context, req *cluster_contro
 // ── ApplicationRelease CRUD ──────────────────────────────────────────────────
 
 func (srv *server) ApplyApplicationRelease(ctx context.Context, req *cluster_controllerpb.ApplyApplicationReleaseRequest) (*cluster_controllerpb.ApplicationRelease, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ApplicationRelease{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApplyApplicationRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -656,8 +684,12 @@ func (srv *server) ListApplicationReleases(ctx context.Context, _ *cluster_contr
 }
 
 func (srv *server) DeleteApplicationRelease(ctx context.Context, req *cluster_controllerpb.DeleteApplicationReleaseRequest) (*emptypb.Empty, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &emptypb.Empty{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/DeleteApplicationRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -675,8 +707,12 @@ func (srv *server) DeleteApplicationRelease(ctx context.Context, req *cluster_co
 // ── InfrastructureRelease CRUD ───────────────────────────────────────────────
 
 func (srv *server) ApplyInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.ApplyInfrastructureReleaseRequest) (*cluster_controllerpb.InfrastructureRelease, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.InfrastructureRelease{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApplyInfrastructureRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -735,8 +771,12 @@ func (srv *server) ListInfrastructureReleases(ctx context.Context, _ *cluster_co
 }
 
 func (srv *server) DeleteInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.DeleteInfrastructureReleaseRequest) (*emptypb.Empty, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &emptypb.Empty{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/DeleteInfrastructureRelease", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")

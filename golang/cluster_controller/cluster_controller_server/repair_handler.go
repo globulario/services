@@ -16,8 +16,12 @@ import (
 // 4 state layers: artifact (repository), desired release, installed observed,
 // and runtime health. This is the controller-side handler for the repair command.
 func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_controllerpb.RepairStateAlignmentRequest) (*cluster_controllerpb.StateAlignmentReport, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.StateAlignmentReport{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RepairStateAlignment", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	report := &cluster_controllerpb.StateAlignmentReport{}

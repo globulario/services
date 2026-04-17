@@ -16,8 +16,12 @@ import (
 )
 
 func (srv *server) CreateJoinToken(ctx context.Context, req *cluster_controllerpb.CreateJoinTokenRequest) (*cluster_controllerpb.CreateJoinTokenResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.CreateJoinTokenResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/CreateJoinToken", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	srv.lock("CreateJoinToken")
 	defer srv.unlock()
@@ -41,8 +45,12 @@ func (srv *server) CreateJoinToken(ctx context.Context, req *cluster_controllerp
 }
 
 func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.RequestJoinRequest) (*cluster_controllerpb.RequestJoinResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.RequestJoinResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RequestJoin", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.GetJoinToken() == "" {
 		return nil, status.Error(codes.InvalidArgument, "join_token is required")
@@ -113,8 +121,12 @@ func (srv *server) ListJoinRequests(ctx context.Context, req *cluster_controller
 }
 
 func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.ApproveJoinRequest) (*cluster_controllerpb.ApproveJoinResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ApproveJoinResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApproveJoin", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -237,8 +249,12 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 }
 
 func (srv *server) RejectJoin(ctx context.Context, req *cluster_controllerpb.RejectJoinRequest) (*cluster_controllerpb.RejectJoinResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.RejectJoinResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RejectJoin", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")

@@ -91,8 +91,12 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 }
 
 func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerpb.SetNodeProfilesRequest) (*cluster_controllerpb.SetNodeProfilesResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.SetNodeProfilesResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/SetNodeProfiles", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.GetNodeId() == "" || len(req.GetProfiles()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "--profile is required")
@@ -308,8 +312,12 @@ func buildConfigDiff(oldHashes, newHashes map[string]string) []*cluster_controll
 }
 
 func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.RemoveNodeRequest) (*cluster_controllerpb.RemoveNodeResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.RemoveNodeResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RemoveNode", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")

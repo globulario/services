@@ -13,8 +13,12 @@ import (
 // ── RPCs ────────────────────────────────────────────────────────────────
 
 func (srv *server) UpdateClusterNetwork(ctx context.Context, req *cluster_controllerpb.UpdateClusterNetworkRequest) (*cluster_controllerpb.UpdateClusterNetworkResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.UpdateClusterNetworkResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/UpdateClusterNetwork", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil || req.GetSpec() == nil {
 		return nil, status.Error(codes.InvalidArgument, "spec is required")
@@ -69,8 +73,12 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *cluster_contro
 }
 
 func (srv *server) CompleteOperation(ctx context.Context, req *cluster_controllerpb.CompleteOperationRequest) (*cluster_controllerpb.CompleteOperationResponse, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.CompleteOperationResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/CompleteOperation", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
