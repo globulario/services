@@ -92,6 +92,12 @@ func applyDefaults(e *ServiceEntry) {
 	}
 }
 
+// PackageName returns the canonical package name with hyphens (e.g., "ai_executor" → "ai-executor").
+// The repository, desired-state, and installed-state all use hyphenated names.
+func (e *ServiceEntry) PackageName() string {
+	return strings.ReplaceAll(e.Name, "_", "-")
+}
+
 // ExecName returns the binary name for a service (e.g., "echo" → "echo_server").
 func (e *ServiceEntry) ExecName() string {
 	return e.Name + "_server"
@@ -99,7 +105,7 @@ func (e *ServiceEntry) ExecName() string {
 
 // SystemdUnit returns the systemd unit name (e.g., "echo" → "globular-echo.service").
 func (e *ServiceEntry) SystemdUnit() string {
-	return "globular-" + strings.ReplaceAll(e.Name, "_", "-") + ".service"
+	return "globular-" + e.PackageName() + ".service"
 }
 
 // User returns the system user for the service.

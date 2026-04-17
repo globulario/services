@@ -75,8 +75,11 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		opts.Platform = "linux_amd64"
 	}
 
+	// Package name uses hyphens (ai-executor), catalog name uses underscores (ai_executor).
+	pkgName := entry.PackageName()
+
 	// ── Step 1: Build binary ────────────────────────────────────────────
-	fmt.Printf("\n━━━ Deploy: %s ━━━\n\n", entry.Name)
+	fmt.Printf("\n━━━ Deploy: %s ━━━\n\n", pkgName)
 	if opts.Comment != "" {
 		fmt.Printf("  Comment: %s\n\n", opts.Comment)
 	}
@@ -138,7 +141,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		}
 		fmt.Printf("  [dry-run] Generated spec (%d bytes)\n", len(specYAML))
 		return &DeployResult{
-			Service:  entry.Name,
+			Service:  pkgName,
 			Version:  opts.Version,
 			Action:   "dry-run",
 			Checksum: newChecksum,
@@ -176,7 +179,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		}
 
 		exactVersion := opts.Version // empty if --version not set
-		alloc, err := client.AllocateUpload(opts.Publisher, entry.Name, opts.Platform, intent, exactVersion)
+		alloc, err := client.AllocateUpload(opts.Publisher, pkgName, opts.Platform, intent, exactVersion)
 		if err != nil {
 			return nil, fmt.Errorf("allocate upload: %w", err)
 		}
@@ -188,14 +191,14 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			alloc.GetVersion(), nextBuild, allocatedBuildID[:8])
 
 		// Query previous checksum for delta detection.
-		info, _ := QueryLatestBuild(ctx, client, opts.Publisher, entry.Name, opts.Version, opts.Platform)
+		info, _ := QueryLatestBuild(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
 		if info != nil {
 			prevChecksum = info.Checksum
 		}
 	} else {
 		// Legacy path: query build number directly.
 		var err error
-		nextBuild, prevChecksum, err = NextBuildNumber(ctx, client, opts.Publisher, entry.Name, opts.Version, opts.Platform)
+		nextBuild, prevChecksum, err = NextBuildNumber(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
 		if err != nil {
 			return nil, fmt.Errorf("query build number: %w", err)
 		}
@@ -207,7 +210,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	if prevChecksum != "" && prevChecksum == binaryChecksum && !opts.Full {
 		fmt.Printf("\n  ✓ Binary unchanged (checksum match) — skipping\n")
 		return &DeployResult{
-			Service:     entry.Name,
+			Service:     pkgName,
 			Version:     opts.Version,
 			BuildNumber: nextBuild - 1,
 			Action:      "skipped",
@@ -283,7 +286,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		return nil, fmt.Errorf("pkg build produced no output")
 	}
 	if buildResults[0].Err != nil {
-		return nil, fmt.Errorf("pkg build %s: %w", entry.Name, buildResults[0].Err)
+		return nil, fmt.Errorf("pkg build %s: %w", pkgName, buildResults[0].Err)
 	}
 	tgzPath := buildResults[0].OutputPath
 	fmt.Printf("  ✓ Package built (%s)\n", filepath.Base(tgzPath))
@@ -303,7 +306,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		}
 		ref := &repopb.ArtifactRef{
 			PublisherId: opts.Publisher,
-			Name:        entry.Name,
+			Name:        pkgName,
 			Version:     opts.Version,
 			Platform:    opts.Platform,
 			Kind:        repopb.ArtifactKind_SERVICE,
@@ -377,7 +380,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	}
 	desiredArgs = append(desiredArgs,
 		"services", "desired", "set",
-		entry.Name, opts.Version,
+		pkgName, opts.Version,
 		"--build-number", fmt.Sprintf("%d", nextBuild),
 	)
 	updateDesired := func() (string, error) {
@@ -407,7 +410,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			desiredArgs = append(desiredArgs, "--controller", leaderAddr)
 			desiredArgs = append(desiredArgs,
 				"services", "desired", "set",
-				entry.Name, opts.Version,
+				pkgName, opts.Version,
 				"--build-number", fmt.Sprintf("%d", nextBuild),
 			)
 		} else {
@@ -419,12 +422,12 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		fmt.Printf("  ⚠ desired state update failed: %s\n", desiredOut)
 		// Non-fatal — the artifact is published, just not auto-rolled out.
 	} else {
-		fmt.Printf("  ✓ Desired state: %s@%s+%d\n", entry.Name, opts.Version, nextBuild)
+		fmt.Printf("  ✓ Desired state: %s@%s+%d\n", pkgName, opts.Version, nextBuild)
 	}
 
 	// ── Report ──────────────────────────────────────────────────────────
 	result := &DeployResult{
-		Service:     entry.Name,
+		Service:     pkgName,
 		Version:     opts.Version,
 		BuildNumber: nextBuild,
 		BuildID:     allocatedBuildID,
