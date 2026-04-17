@@ -269,5 +269,5 @@ globular rbac set-permission \
 
 ## What's Next
 
-- [Application Deployment Model](application-deployment.md): Deploy web applications
-- [Workflow Integration](workflow-integration.md): Custom workflow steps
+- [Application Deployment Model](developers/application-deployment.md): Deploy web applications
+- [Workflow Integration](developers/workflow-integration.md): Custom workflow steps

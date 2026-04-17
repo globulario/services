@@ -266,5 +266,5 @@ globular services desired set inventory 0.0.1 --build-number 2
 
 ## What's Next
 
-- [RBAC Integration](rbac-integration.md): Authorization annotations and permission models
-- [Application Deployment Model](application-deployment.md): Web application packaging
+- [RBAC Integration](developers/rbac-integration.md): Authorization annotations and permission models
+- [Application Deployment Model](developers/application-deployment.md): Web application packaging

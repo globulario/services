@@ -345,5 +345,5 @@ func main() {
 
 ## What's Next
 
-- [Writing a Microservice](writing-a-microservice.md): Complete service development guide
-- [Service Packaging](service-packaging.md): Package format and build process
+- [Writing a Microservice](developers/writing-a-microservice.md): Complete service development guide
+- [Service Packaging](developers/service-packaging.md): Package format and build process

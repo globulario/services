@@ -243,6 +243,6 @@ This stops all services, removes binaries, configs, and state files in reverse d
 
 ## What's Next
 
-- [Installation (Day-0)](installation.md) — What happens during `install-day0.sh`
-- [Day-0/1/2 Operations](day-0-1-2-operations.md) — Complete lifecycle guide
+- [Installation (Day-0)](operators/installation.md) — What happens during `install-day0.sh`
+- [Day-0/1/2 Operations](operators/day-0-1-2-operations.md) — Complete lifecycle guide
 - [Getting Started](../getting-started.md) — From zero to running cluster

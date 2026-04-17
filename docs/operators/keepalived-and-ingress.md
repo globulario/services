@@ -424,6 +424,6 @@ If the DMZ setting doesn't accept the VIP address:
 
 ## What's Next
 
-- [High Availability](high-availability.md) — Controller leader election, etcd quorum, MinIO erasure coding
-- [Network and Routing](network-and-routing.md) — Envoy gateway, xDS, DNS, service discovery
-- [Failure Scenarios](failure-scenarios.md) — Infrastructure failure catalog and recovery procedures
+- [High Availability](operators/high-availability.md) — Controller leader election, etcd quorum, MinIO erasure coding
+- [Network and Routing](operators/network-and-routing.md) — Envoy gateway, xDS, DNS, service discovery
+- [Failure Scenarios](operators/failure-scenarios.md) — Infrastructure failure catalog and recovery procedures

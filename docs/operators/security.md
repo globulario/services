@@ -429,5 +429,5 @@ If an attacker compromises node-3 and tries to modify node-1's packages:
 
 ## What's Next
 
-- [Installation](installation.md): Day-0 bootstrap walkthrough
-- [Adding Nodes](adding-nodes.md): Day-1 cluster expansion
+- [Installation](operators/installation.md): Day-0 bootstrap walkthrough
+- [Adding Nodes](operators/adding-nodes.md): Day-1 cluster expansion

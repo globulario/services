@@ -541,5 +541,5 @@ globular services desired list
 
 ## What's Next
 
-- [Service Packaging](service-packaging.md): Detailed packaging guide
-- [RBAC Integration](rbac-integration.md): Deep dive into authorization
+- [Service Packaging](developers/service-packaging.md): Detailed packaging guide
+- [RBAC Integration](developers/rbac-integration.md): Deep dive into authorization

@@ -85,7 +85,7 @@ globular services desired list
 - Monitoring alerts
 - Additional compute nodes
 
-See [Installation](installation.md) for the detailed bootstrap walkthrough.
+See [Installation](operators/installation.md) for the detailed bootstrap walkthrough.
 
 ---
 
@@ -164,7 +164,7 @@ globular cluster health
 # etcd: 3 members (quorum = 2, tolerates 1 failure)
 ```
 
-See [Adding Nodes](adding-nodes.md) for the full procedure.
+See [Adding Nodes](operators/adding-nodes.md) for the full procedure.
 
 ### Phase 2: External Access
 
@@ -210,7 +210,7 @@ globular domain status
 echo "10.0.0.100 yourdomain.com www.yourdomain.com" | sudo tee -a /etc/hosts
 ```
 
-See [Keepalived and Ingress](keepalived-and-ingress.md) and [DNS and PKI](dns-and-pki.md) for details.
+See [Keepalived and Ingress](operators/keepalived-and-ingress.md) and [DNS and PKI](operators/dns-and-pki.md) for details.
 
 ### Phase 3: Backup and Monitoring
 
@@ -236,7 +236,7 @@ globular metrics targets
 globular metrics alerts
 ```
 
-See [Backup and Restore](backup-and-restore.md) and [Observability](observability.md).
+See [Backup and Restore](operators/backup-and-restore.md) and [Observability](operators/observability.md).
 
 ### Phase 4: Security Hardening
 
@@ -260,7 +260,7 @@ globular rbac bindings --subject sre-operator
 globular rbac bindings --subject ci-publisher
 ```
 
-See [Security](security.md) for the complete security model.
+See [Security](operators/security.md) for the complete security model.
 
 ### Day-1 Checklist
 
@@ -388,7 +388,7 @@ globular workflow list --service <service>
 globular services desired set <service> <previous-version>
 ```
 
-See [Updating the Cluster](updating-the-cluster.md) for the full upgrade guide.
+See [Updating the Cluster](operators/updating-the-cluster.md) for the full upgrade guide.
 
 ### Adding Capacity
 
@@ -427,7 +427,7 @@ globular cluster health
 globular services repair --dry-run
 ```
 
-See [Debugging Failures](debugging-failures.md) and [Failure Scenarios](failure-scenarios.md).
+See [Debugging Failures](operators/debugging-failures.md) and [Failure Scenarios](operators/failure-scenarios.md).
 
 ### DNS Zone Recovery
 
@@ -476,7 +476,7 @@ sudo touch /var/lib/globular/domains/<domain>/.renew-requested
 
 ## What's Next
 
-- [Installation](installation.md) — Detailed Day-0 bootstrap walkthrough
-- [Adding Nodes](adding-nodes.md) — Day-1 cluster expansion
-- [High Availability](high-availability.md) — HA architecture and failover
-- [Backup and Restore](backup-and-restore.md) — Backup configuration and disaster recovery
+- [Installation](operators/installation.md) — Detailed Day-0 bootstrap walkthrough
+- [Adding Nodes](operators/adding-nodes.md) — Day-1 cluster expansion
+- [High Availability](operators/high-availability.md) — HA architecture and failover
+- [Backup and Restore](operators/backup-and-restore.md) — Backup configuration and disaster recovery

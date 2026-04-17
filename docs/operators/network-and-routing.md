@@ -300,5 +300,5 @@ globular dns record add --zone myapp.example.com \
 
 ## What's Next
 
-- [Certificate Lifecycle](certificate-lifecycle.md): Certificate provisioning, rotation, and management
+- [Certificate Lifecycle](operators/certificate-lifecycle.md): Certificate provisioning, rotation, and management
 - [Writing a Microservice](../developers/writing-a-microservice.md): Build services that integrate with the network stack

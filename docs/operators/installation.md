@@ -313,9 +313,9 @@ A single-node Globular cluster is fully functional — all services run on one m
 - Small deployments (< 50 users)
 - Edge computing / appliance deployments
 
-For production environments with high availability requirements, add nodes to the cluster (see [Adding Nodes](adding-nodes.md)). The convergence model, etcd replication, and MinIO erasure coding all benefit from multiple nodes.
+For production environments with high availability requirements, add nodes to the cluster (see [Adding Nodes](operators/adding-nodes.md)). The convergence model, etcd replication, and MinIO erasure coding all benefit from multiple nodes.
 
 ## What's Next
 
-- [Adding Nodes](adding-nodes.md): Expand the cluster with Day-1 operations
-- [Deploying Applications](deploying-applications.md): Deploy services on your cluster
+- [Adding Nodes](operators/adding-nodes.md): Expand the cluster with Day-1 operations
+- [Deploying Applications](operators/deploying-applications.md): Deploy services on your cluster

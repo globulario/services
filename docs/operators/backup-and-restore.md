@@ -381,5 +381,5 @@ globular services repair --dry-run
 
 ## What's Next
 
-- [High Availability](high-availability.md): Controller failover, etcd quorum, and fault tolerance
-- [Failure Scenarios and Recovery](failure-scenarios.md): Common failure patterns and how to recover
+- [High Availability](operators/high-availability.md): Controller failover, etcd quorum, and fault tolerance
+- [Failure Scenarios and Recovery](operators/failure-scenarios.md): Common failure patterns and how to recover

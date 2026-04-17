@@ -615,6 +615,6 @@ This should be done on all DNS instances (each node running the DNS service).
 
 ## What's Next
 
-- [Certificate Lifecycle](certificate-lifecycle.md) — Internal PKI details: provisioning, rotation, Ed25519 keystores
-- [Keepalived and Ingress](keepalived-and-ingress.md) — VIP failover, DMZ setup, external traffic routing
-- [Network and Routing](network-and-routing.md) — Envoy gateway, xDS, service discovery, gRPC-Web
+- [Certificate Lifecycle](operators/certificate-lifecycle.md) — Internal PKI details: provisioning, rotation, Ed25519 keystores
+- [Keepalived and Ingress](operators/keepalived-and-ingress.md) — VIP failover, DMZ setup, external traffic routing
+- [Network and Routing](operators/network-and-routing.md) — Envoy gateway, xDS, service discovery, gRPC-Web

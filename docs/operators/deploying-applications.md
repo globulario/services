@@ -351,5 +351,5 @@ globular cluster nodes list
 
 ## What's Next
 
-- [Publishing Services](publishing-services.md): Build and publish your own packages
-- [Updating the Cluster](updating-the-cluster.md): Upgrade cluster infrastructure
+- [Publishing Services](operators/publishing-services.md): Build and publish your own packages
+- [Updating the Cluster](operators/updating-the-cluster.md): Upgrade cluster infrastructure

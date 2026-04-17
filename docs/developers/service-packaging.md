@@ -370,5 +370,5 @@ globular pkg build --spec specs/mydb_service.yaml --root packages/payload/mydb/ 
 
 ## What's Next
 
-- [Publishing to Repository](publishing-to-repository.md): Full publishing workflow
-- [RBAC Integration](rbac-integration.md): Authorization for your service
+- [Publishing to Repository](developers/publishing-to-repository.md): Full publishing workflow
+- [RBAC Integration](developers/rbac-integration.md): Authorization for your service

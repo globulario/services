@@ -2,7 +2,7 @@
 
 This page covers how **internal** TLS certificates are managed in a Globular cluster: the cluster CA, service certificates for mTLS, Ed25519 keystores, provisioning, rotation, and troubleshooting.
 
-For **external** certificates (Let's Encrypt, public domains, ACME), see [DNS and PKI](dns-and-pki.md).
+For **external** certificates (Let's Encrypt, public domains, ACME), see [DNS and PKI](operators/dns-and-pki.md).
 
 ## Why Certificate Management Matters
 
@@ -329,6 +329,6 @@ globular node certificate-status --node <node>:11000
 
 ## What's Next
 
-- [DNS and PKI](dns-and-pki.md): External certificates (Let's Encrypt), DNS zones, ACME provisioning, split-horizon DNS
+- [DNS and PKI](operators/dns-and-pki.md): External certificates (Let's Encrypt), DNS zones, ACME provisioning, split-horizon DNS
 - [Writing a Microservice](../developers/writing-a-microservice.md): Build services that use Globular's TLS infrastructure
 - [RBAC Integration](../developers/rbac-integration.md): Add authorization to your services

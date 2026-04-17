@@ -412,5 +412,5 @@ MinIO is temporarily unreachable during a deployment:
 
 ## What's Next
 
-- [Services and Packages](services-and-packages.md): How services are structured, built, packaged, and published
-- [Security](security.md): PKI, RBAC, mTLS, and the authentication chain
+- [Services and Packages](operators/services-and-packages.md): How services are structured, built, packaged, and published
+- [Security](operators/security.md): PKI, RBAC, mTLS, and the authentication chain
