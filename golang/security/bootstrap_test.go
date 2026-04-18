@@ -391,6 +391,173 @@ func TestBootstrapGate_GetBootstrapStatus(t *testing.T) {
 	}
 }
 
+// TestBootstrapGate_CorruptGateFile verifies that malformed, partial, or
+// structurally invalid gate files are rejected — the gate fails closed.
+func TestBootstrapGate_CorruptGateFile(t *testing.T) {
+	now := time.Now().Unix()
+
+	cases := []struct {
+		name    string
+		content []byte
+	}{
+		{"empty file", []byte{}},
+		{"plain text (old format)", []byte("2026-04-18T12:00:00Z\n")},
+		{"not JSON", []byte("not-json\n")},
+		{"truncated JSON", []byte(`{"enabled_at_unix": 1`)},
+		{"missing enabled_at", []byte(`{"expires_at_unix": 9999999999, "version": "1", "created_by": "x"}`)},
+		{"missing expires_at", []byte(`{"enabled_at_unix": 1, "version": "1", "created_by": "x"}`)},
+		{"expires_before_enabled", []byte(`{"enabled_at_unix": 1000, "expires_at_unix": 500, "version": "1", "created_by": "x"}`)},
+		{"zero timestamps", []byte(`{"enabled_at_unix": 0, "expires_at_unix": 0, "version": "1"}`)},
+		{"future enabled_at", func() []byte {
+			data, _ := json.Marshal(BootstrapState{
+				EnabledAt: now + 3600, // 1 hour in the future
+				ExpiresAt: now + 7200,
+				CreatedBy: "x",
+				Version:   "1",
+			})
+			return data
+		}()},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+			if err := os.WriteFile(flagFile, c.content, 0600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			gate := NewBootstrapGateWithPath(flagFile)
+			gate.SetSkipOwnershipCheck(true)
+
+			// isWithinTimeWindow must return false — gate fails closed on bad state
+			if gate.isWithinTimeWindow() {
+				t.Errorf("isWithinTimeWindow() = true for %q — security gap", c.name)
+			}
+
+			// ShouldAllow must also deny (isEnabled passes since file exists,
+			// then isWithinTimeWindow fails → bootstrap_expired reason)
+			authCtx := &AuthContext{
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
+				IsLoopback: true,
+			}
+			allowed, reason := gate.ShouldAllow(authCtx)
+			if allowed {
+				t.Errorf("ShouldAllow() = true for corrupt file %q — security gap", c.name)
+			}
+			if reason != "bootstrap_expired" {
+				t.Errorf("reason = %q for %q, want \"bootstrap_expired\"", reason, c.name)
+			}
+		})
+	}
+}
+
+// TestEnableBootstrapGate_RoundTrip verifies that EnableBootstrapGate writes a file
+// that readBootstrapState can parse and isWithinTimeWindow accepts.
+func TestEnableBootstrapGate_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name          string
+		ttl           time.Duration
+		createdBy     string
+		wantActive    bool
+		wantReason    string
+		adjustState   func(path string) // optional: corrupt/expire the file after writing
+	}{
+		{
+			name:       "valid TTL → bootstrap active",
+			ttl:        30 * time.Minute,
+			createdBy:  "node-agent-day0",
+			wantActive: true,
+			wantReason: "bootstrap_allowed",
+		},
+		{
+			name:      "expired → denied",
+			ttl:       30 * time.Minute,
+			createdBy: "node-agent-day0",
+			// Overwrite the file with an already-expired state after writing
+			adjustState: func(path string) {
+				now := time.Now().Unix()
+				state := BootstrapState{
+					EnabledAt: now - 1860,
+					ExpiresAt: now - 60,
+					CreatedBy: "node-agent-day0",
+					Version:   "1",
+				}
+				data, _ := json.Marshal(state)
+				os.WriteFile(path, data, 0600)
+			},
+			wantActive: false,
+			wantReason: "bootstrap_expired",
+		},
+		{
+			name:      "missing file → denied",
+			ttl:       30 * time.Minute,
+			createdBy: "node-agent-day0",
+			// Remove the file after writing
+			adjustState: func(path string) { os.Remove(path) },
+			wantActive: false,
+			wantReason: "bootstrap_not_enabled",
+		},
+		{
+			name:      "wrong caller identity → path-2 blocked",
+			ttl:       30 * time.Minute,
+			createdBy: "node-agent-day0",
+			wantActive: true, // gate is active …
+			wantReason: "bootstrap_allowed", // … and loopback caller still passes gate
+			// Subject-level check is in requireAdmin, not in ShouldAllow — tested separately below
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			flagFile := filepath.Join(tmpDir, "bootstrap.enabled")
+
+			// Write using the internal helper (same code path as EnableBootstrapGate)
+			if err := writeBootstrapStateTo(flagFile, tt.ttl, tt.createdBy); err != nil {
+				t.Fatalf("writeBootstrapStateTo: %v", err)
+			}
+
+			if tt.adjustState != nil {
+				tt.adjustState(flagFile)
+			}
+
+			gate := NewBootstrapGateWithPath(flagFile)
+			gate.SetSkipOwnershipCheck(true)
+
+			authCtx := &AuthContext{
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
+				IsLoopback: true,
+			}
+			allowed, reason := gate.ShouldAllow(authCtx)
+
+			if allowed != tt.wantActive {
+				t.Errorf("ShouldAllow() = %v, want %v", allowed, tt.wantActive)
+			}
+			if reason != tt.wantReason {
+				t.Errorf("reason = %q, want %q", reason, tt.wantReason)
+			}
+		})
+	}
+}
+
+// TestIsBootstrapSubject verifies the subject allowlist for path-2 bootstrap access.
+func TestIsBootstrapSubject(t *testing.T) {
+	allowed := []string{"globular-node-agent", "globular-controller", "globular-gateway"}
+	for _, s := range allowed {
+		if !IsBootstrapSubject(s) {
+			t.Errorf("IsBootstrapSubject(%q) = false, want true", s)
+		}
+	}
+
+	denied := []string{"", "attacker", "globular-admin", "root", "anonymous", "globular-node-agent-sa"}
+	for _, s := range denied {
+		if IsBootstrapSubject(s) {
+			t.Errorf("IsBootstrapSubject(%q) = true, want false", s)
+		}
+	}
+}
+
 // TestBootstrapGate_IntegrationWithAuthContext verifies end-to-end flow
 func TestBootstrapGate_IntegrationWithAuthContext(t *testing.T) {
 	// Enable bootstrap mode via flag file

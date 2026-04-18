@@ -318,6 +318,65 @@ func TestMgmtProtection_SelfReadAllowed(t *testing.T) {
 	t.Log("✓ non-admin can read their own binding")
 }
 
+// TestPostBootstrap_NormalRBACWorks proves that once normal role bindings are in
+// place, subjects succeed through RBAC without requiring bootstrap mode.
+// This is the key invariant: bootstrap is not a steady-state auth path.
+func TestPostBootstrap_NormalRBACWorks(t *testing.T) {
+	srv := newTestServer(t)
+	bctx := bootstrapCtx()
+
+	// Phase 1: Day-0 — seed bindings via bootstrap
+	for subject, roles := range map[string][]string{
+		"alice":           {"globular-admin"},
+		"operator":        {"globular-operator"},
+		"globular-controller": {"globular-controller-sa"},
+	} {
+		if _, err := srv.SetRoleBinding(bctx, &rbacpb.SetRoleBindingRqst{
+			Binding: &rbacpb.RoleBinding{Subject: subject, Roles: roles},
+		}); err != nil {
+			t.Fatalf("seed %q: %v", subject, err)
+		}
+	}
+
+	// Phase 2: Post-bootstrap — same subjects succeed via RBAC, not bootstrap.
+	// alice has globular-admin, so she can write bindings and list them.
+	// PrincipalType "user" is NOT in bootstrapAllowedSubjects, so if this works
+	// it is purely from the RBAC role check, not bootstrap path 2.
+	aliceCtx := (&security.AuthContext{
+		Subject:       "alice",
+		PrincipalType: "user",
+		IsBootstrap:   false,
+	}).ToContext(context.Background())
+
+	_, err := srv.SetRoleBinding(aliceCtx, &rbacpb.SetRoleBindingRqst{
+		Binding: &rbacpb.RoleBinding{Subject: "bob", Roles: []string{"globular-operator"}},
+	})
+	if err != nil {
+		t.Errorf("post-bootstrap admin SetRoleBinding: %v", err)
+	}
+
+	stream := &listBindingsStream{ctx: aliceCtx}
+	if err := srv.ListRoleBindings(&rbacpb.ListRoleBindingsRqst{}, stream); err != nil {
+		t.Errorf("post-bootstrap admin ListRoleBindings: %v", err)
+	}
+
+	// operator does NOT have globular-admin — must be denied post-bootstrap.
+	operatorCtx := (&security.AuthContext{
+		Subject:       "operator",
+		PrincipalType: "user",
+		IsBootstrap:   false,
+	}).ToContext(context.Background())
+
+	_, err = srv.SetRoleBinding(operatorCtx, &rbacpb.SetRoleBindingRqst{
+		Binding: &rbacpb.RoleBinding{Subject: "victim", Roles: []string{"globular-admin"}},
+	})
+	if code := status.Code(err); code != codes.PermissionDenied {
+		t.Errorf("post-bootstrap non-admin SetRoleBinding: want PermissionDenied, got %v", code)
+	}
+
+	t.Log("✓ post-bootstrap: admin binding works via RBAC; non-admin still denied; bootstrap is not required")
+}
+
 // TestMgmtProtection_BootstrapBypass verifies that bootstrap mode allows all
 // management operations regardless of caller role.
 func TestMgmtProtection_BootstrapBypass(t *testing.T) {

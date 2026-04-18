@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -179,9 +180,11 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 	// Bootstrap mode MUST NOT exceed the maximum duration.
 	// This prevents forgotten flag files from leaving the system insecure.
 	if !g.isWithinTimeWindow() {
-		g.logger.Warn("bootstrap mode expired",
+		g.logger.Warn("bootstrap deny: expired",
+			"reason", "bootstrap_expired",
 			"max_duration", bootstrapMaxDuration,
 			"method", authCtx.GRPCMethod,
+			"subject", authCtx.Subject,
 		)
 		return false, "bootstrap_expired"
 	}
@@ -190,7 +193,8 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 	// Bootstrap requests MUST originate from localhost.
 	// This prevents remote attackers from exploiting Day-0 mode.
 	if !authCtx.IsLoopback {
-		g.logger.Warn("bootstrap request from non-loopback source",
+		g.logger.Warn("bootstrap deny: non-loopback source",
+			"reason", "bootstrap_remote",
 			"method", authCtx.GRPCMethod,
 			"subject", authCtx.Subject,
 		)
@@ -201,15 +205,21 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 	// Only ESSENTIAL Day-0 methods are permitted in bootstrap mode.
 	// This limits the attack surface during the vulnerable initial setup.
 	if !g.isMethodAllowed(authCtx.GRPCMethod) {
-		g.logger.Warn("bootstrap method not in allowlist",
+		g.logger.Warn("bootstrap deny: method not in allowlist",
+			"reason", "bootstrap_method_blocked",
 			"method", authCtx.GRPCMethod,
+			"subject", authCtx.Subject,
 		)
 		return false, "bootstrap_method_blocked"
 	}
 
-	// All 4 gates passed - allow bootstrap access
-	g.logger.Debug("bootstrap request allowed",
+	// All 4 gates passed - allow bootstrap access.
+	// Logged at Info (not Debug) because every allow during the bootstrap window
+	// is a security-relevant event worth capturing in normal log levels.
+	g.logger.Info("bootstrap allow",
+		"reason", "bootstrap_allowed",
 		"method", authCtx.GRPCMethod,
+		"subject", authCtx.Subject,
 		"enabled_via", enabledReason,
 	)
 	return true, "bootstrap_allowed"
@@ -377,6 +387,59 @@ func (g *BootstrapGate) GetBootstrapStatus() string {
 	}
 
 	return fmt.Sprintf("enabled (%s)", reason)
+}
+
+// bootstrapAllowedSubjects is the explicit set of service-account subjects
+// that are permitted to write RBAC bindings via bootstrap path 2 (non-loopback,
+// authenticated service principal). This must remain small — adding a subject
+// here grants it admin-equivalent power during the 30-minute Day-0 window.
+var bootstrapAllowedSubjects = map[string]bool{
+	"globular-node-agent":  true,
+	"globular-controller":  true,
+	"globular-gateway":     true,
+}
+
+// IsBootstrapSubject reports whether subject is an explicitly allowed bootstrap
+// service account. Used by handler-level bootstrap path 2 in the RBAC service.
+func IsBootstrapSubject(subject string) bool {
+	return bootstrapAllowedSubjects[subject]
+}
+
+// EnableBootstrapGate writes a properly-formatted bootstrap flag file at the
+// default path (/var/lib/globular/bootstrap.enabled). The file:
+//   - Contains JSON with explicit timestamps (required by readBootstrapState)
+//   - Is written with mode 0600 (required by readBootstrapState)
+//   - Should be chowned to the globular service user after writing (see note below)
+//
+// NOTE: This function writes the file as the calling process's user. If the
+// calling process is root (e.g. the node agent), the file will be root-owned.
+// The BootstrapGate allows both root-owned and globular-owned files. Services
+// running as the globular user can read root-owned 0600 files only if the
+// service UID matches root's supplementary groups — which is normally not the
+// case. Callers that run as root should chown the file to the globular user
+// after calling EnableBootstrapGate, or use os.Chown with the globular UID.
+func EnableBootstrapGate(ttl time.Duration, createdBy string) error {
+	return writeBootstrapStateTo(bootstrapFlagFile, ttl, createdBy)
+}
+
+// writeBootstrapStateTo is the internal implementation used by EnableBootstrapGate
+// and by tests (which write to a temp path).
+func writeBootstrapStateTo(path string, ttl time.Duration, createdBy string) error {
+	now := time.Now()
+	state := BootstrapState{
+		EnabledAt: now.Unix(),
+		ExpiresAt: now.Add(ttl).Unix(),
+		CreatedBy: createdBy,
+		Version:   "1",
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("marshal bootstrap state: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create bootstrap dir: %w", err)
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 // AddAllowedMethod adds a method to the bootstrap allowlist.

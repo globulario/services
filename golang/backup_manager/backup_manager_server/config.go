@@ -97,6 +97,11 @@ type Config struct {
 	// Recovery mode: when true and a valid seed exists, apply it on startup.
 	RecoveryMode bool `json:"RecoveryMode"`
 
+	// SyncResticRepoToRemote: after each successful backup, sync the local restic
+	// repository to the primary remote destination (MinIO/S3). This makes the remote
+	// a fully self-contained recovery source independent of local disk.
+	SyncResticRepoToRemote bool `json:"SyncResticRepoToRemote"`
+
 	// Scheduled backups
 	ScheduleInterval string `json:"ScheduleInterval"` // e.g. "6h", "24h", "daily", "weekly", "0"=disabled
 

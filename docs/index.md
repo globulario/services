@@ -28,6 +28,8 @@ Understand how Globular works before operating it.
 - [Workflows](operators/workflows.md) — The execution engine: phases, failure classification, retry, audit
 - [Services and Packages](operators/services-and-packages.md) — How services are structured, built, packaged, and published
 - [Security](operators/security.md) — PKI, JWT/mTLS authentication, RBAC, bootstrap security
+- [Access Control: Roles and Permissions](operators/rbac-permissions.md) — Built-in roles, assigning access, resource permissions, Day-0 seeding
+- [Bootstrap Security Contract](operators/bootstrap-security.md) — Who can use it, when it exists, how it expires, what denies access
 
 ---
 
@@ -105,7 +107,8 @@ Build services and applications for the Globular platform.
 - [Writing a Microservice](developers/writing-a-microservice.md) — Proto contract, code generation, server implementation, shared primitives
 - [Service Packaging](developers/service-packaging.md) — Package format, spec files, build process
 - [Publishing to Repository](developers/publishing-to-repository.md) — Publish workflow, provenance, CI/CD integration
-- [RBAC Integration](developers/rbac-integration.md) — Proto annotations, permission model, role design
+- [RBAC Integration (quick reference)](developers/rbac-integration.md) — Proto annotations, permission model, role design
+- [RBAC: Roles and Permissions (deep dive)](developers/rbac-roles-and-permissions.md) — Full model, worked example, patterns, testing, extension
 - [Application Deployment](developers/application-deployment.md) — Web app packaging, gRPC-Web clients
 - [Workflow Integration](developers/workflow-integration.md) — Health checks, backup hooks, graceful shutdown
 - [Versioning](developers/versioning.md) — Semantic versioning policy, mono-version track, 1.0.0 criteria

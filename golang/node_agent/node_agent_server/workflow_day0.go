@@ -6,12 +6,15 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -66,12 +69,23 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		},
 
 		EnableBootstrapWindow: func(ctx context.Context, ttl time.Duration) error {
-			expiry := time.Now().Add(ttl).Format(time.RFC3339)
-			if err := os.MkdirAll(filepath.Dir(bootstrapEnabledPath), 0o755); err != nil {
-				return err
+			if err := security.EnableBootstrapGate(ttl, "node-agent-day0"); err != nil {
+				return fmt.Errorf("enable bootstrap gate: %w", err)
 			}
-			log.Printf("day0: enabling bootstrap window until %s", expiry)
-			return os.WriteFile(bootstrapEnabledPath, []byte(expiry+"\n"), 0o644)
+			// Chown to the globular service user so the service can read the file.
+			// The node-agent runs as root during Day-0; the flag file must be
+			// readable by the globular user that runs the RBAC/auth services.
+			if u, err := user.Lookup("globular"); err == nil {
+				if uid, err := strconv.Atoi(u.Uid); err == nil {
+					if gid, err := strconv.Atoi(u.Gid); err == nil {
+						if err := os.Chown(bootstrapEnabledPath, uid, gid); err != nil {
+							log.Printf("day0: warning: chown bootstrap flag to globular: %v", err)
+						}
+					}
+				}
+			}
+			log.Printf("day0: bootstrap window enabled (ttl=%s)", ttl)
+			return nil
 		},
 
 		DisableBootstrapWindow: func(ctx context.Context) error {

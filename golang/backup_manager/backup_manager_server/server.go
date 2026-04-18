@@ -142,6 +142,10 @@ type server struct {
 	// Recovery mode: when true and a valid seed exists, apply it on startup.
 	RecoveryMode bool `json:"RecoveryMode"`
 
+	// SyncResticRepoToRemote: after each successful backup, sync the local restic
+	// repository to the primary remote destination (MinIO/S3).
+	SyncResticRepoToRemote bool `json:"SyncResticRepoToRemote"`
+
 	// Scheduled backups
 	ScheduleInterval string         `json:"ScheduleInterval"`
 	stopScheduler    context.CancelFunc
@@ -487,10 +491,11 @@ type savedSettings struct {
 	MinioEndpoint      string              `json:"MinioEndpoint"`
 	MinioAccessKey     string              `json:"MinioAccessKey"`
 	MinioSecretKey     string              `json:"MinioSecretKey"`
-	MinioSecure        bool                `json:"MinioSecure"`
-	RetentionKeepLastN int                 `json:"RetentionKeepLastN"`
-	RetentionKeepDays  int                 `json:"RetentionKeepDays"`
-	ClusterDefaultProviders []string       `json:"ClusterDefaultProviders"`
+	MinioSecure             bool     `json:"MinioSecure"`
+	RetentionKeepLastN      int      `json:"RetentionKeepLastN"`
+	RetentionKeepDays       int      `json:"RetentionKeepDays"`
+	ClusterDefaultProviders []string `json:"ClusterDefaultProviders"`
+	SyncResticRepoToRemote  bool     `json:"SyncResticRepoToRemote"`
 }
 
 const savedSettingsFile = "settings.json"
@@ -517,9 +522,10 @@ func (srv *server) saveSettingsToBackupDir() {
 		MinioAccessKey:     srv.MinioAccessKey,
 		MinioSecretKey:     srv.MinioSecretKey,
 		MinioSecure:        srv.MinioSecure,
-		RetentionKeepLastN: srv.RetentionKeepLastN,
-		RetentionKeepDays:  srv.RetentionKeepDays,
+		RetentionKeepLastN:     srv.RetentionKeepLastN,
+		RetentionKeepDays:      srv.RetentionKeepDays,
 		ClusterDefaultProviders: srv.ClusterDefaultProviders,
+		SyncResticRepoToRemote:  srv.SyncResticRepoToRemote,
 	}
 	data, err := json.MarshalIndent(ss, "", "  ")
 	if err != nil {
@@ -608,6 +614,9 @@ func (srv *server) restoreSettingsFromBackupDir() {
 	}
 	if len(ss.ClusterDefaultProviders) > 0 {
 		srv.ClusterDefaultProviders = ss.ClusterDefaultProviders
+	}
+	if ss.SyncResticRepoToRemote {
+		srv.SyncResticRepoToRemote = true
 	}
 
 	// Persist restored settings to etcd so the UI sees them immediately

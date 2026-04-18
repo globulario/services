@@ -39,8 +39,10 @@ func (srv *server) callerIsAdmin(subject string) (bool, error) {
 	if err := json.Unmarshal(data, &roles); err != nil {
 		return false, err
 	}
-	// globular-admin has "/*" which HasRolePermission matches for any method.
-	return security.HasRolePermission(roles, "/*"), nil
+	// Check whether any of the subject's roles grant rbac.set_role_binding.
+	// This matches: "rbac.*" (globular-admin, globular-security-admin),
+	// "/*" or "*" (super-admin / breakglass), and exact action grants.
+	return security.HasRolePermission(roles, "rbac.set_role_binding"), nil
 }
 
 // requireAdmin returns nil if the caller is allowed to manage role bindings:
@@ -55,14 +57,17 @@ func (srv *server) requireAdmin(ctx context.Context) error {
 		return nil
 	}
 
-	// Bootstrap path 2: bootstrap flag is active and caller is an authenticated service principal.
+	// Bootstrap path 2: bootstrap flag is active and caller is an explicitly
+	// allowed bootstrap service account (see security.bootstrapAllowedSubjects).
 	// This allows the CLI seed command (which connects from the node IP, not loopback)
 	// to write bindings during the Day-0 window. Protected by:
 	//   - flag file existence + 0600 permissions + globular ownership
 	//   - time-bounded window (default 30 min)
 	//   - authenticated service token (PrincipalType application/service)
+	//   - subject must be a known bootstrap SA (globular-node-agent, controller, gateway)
 	if authCtx != nil && authCtx.Subject != "" &&
 		(authCtx.PrincipalType == "application" || authCtx.PrincipalType == "service") &&
+		security.IsBootstrapSubject(authCtx.Subject) &&
 		security.DefaultBootstrapGate.IsActive() {
 		return nil
 	}

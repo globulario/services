@@ -805,6 +805,19 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 		}
 	}
 
+	// --- Phase 7: Generate recovery capsule (post-provider, pre-seal) ---
+	// Produces recovery-capsule/ inside the artifact with restore scripts and
+	// inputs.json. Non-fatal: a failed capsule does not abort the backup.
+	if allOk {
+		job.Message = "generating recovery capsule"
+		if saveErr := srv.store.SaveJob(job); saveErr != nil {
+			slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+		}
+		if capsuleErr := srv.generateRecoveryCapsule(ctx, backupID, results); capsuleErr != nil {
+			slog.Warn("recovery capsule generation failed (non-fatal)", "job_id", job.JobId, "error", capsuleErr)
+		}
+	}
+
 	job.Results = results
 	job.FinishedUnixMs = time.Now().UnixMilli()
 	durationSec := float64(job.FinishedUnixMs-job.StartedUnixMs) / 1000.0
@@ -853,6 +866,22 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 	}
 		repResults := srv.replicateToDestinations(backupID, job.Plan)
 		job.Replications = repResults
+
+		// --- Phase 8: Sync restic repo to remote (complete second copy) ---
+		// When SyncResticRepoToRemote is enabled, the restic repository is synced
+		// to the primary MinIO/S3 destination so that the remote becomes a fully
+		// self-contained recovery source independent of the local disk.
+		if srv.SyncResticRepoToRemote && srv.ResticRepo != "" {
+			job.Message = "syncing restic repo to remote (phase 2 complete copy)"
+			if saveErr := srv.store.SaveJob(job); saveErr != nil {
+				slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+			}
+			if syncErr := srv.replicateResticRepo(ctx); syncErr != nil {
+				slog.Warn("restic repo remote sync failed (non-fatal)", "job_id", job.JobId, "error", syncErr)
+			} else {
+				slog.Info("restic repo synced to remote", "job_id", job.JobId)
+			}
+		}
 
 		// Collect location paths from successful replications
 		var locations []string

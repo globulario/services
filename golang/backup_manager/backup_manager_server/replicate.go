@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -286,6 +287,96 @@ func (srv *server) rcloneArgsForDest(destName string, destType backup_managerpb.
 		}
 	}
 	return args
+}
+
+// replicateResticRepo syncs the local restic repository to the primary remote
+// destination (MinIO or S3), making the remote a fully self-contained recovery
+// source. It is called during Phase 8 when SyncResticRepoToRemote is enabled.
+//
+// The repo is stored at: <bucket>/restic-repo/
+// so it sits alongside the artifact capsules in the same bucket.
+func (srv *server) replicateResticRepo(ctx context.Context) error {
+	if srv.ResticRepo == "" {
+		return nil
+	}
+
+	// Find the first remote (non-local) destination
+	var dest *DestinationConfig
+	for i := range srv.Destinations {
+		d := &srv.Destinations[i]
+		if d.Type == "minio" || d.Type == "s3" {
+			dest = d
+			break
+		}
+	}
+	if dest == nil {
+		slog.Info("no remote destination configured — skipping restic repo sync")
+		return nil
+	}
+
+	var (
+		remotePath string
+		args       []string
+	)
+
+	switch dest.Type {
+	case "minio":
+		endpoint := dest.Options["endpoint"]
+		accessKey := dest.Options["access_key"]
+		secretKey := dest.Options["secret_key"]
+		if endpoint == "" || dest.Path == "" {
+			return fmt.Errorf("minio destination %q missing endpoint or path", dest.Name)
+		}
+		remotePath = fmt.Sprintf(":s3:%s/restic-repo", dest.Path)
+		args = []string{
+			"sync", srv.ResticRepo, remotePath,
+			"--s3-provider", "Minio",
+			"--s3-endpoint", endpoint,
+			"--s3-env-auth=false",
+		}
+		if accessKey != "" {
+			args = append(args, "--s3-access-key-id", accessKey)
+		}
+		if secretKey != "" {
+			args = append(args, "--s3-secret-access-key", secretKey)
+		}
+		if strings.HasPrefix(endpoint, "https") {
+			args = append(args, "--no-check-certificate")
+		}
+
+	case "s3":
+		if dest.Path == "" {
+			return fmt.Errorf("s3 destination %q missing path", dest.Name)
+		}
+		remotePath = fmt.Sprintf(":s3:%s/restic-repo", dest.Path)
+		args = []string{"sync", srv.ResticRepo, remotePath, "--s3-provider", "AWS"}
+		if r := dest.Options["region"]; r != "" {
+			args = append(args, "--s3-region", r)
+		}
+		if ak := dest.Options["access_key"]; ak != "" {
+			args = append(args, "--s3-access-key-id", ak)
+		}
+		if sk := dest.Options["secret_key"]; sk != "" {
+			args = append(args, "--s3-secret-access-key", sk)
+		}
+
+	default:
+		return fmt.Errorf("unsupported destination type for restic repo sync: %s", dest.Type)
+	}
+
+	slog.Info("syncing restic repo to remote",
+		"dest", dest.Name,
+		"repo", srv.ResticRepo,
+		"remote", remotePath,
+	)
+
+	cmd := exec.CommandContext(ctx, "rclone", args...)
+	var errBuf bytes.Buffer
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("rclone restic-repo sync to %s: %s: %w", dest.Name, strings.TrimSpace(errBuf.String()), err)
+	}
+	return nil
 }
 
 // dirSize returns the total size of all files in a directory tree.
