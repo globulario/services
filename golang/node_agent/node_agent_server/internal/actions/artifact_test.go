@@ -276,6 +276,59 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 	// Port config should be generated for known services (none for generic svc)
 }
 
+func TestServiceInstallPayloadExtractsPolicyFiles(t *testing.T) {
+	binDir := t.TempDir()
+	policyDir := t.TempDir()
+	stagingRoot := t.TempDir()
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSkipSystemd = true
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	ActionPolicyDir = policyDir
+	t.Cleanup(func() { ActionPolicyDir = "/var/lib/globular/policy/services" })
+
+	// Build an archive that contains policy files.
+	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
+	f, _ := os.Create(artifactPath)
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	writeEntry := func(name, content string) {
+		tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(content))}) //nolint:errcheck
+		tw.Write([]byte(content))                                                         //nolint:errcheck
+	}
+	writeEntry("bin/svc_server", "#!/bin/sh")
+	writeEntry("policy/permissions.generated.json", `{"schema_version":"2","permissions":[]}`)
+	writeEntry("policy/roles.generated.json", `{"schema_version":"2","roles":[]}`)
+	tw.Close() //nolint:errcheck
+	gz.Close() //nolint:errcheck
+	f.Close()  //nolint:errcheck
+
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":       "svc",
+		"version":       "1.0.0",
+		"artifact_path": artifactPath,
+	})
+	if _, err := (serviceInstallPayloadAction{}).Apply(context.Background(), args); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	// Verify permissions file installed to per-service policy directory.
+	permFile := filepath.Join(policyDir, "svc", "permissions.generated.json")
+	if _, err := os.Stat(permFile); err != nil {
+		t.Fatalf("permissions.generated.json not installed: %v", err)
+	}
+	rolesFile := filepath.Join(policyDir, "svc", "roles.generated.json")
+	if _, err := os.Stat(rolesFile); err != nil {
+		t.Fatalf("roles.generated.json not installed: %v", err)
+	}
+}
+
 func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 	binDir := filepath.Join(t.TempDir(), "bin")
 	systemdDir := filepath.Join(t.TempDir(), "systemd")

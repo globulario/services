@@ -99,6 +99,11 @@ var (
 	// ActionSystemdDir is the directory for systemd unit files.
 	ActionSystemdDir = "/etc/systemd/system"
 
+	// ActionPolicyDir is the base directory for per-service RBAC policy files.
+	// Generated permission manifests (permissions.generated.json) are installed
+	// under ActionPolicyDir/{service}/ so the runtime resolver can load them.
+	ActionPolicyDir = "/var/lib/globular/policy/services"
+
 	// AllowMissingSHA256 controls whether artifact verification accepts
 	// missing SHA256 digests. Default false (production).
 	AllowMissingSHA256 bool

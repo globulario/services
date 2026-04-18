@@ -112,6 +112,19 @@ build_one() {
     cp -a "${data_src}" "${root}/data"
   fi
 
+  # Copy generated authorization policy files if they exist.
+  # These land at /var/lib/globular/policy/services/{svc}/ on the node,
+  # enabling the runtime resolver to resolve gRPC method paths to action keys.
+  local policy_src="${GEN_ROOT}/policy/${svc}"
+  if [[ -d "${policy_src}" ]]; then
+    mkdir -p "${root}/policy"
+    for f in permissions.generated.json roles.generated.json; do
+      if [[ -f "${policy_src}/${f}" ]]; then
+        cp -a "${policy_src}/${f}" "${root}/policy/${f}"
+      fi
+    done
+  fi
+
   echo "==> pkg build ${svc} (${exe})"
   local scripts_flag=""
   if [[ -n "${SCRIPTS_DIR}" ]]; then

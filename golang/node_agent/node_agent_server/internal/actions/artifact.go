@@ -404,6 +404,12 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			// e.g. data/workflows/day0.bootstrap.yaml → /var/lib/globular/workflows/day0.bootstrap.yaml
 			rel := strings.TrimPrefix(name, "data/")
 			dest = filepath.Join(ActionStateDir, rel)
+		case strings.HasPrefix(name, "policy/"):
+			// Authorization policy files (permissions.generated.json, roles.generated.json)
+			// are installed under ActionPolicyDir/{service}/ so the runtime resolver
+			// can map gRPC method paths to stable action keys.
+			rel := strings.TrimPrefix(name, "policy/")
+			dest = filepath.Join(ActionPolicyDir, service, rel)
 		default:
 			// ignore unsupported paths
 			continue

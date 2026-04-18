@@ -155,6 +155,10 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 		cfgDir := filepath.Join(configDir, name)
 		_ = os.RemoveAll(cfgDir)
 
+		// Remove generated authorization policy files for this service.
+		policyDir := filepath.Join(ActionPolicyDir, name)
+		_ = os.RemoveAll(policyDir)
+
 		// Remove version marker.
 		markerDir := filepath.Join(stateDir(), "versions", name)
 		_ = os.RemoveAll(markerDir)

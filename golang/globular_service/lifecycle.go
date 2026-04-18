@@ -80,14 +80,20 @@ func (lm *LifecycleManager) Start() error {
 	if idx := strings.Index(svcName, "."); idx > 0 {
 		svcName = svcName[:idx] // "file.FileService" → "file"
 	}
-	if perms, _ := policy.LoadAndRegisterPermissions(svcName); perms != nil {
+	if perms, reg := policy.LoadAndRegisterPermissions(svcName); perms != nil {
 		if svc, ok := lm.srv.(interface{ SetPermissions([]interface{}) }); ok {
 			svc.SetPermissions(perms)
-			lm.logger.Info("loaded external permission mappings",
-				"service", svcName,
-				"count", len(perms),
-			)
 		}
+		lm.logger.Info("authz: permission mappings loaded",
+			"service", svcName,
+			"count", reg.PermissionCount,
+			"action_mappings", reg.ActionMappingCount,
+		)
+	} else {
+		lm.logger.Debug("authz: no permission file found — semantic action mapping unavailable",
+			"service", svcName,
+			"expected_path", "/var/lib/globular/policy/services/"+svcName+"/permissions.generated.json",
+		)
 	}
 
 	// Mark as running
