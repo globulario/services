@@ -245,6 +245,62 @@ func runWorkflowGet(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// --- cancel ---
+
+var workflowCancelCmd = &cobra.Command{
+	Use:   "cancel <run-id>",
+	Short: "Cancel an active workflow run",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runWorkflowCancel,
+}
+
+func runWorkflowCancel(cmd *cobra.Command, args []string) error {
+	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	cc, err := dialGRPC(addr)
+	if err != nil {
+		return fmt.Errorf("connect to workflow service: %w", err)
+	}
+	defer cc.Close()
+
+	client := workflowpb.NewWorkflowServiceClient(cc)
+	_, err = client.CancelRun(ctxWithTimeout(), &workflowpb.CancelRunRequest{RunId: args[0]})
+	if err != nil {
+		return fmt.Errorf("cancel run: %w", err)
+	}
+
+	fmt.Printf("Run %s cancelled.\n", args[0])
+	return nil
+}
+
+// --- retry ---
+
+var workflowRetryCmd = &cobra.Command{
+	Use:   "retry <run-id>",
+	Short: "Retry a failed workflow run",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runWorkflowRetry,
+}
+
+func runWorkflowRetry(cmd *cobra.Command, args []string) error {
+	addr := pick(workflowAddr, rootCfg.controllerAddr)
+	cc, err := dialGRPC(addr)
+	if err != nil {
+		return fmt.Errorf("connect to workflow service: %w", err)
+	}
+	defer cc.Close()
+
+	client := workflowpb.NewWorkflowServiceClient(cc)
+	resp, err := client.RetryRun(ctxWithTimeout(), &workflowpb.RetryRunRequest{RunId: args[0]})
+	if err != nil {
+		return fmt.Errorf("retry run: %w", err)
+	}
+
+	run := resp
+	status := stripPrefix(run.GetStatus().String(), "RUN_")
+	fmt.Printf("Run %s retried — status: %s\n", run.GetId(), status)
+	return nil
+}
+
 // --- diagnose ---
 
 var workflowDiagnoseCmd = &cobra.Command{
@@ -289,6 +345,8 @@ func init() {
 	workflowCmd.AddCommand(workflowListCmd)
 	workflowCmd.AddCommand(workflowGetCmd)
 	workflowCmd.AddCommand(workflowDiagnoseCmd)
+	workflowCmd.AddCommand(workflowCancelCmd)
+	workflowCmd.AddCommand(workflowRetryCmd)
 	rootCmd.AddCommand(workflowCmd)
 }
 

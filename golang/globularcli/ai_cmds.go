@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
+	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
+	ai_routerpb "github.com/globulario/services/golang/ai_router/ai_routerpb"
+	ai_watcherpb "github.com/globulario/services/golang/ai_watcher/ai_watcherpb"
 )
 
 var aiExecutorAddr string
@@ -315,6 +318,200 @@ func runAiRetry(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// ── AI Watcher subcommands ───────────────────────────────────────────────────
+
+var aiWatcherAddr string
+
+var aiWatcherCmd = &cobra.Command{
+	Use:   "watcher",
+	Short: "Inspect the AI watcher service",
+}
+
+var aiWatcherStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show AI watcher operational status",
+	RunE:  runAiWatcherStatus,
+}
+
+func runAiWatcherStatus(cmd *cobra.Command, args []string) error {
+	cc, err := dialGRPC(pick(aiWatcherAddr, "globular.internal"))
+	if err != nil {
+		return fmt.Errorf("connect to ai_watcher: %w", err)
+	}
+	defer cc.Close()
+
+	client := ai_watcherpb.NewAiWatcherServiceClient(cc)
+	resp, err := client.GetStatus(ctxWithTimeout(), &ai_watcherpb.GetStatusRqst{})
+	if err != nil {
+		return fmt.Errorf("get status: %w", err)
+	}
+
+	if rootCfg.output == "json" {
+		return printJSON(resp)
+	}
+
+	state := "paused"
+	if resp.GetRunning() && !resp.GetPaused() {
+		state = "running"
+	} else if resp.GetRunning() && resp.GetPaused() {
+		state = "paused"
+	} else {
+		state = "stopped"
+	}
+
+	fmt.Printf("AI Watcher Status\n")
+	fmt.Printf("  State:               %s\n", state)
+	fmt.Printf("  Events received:     %d\n", resp.GetEventsReceived())
+	fmt.Printf("  Events filtered:     %d\n", resp.GetEventsFiltered())
+	fmt.Printf("  Incidents created:   %d\n", resp.GetIncidentsCreated())
+	fmt.Printf("  Auto-remediations:   %d\n", resp.GetAutoRemediations())
+	fmt.Printf("  Approvals pending:   %d\n", resp.GetApprovalsPending())
+	if resp.GetLastEventAt() != "" {
+		fmt.Printf("  Last event:          %s\n", resp.GetLastEventAt())
+	}
+	if resp.GetLastIncidentAt() != "" {
+		fmt.Printf("  Last incident:       %s\n", resp.GetLastIncidentAt())
+	}
+	return nil
+}
+
+// ── AI Memory subcommands ────────────────────────────────────────────────────
+
+var aiMemoryAddr string
+
+var aiMemoryCmd = &cobra.Command{
+	Use:   "memory",
+	Short: "Query the AI memory service",
+}
+
+var (
+	aiMemoryQueryType  string
+	aiMemoryQueryText  string
+	aiMemoryQueryLimit int32
+)
+
+var aiMemoryQueryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "Query stored memories",
+	Long: `Search AI memory by type, tags, or free-text.
+
+Examples:
+  globular ai memory query --text "ScyllaDB migration"
+  globular ai memory query --type feedback
+  globular ai memory query --type architecture --limit 5
+`,
+	RunE: runAiMemoryQuery,
+}
+
+func runAiMemoryQuery(cmd *cobra.Command, args []string) error {
+	cc, err := dialGRPC(pick(aiMemoryAddr, "globular.internal"))
+	if err != nil {
+		return fmt.Errorf("connect to ai_memory: %w", err)
+	}
+	defer cc.Close()
+
+	client := ai_memorypb.NewAiMemoryServiceClient(cc)
+
+	req := &ai_memorypb.QueryRqst{
+		TextSearch: aiMemoryQueryText,
+		Limit:      aiMemoryQueryLimit,
+	}
+	if aiMemoryQueryType != "" {
+		if v, ok := ai_memorypb.MemoryType_value[strings.ToUpper(aiMemoryQueryType)]; ok {
+			req.Type = ai_memorypb.MemoryType(v)
+		} else if v, ok := ai_memorypb.MemoryType_value["MEMORY_"+strings.ToUpper(aiMemoryQueryType)]; ok {
+			req.Type = ai_memorypb.MemoryType(v)
+		}
+	}
+
+	resp, err := client.Query(ctxWithTimeout(), req)
+	if err != nil {
+		return fmt.Errorf("query: %w", err)
+	}
+
+	if rootCfg.output == "json" {
+		return printJSON(resp)
+	}
+
+	memories := resp.GetMemories()
+	if len(memories) == 0 {
+		fmt.Println("No memories found.")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tTYPE\tTITLE\tTAGS")
+	for _, m := range memories {
+		tags := strings.Join(m.GetTags(), ",")
+		if len(tags) > 30 {
+			tags = tags[:27] + "..."
+		}
+		title := m.GetTitle()
+		if len(title) > 40 {
+			title = title[:37] + "..."
+		}
+		id := m.GetId()
+		if len(id) > 12 {
+			id = id[:12] + "..."
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, m.GetType(), title, tags)
+	}
+	w.Flush()
+	fmt.Printf("\n%d result(s) (total: %d)\n", len(memories), resp.GetTotal())
+	return nil
+}
+
+// ── AI Router subcommands ────────────────────────────────────────────────────
+
+var aiRouterAddr string
+
+var aiRouterCmd = &cobra.Command{
+	Use:   "router",
+	Short: "Inspect the AI router service",
+}
+
+var aiRouterStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show AI router operational status",
+	RunE:  runAiRouterStatus,
+}
+
+func runAiRouterStatus(cmd *cobra.Command, args []string) error {
+	cc, err := dialGRPC(pick(aiRouterAddr, "globular.internal"))
+	if err != nil {
+		return fmt.Errorf("connect to ai_router: %w", err)
+	}
+	defer cc.Close()
+
+	client := ai_routerpb.NewAiRouterServiceClient(cc)
+	resp, err := client.GetStatus(ctxWithTimeout(), &ai_routerpb.GetStatusRequest{})
+	if err != nil {
+		return fmt.Errorf("get status: %w", err)
+	}
+
+	if rootCfg.output == "json" {
+		return printJSON(resp)
+	}
+
+	mode := strings.TrimPrefix(resp.GetMode().String(), "ROUTER_MODE_")
+	uptime := time.Duration(resp.GetUptimeSeconds()) * time.Second
+	lastPolicy := "—"
+	if resp.GetLastPolicyAtMs() > 0 {
+		lastPolicy = fmtTimeAgo(time.UnixMilli(resp.GetLastPolicyAtMs()))
+	}
+
+	fmt.Printf("AI Router Status\n")
+	fmt.Printf("  Mode:                %s\n", mode)
+	fmt.Printf("  Version:             %s\n", resp.GetVersion())
+	fmt.Printf("  Uptime:              %s\n", uptime)
+	fmt.Printf("  Services tracked:    %d\n", resp.GetServicesTracked())
+	fmt.Printf("  Endpoints tracked:   %d\n", resp.GetEndpointsTracked())
+	fmt.Printf("  Policies computed:   %d\n", resp.GetPoliciesComputed())
+	fmt.Printf("  Policies applied:    %d\n", resp.GetPoliciesApplied())
+	fmt.Printf("  Last policy update:  %s\n", lastPolicy)
+	return nil
+}
+
 // --- init ---
 
 func init() {
@@ -331,6 +528,24 @@ func init() {
 	aiCmd.AddCommand(aiApproveCmd)
 	aiCmd.AddCommand(aiDenyCmd)
 	aiCmd.AddCommand(aiRetryCmd)
+
+	// watcher subgroup
+	aiWatcherCmd.PersistentFlags().StringVar(&aiWatcherAddr, "watcher-addr", "globular.internal", "AI watcher service address")
+	aiWatcherCmd.AddCommand(aiWatcherStatusCmd)
+	aiCmd.AddCommand(aiWatcherCmd)
+
+	// memory subgroup
+	aiMemoryCmd.PersistentFlags().StringVar(&aiMemoryAddr, "memory-addr", "globular.internal", "AI memory service address")
+	aiMemoryQueryCmd.Flags().StringVar(&aiMemoryQueryType, "type", "", "Filter by memory type (feedback, architecture, debug, session, ...)")
+	aiMemoryQueryCmd.Flags().StringVar(&aiMemoryQueryText, "text", "", "Free-text search")
+	aiMemoryQueryCmd.Flags().Int32Var(&aiMemoryQueryLimit, "limit", 20, "Max results")
+	aiMemoryCmd.AddCommand(aiMemoryQueryCmd)
+	aiCmd.AddCommand(aiMemoryCmd)
+
+	// router subgroup
+	aiRouterCmd.PersistentFlags().StringVar(&aiRouterAddr, "router-addr", "globular.internal", "AI router service address")
+	aiRouterCmd.AddCommand(aiRouterStatusCmd)
+	aiCmd.AddCommand(aiRouterCmd)
 
 	rootCmd.AddCommand(aiCmd)
 }
