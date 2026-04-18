@@ -172,12 +172,33 @@ func rebuildMethodIndex() {
 // appears in at least one non-global entry in RolePermissions, either by
 // exact match or wildcard prefix).
 func IsRoleBasedMethod(action string) bool {
+	// RBAC service methods are always excluded to prevent circular gRPC calls
+	// when the interceptor calls checkRoleBinding.
+	if strings.HasPrefix(action, "/rbac.RbacService/") {
+		return false
+	}
 	if methodSet[action] {
 		return true
 	}
 	for _, p := range methodPrefix {
 		if strings.HasPrefix(action, p) {
 			return true
+		}
+	}
+	// If action is a raw gRPC method path, resolve it to a stable action key
+	// and check the key against the index. This handles the case where
+	// cluster-roles.json uses semantic keys (dns.*) but the caller passes
+	// a gRPC path (/dns.DnsService/SetA).
+	if strings.HasPrefix(action, "/") {
+		if actionKey := policy.GlobalResolver().Resolve(action); actionKey != action {
+			if methodSet[actionKey] {
+				return true
+			}
+			for _, p := range methodPrefix {
+				if strings.HasPrefix(actionKey, p) {
+					return true
+				}
+			}
 		}
 	}
 	// Migration compatibility: if the action is a stable key, also check

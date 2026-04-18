@@ -121,6 +121,17 @@ func TestReflection_AllKnownMethodsDocumented(t *testing.T) {
 	t.Logf("  - MEDIUM/LOW: %d methods", totalMethods-criticalMethods-highRiskMethods)
 }
 
+// expectedUnauthenticated is the set of methods intentionally in the unauthenticated
+// allowlist despite high/critical risk classification. Each entry must have a documented
+// justification. Removing an entry from here reactivates the security check for that method.
+var expectedUnauthenticated = map[string]string{
+	// Authenticate/RefreshToken MUST be unauthenticated — they are the bootstrap of the
+	// auth flow (you need them to get a token in the first place). They are protected by
+	// credential validation (password, existing token) rather than by bearer token authz.
+	"/authentication.AuthenticationService/Authenticate": "credential-protected, not token-protected by design",
+	"/authentication.AuthenticationService/RefreshToken": "credential-protected (existing token), not bearer-token-protected by design",
+}
+
 // TestReflection_CriticalMethodsNeverAllowlisted ensures that CRITICAL/HIGH risk
 // methods are never added to the unauthenticated allowlist by mistake.
 func TestReflection_CriticalMethodsNeverAllowlisted(t *testing.T) {
@@ -129,6 +140,11 @@ func TestReflection_CriticalMethodsNeverAllowlisted(t *testing.T) {
 	for service, methods := range KnownServiceMethods {
 		for method, risk := range methods {
 			fullMethod := fmt.Sprintf("/%s/%s", service, method)
+
+			// Skip intentionally unauthenticated high-risk methods.
+			if _, expected := expectedUnauthenticated[fullMethod]; expected {
+				continue
+			}
 
 			// Check if high-risk method is allowlisted
 			if strings.HasPrefix(risk, "CRITICAL") || strings.HasPrefix(risk, "HIGH") {

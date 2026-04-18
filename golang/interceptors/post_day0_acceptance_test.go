@@ -12,7 +12,10 @@
 package interceptors
 
 import (
+	"fmt"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
@@ -46,9 +49,9 @@ func simulatePostDay0Check(clusterInitialized bool, method, subject string, hasR
 // After Day-0, a mutating RPC with NO identity → codes.Unauthenticated.
 func TestAcceptance_AnonymousMutatingPostDay0_Unauthenticated(t *testing.T) {
 	mutatingMethods := []string{
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
-		"/clustercontroller.ResourcesService/DeleteServiceRelease",
-		"/clustercontroller.ClusterControllerService/ApplyNodePlan",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
+		"/cluster_controller.ClusterControllerService/RemoveDesiredService",
+		"/cluster_controller.ClusterControllerService/SetNodeProfiles",
 		"/discovery.PackageDiscovery/PublishService",
 		"/repository.PackageRepository/UploadArtifact",
 		"/dns.DnsService/SetA",
@@ -112,7 +115,7 @@ func TestAcceptance_BeforeClusterInit_AnonymousMutating_NotBlockedByPostDay0Gate
 
 	denied, _, reason := simulatePostDay0Check(
 		false, // cluster NOT yet initialized
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
 		"",    // anonymous
 		false, // no mapping
 	)
@@ -135,10 +138,18 @@ func TestAcceptance_BootstrapAllowlistMethodsWork(t *testing.T) {
 		"/dns.DnsService/CreateZone",
 	}
 
-	gate := security.NewBootstrapGateWithPath("/tmp/non-existent-bootstrap-for-test")
-
-	// Enable via env var (simulates Day-0)
-	t.Setenv("GLOBULAR_BOOTSTRAP", "1")
+	// Write a temporary bootstrap flag file with required timestamps (BootstrapGate no longer reads env vars).
+	flagFile := t.TempDir() + "/bootstrap.enabled"
+	now := time.Now().Unix()
+	flagContent := fmt.Sprintf(
+		`{"enabled_at_unix":%d,"expires_at_unix":%d,"created_by":"test","version":"1"}`,
+		now, now+1800,
+	)
+	if err := os.WriteFile(flagFile, []byte(flagContent), 0600); err != nil {
+		t.Fatalf("failed to write bootstrap flag file: %v", err)
+	}
+	gate := security.NewBootstrapGateWithPath(flagFile)
+	gate.SetSkipOwnershipCheck(true)
 
 	for _, method := range bootstrapMethods {
 		t.Run(method, func(t *testing.T) {
@@ -178,9 +189,9 @@ func simulateRoleBindingCheck(clusterInitialized bool, method, subject string, r
 }
 
 // TestAcceptance_WithRoleBinding_Operator_CanApplyRelease verifies that an
-// operator with the globular-operator role can call ApplyServiceRelease.
+// operator with the globular-operator role can call a mutating method they're granted.
 func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
-	method := "/clustercontroller.ResourcesService/ApplyServiceRelease"
+	method := "/cluster_controller.ClusterControllerService/ApproveJoin"
 	roles := []string{"globular-operator"}
 
 	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
@@ -196,7 +207,7 @@ func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
 // TestAcceptance_WithoutRoleBinding_GetsDenied verifies that an authenticated
 // user with NO roles is denied access to role-based methods.
 func TestAcceptance_WithoutRoleBinding_GetsDenied(t *testing.T) {
-	method := "/clustercontroller.ResourcesService/ApplyServiceRelease"
+	method := "/cluster_controller.ClusterControllerService/ApproveJoin"
 	roles := []string{} // no roles assigned
 
 	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
@@ -215,7 +226,7 @@ func TestAcceptance_ControllerSA_CanReportStatus_CannotUploadArtifact(t *testing
 	roles := []string{"globular-controller-sa"}
 	subject := "globular-controller"
 
-	reportStatus := "/clustercontroller.ClusterControllerService/ReportNodeStatus"
+	reportStatus := "/cluster_controller.ClusterControllerService/ReportNodeStatus"
 	uploadArtifact := "/repository.PackageRepository/UploadArtifact"
 
 	denied, reason := simulateRoleBindingCheck(true, reportStatus, subject, roles)
@@ -238,9 +249,9 @@ func TestAcceptance_AdminRole_HasAccessToAllRoleBasedMethods(t *testing.T) {
 	subject := "admin@localhost"
 
 	methods := []string{
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
 		"/repository.PackageRepository/UploadArtifact",
-		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
+		"/cluster_controller.ClusterControllerService/ReportNodeStatus",
 		"/dns.DnsService/SetA",
 	}
 
@@ -261,7 +272,7 @@ func TestAcceptance_IsRoleBasedMethod_DNSWildcard(t *testing.T) {
 	dnsMethods := []string{
 		"/dns.DnsService/SetA",
 		"/dns.DnsService/GetA",
-		"/dns.DnsService/CreateZone",
+		"/dns.DnsService/SetDomains",
 	}
 	for _, m := range dnsMethods {
 		if !security.IsRoleBasedMethod(m) {
@@ -297,9 +308,9 @@ func TestAcceptance_ReadOnlyRPCsNotBlockedByPostDay0Gate(t *testing.T) {
 	readOnlyMethods := []string{
 		"/rbac.RbacService/GetAccount",
 		"/rbac.RbacService/ListAccounts",
-		"/clustercontroller.ResourcesService/GetServiceRelease",
-		"/clustercontroller.ResourcesService/ListServiceReleases",
-		"/clustercontroller.ClusterControllerService/GetClusterHealth",
+		"/cluster_controller.ClusterControllerService/GetClusterHealth",
+		"/cluster_controller.ClusterControllerService/ListNodes",
+		"/cluster_controller.ClusterControllerService/GetDesiredState",
 		"/dns.DnsService/GetA",
 		"/repository.PackageRepository/GetArtifactManifest",
 	}
@@ -332,7 +343,7 @@ func TestAcceptance_ReadOnlyRPCsNotBlockedByPostDay0Gate(t *testing.T) {
 func TestAcceptance_AuthenticatedMutatingWithMapping_ProceedsToRBAC(t *testing.T) {
 	denied, code, reason := simulatePostDay0Check(
 		true,
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
 		"globular-controller", // has identity (controller SA)
 		true,                  // has RBAC mapping
 	)
@@ -350,42 +361,36 @@ func TestAcceptance_AuthenticatedMutatingWithMapping_ProceedsToRBAC(t *testing.T
 // TestAcceptance_ServiceAccountScopes verifies that the role permission sets
 // encode the correct least-privilege boundaries:
 // - ControllerSA cannot publish artifacts
-// - NodeAgentSA cannot create ServiceRelease
+// - NodeAgentSA cannot report node status (ReportNodeStatus is a cluster_controller method)
 func TestAcceptance_ServiceAccountScopes(t *testing.T) {
-	controllerPerms := security.RolePermissions[security.RoleControllerSA]
-	nodeAgentPerms := security.RolePermissions[security.RoleNodeAgentSA]
+	controllerRoles := []string{security.RoleControllerSA}
+	nodeAgentRoles := []string{security.RoleNodeAgentSA}
 
+	// Use correct proto package names (cluster_controller, not clustercontroller).
 	publishArtifact := "/repository.PackageRepository/UploadArtifact"
-	createRelease := "/clustercontroller.ResourcesService/ApplyServiceRelease"
-	reportStatus := "/clustercontroller.ClusterControllerService/ReportNodeStatus"
+	reportStatus := "/cluster_controller.ClusterControllerService/ReportNodeStatus"
+	upsertDesired := "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 
 	// Controller SA cannot upload artifacts
-	if containsExact(controllerPerms, publishArtifact) {
+	if security.HasRolePermission(controllerRoles, publishArtifact) {
 		t.Errorf("ControllerSA should NOT have %s permission", publishArtifact)
 	}
 	t.Log("✓ ControllerSA cannot upload artifacts")
 
-	// Controller SA CAN apply service releases (it reconciles desired state)
-	// Actually, looking at the role definition, it can ApplyServiceDesiredVersion but
-	// not ApplyServiceRelease (that's the Operator's job). Let me check:
-	if containsExact(controllerPerms, createRelease) {
-		t.Logf("note: ControllerSA has ApplyServiceRelease — verify this is intentional")
+	// NodeAgent SA cannot upsert desired services (that's the controller's job)
+	if security.HasRolePermission(nodeAgentRoles, upsertDesired) {
+		t.Errorf("NodeAgentSA should NOT have %s permission", upsertDesired)
 	}
-
-	// NodeAgent SA cannot create/apply service releases
-	if containsExact(nodeAgentPerms, createRelease) {
-		t.Errorf("NodeAgentSA should NOT have %s permission", createRelease)
-	}
-	t.Log("✓ NodeAgentSA cannot create ServiceRelease")
+	t.Log("✓ NodeAgentSA cannot upsert desired services")
 
 	// NodeAgent SA CAN report node status
-	if !containsExact(nodeAgentPerms, reportStatus) {
+	if !security.HasRolePermission(nodeAgentRoles, reportStatus) {
 		t.Errorf("NodeAgentSA MUST have %s permission", reportStatus)
 	}
 	t.Log("✓ NodeAgentSA can report node status")
 
 	// Controller SA CAN also report/read node status
-	if !containsExact(controllerPerms, reportStatus) {
+	if !security.HasRolePermission(controllerRoles, reportStatus) {
 		t.Errorf("ControllerSA MUST have %s permission (reads node status)", reportStatus)
 	}
 	t.Log("✓ ControllerSA can read node status")

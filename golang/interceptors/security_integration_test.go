@@ -312,7 +312,7 @@ func TestIntegration_FullAuthPipeline(t *testing.T) {
 					Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 12345},
 				})
 			},
-			method:      "/rbac.RbacService/CreateAccount",
+			method:      "/rbac.RbacService/SetRoleBinding",
 			wantAllowed: true,
 			wantReason:  "bootstrap_allowed",
 		},
@@ -337,7 +337,7 @@ func TestIntegration_FullAuthPipeline(t *testing.T) {
 					Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345},
 				})
 			},
-			method:      "/rbac.RbacService/CreateAccount",
+			method:      "/rbac.RbacService/SetRoleBinding",
 			wantAllowed: false,
 			wantReason:  "bootstrap_remote",
 		},

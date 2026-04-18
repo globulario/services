@@ -886,11 +886,37 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			"authentication required: provide --token or configure client certificates")
 	}
 
-	// Superadmin bypass: "sa" is the built-in service account used for all
-	// inter-service communication. Without this, every service-to-service call
-	// goes through checkRoleBinding → RBAC gRPC → interceptor → checkRoleBinding,
-	// creating an infinite recursion that OOM-kills services.
+	// "sa" service-account bypass (Phase 5 migration mode).
+	//
+	// "sa" is the legacy built-in identity used by inter-service calls before
+	// explicit role bindings were introduced. We use a hybrid approach:
+	//   1. If "sa" has role bindings in the RBAC store → enforce them (normal RBAC).
+	//   2. If "sa" has NO role bindings yet → fall through with a deprecation warning.
+	//
+	// This allows existing clusters to continue operating while administrators
+	// add explicit role bindings (see globular rbac bind). Once all services
+	// have been migrated, remove this bypass.
+	//
+	// NOTE: The RBAC service is excluded from the role-binding check below
+	// (strings.HasPrefix guard), so there is no circular-call risk here.
 	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
+		if security.IsRoleBasedMethod(actionKey) {
+			// Method is explicitly role-mapped — check if "sa" has bindings.
+			if allowed, _ := checkRoleBinding("sa", actionKey, address); allowed {
+				LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
+				return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
+			}
+			// No binding found — fall back to legacy bypass with observable warning.
+			authzSuperadminBypass.Add(1)
+			slog.Warn("authz: sa superadmin bypass active — bind sa to a role to enforce RBAC",
+				"method", method,
+				"action", actionKey,
+				"hint", "globular rbac bind sa --role globular-controller-sa",
+			)
+			LogAuthzDecisionSimple(authCtx, true, "superadmin_legacy")
+			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
+		}
+		// Method not role-mapped — legacy bypass for unmapped paths.
 		authzSuperadminBypass.Add(1)
 		LogAuthzDecisionSimple(authCtx, true, "superadmin")
 		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
