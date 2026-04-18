@@ -24,26 +24,16 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
-// Default RBAC service port (matches rbac_server default).
-const defaultRbacPort = 10000
-
 // defaultResourcePort is declared in pkg_cmds.go (10011).
 
-// resolveRbacAddr discovers the RBAC service endpoint.
-// Uses the same multi-strategy discovery as resolveAuthAddr (etcd → local files → fallback).
-// In a cluster, randomly picks one of the running instances for load balancing.
+// resolveRbacAddr discovers the RBAC service endpoint from etcd or the cluster gateway.
+// Returns empty string if the service cannot be discovered.
 func resolveRbacAddr() string {
-	return config.ResolveServiceAddr(
-		"rbac.RbacService",
-		fmt.Sprintf("localhost:%d", defaultRbacPort),
-	)
+	return config.ResolveServiceAddr("rbac.RbacService", "")
 }
 
 func resolveResourceAddr() string {
-	return config.ResolveServiceAddr(
-		"resource.ResourceService",
-		fmt.Sprintf("localhost:%d", defaultResourcePort),
-	)
+	return config.ResolveServiceAddr("resource.ResourceService", "")
 }
 
 var (
@@ -67,6 +57,9 @@ var (
 			}
 
 			addr := resolveRbacAddr()
+			if addr == "" {
+				return fmt.Errorf("RBAC service not discoverable — ensure the cluster is running")
+			}
 			cc, err := dialGRPC(addr)
 			if err != nil {
 				return err
@@ -116,6 +109,9 @@ var (
 			}
 
 			addr := resolveRbacAddr()
+			if addr == "" {
+				return fmt.Errorf("RBAC service not discoverable — ensure the cluster is running")
+			}
 			cc, err := dialGRPC(addr)
 			if err != nil {
 				return err
@@ -165,6 +161,9 @@ var (
 		Short: "List role bindings (all subjects, or a specific subject with --subject)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addr := resolveRbacAddr()
+			if addr == "" {
+				return fmt.Errorf("RBAC service not discoverable — ensure the cluster is running")
+			}
 			cc, err := dialGRPC(addr)
 			if err != nil {
 				return err
@@ -234,6 +233,9 @@ Flags:
 
 			// Connect to RBAC service
 			rbacAddr := resolveRbacAddr()
+			if rbacAddr == "" {
+				return fmt.Errorf("RBAC service not discoverable — ensure the cluster is running")
+			}
 			rbacCC, err := dialGRPC(rbacAddr)
 			if err != nil {
 				return fmt.Errorf("connect to RBAC service at %s: %w", rbacAddr, err)
@@ -241,16 +243,19 @@ Flags:
 			defer rbacCC.Close()
 			rbacClient := rbacpb.NewRbacServiceClient(rbacCC)
 
-			// Connect to Resource service (for admin UI role entities)
+			// Connect to Resource service (for admin UI role entities; optional)
 			var resClient resourcepb.ResourceServiceClient
-			resAddr := resolveResourceAddr()
-			resCC, err := dialGRPC(resAddr)
-			if err != nil {
-				slog.Warn("rbac seed: cannot connect to resource service — roles will be seeded in RBAC only (not visible in admin UI)",
-					"addr", resAddr, "error", err)
+			if resAddr := resolveResourceAddr(); resAddr != "" {
+				resCC, err := dialGRPC(resAddr)
+				if err != nil {
+					slog.Warn("rbac seed: cannot connect to resource service — roles will be seeded in RBAC only (not visible in admin UI)",
+						"addr", resAddr, "error", err)
+				} else {
+					defer resCC.Close()
+					resClient = resourcepb.NewResourceServiceClient(resCC)
+				}
 			} else {
-				defer resCC.Close()
-				resClient = resourcepb.NewResourceServiceClient(resCC)
+				slog.Warn("rbac seed: resource service not discoverable — roles will be seeded in RBAC only (not visible in admin UI)")
 			}
 
 			store := &rbacClientStore{rbac: rbacClient, resource: resClient}
