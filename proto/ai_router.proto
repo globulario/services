@@ -4,6 +4,8 @@ package ai_router;
 
 option go_package = "github.com/globulario/services/golang/ai_router/ai_routerpb";
 
+import "globular_auth.proto";
+
 // AiRouterService is a control-plane routing policy engine that computes
 // dynamic endpoint weights, circuit breaker overrides, and drain strategies
 // based on real-time metrics, anomaly signals, and historical patterns.
@@ -15,19 +17,54 @@ service AiRouterService {
     // GetRoutingPolicy returns the current routing policy for all or one service.
     // Called by the xDS watcher every sync cycle (~5 seconds).
     // Returns empty/neutral policy when the router has no opinion.
-    rpc GetRoutingPolicy(GetRoutingPolicyRequest) returns (GetRoutingPolicyResponse);
+    rpc GetRoutingPolicy(GetRoutingPolicyRequest) returns (GetRoutingPolicyResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.router.read"
+            permission: "read"
+            resource_template: "/ai/router/policy"
+            default_role_hint: "viewer"
+        };
+    };
 
     // GetStatus returns operational status: mode, uptime, policies served, etc.
-    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.router.read"
+            permission: "read"
+            resource_template: "/ai/router/status"
+            default_role_hint: "viewer"
+        };
+    };
 
     // SetMode switches between neutral, observe, and active modes.
-    rpc SetMode(SetModeRequest) returns (SetModeResponse);
+    rpc SetMode(SetModeRequest) returns (SetModeResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.router.write"
+            permission: "write"
+            resource_template: "/ai/router/mode"
+            default_role_hint: "operator"
+        };
+    };
 
     // GetServiceClassifications returns the current service class map.
-    rpc GetServiceClassifications(GetServiceClassificationsRequest) returns (GetServiceClassificationsResponse);
+    rpc GetServiceClassifications(GetServiceClassificationsRequest) returns (GetServiceClassificationsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.router.read"
+            permission: "read"
+            resource_template: "/ai/router/classifications"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Stop gracefully shuts down the router.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.router.admin"
+            permission: "write"
+            resource_template: "/ai/router"
+            default_role_hint: "admin"
+        };
+    };
 }
 
 // ── Service Classification ────────────────────────────────────────────────────

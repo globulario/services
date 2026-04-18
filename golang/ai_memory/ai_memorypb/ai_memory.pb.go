@@ -7,6 +7,7 @@
 package ai_memorypb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1359,7 +1360,7 @@ var File_ai_memory_proto protoreflect.FileDescriptor
 
 const file_ai_memory_proto_rawDesc = "" +
 	"\n" +
-	"\x0fai_memory.proto\x12\tai_memory\"\xa7\x04\n" +
+	"\x0fai_memory.proto\x12\tai_memory\x1a\x13globular_auth.proto\"\xa7\x04\n" +
 	"\x06Memory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12)\n" +
@@ -1474,17 +1475,27 @@ const file_ai_memory_proto_rawDesc = "" +
 	"\tREFERENCE\x10\b\x12\v\n" +
 	"\aSCRATCH\x10\t\x12\t\n" +
 	"\x05SKILL\x10\n" +
-	"2\x91\x04\n" +
-	"\x0fAiMemoryService\x122\n" +
-	"\x05Store\x12\x14.ai_memory.StoreRqst\x1a\x13.ai_memory.StoreRsp\x122\n" +
-	"\x05Query\x12\x14.ai_memory.QueryRqst\x1a\x13.ai_memory.QueryRsp\x12,\n" +
-	"\x03Get\x12\x12.ai_memory.GetRqst\x1a\x11.ai_memory.GetRsp\x125\n" +
-	"\x06Update\x12\x15.ai_memory.UpdateRqst\x1a\x14.ai_memory.UpdateRsp\x125\n" +
-	"\x06Delete\x12\x15.ai_memory.DeleteRqst\x1a\x14.ai_memory.DeleteRsp\x12/\n" +
-	"\x04List\x12\x13.ai_memory.ListRqst\x1a\x12.ai_memory.ListRsp\x12D\n" +
-	"\vSaveSession\x12\x1a.ai_memory.SaveSessionRqst\x1a\x19.ai_memory.SaveSessionRsp\x12J\n" +
-	"\rResumeSession\x12\x1c.ai_memory.ResumeSessionRqst\x1a\x1b.ai_memory.ResumeSessionRsp\x127\n" +
-	"\x04Stop\x12\x16.ai_memory.StopRequest\x1a\x17.ai_memory.StopResponseB=Z;github.com/globulario/services/golang/ai_memory/ai_memorypbb\x06proto3"
+	"2\xa4\b\n" +
+	"\x0fAiMemoryService\x12n\n" +
+	"\x05Store\x12\x14.ai_memory.StoreRqst\x1a\x13.ai_memory.StoreRsp\":\x82\xb5\x186\n" +
+	"\x0fai.memory.write\x12\x05write\"\x12/ai/memory/entries*\boperator\x12j\n" +
+	"\x05Query\x12\x14.ai_memory.QueryRqst\x1a\x13.ai_memory.QueryRsp\"6\x82\xb5\x182\n" +
+	"\x0eai.memory.read\x12\x04read\"\x12/ai/memory/entries*\x06viewer\x12i\n" +
+	"\x03Get\x12\x12.ai_memory.GetRqst\x1a\x11.ai_memory.GetRsp\";\x82\xb5\x187\n" +
+	"\x0eai.memory.read\x12\x04read\x1a\x17/ai/memory/entries/{id}*\x06viewer\x12v\n" +
+	"\x06Update\x12\x15.ai_memory.UpdateRqst\x1a\x14.ai_memory.UpdateRsp\"?\x82\xb5\x18;\n" +
+	"\x0fai.memory.write\x12\x05write\x1a\x17/ai/memory/entries/{id}*\boperator\x12u\n" +
+	"\x06Delete\x12\x15.ai_memory.DeleteRqst\x1a\x14.ai_memory.DeleteRsp\">\x82\xb5\x18:\n" +
+	"\x10ai.memory.delete\x12\x06delete\x1a\x17/ai/memory/entries/{id}*\x05admin\x12g\n" +
+	"\x04List\x12\x13.ai_memory.ListRqst\x1a\x12.ai_memory.ListRsp\"6\x82\xb5\x182\n" +
+	"\x0eai.memory.read\x12\x04read\"\x12/ai/memory/entries*\x06viewer\x12\x81\x01\n" +
+	"\vSaveSession\x12\x1a.ai_memory.SaveSessionRqst\x1a\x19.ai_memory.SaveSessionRsp\";\x82\xb5\x187\n" +
+	"\x0fai.memory.write\x12\x05write\"\x13/ai/memory/sessions*\boperator\x12\x83\x01\n" +
+	"\rResumeSession\x12\x1c.ai_memory.ResumeSessionRqst\x1a\x1b.ai_memory.ResumeSessionRsp\"7\x82\xb5\x183\n" +
+	"\x0eai.memory.read\x12\x04read\"\x13/ai/memory/sessions*\x06viewer\x12h\n" +
+	"\x04Stop\x12\x16.ai_memory.StopRequest\x1a\x17.ai_memory.StopResponse\"/\x82\xb5\x18+\n" +
+	"\x0fai.memory.admin\x12\x05write\x1a\n" +
+	"/ai/memory*\x05adminB=Z;github.com/globulario/services/golang/ai_memory/ai_memorypbb\x06proto3"
 
 var (
 	file_ai_memory_proto_rawDescOnce sync.Once

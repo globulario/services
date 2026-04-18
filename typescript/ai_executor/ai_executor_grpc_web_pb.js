@@ -19,6 +19,7 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
 const proto = {};
 proto.ai_executor = require('./ai_executor_pb.js');
 

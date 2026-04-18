@@ -7,6 +7,7 @@
 package ai_routerpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1054,7 +1055,7 @@ var File_ai_router_proto protoreflect.FileDescriptor
 
 const file_ai_router_proto_rawDesc = "" +
 	"\n" +
-	"\x0fai_router.proto\x12\tai_router\"\x9b\x02\n" +
+	"\x0fai_router.proto\x12\tai_router\x1a\x13globular_auth.proto\"\x9b\x02\n" +
 	"\rRoutingPolicy\x12B\n" +
 	"\bservices\x18\x01 \x03(\v2&.ai_router.RoutingPolicy.ServicesEntryR\bservices\x12\x1e\n" +
 	"\n" +
@@ -1141,13 +1142,19 @@ const file_ai_router_proto_rawDesc = "" +
 	"RouterMode\x12\x12\n" +
 	"\x0eROUTER_NEUTRAL\x10\x00\x12\x12\n" +
 	"\x0eROUTER_OBSERVE\x10\x01\x12\x11\n" +
-	"\rROUTER_ACTIVE\x10\x022\xa9\x03\n" +
-	"\x0fAiRouterService\x12[\n" +
-	"\x10GetRoutingPolicy\x12\".ai_router.GetRoutingPolicyRequest\x1a#.ai_router.GetRoutingPolicyResponse\x12F\n" +
-	"\tGetStatus\x12\x1b.ai_router.GetStatusRequest\x1a\x1c.ai_router.GetStatusResponse\x12@\n" +
-	"\aSetMode\x12\x19.ai_router.SetModeRequest\x1a\x1a.ai_router.SetModeResponse\x12v\n" +
-	"\x19GetServiceClassifications\x12+.ai_router.GetServiceClassificationsRequest\x1a,.ai_router.GetServiceClassificationsResponse\x127\n" +
-	"\x04Stop\x12\x16.ai_router.StopRequest\x1a\x17.ai_router.StopResponseB=Z;github.com/globulario/services/golang/ai_router/ai_routerpbb\x06proto3"
+	"\rROUTER_ACTIVE\x10\x022\xc3\x05\n" +
+	"\x0fAiRouterService\x12\x92\x01\n" +
+	"\x10GetRoutingPolicy\x12\".ai_router.GetRoutingPolicyRequest\x1a#.ai_router.GetRoutingPolicyResponse\"5\x82\xb5\x181\n" +
+	"\x0eai.router.read\x12\x04read\x1a\x11/ai/router/policy*\x06viewer\x12}\n" +
+	"\tGetStatus\x12\x1b.ai_router.GetStatusRequest\x1a\x1c.ai_router.GetStatusResponse\"5\x82\xb5\x181\n" +
+	"\x0eai.router.read\x12\x04read\x1a\x11/ai/router/status*\x06viewer\x12y\n" +
+	"\aSetMode\x12\x19.ai_router.SetModeRequest\x1a\x1a.ai_router.SetModeResponse\"7\x82\xb5\x183\n" +
+	"\x0fai.router.write\x12\x05write\x1a\x0f/ai/router/mode*\boperator\x12\xb6\x01\n" +
+	"\x19GetServiceClassifications\x12+.ai_router.GetServiceClassificationsRequest\x1a,.ai_router.GetServiceClassificationsResponse\">\x82\xb5\x18:\n" +
+	"\x0eai.router.read\x12\x04read\x1a\x1a/ai/router/classifications*\x06viewer\x12h\n" +
+	"\x04Stop\x12\x16.ai_router.StopRequest\x1a\x17.ai_router.StopResponse\"/\x82\xb5\x18+\n" +
+	"\x0fai.router.admin\x12\x05write\x1a\n" +
+	"/ai/router*\x05adminB=Z;github.com/globulario/services/golang/ai_router/ai_routerpbb\x06proto3"
 
 var (
 	file_ai_router_proto_rawDescOnce sync.Once

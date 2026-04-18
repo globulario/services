@@ -4,6 +4,8 @@ package ai_executor;
 
 option go_package = "github.com/globulario/services/golang/ai_executor/ai_executorpb";
 
+import "globular_auth.proto";
+
 // AiExecutorService receives incidents from the ai_watcher, diagnoses them
 // by gathering context from cluster services, and executes remediation
 // actions according to the permission tier.
@@ -15,69 +17,195 @@ service AiExecutorService {
     // Tier 1 (OBSERVE):          diagnose → record findings in ai_memory
     // Tier 2 (AUTO_REMEDIATE):   diagnose → execute pre-approved action
     // Tier 3 (REQUIRE_APPROVAL): diagnose → propose action → wait for approval
-    rpc ProcessIncident(ProcessIncidentRequest) returns (ProcessIncidentResponse);
+    rpc ProcessIncident(ProcessIncidentRequest) returns (ProcessIncidentResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "write"
+            collection_template: "/ai/executor/incidents"
+            default_role_hint: "operator"
+        };
+    };
 
     // GetDiagnosis returns the diagnosis for an incident.
-    rpc GetDiagnosis(GetDiagnosisRequest) returns (GetDiagnosisResponse);
+    rpc GetDiagnosis(GetDiagnosisRequest) returns (GetDiagnosisResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            resource_template: "/ai/executor/incidents/{incident_id}/diagnosis"
+            default_role_hint: "viewer"
+        };
+    };
 
     // GetStatus returns operational status.
-    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            resource_template: "/ai/executor/status"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ListActions returns recent remediation actions taken.
-    rpc ListActions(ListActionsRequest) returns (ListActionsResponse);
+    rpc ListActions(ListActionsRequest) returns (ListActionsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            collection_template: "/ai/executor/actions"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ApproveAction approves a Tier 3 pending action and triggers execution.
-    rpc ApproveAction(ApproveActionRequest) returns (ApproveActionResponse);
+    rpc ApproveAction(ApproveActionRequest) returns (ApproveActionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute.admin"
+            permission: "write"
+            resource_template: "/ai/executor/jobs/{incident_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // DenyAction denies a Tier 3 pending action.
-    rpc DenyAction(DenyActionRequest) returns (DenyActionResponse);
+    rpc DenyAction(DenyActionRequest) returns (DenyActionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute.admin"
+            permission: "write"
+            resource_template: "/ai/executor/jobs/{incident_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // RetryAction retries a failed action.
-    rpc RetryAction(RetryActionRequest) returns (RetryActionResponse);
+    rpc RetryAction(RetryActionRequest) returns (RetryActionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute.admin"
+            permission: "write"
+            resource_template: "/ai/executor/jobs/{incident_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // GetJob returns a durable job record by incident ID.
-    rpc GetJob(GetJobRequest) returns (GetJobResponse);
+    rpc GetJob(GetJobRequest) returns (GetJobResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            resource_template: "/ai/executor/jobs/{incident_id}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ListJobs returns jobs filtered by state.
-    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            collection_template: "/ai/executor/jobs"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Stop gracefully shuts down the executor.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute.admin"
+            permission: "write"
+            resource_template: "/ai/executor"
+            default_role_hint: "admin"
+        };
+    };
 
     // ── Conversational AI ─────────────────────────────────────────────────────
     // Direct conversation with the cluster's AI. History persisted in ScyllaDB.
 
     // SendPrompt sends a user message and streams the AI response.
     // Supports multi-turn via conversation_id. Can route to a specific node.
-    rpc SendPrompt(SendPromptRequest) returns (stream SendPromptResponse);
+    rpc SendPrompt(SendPromptRequest) returns (stream SendPromptResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.tools.invoke"
+            permission: "write"
+            collection_template: "/ai/executor/conversations"
+            default_role_hint: "operator"
+        };
+    };
 
     // GetConversation retrieves message history for a conversation.
-    rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+    rpc GetConversation(GetConversationRequest) returns (GetConversationResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            resource_template: "/ai/executor/conversations/{conversation_id}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ListConversations lists a user's conversations.
-    rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+    rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            collection_template: "/ai/executor/conversations"
+            default_role_hint: "viewer"
+        };
+    };
 
     // DeleteConversation removes a conversation and its messages.
-    rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+    rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute.admin"
+            permission: "delete"
+            resource_template: "/ai/executor/conversations/{conversation_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // ── Peer Collaboration ───────────────────────────────────────────────────
     // Multi-node AI consensus: executors on different nodes communicate to
     // share observations, confirm diagnoses, and coordinate actions.
 
     // Ping checks if a peer executor is alive and returns its capabilities.
-    rpc Ping(PeerPingRequest) returns (PeerPingResponse);
+    rpc Ping(PeerPingRequest) returns (PeerPingResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.execute"
+            permission: "read"
+            resource_template: "/ai/executor/peers"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ShareObservation sends a local observation to a peer for confirmation.
     // The peer checks its own local state and returns whether it sees the same thing.
-    rpc ShareObservation(PeerObservationRequest) returns (PeerObservationResponse);
+    rpc ShareObservation(PeerObservationRequest) returns (PeerObservationResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.tools.invoke"
+            permission: "write"
+            collection_template: "/ai/executor/peers/observations"
+            default_role_hint: "operator"
+        };
+    };
 
     // ProposeAction asks peers to vote on a proposed remediation action.
     // Used for Tier 1+ actions that need consensus before execution.
-    rpc ProposeAction(PeerProposalRequest) returns (PeerProposalResponse);
+    rpc ProposeAction(PeerProposalRequest) returns (PeerProposalResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.tools.invoke"
+            permission: "write"
+            collection_template: "/ai/executor/peers/proposals"
+            default_role_hint: "operator"
+        };
+    };
 
     // NotifyActionTaken informs peers that an action was executed,
     // so they can update their local state and avoid duplicate actions.
-    rpc NotifyActionTaken(PeerActionNotification) returns (PeerActionAck);
+    rpc NotifyActionTaken(PeerActionNotification) returns (PeerActionAck) {
+        option (globular.auth.authz) = {
+            action: "ai.tools.invoke"
+            permission: "write"
+            collection_template: "/ai/executor/peers/notifications"
+            default_role_hint: "operator"
+        };
+    };
 }
 
 // ── Diagnosis ─────────────────────────────────────────────────────────────────

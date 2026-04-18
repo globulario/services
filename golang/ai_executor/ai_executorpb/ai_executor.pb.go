@@ -7,6 +7,7 @@
 package ai_executorpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -3054,7 +3055,7 @@ var File_ai_executor_proto protoreflect.FileDescriptor
 
 const file_ai_executor_proto_rawDesc = "" +
 	"\n" +
-	"\x11ai_executor.proto\x12\vai_executor\"\xaf\x02\n" +
+	"\x11ai_executor.proto\x12\vai_executor\x1a\x13globular_auth.proto\"\xaf\x02\n" +
 	"\tDiagnosis\x12\x1f\n" +
 	"\vincident_id\x18\x01 \x01(\tR\n" +
 	"incidentId\x12\x18\n" +
@@ -3333,28 +3334,55 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\x15CONV_STATUS_STREAMING\x10\x03\x12\x18\n" +
 	"\x14CONV_STATUS_COMPLETE\x10\x04\x12\x15\n" +
 	"\x11CONV_STATUS_ERROR\x10\x05\x12!\n" +
-	"\x1dCONV_STATUS_WAITING_FOR_HUMAN\x10\x062\xf0\v\n" +
-	"\x11AiExecutorService\x12\\\n" +
-	"\x0fProcessIncident\x12#.ai_executor.ProcessIncidentRequest\x1a$.ai_executor.ProcessIncidentResponse\x12S\n" +
-	"\fGetDiagnosis\x12 .ai_executor.GetDiagnosisRequest\x1a!.ai_executor.GetDiagnosisResponse\x12J\n" +
-	"\tGetStatus\x12\x1d.ai_executor.GetStatusRequest\x1a\x1e.ai_executor.GetStatusResponse\x12P\n" +
-	"\vListActions\x12\x1f.ai_executor.ListActionsRequest\x1a .ai_executor.ListActionsResponse\x12V\n" +
-	"\rApproveAction\x12!.ai_executor.ApproveActionRequest\x1a\".ai_executor.ApproveActionResponse\x12M\n" +
+	"\x1dCONV_STATUS_WAITING_FOR_HUMAN\x10\x062\xa1\x15\n" +
+	"\x11AiExecutorService\x12\x97\x01\n" +
+	"\x0fProcessIncident\x12#.ai_executor.ProcessIncidentRequest\x1a$.ai_executor.ProcessIncidentResponse\"9\x82\xb5\x185\n" +
 	"\n" +
-	"DenyAction\x12\x1e.ai_executor.DenyActionRequest\x1a\x1f.ai_executor.DenyActionResponse\x12P\n" +
-	"\vRetryAction\x12\x1f.ai_executor.RetryActionRequest\x1a .ai_executor.RetryActionResponse\x12A\n" +
-	"\x06GetJob\x12\x1a.ai_executor.GetJobRequest\x1a\x1b.ai_executor.GetJobResponse\x12G\n" +
-	"\bListJobs\x12\x1c.ai_executor.ListJobsRequest\x1a\x1d.ai_executor.ListJobsResponse\x12;\n" +
-	"\x04Stop\x12\x18.ai_executor.StopRequest\x1a\x19.ai_executor.StopResponse\x12O\n" +
+	"ai.execute\x12\x05write\"\x16/ai/executor/incidents*\boperator\x12\xa3\x01\n" +
+	"\fGetDiagnosis\x12 .ai_executor.GetDiagnosisRequest\x1a!.ai_executor.GetDiagnosisResponse\"N\x82\xb5\x18J\n" +
 	"\n" +
-	"SendPrompt\x12\x1e.ai_executor.SendPromptRequest\x1a\x1f.ai_executor.SendPromptResponse0\x01\x12\\\n" +
-	"\x0fGetConversation\x12#.ai_executor.GetConversationRequest\x1a$.ai_executor.GetConversationResponse\x12b\n" +
-	"\x11ListConversations\x12%.ai_executor.ListConversationsRequest\x1a&.ai_executor.ListConversationsResponse\x12e\n" +
-	"\x12DeleteConversation\x12&.ai_executor.DeleteConversationRequest\x1a'.ai_executor.DeleteConversationResponse\x12C\n" +
-	"\x04Ping\x12\x1c.ai_executor.PeerPingRequest\x1a\x1d.ai_executor.PeerPingResponse\x12]\n" +
-	"\x10ShareObservation\x12#.ai_executor.PeerObservationRequest\x1a$.ai_executor.PeerObservationResponse\x12T\n" +
-	"\rProposeAction\x12 .ai_executor.PeerProposalRequest\x1a!.ai_executor.PeerProposalResponse\x12T\n" +
-	"\x11NotifyActionTaken\x12#.ai_executor.PeerActionNotification\x1a\x1a.ai_executor.PeerActionAckBAZ?github.com/globulario/services/golang/ai_executor/ai_executorpbb\x06proto3"
+	"ai.execute\x12\x04read\x1a./ai/executor/incidents/{incident_id}/diagnosis*\x06viewer\x12\x7f\n" +
+	"\tGetStatus\x12\x1d.ai_executor.GetStatusRequest\x1a\x1e.ai_executor.GetStatusResponse\"3\x82\xb5\x18/\n" +
+	"\n" +
+	"ai.execute\x12\x04read\x1a\x13/ai/executor/status*\x06viewer\x12\x86\x01\n" +
+	"\vListActions\x12\x1f.ai_executor.ListActionsRequest\x1a .ai_executor.ListActionsResponse\"4\x82\xb5\x180\n" +
+	"\n" +
+	"ai.execute\x12\x04read\"\x14/ai/executor/actions*\x06viewer\x12\x9d\x01\n" +
+	"\rApproveAction\x12!.ai_executor.ApproveActionRequest\x1a\".ai_executor.ApproveActionResponse\"E\x82\xb5\x18A\n" +
+	"\x10ai.execute.admin\x12\x05write\x1a\x1f/ai/executor/jobs/{incident_id}*\x05admin\x12\x94\x01\n" +
+	"\n" +
+	"DenyAction\x12\x1e.ai_executor.DenyActionRequest\x1a\x1f.ai_executor.DenyActionResponse\"E\x82\xb5\x18A\n" +
+	"\x10ai.execute.admin\x12\x05write\x1a\x1f/ai/executor/jobs/{incident_id}*\x05admin\x12\x97\x01\n" +
+	"\vRetryAction\x12\x1f.ai_executor.RetryActionRequest\x1a .ai_executor.RetryActionResponse\"E\x82\xb5\x18A\n" +
+	"\x10ai.execute.admin\x12\x05write\x1a\x1f/ai/executor/jobs/{incident_id}*\x05admin\x12\x82\x01\n" +
+	"\x06GetJob\x12\x1a.ai_executor.GetJobRequest\x1a\x1b.ai_executor.GetJobResponse\"?\x82\xb5\x18;\n" +
+	"\n" +
+	"ai.execute\x12\x04read\x1a\x1f/ai/executor/jobs/{incident_id}*\x06viewer\x12z\n" +
+	"\bListJobs\x12\x1c.ai_executor.ListJobsRequest\x1a\x1d.ai_executor.ListJobsResponse\"1\x82\xb5\x18-\n" +
+	"\n" +
+	"ai.execute\x12\x04read\"\x11/ai/executor/jobs*\x06viewer\x12o\n" +
+	"\x04Stop\x12\x18.ai_executor.StopRequest\x1a\x19.ai_executor.StopResponse\"2\x82\xb5\x18.\n" +
+	"\x10ai.execute.admin\x12\x05write\x1a\f/ai/executor*\x05admin\x12\x93\x01\n" +
+	"\n" +
+	"SendPrompt\x12\x1e.ai_executor.SendPromptRequest\x1a\x1f.ai_executor.SendPromptResponse\"B\x82\xb5\x18>\n" +
+	"\x0fai.tools.invoke\x12\x05write\"\x1a/ai/executor/conversations*\boperator0\x01\x12\xaa\x01\n" +
+	"\x0fGetConversation\x12#.ai_executor.GetConversationRequest\x1a$.ai_executor.GetConversationResponse\"L\x82\xb5\x18H\n" +
+	"\n" +
+	"ai.execute\x12\x04read\x1a,/ai/executor/conversations/{conversation_id}*\x06viewer\x12\x9e\x01\n" +
+	"\x11ListConversations\x12%.ai_executor.ListConversationsRequest\x1a&.ai_executor.ListConversationsResponse\":\x82\xb5\x186\n" +
+	"\n" +
+	"ai.execute\x12\x04read\"\x1a/ai/executor/conversations*\x06viewer\x12\xba\x01\n" +
+	"\x12DeleteConversation\x12&.ai_executor.DeleteConversationRequest\x1a'.ai_executor.DeleteConversationResponse\"S\x82\xb5\x18O\n" +
+	"\x10ai.execute.admin\x12\x06delete\x1a,/ai/executor/conversations/{conversation_id}*\x05admin\x12w\n" +
+	"\x04Ping\x12\x1c.ai_executor.PeerPingRequest\x1a\x1d.ai_executor.PeerPingResponse\"2\x82\xb5\x18.\n" +
+	"\n" +
+	"ai.execute\x12\x04read\x1a\x12/ai/executor/peers*\x06viewer\x12\xa6\x01\n" +
+	"\x10ShareObservation\x12#.ai_executor.PeerObservationRequest\x1a$.ai_executor.PeerObservationResponse\"G\x82\xb5\x18C\n" +
+	"\x0fai.tools.invoke\x12\x05write\"\x1f/ai/executor/peers/observations*\boperator\x12\x9a\x01\n" +
+	"\rProposeAction\x12 .ai_executor.PeerProposalRequest\x1a!.ai_executor.PeerProposalResponse\"D\x82\xb5\x18@\n" +
+	"\x0fai.tools.invoke\x12\x05write\"\x1c/ai/executor/peers/proposals*\boperator\x12\x9e\x01\n" +
+	"\x11NotifyActionTaken\x12#.ai_executor.PeerActionNotification\x1a\x1a.ai_executor.PeerActionAck\"H\x82\xb5\x18D\n" +
+	"\x0fai.tools.invoke\x12\x05write\" /ai/executor/peers/notifications*\boperatorBAZ?github.com/globulario/services/golang/ai_executor/ai_executorpbb\x06proto3"
 
 var (
 	file_ai_executor_proto_rawDescOnce sync.Once

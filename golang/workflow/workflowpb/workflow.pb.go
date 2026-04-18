@@ -7,6 +7,7 @@
 package workflowpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -6469,7 +6470,7 @@ var File_workflow_proto protoreflect.FileDescriptor
 
 const file_workflow_proto_rawDesc = "" +
 	"\n" +
-	"\x0eworkflow.proto\x12\bworkflow\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xa3\x03\n" +
+	"\x0eworkflow.proto\x12\bworkflow\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\xa3\x03\n" +
 	"\x0fWorkflowContext\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x17\n" +
@@ -7157,48 +7158,85 @@ const file_workflow_proto_rawDesc = "" +
 	"\x13FIX_STATUS_APPROVED\x10\x02\x12\x16\n" +
 	"\x12FIX_STATUS_APPLIED\x10\x03\x12\x17\n" +
 	"\x13FIX_STATUS_REJECTED\x10\x04\x12\x15\n" +
-	"\x11FIX_STATUS_FAILED\x10\x052\xc7\x16\n" +
-	"\x0fWorkflowService\x12<\n" +
-	"\bStartRun\x12\x19.workflow.StartRunRequest\x1a\x15.workflow.WorkflowRun\x12?\n" +
-	"\tUpdateRun\x12\x1a.workflow.UpdateRunRequest\x1a\x16.google.protobuf.Empty\x12?\n" +
-	"\tFinishRun\x12\x1a.workflow.FinishRunRequest\x1a\x16.google.protobuf.Empty\x12A\n" +
+	"\x11FIX_STATUS_FAILED\x10\x052\xce(\n" +
+	"\x0fWorkflowService\x12p\n" +
+	"\bStartRun\x12\x19.workflow.StartRunRequest\x1a\x15.workflow.WorkflowRun\"2\x82\xb5\x18.\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x0e/workflow/runs*\x05admin\x12x\n" +
+	"\tUpdateRun\x12\x1a.workflow.UpdateRunRequest\x1a\x16.google.protobuf.Empty\"7\x82\xb5\x183\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a\x13/workflow/runs/{id}*\x05admin\x12x\n" +
+	"\tFinishRun\x12\x1a.workflow.FinishRunRequest\x1a\x16.google.protobuf.Empty\"7\x82\xb5\x183\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a\x13/workflow/runs/{id}*\x05admin\x12\x84\x01\n" +
 	"\n" +
-	"RecordStep\x12\x1b.workflow.RecordStepRequest\x1a\x16.workflow.WorkflowStep\x12A\n" +
+	"RecordStep\x12\x1b.workflow.RecordStepRequest\x1a\x16.workflow.WorkflowStep\"A\x82\xb5\x18=\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a\x1d/workflow/runs/{run_id}/steps*\x05admin\x12\x8a\x01\n" +
 	"\n" +
-	"UpdateStep\x12\x1b.workflow.UpdateStepRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
-	"\bFailStep\x12\x19.workflow.FailStepRequest\x1a\x16.google.protobuf.Empty\x12I\n" +
-	"\x0eAddArtifactRef\x12\x1f.workflow.AddArtifactRefRequest\x1a\x16.google.protobuf.Empty\x12C\n" +
-	"\vAppendEvent\x12\x1c.workflow.AppendEventRequest\x1a\x16.google.protobuf.Empty\x12>\n" +
-	"\x06GetRun\x12\x17.workflow.GetRunRequest\x1a\x1b.workflow.WorkflowRunDetail\x12A\n" +
-	"\bListRuns\x12\x19.workflow.ListRunsRequest\x1a\x1a.workflow.ListRunsResponse\x12M\n" +
-	"\fGetRunEvents\x12\x1d.workflow.GetRunEventsRequest\x1a\x1e.workflow.GetRunEventsResponse\x12[\n" +
-	"\x15GetCurrentRunsForNode\x12&.workflow.GetCurrentRunsForNodeRequest\x1a\x1a.workflow.ListRunsResponse\x12W\n" +
-	"\x13GetComponentHistory\x12$.workflow.GetComponentHistoryRequest\x1a\x1a.workflow.ListRunsResponse\x12N\n" +
-	"\x10GetWorkflowGraph\x12!.workflow.GetWorkflowGraphRequest\x1a\x17.workflow.WorkflowGraph\x12H\n" +
-	"\bWatchRun\x12\x19.workflow.WatchRunRequest\x1a\x1f.workflow.WorkflowEventEnvelope0\x01\x12R\n" +
-	"\rWatchNodeRuns\x12\x1e.workflow.WatchNodeRunsRequest\x1a\x1f.workflow.WorkflowEventEnvelope0\x01\x12<\n" +
-	"\bRetryRun\x12\x19.workflow.RetryRunRequest\x1a\x15.workflow.WorkflowRun\x12?\n" +
-	"\tCancelRun\x12\x1a.workflow.CancelRunRequest\x1a\x16.google.protobuf.Empty\x12I\n" +
-	"\x0eAcknowledgeRun\x12\x1f.workflow.AcknowledgeRunRequest\x1a\x16.google.protobuf.Empty\x12J\n" +
-	"\vDiagnoseRun\x12\x1c.workflow.DiagnoseRunRequest\x1a\x1d.workflow.DiagnoseRunResponse\x12n\n" +
-	"\x17ListWorkflowDefinitions\x12(.workflow.ListWorkflowDefinitionsRequest\x1a).workflow.ListWorkflowDefinitionsResponse\x12h\n" +
-	"\x15GetWorkflowDefinition\x12&.workflow.GetWorkflowDefinitionRequest\x1a'.workflow.GetWorkflowDefinitionResponse\x12G\n" +
-	"\rRecordOutcome\x12\x1e.workflow.RecordOutcomeRequest\x1a\x16.google.protobuf.Empty\x12h\n" +
-	"\x15ListWorkflowSummaries\x12&.workflow.ListWorkflowSummariesRequest\x1a'.workflow.ListWorkflowSummariesResponse\x12O\n" +
-	"\x11RecordStepOutcome\x12\".workflow.RecordStepOutcomeRequest\x1a\x16.google.protobuf.Empty\x12Y\n" +
-	"\x10ListStepOutcomes\x12!.workflow.ListStepOutcomesRequest\x1a\".workflow.ListStepOutcomesResponse\x12W\n" +
-	"\x15RecordPhaseTransition\x12&.workflow.RecordPhaseTransitionRequest\x1a\x16.google.protobuf.Empty\x12e\n" +
-	"\x14ListPhaseTransitions\x12%.workflow.ListPhaseTransitionsRequest\x1a&.workflow.ListPhaseTransitionsResponse\x12Y\n" +
-	"\x16RecordDriftObservation\x12'.workflow.RecordDriftObservationRequest\x1a\x16.google.protobuf.Empty\x12W\n" +
-	"\x15ClearDriftObservation\x12&.workflow.ClearDriftObservationRequest\x1a\x16.google.protobuf.Empty\x12b\n" +
-	"\x13ListDriftUnresolved\x12$.workflow.ListDriftUnresolvedRequest\x1a%.workflow.ListDriftUnresolvedResponse\x12P\n" +
-	"\rListIncidents\x12\x1e.workflow.ListIncidentsRequest\x1a\x1f.workflow.ListIncidentsResponse\x12?\n" +
-	"\vGetIncident\x12\x1c.workflow.GetIncidentRequest\x1a\x12.workflow.Incident\x12G\n" +
-	"\x13ApplyIncidentAction\x12\x18.workflow.IncidentAction\x1a\x16.google.protobuf.Empty\x12N\n" +
-	"\x11SubmitProposedFix\x12\".workflow.SubmitProposedFixRequest\x1a\x15.workflow.ProposedFix\x12V\n" +
-	"\x0fExecuteWorkflow\x12 .workflow.ExecuteWorkflowRequest\x1a!.workflow.ExecuteWorkflowResponse2h\n" +
-	"\x14WorkflowActorService\x12P\n" +
-	"\rExecuteAction\x12\x1e.workflow.ExecuteActionRequest\x1a\x1f.workflow.ExecuteActionResponseB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
+	"UpdateStep\x12\x1b.workflow.UpdateStepRequest\x1a\x16.google.protobuf.Empty\"G\x82\xb5\x18C\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a#/workflow/runs/{run_id}/steps/{seq}*\x05admin\x12\x86\x01\n" +
+	"\bFailStep\x12\x19.workflow.FailStepRequest\x1a\x16.google.protobuf.Empty\"G\x82\xb5\x18C\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a#/workflow/runs/{run_id}/steps/{seq}*\x05admin\x12\x90\x01\n" +
+	"\x0eAddArtifactRef\x12\x1f.workflow.AddArtifactRefRequest\x1a\x16.google.protobuf.Empty\"E\x82\xb5\x18A\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a!/workflow/runs/{run_id}/artifacts*\x05admin\x12\x87\x01\n" +
+	"\vAppendEvent\x12\x1c.workflow.AppendEventRequest\x1a\x16.google.protobuf.Empty\"B\x82\xb5\x18>\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a\x1e/workflow/runs/{run_id}/events*\x05admin\x12v\n" +
+	"\x06GetRun\x12\x17.workflow.GetRunRequest\x1a\x1b.workflow.WorkflowRunDetail\"6\x82\xb5\x182\n" +
+	"\rworkflow.read\x12\x04read\x1a\x13/workflow/runs/{id}*\x06viewer\x12t\n" +
+	"\bListRuns\x12\x19.workflow.ListRunsRequest\x1a\x1a.workflow.ListRunsResponse\"1\x82\xb5\x18-\n" +
+	"\rworkflow.list\x12\x04read\"\x0e/workflow/runs*\x06viewer\x12\x90\x01\n" +
+	"\fGetRunEvents\x12\x1d.workflow.GetRunEventsRequest\x1a\x1e.workflow.GetRunEventsResponse\"A\x82\xb5\x18=\n" +
+	"\rworkflow.read\x12\x04read\x1a\x1e/workflow/runs/{run_id}/events*\x06viewer\x12\x9e\x01\n" +
+	"\x15GetCurrentRunsForNode\x12&.workflow.GetCurrentRunsForNodeRequest\x1a\x1a.workflow.ListRunsResponse\"A\x82\xb5\x18=\n" +
+	"\rworkflow.read\x12\x04read\x1a\x1e/workflow/nodes/{node_id}/runs*\x06viewer\x12\xa9\x01\n" +
+	"\x13GetComponentHistory\x12$.workflow.GetComponentHistoryRequest\x1a\x1a.workflow.ListRunsResponse\"P\x82\xb5\x18L\n" +
+	"\rworkflow.read\x12\x04read\x1a-/workflow/components/{component_name}/history*\x06viewer\x12\x90\x01\n" +
+	"\x10GetWorkflowGraph\x12!.workflow.GetWorkflowGraphRequest\x1a\x17.workflow.WorkflowGraph\"@\x82\xb5\x18<\n" +
+	"\rworkflow.read\x12\x04read\x1a\x1d/workflow/runs/{run_id}/graph*\x06viewer\x12\x84\x01\n" +
+	"\bWatchRun\x12\x19.workflow.WatchRunRequest\x1a\x1f.workflow.WorkflowEventEnvelope\":\x82\xb5\x186\n" +
+	"\rworkflow.read\x12\x04read\x1a\x17/workflow/runs/{run_id}*\x06viewer0\x01\x12\x95\x01\n" +
+	"\rWatchNodeRuns\x12\x1e.workflow.WatchNodeRunsRequest\x1a\x1f.workflow.WorkflowEventEnvelope\"A\x82\xb5\x18=\n" +
+	"\rworkflow.read\x12\x04read\x1a\x1e/workflow/nodes/{node_id}/runs*\x06viewer0\x01\x12|\n" +
+	"\bRetryRun\x12\x19.workflow.RetryRunRequest\x1a\x15.workflow.WorkflowRun\">\x82\xb5\x18:\n" +
+	"\x0eworkflow.retry\x12\x05write\x1a\x17/workflow/runs/{run_id}*\boperator\x12\x80\x01\n" +
+	"\tCancelRun\x12\x1a.workflow.CancelRunRequest\x1a\x16.google.protobuf.Empty\"?\x82\xb5\x18;\n" +
+	"\x0fworkflow.cancel\x12\x05write\x1a\x17/workflow/runs/{run_id}*\boperator\x12\x8a\x01\n" +
+	"\x0eAcknowledgeRun\x12\x1f.workflow.AcknowledgeRunRequest\x1a\x16.google.protobuf.Empty\"?\x82\xb5\x18;\n" +
+	"\x0fworkflow.resume\x12\x05write\x1a\x17/workflow/runs/{run_id}*\boperator\x12\x91\x01\n" +
+	"\vDiagnoseRun\x12\x1c.workflow.DiagnoseRunRequest\x1a\x1d.workflow.DiagnoseRunResponse\"E\x82\xb5\x18A\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a!/workflow/runs/{run_id}/diagnosis*\x05admin\x12\xa8\x01\n" +
+	"\x17ListWorkflowDefinitions\x12(.workflow.ListWorkflowDefinitionsRequest\x1a).workflow.ListWorkflowDefinitionsResponse\"8\x82\xb5\x184\n" +
+	"\rworkflow.list\x12\x04read\"\x15/workflow/definitions*\x06viewer\x12\xa9\x01\n" +
+	"\x15GetWorkflowDefinition\x12&.workflow.GetWorkflowDefinitionRequest\x1a'.workflow.GetWorkflowDefinitionResponse\"?\x82\xb5\x18;\n" +
+	"\rworkflow.read\x12\x04read\x1a\x1c/workflow/definitions/{name}*\x06viewer\x12\x80\x01\n" +
+	"\rRecordOutcome\x12\x1e.workflow.RecordOutcomeRequest\x1a\x16.google.protobuf.Empty\"7\x82\xb5\x183\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x13/workflow/summaries*\x05admin\x12\xa0\x01\n" +
+	"\x15ListWorkflowSummaries\x12&.workflow.ListWorkflowSummariesRequest\x1a'.workflow.ListWorkflowSummariesResponse\"6\x82\xb5\x182\n" +
+	"\rworkflow.list\x12\x04read\"\x13/workflow/summaries*\x06viewer\x12\x8c\x01\n" +
+	"\x11RecordStepOutcome\x12\".workflow.RecordStepOutcomeRequest\x1a\x16.google.protobuf.Empty\";\x82\xb5\x187\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x17/workflow/step-outcomes*\x05admin\x12\x95\x01\n" +
+	"\x10ListStepOutcomes\x12!.workflow.ListStepOutcomesRequest\x1a\".workflow.ListStepOutcomesResponse\":\x82\xb5\x186\n" +
+	"\rworkflow.read\x12\x04read\"\x17/workflow/step-outcomes*\x06viewer\x12\x98\x01\n" +
+	"\x15RecordPhaseTransition\x12&.workflow.RecordPhaseTransitionRequest\x1a\x16.google.protobuf.Empty\"?\x82\xb5\x18;\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x1b/workflow/phase-transitions*\x05admin\x12\xa5\x01\n" +
+	"\x14ListPhaseTransitions\x12%.workflow.ListPhaseTransitionsRequest\x1a&.workflow.ListPhaseTransitionsResponse\">\x82\xb5\x18:\n" +
+	"\rworkflow.read\x12\x04read\"\x1b/workflow/phase-transitions*\x06viewer\x12\x8e\x01\n" +
+	"\x16RecordDriftObservation\x12'.workflow.RecordDriftObservationRequest\x1a\x16.google.protobuf.Empty\"3\x82\xb5\x18/\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x0f/workflow/drift*\x05admin\x12\x8c\x01\n" +
+	"\x15ClearDriftObservation\x12&.workflow.ClearDriftObservationRequest\x1a\x16.google.protobuf.Empty\"3\x82\xb5\x18/\n" +
+	"\x0eworkflow.admin\x12\x05write\"\x0f/workflow/drift*\x05admin\x12\x96\x01\n" +
+	"\x13ListDriftUnresolved\x12$.workflow.ListDriftUnresolvedRequest\x1a%.workflow.ListDriftUnresolvedResponse\"2\x82\xb5\x18.\n" +
+	"\rworkflow.read\x12\x04read\"\x0f/workflow/drift*\x06viewer\x12\x88\x01\n" +
+	"\rListIncidents\x12\x1e.workflow.ListIncidentsRequest\x1a\x1f.workflow.ListIncidentsResponse\"6\x82\xb5\x182\n" +
+	"\rworkflow.list\x12\x04read\"\x13/workflow/incidents*\x06viewer\x12\x85\x01\n" +
+	"\vGetIncident\x12\x1c.workflow.GetIncidentRequest\x1a\x12.workflow.Incident\"D\x82\xb5\x18@\n" +
+	"\rworkflow.read\x12\x04read\x1a!/workflow/incidents/{incident_id}*\x06viewer\x12\x8e\x01\n" +
+	"\x13ApplyIncidentAction\x12\x18.workflow.IncidentAction\x1a\x16.google.protobuf.Empty\"E\x82\xb5\x18A\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a!/workflow/incidents/{incident_id}*\x05admin\x12\x9b\x01\n" +
+	"\x11SubmitProposedFix\x12\".workflow.SubmitProposedFixRequest\x1a\x15.workflow.ProposedFix\"K\x82\xb5\x18G\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a'/workflow/incidents/{incident_id}/fixes*\x05admin\x12\x96\x01\n" +
+	"\x0fExecuteWorkflow\x12 .workflow.ExecuteWorkflowRequest\x1a!.workflow.ExecuteWorkflowResponse\">\x82\xb5\x18:\n" +
+	"\x11workflow.dispatch\x12\x05write\"\x14/workflow/executions*\boperator2\xae\x01\n" +
+	"\x14WorkflowActorService\x12\x95\x01\n" +
+	"\rExecuteAction\x12\x1e.workflow.ExecuteActionRequest\x1a\x1f.workflow.ExecuteActionResponse\"C\x82\xb5\x18?\n" +
+	"\x0eworkflow.admin\x12\x05write\x1a\x1f/workflow/actor/{actor}/actions*\x05adminB;Z9github.com/globulario/services/golang/workflow/workflowpbb\x06proto3"
 
 var (
 	file_workflow_proto_rawDescOnce sync.Once

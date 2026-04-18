@@ -5,6 +5,7 @@ option go_package = "github.com/globulario/services/golang/workflow/workflowpb";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
+import "globular_auth.proto";
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -809,60 +810,312 @@ message SubmitProposedFixRequest {
 
 service WorkflowService {
   // Write path — internal producers (controller, node-agent, installer)
-  rpc StartRun(StartRunRequest)             returns (WorkflowRun);
-  rpc UpdateRun(UpdateRunRequest)           returns (google.protobuf.Empty);
-  rpc FinishRun(FinishRunRequest)           returns (google.protobuf.Empty);
-  rpc RecordStep(RecordStepRequest)         returns (WorkflowStep);
-  rpc UpdateStep(UpdateStepRequest)         returns (google.protobuf.Empty);
-  rpc FailStep(FailStepRequest)             returns (google.protobuf.Empty);
-  rpc AddArtifactRef(AddArtifactRefRequest) returns (google.protobuf.Empty);
-  rpc AppendEvent(AppendEventRequest)       returns (google.protobuf.Empty);
+  rpc StartRun(StartRunRequest) returns (WorkflowRun) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/runs"
+      default_role_hint: "admin"
+    };
+  };
+  rpc UpdateRun(UpdateRunRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc FinishRun(FinishRunRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RecordStep(RecordStepRequest) returns (WorkflowStep) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/steps"
+      default_role_hint: "admin"
+    };
+  };
+  rpc UpdateStep(UpdateStepRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/steps/{seq}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc FailStep(FailStepRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/steps/{seq}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc AddArtifactRef(AddArtifactRefRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/artifacts"
+      default_role_hint: "admin"
+    };
+  };
+  rpc AppendEvent(AppendEventRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/events"
+      default_role_hint: "admin"
+    };
+  };
 
   // Read path — admin UI and AI
-  rpc GetRun(GetRunRequest)                                   returns (WorkflowRunDetail);
-  rpc ListRuns(ListRunsRequest)                               returns (ListRunsResponse);
-  rpc GetRunEvents(GetRunEventsRequest)                       returns (GetRunEventsResponse);
-  rpc GetCurrentRunsForNode(GetCurrentRunsForNodeRequest)     returns (ListRunsResponse);
-  rpc GetComponentHistory(GetComponentHistoryRequest)         returns (ListRunsResponse);
-  rpc GetWorkflowGraph(GetWorkflowGraphRequest)               returns (WorkflowGraph);
+  rpc GetRun(GetRunRequest) returns (WorkflowRunDetail) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/runs/{id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.list"
+      permission: "read"
+      collection_template: "/workflow/runs"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetRunEvents(GetRunEventsRequest) returns (GetRunEventsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/runs/{run_id}/events"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetCurrentRunsForNode(GetCurrentRunsForNodeRequest) returns (ListRunsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/nodes/{node_id}/runs"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetComponentHistory(GetComponentHistoryRequest) returns (ListRunsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/components/{component_name}/history"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetWorkflowGraph(GetWorkflowGraphRequest) returns (WorkflowGraph) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/runs/{run_id}/graph"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Streaming — live workflow monitor
-  rpc WatchRun(WatchRunRequest)             returns (stream WorkflowEventEnvelope);
-  rpc WatchNodeRuns(WatchNodeRunsRequest)   returns (stream WorkflowEventEnvelope);
+  rpc WatchRun(WatchRunRequest) returns (stream WorkflowEventEnvelope) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/runs/{run_id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc WatchNodeRuns(WatchNodeRunsRequest) returns (stream WorkflowEventEnvelope) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/nodes/{node_id}/runs"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Actions — operator controls
-  rpc RetryRun(RetryRunRequest)             returns (WorkflowRun);
-  rpc CancelRun(CancelRunRequest)           returns (google.protobuf.Empty);
-  rpc AcknowledgeRun(AcknowledgeRunRequest) returns (google.protobuf.Empty);
-  rpc DiagnoseRun(DiagnoseRunRequest)       returns (DiagnoseRunResponse);
+  rpc RetryRun(RetryRunRequest) returns (WorkflowRun) {
+    option (globular.auth.authz) = {
+      action: "workflow.retry"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}"
+      default_role_hint: "operator"
+    };
+  };
+  rpc CancelRun(CancelRunRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.cancel"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}"
+      default_role_hint: "operator"
+    };
+  };
+  rpc AcknowledgeRun(AcknowledgeRunRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.resume"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}"
+      default_role_hint: "operator"
+    };
+  };
+  rpc DiagnoseRun(DiagnoseRunRequest) returns (DiagnoseRunResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/runs/{run_id}/diagnosis"
+      default_role_hint: "admin"
+    };
+  };
 
   // Definitions — workflow YAML definitions stored in MinIO (single source of truth)
-  rpc ListWorkflowDefinitions(ListWorkflowDefinitionsRequest) returns (ListWorkflowDefinitionsResponse);
-  rpc GetWorkflowDefinition(GetWorkflowDefinitionRequest)     returns (GetWorkflowDefinitionResponse);
+  rpc ListWorkflowDefinitions(ListWorkflowDefinitionsRequest) returns (ListWorkflowDefinitionsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.list"
+      permission: "read"
+      collection_template: "/workflow/definitions"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetWorkflowDefinition(GetWorkflowDefinitionRequest) returns (GetWorkflowDefinitionResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/definitions/{name}"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Summaries — bounded per-workflow-name aggregates (dashboard view)
-  rpc RecordOutcome(RecordOutcomeRequest)                       returns (google.protobuf.Empty);
-  rpc ListWorkflowSummaries(ListWorkflowSummariesRequest)       returns (ListWorkflowSummariesResponse);
+  rpc RecordOutcome(RecordOutcomeRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/summaries"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ListWorkflowSummaries(ListWorkflowSummariesRequest) returns (ListWorkflowSummariesResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.list"
+      permission: "read"
+      collection_template: "/workflow/summaries"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Convergence telemetry — AI-facing diagnostic signals
-  rpc RecordStepOutcome(RecordStepOutcomeRequest)               returns (google.protobuf.Empty);
-  rpc ListStepOutcomes(ListStepOutcomesRequest)                 returns (ListStepOutcomesResponse);
-  rpc RecordPhaseTransition(RecordPhaseTransitionRequest)       returns (google.protobuf.Empty);
-  rpc ListPhaseTransitions(ListPhaseTransitionsRequest)         returns (ListPhaseTransitionsResponse);
-  rpc RecordDriftObservation(RecordDriftObservationRequest)     returns (google.protobuf.Empty);
-  rpc ClearDriftObservation(ClearDriftObservationRequest)       returns (google.protobuf.Empty);
-  rpc ListDriftUnresolved(ListDriftUnresolvedRequest)           returns (ListDriftUnresolvedResponse);
+  rpc RecordStepOutcome(RecordStepOutcomeRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/step-outcomes"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ListStepOutcomes(ListStepOutcomesRequest) returns (ListStepOutcomesResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      collection_template: "/workflow/step-outcomes"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc RecordPhaseTransition(RecordPhaseTransitionRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/phase-transitions"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ListPhaseTransitions(ListPhaseTransitionsRequest) returns (ListPhaseTransitionsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      collection_template: "/workflow/phase-transitions"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc RecordDriftObservation(RecordDriftObservationRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/drift"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ClearDriftObservation(ClearDriftObservationRequest) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      collection_template: "/workflow/drift"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ListDriftUnresolved(ListDriftUnresolvedRequest) returns (ListDriftUnresolvedResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      collection_template: "/workflow/drift"
+      default_role_hint: "viewer"
+    };
+  };
 
   // Incidents — operator surface (see docs/incidents-design.md)
-  rpc ListIncidents(ListIncidentsRequest)           returns (ListIncidentsResponse);
-  rpc GetIncident(GetIncidentRequest)               returns (Incident);
-  rpc ApplyIncidentAction(IncidentAction)           returns (google.protobuf.Empty);
-  rpc SubmitProposedFix(SubmitProposedFixRequest)   returns (ProposedFix);
+  rpc ListIncidents(ListIncidentsRequest) returns (ListIncidentsResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.list"
+      permission: "read"
+      collection_template: "/workflow/incidents"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc GetIncident(GetIncidentRequest) returns (Incident) {
+    option (globular.auth.authz) = {
+      action: "workflow.read"
+      permission: "read"
+      resource_template: "/workflow/incidents/{incident_id}"
+      default_role_hint: "viewer"
+    };
+  };
+  rpc ApplyIncidentAction(IncidentAction) returns (google.protobuf.Empty) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/incidents/{incident_id}"
+      default_role_hint: "admin"
+    };
+  };
+  rpc SubmitProposedFix(SubmitProposedFixRequest) returns (ProposedFix) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/incidents/{incident_id}/fixes"
+      default_role_hint: "admin"
+    };
+  };
 
   // Centralized execution — WorkflowService drives the engine and dispatches
   // steps to actor services via WorkflowActorService.ExecuteAction callbacks.
   // See docs/centralized-workflow-execution.md.
-  rpc ExecuteWorkflow(ExecuteWorkflowRequest)       returns (ExecuteWorkflowResponse);
+  rpc ExecuteWorkflow(ExecuteWorkflowRequest) returns (ExecuteWorkflowResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.dispatch"
+      permission: "write"
+      collection_template: "/workflow/executions"
+      default_role_hint: "operator"
+    };
+  };
 }
 
 // ─── Workflow Definition messages ─────────────────────────────────────────
@@ -921,7 +1174,14 @@ message ExecuteWorkflowResponse {
 // Each actor resolves the action name against its local handler registry.
 // Unknown actions MUST return an error, never a silent no-op.
 service WorkflowActorService {
-  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse) {
+    option (globular.auth.authz) = {
+      action: "workflow.admin"
+      permission: "write"
+      resource_template: "/workflow/actor/{actor}/actions"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ExecuteActionRequest is the callback payload sent from WorkflowService

@@ -85,16 +85,25 @@ Backups run as jobs with lifecycle tracking:
 
 ```bash
 # List recent jobs
-globular backup list-jobs
+globular backup jobs list
 # Output:
-# JOB ID      MODE     STATUS      STARTED             DURATION
-# bk-job-001  cluster  SUCCEEDED   2025-04-12 03:00    4m 22s
-# bk-job-002  cluster  SUCCEEDED   2025-04-11 03:00    4m 18s
-# bk-job-003  service  FAILED      2025-04-10 14:00    1m 02s
+# JOB ID      TYPE     STATUS      STARTED             DURATION  BACKUP ID
+# bk-job-001  backup   SUCCEEDED   2025-04-12 03:00    4m 22s    bk-abc123
+# bk-job-002  backup   SUCCEEDED   2025-04-11 03:00    4m 18s    bk-def456
+# bk-job-003  backup   FAILED      2025-04-10 14:00    1m 02s
+
+# Filter by state
+globular backup jobs list --state failed
 
 # Job details
-globular backup get-job bk-job-001
+globular backup jobs get --job-id bk-job-001
 # Shows: per-provider status, timing, bytes written, artifacts produced
+
+# Cancel a running job
+globular backup jobs cancel --job-id bk-job-001
+
+# Delete a completed job record
+globular backup jobs delete --job-id bk-job-001
 ```
 
 Job states: QUEUED → RUNNING → SUCCEEDED / FAILED
@@ -107,10 +116,8 @@ Backups can be scheduled for automatic execution:
 
 ```bash
 # View schedule
-globular backup schedule-status
-# Shows: next fire time, interval, last execution
-
-# Schedule status shows the configured backup interval and destination
+globular backup schedule status
+# Shows: next fire time, interval, enabled status
 ```
 
 ## Managing Backups
@@ -130,14 +137,12 @@ globular backup list
 ### Backup Details
 
 ```bash
-globular backup get bk-001
+globular backup get --backup-id bk-001
 # Shows:
-# - Timestamp, duration
+# - Timestamp, size
 # - Provider results (etcd: snapshot_id, restic: snapshot_id, minio: files synced)
-# - Checksums and byte counts
-# - Destination(s) and replication status
-# - Quality state
-# - Hook results (which services were quiesced)
+# - Destination(s) and cluster context
+# - Quality state and labels
 ```
 
 ### Validating Backups
@@ -146,10 +151,10 @@ Verify backup integrity:
 
 ```bash
 # Shallow validation (checksums, metadata)
-globular backup validate bk-001
+globular backup validate --backup-id bk-001
 
 # Deep validation (decompress, verify all providers)
-globular backup validate bk-001 --deep
+globular backup validate --backup-id bk-001 --deep
 ```
 
 ### Quality States
@@ -168,13 +173,23 @@ UNVERIFIED → VALIDATED → RESTORE_TESTED → PROMOTED
 Promote a backup to protect it from automatic deletion:
 
 ```bash
-globular backup promote bk-001
+globular backup promote --backup-id bk-001
 ```
 
 Demote to remove protection:
 
 ```bash
-globular backup demote bk-001
+globular backup demote --backup-id bk-001
+```
+
+Run a restore test to advance quality state:
+
+```bash
+# Light: metadata checks only (fast)
+globular backup test --backup-id bk-001
+
+# Heavy: actual sandbox restore (promotes to RESTORE_TESTED on success)
+globular backup test --backup-id bk-001 --level heavy
 ```
 
 ### Retention Policy
@@ -182,13 +197,18 @@ globular backup demote bk-001
 Automatic cleanup prevents unbounded backup growth:
 
 ```bash
-# View retention status
-globular backup retention-status
+# View retention status and current policy
+globular backup retention status
 # Shows:
 # - Policy: keep_last_n=30, keep_days=90, max_total_bytes=100GB
 # - Current: 28 backups, 56 GB
-# - Protected: 3 backups (RESTORE_TESTED or PROMOTED)
-# - Min restore-tested to keep: 2
+# - Oldest/newest timestamps
+
+# Preview what would be deleted
+globular backup retention run --dry-run
+
+# Run retention (delete expired backups)
+globular backup retention run
 ```
 
 Retention rules:
@@ -197,7 +217,7 @@ Retention rules:
 - `MaxTotalBytes`: Maximum total storage (oldest deleted first)
 - `MinRestoreTestedToKeep`: Minimum number of restore-tested backups to preserve
 
-Retention runs automatically after each backup job. It evaluates rules in order and performs a dry-run before deleting.
+Retention runs automatically after each backup job. PROMOTED backups are never deleted by retention.
 
 ## Restore Operations
 
@@ -206,31 +226,34 @@ Retention runs automatically after each backup job. It evaluates rules in order 
 Before restoring, preview what will happen:
 
 ```bash
-globular backup restore-plan bk-001
+globular backup restore --backup-id bk-001 --dry-run
 # Output:
-# RESTORE PLAN for bk-001:
+# Restore plan for backup bk-001:
 #
-# Provider    Action                          Target
-# etcd        Restore snapshot to data-dir    /var/lib/etcd/
-# restic      Restore files from snapshot     /etc/globular/, /var/lib/globular/
-# minio       Sync objects from backup        MinIO buckets
-# scylla      Restore from snapshot tag       ScyllaDB keyspaces
+#   1. Stop affected services
+#   2. Restore etcd snapshot to /var/lib/etcd/
+#   3. Restore restic files to /etc/globular/, /var/lib/globular/
+#   4. Sync MinIO objects from backup
+#   5. Restore ScyllaDB from snapshot tag
 #
-# WARNING: etcd restore will REPLACE current cluster state
-# WARNING: Services will be stopped during restore
+# Warnings:
+#   [WARN] etcd-replace: etcd restore will REPLACE current cluster state
 ```
 
 ### Running a Restore
 
 ```bash
-# Full restore
-globular backup restore bk-001
+# Full restore (all providers)
+globular backup restore --backup-id bk-001
 
-# Restore specific provider only
-globular backup restore bk-001 --provider etcd
+# Restore etcd only
+globular backup restore --backup-id bk-001 --etcd
+
+# Restore etcd and config only
+globular backup restore --backup-id bk-001 --etcd --config
 
 # Force restore (bypass safety checks)
-globular backup restore bk-001 --force
+globular backup restore --backup-id bk-001 --force
 ```
 
 What happens during restore:
@@ -265,8 +288,11 @@ This enables restoring individual node state without affecting the rest of the c
 For complete disaster recovery (cluster wiped, starting from scratch), Globular supports a recovery seed:
 
 ```bash
+# Check disaster recovery readiness
+globular backup recovery status
+
 # Save recovery configuration
-globular backup apply-recovery-seed
+globular backup recovery seed
 ```
 
 The recovery seed persists backup destination configuration and credentials to:
@@ -294,13 +320,15 @@ If the entire cluster is lost:
 Verify backup tool availability before relying on backups:
 
 ```bash
-globular backup preflight-check
+globular backup preflight
 # Output:
-# TOOL          STATUS    VERSION     PATH
-# etcdctl       OK        3.5.14      /usr/local/bin/etcdctl
-# restic        OK        0.16.4      /usr/local/bin/restic
-# rclone        OK        1.66.0      /usr/local/bin/rclone
-# sctool        OK        3.3.0       /usr/bin/sctool
+# TOOL                         STATUS  VERSION                        PATH
+# etcdctl                      OK      etcdctl version: 3.5.14        /usr/local/bin/etcdctl
+# restic                       OK      restic 0.18.1                  /usr/local/bin/restic
+# rclone                       OK      rclone v1.73.1                 /usr/local/bin/rclone
+# sctool                       OK      Client version: 3.8.1          /usr/lib/globular/bin/sctool
+# scylla_cluster_detected      OK      globular.internal
+# recovery_destination_configured  OK
 ```
 
 If any tool is missing, the corresponding provider will not function. Install missing tools before relying on that provider.
@@ -313,20 +341,23 @@ Configure automatic daily cluster backups:
 
 ```bash
 # Verify tools are available
-globular backup preflight-check
+globular backup preflight
 
 # Run a test backup
-globular backup create --mode cluster
+globular backup create --mode cluster --wait
 
 # Verify it succeeded
 globular backup list
-globular backup validate <backup-id>
+globular backup validate --backup-id <backup-id>
+
+# Run a restore test to advance quality state
+globular backup test --backup-id <backup-id> --level heavy
 
 # Configure destination (if not already set)
 # Backup configuration is managed through etcd
 
 # Save recovery seed for disaster recovery
-globular backup apply-recovery-seed
+globular backup recovery seed
 ```
 
 ### Scenario 2: Restoring After etcd Corruption
@@ -343,7 +374,7 @@ globular cluster nodes remove <node-2-id>
 # Re-join node-2 and let it sync
 
 # Option 2: Restore etcd from backup on the affected node
-globular backup restore <latest-backup-id> --provider etcd
+globular backup restore --backup-id <latest-backup-id> --etcd
 
 # Verify
 globular cluster health
@@ -365,7 +396,7 @@ sudo systemctl start globular-node-agent
 globular backup list
 
 # 5. Restore from the latest validated backup
-globular backup restore <latest-validated-backup>
+globular backup restore --backup-id <latest-validated-backup>
 
 # 6. Bootstrap the cluster
 globular cluster bootstrap --node localhost:11000 --domain mycluster.local --profile core --profile gateway

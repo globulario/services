@@ -1043,5 +1043,66 @@ proto.repository.PackageRepositoryPromiseClient.prototype.resolveByEntrypointChe
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ArchiveUnreachableArtifactsRequest,
+ *   !proto.repository.ArchiveUnreachableArtifactsResponse>}
+ */
+const methodDescriptor_PackageRepository_ArchiveUnreachableArtifacts = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ArchiveUnreachableArtifacts',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ArchiveUnreachableArtifactsRequest,
+  proto.repository.ArchiveUnreachableArtifactsResponse,
+  /**
+   * @param {!proto.repository.ArchiveUnreachableArtifactsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ArchiveUnreachableArtifactsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ArchiveUnreachableArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ArchiveUnreachableArtifactsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ArchiveUnreachableArtifactsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.archiveUnreachableArtifacts =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ArchiveUnreachableArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ArchiveUnreachableArtifacts,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ArchiveUnreachableArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ArchiveUnreachableArtifactsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.archiveUnreachableArtifacts =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ArchiveUnreachableArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ArchiveUnreachableArtifacts);
+};
+
+
 module.exports = proto.repository;
 

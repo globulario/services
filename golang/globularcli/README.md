@@ -1858,7 +1858,41 @@ globular release rollback gateway --to 1.9.4
 
 ### Backup Management
 
-Manage cluster backups — create snapshots, list existing backups, and restore from a previous backup. These commands communicate with the `backup_manager` gRPC service (default port **10040**), which is auto-discovered via etcd.
+Manage cluster backups — create snapshots, list existing backups, restore from a previous backup, and manage the full backup lifecycle. These commands communicate with the `backup_manager` gRPC service (default port **10040**), which is auto-discovered via etcd.
+
+**Command tree:**
+```
+globular backup
+├── create          Trigger a backup job
+├── list            List completed backups
+├── get             Show details for a specific backup
+├── delete          Delete a backup artifact
+├── validate        Validate backup integrity
+├── promote         Promote a backup to PROMOTED quality state
+├── demote          Demote a backup from PROMOTED quality state
+├── test            Run a restore test against a backup
+├── preflight       Check all required backup tools are installed
+├── restore         Restore from a backup (two-phase)
+├── jobs
+│   ├── list        List backup jobs
+│   ├── get         Show details for a specific job
+│   ├── cancel      Cancel a running job
+│   └── delete      Delete a job record
+├── retention
+│   ├── status      Show retention policy and current counts
+│   └── run         Run the retention policy (delete expired backups)
+├── schedule
+│   └── status      Show configured backup schedule and next fire time
+├── recovery
+│   ├── status      Show disaster recovery readiness
+│   └── seed        Apply a recovery seed for disaster recovery
+├── scylla
+│   └── test        Test the ScyllaDB / scylla-manager connection stack
+└── minio
+    ├── list        List MinIO buckets
+    ├── create      Create a MinIO bucket
+    └── delete      Delete a MinIO bucket
+```
 
 #### `globular backup create`
 
@@ -1930,6 +1964,100 @@ globular backup list --plan nightly
 
 **Table output columns**: Backup ID, Created, Mode, Providers (with FAIL markers), Size, Quality.
 
+#### `globular backup get`
+
+Show full details for a specific backup artifact including provider results, cluster context, labels, and size.
+
+```bash
+globular backup get --backup-id bk-abc123
+globular backup get --backup-id bk-abc123 -o json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (required) | Backup ID to retrieve |
+
+#### `globular backup delete`
+
+Delete a backup artifact record. Optionally also removes provider-level data (restic snapshots, scylla snapshots).
+
+```bash
+globular backup delete --backup-id bk-abc123
+globular backup delete --backup-id bk-abc123 --delete-artifacts
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (required) | Backup ID to delete |
+| `--delete-artifacts` | `false` | Also delete provider-level artifacts |
+
+#### `globular backup validate`
+
+Verify backup integrity. Shallow mode checks checksums and metadata; deep mode decompresses and verifies all providers.
+
+```bash
+# Shallow validation (fast)
+globular backup validate --backup-id bk-abc123
+
+# Deep validation (thorough)
+globular backup validate --backup-id bk-abc123 --deep
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (required) | Backup ID to validate |
+| `--deep` | `false` | Deep validation (decompress and verify all providers) |
+
+#### `globular backup promote` / `globular backup demote`
+
+Promote a backup to **PROMOTED** quality state to protect it from automatic retention cleanup. Demote to remove the protection.
+
+```bash
+globular backup promote --backup-id bk-abc123
+globular backup demote --backup-id bk-abc123
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (required) | Backup ID to promote/demote |
+
+Quality state progression: `UNVERIFIED → VALIDATED → RESTORE_TESTED → PROMOTED`
+
+#### `globular backup test`
+
+Run a restore test to verify a backup can actually be restored. **LIGHT** checks metadata only (fast). **HEAVY** performs an actual sandbox restore (thorough, promotes to `RESTORE_TESTED` on success).
+
+```bash
+# Light metadata check against latest unverified backup
+globular backup test
+
+# Heavy sandbox restore of a specific backup
+globular backup test --backup-id bk-abc123 --level heavy
+
+# Custom sandbox directory
+globular backup test --backup-id bk-abc123 --level heavy --target /tmp/restore-sandbox
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backup-id` | (latest unverified) | Backup ID to test |
+| `--level` | `light` | Test level: `light` or `heavy` |
+| `--target` | (auto) | Sandbox directory for heavy restore |
+
+Returns a job ID immediately; track with `globular backup jobs get`.
+
+#### `globular backup preflight`
+
+Check that all required backup provider tools are installed and reachable.
+
+```bash
+globular backup preflight
+globular backup preflight -o json
+```
+
+**Output columns**: Tool name, Status (OK/MISSING), Version, Path.
+Exits non-zero if any required tool is missing.
+
 #### `globular backup restore`
 
 Restore from a backup artifact. Uses a two-phase flow: first generates a **restore plan** (read-only preview of steps), then executes the restore using the server-issued confirmation token.
@@ -1968,7 +2096,181 @@ globular backup restore --backup-id abc123 --force
 1. Calls `RestorePlan` RPC — displays numbered steps and any warnings
 2. If `--dry-run`, stops here
 3. Calls `RestoreBackup` RPC with the confirmation token from step 1
-4. Prints the restore job ID (track progress with `globular backup list` or the admin UI)
+4. Prints the restore job ID (track with `globular backup jobs get <job-id>`)
+
+#### `globular backup jobs list`
+
+List backup jobs (backups, restores, retention runs).
+
+```bash
+globular backup jobs list
+globular backup jobs list --state failed
+globular backup jobs list --state running --limit 5
+globular backup jobs list -o json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `20` | Maximum number of jobs to return |
+| `--offset` | `0` | Offset for pagination |
+| `--state` | (all) | Filter by state: `queued`, `running`, `succeeded`, `failed`, `canceled` |
+| `--plan` | (none) | Filter by plan name |
+
+**Table output columns**: Job ID, Type (backup/restore/retention), Status, Started, Duration, Backup ID.
+
+#### `globular backup jobs get`
+
+Show full details for a specific job including per-provider results.
+
+```bash
+globular backup jobs get --job-id bk-job-001
+globular backup jobs get --job-id bk-job-001 -o json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--job-id` | (required) | Job ID to retrieve |
+
+#### `globular backup jobs cancel`
+
+Cancel a running or queued backup job.
+
+```bash
+globular backup jobs cancel --job-id bk-job-001
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--job-id` | (required) | Job ID to cancel |
+
+#### `globular backup jobs delete`
+
+Delete a job record. Optionally also deletes the backup artifact the job produced.
+
+```bash
+globular backup jobs delete --job-id bk-job-001
+globular backup jobs delete --job-id bk-job-001 --delete-artifacts
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--job-id` | (required) | Job ID to delete |
+| `--delete-artifacts` | `false` | Also delete the backup artifact created by this job |
+
+#### `globular backup retention status`
+
+Show the configured retention policy and current backup counts.
+
+```bash
+globular backup retention status
+globular backup retention status -o json
+```
+
+**Output**: current backup count, total size, oldest/newest timestamps, and policy settings (keep_last_n, keep_days, max_total_bytes, min_restore_tested_keep).
+
+#### `globular backup retention run`
+
+Run the retention policy immediately, deleting backups that exceed the configured rules. Protected (PROMOTED) backups are never deleted.
+
+```bash
+# Dry-run: see what would be deleted
+globular backup retention run --dry-run
+
+# Actually delete expired backups
+globular backup retention run
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dry-run` | `false` | Preview deletions without executing |
+
+#### `globular backup schedule status`
+
+Show the configured automatic backup schedule.
+
+```bash
+globular backup schedule status
+globular backup schedule status -o json
+```
+
+**Output**: enabled status, interval string (e.g. `daily`, `6h`), and next fire time.
+
+#### `globular backup recovery status`
+
+Show disaster recovery readiness: whether a recovery seed is present, destination is configured, credentials are available, and seed matches current config.
+
+```bash
+globular backup recovery status
+globular backup recovery status -o json
+```
+
+#### `globular backup recovery seed`
+
+Persist the current backup destination configuration to `/var/lib/globular/backups/settings.json` as a recovery seed. This file survives a cluster wipe and is used for Day-0 disaster recovery.
+
+```bash
+globular backup recovery seed
+globular backup recovery seed --force
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--force` | `false` | Apply even if current config has non-local destinations |
+
+#### `globular backup scylla test`
+
+Run a diagnostic connection test against the full ScyllaDB / scylla-manager / agent / storage stack. Each check is reported individually with a suggested fix if it fails.
+
+```bash
+globular backup scylla test
+globular backup scylla test --cluster globular.internal --location s3:globular-backups
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cluster` | (config default) | ScyllaDB cluster name |
+| `--location` | (config default) | S3 location to test (e.g. `s3:globular-backups`) |
+
+**Checks performed**: sctool available → scylla-manager reachable → cluster registered → agent reachable → storage location accessible.
+
+#### `globular backup minio list`
+
+List all MinIO buckets with size and object counts.
+
+```bash
+globular backup minio list
+globular backup minio list -o json
+```
+
+#### `globular backup minio create`
+
+Create a MinIO bucket, optionally registering it as the backup destination or ScyllaDB backup location.
+
+```bash
+globular backup minio create --name my-backups
+globular backup minio create --name my-backups --set-backup-destination
+globular backup minio create --name scylla-backups --set-scylla-location
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--name` | (required) | Bucket name |
+| `--set-backup-destination` | `false` | Auto-register as a backup destination |
+| `--set-scylla-location` | `false` | Also set as the ScyllaDB backup location (`s3:<name>`) |
+
+#### `globular backup minio delete`
+
+Delete a MinIO bucket.
+
+```bash
+globular backup minio delete --name old-backups
+globular backup minio delete --name old-backups --force
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--name` | (required) | Bucket name to delete |
+| `--force` | `false` | Delete even if the bucket contains objects |
 
 ---
 

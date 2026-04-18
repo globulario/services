@@ -37,7 +37,7 @@ const (
 	PackageRepository_ImportProvisionalArtifact_FullMethodName   = "/repository.PackageRepository/ImportProvisionalArtifact"
 	PackageRepository_AllocateUpload_FullMethodName              = "/repository.PackageRepository/AllocateUpload"
 	PackageRepository_ResolveArtifact_FullMethodName             = "/repository.PackageRepository/ResolveArtifact"
-	PackageRepository_ResolveByEntrypointChecksum_FullMethodName  = "/repository.PackageRepository/ResolveByEntrypointChecksum"
+	PackageRepository_ResolveByEntrypointChecksum_FullMethodName = "/repository.PackageRepository/ResolveByEntrypointChecksum"
 	PackageRepository_ArchiveUnreachableArtifacts_FullMethodName = "/repository.PackageRepository/ArchiveUnreachableArtifacts"
 )
 
@@ -106,7 +106,10 @@ type PackageRepositoryClient interface {
 	// Returns the matching manifest or NOT_FOUND if no published artifact
 	// has this entrypoint checksum.
 	ResolveByEntrypointChecksum(ctx context.Context, in *ResolveByEntrypointChecksumRequest, opts ...grpc.CallOption) (*ResolveByEntrypointChecksumResponse, error)
-	// GC: archives all artifacts outside the retention window that are not actively deployed.
+	// ArchiveUnreachableArtifacts runs the repository GC: every artifact that is
+	// outside the retention window AND not actively deployed (build_id not in
+	// installed state) is moved to ARCHIVED state.  dry_run=true previews without
+	// writing.  Returns a per-artifact report.
 	ArchiveUnreachableArtifacts(ctx context.Context, in *ArchiveUnreachableArtifactsRequest, opts ...grpc.CallOption) (*ArchiveUnreachableArtifactsResponse, error)
 }
 
@@ -410,8 +413,10 @@ type PackageRepositoryServer interface {
 	// Returns the matching manifest or NOT_FOUND if no published artifact
 	// has this entrypoint checksum.
 	ResolveByEntrypointChecksum(context.Context, *ResolveByEntrypointChecksumRequest) (*ResolveByEntrypointChecksumResponse, error)
-	// GC: archives all artifacts that are outside the retention window and not
-	// actively deployed on any cluster node. dry_run=true previews without writing.
+	// ArchiveUnreachableArtifacts runs the repository GC: every artifact that is
+	// outside the retention window AND not actively deployed (build_id not in
+	// installed state) is moved to ARCHIVED state.  dry_run=true previews without
+	// writing.  Returns a per-artifact report.
 	ArchiveUnreachableArtifacts(context.Context, *ArchiveUnreachableArtifactsRequest) (*ArchiveUnreachableArtifactsResponse, error)
 }
 

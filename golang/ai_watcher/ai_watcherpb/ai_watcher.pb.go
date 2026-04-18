@@ -7,6 +7,7 @@
 package ai_watcherpb
 
 import (
+	_ "github.com/globulario/services/golang/authpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1649,7 +1650,7 @@ var File_ai_watcher_proto protoreflect.FileDescriptor
 const file_ai_watcher_proto_rawDesc = "" +
 	"\n" +
 	"\x10ai_watcher.proto\x12\n" +
-	"ai_watcher\"\xd7\x02\n" +
+	"ai_watcher\x1a\x13globular_auth.proto\"\xd7\x02\n" +
 	"\tEventRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\revent_pattern\x18\x02 \x01(\tR\feventPattern\x12 \n" +
@@ -1769,20 +1770,31 @@ const file_ai_watcher_proto_rawDesc = "" +
 	"\x14INCIDENT_REMEDIATING\x10\x03\x12\x15\n" +
 	"\x11INCIDENT_RESOLVED\x10\x04\x12\x13\n" +
 	"\x0fINCIDENT_FAILED\x10\x05\x12\x14\n" +
-	"\x10INCIDENT_IGNORED\x10\x062\x88\x06\n" +
-	"\x10AiWatcherService\x12@\n" +
-	"\tGetConfig\x12\x19.ai_watcher.GetConfigRqst\x1a\x18.ai_watcher.GetConfigRsp\x12@\n" +
-	"\tSetConfig\x12\x19.ai_watcher.SetConfigRqst\x1a\x18.ai_watcher.SetConfigRsp\x12@\n" +
-	"\tGetStatus\x12\x19.ai_watcher.GetStatusRqst\x1a\x18.ai_watcher.GetStatusRsp\x124\n" +
-	"\x05Pause\x12\x15.ai_watcher.PauseRqst\x1a\x14.ai_watcher.PauseRsp\x127\n" +
-	"\x06Resume\x12\x16.ai_watcher.ResumeRqst\x1a\x15.ai_watcher.ResumeRsp\x12I\n" +
-	"\fGetIncidents\x12\x1c.ai_watcher.GetIncidentsRqst\x1a\x1b.ai_watcher.GetIncidentsRsp\x12F\n" +
-	"\vGetIncident\x12\x1b.ai_watcher.GetIncidentRqst\x1a\x1a.ai_watcher.GetIncidentRsp\x12L\n" +
-	"\rApproveAction\x12\x1d.ai_watcher.ApproveActionRqst\x1a\x1c.ai_watcher.ApproveActionRsp\x12C\n" +
+	"\x10INCIDENT_IGNORED\x10\x062\x90\v\n" +
+	"\x10AiWatcherService\x12w\n" +
+	"\tGetConfig\x12\x19.ai_watcher.GetConfigRqst\x1a\x18.ai_watcher.GetConfigRsp\"5\x82\xb5\x181\n" +
+	"\rai.watch.read\x12\x04read\x1a\x12/ai/watcher/config*\x06viewer\x12{\n" +
+	"\tSetConfig\x12\x19.ai_watcher.SetConfigRqst\x1a\x18.ai_watcher.SetConfigRsp\"9\x82\xb5\x185\n" +
+	"\x0eai.watch.write\x12\x05write\x1a\x12/ai/watcher/config*\boperator\x12w\n" +
+	"\tGetStatus\x12\x19.ai_watcher.GetStatusRqst\x1a\x18.ai_watcher.GetStatusRsp\"5\x82\xb5\x181\n" +
+	"\rai.watch.read\x12\x04read\x1a\x12/ai/watcher/status*\x06viewer\x12e\n" +
+	"\x05Pause\x12\x15.ai_watcher.PauseRqst\x1a\x14.ai_watcher.PauseRsp\"/\x82\xb5\x18+\n" +
+	"\x0eai.watch.admin\x12\x05write\x1a\v/ai/watcher*\x05admin\x12h\n" +
+	"\x06Resume\x12\x16.ai_watcher.ResumeRqst\x1a\x15.ai_watcher.ResumeRsp\"/\x82\xb5\x18+\n" +
+	"\x0eai.watch.admin\x12\x05write\x1a\v/ai/watcher*\x05admin\x12\x83\x01\n" +
+	"\fGetIncidents\x12\x1c.ai_watcher.GetIncidentsRqst\x1a\x1b.ai_watcher.GetIncidentsRsp\"8\x82\xb5\x184\n" +
+	"\rai.watch.read\x12\x04read\"\x15/ai/watcher/incidents*\x06viewer\x12\x85\x01\n" +
+	"\vGetIncident\x12\x1b.ai_watcher.GetIncidentRqst\x1a\x1a.ai_watcher.GetIncidentRsp\"=\x82\xb5\x189\n" +
+	"\rai.watch.read\x12\x04read\x1a\x1a/ai/watcher/incidents/{id}*\x06viewer\x12\x95\x01\n" +
+	"\rApproveAction\x12\x1d.ai_watcher.ApproveActionRqst\x1a\x1c.ai_watcher.ApproveActionRsp\"G\x82\xb5\x18C\n" +
+	"\x0eai.watch.admin\x12\x05write\x1a#/ai/watcher/incidents/{incident_id}*\x05admin\x12\x8c\x01\n" +
 	"\n" +
-	"DenyAction\x12\x1a.ai_watcher.DenyActionRqst\x1a\x19.ai_watcher.DenyActionRsp\x12^\n" +
-	"\x13GetPendingApprovals\x12#.ai_watcher.GetPendingApprovalsRqst\x1a\".ai_watcher.GetPendingApprovalsRsp\x129\n" +
-	"\x04Stop\x12\x17.ai_watcher.StopRequest\x1a\x18.ai_watcher.StopResponseB?Z=github.com/globulario/services/golang/ai_watcher/ai_watcherpbb\x06proto3"
+	"DenyAction\x12\x1a.ai_watcher.DenyActionRqst\x1a\x19.ai_watcher.DenyActionRsp\"G\x82\xb5\x18C\n" +
+	"\x0eai.watch.admin\x12\x05write\x1a#/ai/watcher/incidents/{incident_id}*\x05admin\x12\x9a\x01\n" +
+	"\x13GetPendingApprovals\x12#.ai_watcher.GetPendingApprovalsRqst\x1a\".ai_watcher.GetPendingApprovalsRsp\":\x82\xb5\x186\n" +
+	"\rai.watch.read\x12\x04read\"\x15/ai/watcher/approvals*\boperator\x12j\n" +
+	"\x04Stop\x12\x17.ai_watcher.StopRequest\x1a\x18.ai_watcher.StopResponse\"/\x82\xb5\x18+\n" +
+	"\x0eai.watch.admin\x12\x05write\x1a\v/ai/watcher*\x05adminB?Z=github.com/globulario/services/golang/ai_watcher/ai_watcherpbb\x06proto3"
 
 var (
 	file_ai_watcher_proto_rawDescOnce sync.Once

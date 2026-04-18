@@ -4,6 +4,8 @@ package ai_watcher;
 
 option go_package = "github.com/globulario/services/golang/ai_watcher/ai_watcherpb";
 
+import "globular_auth.proto";
+
 // AiWatcherService is a lightweight event-driven daemon that subscribes to
 // cluster events, filters them through configurable rules, and triggers
 // AI-assisted diagnosis and remediation when needed.
@@ -15,37 +17,114 @@ option go_package = "github.com/globulario/services/golang/ai_watcher/ai_watcher
 service AiWatcherService {
 
     // GetConfig returns the current watcher configuration (rules, tiers, notification settings).
-    rpc GetConfig(GetConfigRqst) returns (GetConfigRsp);
+    rpc GetConfig(GetConfigRqst) returns (GetConfigRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.read"
+            permission: "read"
+            resource_template: "/ai/watcher/config"
+            default_role_hint: "viewer"
+        };
+    };
 
     // SetConfig updates the watcher configuration.
-    rpc SetConfig(SetConfigRqst) returns (SetConfigRsp);
+    rpc SetConfig(SetConfigRqst) returns (SetConfigRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.write"
+            permission: "write"
+            resource_template: "/ai/watcher/config"
+            default_role_hint: "operator"
+        };
+    };
 
     // GetStatus returns the watcher's current state (running, paused, event stats).
-    rpc GetStatus(GetStatusRqst) returns (GetStatusRsp);
+    rpc GetStatus(GetStatusRqst) returns (GetStatusRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.read"
+            permission: "read"
+            resource_template: "/ai/watcher/status"
+            default_role_hint: "viewer"
+        };
+    };
 
     // Pause temporarily stops event processing without unsubscribing.
-    rpc Pause(PauseRqst) returns (PauseRsp);
+    rpc Pause(PauseRqst) returns (PauseRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.admin"
+            permission: "write"
+            resource_template: "/ai/watcher"
+            default_role_hint: "admin"
+        };
+    };
 
     // Resume restarts event processing after a pause.
-    rpc Resume(ResumeRqst) returns (ResumeRsp);
+    rpc Resume(ResumeRqst) returns (ResumeRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.admin"
+            permission: "write"
+            resource_template: "/ai/watcher"
+            default_role_hint: "admin"
+        };
+    };
 
     // GetIncidents returns a list of incidents the watcher has detected and handled.
-    rpc GetIncidents(GetIncidentsRqst) returns (GetIncidentsRsp);
+    rpc GetIncidents(GetIncidentsRqst) returns (GetIncidentsRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.read"
+            permission: "read"
+            collection_template: "/ai/watcher/incidents"
+            default_role_hint: "viewer"
+        };
+    };
 
     // GetIncident returns a single incident with full details.
-    rpc GetIncident(GetIncidentRqst) returns (GetIncidentRsp);
+    rpc GetIncident(GetIncidentRqst) returns (GetIncidentRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.read"
+            permission: "read"
+            resource_template: "/ai/watcher/incidents/{id}"
+            default_role_hint: "viewer"
+        };
+    };
 
     // ApproveAction approves a pending Tier 3 action.
-    rpc ApproveAction(ApproveActionRqst) returns (ApproveActionRsp);
+    rpc ApproveAction(ApproveActionRqst) returns (ApproveActionRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.admin"
+            permission: "write"
+            resource_template: "/ai/watcher/incidents/{incident_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // DenyAction denies a pending Tier 3 action.
-    rpc DenyAction(DenyActionRqst) returns (DenyActionRsp);
+    rpc DenyAction(DenyActionRqst) returns (DenyActionRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.admin"
+            permission: "write"
+            resource_template: "/ai/watcher/incidents/{incident_id}"
+            default_role_hint: "admin"
+        };
+    };
 
     // GetPendingApprovals returns all actions waiting for human approval.
-    rpc GetPendingApprovals(GetPendingApprovalsRqst) returns (GetPendingApprovalsRsp);
+    rpc GetPendingApprovals(GetPendingApprovalsRqst) returns (GetPendingApprovalsRsp) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.read"
+            permission: "read"
+            collection_template: "/ai/watcher/approvals"
+            default_role_hint: "operator"
+        };
+    };
 
     // Stop gracefully shuts down the watcher.
-    rpc Stop(StopRequest) returns (StopResponse);
+    rpc Stop(StopRequest) returns (StopResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.watch.admin"
+            permission: "write"
+            resource_template: "/ai/watcher"
+            default_role_hint: "admin"
+        };
+    };
 }
 
 // ── Permission Tiers ────────────────────────────────────────────────────────
