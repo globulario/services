@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -336,9 +337,11 @@ type rbacClientStore struct {
 
 func (s *rbacClientStore) RoleExists(ctx context.Context, roleName string) (bool, error) {
 	// Check the resource service first — this is the canonical role store
-	// that the admin UI reads from.
+	// that the admin UI reads from. Use a 3-second sub-context so a slow or
+	// blocked resource service does not exhaust the outer (multi-role) context.
 	if s.resource != nil {
-		stream, err := s.resource.GetRoles(ctx, &resourcepb.GetRolesRqst{
+		rCtx, rCancel := context.WithTimeout(ctx, 3*time.Second)
+		stream, err := s.resource.GetRoles(rCtx, &resourcepb.GetRolesRqst{
 			Query: fmt.Sprintf(`{"$or":[{"_id":"%s"},{"id":"%s"}]}`, roleName, roleName),
 		})
 		if err == nil {
@@ -348,10 +351,12 @@ func (s *rbacClientStore) RoleExists(ctx context.Context, roleName string) (bool
 					break
 				}
 				if len(rsp.GetRoles()) > 0 {
+					rCancel()
 					return true, nil
 				}
 			}
 		}
+		rCancel()
 	}
 
 	// Fallback: check RBAC role binding
@@ -374,7 +379,9 @@ func (s *rbacClientStore) CreateRole(ctx context.Context, roleName string, actio
 		return fmt.Errorf("set role binding: %w", err)
 	}
 
-	// 2. Create the role entity in Resource service (for admin UI visibility)
+	// 2. Create the role entity in Resource service (for admin UI visibility).
+	// Use a 3-second sub-context so a blocked resource service does not consume
+	// the outer context that is shared across all role seeds.
 	if s.resource != nil {
 		desc := metadata["source"]
 		if desc == "" {
@@ -386,7 +393,9 @@ func (s *rbacClientStore) CreateRole(ctx context.Context, roleName string, actio
 			Description: fmt.Sprintf("Cluster role (%s)", desc),
 			Actions:     actions,
 		}
-		_, err := s.resource.CreateRole(ctx, &resourcepb.CreateRoleRqst{Role: role})
+		rCtx, rCancel := context.WithTimeout(ctx, 3*time.Second)
+		_, err := s.resource.CreateRole(rCtx, &resourcepb.CreateRoleRqst{Role: role})
+		rCancel()
 		if err != nil {
 			// Log but don't fail — the RBAC binding (authorization) is the critical part.
 			slog.Warn("rbac seed: created role binding but failed to create resource role",

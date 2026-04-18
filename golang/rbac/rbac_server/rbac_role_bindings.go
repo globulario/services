@@ -44,13 +44,26 @@ func (srv *server) callerIsAdmin(subject string) (bool, error) {
 }
 
 // requireAdmin returns nil if the caller is allowed to manage role bindings:
-//   - during bootstrap (gate already enforces loopback + 30-min window + allowlist)
+//   - during bootstrap (interceptor set IsBootstrap via loopback + 30-min window + allowlist)
+//   - during bootstrap (flag file active, caller is an authenticated service principal)
 //   - OR the caller holds globular-admin role
 func (srv *server) requireAdmin(ctx context.Context) error {
 	authCtx := security.FromContext(ctx)
 
-	// Bootstrap: gate has already validated loopback + time window + allowlist.
+	// Bootstrap path 1: interceptor already validated loopback + time window + allowlist.
 	if authCtx != nil && authCtx.IsBootstrap {
+		return nil
+	}
+
+	// Bootstrap path 2: bootstrap flag is active and caller is an authenticated service principal.
+	// This allows the CLI seed command (which connects from the node IP, not loopback)
+	// to write bindings during the Day-0 window. Protected by:
+	//   - flag file existence + 0600 permissions + globular ownership
+	//   - time-bounded window (default 30 min)
+	//   - authenticated service token (PrincipalType application/service)
+	if authCtx != nil && authCtx.Subject != "" &&
+		(authCtx.PrincipalType == "application" || authCtx.PrincipalType == "service") &&
+		security.DefaultBootstrapGate.IsActive() {
 		return nil
 	}
 
