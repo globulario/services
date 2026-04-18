@@ -190,6 +190,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 // ScyllaDB connection
 // -----------------------------------------------------------------------------
 
+// connectScylla initialises the ScyllaDB connection and ensures the schema is
+// up to date. Schema DDL is run under an etcd-backed distributed mutex so
+// that multiple nodes starting simultaneously cannot race on schema creation.
 func (srv *server) connectScylla() error {
 	if srv.session != nil {
 		return nil
@@ -199,13 +202,20 @@ func (srv *server) connectScylla() error {
 	if len(hosts) == 0 {
 		return fmt.Errorf("scylla connect: no hosts configured (resolve from etcd first)")
 	}
+
+	// Run schema DDL under etcd coordination — only one node applies DDL at a time.
+	ctx, cancel := context.WithTimeout(context.Background(), migrationTimeout+30*time.Second)
+	defer cancel()
+
+	if err := srv.runSchemaWithCoordination(ctx); err != nil {
+		return fmt.Errorf("scylla schema: %w", err)
+	}
+
+	// Connect with keyspace set for normal operation.
 	port := srv.ScyllaPort
 	if port == 0 {
 		port = 9042
 	}
-
-	// Adapt replication factor and consistency to the number of ScyllaDB nodes.
-	// With a single node, QUORUM is impossible (requires 2 of 3).
 	rf := len(hosts)
 	if rf > 3 {
 		rf = 3
@@ -215,7 +225,42 @@ func (srv *server) connectScylla() error {
 		consistency = gocql.One
 	}
 
-	// Connect without keyspace first to create keyspace + tables.
+	cluster := gocql.NewCluster(hosts...)
+	cluster.Port = port
+	cluster.Consistency = consistency
+	cluster.Timeout = 10 * time.Second
+	cluster.ConnectTimeout = 10 * time.Second
+	cluster.Keyspace = keyspace
+
+	var err error
+	srv.session, err = cluster.CreateSession()
+	if err != nil {
+		return fmt.Errorf("scylla connect (keyspace): %w", err)
+	}
+
+	logger.Info("ScyllaDB connected", "hosts", hosts, "keyspace", keyspace)
+	return nil
+}
+
+// applySchema runs all schema DDL statements against ScyllaDB.
+// All statements use IF NOT EXISTS and are safe to re-run (idempotent).
+// Called only by the node that wins the migration coordinator lock.
+func (srv *server) applySchema(_ context.Context) error {
+	hosts := srv.ScyllaHosts
+	port := srv.ScyllaPort
+	if port == 0 {
+		port = 9042
+	}
+	rf := len(hosts)
+	if rf > 3 {
+		rf = 3
+	}
+	consistency := gocql.Quorum
+	if rf < 2 {
+		consistency = gocql.One
+	}
+
+	// Connect without keyspace to run CREATE KEYSPACE.
 	cluster := gocql.NewCluster(hosts...)
 	cluster.Port = port
 	cluster.Consistency = consistency
@@ -224,36 +269,23 @@ func (srv *server) connectScylla() error {
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		return fmt.Errorf("scylla connect: %w", err)
+		return fmt.Errorf("scylla connect (schema): %w", err)
 	}
+	defer session.Close()
 
-	// Create keyspace with adapted replication factor.
 	cql := fmt.Sprintf(
 		`CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`,
 		keyspace, rf,
 	)
 	if err := session.Query(cql).Exec(); err != nil {
-		session.Close()
 		return fmt.Errorf("create keyspace: %w", err)
 	}
 
-	// Create tables and indexes.
 	for _, stmt := range []string{createMemoriesTableCQL, createSessionsTableCQL, createTagsIndexCQL} {
 		if err := session.Query(stmt).Exec(); err != nil {
-			session.Close()
-			return fmt.Errorf("schema init: %w", err)
+			return fmt.Errorf("schema DDL: %w", err)
 		}
 	}
-	session.Close()
-
-	// Reconnect with keyspace set.
-	cluster.Keyspace = keyspace
-	srv.session, err = cluster.CreateSession()
-	if err != nil {
-		return fmt.Errorf("scylla connect (keyspace): %w", err)
-	}
-
-	logger.Info("ScyllaDB connected", "hosts", hosts, "keyspace", keyspace)
 	return nil
 }
 
