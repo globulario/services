@@ -16,6 +16,7 @@ package interceptors
 import (
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log/slog"
@@ -51,6 +52,16 @@ const MaxCallDepth = 10
 
 // callDepthKey is the gRPC metadata key used to propagate call depth.
 const callDepthKey = "x-call-depth"
+
+// ── Authorization observability counters ────────────────────────────────────
+// Exposed via /debug/vars (expvar HTTP endpoint) for easy inspection.
+// Counters reset on process restart; for persistent metrics use Prometheus.
+var (
+	authzSemanticResolved = expvar.NewInt("authz.semantic_resolved") // RPC resolved to action key
+	authzPathFallback     = expvar.NewInt("authz.path_fallback")     // RPC used raw path (no mapping)
+	authzDenied           = expvar.NewInt("authz.denied")            // any denial (role, resource, anon)
+	authzSuperadminBypass = expvar.NewInt("authz.superadmin_bypass") // "sa" bypass used
+)
 
 // checkCallDepth reads x-call-depth from incoming metadata and rejects
 // requests that exceed MaxCallDepth. Returns the current depth for propagation.
@@ -736,6 +747,15 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Resolve method path to stable action key for RBAC validation.
 	// If no mapping exists, actionKey falls back to the raw method path.
 	actionKey := policy.GlobalResolver().Resolve(method)
+	if actionKey != method {
+		authzSemanticResolved.Add(1)
+	} else {
+		authzPathFallback.Add(1)
+		slog.Debug("authz: no semantic mapping — using raw method path for RBAC",
+			"method", method,
+			"hint", "deploy permissions.generated.json to /var/lib/globular/policy/services/",
+		)
+	}
 
 	// DoS detection: track request rate per source IP.
 	if remoteAddr := extractRemoteAddr(ctx); getDosTracker().track(remoteAddr) {
@@ -860,6 +880,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if clusterInitialized && security.IsMutatingRPC(method) && authCtx.Subject == "" {
+		authzDenied.Add(1)
 		LogAuthzDecisionSimple(authCtx, false, "authentication_required")
 		return nil, status.Errorf(codes.Unauthenticated,
 			"authentication required: provide --token or configure client certificates")
@@ -870,6 +891,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// goes through checkRoleBinding → RBAC gRPC → interceptor → checkRoleBinding,
 	// creating an infinite recursion that OOM-kills services.
 	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
+		authzSuperadminBypass.Add(1)
 		LogAuthzDecisionSimple(authCtx, true, "superadmin")
 		return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 	}
@@ -893,6 +915,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		// For explicitly role-mapped methods, deny immediately.
 		// For unmapped methods, fall through to resource-mapping check.
 		if security.IsRoleBasedMethod(actionKey) {
+			authzDenied.Add(1)
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return nil, status.Errorf(codes.PermissionDenied,
 				"permission denied: %s — assign a role with 'globular rbac bind'", actionKey)
@@ -1223,6 +1246,11 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	method := info.FullMethod
 	actionKey := policy.GlobalResolver().Resolve(method)
+	if actionKey != method {
+		authzSemanticResolved.Add(1)
+	} else {
+		authzPathFallback.Add(1)
+	}
 	routing := ""
 
 	ctx := stream.Context()
