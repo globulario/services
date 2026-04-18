@@ -36,11 +36,17 @@ func TestNewAuthContext_Anonymous(t *testing.T) {
 	}
 }
 
-// TestNewAuthContext_Bootstrap verifies bootstrap mode detection
+// TestNewAuthContext_Bootstrap verifies bootstrap mode detection.
+// Bootstrap mode is flag-file driven (not env var) — write a temp flag file.
 func TestNewAuthContext_Bootstrap(t *testing.T) {
-	// Set bootstrap mode
-	os.Setenv("GLOBULAR_BOOTSTRAP", "1")
-	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
+	flagFile := t.TempDir() + "/bootstrap.enabled"
+	if err := os.WriteFile(flagFile, []byte(`{"enabled_by":"test"}`), 0644); err != nil {
+		t.Fatalf("write bootstrap flag: %v", err)
+	}
+	// Override the default bootstrap gate to use our temp file.
+	original := DefaultBootstrapGate
+	DefaultBootstrapGate = NewBootstrapGateWithPath(flagFile)
+	defer func() { DefaultBootstrapGate = original }()
 
 	ctx := context.Background()
 	authCtx, err := NewAuthContext(ctx, "/test.TestService/TestMethod")

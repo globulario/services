@@ -261,6 +261,33 @@ func (r *ActionResolver) HasMapping(method string) bool {
 	return ok
 }
 
+// RegisterAllFromDirectory walks dir and registers every permissions.generated.json
+// file found one level deep (dir/{service}/permissions.generated.json).
+// Errors are silently skipped — this is a best-effort bulk loader used in tests
+// and development environments where the runtime paths are not populated.
+func RegisterAllFromDirectory(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return // directory absent — normal on production nodes where services register individually
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, e.Name(), "permissions.generated.json")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var pf PermissionsFile
+		if err := json.Unmarshal(data, &pf); err != nil {
+			continue
+		}
+		perms := permissionsToInterface(pf.Permissions)
+		globalResolver.RegisterFromInterface(perms)
+	}
+}
+
 // ── Service Roles (per-service default roles for seeding) ───────────────────
 
 // ServiceRolesFile is the JSON schema for roles.json / roles.generated.json.
@@ -430,12 +457,25 @@ var validPermissionVerbs = map[string]bool{
 	"read": true, "write": true, "delete": true, "admin": true,
 }
 
-// actionKeyRe matches stable action keys: lowercase dotted identifiers.
-var actionKeyRe = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$`)
+// actionKeyRe matches stable action keys: lowercase dotted identifiers, segments may
+// contain underscores (e.g. "cluster_controller.cluster.health", "node_agent.inventory.read").
+var actionKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
+
+// actionKeyWildcardRe matches action-key prefix wildcards like "workflow.*",
+// "cluster_controller.*", or "ai.memory.*".
+// The prefix before ".*" must be a valid dotted identifier (segments may contain underscores).
+var actionKeyWildcardRe = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?\.\*$`)
 
 // IsActionKey returns true if s is a stable action key (not a method path).
 func IsActionKey(s string) bool {
 	return s != "" && !strings.HasPrefix(s, "/") && actionKeyRe.MatchString(s)
+}
+
+// IsActionKeyWildcard returns true if s is an action-key prefix wildcard
+// (e.g. "workflow.*", "ai.memory.*"). These are accepted in cluster-roles.json
+// and matched at runtime by security.matchesPermission.
+func IsActionKeyWildcard(s string) bool {
+	return s != "" && actionKeyWildcardRe.MatchString(s)
 }
 
 // IsMethodPath returns true if s looks like a gRPC method path.
@@ -539,11 +579,15 @@ func validateClusterRoles(crf *ClusterRolesFile) []string {
 			if g == "*" || g == "/*" {
 				continue // global wildcard is valid (both old and new syntax)
 			}
-			// Accept both action keys and method paths during migration
+			// Accept action-key prefix wildcards: "workflow.*", "ai.memory.*"
+			if IsActionKeyWildcard(g) {
+				continue
+			}
+			// Accept both stable action keys and legacy method paths during migration
 			if IsActionKey(g) || IsMethodPath(g) {
 				continue
 			}
-			errs = append(errs, fmt.Sprintf("roles[%s][%d]: %q is neither a valid action key nor method path", role, i, g))
+			errs = append(errs, fmt.Sprintf("roles[%s][%d]: %q is neither a valid action key, action-key wildcard, nor method path", role, i, g))
 		}
 	}
 	return errs

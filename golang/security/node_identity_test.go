@@ -128,7 +128,7 @@ func TestValidateNodeOwnership_MalformedNodePrincipal(t *testing.T) {
 // --- Cross-node denial with method context ---
 
 func TestValidateNodeOwnershipForMethod_CrossNodeIncludesMethod(t *testing.T) {
-	err := ValidateNodeOwnershipForMethod("node_abc", "xyz", "/clustercontroller.ClusterControllerService/ReportNodeStatus")
+	err := ValidateNodeOwnershipForMethod("node_abc", "xyz", "/cluster_controller.ClusterControllerService/ReportNodeStatus")
 	if err == nil {
 		t.Fatal("expected cross-node denial")
 	}
@@ -145,7 +145,7 @@ func TestValidateNodeOwnershipForMethod_SA_DeprecatedIncludesMethod(t *testing.T
 	os.Unsetenv("REQUIRE_NODE_IDENTITY")
 	defer os.Unsetenv("DEPRECATE_SA_NODE_AUTH")
 
-	err := ValidateNodeOwnershipForMethod("sa", "node123", "/clustercontroller.ClusterControllerService/ReportPlanRejection")
+	err := ValidateNodeOwnershipForMethod("sa", "node123", "/cluster_controller.ClusterControllerService/ReportPlanRejection")
 	if err == nil {
 		t.Fatal("expected deprecation warning")
 	}
@@ -165,7 +165,7 @@ func TestValidateNodeOwnershipForMethod_SA_EnforcedIncludesMethod(t *testing.T) 
 	os.Setenv("REQUIRE_NODE_IDENTITY", "true")
 	defer os.Unsetenv("REQUIRE_NODE_IDENTITY")
 
-	err := ValidateNodeOwnershipForMethod("sa", "node123", "/clustercontroller.ClusterControllerService/ReportNodeStatus")
+	err := ValidateNodeOwnershipForMethod("sa", "node123", "/cluster_controller.ClusterControllerService/ReportNodeStatus")
 	if err == nil {
 		t.Fatal("expected hard rejection")
 	}
@@ -197,10 +197,10 @@ func TestNodeExecutorPermissions(t *testing.T) {
 
 func TestNodeExecutorCannotMutateDesiredState(t *testing.T) {
 	desiredStateMethods := []string{
-		"/clustercontroller.ResourcesService/ApplyServiceRelease",
-		"/clustercontroller.ResourcesService/DeleteServiceRelease",
-		"/clustercontroller.ResourcesService/ApplyServiceDesiredVersion",
-		"/clustercontroller.ResourcesService/DeleteServiceDesiredVersion",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
+		"/cluster_controller.ClusterControllerService/RemoveDesiredService",
+		"/cluster_controller.ClusterControllerService/SeedDesiredState",
+		"/cluster_controller.ClusterControllerService/PreviewDesiredServices",
 	}
 	for _, method := range desiredStateMethods {
 		if HasRolePermission([]string{RoleNodeExecutor}, method) {
@@ -237,8 +237,7 @@ func TestNodeExecutorCannotPublish(t *testing.T) {
 
 func TestNodeExecutorCanReportStatus(t *testing.T) {
 	allowedMethods := []string{
-		"/clustercontroller.ClusterControllerService/ReportNodeStatus",
-		"/clustercontroller.ClusterControllerService/ReportPlanRejection",
+		"/cluster_controller.ClusterControllerService/ReportNodeStatus",
 	}
 	for _, method := range allowedMethods {
 		if !HasRolePermission([]string{RoleNodeExecutor}, method) {
@@ -249,8 +248,7 @@ func TestNodeExecutorCanReportStatus(t *testing.T) {
 
 func TestNodeExecutorCanReadClusterInfo(t *testing.T) {
 	readOnlyMethods := []string{
-		"/clustercontroller.ClusterControllerService/GetClusterInfo",
-		"/clustercontroller.ResourcesService/GetClusterNetwork",
+		"/cluster_controller.ClusterControllerService/GetClusterInfo",
 	}
 	for _, method := range readOnlyMethods {
 		if !HasRolePermission([]string{RoleNodeExecutor}, method) {
@@ -261,7 +259,7 @@ func TestNodeExecutorCanReadClusterInfo(t *testing.T) {
 
 func TestNodeExecutorCanCompleteOperation(t *testing.T) {
 	// Node-agent calls CompleteOperation to notify controller when plan execution finishes.
-	if !HasRolePermission([]string{RoleNodeExecutor}, "/clustercontroller.ClusterControllerService/CompleteOperation") {
+	if !HasRolePermission([]string{RoleNodeExecutor}, "/cluster_controller.ClusterControllerService/CompleteOperation") {
 		t.Error("node-executor SHOULD have permission for CompleteOperation (plan completion notify)")
 	}
 }
@@ -300,10 +298,10 @@ func TestNodeExecutorCanDownloadArtifacts(t *testing.T) {
 
 func TestNodeExecutorCannotAccessControllerAdminPaths(t *testing.T) {
 	adminMethods := []string{
-		"/clustercontroller.ClusterControllerService/UpgradeGlobular",
-		"/clustercontroller.ClusterControllerService/UpdateClusterNetwork",
-		"/clustercontroller.ClusterControllerService/ApplyNodePlan",
-		"/clustercontroller.ClusterControllerService/GetClusterHealth",
+		"/cluster_controller.ClusterControllerService/UpgradeGlobular",
+		"/cluster_controller.ClusterControllerService/UpdateClusterNetwork",
+		"/cluster_controller.ClusterControllerService/GetClusterHealth",
+		"/cluster_controller.ClusterControllerService/UpsertDesiredService",
 	}
 	for _, method := range adminMethods {
 		if HasRolePermission([]string{RoleNodeExecutor}, method) {

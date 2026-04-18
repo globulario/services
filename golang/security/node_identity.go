@@ -2,6 +2,7 @@ package security
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
@@ -25,19 +26,45 @@ func RequireNodeIdentity() bool {
 }
 
 // configBool reads a boolean flag from the local config (etcd-synced).
+// Falls back to an env var of the same name uppercased with underscores
+// (e.g. "DeprecateSANodeAuth" → DEPRECATE_SA_NODE_AUTH) when the local config
+// is unavailable. This allows override in dev/test environments without etcd.
 func configBool(key string) bool {
 	cfg, err := config.GetLocalConfig(true)
-	if err != nil {
-		return false
+	if err == nil {
+		switch v := cfg[key].(type) {
+		case bool:
+			return v
+		case string:
+			return strings.EqualFold(strings.TrimSpace(v), "true")
+		}
 	}
-	switch v := cfg[key].(type) {
-	case bool:
-		return v
-	case string:
-		return strings.EqualFold(strings.TrimSpace(v), "true")
-	default:
-		return false
+	// Env var fallback: camelCase → UPPER_SNAKE_CASE
+	envKey := camelToUpperSnake(key)
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(envKey)), "true")
+}
+
+// camelToUpperSnake converts a camelCase or PascalCase key to UPPER_SNAKE_CASE.
+// Handles acronyms correctly: "DeprecateSANodeAuth" → "DEPRECATE_SA_NODE_AUTH".
+func camelToUpperSnake(s string) string {
+	runes := []rune(s)
+	var b strings.Builder
+	for i, r := range runes {
+		upper := r >= 'A' && r <= 'Z'
+		if upper && i > 0 {
+			prevLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
+			nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+			if prevLower || (nextLower && runes[i-1] >= 'A' && runes[i-1] <= 'Z') {
+				b.WriteByte('_')
+			}
+		}
+		if r >= 'a' && r <= 'z' {
+			b.WriteRune(r - 32)
+		} else {
+			b.WriteRune(r)
+		}
 	}
+	return b.String()
 }
 
 // IsNodePrincipal returns true if the subject follows the node_<uuid> pattern.

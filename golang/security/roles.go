@@ -10,31 +10,93 @@ import (
 
 // Role name constants used across Globular services.
 // These are the canonical role identifiers stored in the RBAC service.
+// All roles grant semantic action keys (e.g. "workflow.read") resolved from
+// proto annotations via authzgen → permissions.generated.json at runtime.
 const (
-	// RoleAdmin has full access to all cluster operations ("/*" wildcard).
+	// ── Human-facing roles ────────────────────────────────────────────────
+
+	// RoleViewer has read-only operational visibility (workflow, cluster,
+	// repository, monitoring, AI observability).
+	RoleViewer = "globular-viewer"
+
+	// RoleAdmin has full cluster administrative authority expressed as
+	// semantic action-key wildcards (workflow.*, cluster_controller.*, ...).
+	// Uses no raw /* grant — prefer explicit families.
 	RoleAdmin = "globular-admin"
+
+	// RoleOperator is the day-2 human operator: extends viewer with workflow
+	// controls (retry/cancel/resume), join approvals, and limited AI ops.
+	RoleOperator = "globular-operator"
+
+	// RoleSecurityAdmin manages RBAC, identities, and authentication.
+	RoleSecurityAdmin = "globular-security-admin"
+
+	// RoleRepositoryEditor can publish and manage artifacts but not delete them.
+	RoleRepositoryEditor = "globular-repository-editor"
+
+	// RoleRepositoryAdmin has full repository lifecycle authority.
+	RoleRepositoryAdmin = "globular-repository-admin"
+
+	// RoleAIOperator can read and write AI services but not admin or execute.
+	RoleAIOperator = "globular-ai-operator"
+
+	// RoleAIAdmin has full AI authority including the executor.
+	RoleAIAdmin = "globular-ai-admin"
+
+	// RoleMonitoringViewer has read-only access to Prometheus metrics/alerts.
+	RoleMonitoringViewer = "globular-monitoring-viewer"
+
+	// RoleBackupAdmin can run, inspect, and restore backups.
+	RoleBackupAdmin = "globular-backup-admin"
+
+	// ── Legacy human role (prefer RoleRepositoryEditor for new deployments) ─
 
 	// RolePublisher can upload artifacts and publish services/apps to the registry.
 	RolePublisher = "globular-publisher"
 
-	// RoleOperator can manage service releases, install/uninstall services,
-	// and manage domains/ingress.  Intended for human operators.
-	RoleOperator = "globular-operator"
+	// ── Service-account roles ─────────────────────────────────────────────
 
-	// RoleControllerSA is the least-privilege service account for the
-	// cluster-controller.  It can read/apply release state and node plans,
-	// but CANNOT publish artifacts or create new releases.
+	// RoleControllerSA is the service account for the cluster controller.
+	// Full control-plane authority plus workflow and repository reads.
 	RoleControllerSA = "globular-controller-sa"
 
-	// RoleNodeAgentSA is the least-privilege service account for node agents.
-	// It can report node status and execute plans addressed to the local node,
-	// but CANNOT create or modify ServiceRelease objects.
+	// RoleNodeAgentSA is the service account for node agents.
+	// Node execution and reporting only; cannot mutate desired state.
 	RoleNodeAgentSA = "globular-node-agent-sa"
 
 	// RoleNodeExecutor is the per-node scoped role for node_<uuid> principals.
-	// It can only operate on its own node's plans, status, and packages.
-	// It CANNOT modify desired state, RBAC, publish packages, or access other nodes.
+	// Narrower than RoleNodeAgentSA — only plan execution and status reporting.
 	RoleNodeExecutor = "globular-node-executor"
+
+	// RoleWorkflowWriterSA is the internal service account for workflow producers.
+	// Grants only the workflow internal write path (admin actions).
+	RoleWorkflowWriterSA = "globular-workflow-writer-sa"
+
+	// RoleAIWatcherSA is the service account for the AI watcher daemon.
+	RoleAIWatcherSA = "globular-ai-watcher-sa"
+
+	// RoleAIMemorySA is the service account for the AI memory service.
+	RoleAIMemorySA = "globular-ai-memory-sa"
+
+	// RoleAIRouterSA is the service account for the AI router.
+	RoleAIRouterSA = "globular-ai-router-sa"
+
+	// RoleAIExecutorSA is the service account for the AI executor.
+	// Dangerous: grants execute authority. No broad cluster control.
+	RoleAIExecutorSA = "globular-ai-executor-sa"
+
+	// RoleRepositoryPublisherSA is the service account for automated publish pipelines.
+	RoleRepositoryPublisherSA = "globular-repository-publisher-sa"
+
+	// ── Exceptional roles (tightly guarded) ──────────────────────────────
+
+	// RoleBootstrapSA is accepted only in the Day-0 bootstrap window before
+	// the RBAC store exists. Must not be used in steady-state operation.
+	RoleBootstrapSA = "globular-bootstrap-sa"
+
+	// RoleBreakglassAdmin grants full access (/*) for disaster recovery only.
+	// Every use must be logged. Must be disabled by default.
+	RoleBreakglassAdmin = "globular-breakglass-admin"
 )
 
 // RolePermissions maps each role to the set of gRPC method paths or stable
@@ -159,11 +221,10 @@ func HasRolePermission(roles []string, action string) bool {
 		}
 	}
 
-	// Migration compatibility shim: if the action is a stable action key,
+	// Forward shim: if the action is a stable action key,
 	// check whether any legacy method-path aliases match the role grants.
-	// This covers the case where roles still contain grants like
-	// "/file.FileService/ReadFile" but the interceptor sends "file.read".
-	// TODO: Remove this shim once all role grants use stable action keys.
+	// Covers: roles still containing "/file.FileService/ReadFile" but interceptor sends "file.read".
+	// TODO: Remove once all role grants use stable action keys.
 	if policy.IsActionKey(action) {
 		if legacyMethods := policy.GlobalResolver().LegacyMethods(action); len(legacyMethods) > 0 {
 			for _, method := range legacyMethods {
@@ -172,6 +233,22 @@ func HasRolePermission(roles []string, action string) bool {
 						if matchesPermission(perm, method) {
 							return true
 						}
+					}
+				}
+			}
+		}
+	}
+
+	// Reverse shim: if the action is a raw gRPC method path, resolve it to
+	// its stable action key and check that key against the role grants.
+	// Covers: roles using semantic "dns.*" wildcards but caller passes
+	// "/dns.DnsService/SetA" (e.g. tests or older interceptors without resolver data).
+	if strings.HasPrefix(action, "/") {
+		if actionKey := policy.GlobalResolver().Resolve(action); actionKey != action {
+			for _, role := range roles {
+				for _, perm := range RolePermissions[role] {
+					if matchesPermission(perm, actionKey) {
+						return true
 					}
 				}
 			}
@@ -213,7 +290,11 @@ func matchesPermission(perm, action string) bool {
 // that role bindings never target missing roles.
 // Returns an error listing any missing roles.
 func EnsureBuiltinRolesExist() error {
-	required := []string{RoleAdmin, RolePublisher, RoleOperator, RoleControllerSA, RoleNodeAgentSA, RoleNodeExecutor}
+	required := []string{
+		RoleAdmin, RoleOperator, RoleViewer,
+		RoleControllerSA, RoleNodeAgentSA, RoleNodeExecutor,
+		RoleBootstrapSA, RoleBreakglassAdmin,
+	}
 	var missing []string
 	for _, role := range required {
 		if _, ok := RolePermissions[role]; !ok {

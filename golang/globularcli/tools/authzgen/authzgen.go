@@ -89,7 +89,20 @@ func main() {
 		log.Fatalf("unmarshal descriptor set: %v", err)
 	}
 
-	// Process each file in the descriptor set.
+	// First pass: collect all services grouped by proto package.
+	// A single proto file can define multiple services (e.g. workflow.proto
+	// defines WorkflowService and WorkflowActorService in package "workflow").
+	// Without grouping, the inner loop would write the same output path once
+	// per service, and each write would silently overwrite the previous —
+	// leaving only the last service's permissions in the file.
+	type svcPerms struct {
+		name      string
+		perms     []PermissionEntry
+		resources map[string][]ResourceEntry
+	}
+	pkgServices := make(map[string][]svcPerms) // lowercase-package → services
+	pkgOrder := []string{}                     // preserve iteration order for determinism
+
 	for _, fd := range fds.GetFile() {
 		for _, sd := range fd.GetService() {
 			serviceName := fmt.Sprintf("%s.%s", fd.GetPackage(), sd.GetName())
@@ -97,32 +110,64 @@ func main() {
 			if len(perms) == 0 {
 				continue // no annotated methods
 			}
-
-			// Sort deterministically by method path.
-			sort.Slice(perms, func(i, j int) bool {
-				return perms[i].Method < perms[j].Method
+			pkg := strings.ToLower(fd.GetPackage())
+			if _, seen := pkgServices[pkg]; !seen {
+				pkgOrder = append(pkgOrder, pkg)
+			}
+			pkgServices[pkg] = append(pkgServices[pkg], svcPerms{
+				name:      serviceName,
+				perms:     perms,
+				resources: resources,
 			})
-
-			svcDir := filepath.Join(*outDir, strings.ToLower(fd.GetPackage()))
-			if err := os.MkdirAll(svcDir, 0755); err != nil {
-				log.Fatalf("mkdir %s: %v", svcDir, err)
-			}
-
-			// Emit permissions.generated.json
-			pm := PermissionsManifest{
-				SchemaVersion:    schemaVersion,
-				GeneratorVersion: generatorVersion,
-				Service:          serviceName,
-				Permissions:      addResources(perms, resources),
-			}
-			writeJSON(filepath.Join(svcDir, "permissions.generated.json"), pm)
-
-			// Emit roles.generated.json
-			rm := generateRoles(serviceName, perms)
-			writeJSON(filepath.Join(svcDir, "roles.generated.json"), rm)
-
-			fmt.Printf("==> %s: %d permissions, %d roles\n", serviceName, len(pm.Permissions), len(rm.Roles))
 		}
+	}
+
+	// Second pass: write one permissions.generated.json per package directory,
+	// merging all services that share the package.
+	for _, pkg := range pkgOrder {
+		services := pkgServices[pkg]
+
+		// Merge permissions and resource metadata from all services in this package.
+		var allPerms []PermissionEntry
+		mergedResources := make(map[string][]ResourceEntry)
+		var serviceNames []string
+		for _, svc := range services {
+			serviceNames = append(serviceNames, svc.name)
+			allPerms = append(allPerms, svc.perms...)
+			for k, v := range svc.resources {
+				if _, exists := mergedResources[k]; !exists {
+					mergedResources[k] = v
+				}
+			}
+		}
+
+		// Sort deterministically by method path.
+		sort.Slice(allPerms, func(i, j int) bool {
+			return allPerms[i].Method < allPerms[j].Method
+		})
+
+		svcDir := filepath.Join(*outDir, pkg)
+		if err := os.MkdirAll(svcDir, 0755); err != nil {
+			log.Fatalf("mkdir %s: %v", svcDir, err)
+		}
+
+		// Record all service names in the manifest so the file is self-describing.
+		displayName := strings.Join(serviceNames, ", ")
+
+		// Emit permissions.generated.json
+		pm := PermissionsManifest{
+			SchemaVersion:    schemaVersion,
+			GeneratorVersion: generatorVersion,
+			Service:          displayName,
+			Permissions:      addResources(allPerms, mergedResources),
+		}
+		writeJSON(filepath.Join(svcDir, "permissions.generated.json"), pm)
+
+		// Emit roles.generated.json (derive role prefix from the package name).
+		rm := generateRoles(services[0].name, allPerms)
+		writeJSON(filepath.Join(svcDir, "roles.generated.json"), rm)
+
+		fmt.Printf("==> %s: %d permissions, %d roles\n", displayName, len(pm.Permissions), len(rm.Roles))
 	}
 }
 
