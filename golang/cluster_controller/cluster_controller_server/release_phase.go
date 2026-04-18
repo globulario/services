@@ -28,9 +28,10 @@ var validPhaseTransitions = map[string]map[string]bool{
 		ReleasePhaseRemoving:                      true,
 	},
 	cluster_controllerpb.ReleasePhasePending: {
-		cluster_controllerpb.ReleasePhaseResolved: true,
-		cluster_controllerpb.ReleasePhaseFailed:   true,
-		ReleasePhaseRemoving:                      true,
+		cluster_controllerpb.ReleasePhaseResolved:  true,
+		cluster_controllerpb.ReleasePhaseAvailable: true, // artifact not published — accept current version as-is
+		cluster_controllerpb.ReleasePhaseFailed:    true,
+		ReleasePhaseRemoving:                       true,
 	},
 	cluster_controllerpb.ReleasePhaseResolved: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true, // workflow finished: all nodes converged

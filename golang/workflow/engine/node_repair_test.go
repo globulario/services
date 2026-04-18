@@ -90,6 +90,9 @@ func newNodeRepairRouter(t *testing.T, opts nodeRepairTestOpts) *Router {
 		SyncInstalledState:      opts.syncState,
 	})
 
+	// Register verification actions required by sync_installed_state step.
+	RegisterNodeVerificationActions(router, NodeVerificationConfig{})
+
 	return router
 }
 

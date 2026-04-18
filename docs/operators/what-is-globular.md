@@ -202,17 +202,17 @@ The Cluster Controller detects the desired-state change, creates a workflow for 
 When something goes wrong, the 4-layer model makes diagnosis straightforward:
 
 ```bash
-# Dry-run: see what's misaligned without changing anything
-globular services repair --dry-run
+# Check for drift: see what's misaligned without changing anything
+globular cluster get-drift-report
 
 # Auto-repair: fix misalignments
-globular services repair
+globular node repair
 
 # Detailed health check
 globular cluster health
 ```
 
-The repair command compares all four layers, identifies which packages are drifted, unmanaged, orphaned, or missing, and generates the minimal set of operations to bring the cluster back into alignment.
+The drift report compares all four layers, identifies which packages are drifted, unmanaged, orphaned, or missing. Use `globular node repair` to dispatch targeted repair workflows.
 
 ## What's Next
 

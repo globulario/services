@@ -2,6 +2,14 @@
 
 This page covers how services integrate with Globular's workflow system: implementing backup hooks, providing health check endpoints, participating in the convergence model, and understanding how workflows interact with your service during deployment, upgrades, and maintenance.
 
+## Why Workflow Integration Exists
+
+In most deployment systems, the operator manages service lifecycle externally — a CI pipeline pushes binaries, an Ansible playbook restarts services, a Prometheus alert fires when something is down. Knowledge about what the service needs (what data to back up, how long it takes to initialize, when it is safe to stop) lives outside the service, in scripts and runbooks.
+
+Globular inverts this. The service is the authority on its own lifecycle. It declares what data it manages. It controls when it is healthy. It signals when it is safe to stop. The workflow system acts as the coordinator, but the decisions about readiness, data ownership, and safe shutdown come from the service itself.
+
+This has a practical consequence: when you add a new data directory, you don't update a backup policy file somewhere else — you update `PrepareBackup`. When your service needs 30 seconds to load its index before serving, you don't add a sleep to the deploy script — you block in `StartService`. The service and its operational contract live in the same place.
+
 ## How Workflows Interact with Services
 
 Every Globular service participates in the workflow system, even if it doesn't implement any custom workflow logic. During deployment and upgrades, workflows:
@@ -13,6 +21,8 @@ Every Globular service participates in the workflow system, even if it doesn't i
 5. **Verify** the service is healthy via the gRPC health endpoint
 
 Your service participates in steps 4 and 5 automatically — by starting correctly and responding to health checks.
+
+The separation between START and VERIFY matters. "The process launched" and "the service is ready to handle traffic" are different facts. A service can start and immediately enter a crash loop, or start and spend 20 seconds loading data before it can serve. VERIFY is the checkpoint that confirms the cluster actually gained a working service — not just that systemd launched a process.
 
 ## Health Check Integration
 
@@ -64,6 +74,8 @@ If your service needs a long startup time:
 
 Services that manage data can participate in the backup system by implementing the `BackupHookService`. When the Backup Manager runs a cluster backup, it calls `PrepareBackup` on every service that implements this hook.
 
+The design here is intentional inversion of control. The Backup Manager does not know which paths each service writes to — the service declares them. This means a new service that stores data in `/var/lib/globular/inventory/` is automatically backed up as soon as it implements `PrepareBackup`. No backup policy configuration, no Ansible vars file to update. The backup coverage is a consequence of the code, not a separate operational artifact.
+
 ### Implementing BackupHookService
 
 ```protobuf
@@ -114,10 +126,12 @@ func (s *server) PrepareBackup(ctx context.Context, req *backuppb.PrepareBackupR
 }
 ```
 
-**Data classes**:
-- `AUTHORITATIVE`: This is the primary copy of the data. Must be backed up.
-- `REBUILDABLE`: Data that can be reconstructed from other sources. Backing up is optional but saves rebuild time.
-- `CACHE`: Ephemeral data that can be discarded. Not backed up by default.
+**Data classes** reflect a real trade-off between backup cost and recovery cost:
+- `AUTHORITATIVE`: This is the primary copy. There is no other source. If it's not backed up, it cannot be recovered. Must be backed up.
+- `REBUILDABLE`: Can be reconstructed from other sources (re-indexed from raw data, recomputed from events), but doing so takes time. Backing it up is optional — it trades backup storage for faster recovery.
+- `CACHE`: Ephemeral. Loss is acceptable; the service rebuilds it on next start. Not backed up by default.
+
+Declaring the right data class matters for disaster recovery. A cluster with 100 GB of `CACHE` data that gets labeled `AUTHORITATIVE` wastes backup storage and slows restores. A service that labels its primary database `REBUILDABLE` when it can't actually rebuild it will be unrecoverable after a disaster.
 
 **Scope**:
 - `"node"`: Data is specific to this node (local state, cache)
@@ -226,6 +240,10 @@ The Lifecycle Manager handles graceful shutdown on SIGTERM:
 3. Wait for in-flight requests to complete (with timeout)
 4. Close the gRPC server
 5. Call your `StopService()` method for cleanup
+
+Graceful shutdown matters specifically during upgrades. When the convergence model installs a new version, it restarts the service. If the old version is killed mid-request, the client receives an error and may retry against the new version — which is a different binary that may have different state. The NOT_SERVING signal tells Envoy to drain traffic before the process exits, so in-flight requests complete against the version that received them.
+
+`StopService()` is a separate hook from process exit because cleanup — closing database connections, flushing caches, releasing locks — must happen within the graceful shutdown window, before the process is forcibly killed. If cleanup is in a `defer` or init function, it may not run in time.
 
 Implement `StopService()` for your custom cleanup:
 

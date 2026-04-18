@@ -98,8 +98,12 @@ func dialDoctor() (*grpc.ClientConn, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("cluster-doctor endpoint not found (use --endpoint or check service registration)")
 	}
+	resolved, err := resolveGRPCAddr(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --endpoint %q: %w", endpoint, err)
+	}
 	return grpc.NewClient(
-		endpoint,
+		resolved,
 		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
 	)
 }

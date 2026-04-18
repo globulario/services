@@ -25,10 +25,16 @@ type SpecMetadata struct {
 	License     string
 
 	// Day 1 orchestration fields — drive profile-aware, dependency-gated convergence.
-	ProvidesCapabilities     []string         // capabilities this package gives the node (e.g. "local-db", "object-store")
-	InstallDependencies      []string         // packages that must be installed before this one
-	RuntimeLocalDependencies []string         // packages that must be healthy on the same node before this starts
-	HealthCheck              *HealthCheckHint // how to verify this package is healthy
+	ProvidesCapabilities []string         // capabilities this package gives the node (e.g. "local-db", "object-store")
+	HealthCheck          *HealthCheckHint // how to verify this package is healthy
+
+	// Typed dependency declarations.
+	HardDeps    []string // install/activation blockers (graph edges)
+	RuntimeUses []string // informational API peers (not graph edges)
+
+	// Deprecated: kept for reading legacy specs, migrated to HardDeps in enrichment.
+	InstallDependencies      []string
+	RuntimeLocalDependencies []string
 
 	// Catalog fields — drive dynamic component catalog in the cluster controller.
 	Profiles    []string // profiles that include this component (e.g. "core", "compute")
@@ -36,6 +42,9 @@ type SpecMetadata struct {
 	InstallMode string   // "repository" | "day0_join"
 	ManagedUnit bool     // included in profileUnitMap for unit actions
 	SystemdUnit string   // override systemd unit name (auto-derived from spec if empty)
+
+	// Release channel: "stable" (default), "candidate", "canary", "dev", "bootstrap".
+	Channel string
 
 	// Extra binaries to include alongside the main exec (e.g. helper tools).
 	ExtraBinaries []string
@@ -244,8 +253,16 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 
 	// Day 1 orchestration fields
 	meta.ProvidesCapabilities = lookupStringList(m, "provides_capabilities")
+
+	// Typed dependency declarations. Prefer new fields; fall back to legacy.
+	meta.HardDeps = lookupStringList(m, "hard_deps")
+	meta.RuntimeUses = lookupStringList(m, "runtime_uses")
+	// Legacy field migration: if hard_deps not set, union install_dependencies + runtime_local_dependencies.
 	meta.InstallDependencies = lookupStringList(m, "install_dependencies")
 	meta.RuntimeLocalDependencies = lookupStringList(m, "runtime_local_dependencies")
+	if len(meta.HardDeps) == 0 {
+		meta.HardDeps = unionStringSlices(meta.InstallDependencies, meta.RuntimeLocalDependencies)
+	}
 
 	if hc := lookupMap(m, "health_check"); hc != nil {
 		hint := &HealthCheckHint{}
@@ -287,6 +304,9 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 		}
 	}
 	meta.BundleDebs = lookupStringList(m, "bundle_debs")
+	if ch := lookupString(m, "channel"); ch != "" {
+		meta.Channel = strings.ToLower(ch)
+	}
 
 	return meta
 }
@@ -552,6 +572,19 @@ func lookupBool(m map[string]any, key string) bool {
 	}
 	b, _ := val.(bool)
 	return b
+}
+
+// unionStringSlices returns the union of two string slices, preserving order and deduplicating.
+func unionStringSlices(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	var out []string
+	for _, s := range append(a, b...) {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func lookupMap(doc map[string]any, key string) map[string]any {

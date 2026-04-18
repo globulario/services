@@ -72,6 +72,7 @@ nav:
     - Installation (Day-0): operators/installation.md
     - Adding Nodes (Day-1): operators/adding-nodes.md
     - Deploying Applications: operators/deploying-applications.md
+    - Repository Overview: operators/repository-overview.md
     - Publishing Services: operators/publishing-services.md
     - Updating the Cluster: operators/updating-the-cluster.md
     - Debugging Failures: operators/debugging-failures.md

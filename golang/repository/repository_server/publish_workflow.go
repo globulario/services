@@ -28,12 +28,27 @@ import (
 )
 
 // completePublish runs the post-upload publish pipeline:
-// register descriptor → promote to PUBLISHED, all recorded as a workflow run.
+// validate laws → register descriptor → promote to PUBLISHED, all recorded as a workflow run.
 func (srv *server) completePublish(ctx context.Context, manifest *repopb.ArtifactManifest, key string, prov *repopb.ProvenanceRecord) error {
 	ref := manifest.GetRef()
 	publisherID := ref.GetPublisherId()
 	name := ref.GetName()
 	version := ref.GetVersion()
+
+	// ── Step 0: Artifact law validation ─────────────────────────────────
+	// Collect PUBLISHED catalog for cross-artifact rules (cycle detection, kind lookup).
+	// This is best-effort: if the catalog can't be read, validation is skipped rather
+	// than blocking the publish — the laws are enforced on a best-effort basis here.
+	catalog := srv.loadPublishedCatalog(ctx)
+	if violations := NewArtifactLawValidator(manifest, catalog).Validate(); len(violations) > 0 {
+		var msgs []string
+		for _, v := range violations {
+			msgs = append(msgs, v.Error())
+			slog.Warn("artifact law violation — blocking promotion to PUBLISHED",
+				"rule", v.Rule, "artifact", v.Artifact, "detail", v.Detail)
+		}
+		return fmt.Errorf("artifact law violations (%d): %s", len(violations), msgs[0])
+	}
 
 	// ── Start workflow run ───────────────────────────────────────────────
 	runID := srv.workflowRec.StartRun(ctx, &workflow.RunParams{

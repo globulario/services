@@ -158,7 +158,7 @@ func TestBothPathsProduceSameManifestFields(t *testing.T) {
 func TestLegacyManifestWithoutState(t *testing.T) {
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{
-		PublisherId: "glob", Name: "legacy", Version: "0.1.0",
+		PublisherId: "glob", Name: "legacy", Version: "",
 		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
 	}
 

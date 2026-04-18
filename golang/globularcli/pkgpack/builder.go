@@ -3,6 +3,8 @@ package pkgpack
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -345,14 +347,21 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		healthCheckUnit = systemdUnit
 	}
 
+	// Compute SHA256 of the entrypoint binary for reverse-lookup.
+	entrypointChecksum, err := sha256File(execDest)
+	if err != nil {
+		return nil, fmt.Errorf("checksum entrypoint binary: %w", err)
+	}
+
 	manifest := Manifest{
-		Type:        pkgType,
-		Name:        info.ServiceName,
-		Version:     opts.Version,
-		BuildNumber: opts.BuildNumber,
-		Platform:    fmt.Sprintf("%s_%s", goos, goarch),
-		Publisher:   opts.Publisher,
-		Entrypoint:  path.Join("bin", info.ExecName),
+		Type:               pkgType,
+		Name:               info.ServiceName,
+		Version:            opts.Version,
+		BuildNumber:        opts.BuildNumber,
+		Platform:           fmt.Sprintf("%s_%s", goos, goarch),
+		Publisher:          opts.Publisher,
+		Entrypoint:         path.Join("bin", info.ExecName),
+		EntrypointChecksum: "sha256:" + entrypointChecksum,
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),
@@ -360,18 +369,21 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		Description: info.Metadata.Description,
 		Keywords:    info.Metadata.Keywords,
 		License:     info.Metadata.License,
+		Channel:     info.Metadata.Channel,
 
 		// Catalog metadata from spec.
-		Profiles:                 info.Metadata.Profiles,
-		Priority:                 info.Metadata.Priority,
-		InstallMode:              info.Metadata.InstallMode,
-		ManagedUnit:              info.Metadata.ManagedUnit,
-		SystemdUnit:              systemdUnit,
-		ProvidesCapabilities:     info.Metadata.ProvidesCapabilities,
-		InstallDependencies:      info.Metadata.InstallDependencies,
-		RuntimeLocalDependencies: info.Metadata.RuntimeLocalDependencies,
-		HealthCheckUnit:          healthCheckUnit,
-		HealthCheckPort:          healthCheckPort,
+		Profiles:             info.Metadata.Profiles,
+		Priority:             info.Metadata.Priority,
+		InstallMode:          info.Metadata.InstallMode,
+		ManagedUnit:          info.Metadata.ManagedUnit,
+		SystemdUnit:          systemdUnit,
+		ProvidesCapabilities: info.Metadata.ProvidesCapabilities,
+		HealthCheckUnit:      healthCheckUnit,
+		HealthCheckPort:      healthCheckPort,
+
+		// Typed dependency declarations.
+		HardDeps:    info.Metadata.HardDeps,
+		RuntimeUses: info.Metadata.RuntimeUses,
 	}
 	if copiedConfig > 0 {
 		manifest.Defaults.ConfigDir = path.Join("config", info.ServiceName)
@@ -620,4 +632,18 @@ func copyFile(src, dest string) error {
 		return err
 	}
 	return nil
+}
+
+// sha256File computes the SHA256 hex digest of a file.
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

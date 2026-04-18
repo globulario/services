@@ -88,7 +88,9 @@ type Config struct {
 	RcloneSource string `json:"RcloneSource"` // local path to sync, default minio data dir
 
 	// scylla provider
-	ScyllaManagerAPI string `json:"ScyllaManagerAPI"` // scylla-manager API; empty = use sctool default
+	ScyllaManagerAPI    string `json:"ScyllaManagerAPI"`    // scylla-manager API; empty = use sctool default
+	ScyllaManagerAPICert string `json:"ScyllaManagerAPICert"` // path to TLS client cert for sctool --api-cert-file
+	ScyllaManagerAPIKey  string `json:"ScyllaManagerAPIKey"`  // path to TLS client key for sctool --api-key-file
 	ScyllaCluster    string `json:"ScyllaCluster"`    // cluster name in scylla-manager
 	ScyllaLocation   string `json:"ScyllaLocation"`   // backup location, e.g. "s3:scylla-backups"
 

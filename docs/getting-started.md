@@ -110,7 +110,7 @@ All services should show `INSTALLED`. If any show `APPLYING`, wait a minute — 
 ## Step 2 — Set the Admin Password
 
 ```bash
-globular auth set-password --username admin --password YourStr0ngP@ssword!
+globular auth root-passwd --password YourStr0ngP@ssword!
 ```
 
 Authenticate:
@@ -152,7 +152,7 @@ globular workflow list --service echo
 # Shows: SUCCEEDED with trigger DESIRED_DRIFT
 
 # No drift
-globular services repair --dry-run
+globular cluster get-drift-report
 # All INSTALLED
 ```
 
@@ -197,6 +197,174 @@ Every service:
 - Is protected by the RBAC interceptor chain
 - Is managed by the convergence model
 
+## What usually breaks first
+
+A fresh install almost never goes clean end-to-end on the first try. That is not a failure — it is the normal turbulence of a system with many moving parts starting in sequence. Here is what actually tends to go wrong, in the order it usually happens.
+
+### The controller starts but nothing gets installed
+
+The most common Day-0 state. `globular cluster health` shows the node healthy, but `globular services desired list` is empty or everything is stuck at APPLYING.
+
+The controller depends on a working etcd and a valid PKI before it seeds desired state. Check these first:
+
+```bash
+sudo systemctl status etcd
+# If failed: check /var/lib/etcd/ disk space and journalctl -u etcd
+
+ls /var/lib/globular/pki/ca.crt
+# If missing: the installer did not complete successfully
+```
+
+Then check if the controller actually ran its bootstrap seeding:
+
+```bash
+sudo journalctl -u globular-cluster-controller --no-pager -n 100 | grep -E "seed|bootstrap|error|failed"
+```
+
+If the controller logged "seeding desired state" but workflows aren't running, check the workflow service:
+
+```bash
+sudo systemctl status globular-workflow
+sudo journalctl -u globular-workflow --no-pager -n 50
+```
+
+### Workflows are dispatched but stay stuck at FETCH
+
+Services are in APPLYING and have been for several minutes. Workflows exist but don't progress.
+
+FETCH is the first real workflow step — it downloads the package binary from MinIO. If MinIO isn't running or accessible, every workflow stalls here silently.
+
+```bash
+sudo systemctl status minio
+# If failed or not running, that is your problem
+
+# If MinIO is running but uploads never completed:
+globular pkg info <service-name>
+# State must be PUBLISHED. VERIFIED means the upload pipeline didn't complete.
+```
+
+FETCH stalls also happen when the node agent is unreachable (the workflow dispatches to it but gets no response):
+
+```bash
+sudo systemctl status globular-node-agent
+sudo journalctl -u globular-node-agent --no-pager -n 30
+```
+
+### `globular cluster health` says healthy but things aren't working
+
+The health command checks heartbeats. A node can be heartbeating perfectly while half its services are failed or stuck. The health command will call it "healthy."
+
+The doctor is more honest:
+
+```bash
+globular cluster get-doctor-report
+```
+
+If you see CRITICAL findings here despite a healthy heartbeat, the cluster has real problems that `cluster health` is not surfacing. Trust the doctor over the health check.
+
+### `globular` CLI returns "unauthorized" immediately after install
+
+The CLI needs a token. Tokens expire. On a fresh install the admin password is set but no token exists yet.
+
+```bash
+globular auth login --username admin --password <your-password>
+```
+
+If login itself fails with "service unavailable" or "connection refused", the authentication service isn't running:
+
+```bash
+sudo systemctl status globular-authentication
+sudo journalctl -u globular-authentication --no-pager -n 30
+# Often caused by: etcd unreachable, or the service started before PKI was ready
+sudo systemctl restart globular-authentication
+```
+
+If it fails with "invalid credentials" — the password was not set correctly during install. The actual command name is `globular auth root-passwd`, not `globular auth set-password`:
+
+```bash
+globular auth root-passwd --password YourStr0ngP@ssword!
+```
+
+### The gateway (port 443) returns nothing
+
+Envoy's route configuration comes from the xDS server. If Envoy started before xDS had any routes loaded, it listens but serves nothing.
+
+```bash
+sudo systemctl status globular-envoy globular-xds
+
+# Fix: restart xDS first, then Envoy
+sudo systemctl restart globular-xds
+sleep 10
+sudo systemctl restart globular-envoy
+```
+
+Also check if something else already has port 443:
+
+```bash
+sudo ss -tlnp | grep ':443'
+# If another process is listed, it needs to be removed or reconfigured
+```
+
+### The node never gets past APPLYING after a full install
+
+If everything appears to be running (all systemd units active, no failed units, controller healthy) but the desired-state list never converges, the problem is usually one of:
+
+1. **Clock skew** — JWTs expire; if the node's clock is off by more than a few minutes, tokens look expired before they are used. `sudo timedatectl set-ntp true` and then restart the controller and node agent.
+2. **Certificate not trusted** — The cluster CA cert was regenerated after some services already started. `sudo systemctl restart globular-node-agent globular-cluster-controller`.
+3. **ScyllaDB not ready** — Several services (repository, AI memory) require ScyllaDB. If it's still bootstrapping, service startup fails silently. Check `sudo systemctl status scylladb` and give it a few minutes on first boot.
+
+---
+
+## What "healthy" actually looks like
+
+This is the full checklist. `globular cluster health` passing is necessary but not sufficient.
+
+```bash
+# 1. No failed systemd units
+sudo systemctl --failed | grep -E "globular|etcd|minio|scylladb"
+# Should return nothing
+
+# 2. All core units active
+sudo systemctl list-units 'globular-*' --state=active --no-pager
+# Should include: cluster-controller, node-agent, workflow,
+#                 authentication, rbac, repository, dns,
+#                 envoy, xds, monitoring, minio
+
+# 3. Controller sees the node and it's heartbeating
+globular cluster health
+# CLUSTER STATUS: HEALTHY, NODES: 1/1 healthy
+
+# 4. Desired state converged (no APPLYING, no FAILED)
+globular services desired list
+# All entries: STATUS = INSTALLED
+
+# 5. Doctor finds no critical issues
+globular cluster get-doctor-report
+# No CRITICAL findings
+
+# 6. No drift
+globular cluster get-drift-report
+# Empty or INFO-level only
+```
+
+If you have all six, the cluster is genuinely healthy. If `globular cluster health` passes but steps 1, 4, 5, or 6 fail — the cluster has a real problem hiding behind a green heartbeat.
+
+---
+
+## What is still evolving
+
+Globular at v0.1.x is stable for 3-node production use, but some areas are still maturing. Know this before you go further:
+
+- **No GitHub release yet**: The "from release" install path in this guide assumes a v0.1.0 tag. Until that tag is published, you must build from source.
+- **Single-node is for development only**: A single node has no etcd quorum, no MinIO erasure redundancy, no ScyllaDB replication. Data can be lost if the node fails. Add at least two more nodes before storing anything you care about.
+- **Compute service not deployed**: The compute server code exists but is not built or packaged. It is a Phase 2 feature.
+- **Some CLI commands missing**: Backup, monitoring, and AI commands documented elsewhere have no CLI wrapper yet. Use the MCP tools or direct gRPC. See [Known Issues](operators/known-issues.md) for the full list.
+- **Split-horizon DNS requires /etc/hosts**: The DNS service cannot currently serve different answers for internal vs. external queries. VIP hairpin NAT requires a manual `/etc/hosts` override on each node.
+
+See [Platform Status](operators/platform-status.md) for a complete, current picture of what is implemented, partial, and planned.
+
+---
+
 ## What's Next
 
 | Goal | Guide |
@@ -211,3 +379,4 @@ Every service:
 | **Understand the architecture** | [Architecture Overview](operators/architecture-overview.md) |
 | **Monitor the cluster** | [Observability](operators/observability.md) |
 | **All ports and firewall rules** | [Ports Reference](operators/ports-reference.md) |
+| **Current implementation status** | [Platform Status](operators/platform-status.md) |

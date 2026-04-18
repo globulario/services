@@ -145,7 +145,7 @@ Each layer can fail independently:
 - **Layer 3 fails**: Installation succeeded but the Node Agent crashed before recording it. Layer 4 shows the service running, but Layer 3 doesn't know about it.
 - **Layer 4 fails**: The service is installed (Layer 3) but crashed on startup (Layer 4). The platform knows exactly where the problem is.
 
-The `globular services repair --dry-run` command compares all four layers and produces a precise diagnosis:
+The `globular cluster get-drift-report` command compares all four layers and produces a precise diagnosis:
 
 ```
 SERVICE         NODE     DESIRED  INSTALLED  STATUS

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,33 +15,21 @@ import (
 var (
 	artifactDeprecateCmd = &cobra.Command{
 		Use:   "deprecate <publisher/name> <version>",
-		Short: "Mark an artifact as deprecated",
+		Short: "Mark an artifact as deprecated (still installable by pin, skipped by latest resolver)",
 		Args:  cobra.ExactArgs(2),
 		RunE:  runArtifactStateChange(repopb.PublishState_DEPRECATED),
 	}
-	artifactYankCmd = &cobra.Command{
-		Use:   "yank <publisher/name> <version>",
-		Short: "Yank an artifact (remove from discovery, block downloads)",
-		Args:  cobra.ExactArgs(2),
-		RunE:  runArtifactStateChange(repopb.PublishState_YANKED),
-	}
-	artifactQuarantineCmd = &cobra.Command{
-		Use:   "quarantine <publisher/name> <version>",
-		Short: "Quarantine an artifact (admin only — security hold)",
-		Args:  cobra.ExactArgs(2),
-		RunE:  runArtifactStateChange(repopb.PublishState_QUARANTINED),
-	}
-	artifactRevokeCmd = &cobra.Command{
-		Use:   "revoke <publisher/name> <version>",
-		Short: "Permanently revoke an artifact (terminal, admin only)",
-		Args:  cobra.ExactArgs(2),
-		RunE:  runArtifactStateChange(repopb.PublishState_REVOKED),
-	}
 	artifactUndeprecateCmd = &cobra.Command{
 		Use:   "undeprecate <publisher/name> <version>",
-		Short: "Remove deprecation from an artifact",
+		Short: "Restore a deprecated artifact to published state",
 		Args:  cobra.ExactArgs(2),
 		RunE:  runArtifactStateChange(repopb.PublishState_PUBLISHED),
+	}
+	artifactYankCmd = &cobra.Command{
+		Use:   "yank <publisher/name> <version>",
+		Short: "Yank an artifact (hidden from discovery, downloads blocked)",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runArtifactStateChange(repopb.PublishState_YANKED),
 	}
 	artifactUnyankCmd = &cobra.Command{
 		Use:   "unyank <publisher/name> <version>",
@@ -48,16 +37,44 @@ var (
 		Args:  cobra.ExactArgs(2),
 		RunE:  runArtifactStateChange(repopb.PublishState_PUBLISHED),
 	}
+	artifactQuarantineCmd = &cobra.Command{
+		Use:   "quarantine <publisher/name> <version>",
+		Short: "Quarantine an artifact (admin only — security hold, downloads blocked)",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runArtifactStateChange(repopb.PublishState_QUARANTINED),
+	}
+	artifactUnquarantineCmd = &cobra.Command{
+		Use:   "unquarantine <publisher/name> <version>",
+		Short: "Lift quarantine and restore artifact to published state (admin only)",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runArtifactStateChange(repopb.PublishState_PUBLISHED),
+	}
+	artifactRevokeCmd = &cobra.Command{
+		Use:   "revoke <publisher/name> <version>",
+		Short: "Permanently revoke an artifact (terminal — no recovery, admin or owner)",
+		Args:  cobra.ExactArgs(2),
+		RunE:  runArtifactStateChange(repopb.PublishState_REVOKED),
+	}
 )
 
-var stateChangeReason string
+var (
+	stateChangeReason      string
+	stateChangePlatform    string
+	stateChangeBuildNumber int64
+	stateChangeKind        string
+)
 
 func init() {
 	for _, cmd := range []*cobra.Command{
-		artifactDeprecateCmd, artifactYankCmd, artifactQuarantineCmd,
-		artifactRevokeCmd, artifactUndeprecateCmd, artifactUnyankCmd,
+		artifactDeprecateCmd, artifactUndeprecateCmd,
+		artifactYankCmd, artifactUnyankCmd,
+		artifactQuarantineCmd, artifactUnquarantineCmd,
+		artifactRevokeCmd,
 	} {
-		cmd.Flags().StringVar(&stateChangeReason, "reason", "", "Reason for state change (for audit)")
+		cmd.Flags().StringVar(&stateChangeReason, "reason", "", "Reason for state change (recorded for audit)")
+		cmd.Flags().StringVar(&stateChangePlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "Target platform (goos_goarch)")
+		cmd.Flags().Int64Var(&stateChangeBuildNumber, "build-number", 0, "Target specific build iteration (0 = all builds at this version)")
+		cmd.Flags().StringVar(&stateChangeKind, "kind", "service", "Artifact kind: service|application|infrastructure|command")
 		pkgCmd.AddCommand(cmd)
 	}
 }
@@ -71,6 +88,19 @@ func parsePublisherName(arg string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
+func resolveArtifactKind(kind string) repopb.ArtifactKind {
+	switch strings.ToLower(kind) {
+	case "application":
+		return repopb.ArtifactKind_APPLICATION
+	case "infrastructure":
+		return repopb.ArtifactKind_INFRASTRUCTURE
+	case "command":
+		return repopb.ArtifactKind_COMMAND
+	default:
+		return repopb.ArtifactKind_SERVICE
+	}
+}
+
 func runArtifactStateChange(targetState repopb.PublishState) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		publisher, name, err := parsePublisherName(args[0])
@@ -79,32 +109,36 @@ func runArtifactStateChange(targetState repopb.PublishState) func(cmd *cobra.Com
 		}
 		version := args[1]
 
-		address, _ := config.GetAddress()
-		if address == "" {
-			address = config.GetRoutableIPv4()
+		repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+		if repoAddr == "" {
+			return fmt.Errorf("cannot discover repository address")
 		}
 
-		client, err := repository_client.NewRepositoryService_Client(address, "repository.PackageRepository")
+		client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
 		if err != nil {
 			return fmt.Errorf("connect to repository: %w", err)
 		}
 		defer client.Close()
 
+		if token := rootCfg.token; token != "" {
+			client.SetToken(token)
+		}
+
 		ref := &repopb.ArtifactRef{
 			PublisherId: publisher,
 			Name:        name,
 			Version:     version,
-			Platform:    "linux_amd64",
-			Kind:        repopb.ArtifactKind_SERVICE,
+			Platform:    stateChangePlatform,
+			Kind:        resolveArtifactKind(stateChangeKind),
 		}
 
-		resp, err := client.SetArtifactState(ref, 0, targetState, stateChangeReason)
+		resp, err := client.SetArtifactState(ref, stateChangeBuildNumber, targetState, stateChangeReason)
 		if err != nil {
 			return fmt.Errorf("set artifact state: %w", err)
 		}
 
-		fmt.Printf("Artifact %s/%s@%s: %s → %s\n",
-			publisher, name, version,
+		fmt.Printf("Artifact %s/%s@%s [%s]: %s → %s\n",
+			publisher, name, version, stateChangePlatform,
 			resp.GetPreviousState(), resp.GetCurrentState())
 		return nil
 	}

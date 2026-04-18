@@ -353,10 +353,10 @@ systemctl status my_service
 
 ### Cross-Layer Comparison
 
-The `repair` command compares all four layers:
+The `get-drift-report` command compares all four layers:
 
 ```bash
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 This identifies packages in each status:
@@ -482,7 +482,7 @@ After bootstrapping a cluster, many services are installed by the bootstrap proc
 
 ```bash
 # See what's installed but unmanaged
-globular services repair --dry-run
+globular cluster get-drift-report
 # Shows: etcd UNMANAGED, authentication UNMANAGED, ...
 
 # Import all installed services into desired state

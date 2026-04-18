@@ -115,18 +115,16 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 		rc.Close()
 	}
 
-	// Step 4: If not dry-run, run import to repair missing desired-state.
+	// Step 4: Cleanup stale desired keys (safe housekeeping).
+	// NOTE: importInstalledToDesired was REMOVED here — it is an authority
+	// inversion (Layer 3 → Layer 2). Repair must never recreate desired
+	// state from installed/runtime observations. Desired state is managed
+	// exclusively via explicit deploy commands or SeedDesiredState RPC.
 	if !req.DryRun {
 		if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
 			log.Printf("RepairStateAlignment: cleaned up %d stale desired keys", n)
 		}
-		stats, err := srv.importInstalledToDesired(ctx)
-		if err != nil {
-			log.Printf("RepairStateAlignment: import failed: %v", err)
-		} else {
-			report.Repaired = stats.Imported + stats.Updated
-		}
-		// Re-read desired state after repair.
+		// Re-read desired state after cleanup.
 		desired = srv.collectDesiredVersions(ctx)
 	}
 
@@ -199,10 +197,11 @@ func (srv *server) RepairStateAlignment(ctx context.Context, req *cluster_contro
 	return report, nil
 }
 
-// desiredVersionInfo holds a version and build number from a desired release.
+// desiredVersionInfo holds a version, build number, and build_id from a desired release.
 type desiredVersionInfo struct {
 	version     string
 	buildNumber int64
+	buildID     string // Phase 2: authoritative convergence identity
 }
 
 // collectDesiredVersions reads all desired release versions from the resource
@@ -220,7 +219,7 @@ func (srv *server) collectDesiredVersions(ctx context.Context) map[string]desire
 				if canon == "" {
 					canon = sdv.Spec.ServiceName
 				}
-				desired["SERVICE/"+canon] = desiredVersionInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber}
+				desired["SERVICE/"+canon] = desiredVersionInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber, buildID: sdv.Spec.BuildID}
 			}
 		}
 	}

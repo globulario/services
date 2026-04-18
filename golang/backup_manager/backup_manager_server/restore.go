@@ -403,6 +403,8 @@ func (srv *server) buildScyllaRestoreOpts(pr *backup_managerpb.BackupProviderRes
 		"locations":    strings.Join(locations, ","),
 		"snapshot_tag": snapshotTag,
 		"api_url":      srv.ScyllaManagerAPI,
+		"api_cert":     srv.ScyllaManagerAPICert,
+		"api_key":      srv.ScyllaManagerAPIKey,
 	}
 }
 

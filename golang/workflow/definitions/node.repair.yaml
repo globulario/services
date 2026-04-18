@@ -6,7 +6,9 @@ metadata:
   description: >-
     Diagnose, isolate and repair a degraded or partially converged node. Used
     when a node join is incomplete, local package state is corrupted, or
-    runtime health has drifted from desired state.
+    runtime health has drifted from desired state. Supports three repair modes:
+    from_repository (default), from_reference (assisted planning using a
+    healthy peer), and full_reseed (managed package state wipe + re-apply).
 spec:
   inputSchema:
     type: object
@@ -24,10 +26,34 @@ spec:
       isolate_first: { type: boolean, default: true }
       repair_timeout: { type: string, default: 30m }
       verify_timeout: { type: string, default: 10m }
+      repair_mode:
+        type: string
+        enum: [from_repository, from_reference, full_reseed]
+        default: from_repository
+        description: >-
+          from_repository: fetch artifacts from repository using desired state as authority.
+          from_reference: use a healthy converged node for planning (composition, checksums,
+          ordering) while still sourcing artifacts from repository.
+          full_reseed: wipe managed package state and re-apply everything. Does NOT touch
+          etcd/ScyllaDB/MinIO membership — those require separate workflows.
+      reference_node_id:
+        type: string
+        description: Required when repair_mode=from_reference. Must be a converged node.
+      identity_policy:
+        type: string
+        enum: [auto, preserve, rotate_certs]
+        default: auto
+        description: >-
+          auto: classifier determines action from identity integrity diagnosis.
+          preserve: keep all identity material as-is.
+          rotate_certs: re-issue service cert from cluster CA.
+          If diagnosis finds identity CORRUPT, repair is blocked regardless of policy.
   defaults:
     isolate_first: true
     repair_timeout: 30m
     verify_timeout: 10m
+    repair_mode: from_repository
+    identity_policy: auto
   strategy:
     mode: single
   steps:
@@ -42,29 +68,42 @@ spec:
         idempotency: safe_retry
         resume_policy: verify_effect
 
+    - id: validate_reference
+      title: Validate reference node is healthy and converged
+      dependsOn: [mark_repair_started]
+      when:
+        expr: inputs.repair_mode == "from_reference"
+      actor: cluster-controller
+      action: controller.node_repair.validate_reference
+      with:
+        reference_node_id: $.reference_node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
     - id: diagnose_node
       title: Collect diagnostic facts
-      dependsOn: [mark_repair_started]
+      dependsOn: [mark_repair_started, validate_reference]
       actor: node-agent
       action: node.collect_repair_facts
       with:
         node_id: $.node_id
         target_packages: $.target_packages
+        repair_mode: $.repair_mode
+        reference_node_id: $.reference_node_id
       timeout: 5m
-      # Handler writes diagnosis directly to run outputs.
       execution:
         idempotency: safe_retry
         resume_policy: retry
 
     - id: classify_failure
-      title: Classify node failure
+      title: Classify node failure and produce repair plan
       dependsOn: [diagnose_node]
       actor: cluster-controller
       action: controller.node_repair.classify
       with:
         node_id: $.node_id
         diagnosis: $.diagnosis
-      # Handler writes repair_plan directly to run outputs.
       execution:
         idempotency: safe_retry
         resume_policy: retry
@@ -83,16 +122,32 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
-    - id: repair_packages
-      title: Repair or reinstall selected packages
+    - id: repair_controller_first
+      title: Repair controller binary before other packages
       dependsOn: [classify_failure, maybe_isolate]
+      when:
+        expr: outputs.repair_plan.controller_repair_required == true
       actor: node-agent
       action: node.repair_packages
       with:
         node_id: $.node_id
         repair_plan: $.repair_plan
+        scope: controller_only
+      timeout: 10m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: repair_packages
+      title: Repair or reinstall remaining packages
+      dependsOn: [classify_failure, maybe_isolate, repair_controller_first]
+      actor: node-agent
+      action: node.repair_packages
+      with:
+        node_id: $.node_id
+        repair_plan: $.repair_plan
+        scope: all_except_controller
       timeout: $.repair_timeout
-      # Handler writes repair_result directly to run outputs.
       execution:
         idempotency: verify_then_continue
         resume_policy: verify_effect
@@ -110,9 +165,23 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
+    - id: rotate_identity
+      title: Rotate certificates if identity suspect
+      dependsOn: [repair_packages]
+      when:
+        expr: outputs.repair_plan.identity_action == "rotate_certs"
+      actor: node-agent
+      action: node.rotate_service_certs
+      with:
+        node_id: $.node_id
+      timeout: 5m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
     - id: verify_runtime
       title: Verify node runtime after repair
-      dependsOn: [restart_repaired_services]
+      dependsOn: [restart_repaired_services, rotate_identity]
       actor: node-agent
       action: node.verify_repair_runtime
       with:

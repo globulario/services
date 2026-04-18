@@ -213,7 +213,7 @@ globular services desired list
 # ...
 
 # Check installed packages
-globular services repair --dry-run
+globular cluster get-drift-report
 # All services should show INSTALLED (no drift)
 ```
 
@@ -222,7 +222,7 @@ globular services repair --dry-run
 After bootstrap, set the root administrator password:
 
 ```bash
-globular auth set-password --username admin --password <strong-password>
+globular auth root-passwd --password <strong-password>
 ```
 
 This password is used for the initial `globular auth login` and should be changed to a strong value immediately after bootstrap.

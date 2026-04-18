@@ -27,8 +27,8 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Protocol = %q, want %q", cfg.Protocol, "grpc")
 	}
 
-	if cfg.Version != "0.1.0" {
-		t.Errorf("Version = %q, want %q", cfg.Version, "0.1.0")
+	if cfg.Version != "" {
+		t.Errorf("Version = %q, want %q", cfg.Version, "")
 	}
 
 	if cfg.Description != "Service discovery client" {

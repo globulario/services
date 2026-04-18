@@ -159,41 +159,88 @@ globular pkg info my_service
 
 ## Artifact Lifecycle Management
 
+All lifecycle commands use the format `publisher/name` for the first argument and accept `--platform` (defaults to current platform), `--build-number` (defaults to 0 = all builds), and `--reason` for audit.
+
 ### Deprecating a Version
 
 When a newer version supersedes an older one:
 
 ```bash
-globular pkg deprecate my_service 0.0.2
+globular pkg deprecate core@globular.io/my_service 0.0.2
+globular pkg deprecate core@globular.io/my_service 0.0.2 --reason "superseded by 0.0.3"
 ```
 
-The artifact transitions to `DEPRECATED`. It remains downloadable (existing installations can still access it for rollback), but new deployments should use a newer version. The platform may warn when deploying a deprecated version.
+`DEPRECATED` means: still downloadable and installable by explicit pin, but **skipped by the latest resolver**. The node-agent emits a warning when installing a deprecated artifact. Nodes already running this version are unaffected.
+
+Undo with:
+```bash
+globular pkg undeprecate core@globular.io/my_service 0.0.2
+```
 
 ### Yanking a Version
 
-When a version has a critical bug that shouldn't be deployed anywhere new:
+When a version has a critical bug that must not be deployed anywhere new:
 
 ```bash
-globular pkg yank my_service 0.0.1
+globular pkg yank core@globular.io/my_service 0.0.1 --reason "memory leak in request handler"
 ```
 
-The artifact transitions to `YANKED`:
-- Removed from discovery — new `services desired set` targeting this version will fail
-- Existing installations are unaffected — nodes already running this version continue to work
-- The artifact remains in MinIO for audit purposes
+`YANKED` means: hidden from discovery, downloads blocked for non-owners. New desired-state writes targeting this version are rejected. Existing installations are unaffected — nodes already running this version continue to work.
+
+Undo with:
+```bash
+globular pkg unyank core@globular.io/my_service 0.0.1
+```
+
+### Quarantining a Version (admin only)
+
+For security incidents where an artifact must be held pending investigation:
+
+```bash
+globular pkg quarantine core@globular.io/my_service 0.0.1 --reason "CVE-2026-1234 under review"
+```
+
+`QUARANTINED` behaves like `YANKED` but requires admin privileges to both set and lift. Only an admin can lift quarantine:
+
+```bash
+globular pkg unquarantine core@globular.io/my_service 0.0.1
+```
 
 ### Revoking a Version
 
-For security vulnerabilities or compliance issues:
+For confirmed security vulnerabilities or compliance failures. Terminal — no recovery:
 
 ```bash
-globular pkg revoke my_service 0.0.1
+globular pkg revoke core@globular.io/my_service 0.0.1 --reason "supply chain compromise confirmed"
 ```
 
-The artifact transitions to `REVOKED`:
-- Permanently removed from availability
-- Active installations should be replaced — the platform flags these as requiring immediate attention
-- The manifest remains in etcd for audit trail, but the archive may be removed from MinIO
+`REVOKED` is permanent. The manifest is retained for audit; the binary stays in MinIO but is unreachable. Active installations of a REVOKED artifact should be replaced immediately — the cluster doctor will flag them.
+
+### Targeting a Specific Platform or Build
+
+All state commands accept `--platform` and `--build-number` to target a specific artifact precisely:
+
+```bash
+# Yank only the arm64 build of a version
+globular pkg yank core@globular.io/my_service 0.0.1 --platform linux_arm64
+
+# Deprecate a specific build iteration
+globular pkg deprecate core@globular.io/my_service 0.0.3 --build-number 2
+```
+
+### Garbage Collection
+
+Old artifacts that are no longer reachable (outside the retention window and not referenced by desired or installed state) can be archived:
+
+```bash
+# Preview what would be archived
+globular repository cleanup --dry-run
+
+# Archive unreachable artifacts (soft-delete — binary stays in MinIO)
+globular repository cleanup
+```
+
+See [Repository Overview](repository-overview.md) for details on the reachability engine and what GC will and will not touch.
 
 ## Building All Packages
 

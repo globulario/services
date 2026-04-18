@@ -9,10 +9,11 @@ metadata:
     possible, or flagged for operator attention when not.
 
     Invariants enforced:
-      1. Workflow completeness — all required workflow definitions exist in MinIO
+      1. Workflow completeness — all required workflow definitions exist in etcd
       2. Infrastructure quorum — etcd (all nodes), ScyllaDB (≥3), MinIO (≥3)
       3. Founding profiles — first 3 nodes MUST have core+control-plane+storage
-      4. PKI health — service certs valid, CA present
+      4. MinIO storage health — pool membership, join phases, credentials, service running
+      5. PKI health — cert expiry, SAN coverage, chain validity, CA present
 spec:
   inputSchema:
     type: object
@@ -27,7 +28,7 @@ spec:
     mode: single
   steps:
     # ── Step 1: Validate workflow completeness ─────────────────────────
-    # If workflow definitions are missing from MinIO, the cluster cannot
+    # If workflow definitions are missing from etcd, the cluster cannot
     # reconcile, deploy, join, or heal. This is a hard invariant.
     - id: validate_workflows
       title: Validate all required workflow definitions exist
@@ -53,10 +54,10 @@ spec:
         resume_policy: retry
 
     # ── Step 2: Re-upload missing workflows from local disk ────────────
-    # If workflows are missing from MinIO, re-upload from the local
-    # definitions directory. This self-heals MinIO data loss.
+    # If workflows are missing from etcd, re-seed from the local
+    # definitions directory. This self-heals etcd data loss.
     - id: repair_missing_workflows
-      title: Re-upload missing workflow definitions to MinIO
+      title: Re-seed missing workflow definitions to etcd
       dependsOn: [validate_workflows]
       when:
         expr: len(workflow_report.missing) > 0
@@ -124,16 +125,85 @@ spec:
         idempotency: safe_retry
         resume_policy: retry
 
-    # ── Step 6: Emit invariant report ──────────────────────────────────
+    # ── Step 6: Validate MinIO storage health ─────────────────────────
+    # Checks pool membership, join phases, credentials, service status,
+    # and config consistency. Catches missing minio.env, offline drives,
+    # and nodes not in the pool — the exact failure mode that brought
+    # down the cluster when dell lost its minio.env.
+    - id: validate_minio_storage
+      title: Validate MinIO distributed storage health
+      dependsOn: [validate_infra_quorum]
+      actor: cluster-controller
+      action: controller.invariant.validate_minio_storage
+      with:
+        cluster_id: $.cluster_id
+      # Handler writes: minio_report with violations
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 6b: Repair MinIO storage violations ─────────────────────
+    # If MinIO violations found: reset failed join phases, clear config
+    # hashes to force re-render, restart service on affected nodes.
+    - id: repair_minio_storage
+      title: Repair MinIO storage violations
+      dependsOn: [validate_minio_storage]
+      when:
+        expr: len(minio_report.violations) > 0 && enforce == true
+      actor: cluster-controller
+      action: controller.invariant.repair_minio_storage
+      with:
+        minio_report: $.minio_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 7: Validate PKI / certificate health ──────────────────────
+    # Checks every node's TLS certificate: expiry, SAN coverage for all
+    # advertised IPs, chain validity against the cluster CA, and CA
+    # presence. A missing SAN caused a 16h silent outage on nuc; an
+    # expired cert breaks all inter-service gRPC.
+    - id: validate_pki_health
+      title: Validate TLS certificate health across all nodes
+      dependsOn: [validate_infra_quorum]
+      actor: cluster-controller
+      action: controller.invariant.validate_pki_health
+      with:
+        cluster_id: $.cluster_id
+      # Handler writes: pki_report with violations
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 7b: Repair PKI certificate violations ────────────────────
+    # If cert violations found: restart node-agent on affected nodes to
+    # trigger certificate re-issuance from the cluster CA. Fixes expired
+    # certs, missing SANs, and invalid chains.
+    - id: repair_pki_certs
+      title: Repair certificate violations via node-agent restart
+      dependsOn: [validate_pki_health]
+      when:
+        expr: len(pki_report.violations) > 0 && enforce == true
+      actor: cluster-controller
+      action: controller.invariant.repair_pki_certs
+      with:
+        pki_report: $.pki_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 8: Emit invariant report ──────────────────────────────────
     - id: emit_report
       title: Emit invariant enforcement report
-      dependsOn: [repair_missing_workflows, enforce_quorum, validate_founding_profiles]
+      dependsOn: [repair_missing_workflows, enforce_quorum, validate_founding_profiles, repair_minio_storage, repair_pki_certs]
       actor: cluster-controller
       action: controller.invariant.emit_report
       with:
         workflow_report: $.workflow_report
         quorum_report: $.quorum_report
         profile_report: $.profile_report
+        minio_report: $.minio_report
+        pki_report: $.pki_report
       execution:
         idempotency: safe_retry
         resume_policy: retry

@@ -69,8 +69,13 @@ func runDoctorRemediate(cmd *cobra.Command, args []string) error {
 		endpoint = fmt.Sprintf("%s:10080", config.GetRoutableIPv4())
 	}
 
+	resolvedEndpoint, resolveErr := resolveGRPCAddr(endpoint)
+	if resolveErr != nil {
+		return fmt.Errorf("invalid --endpoint %q: %w", endpoint, resolveErr)
+	}
+
 	conn, err := grpc.NewClient(
-		endpoint,
+		resolvedEndpoint,
 		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
 	)
 	if err != nil {

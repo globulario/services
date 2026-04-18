@@ -137,6 +137,13 @@ for proto in "${TS_TARGETS[@]}"; do
         "$pbjs"
     fi
   done
+  # Strip import lines from all generated _pb.d.ts (TypeScript declarations)
+  for pbdts in "$svc_dir"/*_pb.d.ts; do
+    [ -f "$pbdts" ] || continue
+    if grep -q 'globular_auth_pb' "$pbdts"; then
+      sed -i '/import.*globular_auth_pb/d' "$pbdts"
+    fi
+  done
   # Sync cleaned source to dist/
   if [ -d "$TS_ROOT/dist" ]; then
     mkdir -p "$TS_ROOT/dist/$proto"

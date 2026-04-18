@@ -924,6 +924,67 @@ proto.repository.PackageRepositoryPromiseClient.prototype.allocateUpload =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ResolveArtifactRequest,
+ *   !proto.repository.ResolveArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_ResolveArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ResolveArtifact',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ResolveArtifactRequest,
+  proto.repository.ResolveArtifactResponse,
+  /**
+   * @param {!proto.repository.ResolveArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ResolveArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ResolveArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ResolveArtifactResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ResolveArtifactResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.resolveArtifact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ResolveArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ResolveArtifact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ResolveArtifactRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ResolveArtifactResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.resolveArtifact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ResolveArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ResolveArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.repository.ResolveByEntrypointChecksumRequest,
  *   !proto.repository.ResolveByEntrypointChecksumResponse>}
  */

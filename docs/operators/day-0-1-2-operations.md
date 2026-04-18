@@ -50,7 +50,7 @@ globular cluster bootstrap \
   --profile gateway
 
 # 4. Set root password
-globular auth set-password --username admin --password <strong-password>
+globular auth root-passwd --password <strong-password>
 
 # 5. Verify
 globular cluster health
@@ -219,7 +219,7 @@ See [Keepalived and Ingress](operators/keepalived-and-ingress.md) and [DNS and P
 globular backup preflight-check
 
 # Run first cluster backup
-globular backup run --mode cluster
+globular backup create --mode cluster
 
 # Verify backup
 globular backup list
@@ -243,7 +243,6 @@ See [Backup and Restore](operators/backup-and-restore.md) and [Observability](op
 ```bash
 # Create operator account
 globular auth create-account --username sre-operator --type user
-globular auth set-password --username sre-operator --password <password>
 globular rbac bind --subject sre-operator --role globular-operator
 
 # Create CI publisher account
@@ -329,7 +328,7 @@ globular ai executor jobs --state FAILED --limit 10
 globular backup validate <recent-backup-id> --deep
 
 # Review drift across all 4 layers
-globular services repair --dry-run
+globular cluster get-drift-report
 
 # Check disk usage on all nodes
 ssh node-1 df -h /var/lib/globular /var/lib/etcd
@@ -360,7 +359,7 @@ sudo systemctl start globular-cluster-controller
 # Review and update desired state
 globular services desired list
 # Check for deprecated packages, orphaned artifacts
-globular services repair --dry-run
+globular cluster get-drift-report
 
 # Compact etcd
 etcdctl compact $(etcdctl endpoint status --write-out="json" | jq '.header.revision')
@@ -424,7 +423,7 @@ globular ai executor jobs --limit 5
 
 # 5. Verify recovery
 globular cluster health
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 See [Debugging Failures](operators/debugging-failures.md) and [Failure Scenarios](operators/failure-scenarios.md).
@@ -467,7 +466,7 @@ sudo touch /var/lib/globular/domains/<domain>/.renew-requested
 | Weekly | Backup verification | `globular backup list --limit 7` |
 | Weekly | Cert expiry | `globular node certificate-status --node <node>:11000` |
 | Monthly | Deep backup validation | `globular backup validate <id> --deep` |
-| Monthly | Drift check | `globular services repair --dry-run` |
+| Monthly | Drift check | `globular cluster get-drift-report` |
 | Monthly | Disk usage | `df -h /var/lib/globular /var/lib/etcd` on each node |
 | Monthly | Test failover | Stop controller → verify HA → restart |
 | Quarterly | Disaster recovery test | Restore backup to test env |

@@ -1,14 +1,78 @@
+Documentation review — current state
+=====================================
 
-  1. pkg build → computes entrypoint_checksum (binary SHA256) → stores in manifest  ✅
-  2. pkg publish → uploads manifest with entrypoint_checksum to repository           ✅
-  3. ResolveByEntrypointChecksum RPC → node-agent queries: "which version has this binary?"  ✅
-  4. Node-agent heartbeat → confirms version from repository, writes to etcd          ✅
 
-  All steps implemented:
-  - Proto regenerated with ResolveByEntrypointChecksum RPC stubs
-  - Repository server handler scans published manifests for matching entrypoint_checksum
-  - Repository client exposes ResolveByEntrypointChecksum() method
-  - packageManifest struct enriches entrypoint_checksum from package.json into ArtifactManifest
-  - Node-agent heartbeat Phase 3 calls ResolveByEntrypointChecksum when binary doesn't match etcd
-  - Lazy repo connection (only connects if a mismatch is found)
-  - Falls back gracefully to etcd version if repository lookup fails
+DONE
+────
+
+✅ Getting Started turbulence section
+   Replaced "If something does not converge" (too polite, too structured) with
+   "What usually breaks first" — a story-driven breakdown of what actually goes wrong
+   at Day-0, in the order it happens. Controller doesn't seed, FETCH stalls at MinIO,
+   health says green but doctor disagrees, auth wrong command name, Envoy restart order.
+   Also fixed the "healthy" checklist to be more explicit about what the health command
+   misses.
+
+✅ Known Issues restructured into 4 buckets
+   - Product limitations (split-horizon, single-node data loss, no release tarball, etc.)
+   - Infrastructure bugs (DNS persistence, Envoy/xDS order, ScyllaDB migration split-brain)
+   - CLI gaps (missing commands + wrong names, with MCP/gRPC workarounds)
+   - Documentation mismatches (wrong port, wrong path, removed commands still referenced)
+   Each entry is self-contained: symptom, cause, workaround, status.
+
+✅ Platform Status page (operators/platform-status.md)
+   Full Implemented / Partial / Planned / Not Supported inventory per feature area.
+
+✅ Versioning expanded (developers/versioning.md)
+   version vs build_id model, 4-layer flow diagram, downgrade guard, exact-replay
+   connection, v1.0.0 criteria with honest current status.
+
+✅ Developer value proposition (writing-a-microservice.md)
+   "Why build on Globular instead of plain systemd + gRPC?" table added.
+
+✅ node.recover.full_reseed documentation (operators/node-recovery.md)
+   601 lines. Safety invariants, all phases, CLI reference, 10-step procedure,
+   failure handling, FAQ. Full cross-linking from failure-scenarios, tasks/recover-node,
+   index.
+
+✅ Known issues fixed in code
+   - Bootstrap flag file: os.Remove() after expiry detection in security/bootstrap.go
+   - ACME cert path mismatch: ensureXDSSymlink() in domain/reconciler.go creates
+     /var/lib/globular/config/tls/acme/{fqdn} → /var/lib/globular/domains/{fqdn}
+     automatically on every reconcile pass. No more manual symlink required.
+   - Wrong command names fixed across 17 doc files (auth set-password, services repair,
+     backup run → root-passwd, get-drift-report / node repair, backup create)
+
+✅ Developer narrative docs (local-first.md, service-packaging.md, workflow-integration.md)
+   Added design-reasoning layer to all three:
+   - local-first.md: why Globular inverted infrastructure-first, config fallback chain
+     as intentional design, not convenience; "Designing for Local-First" framing
+   - service-packaging.md: why tgz not Docker/deb/rpm, why spec is separate from binary,
+     why build numbers exist separately from versions, why priority exists beyond deps
+   - workflow-integration.md: why workflow integration inverts operational control,
+     why VERIFY is separate from START, why services declare their own backup datasets,
+     data class trade-offs (backup cost vs recovery cost), why graceful shutdown
+     matters specifically for convergence upgrades
+
+
+STILL OPEN
+──────────
+
+⬜ Topic echo across operator pages
+   Some concepts re-explain themselves across:
+   architecture-overview, convergence-model, workflows,
+   failure-scenarios, repository-overview, deployment-philosophy.
+   A light repetition is fine. The current level is slightly above that.
+   Fix approach: give each concept one "home" page, replace other mentions
+   with a sentence + link. This is a maintenance pass, not a sprint.
+
+⬜ SVG diagrams for hard concepts
+   ASCII art is in versioning.md and node-recovery.md.
+   The convergence model and the 4-layer truth model still lack visual diagrams.
+   These would convert the most mentally dense pages into something scannable.
+   Requires: someone to produce SVGs or use a diagram tool.
+
+⬜ Getting Started still assumes the release tarball exists
+   Option A references a GitHub release that doesn't exist yet.
+   The note is there, but it's still the first option shown.
+   Self-heals when v0.1.0 is tagged and released.

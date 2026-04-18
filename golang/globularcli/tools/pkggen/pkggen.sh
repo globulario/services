@@ -59,10 +59,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${VERSION}" ]]; then
-  echo "ERROR: --version is required" >&2
-  exit 2
-fi
+# Version is optional — the repository assigns the actual version on publish.
+# Default "0.0.1" is a placeholder that gets overridden server-side.
 
 if [[ ! -d "${BIN_DIR}" ]]; then
   echo "ERROR: --bin-dir not found: ${BIN_DIR}" >&2

@@ -133,7 +133,9 @@ type server struct {
 	ResticPaths      string `json:"ResticPaths"`
 	RcloneRemote     string `json:"RcloneRemote"`
 	RcloneSource     string `json:"RcloneSource"`
-	ScyllaManagerAPI string `json:"ScyllaManagerAPI"`
+	ScyllaManagerAPI    string `json:"ScyllaManagerAPI"`
+	ScyllaManagerAPICert string `json:"ScyllaManagerAPICert"`
+	ScyllaManagerAPIKey  string `json:"ScyllaManagerAPIKey"`
 	ScyllaCluster    string `json:"ScyllaCluster"`
 	ScyllaLocation   string `json:"ScyllaLocation"`
 
@@ -476,7 +478,9 @@ type savedSettings struct {
 	ResticPaths        string              `json:"ResticPaths"`
 	RcloneRemote       string              `json:"RcloneRemote"`
 	RcloneSource       string              `json:"RcloneSource"`
-	ScyllaManagerAPI   string              `json:"ScyllaManagerAPI"`
+	ScyllaManagerAPI    string              `json:"ScyllaManagerAPI"`
+	ScyllaManagerAPICert string             `json:"ScyllaManagerAPICert"`
+	ScyllaManagerAPIKey  string             `json:"ScyllaManagerAPIKey"`
 	ScyllaCluster      string              `json:"ScyllaCluster"`
 	ScyllaLocation     string              `json:"ScyllaLocation"`
 	ScheduleInterval   string              `json:"ScheduleInterval"`
@@ -503,7 +507,9 @@ func (srv *server) saveSettingsToBackupDir() {
 		ResticPaths:        srv.ResticPaths,
 		RcloneRemote:       srv.RcloneRemote,
 		RcloneSource:       srv.RcloneSource,
-		ScyllaManagerAPI:   srv.ScyllaManagerAPI,
+		ScyllaManagerAPI:    srv.ScyllaManagerAPI,
+		ScyllaManagerAPICert: srv.ScyllaManagerAPICert,
+		ScyllaManagerAPIKey:  srv.ScyllaManagerAPIKey,
 		ScyllaCluster:      srv.ScyllaCluster,
 		ScyllaLocation:     srv.ScyllaLocation,
 		ScheduleInterval:   srv.ScheduleInterval,
@@ -577,6 +583,12 @@ func (srv *server) restoreSettingsFromBackupDir() {
 	if ss.ScyllaManagerAPI != "" {
 		srv.ScyllaManagerAPI = ss.ScyllaManagerAPI
 	}
+	if ss.ScyllaManagerAPICert != "" {
+		srv.ScyllaManagerAPICert = ss.ScyllaManagerAPICert
+	}
+	if ss.ScyllaManagerAPIKey != "" {
+		srv.ScyllaManagerAPIKey = ss.ScyllaManagerAPIKey
+	}
 	srv.ScyllaCluster = ss.ScyllaCluster
 	srv.ScyllaLocation = ss.ScyllaLocation
 	if ss.ScheduleInterval != "" {
@@ -624,7 +636,7 @@ func (srv *server) StopService() error {
 // --- Version / Build ---
 
 var (
-	Version   = "0.1.0"
+	Version   = ""
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
@@ -683,6 +695,8 @@ func initializeServerDefaults() *server {
 	srv.RcloneSource = "/var/lib/globular/minio/data"
 
 	srv.ScyllaManagerAPI = ""
+	srv.ScyllaManagerAPICert = ""
+	srv.ScyllaManagerAPIKey = ""
 	srv.ScyllaCluster = ""
 	srv.ScyllaLocation = ""
 
@@ -692,6 +706,40 @@ func initializeServerDefaults() *server {
 	srv.MinioSecure = true
 
 	return srv
+}
+
+// scyllaAPIArgs returns sctool flags for the scylla-manager API connection.
+// Appends --api-url, --api-cert-file, and --api-key-file when configured.
+// The URL is normalized to always end with /api/v1 as required by sctool.
+func (srv *server) scyllaAPIArgs(apiURL string) []string {
+	var args []string
+	if apiURL != "" {
+		args = append(args, "--api-url", normalizeScyllaAPIURL(apiURL))
+	}
+	cert := srv.ScyllaManagerAPICert
+	if cert == "" {
+		cert = srv.CertFile
+	}
+	key := srv.ScyllaManagerAPIKey
+	if key == "" {
+		key = srv.KeyFile
+	}
+	if cert != "" {
+		args = append(args, "--api-cert-file", cert)
+	}
+	if key != "" {
+		args = append(args, "--api-key-file", key)
+	}
+	return args
+}
+
+// normalizeScyllaAPIURL ensures the URL ends with /api/v1 as required by sctool.
+func normalizeScyllaAPIURL(u string) string {
+	u = strings.TrimRight(u, "/")
+	if !strings.HasSuffix(u, "/api/v1") {
+		u += "/api/v1"
+	}
+	return u
 }
 
 func setupGrpcService(srv *server) {

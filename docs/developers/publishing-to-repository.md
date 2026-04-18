@@ -106,30 +106,54 @@ inventory   0.0.1    1      linux_amd64  PUBLISHED   2025-04-12 10:30:00
 ### State Machine
 
 ```
-STAGING ──→ VERIFIED ──→ PUBLISHED ──→ DEPRECATED
-                                    ──→ YANKED
-                                    ──→ REVOKED
+STAGING ──→ VERIFIED ──→ PUBLISHED ──→ DEPRECATED ─┐
+                │              │                    │
+                │              ├──→ YANKED ──────────┤──→ REVOKED (terminal)
+                │              │                    │
+                │              ├──→ QUARANTINED ─────┘
+                │              │
+                │              └──→ ARCHIVED  ←── GC (soft-delete)
+                │
+                ├──→ ORPHANED  (descriptor registration failed)
+                └──→ FAILED    (pipeline error)
+
+CORRUPTED  ←── system (entrypoint_checksum mismatch detected post-publish)
 ```
+
+The full semantics of each state are documented in the [Repository Overview](../operators/repository-overview.md).
 
 ### Managing Lifecycle
 
-**Deprecate** — mark an old version as superseded:
-```bash
-globular pkg deprecate inventory 0.0.1
-```
-The artifact remains downloadable (for rollback) but new deployments should use a newer version.
+All lifecycle commands use the format `publisher/name version` and accept:
+- `--reason` — recorded for audit
+- `--platform` — target platform (defaults to current: `linux_amd64`)
+- `--build-number` — target a specific build iteration (default: 0 = all builds)
+- `--kind` — artifact kind: `service` (default), `application`, `infrastructure`, `command`
 
-**Yank** — remove from discovery:
+**Deprecate** — mark an old version as superseded (still installable by pin):
 ```bash
-globular pkg yank inventory 0.0.1
+globular pkg deprecate myteam@example.com/inventory 0.0.1
+globular pkg undeprecate myteam@example.com/inventory 0.0.1
 ```
-New `services desired set` targeting this version will fail. Existing installations are unaffected.
 
-**Revoke** — permanent removal:
+**Yank** — block downloads and hide from discovery:
 ```bash
-globular pkg revoke inventory 0.0.1
+globular pkg yank myteam@example.com/inventory 0.0.1 --reason "critical regression in order processing"
+globular pkg unyank myteam@example.com/inventory 0.0.1
 ```
-Active installations should be replaced. Used for security vulnerabilities.
+New desired-state writes targeting this version will be rejected. Existing installations are unaffected.
+
+**Quarantine** — admin security hold (same effect as YANKED, but admin-only to lift):
+```bash
+globular pkg quarantine myteam@example.com/inventory 0.0.1 --reason "CVE-2026-5678 under review"
+globular pkg unquarantine myteam@example.com/inventory 0.0.1
+```
+
+**Revoke** — permanent, terminal, no recovery:
+```bash
+globular pkg revoke myteam@example.com/inventory 0.0.1 --reason "confirmed supply chain issue"
+```
+The manifest is kept for audit. The binary stays in MinIO but is inaccessible. Active installations must be replaced manually.
 
 ## Provenance
 

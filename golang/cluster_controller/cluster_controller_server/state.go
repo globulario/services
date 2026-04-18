@@ -201,6 +201,7 @@ type nodeState struct {
 	LastAppliedGeneration uint64             `json:"last_applied_generation,omitempty"`
 	AppliedServicesHash   string             `json:"applied_services_hash,omitempty"`
 	InstalledVersions     map[string]string  `json:"installed_versions,omitempty"`
+	InstalledBuildIDs     map[string]string  `json:"installed_build_ids,omitempty"`
 	// Health tracking fields
 	FailedHealthChecks   int       `json:"failed_health_checks,omitempty"`
 	LastRecoveryAttempt  time.Time `json:"last_recovery_attempt,omitempty"`

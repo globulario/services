@@ -90,7 +90,7 @@ globular services desired list
 # Shows: <service> <new-version> N/N INSTALLED
 
 # No drift
-globular services repair --dry-run
+globular cluster get-drift-report
 
 # Cluster healthy
 globular cluster health

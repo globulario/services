@@ -196,7 +196,7 @@ If services are already running (e.g., from bootstrap or manual installation) bu
 
 ```bash
 # Preview what would be imported
-globular services repair --dry-run
+globular cluster get-drift-report
 
 # Import all installed services into desired state
 globular services seed
@@ -215,7 +215,7 @@ The repair command performs a comprehensive cross-layer comparison and fixes any
 
 ```bash
 # Dry run: show problems without fixing
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 Output:
@@ -230,7 +230,7 @@ old_service     —           —        —          —         Orphaned (in r
 
 ```bash
 # Fix all issues
-globular services repair
+globular node repair
 ```
 
 Actions taken:

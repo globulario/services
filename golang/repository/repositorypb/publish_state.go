@@ -4,24 +4,35 @@ package repositorypb
 //
 // Each publish state has explicit behavioral rules:
 //
-// | State         | Search | Latest Resolve | Download | Pin Install | Rollback | Owner-Only | Warning/Error | Who May Transition To      |
-// |---------------|--------|----------------|----------|-------------|----------|------------|---------------|----------------------------|
-// | PUBLISHED     | yes    | yes            | yes      | yes         | yes      | no         | none          | publisher / owner / admin   |
-// | DEPRECATED    | yes    | no (skip)      | yes+warn | yes         | yes      | no         | warning       | publisher / owner / admin   |
-// | YANKED        | no     | no             | no       | no          | no       | yes        | hard error    | publisher / owner / admin   |
-// | QUARANTINED   | no     | no             | no       | no          | no       | yes        | hard error    | admin only (moderation)     |
-// | REVOKED       | no     | no             | no       | no          | no       | yes        | hard error    | admin or owner (self-revoke)|
-// | ORPHANED      | no     | no             | no       | no          | no       | no         | none          | system                      |
-// | FAILED        | no     | no             | no       | no          | no       | no         | none          | system                      |
-// | CORRUPTED     | no     | no             | no       | no          | no       | yes        | hard error    | system (integrity check)    |
-// | STAGING       | no     | no             | no       | no          | no       | no         | none          | system                      |
-// | VERIFIED      | no     | no             | yes      | no          | no       | no         | none          | system (auto-promote)       |
+// | State         | Search | Latest Resolve | Download    | Pin Install | Rollback | Owner-Only | Warning/Error | Who May Transition To       |
+// |---------------|--------|----------------|-------------|-------------|----------|------------|---------------|-----------------------------|
+// | PUBLISHED     | yes    | yes            | yes         | yes         | yes      | no         | none          | publisher / owner / admin   |
+// | DEPRECATED    | yes    | no (skip)      | yes+warn    | yes         | yes      | no         | warning       | publisher / owner / admin   |
+// | YANKED        | no     | no             | no          | no          | no       | yes        | hard error    | publisher / owner / admin   |
+// | QUARANTINED   | no     | no             | no          | no          | no       | yes        | hard error    | admin only (moderation)     |
+// | REVOKED       | no     | no             | no          | no          | no       | yes        | hard error    | admin or owner (self-revoke)|
+// | ARCHIVED      | no     | no             | owner/admin | no          | no       | yes        | none          | GC or admin                 |
+// | ORPHANED      | no     | no             | no          | no          | no       | no         | none          | system                      |
+// | FAILED        | no     | no             | no          | no          | no       | no         | none          | system                      |
+// | CORRUPTED     | no     | no             | no          | no          | no       | yes        | hard error    | system (integrity check)    |
+// | STAGING       | no     | no             | no          | no          | no       | no         | none          | system                      |
+// | VERIFIED      | no     | no             | yes         | no          | no       | no         | none          | system (auto-promote)       |
+//
+// ARCHIVED semantics:
+//   - Hidden from all discovery (search, list) except for owners and admins.
+//   - Download is NOT blocked — owners/admins may still retrieve the binary.
+//   - Cannot be promoted or installed. Binary is retained in MinIO.
+//   - Transition source: PUBLISHED, DEPRECATED, VERIFIED, FAILED, ORPHANED (via GC).
+//   - Transition target: REVOKED (admin can permanently revoke an archived artifact).
+//   - Purpose: soft-delete that preserves binary while freeing catalog space.
+//     A future purge step may hard-delete ARCHIVED artifacts.
 //
 // "Owner-Only" means visible/accessible only to namespace owners and admins.
 //
 // Authority rules for transitions:
 //   - QUARANTINE (to or from): admin/superuser only — moderation action.
 //   - REVOKE: admin OR namespace owner (self-revoke).
+//   - ARCHIVE: GC reconciler or admin.
 //   - All other transitions: any authorized publisher/owner.
 
 // ValidPromoteTransition returns true if transitioning from `from` to `to` is allowed
@@ -72,13 +83,15 @@ func ValidStateTransition(from, to PublishState) bool {
 		return to == PublishState_VERIFIED
 
 	case PublishState_VERIFIED:
-		return to == PublishState_PUBLISHED || to == PublishState_ORPHANED
+		return to == PublishState_PUBLISHED || to == PublishState_ORPHANED || to == PublishState_ARCHIVED
 
 	case PublishState_PUBLISHED:
 		switch to {
 		case PublishState_PUBLISHED: // idempotent
 			return true
 		case PublishState_DEPRECATED, PublishState_YANKED, PublishState_QUARANTINED:
+			return true
+		case PublishState_ARCHIVED: // GC soft-delete
 			return true
 		}
 		return false
@@ -88,6 +101,8 @@ func ValidStateTransition(from, to PublishState) bool {
 		case PublishState_PUBLISHED: // un-deprecate
 			return true
 		case PublishState_YANKED, PublishState_REVOKED:
+			return true
+		case PublishState_ARCHIVED: // GC soft-delete
 			return true
 		}
 		return false
@@ -119,6 +134,20 @@ func ValidStateTransition(from, to PublishState) bool {
 		}
 		return false
 
+	case PublishState_FAILED, PublishState_ORPHANED:
+		// Intermediate states that can be soft-deleted by GC if abandoned.
+		if to == PublishState_ARCHIVED {
+			return true
+		}
+		return false
+
+	case PublishState_ARCHIVED:
+		// One-way soft-delete. Only admin REVOKE is allowed out.
+		if to == PublishState_REVOKED {
+			return true
+		}
+		return false
+
 	case PublishState_REVOKED:
 		// Terminal — no transitions out.
 		return false
@@ -135,17 +164,20 @@ func IsTerminalState(s PublishState) bool {
 }
 
 // IsDownloadBlocked returns true if artifacts in this state should not be downloadable
-// by non-owners/non-admins. Per behavior semantics: YANKED, QUARANTINED, REVOKED, CORRUPTED.
+// by non-owners/non-admins.
+// ARCHIVED is NOT download-blocked — owners/admins may retrieve the binary.
 func IsDownloadBlocked(s PublishState) bool {
 	return s == PublishState_YANKED || s == PublishState_QUARANTINED || s == PublishState_REVOKED || s == PublishState_CORRUPTED
 }
 
 // IsDiscoveryHidden returns true if artifacts in this state should be hidden from
 // search/list results for non-owners/non-admins.
-// Per behavior semantics: YANKED, QUARANTINED, REVOKED, ORPHANED, FAILED, STAGING.
+// ARCHIVED is hidden — it is a soft-deleted artifact not intended for general use.
 func IsDiscoveryHidden(s PublishState) bool {
 	switch s {
 	case PublishState_YANKED, PublishState_QUARANTINED, PublishState_REVOKED, PublishState_CORRUPTED:
+		return true
+	case PublishState_ARCHIVED:
 		return true
 	case PublishState_ORPHANED, PublishState_FAILED, PublishState_STAGING, PublishState_VERIFIED:
 		return true

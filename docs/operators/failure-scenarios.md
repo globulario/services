@@ -191,6 +191,20 @@ globular services desired set authentication <previous-version>
 
 ## Node Failures
 
+### Choosing the right recovery path
+
+Not all node failures require the same response. Use the escalation ladder:
+
+| Node state | Right action |
+|------------|-------------|
+| Services crashed, node agent alive | `globular doctor heal` — auto-repair, no human steps |
+| Specific artifacts corrupt or wrong version | `globular node repair` — targeted reinstall of specific packages |
+| Node agent crashed but OS is intact | `sudo systemctl restart globular-node-agent` on the node |
+| Node unreachable but expected back | Wait — the reconciler auto-converges when it reconnects |
+| **OS cannot be trusted, disk corrupt, hardware replaced** | **`globular node recover full-reseed`** — full wipe + rebuild |
+
+The full-reseed workflow is last resort. It captures an inventory snapshot, fences the reconciler, waits for a human to wipe and reprovision the node, then reinstalls every artifact in deterministic bootstrap order and verifies each one. See [Node Full-Reseed Recovery](node-recovery.md) for the complete guide.
+
 ### Node Completely Down
 
 **Symptoms**: All services on the node are unreachable. Heartbeats stop. Gateway removes all backends on that node.
@@ -209,7 +223,14 @@ ssh <node>
 sudo systemctl restart globular-node-agent
 # The node agent will restart all managed services
 
-# If hardware failure:
+# If the OS is intact but the node is misconfigured or has partial state:
+globular node recover full-reseed \
+  --node-id <node-id> \
+  --reason "node down, partial state" \
+  --dry-run                        # review plan first
+# See: docs/operators/node-recovery.md
+
+# If hardware failure (replacement machine):
 # 1. Remove the node from the cluster
 globular cluster nodes remove <node-id>
 
@@ -218,6 +239,44 @@ globular cluster nodes remove <node-id>
 globular cluster token create --expires 2h
 globular cluster join --node <new-node>:11000 --controller <controller>:12000 --join-token <token>
 globular cluster requests approve <req-id> --profile <same-profiles>
+```
+
+### Node Disk Corruption / OS Untrustworthy
+
+**Symptoms**: Services fail with filesystem errors. Node agent reports unexpected state. Package checksums fail. `dmesg` shows I/O errors.
+
+**Detection**: Node agent reports CORRUPTED artifact state. Heartbeats are erratic. Doctor invariants fail on the affected node.
+
+**Impact**: The node cannot be trusted. Any running services on it may be serving corrupt data or behaving incorrectly.
+
+**Recovery**: This is the primary use case for full-reseed. The node's filesystem cannot be trusted so the only safe recovery is a complete wipe and rebuild.
+
+```bash
+# Step 1: Capture a snapshot while the node is still responding (if possible)
+globular node snapshot create \
+  --node-id <node-id> \
+  --reason "pre-wipe snapshot, disk corruption detected"
+
+# Step 2: Dry-run to validate the plan
+globular node recover full-reseed \
+  --node-id <node-id> \
+  --reason "disk corruption — I/O errors on /var" \
+  --snapshot-id <snapshot-id-from-step-1> \
+  --dry-run
+
+# Step 3: Dispatch the workflow
+globular node recover full-reseed \
+  --node-id <node-id> \
+  --reason "disk corruption — I/O errors on /var" \
+  --snapshot-id <snapshot-id-from-step-1>
+
+# Step 4: Wipe and reinstall the OS (your action, not automated)
+# Step 5: Acknowledge reprovision
+globular node recover ack-reprovision \
+  --node-id <node-id> \
+  --workflow-id <workflow-id>
+
+# Full procedure: see docs/operators/node-recovery.md
 ```
 
 ### Node Agent Crash

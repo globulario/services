@@ -177,7 +177,7 @@ globular services desired list
 # Shows: <service> INSTALLED
 
 # No drift
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 ## Troubleshooting

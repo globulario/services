@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
@@ -63,6 +62,7 @@ func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifes
 		SizeBytes:          manifest.GetSizeBytes(),
 		ModifiedUnix:       manifest.GetModifiedUnix(),
 		Kind:               ref.GetKind().String(),
+		Channel:            effectiveChannel(manifest).String(),
 		CreatedAt:          time.Now(),
 	}
 	if err := srv.scylla.PutManifest(ctx, row); err != nil {
@@ -91,6 +91,46 @@ func (srv *server) deleteManifestFromScylla(ctx context.Context, key string) {
 }
 
 const artifactsDir = "artifacts"
+
+// channelFromString parses a channel name from package.json into the proto enum.
+// Unrecognised strings default to STABLE so old packages are treated correctly.
+func channelFromString(s string) repopb.ArtifactChannel {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "stable", "":
+		return repopb.ArtifactChannel_STABLE
+	case "candidate":
+		return repopb.ArtifactChannel_CANDIDATE
+	case "canary":
+		return repopb.ArtifactChannel_CANARY
+	case "dev":
+		return repopb.ArtifactChannel_DEV
+	case "bootstrap":
+		return repopb.ArtifactChannel_BOOTSTRAP
+	default:
+		return repopb.ArtifactChannel_STABLE
+	}
+}
+
+// effectiveChannel returns the manifest's channel, treating CHANNEL_UNSET as STABLE.
+func effectiveChannel(m *repopb.ArtifactManifest) repopb.ArtifactChannel {
+	if ch := m.GetChannel(); ch != repopb.ArtifactChannel_CHANNEL_UNSET {
+		return ch
+	}
+	return repopb.ArtifactChannel_STABLE
+}
+
+// isReconcilerSafeChannel returns true if the channel may be returned to the
+// cluster reconciler without explicit override. DEV and CANDIDATE are not safe.
+func isReconcilerSafeChannel(ch repopb.ArtifactChannel) bool {
+	switch ch {
+	case repopb.ArtifactChannel_STABLE,
+		repopb.ArtifactChannel_BOOTSTRAP,
+		repopb.ArtifactChannel_CHANNEL_UNSET:
+		return true
+	default:
+		return false
+	}
+}
 
 // ── version helpers ───────────────────────────────────────────────────────────
 
@@ -404,27 +444,72 @@ func (srv *server) cachedDirNames(ctx context.Context) []string {
 	return names
 }
 
+// loadPublishedCatalog returns all currently-PUBLISHED manifests.
+// Used by the law validator for cross-artifact rules. Errors are swallowed —
+// a partial or empty catalog degrades validation gracefully (single-artifact
+// rules still run; cross-artifact rules become best-effort).
+func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactManifest {
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		return nil
+	}
+	var out []*repopb.ArtifactManifest
+	for _, e := range entries {
+		fname := e.Name()
+		if !strings.HasSuffix(fname, ".manifest.json") {
+			continue
+		}
+		key := strings.TrimSuffix(fname, ".manifest.json")
+		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
+		if readErr != nil || state != repopb.PublishState_PUBLISHED {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
 // ── package.json extraction ───────────────────────────────────────────────
 
 // packageManifest mirrors the pkgpack.Manifest fields relevant to catalog metadata.
 // Defined here to avoid a build-time dependency on the CLI package.
 type packageManifest struct {
-	Type                     string   `json:"type"`
-	Name                     string   `json:"name"`
-	Profiles                 []string `json:"profiles,omitempty"`
-	Priority                 int      `json:"priority,omitempty"`
-	InstallMode              string   `json:"install_mode,omitempty"`
-	ManagedUnit              bool     `json:"managed_unit,omitempty"`
-	SystemdUnit              string   `json:"systemd_unit,omitempty"`
-	ProvidesCapabilities     []string `json:"provides_capabilities,omitempty"`
+	Type                 string   `json:"type"`
+	Name                 string   `json:"name"`
+	Profiles             []string `json:"profiles,omitempty"`
+	Priority             int      `json:"priority,omitempty"`
+	InstallMode          string   `json:"install_mode,omitempty"`
+	ManagedUnit          bool     `json:"managed_unit,omitempty"`
+	SystemdUnit          string   `json:"systemd_unit,omitempty"`
+	ProvidesCapabilities []string `json:"provides_capabilities,omitempty"`
+	HealthCheckUnit      string   `json:"health_check_unit,omitempty"`
+	HealthCheckPort      int      `json:"health_check_port,omitempty"`
+	EntrypointChecksum   string   `json:"entrypoint_checksum,omitempty"`
+	Description          string   `json:"description,omitempty"`
+	Keywords             []string `json:"keywords,omitempty"`
+	License              string   `json:"license,omitempty"`
+	Channel              string   `json:"channel,omitempty"`
+
+	// Typed dependency declarations (PR 2).
+	HardDeps    []string `json:"hard_deps,omitempty"`
+	RuntimeUses []string `json:"runtime_uses,omitempty"`
+
+	// Deprecated: kept for reading legacy packages. Migrated to HardDeps below.
 	InstallDependencies      []string `json:"install_dependencies,omitempty"`
 	RuntimeLocalDependencies []string `json:"runtime_local_dependencies,omitempty"`
-	HealthCheckUnit          string   `json:"health_check_unit,omitempty"`
-	HealthCheckPort          int      `json:"health_check_port,omitempty"`
-	EntrypointChecksum       string   `json:"entrypoint_checksum,omitempty"`
-	Description              string   `json:"description,omitempty"`
-	Keywords                 []string `json:"keywords,omitempty"`
-	License                  string   `json:"license,omitempty"`
+}
+
+// unionStrings returns the union of two string slices with deduplication, order preserved.
+func unionStrings(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	var out []string
+	for _, s := range append(a, b...) {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // extractPackageManifest reads package.json from a .tgz archive.
@@ -478,12 +563,28 @@ func enrichManifestFromPackageJSON(manifest *repopb.ArtifactManifest, pkg *packa
 	if len(pkg.ProvidesCapabilities) > 0 {
 		manifest.Provides = pkg.ProvidesCapabilities
 	}
+
+	// Typed dependency declarations (PR 2).
+	// Prefer hard_deps from package.json; fall back to legacy fields.
+	hardDeps := pkg.HardDeps
+	if len(hardDeps) == 0 {
+		hardDeps = unionStrings(pkg.InstallDependencies, pkg.RuntimeLocalDependencies)
+	}
+	for _, name := range hardDeps {
+		manifest.HardDeps = append(manifest.HardDeps, &repopb.ArtifactDependencyRef{Name: name})
+	}
+	if len(pkg.RuntimeUses) > 0 {
+		manifest.RuntimeUses = pkg.RuntimeUses
+	}
+
+	// Keep deprecated fields populated for backward-compat readers.
 	if len(pkg.InstallDependencies) > 0 {
 		manifest.InstallDependencies = pkg.InstallDependencies
 	}
 	if len(pkg.RuntimeLocalDependencies) > 0 {
 		manifest.RuntimeLocalDependencies = pkg.RuntimeLocalDependencies
 	}
+
 	if pkg.HealthCheckUnit != "" {
 		manifest.HealthCheckUnit = pkg.HealthCheckUnit
 	}
@@ -502,28 +603,33 @@ func enrichManifestFromPackageJSON(manifest *repopb.ArtifactManifest, pkg *packa
 	if pkg.License != "" && manifest.License == "" {
 		manifest.License = pkg.License
 	}
+	if pkg.Channel != "" {
+		manifest.Channel = channelFromString(pkg.Channel)
+	}
 }
 
 // ── stream helpers ────────────────────────────────────────────────────────
 
 // recvArtifactStream accumulates all chunks from an UploadArtifact stream.
 // The ArtifactRef is taken from the first message that carries a non-nil ref.
-// Returns the ref, aggregated data, and the build_number from the first manifest-bearing message.
-func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*repopb.ArtifactRef, []byte, int64, error) {
+// Returns the ref, aggregated data, build_number, and reservation_id from the first message.
+func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*repopb.ArtifactRef, []byte, int64, string, error) {
 	var ref *repopb.ArtifactRef
 	var data []byte
 	var buildNumber int64
+	var reservationID string
 	for {
 		msg, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			return ref, data, buildNumber, nil
+			return ref, data, buildNumber, reservationID, nil
 		}
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("recv artifact: %w", err)
+			return nil, nil, 0, "", fmt.Errorf("recv artifact: %w", err)
 		}
 		if ref == nil && msg.GetRef() != nil {
 			ref = msg.GetRef()
 			buildNumber = msg.GetBuildNumber()
+			reservationID = msg.GetReservationId()
 		}
 		data = append(data, msg.GetData()...)
 	}
@@ -642,7 +748,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	if err := srv.requireHealthy(); err != nil {
 		return err
 	}
-	ref, data, buildNumber, err := recvArtifactStream(stream)
+	ref, data, buildNumber, reservationID, err := recvArtifactStream(stream)
 	if err != nil {
 		return status.Errorf(codes.Internal, "receive stream: %v", err)
 	}
@@ -716,6 +822,17 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// Enrich manifest with catalog metadata from package.json inside the tgz.
 	if pkg := extractPackageManifest(data); pkg != nil {
 		enrichManifestFromPackageJSON(manifest, pkg)
+	}
+
+	// If a reservation was provided, consume it and apply its channel.
+	// The reservation channel overrides whatever was in package.json —
+	// publish-time channel wins over build-time default.
+	if reservationID != "" {
+		if res := reservations.consume(reservationID); res != nil {
+			if res.Channel != repopb.ArtifactChannel_CHANNEL_UNSET {
+				manifest.Channel = res.Channel
+			}
+		}
 	}
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)
 	if err != nil {
@@ -800,6 +917,8 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 	filterKind := req.GetKind()
 	filterPub := strings.TrimSpace(req.GetPublisherId())
 	filterPlat := strings.TrimSpace(req.GetPlatform())
+	filterChannel := req.GetChannel()
+	includeAllChannels := req.GetIncludeAllChannels()
 
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
@@ -825,6 +944,22 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 		// Hide YANKED/QUARANTINED/REVOKED from non-owners/non-admins.
 		if repopb.IsDiscoveryHidden(state) && !isAdmin {
 			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
+				continue
+			}
+		}
+
+		// Channel filtering:
+		//   - include_all_channels: skip channel check (admin/operator UX only)
+		//   - filterChannel set: must match exactly
+		//   - default (no filter): only return reconciler-safe channels (STABLE, BOOTSTRAP)
+		//     DEV and CANDIDATE are never returned unless explicitly requested.
+		if !includeAllChannels {
+			ch := effectiveChannel(m)
+			if filterChannel != repopb.ArtifactChannel_CHANNEL_UNSET {
+				if ch != filterChannel {
+					continue
+				}
+			} else if !isReconcilerSafeChannel(ch) {
 				continue
 			}
 		}
@@ -960,8 +1095,9 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	mKey := manifestStorageKey(key)
 	bKey := binaryStorageKey(key)
 
-	// Check manifest exists (new key format first, then legacy).
-	if _, err := srv.Storage().ReadFile(ctx, mKey); err != nil {
+	// Locate manifest — try new 5-field key first, then legacy 4-field key.
+	var targetManifest *repopb.ArtifactManifest
+	if data, readErr := srv.Storage().ReadFile(ctx, mKey); readErr != nil {
 		// Try legacy key.
 		legacyKey := artifactKeyLegacy(ref)
 		legacyMKey := manifestStorageKey(legacyKey)
@@ -972,17 +1108,21 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 		mKey = legacyMKey
 		bKey = binaryStorageKey(legacyKey)
 		key = legacyKey
+	} else {
+		// Parse manifest to obtain build_id for the reachability safety check.
+		if m, _, parseErr := unmarshalManifestWithState(data); parseErr == nil {
+			targetManifest = m
+		}
 	}
 
-	// Safety check: verify the artifact is not currently installed on any node.
-	// This prevents accidental removal of packages still in use.
-	installedNodes := findInstalledReferences(ctx, ref)
-	if len(installedNodes) > 0 && !req.GetForce() {
-		nodeList := strings.Join(installedNodes, ", ")
-		return &repopb.DeleteArtifactResponse{
-			Result:  false,
-			Message: fmt.Sprintf("artifact %s@%s is still installed on node(s): %s — use force=true to delete from repository only (does not uninstall from nodes)", ref.GetName(), ref.GetVersion(), nodeList),
-		}, nil
+	// Reachability safety check: block deletion if the artifact is reachable
+	// (within the retention window or actively deployed on cluster nodes).
+	// force=true bypasses both conditions.
+	if targetManifest != nil && !req.GetForce() {
+		catalog := srv.loadAllManifests(ctx)
+		if safe, reason := srv.checkDeletionSafety(ctx, targetManifest, catalog); !safe {
+			return &repopb.DeleteArtifactResponse{Result: false, Message: reason}, nil
+		}
 	}
 
 	// Remove manifest and binary (best-effort for binary — it might not exist).
@@ -1001,11 +1141,11 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	}
 
 	msg := fmt.Sprintf("artifact %s@%s deleted from repository", ref.GetName(), ref.GetVersion())
-	if len(installedNodes) > 0 {
-		msg += fmt.Sprintf(" (warning: still installed on %d node(s) — this does NOT uninstall from nodes)", len(installedNodes))
+	if req.GetForce() {
+		msg += " (force=true: reachability check was bypassed — installed nodes are unaffected)"
 	}
 
-	slog.Info("artifact deleted", "key", key, "force", req.GetForce(), "installed_nodes", len(installedNodes))
+	slog.Info("artifact deleted", "key", key, "force", req.GetForce())
 
 	// Audit event.
 	srv.publishAuditEvent(ctx, "artifact.deleted", map[string]any{
@@ -1019,29 +1159,6 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	return &repopb.DeleteArtifactResponse{Result: true, Message: msg}, nil
 }
 
-// findInstalledReferences queries the installed-state registry (etcd) for any
-// node that has the given artifact installed. Returns a list of node IDs.
-// Best-effort: returns nil on etcd errors to avoid blocking deletion.
-func findInstalledReferences(ctx context.Context, ref *repopb.ArtifactRef) []string {
-	kind := ref.GetKind().String()
-	if kind == "" || kind == "ARTIFACT_KIND_UNSPECIFIED" {
-		kind = "SERVICE"
-	}
-
-	pkgs, err := installed_state.ListAllNodes(ctx, kind, "")
-	if err != nil {
-		slog.Warn("DeleteArtifact: installed-state query failed (proceeding)", "err", err)
-		return nil
-	}
-
-	var nodes []string
-	for _, pkg := range pkgs {
-		if strings.EqualFold(pkg.GetName(), ref.GetName()) && pkg.GetVersion() == ref.GetVersion() {
-			nodes = append(nodes, pkg.GetNodeId())
-		}
-	}
-	return nodes
-}
 
 // ── kind inference ───────────────────────────────────────────────────────────
 
@@ -1146,6 +1263,19 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 		return nil, status.Errorf(codes.FailedPrecondition,
 			"invalid state transition %s → %s for artifact %q",
 			currentState, targetState, key)
+	}
+
+	// Enforce artifact laws before promoting to PUBLISHED.
+	if targetState == repopb.PublishState_PUBLISHED {
+		catalog := srv.loadPublishedCatalog(ctx)
+		if violations := NewArtifactLawValidator(m, catalog).Validate(); len(violations) > 0 {
+			details := make([]string, 0, len(violations))
+			for _, v := range violations {
+				details = append(details, v.Error())
+			}
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"artifact law violations prevent promotion: %s", details[0])
+		}
 	}
 
 	// Write updated manifest with new state.
@@ -1265,6 +1395,16 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 		return nil, status.Errorf(codes.FailedPrecondition,
 			"invalid state transition %s → %s for artifact %q",
 			currentState, targetState, key)
+	}
+
+	// Revoke safety: block if the artifact is actively deployed on cluster nodes.
+	// Admin callers (sa) may bypass for security incident response.
+	// Retention-window-only artifacts may be revoked freely.
+	if targetState == repopb.PublishState_REVOKED {
+		isAdmin := authCtx != nil && authCtx.Subject == "sa"
+		if blocked, reason := srv.checkRevokeSafety(ctx, m, isAdmin); blocked {
+			return nil, status.Errorf(codes.FailedPrecondition, "revoke safety: %s", reason)
+		}
 	}
 
 	// Write updated manifest with new state.
@@ -1495,6 +1635,8 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 		SystemdUnit:               latestManifest.GetSystemdUnit(),
 		RuntimeLocalDependencies:  latestManifest.GetRuntimeLocalDependencies(),
 		InstallDependencies:       latestManifest.GetInstallDependencies(),
+		HardDeps:                  latestManifest.GetHardDeps(),
+		RuntimeUses:               latestManifest.GetRuntimeUses(),
 		HealthCheckUnit:           latestManifest.GetHealthCheckUnit(),
 		HealthCheckPort:           latestManifest.GetHealthCheckPort(),
 		Provides:                  latestManifest.GetProvides(),

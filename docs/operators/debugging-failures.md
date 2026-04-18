@@ -11,10 +11,10 @@ When something goes wrong in a Globular cluster, the 4-layer state model provide
 3. **Layer 3 (Installed)**: Is the correct version installed on the node? Does the checksum match?
 4. **Layer 4 (Runtime)**: Is the service running? Is it passing health checks?
 
-The `repair --dry-run` command performs this comparison automatically:
+The `get-drift-report` command performs this comparison automatically:
 
 ```bash
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 This shows the status of every service across all four layers, immediately highlighting where the problem lies.
@@ -426,7 +426,7 @@ globular services desired list
 # All services should show INSTALLED
 
 # 2. Check for drift
-globular services repair --dry-run
+globular cluster get-drift-report
 # Should show no issues
 
 # 3. Run doctor

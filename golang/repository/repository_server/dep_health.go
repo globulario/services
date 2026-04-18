@@ -35,12 +35,13 @@ const (
 
 // depHealthWatchdog monitors the repository's distributed dependencies.
 type depHealthWatchdog struct {
-	storage  storage_backend.Storage
-	scylla   *scyllaStore
-	healthy  *atomic.Bool
-	minioSub *subsystem.SubsystemHandle
-	scyllaSub *subsystem.SubsystemHandle
-	logger   *slog.Logger
+	storage       storage_backend.Storage
+	scylla        *scyllaStore
+	healthy       *atomic.Bool
+	minioSub      *subsystem.SubsystemHandle
+	scyllaSub     *subsystem.SubsystemHandle
+	logger        *slog.Logger
+	onScyllaReady func(*scyllaStore) // called when late-connect succeeds
 }
 
 // newDepHealthWatchdog creates a watchdog that monitors MinIO and ScyllaDB.
@@ -115,8 +116,20 @@ func (w *depHealthWatchdog) pingMinio(ctx context.Context) bool {
 // pingScylla checks ScyllaDB reachability.
 func (w *depHealthWatchdog) pingScylla() bool {
 	if w.scylla == nil {
-		w.scyllaSub.TickError(fmt.Errorf("scylladb not connected"))
-		return false
+		// ScyllaDB was unreachable at startup — attempt late connection.
+		// This self-heals after power outages where ScyllaDB starts after
+		// the repository service.
+		scylla, err := connectScylla()
+		if err != nil {
+			w.scyllaSub.TickError(fmt.Errorf("scylladb not connected"))
+			w.logger.Warn("scylladb late connect failed", "err", err)
+			return false
+		}
+		w.scylla = scylla
+		if w.onScyllaReady != nil {
+			w.onScyllaReady(scylla)
+		}
+		w.logger.Info("scylladb late connect succeeded — service recovering")
 	}
 	if err := w.scylla.Ping(); err != nil {
 		w.scyllaSub.TickError(err)

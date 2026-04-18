@@ -2,6 +2,40 @@
 
 This page walks through creating a new gRPC microservice for the Globular platform from scratch. It covers defining the proto contract, generating code, implementing the server, using shared primitives, writing tests, and integrating with the platform's service discovery, configuration, and lifecycle management.
 
+---
+
+## Why build on Globular instead of plain systemd + gRPC?
+
+You can write a gRPC service in Go, deploy it as a systemd unit, and call it done. That works. But you will end up rebuilding the same infrastructure every time: service discovery, configuration management, TLS, auth, deployment pipelines, health monitoring. Most teams do this in fragments — a bit of Consul here, some Vault there, a Prometheus exporter bolted on, a shell script for deployments.
+
+Globular gives you that infrastructure as a platform, and the deal is worth understanding before you build on it.
+
+**What you get for free the moment your service implements the pattern:**
+
+| Problem | Globular's answer |
+|---------|-----------------|
+| How does my service find other services? | etcd service registry. `config.ResolveLocalServiceAddr("auth.AuthenticationService")` returns the endpoint. |
+| How does my service authenticate callers? | The interceptor chain does it. JWT verification, token extraction, identity propagation — zero code in your service. |
+| How is access controlled? | RBAC annotations on your proto RPCs. One line per method. The enforcement interceptor handles the rest. |
+| How is my service configured? | etcd. `config.GetServiceConfigByID()`. No env vars, no config files, no redeploy to change config. |
+| How does it get deployed? | `globular deploy my-service --bump patch`. The desired-state model propagates it across all nodes automatically. |
+| How do I know if it's running? | `globular cluster health`. The convergence model tracks installed vs. desired across all nodes. |
+| How do I upgrade it across a 3-node cluster in order? | The workflow service orchestrates it. Each node gets a workflow run: FETCH → VERIFY → INSTALL → START → HEALTH_CHECK. |
+| How do I recover a node that had my service installed? | The full-reseed recovery workflow reinstalls it from the artifact snapshot, in bootstrap order, with checksum verification. |
+| What happens if a deployment partially fails? | The workflow fails at the exact step that broke, with classification. The partial_apply mechanism resumes from where it stopped. |
+| How do other services know my service is healthy? | Node agent heartbeats include your service's systemd unit state. The gateway's xDS configuration updates automatically. |
+
+**What the Globular way costs you:**
+
+- Your service must be a gRPC server. REST-only services don't fit the model.
+- Your API must be defined in protobuf. This is a constraint that is also a discipline.
+- Configuration must come from etcd, not environment variables or files. Some third-party libraries resist this.
+- You must package your service into a Globular package spec. This is a small YAML file, not a Dockerfile.
+
+If those constraints are acceptable — and for most internal services they are — then the platform handles deployment, discovery, auth, RBAC, health, upgrades, and disaster recovery, and you write the business logic.
+
+---
+
 ## Overview
 
 A Globular microservice is a gRPC server that:

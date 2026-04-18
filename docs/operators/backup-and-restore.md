@@ -54,13 +54,13 @@ Run a backup manually:
 
 ```bash
 # Full cluster backup (all providers)
-globular backup run --mode cluster
+globular backup create --mode cluster
 
 # Single-service backup
-globular backup run --mode service --provider etcd
+globular backup create --mode service --provider etcd
 
 # With specific destination
-globular backup run --mode cluster --destination minio
+globular backup create --mode cluster --destination minio
 ```
 
 What happens during a cluster backup:
@@ -316,7 +316,7 @@ Configure automatic daily cluster backups:
 globular backup preflight-check
 
 # Run a test backup
-globular backup run --mode cluster
+globular backup create --mode cluster
 
 # Verify it succeeded
 globular backup list
@@ -376,7 +376,7 @@ globular cluster bootstrap --node localhost:11000 --domain mycluster.local --pro
 # 8. Verify
 globular cluster health
 globular services desired list
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 ## What's Next

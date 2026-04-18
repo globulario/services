@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/globulario/services/golang/installed_state"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
 // RunningBinary represents a Globular binary that is actually executing.
@@ -152,4 +156,108 @@ func sha256File(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// peerChecksumLookup resolves unknown-version services by comparing their
+// binary checksum against entrypoint_checksum metadata in other nodes'
+// installed_state records. This handles manually-copied binaries (scp)
+// without depending on the repository service.
+//
+// Safe for the heartbeat path: only reads etcd (already in the critical path
+// via Phase 2) and computes checksums with caching. No repository calls.
+func (srv *NodeAgentServer) peerChecksumLookup(ctx context.Context, versions, buildIDs map[string]string) {
+	// Collect services that need resolution.
+	var unknowns []string
+	for svc, ver := range versions {
+		if ver == "unknown" || ver == "" {
+			unknowns = append(unknowns, svc)
+		}
+	}
+	if len(unknowns) == 0 {
+		return
+	}
+
+	// Load all installed packages across all nodes (already cached by etcd client).
+	// Build a map: entrypoint_checksum → (version, build_id, service_name).
+	type peerInfo struct {
+		version string
+		buildID string
+		nodeID  string
+	}
+	checksumIndex := make(map[string]peerInfo)
+
+	for _, kind := range []string{"SERVICE", "APPLICATION"} {
+		allPkgs, err := installed_state.ListAllNodes(ctx, kind, "")
+		if err != nil {
+			continue
+		}
+		for _, pkg := range allPkgs {
+			if pkg.GetNodeId() == srv.nodeID {
+				continue // skip self
+			}
+			cksum := pkg.GetMetadata()["entrypoint_checksum"]
+			if cksum == "" || pkg.GetVersion() == "" || pkg.GetVersion() == "unknown" {
+				continue
+			}
+			canon := canonicalServiceName(pkg.GetName())
+			if canon == "" {
+				continue
+			}
+			// Key by checksum — first match wins.
+			if _, exists := checksumIndex[cksum]; !exists {
+				checksumIndex[cksum] = peerInfo{
+					version: pkg.GetVersion(),
+					buildID: pkg.GetBuildId(),
+					nodeID:  pkg.GetNodeId(),
+				}
+			}
+		}
+	}
+
+	if len(checksumIndex) == 0 {
+		return // no peers have entrypoint checksums yet
+	}
+
+	// For each unknown service, compute the local binary checksum and look up.
+	resolved := 0
+	for _, svc := range unknowns {
+		binName := strings.ReplaceAll(svc, "-", "_") + "_server"
+		binPath := filepath.Join(globularBinDir, binName)
+
+		cksum, err := cachedSha256(binPath)
+		if err != nil {
+			continue // binary not on disk or unreadable
+		}
+
+		peer, found := checksumIndex[cksum]
+		if !found {
+			continue
+		}
+
+		versions[svc] = peer.version
+		if peer.buildID != "" {
+			buildIDs[svc] = peer.buildID
+		}
+
+		// Also write the installed_state record so future heartbeats
+		// don't need to repeat the lookup.
+		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+			NodeId:      srv.nodeID,
+			Name:        svc,
+			Version:     peer.version,
+			Kind:        "SERVICE",
+			Status:      "installed",
+			UpdatedUnix: time.Now().Unix(),
+			BuildId:     peer.buildID,
+			Metadata:    map[string]string{"entrypoint_checksum": cksum},
+		})
+
+		log.Printf("nodeagent: peer-checksum resolved %s → version=%s from node=%s (checksum=%s)",
+			svc, peer.version, peer.nodeID, cksum[:16])
+		resolved++
+	}
+
+	if resolved > 0 {
+		log.Printf("nodeagent: peer-checksum resolved %d/%d unknown services", resolved, len(unknowns))
+	}
 }

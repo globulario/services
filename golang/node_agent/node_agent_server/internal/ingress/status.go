@@ -74,7 +74,7 @@ func checkVIPPresence(iface, vip string) bool {
 	ipAddr := strings.Split(vip, "/")[0]
 
 	// Run: ip addr show dev <iface>
-	cmd := exec.Command("ip", "addr", "show", "dev", iface)
+	cmd := exec.Command("ip", "addr", "show", "", iface)
 	output, err := cmd.Output()
 	if err != nil {
 		return false

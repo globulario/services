@@ -145,10 +145,10 @@ The reconciliation loop is protected by a circuit breaker. If the Workflow Servi
 
 ### Cross-Layer Comparison
 
-The `globular services repair` command performs a comprehensive cross-layer comparison:
+The `globular cluster get-drift-report` command performs a comprehensive cross-layer comparison:
 
 ```bash
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 This command:
@@ -375,7 +375,7 @@ This behavior is intentional: Globular enforces the desired state. Manual change
 After a network partition, several services are in inconsistent states:
 
 ```bash
-globular services repair --dry-run
+globular cluster get-drift-report
 ```
 
 Output:
@@ -389,7 +389,7 @@ old_service     —        —        —          Orphaned (in repo only)
 ```
 
 ```bash
-globular services repair
+globular node repair
 ```
 
 Actions taken:

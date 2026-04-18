@@ -297,15 +297,67 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	})
 
 	// 4. Version checks — compare installed vs desired, filtered by node profile.
-	desiredCanon, _, _ := srv.loadDesiredServices(ctx)
+	// build_id is the authoritative convergence identity. Version strings are
+	// used only as a fallback when build_id is not available on either side.
+	//
+	// If the desired version's artifact is not yet available in the repository
+	// (release phase is WAITING or PENDING with a "not found" message), the
+	// version check is OK — the service is running fine with what it has.
+	// A mismatch is only a failure when the artifact exists and could be installed.
+	desiredCanon, desiredFull, _ := srv.loadDesiredServices(ctx)
 	filtered := filterVersionsForNode(desiredCanon, node)
 	assignedServices := ServicesForProfiles(node.Profiles)
+
+	// Build a set of services whose release is AVAILABLE but artifact was never
+	// published. These are at their best possible version — not a health failure.
+	acceptedAsIs := make(map[string]bool)
+	for svc := range filtered {
+		releaseName := fmt.Sprintf("core@globular.io/%s", svc)
+		if rel, err := srv.GetServiceRelease(ctx, &cluster_controllerpb.GetServiceReleaseRequest{Name: releaseName}); err == nil && rel != nil {
+			if rel.Status.Phase == cluster_controllerpb.ReleasePhaseAvailable &&
+				rel.Status.TransitionReason == "artifact_not_published" {
+				acceptedAsIs[svc] = true
+			}
+		}
+	}
+
 	for svc, desiredVer := range filtered {
 		// Skip services not assigned to this node's profiles.
 		// Infrastructure/command packages are always checked; only workloads are filtered.
 		if comp, ok := catalogIndex[svc]; ok && comp.Kind == KindWorkload && !assignedServices[svc] {
 			continue
 		}
+
+		// If the desired artifact was never published, the installed version is correct.
+		if acceptedAsIs[svc] {
+			checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+				Subsystem: "version:" + svc,
+				Ok:        true,
+				Reason:    "",
+			})
+			continue
+		}
+
+		// Prefer build_id comparison — immune to version string confusion.
+		var desiredBID string
+		if sdv := desiredFull[svc]; sdv != nil && sdv.Spec != nil {
+			desiredBID = sdv.Spec.BuildID
+		}
+		installedBID := node.InstalledBuildIDs[svc]
+		if desiredBID != "" && installedBID != "" {
+			ok := desiredBID == installedBID
+			reason := ""
+			if !ok {
+				reason = fmt.Sprintf("installed %s, desired %s", node.InstalledVersions[svc], desiredVer)
+			}
+			checks = append(checks, &cluster_controllerpb.NodeHealthCheck{
+				Subsystem: "version:" + svc,
+				Ok:        ok,
+				Reason:    reason,
+			})
+			continue
+		}
+		// Fallback to version comparison when build_id not available.
 		installedVer, found := node.InstalledVersions[svc]
 		ok := found && installedVer == desiredVer
 		reason := ""

@@ -37,6 +37,7 @@ type reservation struct {
 	Platform    string
 	BuildID     string
 	BuildNumber int64
+	Channel     repopb.ArtifactChannel
 	ExpiresAt   time.Time
 }
 
@@ -57,7 +58,7 @@ func reservationKey(publisher, name, version, platform string) string {
 }
 
 // allocate creates a new reservation. Returns ResourceExhausted if one exists.
-func (rs *reservationStore) allocate(publisher, name, version, platform, buildID string, buildNumber int64) (*reservation, error) {
+func (rs *reservationStore) allocate(publisher, name, version, platform, buildID string, buildNumber int64, channel repopb.ArtifactChannel) (*reservation, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -81,6 +82,7 @@ func (rs *reservationStore) allocate(publisher, name, version, platform, buildID
 		Platform:    platform,
 		BuildID:     buildID,
 		BuildNumber: buildNumber,
+		Channel:     channel,
 		ExpiresAt:   time.Now().Add(reservationTTL),
 	}
 	rs.reservations[key] = res
@@ -151,8 +153,14 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		PublisherId: publisher, Name: name, Version: version, Platform: platform,
 	}) + 1
 
+	// Resolve channel — default to STABLE.
+	ch := req.GetChannel()
+	if ch == repopb.ArtifactChannel_CHANNEL_UNSET {
+		ch = repopb.ArtifactChannel_STABLE
+	}
+
 	// Create reservation.
-	res, err := reservations.allocate(publisher, name, version, platform, buildID, buildNumber)
+	res, err := reservations.allocate(publisher, name, version, platform, buildID, buildNumber, ch)
 	if err != nil {
 		return nil, status.Errorf(codes.ResourceExhausted,
 			"version %s already reserved for %s/%s: %v", version, publisher, name, err)

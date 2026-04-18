@@ -1,0 +1,350 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: node.recover.full_reseed
+  displayName: Node full-reseed recovery
+  description: >-
+    Last-resort destructive node recovery. Captures a full inventory snapshot
+    of the node's installed artifact set, fences it from reconciliation,
+    waits for the operator to wipe and reprovision the machine, reseeds the
+    node from the captured snapshot in deterministic infrastructure-first order,
+    verifies artifact + runtime + convergence, then resumes normal reconciliation.
+
+    This workflow is explicitly operator-initiated. It is NOT triggered
+    automatically by the cluster doctor or reconciler. It must be requested via
+    the API or CLI with a valid reason and appropriate RBAC credentials.
+
+    Design invariants enforced:
+      - No destructive step executes without a persisted snapshot (Rule A)
+      - Exact captured build_id/checksum is preferred over latest stable (Rule B)
+      - Reconciliation is fenced for the duration of the workflow (Rule C)
+      - Install order is deterministic and infrastructure-aware (Rule D)
+      - Workflow completion requires explicit artifact + runtime verification (Rule E)
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - node_id
+      - reason
+    properties:
+      cluster_id:  { type: string }
+      node_id:     { type: string }
+      reason:      { type: string }
+      exact_replay_required:
+        type: boolean
+        default: true
+        description: >-
+          Strict mode: exact captured build_id and checksum must be used.
+          If an exact match is unavailable the workflow fails rather than
+          silently substituting a different build.
+      force:
+        type: boolean
+        default: false
+        description: >-
+          Allow recovery even if the node is the only replica for a required
+          infrastructure component (etcd, ScyllaDB, MinIO). Without force,
+          such a request is rejected to prevent quorum loss.
+      dry_run:
+        type: boolean
+        default: false
+        description: >-
+          Validate preconditions and produce the planned reseed artifact order
+          without mutating any state. No snapshot is taken, no fencing is
+          applied. Returns warnings and planned_artifacts.
+      snapshot_id:
+        type: string
+        description: >-
+          Optional: reuse an existing snapshot instead of capturing a fresh one.
+          The snapshot must have been taken from this node.
+      note:
+        type: string
+        description: Operator note recorded verbatim in the audit trail.
+  defaults:
+    exact_replay_required: true
+    force: false
+    dry_run: false
+  strategy:
+    mode: single
+  steps:
+
+    # ── Phase 0: Preconditions ────────────────────────────────────────────────
+    # All precondition steps are safe-retry and must complete before any
+    # destructive mutation is permitted. A failure here aborts cleanly.
+
+    - id: validate_request
+      title: Validate recovery request and preconditions
+      actor: cluster-controller
+      action: controller.recovery.validate_full_reseed_request
+      with:
+        node_id:              $.node_id
+        reason:               $.reason
+        exact_replay_required: $.exact_replay_required
+        force:                $.force
+        dry_run:              $.dry_run
+        snapshot_id:          $.snapshot_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: check_cluster_safety
+      title: Check node is not the only critical infrastructure replica
+      dependsOn: [validate_request]
+      actor: cluster-controller
+      action: controller.recovery.check_cluster_safety
+      with:
+        node_id: $.node_id
+        force:   $.force
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: plan_reseed
+      title: Compute deterministic reseed order from snapshot or installed state
+      dependsOn: [check_cluster_safety]
+      actor: cluster-controller
+      action: controller.recovery.plan_full_reseed
+      with:
+        node_id:              $.node_id
+        exact_replay_required: $.exact_replay_required
+        snapshot_id:          $.snapshot_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Phase 1: Snapshot ─────────────────────────────────────────────────────
+    # Exactly one of capture_snapshot or adopt_snapshot executes.
+    # A snapshot MUST exist before the destructive boundary is crossed.
+
+    - id: capture_snapshot
+      title: Capture full node inventory snapshot from installed state
+      dependsOn: [plan_reseed]
+      when:
+        expr: "!inputs.dry_run && inputs.snapshot_id == \"\""
+      actor: cluster-controller
+      action: controller.recovery.capture_node_inventory_snapshot
+      with:
+        node_id: $.node_id
+        reason:  $.reason
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: adopt_snapshot
+      title: Load and validate existing snapshot
+      dependsOn: [plan_reseed]
+      when:
+        expr: "!inputs.dry_run && inputs.snapshot_id != \"\""
+      actor: cluster-controller
+      action: controller.recovery.load_node_recovery_snapshot
+      with:
+        node_id:     $.node_id
+        snapshot_id: $.snapshot_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    # ── Phase 2: Fence and drain ──────────────────────────────────────────────
+    # The workflow takes ownership of the node. Normal reconciliation must stop.
+
+    - id: mark_recovery_started
+      title: Record workflow ownership and enter FENCE_NODE phase
+      dependsOn: [capture_snapshot, adopt_snapshot]
+      when:
+        expr: "!inputs.dry_run"
+      actor: cluster-controller
+      action: controller.recovery.mark_node_recovery_started
+      with:
+        node_id:              $.node_id
+        exact_replay_required: $.exact_replay_required
+        reason:               $.reason
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: pause_reconciliation
+      title: Pause normal reconciliation for this node
+      dependsOn: [mark_recovery_started]
+      actor: cluster-controller
+      action: controller.recovery.pause_node_reconciliation
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: drain_node
+      title: Drain node — stop services and remove from active convergence set
+      dependsOn: [pause_reconciliation]
+      actor: cluster-controller
+      action: controller.recovery.drain_node
+      with:
+        node_id: $.node_id
+      timeout: 10m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    # ── Phase 3: Destructive boundary ─────────────────────────────────────────
+    # Past this point the old node state is intentionally discarded.
+    # The snapshot is the life raft.
+
+    - id: mark_destructive_boundary
+      title: Mark destructive boundary — old installed state is no longer trusted
+      dependsOn: [drain_node]
+      actor: cluster-controller
+      action: controller.recovery.mark_destructive_boundary
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: await_reprovision
+      title: Wait for operator to confirm machine wipe and OS reinstall complete
+      dependsOn: [mark_destructive_boundary]
+      actor: cluster-controller
+      action: controller.recovery.await_node_reprovision_ack
+      with:
+        node_id: $.node_id
+      # Poll every 10 s for up to 24 h — operator may take time to reprovision.
+      retry:
+        maxAttempts: 8640
+        backoff: 10s
+      timeout: 24h
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Phase 4: Rejoin ───────────────────────────────────────────────────────
+    # The freshly provisioned machine must join the cluster before reseeding.
+
+    - id: await_rejoin
+      title: Wait for fresh node to appear in the cluster with a valid heartbeat
+      dependsOn: [await_reprovision]
+      actor: cluster-controller
+      action: controller.recovery.await_node_rejoin
+      with:
+        node_id: $.node_id
+      retry:
+        maxAttempts: 360
+        backoff: 10s
+      timeout: 1h
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: bind_new_identity
+      title: Associate fresh node identity with this recovery workflow
+      dependsOn: [await_rejoin]
+      actor: cluster-controller
+      action: controller.recovery.bind_rejoined_node_identity
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    # ── Phase 5: Reseed ───────────────────────────────────────────────────────
+    # Install artifacts from snapshot in infrastructure-first deterministic order.
+    # Each artifact result is persisted so restarts are idempotent.
+
+    - id: reseed_artifacts
+      title: Install artifacts from snapshot in deterministic order
+      dependsOn: [bind_new_identity]
+      actor: cluster-controller
+      action: controller.recovery.reseed_node_from_snapshot
+      with:
+        node_id:              $.node_id
+        exact_replay_required: $.exact_replay_required
+      timeout: 60m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    # ── Phase 6: Verify ───────────────────────────────────────────────────────
+    # Three-layer verification: artifacts → runtime → convergence.
+    # All three must pass before the workflow can complete.
+
+    - id: verify_artifacts
+      title: Verify installed artifact set matches snapshot intent
+      dependsOn: [reseed_artifacts]
+      actor: cluster-controller
+      action: controller.recovery.verify_reseed_artifacts
+      with:
+        node_id:              $.node_id
+        exact_replay_required: $.exact_replay_required
+      retry:
+        maxAttempts: 12
+        backoff: 10s
+      timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: verify_runtime
+      title: Verify node runtime health — heartbeat, node-agent, essential services
+      dependsOn: [verify_artifacts]
+      actor: cluster-controller
+      action: controller.recovery.verify_reseed_runtime
+      with:
+        node_id: $.node_id
+      retry:
+        maxAttempts: 60
+        backoff: 10s
+      timeout: 10m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: verify_convergence
+      title: Verify convergence — no unresolved drift for required artifact set
+      dependsOn: [verify_runtime]
+      actor: cluster-controller
+      action: controller.recovery.verify_reseed_convergence
+      with:
+        node_id: $.node_id
+      retry:
+        maxAttempts: 30
+        backoff: 10s
+      timeout: 5m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Phase 7: Finalize ─────────────────────────────────────────────────────
+    # Resume normal operation only after all verification passes.
+
+    - id: unpause_reconciliation
+      title: Resume normal reconciliation for this node
+      dependsOn: [verify_convergence]
+      actor: cluster-controller
+      action: controller.recovery.resume_node_reconciliation
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: mark_complete
+      title: Mark node recovery COMPLETE and emit audit record
+      dependsOn: [unpause_reconciliation]
+      actor: cluster-controller
+      action: controller.recovery.mark_node_recovery_complete
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.recovery.mark_node_recovery_failed
+    with:
+      node_id: $.node_id
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.recovery.emit_recovery_complete
+    with:
+      node_id: $.node_id

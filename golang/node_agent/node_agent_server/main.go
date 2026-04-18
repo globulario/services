@@ -52,7 +52,7 @@ func main() {
 	nodeNameFlag := flag.String("node-name", "", "node name override")
 	joinTokenFlag := flag.String("join-token", "", "join token for cluster registration")
 	bootstrapTokenFlag := flag.String("bootstrap-token", "", "bootstrap token")
-	agentVersionFlag := flag.String("agent-version", "0.0.1", "agent version string")
+	agentVersionFlag := flag.String("agent-version", "", "agent version string (injected by package installer)")
 	controllerCAFlag := flag.String("controller-ca", "", "path to controller CA certificate")
 	controllerSNIFlag := flag.String("controller-sni", "", "controller TLS SNI")
 	controllerSystemRootsFlag := flag.Bool("controller-use-system-roots", false, "use system root CAs for controller TLS")
@@ -102,7 +102,7 @@ func main() {
 		DNSIface:                 *dnsIfaceFlag,
 	}
 	if cfg.AgentVersion == "" {
-		cfg.AgentVersion = "0.1.0"
+		cfg.AgentVersion = ""
 	}
 
 	srv := NewNodeAgentServer(statePath, state, cfg)

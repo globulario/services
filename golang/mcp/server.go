@@ -276,7 +276,7 @@ func (s *server) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 			},
 			"serverInfo": map[string]interface{}{
 				"name":    "globular-mcp-server",
-				"version": "0.1.0",
+				"version": "",
 			},
 		},
 	}

@@ -142,6 +142,7 @@ var (
 	pkgPublishForce      bool
 	pkgPublishOutput     string // "table" | "json" | "yaml"
 	pkgPublishBump       string // "patch" | "minor" | "major" — calls AllocateUpload
+	pkgPublishChannel    string // "stable" | "candidate" | "canary" | "dev" | "bootstrap"
 
 	// Register command flags (subset)
 	pkgRegisterFile      string
@@ -170,7 +171,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgBinDir, "bin-dir", "", "explicit path to bin directory")
 	pkgBuildCmd.Flags().StringVar(&pkgConfigDir, "config-dir", "", "explicit path to config directory")
 	pkgBuildCmd.Flags().StringVar(&pkgScriptsDir, "scripts-dir", "", "directory containing per-service post-install scripts")
-	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "", "package version (required)")
+	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "0.0.1", "package version (placeholder — repository assigns actual version on publish)")
 	pkgBuildCmd.Flags().Int64Var(&pkgBuildNumber, "build-number", 0, "build iteration within version (0 = legacy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "target platform (goos_goarch)")
@@ -198,6 +199,7 @@ func init() {
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite existing artifact even if checksum differs")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishBump, "bump", "", "version bump intent: patch|minor|major (calls AllocateUpload)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|bootstrap (default: stable)")
 
 }
 
@@ -208,7 +210,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		return errors.New("set either --spec or --spec-dir")
 	}
 	if pkgVersion == "" {
-		return errors.New("--version is required")
+		pkgVersion = "0.0.1" // placeholder — repository assigns actual version on publish
 	}
 	if pkgOutDir == "" {
 		return errors.New("--out is required")
@@ -627,7 +629,25 @@ func publishOne(file, token string) pkgPublishOne {
 			return r
 		}
 
-		alloc, err := client.AllocateUpload(publisher, summary.Name, summary.Platform, intent, "")
+		var ch repopb.ArtifactChannel
+		switch strings.ToLower(pkgPublishChannel) {
+		case "stable", "":
+			ch = repopb.ArtifactChannel_STABLE
+		case "candidate":
+			ch = repopb.ArtifactChannel_CANDIDATE
+		case "canary":
+			ch = repopb.ArtifactChannel_CANARY
+		case "dev":
+			ch = repopb.ArtifactChannel_DEV
+		case "bootstrap":
+			ch = repopb.ArtifactChannel_BOOTSTRAP
+		default:
+			r.err = fmt.Errorf("invalid --channel value %q: use stable, candidate, canary, dev, or bootstrap", pkgPublishChannel)
+			r.duration = time.Since(start)
+			return r
+		}
+
+		alloc, err := client.AllocateUpload(publisher, summary.Name, summary.Platform, intent, "", ch)
 		if err != nil {
 			r.err = fmt.Errorf("allocate upload: %w", err)
 			r.duration = time.Since(start)
@@ -683,25 +703,13 @@ func publishOne(file, token string) pkgPublishOne {
 		}
 	}
 
-	// Step 4: verify manifest was stored correctly by reading it back.
-	manifest, err := client.GetArtifactManifest(ref, summary.BuildNumber)
-	if err != nil {
-		r.err = fmt.Errorf("verify uploaded manifest: %w", err)
-		r.duration = time.Since(start)
-		return r
-	}
-	if manifest.GetChecksum() != r.digest {
-		r.err = fmt.Errorf("checksum mismatch after upload: local=%s remote=%s", r.digest, manifest.GetChecksum())
-		// Promote to FAILED since the artifact is corrupt.
-		_, _ = client.PromoteArtifact(ref, summary.BuildNumber, repopb.PublishState_FAILED)
-		r.duration = time.Since(start)
-		return r
-	}
-
-	// Steps 5+6 (descriptor registration + promote to PUBLISHED) are now handled
-	// server-side by Repository.completePublish() during UploadArtifact.
-	// The artifact should already be in PUBLISHED state after the upload succeeds.
-	// Verify by re-reading the manifest.
+	// Steps 4+5+6 (verification, descriptor registration, promote to PUBLISHED)
+	// are now handled server-side by Repository.completePublish() during
+	// UploadArtifact. The repository is the sole authority on versioning and
+	// integrity — it computes the checksum from the received bytes and assigns
+	// the version. Client-side verification is removed because the repository
+	// may store the artifact under a different version/build_number than what
+	// the client sent.
 	manifest, verifyErr := client.GetArtifactManifest(ref, summary.BuildNumber)
 	if verifyErr == nil && manifest != nil {
 		r.descriptorAction = "published"

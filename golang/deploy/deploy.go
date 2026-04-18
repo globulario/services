@@ -22,6 +22,7 @@ type DeployOptions struct {
 	ServiceName string
 	Version     string
 	Bump        string // "patch" | "minor" | "major" — calls AllocateUpload
+	Channel     string // "stable" | "candidate" | "canary" | "dev" | "bootstrap"
 	Publisher   string
 	Platform    string
 	Comment     string
@@ -178,8 +179,22 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			return nil, fmt.Errorf("invalid --bump value %q: use patch, minor, or major", opts.Bump)
 		}
 
+		var ch repopb.ArtifactChannel
+		switch strings.ToLower(opts.Channel) {
+		case "candidate":
+			ch = repopb.ArtifactChannel_CANDIDATE
+		case "canary":
+			ch = repopb.ArtifactChannel_CANARY
+		case "dev":
+			ch = repopb.ArtifactChannel_DEV
+		case "bootstrap":
+			ch = repopb.ArtifactChannel_BOOTSTRAP
+		default:
+			ch = repopb.ArtifactChannel_STABLE
+		}
+
 		exactVersion := opts.Version // empty if --version not set
-		alloc, err := client.AllocateUpload(opts.Publisher, pkgName, opts.Platform, intent, exactVersion)
+		alloc, err := client.AllocateUpload(opts.Publisher, pkgName, opts.Platform, intent, exactVersion, ch)
 		if err != nil {
 			return nil, fmt.Errorf("allocate upload: %w", err)
 		}

@@ -88,6 +88,16 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node == nil || node.NodeID == "" {
 			continue
 		}
+
+		// ── Recovery fencing guard (Invariant 2) ──────────────────────────────
+		// A node under active full-reseed recovery must not be touched by the
+		// normal reconciler. The recovery workflow owns all installed-state
+		// mutations for that node until it completes or fails.
+		if srv.isNodeUnderRecovery(ctx, node.NodeID) {
+			log.Printf("reconcile: skip node %s — active full-reseed recovery workflow owns this node", node.NodeID)
+			continue
+		}
+
 		// Bootstrap phase gating: nodes not yet workload_ready get infra-tier-only
 		// plans so infrastructure packages (etcd, xds, envoy, etc.) get installed.
 		// Workload service plans are blocked until the node reaches workload_ready.
@@ -544,25 +554,11 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 			log.Printf("materialize-infra: created InfrastructureRelease %s version=%s source=%s", relName, version, source)
 			materialized = append(materialized, MaterializedInfra{Component: compName, Version: version, Source: source})
 		} else {
-			// Create ServiceDesiredVersion for workload deps.
-			existing, _, _ := srv.resources.Get(ctx, "ServiceDesiredVersion", compName)
-			if existing != nil {
-				continue // already exists
-			}
-			obj := &cluster_controllerpb.ServiceDesiredVersion{
-				Meta: &cluster_controllerpb.ObjectMeta{Name: compName},
-				Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
-					ServiceName: compName,
-					Version:     version,
-				},
-			}
-			if _, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
-				log.Printf("materialize-infra: failed to create ServiceDesiredVersion %s: %v", compName, err)
-				continue
-			}
-			srv.ensureServiceRelease(ctx, compName, version, 0)
-			log.Printf("materialize-infra: created ServiceDesiredVersion %s version=%s source=%s", compName, version, source)
-			materialized = append(materialized, MaterializedInfra{Component: compName, Version: version, Source: source})
+			// Workload services: do NOT auto-materialize desired state from
+			// installed state. Desired state (Layer 2) must only come from
+			// explicit deploy commands, never inferred from Layer 3.
+			// The heartbeat already tracks what is installed on each node.
+			log.Printf("materialize-infra: skipping workload %s — desired state must come from explicit deploy, not auto-materialization", compName)
 		}
 	}
 	return materialized
@@ -581,6 +577,9 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 // gateway, etc.) that don't carry an upstream version. It must not be rejected.
 func (srv *server) resolveInfraVersion(componentName string) (version, source string) {
 	// Step 1: Check installed-state across all cluster nodes.
+	// Reject "unknown" and "" — these are fallback/placeholder versions
+	// from nodes that haven't been properly provisioned. Using them would
+	// create desired entries with fake versions.
 	srv.lock("resolveInfraVersion")
 	for nodeID, node := range srv.state.Nodes {
 		if node == nil || len(node.InstalledVersions) == 0 {
@@ -588,7 +587,7 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 		}
 		for k, v := range node.InstalledVersions {
 			canon := normalizeComponentName(canonicalServiceName(k))
-			if canon == componentName && v != "" {
+			if canon == componentName && v != "" && v != "unknown" {
 				srv.unlock()
 				return v, "installed:" + nodeID
 			}

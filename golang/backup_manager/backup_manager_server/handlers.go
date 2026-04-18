@@ -1059,10 +1059,7 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 				continue
 			}
 			// Check task status
-			scyllaArgs := []string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}
-			if srv.ScyllaManagerAPI != "" {
-				scyllaArgs = append(scyllaArgs, "--api-url", srv.ScyllaManagerAPI)
-			}
+			scyllaArgs := append([]string{"task", "progress", taskID, "--cluster", srv.ScyllaCluster}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
 			stdout, stderr, err := runCmd("sctool", scyllaArgs...)
 			if err != nil {
 				detail := strings.TrimSpace(stderr)

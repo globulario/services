@@ -120,7 +120,7 @@ globular services desired list
 # All services show INSTALLED with correct node count
 
 # No drift
-globular services repair --dry-run
+globular cluster get-drift-report
 # All INSTALLED
 ```
 

@@ -79,6 +79,11 @@ func serviceNameFromKey(key string) string {
 //  3. Execution gate — workflowSem (cap 3) + inflightWorkflows map limit
 //     concurrent workflow dispatches to prevent systemd overload on nodes.
 func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
+	if !reconcileVersionGate() {
+		logger.Error("startControllerRuntime: controller version too old — reconciliation disabled",
+			"version", Version, "minimum", minSafeReconcileVersion)
+		return
+	}
 	if workers <= 0 {
 		workers = 2
 	}
@@ -89,6 +94,10 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// reconcile handlers; per-run routers still take precedence.
 	defaultRouter := engine.NewRouter()
 	engine.RegisterReconcileControllerActions(defaultRouter, srv.buildReconcileControllerConfig())
+	engine.RegisterInvariantActions(defaultRouter, srv.buildInvariantConfig())
+	engine.RegisterNodeRepairControllerActions(defaultRouter, srv.buildNodeRepairControllerConfig())
+	engine.RegisterNodeRepairAgentActions(defaultRouter, srv.buildNodeRepairAgentConfig())
+	engine.RegisterNodeRecoveryControllerActions(defaultRouter, srv.buildNodeRecoveryControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then
@@ -449,38 +458,25 @@ func (srv *server) startupAutoImport(ctx context.Context, queue *workQueue) {
 	// packages that were incorrectly marked as installed previously.
 	srv.reconcileDesiredWithInstalled(ctx)
 
-	if len(svcItems) > 0 && len(infraItems) > 0 {
-		logger.Info("startupAutoImport: desired state already has entries, skipping full import",
-			"services", len(svcItems), "infra", len(infraItems))
-		srv.autoImportDone.Store(true)
-		return
-	}
-
-	// Desired state is empty (or missing infra) — attempt import from installed.
-	logger.Info("startupAutoImport: importing from installed services")
-
-	// Clean up stale keys first.
-	if n := srv.cleanupStaleDesiredKeys(ctx); n > 0 {
-		logger.Info("startupAutoImport: cleaned up stale entries", "count", n)
-	}
-
-	stats, err := srv.importInstalledToDesired(ctx)
-	if err != nil {
-		logger.Warn("startupAutoImport: import failed", "error", err)
-		return
-	}
-
 	srv.autoImportDone.Store(true)
-	logger.Info("startupAutoImport: import complete",
-		"imported", stats.Imported,
-		"updated", stats.Updated,
-		"already_present", stats.AlreadyPresent,
-		"failed", stats.Failed)
 
-	// Enqueue reconciliation for newly imported services.
-	if stats.Imported > 0 || stats.Updated > 0 {
-		queue.Enqueue(networkReconcileKey)
+	if len(svcItems) > 0 || len(infraItems) > 0 {
+		logger.Info("startupAutoImport: desired state already has entries",
+			"services", len(svcItems), "infra", len(infraItems))
+		return
 	}
+
+	// Desired state is empty. Do NOT auto-import from runtime observations —
+	// that is an authority inversion (Layer 3 → Layer 2). The operator must
+	// explicitly seed desired state via:
+	//   globular deploy <package> --bump
+	//   or SeedDesiredState RPC (IMPORT_FROM_INSTALLED mode)
+	//
+	// Auto-importing from runtime was the root cause of phantom service
+	// rematerialization: old/stale node-agent reports (fallback 0.1.0 or
+	// "unknown" versions) would create desired entries that the reconciler
+	// then tried to converge, creating ghost services.
+	logger.Warn("startupAutoImport: desired state is EMPTY — operator must seed it explicitly via 'globular deploy' or SeedDesiredState RPC. Auto-import from runtime observations is disabled to prevent phantom rematerialization.")
 }
 
 // waitForReadiness polls readiness predicates every 5 seconds until they all
@@ -724,23 +720,14 @@ func (srv *server) reconcileDesiredWithInstalled(ctx context.Context) {
 			continue
 		}
 
-		// Auto-correct: if healthy nodes are running a version newer than
-		// desired, update desired to match. This prevents version regression
-		// from causing permanent hash drift across the cluster.
-		desiredVer := sdv.Spec.Version
-		if highVer := srv.highestHealthyInstalledVersion(canon); highVer != "" && desiredVer != "" {
-			if cmp, err := versionutil.Compare(desiredVer, highVer); err == nil && cmp < 0 {
-				sdv.Spec.Version = highVer
-				if sdv.Meta != nil {
-					sdv.Meta.Generation++
-				}
-				if _, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", sdv); err == nil {
-					logger.Info("reconcileDesiredWithInstalled: auto-corrected desired version",
-						"service", canon, "old", desiredVer, "new", highVer)
-					corrected++
-				}
-			}
-		}
+		// NOTE: Auto-correcting desired version from installed was REMOVED.
+		// Desired state (Layer 2) must only change via explicit operator action
+		// (deploy command, SeedDesiredState RPC). Updating desired from
+		// installed is an authority inversion (Layer 3 → Layer 2) and was a
+		// vector for phantom service rematerialization.
+		//
+		// If installed version > desired version, the operator must explicitly
+		// bump desired via 'globular deploy <pkg> --bump'.
 	}
 	if removed > 0 {
 		logger.Info("reconcileDesiredWithInstalled: removed stale desired entries", "count", removed)

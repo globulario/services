@@ -20,9 +20,11 @@ var rootCfg = struct {
 	timeout        time.Duration
 	output         string
 }{
-	controllerAddr: "localhost:12000",
-	nodeAddr:       "localhost:11000",
-	dnsAddr:        "localhost:10006", // Updated from 10033 to actual DNS service port
+	// Bare FQDNs: resolveGRPCAddr appends :443 (Envoy mesh) at dial time.
+	// Provide an explicit host:port to bypass the mesh (e.g. for bootstrap/join).
+	controllerAddr: "globular.internal",
+	nodeAddr:       "globular.internal",
+	dnsAddr:        "globular.internal",
 	timeout:        5 * time.Second,
 	output:         "table",
 }

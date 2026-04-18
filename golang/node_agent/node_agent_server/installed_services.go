@@ -27,6 +27,44 @@ func (k ServiceKey) String() string {
 	return canonicalServiceName(k.ServiceName)
 }
 
+// ObservationSource classifies how a service was discovered on this node.
+// Only ManagedInstalled observations may participate in convergence checks,
+// etcd installed-state records, and desired-state import/resolution.
+type ObservationSource int
+
+const (
+	// ManagedInstalled — discovered via version markers written by the
+	// official apply/deploy path (ApplyPackageRelease), OR via etcd
+	// installed-state records, OR via Day 0 join infrastructure with a
+	// real detected version. These are authoritative.
+	ManagedInstalled ObservationSource = iota
+
+	// RuntimeUnmanaged — a systemd unit exists but has no version marker
+	// and no etcd installed-state record. The service was likely installed
+	// out-of-band (manual copy, legacy installer) and its version is
+	// unknown. Must NOT influence desired state or convergence.
+	RuntimeUnmanaged
+
+	// FallbackDiscovered — a systemd unit exists, and a version was found
+	// but came from an unreliable source (e.g. stale marker, legacy
+	// fallback). May be logged for diagnostics but must NOT be treated as
+	// authoritative.
+	FallbackDiscovered
+)
+
+func (o ObservationSource) String() string {
+	switch o {
+	case ManagedInstalled:
+		return "managed_installed"
+	case RuntimeUnmanaged:
+		return "runtime_unmanaged"
+	case FallbackDiscovered:
+		return "fallback_discovered"
+	default:
+		return "unknown"
+	}
+}
+
 // InstalledServiceInfo captures what the node knows about an installed service.
 type InstalledServiceInfo struct {
 	PublisherID  string
@@ -34,6 +72,13 @@ type InstalledServiceInfo struct {
 	Version      string
 	Config       map[string]string
 	ConfigDigest string
+	Source       ObservationSource
+}
+
+// IsAuthoritative returns true if this observation may participate in
+// convergence checks, desired-state import, and etcd installed-state records.
+func (i InstalledServiceInfo) IsAuthoritative() bool {
+	return i.Source == ManagedInstalled
 }
 
 // ComputeInstalledServices returns the installed services on this node and a deterministic hash.
@@ -82,6 +127,7 @@ func ComputeInstalledServices(ctx context.Context) (map[ServiceKey]InstalledServ
 			Version:      entry.Version,
 			Config:       entry.Config,
 			ConfigDigest: entry.ConfigDigest,
+			Source:       entry.Source,
 		}
 	}
 
@@ -131,6 +177,7 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 		entry := ensureServiceEntry(byService, svc)
 		entry.ServiceName = svc
 		entry.Version = version
+		entry.Source = ManagedInstalled // version markers are written by the apply path
 		// Optional config digest marker.
 		digestPath := filepath.Join(markerRoot, name, "config.sha256")
 		if cfgData, err := os.ReadFile(digestPath); err == nil {
@@ -205,11 +252,16 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		if entry := byService[svc]; entry != nil && entry.Version != "" {
 			continue
 		}
-		// Fallback version: "0.1.0" — the default for installer-deployed services.
+		// Service has a systemd unit but no version marker. Mark as
+		// RuntimeUnmanaged with "unknown" version — Phase 2.5 (peer
+		// checksum lookup) may resolve it later.
+		// NEVER default to a real version like "" — that pollutes
+		// desired state and causes phantom reconciliation loops.
 		entry := ensureServiceEntry(byService, svc)
 		entry.ServiceName = svc
+		entry.Source = RuntimeUnmanaged
 		if entry.Version == "" {
-			entry.Version = "0.1.0"
+			entry.Version = "unknown"
 		}
 	}
 }
@@ -222,7 +274,7 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 	// etcd: installed by Day 0 installer or Day 1 etcd join. Detect via
 	// systemctl and resolve version from etcdctl.
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "globular-etcd.service").Run(); err == nil {
-		if entry := byService["etcd"]; entry == nil || entry.Version == "" || entry.Version == "0.1.0" {
+		if entry := byService["etcd"]; entry == nil || entry.Version == "" || entry.Version == "" {
 			version := detectEtcdVersion(ctx)
 			if version == "" {
 				version = "unknown"
@@ -230,13 +282,18 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 			entry := ensureServiceEntry(byService, "etcd")
 			entry.ServiceName = "etcd"
 			entry.Version = version
+			if version != "unknown" {
+				entry.Source = ManagedInstalled // real version detected from binary
+			} else {
+				entry.Source = RuntimeUnmanaged
+			}
 		}
 	}
 
 	// scylladb: OS package (apt install), not a bundled binary. Detect via
 	// systemctl and resolve version from scylla --version.
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "scylla-server.service").Run(); err == nil {
-		if entry := byService["scylladb"]; entry == nil || entry.Version == "" || entry.Version == "0.1.0" {
+		if entry := byService["scylladb"]; entry == nil || entry.Version == "" || entry.Version == "" {
 			version := detectScyllaVersion(ctx)
 			if version == "" {
 				version = "unknown"
@@ -244,6 +301,11 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 			entry := ensureServiceEntry(byService, "scylladb")
 			entry.ServiceName = "scylladb"
 			entry.Version = version
+			if version != "unknown" {
+				entry.Source = ManagedInstalled // real version detected from binary
+			} else {
+				entry.Source = RuntimeUnmanaged
+			}
 		}
 	}
 }

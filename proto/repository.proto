@@ -16,6 +16,26 @@ enum ArtifactKind {
   COMMAND = 6;             // CLI tools (ffmpeg, rclone, restic, mc, etc.)
 }
 
+// ArtifactChannel controls which release tier an artifact belongs to.
+// Channels gate which artifacts the reconciler and search surfaces can see.
+//
+//   STABLE    — default; eligible for cluster reconciliation
+//   CANDIDATE — explicit workflow only; reconciler ignores unless overridden
+//   CANARY    — limited scope rollouts; reconciler uses only when policy allows
+//   DEV       — internal/CI builds; never pulled by cluster reconciliation
+//   BOOTSTRAP — day-0 essential packages; cluster boot-path only
+//
+// Resolution rule (Invariant E): reconciler resolves from STABLE only unless
+// an explicit channel override is present in desired state.
+enum ArtifactChannel {
+  CHANNEL_UNSET = 0;   // treated as STABLE by resolver and search
+  STABLE = 1;
+  CANDIDATE = 2;
+  CANARY = 3;
+  DEV = 4;
+  BOOTSTRAP = 5;
+}
+
 // PublishState tracks the lifecycle of an artifact through the publish pipeline.
 // Artifacts progress: STAGING → VERIFIED → PUBLISHED.
 // Failed or abandoned artifacts may be marked FAILED or ORPHANED.
@@ -31,6 +51,7 @@ enum PublishState {
   QUARANTINED = 8;               // Admin hold — security review pending; download blocked
   REVOKED = 9;                   // Terminal — permanently removed from all access
   CORRUPTED = 10;                // Integrity check failed — binary checksum doesn't match manifest
+  ARCHIVED  = 11;                // Soft-deleted by GC — outside retention window, hidden from catalog, binary retained
 }
 
 message ArtifactRef {
@@ -39,6 +60,14 @@ message ArtifactRef {
   string version = 3;
   string platform = 4;
   ArtifactKind kind = 5;
+}
+
+// ArtifactDependencyRef is a typed reference to a package dependency.
+// Used in hard_deps to form install/activation dependency graph edges.
+// Only name is required; publisher_id scopes to a specific publisher when set.
+message ArtifactDependencyRef {
+  string name = 1;          // canonical package name (hyphenated, e.g. "etcd", "scylladb")
+  string publisher_id = 2;  // optional: restrict to a specific publisher
 }
 
 message ArtifactManifest {
@@ -87,10 +116,25 @@ message ArtifactManifest {
   string install_mode = 52;                          // "repository" | "day0_join"
   bool managed_unit = 53;                            // included in profileUnitMap for unit actions
   string systemd_unit = 54;                          // systemd unit name (e.g. "globular-etcd.service")
-  repeated string runtime_local_dependencies = 55;   // packages healthy on same node before start
-  repeated string install_dependencies = 56;         // packages installed before this one
+  repeated string runtime_local_dependencies = 55;   // DEPRECATED: migrate to hard_deps
+  repeated string install_dependencies = 56;         // DEPRECATED: migrate to hard_deps
   string health_check_unit = 57;                     // systemd unit for health check
   int32 health_check_port = 58;                      // TCP port for health check (0 = skip)
+
+  // Typed dependency declarations (PR 2).
+  //
+  // hard_deps: install/activation blockers. These form directed graph edges
+  // for Invariant D (acyclic) and the reachability engine (PR 4). An artifact
+  // in hard_deps MUST be installed and healthy before this artifact starts.
+  // The uninstaller MUST refuse to remove any artifact that is a hard dep of
+  // a currently installed or desired artifact.
+  //
+  // runtime_uses: informational API peers. These declare which gRPC services
+  // or packages this artifact communicates with at runtime. They are NEVER
+  // graph edges, NEVER cycle-detectable, and NEVER block uninstall. They
+  // exist purely for documentation, mesh routing hints, and admin UX.
+  repeated ArtifactDependencyRef hard_deps = 59;
+  repeated string runtime_uses = 60;
 
   // Publish pipeline state — tracks artifact lifecycle from upload through promotion.
   PublishState publish_state = 40;
@@ -112,6 +156,12 @@ message ArtifactManifest {
   // "which package version contains this binary?" — used by node-agent process
   // fingerprinting to reconcile etcd installed_state with reality.
   string entrypoint_checksum = 44;
+
+  // Release channel this artifact belongs to. Controls resolver and search
+  // visibility. CHANNEL_UNSET and STABLE are equivalent for all resolution
+  // purposes. DEV and CANDIDATE are never returned to the cluster reconciler
+  // unless the caller explicitly requests them. See ArtifactChannel enum.
+  ArtifactChannel channel = 45;
 }
 
 // ServiceDetail contains fields specific to SERVICE packages.
@@ -279,6 +329,13 @@ message SearchArtifactsRequest {
   string platform = 4;           // filter by platform
   int32 page_size = 5;           // max results per page (0 = server default)
   string page_token = 6;         // opaque token for next page
+  // Channel filter. CHANNEL_UNSET (default) returns only STABLE artifacts.
+  // Set to a specific channel to restrict results to that channel only.
+  // DEV and CANDIDATE are never returned unless explicitly requested here.
+  ArtifactChannel channel = 7;
+  // When true, include all channels in results regardless of the channel field.
+  // Intended for admin/operator UX only — never set this from the reconciler.
+  bool include_all_channels = 8;
 }
 
 message SearchArtifactsResponse {
@@ -583,6 +640,19 @@ service PackageRepository {
     };
   };
 
+  // Deterministic resolver: resolves a package to exactly one concrete build_id
+  // or returns a hard error. Used by the controller planning phase.
+  // NEVER call this from the reconciler execution path — read build_id from
+  // desired state instead.
+  rpc ResolveArtifact(ResolveArtifactRequest) returns(ResolveArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.read"
+      permission: "read"
+      collection_template: "/repository/artifacts"
+      default_role_hint: "viewer"
+    };
+  };
+
   // Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
   // find the artifact manifest that produced it. Used by the node-agent
   // process fingerprinting to resolve "which version is this binary?"
@@ -596,6 +666,55 @@ service PackageRepository {
       default_role_hint: "viewer"
     };
   };
+
+  // ArchiveUnreachableArtifacts runs the repository GC: every artifact that is
+  // outside the retention window AND not actively deployed (build_id not in
+  // installed state) is moved to ARCHIVED state.  dry_run=true previews without
+  // writing.  Returns a per-artifact report.
+  rpc ArchiveUnreachableArtifacts(ArchiveUnreachableArtifactsRequest) returns(ArchiveUnreachableArtifactsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.delete"
+      permission: "delete"
+      collection_template: "/repository/artifacts"
+      default_role_hint: "owner"
+    };
+  };
+}
+
+// ── ResolveArtifact (deterministic resolver) ────────────────────────────────
+//
+// ResolveArtifact resolves a package reference to exactly one concrete build_id
+// or returns a hard error. This is the canonical resolution endpoint for the
+// controller planning phase.
+//
+// Contract (Invariant E):
+//   - Result is always a single concrete build_id — never a list
+//   - If zero artifacts match: hard error with NOT_FOUND
+//   - If multiple artifacts match after all filters: hard error (ambiguous)
+//   - Only PUBLISHED artifacts are eligible unless caller passes channel override
+//   - DEV and CANDIDATE are never returned unless explicitly requested
+//   - "latest" resolution is valid here, but callers MUST persist build_id into
+//     desired state immediately. The reconciler MUST NOT call this at execution
+//     time — it must read build_id from desired state only.
+message ResolveArtifactRequest {
+  string publisher_id = 1;         // e.g. "core@globular.io"
+  string name = 2;                 // package name
+  ArtifactKind kind = 3;           // artifact kind (0 = SERVICE by default)
+  string platform = 4;             // e.g. "linux_amd64"
+  // Channel to resolve from. Defaults to STABLE. Controller must use STABLE.
+  ArtifactChannel channel = 5;
+  // Optional: exact version to resolve (e.g. "1.4.2"). When empty, returns the
+  // latest PUBLISHED build on the requested channel.
+  string version = 6;
+  // Optional: exact build_id to resolve (highest-priority match if present).
+  string build_id = 7;
+}
+
+message ResolveArtifactResponse {
+  // The resolved artifact manifest. build_id is the sole convergence identity.
+  ArtifactManifest manifest = 1;
+  // Human-readable description of how resolution was performed.
+  string resolution_source = 2;  // e.g. "exact-build_id", "latest-stable", "exact-version"
 }
 
 // ResolveByEntrypointChecksum — reverse lookup from binary checksum to artifact.
@@ -646,6 +765,8 @@ message AllocateUploadRequest {
   string platform = 3;      // e.g. "linux_amd64"
   VersionIntent intent = 4; // how to compute the version
   string exact_version = 5; // required when intent=EXACT
+  // Release channel for the allocated artifact. Defaults to STABLE.
+  ArtifactChannel channel = 6;
 }
 
 message AllocateUploadResponse {
@@ -674,4 +795,27 @@ message ImportProvisionalResponse {
   string confirmed_version = 3;     // may differ if admin re-versioned
   string state = 4;                 // "RELEASED"
   string message = 5;
+}
+
+// ── GC / Archive ────────────────────────────────────────────────────────────
+
+message ArchiveUnreachableArtifactsRequest {
+  // dry_run: if true, report what would be archived without modifying state.
+  bool dry_run = 1;
+}
+
+message ArchivedArtifactRecord {
+  string key         = 1; // storage key (e.g. "core%echo%1.0.0%linux_amd64%3")
+  string build_id    = 2;
+  string name        = 3;
+  string version     = 4;
+  string publisher   = 5;
+  string reason      = 6; // "outside_retention_window" or "unreachable"
+}
+
+message ArchiveUnreachableArtifactsResponse {
+  int32                        archived_count  = 1;
+  int32                        skipped_count   = 2; // already archived / terminal
+  int32                        protected_count = 3; // reachable (retention or deployed)
+  repeated ArchivedArtifactRecord archived     = 4;
 }

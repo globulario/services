@@ -474,10 +474,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 		slog.Info("starting existing sctool backup task", "task_id", taskID, "cluster", cluster)
 		outputs["reused_task"] = "true"
 
-		startArgs := []string{"start", "--cluster", cluster, taskID}
-		if apiURL != "" {
-			startArgs = append(startArgs, "--api-url", apiURL)
-		}
+		startArgs := append([]string{"start", "--cluster", cluster, taskID}, srv.scyllaAPIArgs(apiURL)...)
 		stdout, stderr, err := runCmdCtx(ctx, "sctool", startArgs...)
 		stdoutStr = strings.TrimSpace(stdout)
 		stderrStr = strings.TrimSpace(stderr)
@@ -491,10 +488,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 
 	if taskID == "" {
 		// Create a new backup task
-		args := []string{"backup", "--cluster", cluster}
-		if apiURL != "" {
-			args = append(args, "--api-url", apiURL)
-		}
+		args := append([]string{"backup", "--cluster", cluster}, srv.scyllaAPIArgs(apiURL)...)
 		for _, loc := range locations {
 			args = append(args, "--location", loc)
 		}
@@ -551,10 +545,7 @@ func (srv *server) runScyllaBackup(ctx context.Context, spec *backup_managerpb.B
 	var scyllaBytes uint64
 	pollStatus := ""
 	if taskID != "" {
-		progressArgs := []string{"task", "progress", taskID, "--cluster", cluster}
-		if apiURL != "" {
-			progressArgs = append(progressArgs, "--api-url", apiURL)
-		}
+		progressArgs := append([]string{"task", "progress", taskID, "--cluster", cluster}, srv.scyllaAPIArgs(apiURL)...)
 
 		pollCount := 0
 		for {
@@ -641,10 +632,7 @@ done:
 // findExistingScyllaBackupTask finds an existing backup task for the cluster
 // that can be restarted, avoiding "another task is running" conflicts.
 func (srv *server) findExistingScyllaBackupTask(cluster, apiURL string) string {
-	args := []string{"tasks", "--cluster", cluster}
-	if apiURL != "" {
-		args = append(args, "--api-url", apiURL)
-	}
+	args := append([]string{"tasks", "--cluster", cluster}, srv.scyllaAPIArgs(apiURL)...)
 	stdout, _, err := runCmd("sctool", args...)
 	if err != nil {
 		return ""
@@ -668,10 +656,7 @@ func (srv *server) extractScyllaSnapshotTag(cluster, apiURL string, locations []
 		return ""
 	}
 
-	args := []string{"backup", "list", "--cluster", cluster}
-	if apiURL != "" {
-		args = append(args, "--api-url", apiURL)
-	}
+	args := append([]string{"backup", "list", "--cluster", cluster}, srv.scyllaAPIArgs(apiURL)...)
 	for _, loc := range locations {
 		args = append(args, "--location", loc)
 	}

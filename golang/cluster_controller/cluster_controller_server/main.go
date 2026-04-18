@@ -56,7 +56,7 @@ func init() { encoding.RegisterCodec(jsonCodec{}) }
 
 // Version information (set via ldflags during build)
 var (
-	Version        = "0.0.1"
+	Version        = ""
 	BuildTime      = "unknown"
 	GitCommit      = "unknown"
 	BuildNumberStr = "0" // injected via ldflags: -X main.BuildNumberStr=6
@@ -266,11 +266,12 @@ func main() {
 	// Register gRPC services
 	cluster_controllerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
 	cluster_controllerpb.RegisterResourcesServiceServer(grpcServer, srv)
+	cluster_controllerpb.RegisterNodeRecoveryServiceServer(grpcServer, srv)
 	workflowpb.RegisterWorkflowActorServiceServer(grpcServer, srv.actorServer)
 	healthSrv := grpchealth.NewServer()
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthSrv)
 	reflection.Register(grpcServer)
-	logger.Info("gRPC services registered (controller + resources + workflow actor + health + reflection)")
+	logger.Info("gRPC services registered (controller + resources + recovery + workflow actor + health + reflection)")
 
 	// Create background context with signal handler for graceful shutdown.
 	ctx, cancel := context.WithCancel(context.Background())

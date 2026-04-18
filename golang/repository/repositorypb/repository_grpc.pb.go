@@ -36,7 +36,9 @@ const (
 	PackageRepository_UpdateArtifactBinary_FullMethodName        = "/repository.PackageRepository/UpdateArtifactBinary"
 	PackageRepository_ImportProvisionalArtifact_FullMethodName   = "/repository.PackageRepository/ImportProvisionalArtifact"
 	PackageRepository_AllocateUpload_FullMethodName              = "/repository.PackageRepository/AllocateUpload"
-	PackageRepository_ResolveByEntrypointChecksum_FullMethodName = "/repository.PackageRepository/ResolveByEntrypointChecksum"
+	PackageRepository_ResolveArtifact_FullMethodName             = "/repository.PackageRepository/ResolveArtifact"
+	PackageRepository_ResolveByEntrypointChecksum_FullMethodName  = "/repository.PackageRepository/ResolveByEntrypointChecksum"
+	PackageRepository_ArchiveUnreachableArtifacts_FullMethodName = "/repository.PackageRepository/ArchiveUnreachableArtifacts"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -93,12 +95,19 @@ type PackageRepositoryClient interface {
 	// and returns a short-lived reservation token. The client then uploads
 	// the artifact using the reservation_id.
 	AllocateUpload(ctx context.Context, in *AllocateUploadRequest, opts ...grpc.CallOption) (*AllocateUploadResponse, error)
+	// Deterministic resolver: resolves a package to exactly one concrete build_id
+	// or returns a hard error. Used by the controller planning phase.
+	// NEVER call this from the reconciler execution path — read build_id from
+	// desired state instead.
+	ResolveArtifact(ctx context.Context, in *ResolveArtifactRequest, opts ...grpc.CallOption) (*ResolveArtifactResponse, error)
 	// Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
 	// find the artifact manifest that produced it. Used by the node-agent
 	// process fingerprinting to resolve "which version is this binary?"
 	// Returns the matching manifest or NOT_FOUND if no published artifact
 	// has this entrypoint checksum.
 	ResolveByEntrypointChecksum(ctx context.Context, in *ResolveByEntrypointChecksumRequest, opts ...grpc.CallOption) (*ResolveByEntrypointChecksumResponse, error)
+	// GC: archives all artifacts outside the retention window that are not actively deployed.
+	ArchiveUnreachableArtifacts(ctx context.Context, in *ArchiveUnreachableArtifactsRequest, opts ...grpc.CallOption) (*ArchiveUnreachableArtifactsResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -306,10 +315,30 @@ func (c *packageRepositoryClient) AllocateUpload(ctx context.Context, in *Alloca
 	return out, nil
 }
 
+func (c *packageRepositoryClient) ResolveArtifact(ctx context.Context, in *ResolveArtifactRequest, opts ...grpc.CallOption) (*ResolveArtifactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveArtifactResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ResolveArtifact_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *packageRepositoryClient) ResolveByEntrypointChecksum(ctx context.Context, in *ResolveByEntrypointChecksumRequest, opts ...grpc.CallOption) (*ResolveByEntrypointChecksumResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveByEntrypointChecksumResponse)
 	err := c.cc.Invoke(ctx, PackageRepository_ResolveByEntrypointChecksum_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ArchiveUnreachableArtifacts(ctx context.Context, in *ArchiveUnreachableArtifactsRequest, opts ...grpc.CallOption) (*ArchiveUnreachableArtifactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArchiveUnreachableArtifactsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ArchiveUnreachableArtifacts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -370,12 +399,20 @@ type PackageRepositoryServer interface {
 	// and returns a short-lived reservation token. The client then uploads
 	// the artifact using the reservation_id.
 	AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error)
+	// Deterministic resolver: resolves a package to exactly one concrete build_id
+	// or returns a hard error. Used by the controller planning phase.
+	// NEVER call this from the reconciler execution path — read build_id from
+	// desired state instead.
+	ResolveArtifact(context.Context, *ResolveArtifactRequest) (*ResolveArtifactResponse, error)
 	// Reverse-lookup: given a binary's SHA256 checksum (entrypoint_checksum),
 	// find the artifact manifest that produced it. Used by the node-agent
 	// process fingerprinting to resolve "which version is this binary?"
 	// Returns the matching manifest or NOT_FOUND if no published artifact
 	// has this entrypoint checksum.
 	ResolveByEntrypointChecksum(context.Context, *ResolveByEntrypointChecksumRequest) (*ResolveByEntrypointChecksumResponse, error)
+	// GC: archives all artifacts that are outside the retention window and not
+	// actively deployed on any cluster node. dry_run=true previews without writing.
+	ArchiveUnreachableArtifacts(context.Context, *ArchiveUnreachableArtifactsRequest) (*ArchiveUnreachableArtifactsResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -436,8 +473,14 @@ func (UnimplementedPackageRepositoryServer) ImportProvisionalArtifact(context.Co
 func (UnimplementedPackageRepositoryServer) AllocateUpload(context.Context, *AllocateUploadRequest) (*AllocateUploadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AllocateUpload not implemented")
 }
+func (UnimplementedPackageRepositoryServer) ResolveArtifact(context.Context, *ResolveArtifactRequest) (*ResolveArtifactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveArtifact not implemented")
+}
 func (UnimplementedPackageRepositoryServer) ResolveByEntrypointChecksum(context.Context, *ResolveByEntrypointChecksumRequest) (*ResolveByEntrypointChecksumResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveByEntrypointChecksum not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ArchiveUnreachableArtifacts(context.Context, *ArchiveUnreachableArtifactsRequest) (*ArchiveUnreachableArtifactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ArchiveUnreachableArtifacts not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -718,6 +761,24 @@ func _PackageRepository_AllocateUpload_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_ResolveArtifact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ResolveArtifact(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ResolveArtifact_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ResolveArtifact(ctx, req.(*ResolveArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PackageRepository_ResolveByEntrypointChecksum_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveByEntrypointChecksumRequest)
 	if err := dec(in); err != nil {
@@ -732,6 +793,24 @@ func _PackageRepository_ResolveByEntrypointChecksum_Handler(srv interface{}, ctx
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PackageRepositoryServer).ResolveByEntrypointChecksum(ctx, req.(*ResolveByEntrypointChecksumRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ArchiveUnreachableArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveUnreachableArtifactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ArchiveUnreachableArtifacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ArchiveUnreachableArtifacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ArchiveUnreachableArtifacts(ctx, req.(*ArchiveUnreachableArtifactsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -792,8 +871,16 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PackageRepository_AllocateUpload_Handler,
 		},
 		{
+			MethodName: "ResolveArtifact",
+			Handler:    _PackageRepository_ResolveArtifact_Handler,
+		},
+		{
 			MethodName: "ResolveByEntrypointChecksum",
 			Handler:    _PackageRepository_ResolveByEntrypointChecksum_Handler,
+		},
+		{
+			MethodName: "ArchiveUnreachableArtifacts",
+			Handler:    _PackageRepository_ArchiveUnreachableArtifacts_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -4,13 +4,21 @@ This page covers how to package a Globular service for distribution and deployme
 
 ## Why Packaging
 
-Packaging is the bridge between development and deployment. A package contains everything the platform needs to install and run a service on any node:
-- The compiled binary
-- Service metadata (name, version, profiles, dependencies)
-- Optional systemd unit overrides
-- Optional default configuration
+A package is not just a delivery mechanism. It is the artifact that the 4-layer state model reasons about.
 
-Without packaging, you'd need to manually copy binaries, create unit files, and configure services on each node. Packaging automates all of this through the workflow system.
+The Repository stores packages and tracks their state (PUBLISHED, DEPRECATED, CORRUPTED). The Controller reads the Repository to decide what should be running. The Node Agent downloads and installs packages. systemd runs the result. Each layer has exactly one job, and the package is the handoff point between them. Without a package in the Repository, the convergence model has nothing to converge toward — there is no desired state that can be expressed.
+
+**Why `.tgz` and not Docker images, `.deb`, or `.rpm`?**
+
+Globular runs native binaries under systemd — there is no container runtime, no package manager, no dependency resolver. A `.tgz` is the simplest possible archive format: unpack it, copy the binary, write the unit file, done. Docker images carry a container runtime dependency and an OCI layer model that adds nothing here. `.deb`/`.rpm` packages carry system-level package management semantics (conffiles, pre/post install scripts, apt/dnf integration) that conflict with Globular's convergence model — you can't have both apt and the cluster controller trying to manage the same service.
+
+**Why is the spec file separate from the binary?**
+
+The spec file declares how the service fits into the cluster: which profiles it belongs to, what priority it installs at, what services it depends on. These are deployment-time decisions, not compile-time decisions. The same binary could deploy at priority 60 in one cluster and priority 40 in another. Embedding this in the binary would mean recompiling to change deployment topology.
+
+**Why do build numbers exist separately from versions?**
+
+A version (`0.0.1`) identifies what the code does. A build number identifies a specific compiled artifact. Sometimes you need to rebuild the same source version — a dependency update, a compiler flag change, a certificate embedded at build time. The build number lets you distinguish `0.0.1 build 1` (original) from `0.0.1 build 2` (rebuilt with updated deps) without a version bump that would imply the API changed. The convergence model tracks both: the controller expresses desired version, but the node agent installs a specific build.
 
 ## Package Format
 
@@ -108,6 +116,8 @@ install_mode: repository           # OPTIONAL — "repository" (default) or "day
 - Example: etcd, MinIO, Prometheus, Alertmanager, Envoy
 
 ### Priority Ordering
+
+Priority exists because declared `dependencies` alone are not sufficient for ordering. Dependencies say "A must run before B," but they only work between services that know about each other. Infrastructure needs to be up before anything else regardless of whether any service explicitly declares a dependency on it. Priority encodes that structural knowledge — it is the global ordering that makes the dependency graph tractable.
 
 Priority determines installation order when multiple services are deployed simultaneously:
 

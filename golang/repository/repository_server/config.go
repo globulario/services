@@ -60,6 +60,12 @@ type Config struct {
 
 	// Repository-specific
 	Root string `json:"Root"` // Base data directory for package storage
+
+	// GC policy
+	// GCRetentionWindow is the number of most-recent PUBLISHED builds per
+	// (publisher, name, platform) series that are protected from GC.
+	// Defaults to 3 when zero or negative. Stored in etcd via service config.
+	GCRetentionWindow int `json:"GCRetentionWindow,omitempty"`
 }
 
 // DefaultConfig returns a Config with Repository service defaults.
@@ -96,6 +102,9 @@ func DefaultConfig() *Config {
 
 		// Repository-specific
 		Root: "", // Will be set during initialization
+
+		// GC policy
+		GCRetentionWindow: defaultRetentionWindow,
 	}
 
 	cfg.TLS.Enabled = false
@@ -156,7 +165,8 @@ func (c *Config) Clone() *Config {
 		State:           c.State,
 		LastError:       c.LastError,
 		ModTime:         c.ModTime,
-		Root:            c.Root,
+		Root:              c.Root,
+		GCRetentionWindow: c.GCRetentionWindow,
 	}
 
 	// Deep copy TLS

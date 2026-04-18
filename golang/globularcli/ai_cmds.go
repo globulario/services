@@ -318,7 +318,7 @@ func runAiRetry(cmd *cobra.Command, args []string) error {
 // --- init ---
 
 func init() {
-	aiCmd.PersistentFlags().StringVar(&aiExecutorAddr, "executor", "localhost:10230", "AI executor service address")
+	aiCmd.PersistentFlags().StringVar(&aiExecutorAddr, "executor", "globular.internal", "AI executor service address")
 
 	aiListCmd.Flags().StringVar(&aiListState, "state", "", "Filter by job state")
 	aiListCmd.Flags().Int32Var(&aiListLimit, "limit", 20, "Max results")

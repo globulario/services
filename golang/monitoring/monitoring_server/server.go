@@ -334,7 +334,7 @@ func main() {
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
 	srv.PublisherID = "localhost"
-	srv.Version = "0.1.0"
+	srv.Version = ""
 	srv.Keywords = make([]string, 0)
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)

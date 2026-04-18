@@ -26,6 +26,7 @@ type PackageMetadata struct {
 	Description string `yaml:"description"` // Human-readable one-liner.
 	Keywords    []string `yaml:"keywords"`  // Search/filter tags.
 	License     string `yaml:"license"`     // SPDX identifier (e.g. "Apache-2.0").
+	Channel     string `yaml:"channel"`     // Release channel: "stable" (default), "candidate", "canary", "dev", "bootstrap".
 
 	// Build hints
 	ExtraBinaries []string `yaml:"extra_binaries"` // Additional binaries to bundle alongside the main exec.
@@ -41,10 +42,18 @@ type PackageMetadata struct {
 	SystemdUnit string   `yaml:"systemd_unit"` // Override systemd unit name (auto-derived from spec if empty).
 
 	// Day-1 orchestration — profile-aware, dependency-gated convergence.
-	ProvidesCapabilities     []string         `yaml:"provides_capabilities"`      // Capabilities this package gives the node (e.g. "local-db").
-	InstallDependencies      []string         `yaml:"install_dependencies"`       // Packages that must be installed before this one.
-	RuntimeLocalDependencies []string         `yaml:"runtime_local_dependencies"` // Packages that must be healthy on the same node before this starts.
-	HealthCheck              *HealthCheckHint `yaml:"health_check"`               // How to verify this package is healthy.
+	ProvidesCapabilities []string         `yaml:"provides_capabilities"` // Capabilities this package gives the node (e.g. "local-db").
+	HealthCheck          *HealthCheckHint `yaml:"health_check"`          // How to verify this package is healthy.
+
+	// Typed dependency declarations.
+	// HardDeps: install/activation blockers. Form directed graph edges.
+	// RuntimeUses: informational API peers (gRPC names). Not graph edges.
+	HardDeps    []string `yaml:"hard_deps"`    // e.g. ["etcd", "scylladb"]
+	RuntimeUses []string `yaml:"runtime_uses"` // e.g. ["repository.PackageRepository"]
+
+	// Deprecated: use hard_deps instead.
+	InstallDependencies      []string `yaml:"install_dependencies"`       // Kept for reading legacy specs.
+	RuntimeLocalDependencies []string `yaml:"runtime_local_dependencies"` // Kept for reading legacy specs.
 }
 
 // ServiceBlock identifies the service binary within the package.

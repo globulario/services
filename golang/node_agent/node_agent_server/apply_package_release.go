@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -51,55 +52,66 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		platform = runtime.GOOS + "_" + runtime.GOARCH
 	}
 
-	// Idempotency check: skip if already installed at this version+build (unless force).
-	// Downgrade guard: if a NEWER build is already installed and the caller did not
-	// explicitly set Force=true, refuse the install. This protects against stale
-	// release workflows that dispatch an older build (e.g. build 0 from a pre-fix
-	// resolver) and would otherwise silently undo a freshly-installed binary on
-	// every reconcile tick. The self-update path that legitimately re-applies an
-	// exact build always passes Force=true, so it is unaffected.
+	// Idempotency check: skip if already installed at this exact version+build.
+	// Downgrade guard: NEVER install an older version than what is currently
+	// installed, unless Force=true. This is an absolute rule — automatic rollback
+	// is forbidden. If a service needs rollback, a human must decide via the CLI
+	// with an explicit --force flag.
+	//
+	// Rationale: the reconciler can dispatch stale install workflows (e.g. after
+	// power loss, ScyllaDB recovery, or repository returning ancient artifacts).
+	// Without this guard, the cluster silently reverts to version 0.0.1.
+	// Services killed by external events are NOT faulty — they just need time
+	// to recover. Rolling them back makes everything worse.
 	if !req.GetForce() {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
-		if existing != nil && existing.Status == "installed" {
-			// Phase 2: build_id is the sole identity for idempotency. No version/build_number fallback.
-			alreadyInstalled := false
-			if buildID != "" && existing.GetBuildId() == buildID {
-				alreadyInstalled = true
-			}
-			// If build_id is empty on either side, treat as not installed
-			// (pre-Phase-2 record needs re-deploy to gain exact identity).
-			if alreadyInstalled {
-				log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
-					kind, name, version, req.GetBuildNumber(), buildID)
-				return &node_agentpb.ApplyPackageReleaseResponse{
-					Ok:          true,
-					Message:     "already installed at requested version",
-					PackageName: name,
-					Version:     version,
-					Status:      "skipped",
-					OperationId: operationID,
-					BuildId:     existing.GetBuildId(),
-				}, nil
-			}
-			// Compare version+build using the canonical semver comparator so
-			// 0.0.2+16 beats 0.0.2+0 the way a human would read it.
-			cmp, cmpErr := versionutil.CompareFull(
-				version, req.GetBuildNumber(),
-				existing.GetVersion(), existing.GetBuildNumber(),
-			)
-			if cmpErr == nil && cmp < 0 {
-				msg := fmt.Sprintf("refuse to downgrade %s/%s from %s+%d to %s+%d (pass Force=true to override)",
-					kind, name, existing.GetVersion(), existing.GetBuildNumber(), version, req.GetBuildNumber())
-				log.Printf("apply-package: REJECTED %s", msg)
-				return &node_agentpb.ApplyPackageReleaseResponse{
-					Ok:          false,
-					Message:     msg,
-					PackageName: name,
-					Version:     version,
-					Status:      "rejected",
-					ErrorDetail: msg,
-					OperationId: operationID,
-				}, nil
+		if existing != nil {
+			isPartialApply := existing.Status == "partial_apply"
+
+			if existing.Status == "installed" || isPartialApply {
+				// Idempotency: if build_id matches exactly AND not partial_apply, skip.
+				// A partial_apply record means the binary was replaced out-of-band
+				// without going through the official apply path — it MUST be
+				// re-applied to restore consistency (binary + state + marker).
+				if buildID != "" && existing.GetBuildId() == buildID && !isPartialApply {
+					log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
+						kind, name, version, req.GetBuildNumber(), buildID)
+					return &node_agentpb.ApplyPackageReleaseResponse{
+						Ok:          true,
+						Message:     "already installed at requested version",
+						PackageName: name,
+						Version:     version,
+						Status:      "skipped",
+						OperationId: operationID,
+						BuildId:     existing.GetBuildId(),
+					}, nil
+				}
+
+				if isPartialApply {
+					log.Printf("apply-package: %s/%s is in partial_apply state (binary replaced without state update) — re-applying to restore consistency",
+						kind, name)
+				}
+
+				// Downgrade guard: ALWAYS compare versions, regardless of build_id.
+				// A newer version must never be replaced by an older one automatically.
+				cmp, cmpErr := versionutil.CompareFull(
+					version, req.GetBuildNumber(),
+					existing.GetVersion(), existing.GetBuildNumber(),
+				)
+				if cmpErr == nil && cmp < 0 {
+					msg := fmt.Sprintf("refuse to downgrade %s/%s from %s+%d to %s+%d — automatic rollback is forbidden (use Force=true for manual rollback)",
+						kind, name, existing.GetVersion(), existing.GetBuildNumber(), version, req.GetBuildNumber())
+					log.Printf("apply-package: REJECTED %s", msg)
+					return &node_agentpb.ApplyPackageReleaseResponse{
+						Ok:          false,
+						Message:     msg,
+						PackageName: name,
+						Version:     version,
+						Status:      "rejected",
+						ErrorDetail: msg,
+						OperationId: operationID,
+					}, nil
+				}
 			}
 		}
 	}
@@ -313,7 +325,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// Write installed-state ONLY after the service is confirmed active.
 	// This is the convergence truth boundary.
 	log.Printf("apply-package: %s active after restart — writing installed-state", unit)
-	_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+	pkg := &node_agentpb.InstalledPackage{
 		NodeId:      srv.nodeID,
 		Name:        name,
 		Version:     version,
@@ -325,7 +337,19 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		BuildId:     buildID,
 		Platform:    platform,
 		Checksum:    req.GetExpectedSha256(),
-	})
+	}
+	// Best-effort: compute the deployed binary's SHA256 so peer nodes can
+	// identify manually-copied binaries by checksum lookup.
+	binName := strings.ReplaceAll(name, "-", "_") + "_server"
+	binPath := filepath.Join(globularBinDir, binName)
+	if cksum, err := cachedSha256(binPath); err == nil {
+		if pkg.Metadata == nil {
+			pkg.Metadata = make(map[string]string)
+		}
+		pkg.Metadata["entrypoint_checksum"] = cksum
+		log.Printf("apply-package: stored entrypoint_checksum for %s: %s", name, cksum[:16])
+	}
+	_ = installed_state.WriteInstalledPackage(ctx, pkg)
 
 	log.Printf("apply-package: completed %s/%s@%s (running and verified)", kind, name, version)
 

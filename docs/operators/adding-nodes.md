@@ -190,7 +190,7 @@ globular cluster health
 # node-abc456  healthy  1s ago       8/8 running
 
 # Verify no drift
-globular services repair --dry-run
+globular cluster get-drift-report
 # All services should show INSTALLED
 ```
 

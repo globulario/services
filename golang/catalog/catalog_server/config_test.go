@@ -21,7 +21,7 @@ func TestDefaultConfigValidates(t *testing.T) {
 	if cfg.Protocol != "grpc" {
 		t.Fatalf("Protocol = %q, want grpc", cfg.Protocol)
 	}
-	if cfg.Version != "0.1.0" {
+	if cfg.Version != "" {
 		t.Fatalf("Version = %q, want 0.0.1", cfg.Version)
 	}
 	if !cfg.AllowAllOrigins {

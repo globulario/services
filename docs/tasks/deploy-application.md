@@ -82,7 +82,7 @@ globular services desired list
 # Shows: <service-name> <version> N/N INSTALLED
 
 # No drift
-globular services repair --dry-run
+globular cluster get-drift-report
 # Shows: INSTALLED for the service on all nodes
 
 # Cluster healthy

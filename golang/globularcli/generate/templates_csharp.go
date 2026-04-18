@@ -89,7 +89,7 @@ const csharpAppsettingsTemplate = `{
     "Service": {
       "Name": "{{.PackageName}}.{{.ServiceName}}",
       "DisplayName": "{{.ServiceName}}",
-      "Version": "0.1.0",
+      "Version": "",
       "PublisherId": "globular.io",
       "Domain": "globular.internal",
       "ProtoPackage": "{{.PackageName}}",
@@ -121,7 +121,7 @@ const csharpAppsettingsTemplate = `{
 const csharpManifestTemplate = `{
   "service": {
     "name": "{{.PackageName}}.{{.ServiceName}}",
-    "version": "0.1.0",
+    "version": "",
     "publisherId": "globular.io",
     "domain": "globular.internal",
     "protoPackage": "{{.PackageName}}",

@@ -17,7 +17,7 @@ import (
 
 var (
 	devCmd = &cobra.Command{
-		Use:   "dev",
+		Use:   "",
 		Short: "Developer environment tools",
 	}
 

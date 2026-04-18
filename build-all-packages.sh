@@ -214,7 +214,6 @@ if [[ -f "golang/globularcli/tools/pkggen/pkggen.sh" ]]; then
         --bin-dir "${SERVICES_STAGE}" \
         --gen-root "${SERVICES_OUTPUT}" \
         --out "${DIST_DIR}" \
-        --version "0.0.1" \
         --publisher "core@globular.io" \
         --platform "linux_amd64"
     echo "  ✓ Service packages built"

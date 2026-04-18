@@ -14,18 +14,20 @@ import (
 
 // NodeRepairControllerConfig provides dependencies for node repair orchestration.
 type NodeRepairControllerConfig struct {
-	MarkStarted  func(ctx context.Context, nodeID, reason string) error
-	Classify     func(ctx context.Context, nodeID string, diagnosis map[string]any) (map[string]any, error)
-	IsolateNode  func(ctx context.Context, nodeID string, repairPlan map[string]any) error
-	RejoinNode   func(ctx context.Context, nodeID string) error
-	MarkRecovered func(ctx context.Context, nodeID string) error
-	MarkFailed   func(ctx context.Context, nodeID string) error
-	EmitRecovered func(ctx context.Context, nodeID string) error
+	MarkStarted       func(ctx context.Context, nodeID, reason string) error
+	ValidateReference func(ctx context.Context, referenceNodeID string) error
+	Classify          func(ctx context.Context, nodeID string, diagnosis map[string]any) (map[string]any, error)
+	IsolateNode       func(ctx context.Context, nodeID string, repairPlan map[string]any) error
+	RejoinNode        func(ctx context.Context, nodeID string) error
+	MarkRecovered     func(ctx context.Context, nodeID string) error
+	MarkFailed        func(ctx context.Context, nodeID string) error
+	EmitRecovered     func(ctx context.Context, nodeID string) error
 }
 
 // RegisterNodeRepairControllerActions registers node repair controller handlers.
 func RegisterNodeRepairControllerActions(router *Router, cfg NodeRepairControllerConfig) {
 	router.Register(v1alpha1.ActorClusterController, "controller.node_repair.mark_started", nodeRepairMarkStarted(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.node_repair.validate_reference", nodeRepairValidateReference(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.node_repair.classify", nodeRepairClassify(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.node_repair.isolate_node", nodeRepairIsolateNode(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.node_repair.rejoin_node", nodeRepairRejoinNode(cfg))
@@ -42,6 +44,19 @@ func nodeRepairMarkStarted(cfg NodeRepairControllerConfig) ActionHandler {
 		if cfg.MarkStarted != nil {
 			if err := cfg.MarkStarted(ctx, nodeID, reason); err != nil {
 				return nil, fmt.Errorf("mark repair started: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeRepairValidateReference(cfg NodeRepairControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		refID := fmt.Sprint(req.With["reference_node_id"])
+		log.Printf("actor[controller]: validating reference node %s", refID)
+		if cfg.ValidateReference != nil {
+			if err := cfg.ValidateReference(ctx, refID); err != nil {
+				return nil, fmt.Errorf("validate reference node: %w", err)
 			}
 		}
 		return &ActionResult{OK: true}, nil
@@ -147,11 +162,12 @@ func nodeRepairEmitRecovered(cfg NodeRepairControllerConfig) ActionHandler {
 
 // NodeRepairAgentConfig provides dependencies for node-agent repair operations.
 type NodeRepairAgentConfig struct {
-	CollectRepairFacts     func(ctx context.Context, nodeID string, targetPackages []any) (map[string]any, error)
-	RepairPackages         func(ctx context.Context, nodeID string, repairPlan map[string]any) (map[string]any, error)
+	CollectRepairFacts      func(ctx context.Context, nodeID string, targetPackages []any) (map[string]any, error)
+	RepairPackages          func(ctx context.Context, nodeID string, repairPlan map[string]any) (map[string]any, error)
 	RestartRepairedServices func(ctx context.Context, nodeID string, repairResult map[string]any) error
-	VerifyRepairRuntime    func(ctx context.Context, nodeID string, repairPlan map[string]any) error
-	SyncInstalledState     func(ctx context.Context, nodeID string) error
+	VerifyRepairRuntime     func(ctx context.Context, nodeID string, repairPlan map[string]any) error
+	SyncInstalledState      func(ctx context.Context, nodeID string) error
+	RotateServiceCerts      func(ctx context.Context, nodeID string) error
 }
 
 // RegisterNodeRepairAgentActions registers node-agent repair action handlers.
@@ -161,6 +177,8 @@ func RegisterNodeRepairAgentActions(router *Router, cfg NodeRepairAgentConfig) {
 	router.Register(v1alpha1.ActorNodeAgent, "node.restart_repaired_services", nodeRestartRepairedServices(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.verify_repair_runtime", nodeVerifyRepairRuntime(cfg))
 	router.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_state", nodeRepairSyncInstalledState(cfg))
+	router.Register(v1alpha1.ActorNodeAgent, "node.rotate_service_certs", nodeRotateServiceCerts(cfg))
+	// node.verify_installed_state_synced is registered in actors_verification.go
 }
 
 func nodeCollectRepairFacts(cfg NodeRepairAgentConfig) ActionHandler {
@@ -246,6 +264,19 @@ func nodeRepairSyncInstalledState(cfg NodeRepairAgentConfig) ActionHandler {
 		if cfg.SyncInstalledState != nil {
 			if err := cfg.SyncInstalledState(ctx, nodeID); err != nil {
 				return nil, fmt.Errorf("sync installed state: %w", err)
+			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func nodeRotateServiceCerts(cfg NodeRepairAgentConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		nodeID := fmt.Sprint(req.With["node_id"])
+		log.Printf("actor[node-agent]: rotating service certificates for %s", nodeID)
+		if cfg.RotateServiceCerts != nil {
+			if err := cfg.RotateServiceCerts(ctx, nodeID); err != nil {
+				return nil, fmt.Errorf("rotate service certs: %w", err)
 			}
 		}
 		return &ActionResult{OK: true}, nil

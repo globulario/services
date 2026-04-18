@@ -26,6 +26,7 @@ type DesiredIdentity struct {
 	Kind        string // SERVICE, INFRASTRUCTURE, APPLICATION
 	Version     string
 	BuildNumber int64
+	BuildID     string // Phase 2: authoritative convergence identity (UUIDv7)
 }
 
 // InstalledIdentity is the full artifact identity from the installed-state layer.
@@ -34,6 +35,7 @@ type InstalledIdentity struct {
 	Kind        string
 	Version     string
 	BuildNumber int64
+	BuildID     string // Phase 2: from etcd installed-state registry
 }
 
 // NodeProjection holds the projection result for a single node+service pair.
@@ -68,13 +70,17 @@ type ServiceProjectionSummary struct {
 }
 
 // identitiesMatch compares desired and installed using full artifact identity.
-// Version comparison uses canonical semver normalization.
-// Build number is compared only when the desired build is non-zero.
+// build_id is the authoritative identity when present on both sides.
+// Falls back to version + build_number comparison for pre-Phase-2 records.
 func identitiesMatch(d DesiredIdentity, i InstalledIdentity) bool {
+	// Prefer build_id — immune to version string confusion.
+	if d.BuildID != "" && i.BuildID != "" {
+		return d.BuildID == i.BuildID
+	}
+	// Fallback to version comparison when build_id not available.
 	if !versionutil.Equal(d.Version, i.Version) {
 		return false
 	}
-	// Build number comparison: if desired specifies a build, installed must match.
 	if d.BuildNumber != 0 && d.BuildNumber != i.BuildNumber {
 		return false
 	}
@@ -161,6 +167,7 @@ func (srv *server) ComputeClusterProjection(ctx context.Context) []ServiceProjec
 				Kind:        pkg.GetKind(),
 				Version:     pkg.GetVersion(),
 				BuildNumber: pkg.GetBuildNumber(),
+				BuildID:     pkg.GetBuildId(),
 			}
 		}
 	}
@@ -180,6 +187,7 @@ func (srv *server) ComputeClusterProjection(ctx context.Context) []ServiceProjec
 			Kind:        kind,
 			Version:     dv.version,
 			BuildNumber: dv.buildNumber,
+			BuildID:     dv.buildID,
 		}
 
 		// Build the per-node map for this service. Include all eligible

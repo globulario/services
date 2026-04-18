@@ -68,13 +68,14 @@ const (
 // ReleasePhase constants for ServiceReleaseStatus.Phase and NodeReleaseStatus.Phase.
 const (
 	ReleasePhasePending    = "PENDING"     // Created/updated, awaiting resolution
+	ReleasePhaseWaiting    = "WAITING"     // Artifact not yet available in repository — keep current version, retry later
 	ReleasePhaseResolved   = "RESOLVED"    // Exact version + artifact digest known
 	ReleasePhasePlanned    = "PLANNED"     // NodePlans written to plan store
 	ReleasePhaseApplying   = "APPLYING"    // LEGACY: workflow-native code no longer writes this; derive "is-applying" from workflow run state
 	ReleasePhaseAvailable  = "AVAILABLE"   // All target nodes at desired version
 	ReleasePhaseDegraded   = "DEGRADED"    // Some nodes failed; min replicas still met
 	ReleasePhaseFailed     = "FAILED"      // Cannot reach desired state; retries exhausted
-	ReleasePhaseRolledBack = "ROLLED_BACK" // Rollback plans succeeded on all target nodes
+	ReleasePhaseRolledBack = "ROLLED_BACK" // LEGACY: rollback is now a manual operation, not an automatic phase
 )
 
 // NodeAssignment is an optional per-node version override within a ServiceRelease.

@@ -268,10 +268,10 @@ Each workflow is tagged with the reason it was created, providing a complete aud
 | `DESIRED_DRIFT` | Desired state doesn't match installed | Operator ran `desired set`, node reports wrong version |
 | `BOOTSTRAP` | Day-0/Day-1 cluster initialization | First node bootstrap, new node join |
 | `RETRY` | Automatic retry after previous failure | Previous workflow failed with NETWORK, backoff expired |
-| `MANUAL` | Operator explicitly requested | `globular services repair`, manual redeploy |
+| `MANUAL` | Operator explicitly requested | `globular node repair`, manual redeploy |
 | `DEPENDENCY_UNBLOCKED` | Blocking dependency now satisfied | Service A installed, unblocking Service B |
 | `UPGRADE` | Desired version changed to newer version | `desired set` with higher version number |
-| `REPAIR` | Repair command detected misalignment | `globular services repair` found drifted service |
+| `REPAIR` | Repair command detected misalignment | `globular node repair` found drifted service |
 
 ## Actors
 

@@ -22,6 +22,7 @@ New to Globular? Start here.
 Understand how Globular works before operating it.
 
 - [Why Globular](concepts/why-globular.md) — Design philosophy: why workflows, why no containers, why etcd
+- [Deployment Philosophy](operators/deployment-philosophy.md) — The escalator principle, why rollback is forbidden, graceful degradation
 - [Glossary](concepts/glossary.md) — Key terms and definitions for the Globular platform
 - [Convergence Model](operators/convergence-model.md) — How desired state becomes reality through 4 truth layers
 - [Workflows](operators/workflows.md) — The execution engine: phases, failure classification, retry, audit
@@ -51,6 +52,7 @@ Day-0 through Day-2 operational guides.
 - [Installation (Day-0)](operators/installation.md) — Bootstrap the first node
 - [Adding Nodes (Day-1)](operators/adding-nodes.md) — Join tokens, approval, profile assignment
 - [Deploying Applications](operators/deploying-applications.md) — Desired-state model, monitoring, repair
+- [Repository Overview](operators/repository-overview.md) — Philosophy, identity model, state machine, GC, invariants
 - [Publishing Services](operators/publishing-services.md) — Build and publish packages, artifact lifecycle
 - [Updating the Cluster](operators/updating-the-cluster.md) — Service upgrades, infrastructure upgrades, rollback
 - [Debugging Failures](operators/debugging-failures.md) — Workflow diagnostics, service logs, common patterns
@@ -69,6 +71,8 @@ High availability, failure handling, networking, and certificate management.
 
 - [High Availability](operators/high-availability.md) — Leader election, etcd quorum, MinIO erasure coding, failover
 - [Failure Scenarios and Recovery](operators/failure-scenarios.md) — Infrastructure, service, and node failure catalog
+- [Node Full-Reseed Recovery](operators/node-recovery.md) — Complete wipe-and-rebuild workflow: snapshot, fencing, reprovision, reseed, verify
+- [Platform Status](operators/platform-status.md) — What is implemented, partial, planned, and intentionally unsupported today
 - [Cluster Doctor](operators/cluster-doctor.md) — Invariant checking, auto-heal, remediation workflows
 - [Network and Routing](operators/network-and-routing.md) — Envoy gateway, xDS, DNS, service discovery, gRPC-Web
 - [Certificate Lifecycle](operators/certificate-lifecycle.md) — Provisioning, rotation, monitoring, troubleshooting

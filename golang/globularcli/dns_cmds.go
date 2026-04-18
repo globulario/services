@@ -95,15 +95,17 @@ func resolveDnsResolverEndpoint() string {
 // getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint to use,
 // preferring user-specified flag over dynamic discovery.
 func getEffectiveDnsGrpcAddr() string {
-	// If user explicitly set --dns flag, use it (check for non-default value)
-	if rootCfg.dnsAddr != "" && rootCfg.dnsAddr != "localhost:10006" {
-		return rootCfg.dnsAddr
+	// If user explicitly set --dns flag to something other than the default, use it.
+	if rootCfg.dnsAddr != "" && rootCfg.dnsAddr != "globular.internal" {
+		addr, err := resolveGRPCAddr(rootCfg.dnsAddr)
+		if err == nil {
+			return addr
+		}
 	}
 
-	// Otherwise, try to discover it from etcd, then fallback to routable IP
+	// Otherwise, try to discover it from etcd, then fallback to routable IP.
 	fallback := fmt.Sprintf("%s:10006", config.GetRoutableIPv4())
-	discovered := resolveDnsGrpcEndpoint(fallback)
-	return discovered
+	return resolveDnsGrpcEndpoint(fallback)
 }
 
 var (

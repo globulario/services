@@ -6,7 +6,11 @@ This page explains the local-first principle, how services degrade gracefully wi
 
 ## The Local-First Principle
 
-Globular is designed around a progressive deployment model:
+Most distributed platforms require the full stack to develop against. With Kubernetes, you need kube-apiserver, etcd, kubelet, and the scheduler before your first handler runs. With service meshes, sidecars are injected before traffic reaches your code. The platform and the application are coupled from day one.
+
+Globular inverts this. A service is a plain gRPC server first. The platform — etcd, RBAC, mTLS, convergence — wraps around it at deployment time. Your code doesn't know or care whether it's running on a laptop or a 3-node production cluster. The infrastructure is optional from the service's perspective.
+
+This has a concrete consequence: the iteration loop stays fast. Fixing a handler, testing an RPC, catching a logic bug — all of these happen with `go test` and `go run`. The cluster is only needed when you're testing the integration, not when you're writing the code.
 
 ```
 Level 0: go run            → Single service, no infrastructure, developer laptop
@@ -17,12 +21,7 @@ Level 3: Production        → 3+ nodes, HA, backups, monitoring, external acces
 
 Each level adds capabilities without changing the service code. The same binary runs at every level. The difference is what infrastructure surrounds it.
 
-**Why this matters:**
-- Developers can iterate on service logic without running a cluster
-- Testing doesn't require a full deployment
-- CI can build and test services without etcd or a cluster
-- Small teams can start with a single machine and grow
-- Appliance products can ship as a single-node Globular instance
+The config fallback chain — etcd → seed file → global config → defaults — exists specifically to make this work. It isn't a convenience; it's the mechanism that lets a binary start on a laptop with hardcoded defaults and start on a production node reading live config from etcd without any conditional logic in the service code itself.
 
 ## Level 0: Single Service (`go run`)
 
@@ -295,7 +294,7 @@ grpcurl -cacert /var/lib/globular/pki/ca.crt localhost:10300 list
 
 ## Designing for Local-First
 
-When writing a new service, keep these principles in mind:
+These patterns aren't style preferences — they fall directly out of the local-first constraint. A service that crashes without etcd cannot be developed at Level 0. A service that couples its handlers to cluster state cannot be tested with `go test`. The patterns below are what "works at every level without code changes" looks like in practice.
 
 ### Don't Fail on Missing Infrastructure
 

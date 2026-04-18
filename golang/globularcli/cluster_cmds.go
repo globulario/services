@@ -999,6 +999,12 @@ func (t tokenCredentials) RequireTransportSecurity() bool {
 }
 
 func dialGRPC(addr string) (*grpc.ClientConn, error) {
+	var err error
+	addr, err = resolveGRPCAddr(addr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address: %w", err)
+	}
+
 	opts := []grpc.DialOption{}
 	if rootCfg.insecure {
 		// "insecure" means TLS with skip-verify, NOT plain-text.

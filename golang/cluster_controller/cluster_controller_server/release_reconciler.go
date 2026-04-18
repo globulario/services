@@ -221,7 +221,7 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending:
+	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
@@ -558,7 +558,7 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending:
+	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
@@ -661,7 +661,7 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending:
+	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)

@@ -269,6 +269,14 @@ func (r *Reconciler) reconcileDomain(ctx context.Context, spec *ExternalDomainSp
 		if err := r.ensureCertificate(ctx, spec, provider); err != nil {
 			return fmt.Errorf("failed to ensure certificate: %w", err)
 		}
+		// Ensure the xDS symlink exists so Envoy can find the cert.
+		// The reconciler writes to /var/lib/globular/domains/{fqdn}/,
+		// but xDS reads from /var/lib/globular/config/tls/acme/{fqdn}/.
+		// This symlink bridges the two paths and is idempotent.
+		if err := r.ensureXDSSymlink(spec.FQDN); err != nil {
+			// Log but don't fail — cert is valid, only the xDS path is missing.
+			r.logger.Warn("failed to create xDS TLS symlink", "fqdn", spec.FQDN, "error", err)
+		}
 	}
 
 	// Step 3: Update status to Ready (with cert expiry and current IP)
@@ -564,6 +572,52 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 		"cert_file", certFile,
 		"forced", forceRenew)
 
+	return nil
+}
+
+// ensureXDSSymlink creates (or repairs) the symlink that Envoy's xDS server
+// uses to locate ACME certificates. The reconciler writes certs to:
+//
+//	/var/lib/globular/domains/{fqdn}/
+//
+// xDS reads from:
+//
+//	/var/lib/globular/config/tls/acme/{fqdn}/
+//
+// This method creates the latter as a symlink to the former, bridging the two
+// paths. It is idempotent: if a correct symlink already exists, it is a no-op.
+func (r *Reconciler) ensureXDSSymlink(fqdn string) error {
+	const xdsACMEBase = "/var/lib/globular/config/tls/acme"
+	target := filepath.Join(r.certsDir, fqdn)   // e.g. /var/lib/globular/domains/foo.com
+	link := filepath.Join(xdsACMEBase, fqdn)     // e.g. /var/lib/globular/config/tls/acme/foo.com
+
+	// Ensure parent directory exists.
+	if err := os.MkdirAll(xdsACMEBase, 0o755); err != nil {
+		return fmt.Errorf("create xds acme dir: %w", err)
+	}
+
+	// Check existing entry.
+	existing, err := os.Readlink(link)
+	if err == nil {
+		if existing == target {
+			return nil // already correct
+		}
+		// Symlink points somewhere else — remove and recreate.
+		if removeErr := os.Remove(link); removeErr != nil {
+			return fmt.Errorf("remove stale xds symlink: %w", removeErr)
+		}
+	} else if !os.IsNotExist(err) {
+		// Readlink fails on non-symlinks too; remove and let symlink win.
+		if removeErr := os.Remove(link); removeErr != nil && !os.IsNotExist(removeErr) {
+			return fmt.Errorf("remove non-symlink at xds path: %w", removeErr)
+		}
+	}
+
+	if err := os.Symlink(target, link); err != nil {
+		return fmt.Errorf("create xds symlink %s -> %s: %w", link, target, err)
+	}
+
+	r.logger.Info("created xDS TLS symlink", "link", link, "target", target)
 	return nil
 }
 

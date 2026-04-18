@@ -484,13 +484,14 @@ func (client *Repository_Service_Client) UploadArtifactWithBuild(ref *repository
 
 // AllocateUpload calls the repository's AllocateUpload RPC to reserve a version
 // and build_id. The returned reservation_id should be passed to UploadWithReservation.
-func (client *Repository_Service_Client) AllocateUpload(publisher, name, platform string, intent repositorypb.VersionIntent, exactVersion string) (*repositorypb.AllocateUploadResponse, error) {
+func (client *Repository_Service_Client) AllocateUpload(publisher, name, platform string, intent repositorypb.VersionIntent, exactVersion string, channel repositorypb.ArtifactChannel) (*repositorypb.AllocateUploadResponse, error) {
 	req := &repositorypb.AllocateUploadRequest{
 		PublisherId:  publisher,
 		Name:         name,
 		Platform:     platform,
 		Intent:       intent,
 		ExactVersion: exactVersion,
+		Channel:      channel,
 	}
 	rsp, err := client.Invoke("AllocateUpload", req, client.GetCtx())
 	if err != nil {
@@ -855,6 +856,19 @@ func (client *Repository_Service_Client) ResolveByEntrypointChecksum(checksum, p
 		return resp.GetManifest(), nil
 	}
 	return nil, fmt.Errorf("unexpected response type from ResolveByEntrypointChecksum")
+}
+
+// ArchiveUnreachableArtifacts runs the repository GC. dry_run=true previews without writing.
+func (client *Repository_Service_Client) ArchiveUnreachableArtifacts(dryRun bool) (*repositorypb.ArchiveUnreachableArtifactsResponse, error) {
+	req := &repositorypb.ArchiveUnreachableArtifactsRequest{DryRun: dryRun}
+	rsp, err := client.Invoke("ArchiveUnreachableArtifacts", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.ArchiveUnreachableArtifactsResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from ArchiveUnreachableArtifacts")
 }
 
 // GetNamespace queries namespace ownership information.

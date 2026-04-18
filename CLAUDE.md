@@ -203,7 +203,7 @@ Full docs in `docs/` (49 files, 16k+ lines). Key references:
 2. **Split-horizon DNS not supported** — `/etc/hosts` override needed for hairpin NAT
 3. **ACME cert path mismatch** — reconciler writes to `/var/lib/globular/domains/{d}/`, xDS reads from `/var/lib/globular/config/tls/acme/{d}/`. Symlink required.
 4. **compute_server not in build** — code exists but not compiled or packaged
-5. **Service versions at 0.1.0** — Phase 2 identity model stable; see `docs/developers/versioning.md` for policy
+5. **Service versions come from the deploy pipeline** — never hardcode versions in source code; the repository allocates versions via `--bump`, and the build injects them via ldflags
 
 ---
 

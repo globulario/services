@@ -262,6 +262,12 @@ func (g *BootstrapGate) isWithinTimeWindow() bool {
 			"now", time.Unix(now, 0),
 			"enabled_by", state.CreatedBy,
 		)
+		// Clean up the stale flag file so it doesn't cause confusion during filesystem audits.
+		if removeErr := os.Remove(g.flagFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
+			g.logger.Warn("failed to remove expired bootstrap flag", "path", g.flagFilePath, "error", removeErr)
+		} else {
+			g.logger.Info("removed expired bootstrap flag file", "path", g.flagFilePath)
+		}
 		return false
 	}
 

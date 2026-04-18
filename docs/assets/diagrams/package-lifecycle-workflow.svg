@@ -1,0 +1,132 @@
+<svg width="1400" height="900" viewBox="0 0 1400 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #162533; }
+      .panel { fill: #1a1a2e; stroke: rgba(0,173,216,0.34); stroke-width: 1.4; rx: 14; ry: 14; }
+      .panel-strong { fill: #1a1a2e; stroke: rgba(0,173,216,0.78); stroke-width: 1.8; rx: 14; ry: 14; }
+      .panel-dim { fill: #1a1a2e; stroke: rgba(141,160,179,0.30); stroke-width: 1.4; rx: 14; ry: 14; }
+      .panel-warn { fill: #1a1a2e; stroke: rgba(255,176,86,0.70); stroke-width: 1.8; rx: 14; ry: 14; }
+      .title { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 24px; }
+      .state { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.5px; }
+      .state-small { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.4px; }
+      .note { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 18px; }
+      .note-small { fill: #8da0b3; font-family: Inter, Arial, sans-serif; font-size: 16px; }
+      .note-warn { fill: rgba(255,176,86,0.92); font-family: Inter, Arial, sans-serif; font-size: 17px; }
+      .arrow { stroke: rgba(0,173,216,0.70); stroke-width: 2.6; fill: none; marker-end: url(#arrow); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-soft { stroke: rgba(0,173,216,0.48); stroke-width: 2.2; fill: none; marker-end: url(#arrowSoft); stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-dashed { stroke-dasharray: 8 7; }
+      .arrow-warn { stroke: rgba(255,176,86,0.72); stroke-width: 2.5; fill: none; marker-end: url(#arrowWarn); stroke-linecap: round; stroke-linejoin: round; }
+      .connector { stroke: rgba(0,173,216,0.35); stroke-width: 1.6; fill: none; stroke-linecap: round; }
+      .glow { filter: url(#glow); }
+    </style>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="8.2" refY="5.5" orient="auto">
+      <polygon points="0,0 11,5.5 0,11" fill="#00ADD8" opacity="0.85"/>
+    </marker>
+    <marker id="arrowSoft" markerWidth="10" markerHeight="10" refX="7.8" refY="5" orient="auto">
+      <polygon points="0,0 10,5 0,10" fill="#00ADD8" opacity="0.55"/>
+    </marker>
+    <marker id="arrowWarn" markerWidth="11" markerHeight="11" refX="8.2" refY="5.5" orient="auto">
+      <polygon points="0,0 11,5.5 0,11" fill="#ffb056" opacity="0.85"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="900" class="bg"/>
+
+  <text x="700" y="62" text-anchor="middle" class="title">Package Lifecycle Workflow</text>
+
+  <!-- Top row -->
+  <rect x="70"  y="145" width="190" height="64" class="panel-strong"/>
+  <text x="165" y="186" text-anchor="middle" class="state">STAGING</text>
+
+  <rect x="340" y="145" width="190" height="64" class="panel-strong"/>
+  <text x="435" y="186" text-anchor="middle" class="state">VERIFIED</text>
+
+  <rect x="610" y="145" width="210" height="64" class="panel-strong glow"/>
+  <text x="715" y="186" text-anchor="middle" class="state">PUBLISHED</text>
+
+  <rect x="900" y="145" width="230" height="64" class="panel"/>
+  <text x="1015" y="186" text-anchor="middle" class="state">DEPRECATED</text>
+
+  <rect x="1210" y="145" width="160" height="64" class="panel-warn"/>
+  <text x="1290" y="186" text-anchor="middle" class="state">YANKED</text>
+
+  <!-- Main arrows -->
+  <path d="M260 177 L340 177" class="arrow"/>
+  <path d="M530 177 L610 177" class="arrow"/>
+  <path d="M820 177 L900 177" class="arrow"/>
+  <path d="M1130 177 L1210 177" class="arrow-warn"/>
+
+  <!-- unyank loop -->
+  <path d="M1290 145 
+           C1290 92, 1100 88, 1020 88
+           L520 88
+           C445 88, 435 108, 435 145" class="arrow-soft arrow-dashed"/>
+  <text x="1040" y="72" class="note-small">(unyank / unquarantine / undeprecate)</text>
+
+  <!-- Published down to archived -->
+  <path d="M715 209 L715 346" class="arrow-soft"/>
+  <rect x="610" y="346" width="210" height="68" class="panel-dim"/>
+  <text x="715" y="388" text-anchor="middle" class="state">ARCHIVED</text>
+
+  <!-- verified failure/orphan -->
+  <path d="M435 209 L435 492" class="arrow-soft"/>
+  <rect x="225" y="492" width="420" height="76" class="panel"/>
+  <text x="435" y="534" text-anchor="middle" class="state-small">ORPHANED / FAILED</text>
+  <text x="435" y="556" text-anchor="middle" class="note-small">abandoned uploads, failed verification, incomplete staging</text>
+
+  <!-- orphaned -> archived -->
+  <path d="M645 530 L805 530 L805 414" class="arrow-soft"/>
+  <text x="655" y="505" class="note-small">GC cleans up abandoned uploads</text>
+
+  <!-- verified abandoned -> archived note -->
+  <path d="M530 177 
+           C565 177, 575 300, 610 346" class="arrow-soft arrow-dashed"/>
+  <text x="836" y="358" class="note-small">GC (abandoned VERIFIED,</text>
+  <text x="836" y="380" class="note-small">outside retention window)</text>
+
+  <!-- published/deprecated/yanked -> revoked -->
+  <rect x="990" y="492" width="230" height="76" class="panel-warn"/>
+  <text x="1105" y="533" text-anchor="middle" class="state">REVOKED</text>
+  <text x="1105" y="556" text-anchor="middle" class="note-small">(terminal)</text>
+
+  <path d="M715 209 C715 280, 925 285, 990 492" class="arrow-warn"/>
+  <path d="M1015 209 L1015 492" class="arrow-warn"/>
+  <path d="M1290 209 C1290 310, 1215 375, 1140 492" class="arrow-warn"/>
+  <text x="1148" y="468" class="note-warn">(admin revoke)</text>
+
+  <!-- corrupted block -->
+  <rect x="70" y="700" width="250" height="72" class="panel-warn"/>
+  <text x="195" y="742" text-anchor="middle" class="state">CORRUPTED</text>
+  <text x="195" y="766" text-anchor="middle" class="note-small">entrypoint checksum mismatch</text>
+
+  <text x="95" y="674" class="note-small">system detected</text>
+  <path d="M195 700 L195 568" class="arrow-warn"/>
+
+  <!-- corrupted to published -->
+  <path d="M320 736 
+           C430 736, 500 700, 560 620
+           C650 505, 690 340, 705 209" class="arrow-soft"/>
+  <text x="335" y="802" class="note-small">re-verified after binary fix</text>
+  <text x="335" y="824" class="note-small">and signature/entrypoint repair</text>
+
+  <!-- corrupted to revoked -->
+  <path d="M320 752 C515 752, 755 752, 990 568" class="arrow-warn"/>
+
+  <!-- extra relationship from yanked/deprecated to archived not included in flow, just subtle connector -->
+  <path d="M1130 177 C1040 240, 925 320, 820 370" class="connector"/>
+
+  <!-- labels beneath main bar -->
+  <text x="435" y="232" text-anchor="middle" class="note-small">verified and publishable</text>
+  <text x="715" y="232" text-anchor="middle" class="note-small">live and installable</text>
+  <text x="1015" y="232" text-anchor="middle" class="note-small">discouraged but recoverable</text>
+  <text x="1290" y="232" text-anchor="middle" class="note-small">withdrawn from use</text>
+</svg>

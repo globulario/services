@@ -12484,7 +12484,8 @@ appliedServicesHash: jspb.Message.getFieldWithDefault(msg, 8, ""),
 installedVersionsMap: (f = msg.getInstalledVersionsMap()) ? f.toObject(includeInstance, undefined) : [],
 installedUnitFilesList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
 inventoryComplete: jspb.Message.getBooleanFieldWithDefault(msg, 11, false),
-capabilities: (f = msg.getCapabilities()) && proto.cluster_controller.NodeCapabilities.toObject(includeInstance, f)
+capabilities: (f = msg.getCapabilities()) && proto.cluster_controller.NodeCapabilities.toObject(includeInstance, f),
+installedBuildIdsMap: (f = msg.getInstalledBuildIdsMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -12574,6 +12575,12 @@ proto.cluster_controller.NodeStatus.deserializeBinaryFromReader = function(msg, 
       var value = new proto.cluster_controller.NodeCapabilities;
       reader.readMessage(value,proto.cluster_controller.NodeCapabilities.deserializeBinaryFromReader);
       msg.setCapabilities(value);
+      break;
+    case 13:
+      var value = msg.getInstalledBuildIdsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
       break;
     default:
       reader.skipField();
@@ -12688,6 +12695,10 @@ proto.cluster_controller.NodeStatus.serializeBinaryToWriter = function(message, 
       f,
       proto.cluster_controller.NodeCapabilities.serializeBinaryToWriter
     );
+  }
+  f = message.getInstalledBuildIdsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(13, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -13025,6 +13036,29 @@ proto.cluster_controller.NodeStatus.prototype.clearCapabilities = function() {
  */
 proto.cluster_controller.NodeStatus.prototype.hasCapabilities = function() {
   return jspb.Message.getField(this, 12) != null;
+};
+
+
+/**
+ * map<string, string> installed_build_ids = 13;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.NodeStatus.prototype.getInstalledBuildIdsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 13, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.NodeStatus} returns this
+ */
+proto.cluster_controller.NodeStatus.prototype.clearInstalledBuildIdsMap = function() {
+  this.getInstalledBuildIdsMap().clear();
+  return this;
 };
 
 
@@ -13974,7 +14008,8 @@ desiredServicesHash: jspb.Message.getFieldWithDefault(msg, 4, ""),
 appliedServicesHash: jspb.Message.getFieldWithDefault(msg, 5, ""),
 lastError: jspb.Message.getFieldWithDefault(msg, 9, ""),
 canApplyPrivileged: jspb.Message.getBooleanFieldWithDefault(msg, 10, false),
-installedVersionsMap: (f = msg.getInstalledVersionsMap()) ? f.toObject(includeInstance, undefined) : []
+installedVersionsMap: (f = msg.getInstalledVersionsMap()) ? f.toObject(includeInstance, undefined) : [],
+installedBuildIdsMap: (f = msg.getInstalledBuildIdsMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -14041,6 +14076,12 @@ proto.cluster_controller.NodeHealth.deserializeBinaryFromReader = function(msg, 
       break;
     case 11:
       var value = msg.getInstalledVersionsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 12:
+      var value = msg.getInstalledBuildIdsMap();
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
          });
@@ -14126,6 +14167,10 @@ proto.cluster_controller.NodeHealth.serializeBinaryToWriter = function(message, 
   f = message.getInstalledVersionsMap(true);
   if (f && f.getLength() > 0) {
     f.serializeBinary(11, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getInstalledBuildIdsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(12, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -14275,6 +14320,29 @@ proto.cluster_controller.NodeHealth.prototype.getInstalledVersionsMap = function
  */
 proto.cluster_controller.NodeHealth.prototype.clearInstalledVersionsMap = function() {
   this.getInstalledVersionsMap().clear();
+  return this;
+};
+
+
+/**
+ * map<string, string> installed_build_ids = 12;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.NodeHealth.prototype.getInstalledBuildIdsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 12, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.NodeHealth} returns this
+ */
+proto.cluster_controller.NodeHealth.prototype.clearInstalledBuildIdsMap = function() {
+  this.getInstalledBuildIdsMap().clear();
   return this;
 };
 

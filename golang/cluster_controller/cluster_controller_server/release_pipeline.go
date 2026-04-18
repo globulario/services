@@ -11,6 +11,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // releaseRetryBackoff is the minimum time to wait before auto-retrying a
@@ -240,6 +241,28 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	releaseResolveDuration.Observe(time.Since(resolveStart).Seconds())
 	releasePhaseTransitions.WithLabelValues(h.ResourceType, "RESOLVED").Inc()
 	if err != nil {
+		errMsg := err.Error()
+		// Artifact not found — the desired version doesn't exist in the
+		// repository. This is not a failure: the currently installed version
+		// is the correct state. Mark the release as AVAILABLE so the health
+		// checks reflect reality. When the artifact is eventually published
+		// and desired state is set via `globular deploy`, a new release
+		// cycle begins naturally.
+		if strings.Contains(errMsg, "NotFound") || strings.Contains(errMsg, "not found") {
+			log.Printf("%s %s: desired version not in repository, accepting current installed version as available: %v",
+				h.ResourceType, h.Name, err)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:                cluster_controllerpb.ReleasePhaseAvailable,
+				Message:              fmt.Sprintf("desired version not published — current version is authoritative"),
+				ObservedGeneration:   h.Generation,
+				LastTransitionUnixMs: nowMs,
+				TransitionReason:     "artifact_not_published",
+				WorkflowKind:         wfKind,
+				StartedAtUnixMs:      nowMs,
+				SetFields:            "phase",
+			})
+			return
+		}
 		log.Printf("%s %s: resolve failed: %v", h.ResourceType, h.Name, err)
 		h.PatchStatus(ctx, statusPatch{
 			Phase:                cluster_controllerpb.ReleasePhaseFailed,
@@ -252,6 +275,30 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 			SetFields:            "fail",
 		})
 		return
+	}
+
+	// Version sanity check: the resolved artifact must not be older than the
+	// desired version in the spec. If the repository returns an ancient artifact
+	// (e.g. 0.0.1 when 0.1.0 is desired), FAIL the release instead of installing
+	// the wrong version. Automatic rollback is forbidden — only forward progress.
+	if h.ResolverSpec != nil && h.ResolverSpec.Version != "" && resolved.Version != "" {
+		cmp, cmpErr := versionutil.Compare(resolved.Version, h.ResolverSpec.Version)
+		if cmpErr == nil && cmp < 0 {
+			msg := fmt.Sprintf("repository returned %s but desired is %s — refusing to install older version",
+				resolved.Version, h.ResolverSpec.Version)
+			log.Printf("%s %s: REJECTED — %s", h.ResourceType, h.Name, msg)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:                cluster_controllerpb.ReleasePhaseFailed,
+				Message:              msg,
+				ObservedGeneration:   h.Generation,
+				LastTransitionUnixMs: nowMs,
+				TransitionReason:     "version_downgrade_rejected",
+				WorkflowKind:         wfKind,
+				StartedAtUnixMs:      nowMs,
+				SetFields:            "fail",
+			})
+			return
+		}
 	}
 
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)

@@ -379,6 +379,11 @@ message NodeStatus {
   bool inventory_complete = 11;
   // Hardware capabilities of the node, refreshed each heartbeat.
   NodeCapabilities capabilities = 12;
+  // Installed build_ids reported by the node agent.
+  // Key is canonical service name (same as installed_versions), value is
+  // the repository-assigned build_id (UUIDv7). Used for convergence identity
+  // comparison — build_id is authoritative, version strings are informational.
+  map<string, string> installed_build_ids = 13;
 }
 
 message ReportNodeStatusRequest {
@@ -705,6 +710,7 @@ message NodeHealth {
   string last_error = 9;
   bool can_apply_privileged = 10;  // from node capabilities, for UI display
   map<string, string> installed_versions = 11;  // canonical name → installed version
+  map<string, string> installed_build_ids = 12; // canonical name → build_id (convergence identity)
 }
 
 message ServiceSummary {

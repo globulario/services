@@ -112,7 +112,8 @@ type server struct {
 	CertAuthorityTrust string
 
 	// --- Repository-Specific Fields ---
-	Root        string                    // Base data directory (artifacts/ lives under this)
+	Root              string                   // Base data directory (artifacts/ lives under this)
+	GCRetentionWindow int                      // Number of PUBLISHED builds per series kept from GC (default 3)
 	MinioConfig *config.MinioProxyConfig  // MinIO config from etcd (required in multi-node)
 	minioClient *minio.Client
 	storage     storage_backend.Storage
@@ -624,6 +625,18 @@ func (srv *server) Storage() storage_backend.Storage {
 	return srv.storage
 }
 
+// reachabilityConfig returns the ReachabilityConfig that should be used for
+// all reachability computations (deletion guards, revoke guards, GC).
+// It reads the configured retention window from the server config, falling back
+// to the compiled-in default when the field is zero or negative.
+func (srv *server) reachabilityConfig() ReachabilityConfig {
+	w := srv.GCRetentionWindow
+	if w <= 0 {
+		w = defaultRetentionWindow
+	}
+	return ReachabilityConfig{RetentionWindow: w}
+}
+
 // -----------------------------------------------------------------------------
 // CLI / entrypoint
 // -----------------------------------------------------------------------------
@@ -662,7 +675,7 @@ func initializeServerDefaults() *server {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.1.0"
+	s.Version = ""
 	s.PublisherID = "localhost"
 	s.Description = "Repository service where packages are stored."
 	s.Keywords = []string{"Repo", "Repository", "Package", "Service"}
@@ -813,6 +826,9 @@ func main() {
 	// Continuously monitors MinIO + ScyllaDB. Gates RPCs with UNAVAILABLE when
 	// either dependency is down. Recovery is automatic.
 	s.depHealth = newDepHealthWatchdog(s.storage, s.scylla, logger)
+	s.depHealth.onScyllaReady = func(scylla *scyllaStore) {
+		s.scylla = scylla
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go s.depHealth.Start(ctx)

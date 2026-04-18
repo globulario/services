@@ -201,6 +201,14 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			changed = true
 		}
 	}
+	// Update installed build_ids — the authoritative convergence identity.
+	installedBuildIDs := ns.GetInstalledBuildIds()
+	if len(installedBuildIDs) > 0 {
+		if !mapsEqual(node.InstalledBuildIDs, installedBuildIDs) {
+			node.InstalledBuildIDs = installedBuildIDs
+			changed = true
+		}
+	}
 	// Store hardware capabilities if reported.
 	if caps := nodeStatus.GetCapabilities(); caps != nil {
 		node.Capabilities = capsToStored(caps)
@@ -372,36 +380,12 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	}
 skipHashEnqueue:
 
-	// Trigger B: When a node reports installed versions and desired state is
-	// empty, auto-import from installed. This catches the case where a node
-	// joins or reports before the startup auto-import has run.
-	// Debounced by autoImportDone to avoid running on every heartbeat.
-	if len(installedVersions) > 0 && srv.resources != nil && !srv.autoImportDone.Load() && srv.mustBeLeader() {
-		resources := srv.resources
-		safeGo("report-node-auto-import", func() {
-			items, _, err := resources.List(context.Background(), "ServiceDesiredVersion", "")
-			if err != nil || len(items) > 0 {
-				if len(items) > 0 {
-					srv.autoImportDone.Store(true)
-				}
-				return
-			}
-			// Desired state is empty — import from installed.
-			logger.Info("ReportNodeStatus: desired state empty, auto-importing from installed")
-			stats, err := srv.importInstalledToDesired(context.Background())
-			if err != nil {
-				logger.Warn("ReportNodeStatus: auto-import failed", "error", err)
-				return
-			}
-			srv.autoImportDone.Store(true)
-			logger.Info("ReportNodeStatus: auto-import complete",
-				"imported", stats.Imported,
-				"already_present", stats.AlreadyPresent,
-				"failed", stats.Failed)
-			if (stats.Imported > 0 || stats.Updated > 0) && srv.enqueueReconcile != nil {
-				srv.enqueueReconcile()
-			}
-		})
+	// Trigger B REMOVED: Auto-importing desired state from runtime observations
+	// is an authority inversion (Layer 3 → Layer 2) and was the root cause of
+	// phantom service rematerialization. Desired state must be seeded explicitly
+	// by the operator via 'globular deploy' or SeedDesiredState RPC.
+	if len(installedVersions) > 0 && !srv.autoImportDone.Load() {
+		srv.autoImportDone.Store(true)
 	}
 
 	if endpointToClose != "" {

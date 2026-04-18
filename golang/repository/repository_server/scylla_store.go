@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,8 +28,8 @@ const (
 	scyllaPort           = 9042
 )
 
-// Schema DDL — executed idempotently at startup.
-var schemaDDL = []string{
+// schemaCreateTable — executed idempotently at startup (table structure only).
+var schemaCreateTable = []string{
 	`CREATE TABLE IF NOT EXISTS ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (
 		artifact_key          text,
 		manifest_json         blob,
@@ -43,11 +44,24 @@ var schemaDDL = []string{
 		size_bytes            bigint,
 		modified_unix         bigint,
 		kind                  text,
+		channel               text,
 		created_at            timestamp,
 		PRIMARY KEY (artifact_key)
 	)`,
-	// Secondary index for reverse-lookup: binary checksum → artifact.
+}
+
+// schemaMigrations add columns to existing tables. Run AFTER table creation
+// but BEFORE indexes. "Already exists" errors are silently ignored.
+var schemaMigrations = []string{
+	`ALTER TABLE ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` ADD entrypoint_checksum text`,
+	`ALTER TABLE ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` ADD channel text`,
+}
+
+// schemaIndexes create secondary indexes. Run AFTER migrations so new columns
+// exist before we index them.
+var schemaIndexes = []string{
 	`CREATE INDEX IF NOT EXISTS idx_entrypoint_checksum ON ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (entrypoint_checksum)`,
+	`CREATE INDEX IF NOT EXISTS idx_channel ON ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (channel)`,
 }
 
 // manifestRow is a single row from the manifests table.
@@ -65,6 +79,7 @@ type manifestRow struct {
 	SizeBytes          int64
 	ModifiedUnix       int64
 	Kind               string
+	Channel            string
 	CreatedAt          time.Time
 }
 
@@ -119,11 +134,31 @@ func connectScylla() (*scyllaStore, error) {
 		return nil, fmt.Errorf("scylla create keyspace: %w", err)
 	}
 
-	// Create tables.
-	for _, ddl := range schemaDDL {
+	// Phase 1: Create tables.
+	for _, ddl := range schemaCreateTable {
 		if err := adminSession.Query(ddl).Exec(); err != nil {
 			adminSession.Close()
 			return nil, fmt.Errorf("scylla schema: %w", err)
+		}
+	}
+
+	// Phase 2: Run migrations (add columns to existing tables).
+	// Ignore "already exists" errors — these are idempotent.
+	for _, migration := range schemaMigrations {
+		if err := adminSession.Query(migration).Exec(); err != nil {
+			errMsg := err.Error()
+			if !strings.Contains(errMsg, "already exist") && !strings.Contains(errMsg, "conflicts with") {
+				adminSession.Close()
+				return nil, fmt.Errorf("scylla migration: %w", err)
+			}
+		}
+	}
+
+	// Phase 3: Create indexes (after migrations so columns exist).
+	for _, idx := range schemaIndexes {
+		if err := adminSession.Query(idx).Exec(); err != nil {
+			adminSession.Close()
+			return nil, fmt.Errorf("scylla index: %w", err)
 		}
 	}
 	adminSession.Close()
@@ -256,12 +291,12 @@ func (s *scyllaStore) PutManifest(ctx context.Context, row manifestRow) error {
 	return sess.Query(`INSERT INTO manifests (
 		artifact_key, manifest_json, publish_state, publisher_id, name,
 		version, platform, build_number, checksum, entrypoint_checksum,
-		size_bytes, modified_unix, kind, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		size_bytes, modified_unix, kind, channel, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.ArtifactKey, row.ManifestJSON, row.PublishState,
 		row.PublisherID, row.Name, row.Version, row.Platform,
 		row.BuildNumber, row.Checksum, row.EntrypointChecksum,
-		row.SizeBytes, row.ModifiedUnix, row.Kind, row.CreatedAt,
+		row.SizeBytes, row.ModifiedUnix, row.Kind, row.Channel, row.CreatedAt,
 	).WithContext(ctx).Exec()
 }
 
@@ -277,13 +312,13 @@ func (s *scyllaStore) GetManifest(ctx context.Context, artifactKey string) (*man
 	row := &manifestRow{}
 	err := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
 		name, version, platform, build_number, checksum, entrypoint_checksum,
-		size_bytes, modified_unix, kind, created_at
+		size_bytes, modified_unix, kind, channel, created_at
 		FROM manifests WHERE artifact_key = ?`, artifactKey).
 		WithContext(ctx).
 		Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
 			&row.PublisherID, &row.Name, &row.Version, &row.Platform,
 			&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
-			&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt)
+			&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.Channel, &row.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +337,7 @@ func (s *scyllaStore) ListManifests(ctx context.Context) ([]manifestRow, error) 
 
 	iter := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
 		name, version, platform, build_number, checksum, entrypoint_checksum,
-		size_bytes, modified_unix, kind, created_at
+		size_bytes, modified_unix, kind, channel, created_at
 		FROM manifests`).WithContext(ctx).Iter()
 
 	var rows []manifestRow
@@ -310,7 +345,7 @@ func (s *scyllaStore) ListManifests(ctx context.Context) ([]manifestRow, error) 
 	for iter.Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
 		&row.PublisherID, &row.Name, &row.Version, &row.Platform,
 		&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
-		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt) {
+		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.Channel, &row.CreatedAt) {
 		rows = append(rows, row)
 		row = manifestRow{}
 	}
@@ -345,7 +380,7 @@ func (s *scyllaStore) FindByEntrypointChecksum(ctx context.Context, checksum str
 
 	iter := sess.Query(`SELECT artifact_key, manifest_json, publish_state, publisher_id,
 		name, version, platform, build_number, checksum, entrypoint_checksum,
-		size_bytes, modified_unix, kind, created_at
+		size_bytes, modified_unix, kind, channel, created_at
 		FROM manifests WHERE entrypoint_checksum = ?`, checksum).
 		WithContext(ctx).Iter()
 
@@ -354,7 +389,7 @@ func (s *scyllaStore) FindByEntrypointChecksum(ctx context.Context, checksum str
 	for iter.Scan(&row.ArtifactKey, &row.ManifestJSON, &row.PublishState,
 		&row.PublisherID, &row.Name, &row.Version, &row.Platform,
 		&row.BuildNumber, &row.Checksum, &row.EntrypointChecksum,
-		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.CreatedAt) {
+		&row.SizeBytes, &row.ModifiedUnix, &row.Kind, &row.Channel, &row.CreatedAt) {
 		rows = append(rows, row)
 		row = manifestRow{}
 	}

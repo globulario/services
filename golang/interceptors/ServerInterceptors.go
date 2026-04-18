@@ -333,8 +333,8 @@ func validateAction(
 	// No more magic subjects - all authorization goes through RBAC
 
 	cacheKey := buildPermCacheKey(address, method, token, infos)
-	if allowed, ok := getPermCache(cacheKey); ok && allowed {
-		return true, false, nil
+	if allowed, ok := getPermCache(cacheKey); ok {
+		return allowed, !allowed, nil
 	}
 
 	rbacClient, err := GetRbacClient(address)
@@ -348,8 +348,14 @@ func validateAction(
 		return allowed, accessDenied, err
 	}
 
-	// Cache positive permission for a short TTL.
-	putPermCache(cacheKey, allowed, 15*time.Minute)
+	// Cache both grants and denials. Grants get a longer TTL since they're
+	// the common path; denials use a shorter TTL so that newly granted
+	// permissions take effect within seconds.
+	if allowed {
+		putPermCache(cacheKey, true, 15*time.Minute)
+	} else {
+		putPermCache(cacheKey, false, 30*time.Second)
+	}
 	return allowed, accessDenied, nil
 }
 

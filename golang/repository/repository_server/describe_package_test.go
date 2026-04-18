@@ -114,7 +114,7 @@ func TestSortSemverDesc(t *testing.T) {
 	}{
 		{[]string{"1.0.0", "2.0.0", "0.9.0"}, []string{"2.0.0", "1.0.0", "0.9.0"}},
 		{[]string{"1.2.3", "1.2.10", "1.2.4"}, []string{"1.2.10", "1.2.4", "1.2.3"}}, // numeric, not lex
-		{[]string{"0.1.0"}, []string{"0.1.0"}},
+		{[]string{""}, []string{""}},
 		{[]string{}, []string{}},
 	}
 	for _, tc := range cases {

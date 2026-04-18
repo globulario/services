@@ -28,8 +28,8 @@ func TestDefaultConfig(t *testing.T) {
 	}
 
 	// Verify metadata
-	if cfg.Version != "0.1.0" {
-		t.Errorf("Version = %q, want %q", cfg.Version, "0.1.0")
+	if cfg.Version != "" {
+		t.Errorf("Version = %q, want %q", cfg.Version, "")
 	}
 
 	if cfg.Description == "" {
@@ -86,7 +86,7 @@ func TestConfigValidation(t *testing.T) {
 				Port:     10000,
 				Proxy:    10001,
 				Protocol: "grpc",
-				Version:  "0.1.0",
+				Version:  "",
 			},
 			wantErr: true,
 		},
@@ -97,7 +97,7 @@ func TestConfigValidation(t *testing.T) {
 				Port:     0,
 				Proxy:    10001,
 				Protocol: "grpc",
-				Version:  "0.1.0",
+				Version:  "",
 			},
 			wantErr: true,
 		},
@@ -108,7 +108,7 @@ func TestConfigValidation(t *testing.T) {
 				Port:     70000,
 				Proxy:    10001,
 				Protocol: "grpc",
-				Version:  "0.1.0",
+				Version:  "",
 			},
 			wantErr: true,
 		},
@@ -118,7 +118,7 @@ func TestConfigValidation(t *testing.T) {
 				Name:    "test.Service",
 				Port:    10000,
 				Proxy:   10001,
-				Version: "0.1.0",
+				Version: "",
 			},
 			wantErr: true,
 		},

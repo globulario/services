@@ -234,6 +234,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// auto-correct the desired version upward instead of allowing a downgrade.
 	// This prevents the 4-layer model from drifting backward when a deploy
 	// script or operator accidentally sets an older version.
+	requestedVersion := version
 	if highVer := srv.highestHealthyInstalledVersion(canon); highVer != "" {
 		cmp, err := versionutil.Compare(version, highVer)
 		if err == nil && cmp < 0 {
@@ -248,7 +249,18 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// Phase 2: also resolve build_id from the artifact manifest.
 	buildID, err := srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
 	if err != nil {
-		return err
+		// If regression guard auto-corrected to a version that doesn't exist
+		// in the repository (e.g. stale heartbeat data), fall back to the
+		// originally requested version.
+		if version != requestedVersion {
+			log.Printf("desired-state: auto-corrected version %s for %s not in repository, falling back to requested %s",
+				version, canon, requestedVersion)
+			version = requestedVersion
+			buildID, err = srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
@@ -483,8 +495,22 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			if strings.HasSuffix(canon, "-cmd") {
 				continue
 			}
+			// Reject non-authoritative entries:
+			// - fallback/placeholder versions (defense-in-depth string check)
+			// - partial_apply status (binary replaced without state update)
+			// Only ManagedInstalled observations may contribute to desired state.
+			ver := pkg.GetVersion()
+			if ver == "unknown" || ver == "" {
+				logger.Warn("importInstalledToDesired: skipping package with fallback version",
+					"name", canon, "version", ver)
+				continue
+			}
+			if pkg.GetStatus() == "partial_apply" {
+				logger.Warn("importInstalledToDesired: skipping partial_apply package",
+					"name", canon, "version", ver)
+				continue
+			}
 			if _, exists := installed[canon]; !exists {
-				ver := pkg.GetVersion()
 				if cv, err := versionutil.Canonical(ver); err == nil {
 					ver = cv
 				}
@@ -498,6 +524,10 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			for svcID, ver := range node.InstalledVersions {
 				canon := canonicalServiceName(svcID)
 				if canon == "" || ver == "" || strings.HasSuffix(canon, "-cmd") {
+					continue
+				}
+				// Reject fallback/placeholder versions.
+				if ver == "unknown" || ver == "" {
 					continue
 				}
 				if _, exists := installed[canon]; !exists {
@@ -815,6 +845,11 @@ func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStat
 // DEFAULT_CORE_PROFILE: not yet defined; returns an error until a core
 // profile catalogue is available.
 func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controllerpb.SeedDesiredStateRequest) (*cluster_controllerpb.DesiredState, error) {
+	if !reconcileVersionGate() {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"controller version %s is below minimum safe reconcile version %s — desired-state mutation is disabled",
+			Version, minSafeReconcileVersion)
+	}
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.DesiredState{}
 		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/SeedDesiredState", req, resp); err != nil {

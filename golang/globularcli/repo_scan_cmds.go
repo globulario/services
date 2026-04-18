@@ -51,36 +51,55 @@ Classifications:
 }
 
 var (
-	repoScanPackage    string
-	repoCleanupDryRun  bool
-	repoCleanupOrphan  bool
-	repoCleanupDupes   bool
+	repoScanPackage   string
+	repoCleanupDryRun bool
 )
 
 var repoCleanupCmd = &cobra.Command{
 	Use:   "cleanup",
-	Short: "Remove orphaned and duplicate artifacts from the repository",
-	Long: `Scans the repository and deletes artifacts classified as ORPHANED
-or DUPLICATE_CONTENT. Only non-VALID, non-referenced artifacts are removed.
+	Short: "Archive unreachable artifacts using the reachability engine",
+	Long: `Runs the repository GC: every artifact that is outside the retention
+window AND not actively deployed (build_id not in installed state) is moved
+to ARCHIVED state. The binary is kept; ARCHIVED artifacts are hidden from the
+catalog but can still be downloaded by owners/admins.
 
-PUBLISHED artifacts referenced by desired-state or installed-state are
-never deleted. Use --dry-run to preview what would be deleted.
+Use --dry-run to preview what would be archived without modifying state.
 
 Examples:
-  globular repository cleanup --dry-run          # preview
-  globular repository cleanup --orphans          # delete orphaned only
-  globular repository cleanup --duplicates       # delete duplicates only
-  globular repository cleanup --orphans --duplicates  # delete both`,
+  globular repository cleanup --dry-run   # preview
+  globular repository cleanup             # archive unreachable artifacts`,
 	RunE: runRepoCleanup,
 }
+
+var repoDeleteCmd = &cobra.Command{
+	Use:   "delete <name> <version>",
+	Short: "Delete a specific artifact version from the repository",
+	Long: `Deletes a specific artifact version from the repository.
+
+By default, deletion is rejected if any node still has this artifact installed.
+Use --force to delete even if installed instances exist.
+
+Examples:
+  globular repository delete node_agent 0.0.3
+  globular repository delete globular-cli 0.0.1 --force
+  globular repository delete keepalived 0.0.2`,
+	Args: cobra.ExactArgs(2),
+	RunE: runRepoDelete,
+}
+
+var (
+	repoDeleteForce     bool
+	repoDeletePublisher string
+)
 
 func init() {
 	repoCmd.AddCommand(repoScanCmd)
 	repoCmd.AddCommand(repoCleanupCmd)
+	repoCmd.AddCommand(repoDeleteCmd)
 	repoScanCmd.Flags().StringVar(&repoScanPackage, "package", "", "Scan only this package name")
-	repoCleanupCmd.Flags().BoolVar(&repoCleanupDryRun, "dry-run", false, "Preview deletions without executing")
-	repoCleanupCmd.Flags().BoolVar(&repoCleanupOrphan, "orphans", false, "Delete ORPHANED artifacts")
-	repoCleanupCmd.Flags().BoolVar(&repoCleanupDupes, "duplicates", false, "Delete DUPLICATE_CONTENT artifacts (keeps latest build)")
+	repoCleanupCmd.Flags().BoolVar(&repoCleanupDryRun, "dry-run", false, "Preview archiving without executing")
+	repoDeleteCmd.Flags().BoolVar(&repoDeleteForce, "force", false, "Delete even if installed on nodes")
+	repoDeleteCmd.Flags().StringVar(&repoDeletePublisher, "publisher", "core@globular.io", "Publisher ID")
 }
 
 type artifactClassification struct {
@@ -290,14 +309,6 @@ func runRepoScan(cmd *cobra.Command, args []string) error {
 }
 
 func runRepoCleanup(cmd *cobra.Command, args []string) error {
-	if !repoCleanupOrphan && !repoCleanupDupes {
-		return fmt.Errorf("specify --orphans, --duplicates, or both")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	// Run a full scan to classify artifacts.
 	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if repoAddr == "" {
 		return fmt.Errorf("cannot discover repository address")
@@ -309,93 +320,95 @@ func runRepoCleanup(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	// Load token for delete operations.
 	if token := rootCfg.token; token != "" {
 		client.SetToken(token)
 	}
 
+	mode := "ARCHIVING"
+	if repoCleanupDryRun {
+		mode = "WOULD ARCHIVE (dry-run)"
+	}
+
+	fmt.Printf("=== Repository GC — %s ===\n\n", mode)
+
+	resp, err := client.ArchiveUnreachableArtifacts(repoCleanupDryRun)
+	if err != nil {
+		return fmt.Errorf("GC failed: %w", err)
+	}
+
+	for _, rec := range resp.GetArchived() {
+		fmt.Printf("  [%s] %s/%s@%s (build_id=%s)  reason: %s\n",
+			mode,
+			rec.GetPublisher(), rec.GetName(), rec.GetVersion(),
+			rec.GetBuildId(), rec.GetReason(),
+		)
+	}
+
+	if len(resp.GetArchived()) == 0 {
+		fmt.Println("  Nothing to archive — all artifacts are within the retention window or actively deployed.")
+	}
+
+	fmt.Printf("\n=== GC complete: %d archived, %d protected, %d skipped. ===\n",
+		resp.GetArchivedCount(), resp.GetProtectedCount(), resp.GetSkippedCount())
+	return nil
+}
+
+func runRepoDelete(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	version := args[1]
+
+	repoAddr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	if repoAddr == "" {
+		return fmt.Errorf("cannot discover repository address")
+	}
+
+	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return fmt.Errorf("connect to repository: %w", err)
+	}
+	defer client.Close()
+
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+
+	// List all versions of this package to find matching builds.
 	manifests, err := client.ListArtifacts()
 	if err != nil {
 		return fmt.Errorf("list artifacts: %w", err)
 	}
 
-	desiredRefs := loadDesiredRefs(ctx)
-	installedRefs := loadInstalledRefs(ctx)
-
-	// Classify and collect deletable artifacts.
-	type deleteCandidate struct {
-		ref   *repopb.ArtifactRef
-		build int64
-		class string
-		key   string
-	}
-	var candidates []deleteCandidate
-
-	// Group by (publisher, name, version, platform) for duplicate detection.
-	type groupKey struct{ publisher, name, version, platform string }
-	groups := make(map[groupKey][]*repopb.ArtifactManifest)
-
+	var matches []*repopb.ArtifactManifest
 	for _, m := range manifests {
 		ref := m.GetRef()
-		if ref == nil {
-			continue
-		}
-		gk := groupKey{ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()}
-		groups[gk] = append(groups[gk], m)
-	}
-
-	for gk, ms := range groups {
-		// Sort by build number descending — keep the latest.
-		sort.Slice(ms, func(i, j int) bool {
-			return ms[i].GetBuildNumber() > ms[j].GetBuildNumber()
-		})
-
-		for i, m := range ms {
-			ref := m.GetRef()
-			key := fmt.Sprintf("%s/%s@%s/%s/b%d", ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform(), m.GetBuildNumber())
-
-			// Check if orphaned.
-			name := ref.GetName()
-			isReferenced := desiredRefs[name] || installedRefs[name]
-
-			if repoCleanupOrphan && !isReferenced {
-				candidates = append(candidates, deleteCandidate{ref: ref, build: m.GetBuildNumber(), class: "ORPHANED", key: key})
+		if ref.GetName() == name && ref.GetVersion() == version {
+			if repoDeletePublisher != "" && ref.GetPublisherId() != repoDeletePublisher {
 				continue
 			}
-
-			// Check if duplicate (not the latest build in its group).
-			if repoCleanupDupes && i > 0 && len(ms) > 1 && gk.name != "" {
-				candidates = append(candidates, deleteCandidate{ref: ref, build: m.GetBuildNumber(), class: "DUPLICATE", key: key})
-			}
+			matches = append(matches, m)
 		}
 	}
 
-	if len(candidates) == 0 {
-		fmt.Println("Nothing to clean up.")
+	if len(matches) == 0 {
+		fmt.Printf("No artifacts found for %s@%s (publisher=%s)\n", name, version, repoDeletePublisher)
 		return nil
 	}
 
-	mode := "DELETING"
-	if repoCleanupDryRun {
-		mode = "WOULD DELETE"
-	}
-	fmt.Printf("=== Repository Cleanup (%d candidates) ===\n\n", len(candidates))
-
+	fmt.Printf("Found %d artifact(s) for %s@%s:\n", len(matches), name, version)
 	deleted := 0
-	failed := 0
-	for _, c := range candidates {
-		fmt.Printf("  [%s] %s  (%s)\n", mode, c.key, c.class)
-		if !repoCleanupDryRun {
-			if err := client.DeleteArtifact(c.ref); err != nil {
-				fmt.Printf("    FAIL: %v\n", err)
-				failed++
-			} else {
-				deleted++
-			}
+	for _, m := range matches {
+		ref := m.GetRef()
+		key := fmt.Sprintf("%s/%s@%s/%s/b%d", ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform(), m.GetBuildNumber())
+		fmt.Printf("  Deleting %s ... ", key)
+		if err := client.DeleteArtifact(ref); err != nil {
+			fmt.Printf("FAIL: %v\n", err)
+		} else {
+			fmt.Printf("OK\n")
+			deleted++
 		}
 	}
 
-	fmt.Printf("\n=== Cleanup complete. %d deleted, %d failed. ===\n", deleted, failed)
+	fmt.Printf("\nDeleted %d/%d artifacts.\n", deleted, len(matches))
 	return nil
 }
 
