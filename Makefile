@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-services test-invariants test-integration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -85,6 +85,21 @@ test-integration-local:
 	@echo "Running integration tests against local containerized cluster..."
 	@bash scripts/testcluster/run-tests.sh
 	@echo "Local integration tests complete."
+
+test-integration-reconcile:
+	@echo "Running reconciliation scenario tests..."
+	@bash scripts/testcluster/run-tests.sh reconcile
+	@echo "Reconciliation tests complete."
+
+test-integration-release:
+	@echo "Running release pipeline tests..."
+	@bash scripts/testcluster/run-tests.sh release
+	@echo "Release tests complete."
+
+test-integration-migration:
+	@echo "Running ScyllaDB migration coordination tests..."
+	@bash scripts/testcluster/run-tests.sh migration
+	@echo "Migration tests complete."
 
 test: check-services test-invariants
 	@echo "All checks and tests passed."
