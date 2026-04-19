@@ -123,13 +123,16 @@ var (
 func init() {
 	// Load cluster roles from external policy file.
 	// On service nodes, cluster-roles.json lives in /var/lib/globular/policy/rbac/.
-	// On developer machines (CLI usage), the file is typically absent — that's fine
-	// because the CLI doesn't make role-binding decisions locally.
+	// On developer machines and in CI, fall back to the embedded data so that
+	// any package that imports security gets a populated RolePermissions map.
 	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
 		RolePermissions = extRoles
 		slog.Info("security: loaded cluster roles from external policy file", "roles", len(extRoles))
+	} else if embedded, err := policy.LoadEmbeddedClusterRoles(); err == nil {
+		RolePermissions = embedded
+		slog.Debug("security: loaded embedded cluster roles (no policy file on disk)", "roles", len(embedded))
 	} else {
-		slog.Debug("security: no cluster-roles.json found — RolePermissions empty (normal for CLI usage)")
+		slog.Debug("security: no cluster-roles.json found and embedded load failed — RolePermissions empty")
 		RolePermissions = make(map[string][]string)
 	}
 

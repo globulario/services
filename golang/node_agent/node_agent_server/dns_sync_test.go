@@ -45,9 +45,13 @@ func TestMakeDNSTokenUsesNodeID(t *testing.T) {
 	spec := &cluster_controllerpb.ClusterNetworkSpec{ClusterDomain: "example.com"}
 	tk, err := makeDNSToken("node-123", nil, spec)
 	if err != nil {
-		// Skip if key generation requires privileged access.
-		if strings.Contains(err.Error(), "permission denied") {
-			t.Skipf("keys dir not writable, skipping: %v", err)
+		// Skip if key generation requires cluster infrastructure.
+		msg := err.Error()
+		if strings.Contains(msg, "permission denied") ||
+			strings.Contains(msg, "no local Globular configuration") ||
+			strings.Contains(msg, "get mac address") ||
+			strings.Contains(msg, "get address") {
+			t.Skipf("cluster config not available, skipping: %v", err)
 		}
 		t.Fatalf("expected no error: %v", err)
 	}

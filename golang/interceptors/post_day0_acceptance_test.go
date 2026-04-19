@@ -366,10 +366,11 @@ func TestAcceptance_ServiceAccountScopes(t *testing.T) {
 	controllerRoles := []string{security.RoleControllerSA}
 	nodeAgentRoles := []string{security.RoleNodeAgentSA}
 
-	// Use correct proto package names (cluster_controller, not clustercontroller).
-	publishArtifact := "/repository.PackageRepository/UploadArtifact"
-	reportStatus := "/cluster_controller.ClusterControllerService/ReportNodeStatus"
-	upsertDesired := "/cluster_controller.ClusterControllerService/UpsertDesiredService"
+	// Use stable semantic action keys (not gRPC paths) so the test works in
+	// CI where generated/policy/ resolver data is not present.
+	publishArtifact := "repository.artifact.upload"
+	reportStatus := "cluster_controller.node.status.report"
+	upsertDesired := "cluster_controller.desired_service.upsert"
 
 	// Controller SA cannot upload artifacts
 	if security.HasRolePermission(controllerRoles, publishArtifact) {

@@ -149,12 +149,19 @@ func TestEtcdPortCheckFails(t *testing.T) {
 }
 
 func TestScyllaPortCheckPasses(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Skipf("tcp listen not permitted: %v", err)
+	// Three local listeners stand in for etcd, minio, and scylla.
+	listeners := make([]net.Listener, 3)
+	for i := range listeners {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Skipf("tcp listen not permitted: %v", err)
+		}
+		defer ln.Close()
+		listeners[i] = ln
 	}
-	defer ln.Close()
-	t.Setenv("GLOBULAR_SCYLLA_ADDR", ln.Addr().String())
+	t.Setenv("GLOBULAR_ETCD_ADDR", listeners[0].Addr().String())
+	t.Setenv("GLOBULAR_MINIO_ADDR", listeners[1].Addr().String())
+	t.Setenv("GLOBULAR_SCYLLA_ADDR", listeners[2].Addr().String())
 	origLookup := dnsLookupHost
 	dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
 		return []string{"127.0.0.1"}, nil
