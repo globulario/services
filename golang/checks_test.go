@@ -72,5 +72,8 @@ func TestNodeAgentExecBoundary(t *testing.T) {
 // TestProtoAuthzCoverage verifies that every gRPC RPC in every service proto
 // has a (globular.auth.authz) annotation. This mirrors `make check-proto-authz`.
 func TestProtoAuthzCoverage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires slow bash script; run via 'make check-proto-authz'")
+	}
 	runMake(t, "check-proto-authz")
 }

@@ -161,8 +161,10 @@ type Run struct {
 	Definition string
 	Status     RunStatus
 	Inputs     map[string]any
-	Outputs    map[string]any // accumulated exports
+	Outputs    map[string]any // accumulated exports; write under outputMu
+	outputMu   sync.Mutex    // guards concurrent writes to Outputs from parallel steps
 	Steps      map[string]*StepState
+	stepsMu    sync.RWMutex  // guards concurrent reads/writes to Steps from parallel steps
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Error      string
@@ -415,7 +417,9 @@ func depsReady(run *Run, deps []string) bool {
 // --------------------------------------------------------------------------
 
 func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
+	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
+	run.stepsMu.RUnlock()
 
 	// Foreach expansion.
 	if step.Foreach != nil {
@@ -551,12 +555,18 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 			// scan_drift writing drift_report) lose their data when the
 			// action executes remotely (the handler's req.Outputs is a
 			// serialized copy, not the engine's live run.Outputs).
+			run.outputMu.Lock()
 			for k, v := range result.Output {
 				run.Outputs[k] = v
 			}
-		}
-		if step.Export != "" {
+			if step.Export != "" {
+				run.Outputs[step.Export] = st.Output
+			}
+			run.outputMu.Unlock()
+		} else if step.Export != "" {
+			run.outputMu.Lock()
 			run.Outputs[step.Export] = st.Output
+			run.outputMu.Unlock()
 		}
 
 		log.Printf("workflow: step %s SUCCEEDED (attempt %d)", step.ID, attempt)
@@ -572,7 +582,9 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 // --------------------------------------------------------------------------
 
 func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
+	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
+	run.stepsMu.RUnlock()
 
 	// Resolve collection from inputs/outputs.
 	var items []any
@@ -674,7 +686,9 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 	st.FinishedAt = time.Now()
 	st.Output = map[string]any{"results": results, "count": len(items)}
 	if step.Export != "" {
+		run.outputMu.Lock()
 		run.Outputs[step.Export] = results
+		run.outputMu.Unlock()
 	}
 
 	log.Printf("workflow: step %s foreach SUCCEEDED (%d/%d items)", step.ID, len(items), len(items))
@@ -686,7 +700,9 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 // Unlike flat foreach, this does NOT short-circuit on first failure —
 // all items run to completion so aggregate steps can compute DEGRADED vs FAILED.
 func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step *compiler.CompiledStep, items []any) error {
+	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
+	run.stepsMu.RUnlock()
 	st.Status = StepRunning
 	st.StartedAt = time.Now()
 
@@ -744,10 +760,12 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 		}
 
 		// Also register child step states in parent run for observability.
+		run.stepsMu.Lock()
 		for id := range step.SubSteps.Steps {
 			qualID := fmt.Sprintf("%s[%d].%s", step.ID, i, id)
 			run.Steps[qualID] = childRun.Steps[id]
 		}
+		run.stepsMu.Unlock()
 
 		log.Printf("workflow: %s[%d] starting sub-DAG", step.ID, i)
 		err := e.executeDAG(ctx, childRun, step.SubSteps)
@@ -785,7 +803,9 @@ func (e *Engine) executeForeachWithSubSteps(ctx context.Context, run *Run, step 
 	}
 
 	if step.Export != "" {
+		run.outputMu.Lock()
 		run.Outputs[step.Export] = allResults
+		run.outputMu.Unlock()
 	}
 
 	if failed > 0 {

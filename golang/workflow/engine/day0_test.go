@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +19,11 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	}
 
 	var steps []string
+	var stepsMu sync.Mutex
 	record := func(name string) {
+		stepsMu.Lock()
 		steps = append(steps, name)
+		stepsMu.Unlock()
 	}
 
 	router := NewRouter()

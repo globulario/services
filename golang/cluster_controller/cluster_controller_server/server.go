@@ -749,7 +749,7 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 	// When gaining leadership, update the service registry so Envoy routes
 	// to this node's controller (the leader). Without this, the registry
 	// points to whichever node last started — not necessarily the leader.
-	if isLeader {
+	if isLeader && srv.cfg != nil {
 		if err := config.SaveServiceConfiguration(map[string]interface{}{
 			"Id":       "cluster_controller.ClusterControllerService",
 			"Name":     "cluster_controller.ClusterControllerService",

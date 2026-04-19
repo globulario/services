@@ -367,6 +367,17 @@ func LoadClusterRoles() (map[string][]string, bool, error) {
 	return crf.Roles, true, nil
 }
 
+// LoadEmbeddedClusterRoles parses the cluster-roles.json that is compiled
+// into the binary. Returns the role map, or an error if parsing fails.
+// Useful in tests and environments where no config files exist on disk.
+func LoadEmbeddedClusterRoles() (map[string][]string, error) {
+	var crf ClusterRolesFile
+	if err := json.Unmarshal(embeddedClusterRoles, &crf); err != nil {
+		return nil, fmt.Errorf("policy: parse embedded cluster-roles: %w", err)
+	}
+	return crf.Roles, nil
+}
+
 // ── Path helpers ─────────────────────────────────────────────────────────────
 
 // permissionsPaths returns the search order for permissions files:

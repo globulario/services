@@ -137,12 +137,15 @@ func init() {
 }
 
 // ReloadClusterRoles re-reads cluster-roles.json from disk and rebuilds the
-// method index. Called after EnsureClusterRolesDeployed writes the embedded
-// default so that the controller picks up roles without a process restart.
+// method index. Falls back to the embedded default when no policy file exists
+// on disk (e.g. in tests or fresh installs before EnsureClusterRolesDeployed).
 func ReloadClusterRoles() {
 	if extRoles, ok, _ := policy.LoadClusterRoles(); ok {
 		RolePermissions = extRoles
 		slog.Info("security: reloaded cluster roles from policy file", "roles", len(extRoles))
+	} else if embedded, err := policy.LoadEmbeddedClusterRoles(); err == nil {
+		RolePermissions = embedded
+		slog.Info("security: loaded embedded cluster roles (no file on disk)", "roles", len(embedded))
 	}
 	rebuildMethodIndex()
 }

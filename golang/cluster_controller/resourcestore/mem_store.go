@@ -170,30 +170,39 @@ func (s *memStore) Watch(ctx context.Context, typ, prefix, fromRV string) (<-cha
 	s.mu.Lock()
 	s.watchers[reg] = struct{}{}
 	s.mu.Unlock()
-	// Replay events newer than fromRV.
+	// Single goroutine owns the channel lifecycle: replay history, then wait
+	// for ctx.Done(). Removing the registration under s.mu before closing the
+	// channel guarantees that broadcast (which holds s.mu) never sends to a
+	// closed channel.
 	go func() {
+		defer func() {
+			s.mu.Lock()
+			delete(s.watchers, reg)
+			s.mu.Unlock()
+			close(ch)
+		}()
 		if fromRV != "" {
 			if rv, err := strconv.ParseInt(fromRV, 10, 64); err == nil {
 				s.mu.RLock()
 				history := append([]Event(nil), s.events[typ]...)
 				s.mu.RUnlock()
 				for _, evt := range history {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
 					if parsedRV(evt.ResourceVersion) > rv {
 						select {
 						case ch <- evt:
-						default:
+						case <-ctx.Done():
+							return
 						}
 					}
 				}
 			}
 		}
-	}()
-	go func() {
 		<-ctx.Done()
-		s.mu.Lock()
-		delete(s.watchers, reg)
-		close(ch)
-		s.mu.Unlock()
 	}()
 	return ch, nil
 }
@@ -237,6 +246,9 @@ func (s *memStore) broadcast(evt Event, typ, name string) {
 		if reg.prefix != "" && (len(name) < len(reg.prefix) || name[:len(reg.prefix)] != reg.prefix) {
 			continue
 		}
+		// Non-blocking send: channel is buffered (16). If full, drop the event
+		// rather than deadlock. The registration is removed under s.mu before
+		// close, so we never send to a closed channel here.
 		select {
 		case reg.ch <- evt:
 		default:
