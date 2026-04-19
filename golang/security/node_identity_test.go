@@ -236,31 +236,35 @@ func TestNodeExecutorCannotPublish(t *testing.T) {
 }
 
 func TestNodeExecutorCanReportStatus(t *testing.T) {
-	allowedMethods := []string{
-		"/cluster_controller.ClusterControllerService/ReportNodeStatus",
+	// Use stable semantic action keys — gRPC path resolution requires generated
+	// resolver data that is not committed to the repo, breaking CI.
+	allowedActions := []string{
+		"cluster_controller.node.status.report",
 	}
-	for _, method := range allowedMethods {
-		if !HasRolePermission([]string{RoleNodeExecutor}, method) {
-			t.Errorf("node-executor SHOULD have permission for %s", method)
+	for _, action := range allowedActions {
+		if !HasRolePermission([]string{RoleNodeExecutor}, action) {
+			t.Errorf("node-executor SHOULD have permission for %s", action)
 		}
 	}
 }
 
 func TestNodeExecutorCanReadClusterInfo(t *testing.T) {
-	readOnlyMethods := []string{
-		"/cluster_controller.ClusterControllerService/GetClusterInfo",
+	// Use stable semantic action keys.
+	readOnlyActions := []string{
+		"cluster_controller.cluster.info",
 	}
-	for _, method := range readOnlyMethods {
-		if !HasRolePermission([]string{RoleNodeExecutor}, method) {
-			t.Errorf("node-executor SHOULD have read-only permission for %s", method)
+	for _, action := range readOnlyActions {
+		if !HasRolePermission([]string{RoleNodeExecutor}, action) {
+			t.Errorf("node-executor SHOULD have read-only permission for %s", action)
 		}
 	}
 }
 
 func TestNodeExecutorCanCompleteOperation(t *testing.T) {
 	// Node-agent calls CompleteOperation to notify controller when plan execution finishes.
-	if !HasRolePermission([]string{RoleNodeExecutor}, "/cluster_controller.ClusterControllerService/CompleteOperation") {
-		t.Error("node-executor SHOULD have permission for CompleteOperation (plan completion notify)")
+	// Use stable semantic action key.
+	if !HasRolePermission([]string{RoleNodeExecutor}, "cluster_controller.operation.complete") {
+		t.Error("node-executor SHOULD have permission for cluster_controller.operation.complete (plan completion notify)")
 	}
 }
 
@@ -285,13 +289,14 @@ func TestNodeExecutorCanCallDNSDuringPlanExecution(t *testing.T) {
 
 func TestNodeExecutorCanDownloadArtifacts(t *testing.T) {
 	// Node-agent downloads service artifacts from repository during installation.
-	repoMethods := []string{
-		"/repository.PackageRepository/DownloadArtifact",
-		"/repository.PackageRepository/GetArtifactManifest",
+	// DownloadArtifact and GetArtifactManifest both map to repository.artifact.read.
+	repoActions := []string{
+		"repository.artifact.read",
+		"repository.artifact.list",
 	}
-	for _, method := range repoMethods {
-		if !HasRolePermission([]string{RoleNodeExecutor}, method) {
-			t.Errorf("node-executor SHOULD have permission for %s (needed for service installation)", method)
+	for _, action := range repoActions {
+		if !HasRolePermission([]string{RoleNodeExecutor}, action) {
+			t.Errorf("node-executor SHOULD have permission for %s (needed for service installation)", action)
 		}
 	}
 }
