@@ -184,6 +184,11 @@ func IsRoleBasedMethod(action string) bool {
 		if strings.HasPrefix(action, p) {
 			return true
 		}
+		// Also match gRPC paths against action-key wildcard prefixes:
+		// "/cluster_controller.Service/Method" matches "cluster_controller." prefix
+		if strings.HasPrefix(action, "/") && strings.HasPrefix(action[1:], p) {
+			return true
+		}
 	}
 	// If action is a raw gRPC method path, resolve it to a stable action key
 	// and check the key against the index. This handles the case where
@@ -289,10 +294,14 @@ func matchesPermission(perm, action string) bool {
 	if perm == action {
 		return true
 	}
-	// Action-key wildcard: "file.*" matches "file.read"
+	// Action-key wildcard: "file.*" matches "file.read" or "/file.FileService/ReadFile"
 	if strings.HasSuffix(perm, ".*") {
 		prefix := strings.TrimSuffix(perm, "*")
 		if strings.HasPrefix(action, prefix) {
+			return true
+		}
+		// Also match gRPC paths: "/cluster_controller.Service/Method" matches "cluster_controller.*"
+		if strings.HasPrefix(action, "/") && strings.HasPrefix(action[1:], prefix) {
 			return true
 		}
 	}

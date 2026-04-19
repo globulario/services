@@ -601,7 +601,7 @@ func (srv *server) checkReadinessTiered(ctx context.Context) (hardUnmet, softUnm
 	}
 
 	// 7. Event client (soft, non-blocking — logged but doesn't block readiness).
-	if srv.eventClient == nil {
+	if srv.eventClient.Load() == nil {
 		logger.Debug("readiness: event client unavailable (non-blocking)")
 	}
 
@@ -659,7 +659,7 @@ func (srv *server) checkReadiness(ctx context.Context) (bool, []string) {
 
 	// 7. Event/control-plane path not obviously degraded — check that the
 	//    event client was connected at startup. If nil, the event bus is down.
-	if srv.eventClient == nil {
+	if srv.eventClient.Load() == nil {
 		// Non-blocking: event bus unavailability is a soft signal, not a hard gate.
 		// We still log it but don't block readiness — reconcile can proceed
 		// without event publishing.

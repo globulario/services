@@ -235,7 +235,7 @@ type server struct {
 	minioPoolMgr *minioPoolManager
 
 	// event publishing (fire-and-forget, nil-safe)
-	eventClient *event_client.Event_Client
+	eventClient atomic.Pointer[event_client.Event_Client]
 
 	// plan signing (Ed25519)
 	planSignerState *planSigner
@@ -462,7 +462,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 			}
 			if eventAddr != "" {
 				if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
-					srv.eventClient = ec
+					srv.eventClient.Store(ec)
 					log.Printf("cluster-controller: event client connected (attempt %d)", attempt+1)
 					return
 				}
@@ -613,7 +613,7 @@ const eventCircuitCooldown = 30 * time.Second
 // Safe to call when eventClient is nil. Uses a circuit breaker to avoid
 // flooding the event service when it is down.
 func (srv *server) emitClusterEvent(name string, payload map[string]interface{}) {
-	if srv.eventClient == nil {
+	if srv.eventClient.Load() == nil {
 		return
 	}
 
@@ -636,7 +636,7 @@ func (srv *server) emitClusterEvent(name string, payload map[string]interface{})
 		return
 	}
 	go func() {
-		if err := srv.eventClient.Publish(name, data); err != nil {
+		if err := srv.eventClient.Load().Publish(name, data); err != nil {
 			// Open the circuit breaker on failure.
 			eventCircuitBreaker.openUntil.Store(time.Now().Add(eventCircuitCooldown).UnixNano())
 			log.Printf("cluster-controller: publish %q failed, circuit breaker open for %s: %v", name, eventCircuitCooldown, err)

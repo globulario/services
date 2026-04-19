@@ -48,18 +48,18 @@ func (rc *remediationConsumer) Start() {
 	go func() {
 		// Wait for the event client to be available.
 		for i := 0; i < 120; i++ {
-			if rc.srv.eventClient != nil {
+			if rc.srv.eventClient.Load() != nil {
 				break
 			}
 			time.Sleep(2 * time.Second)
 		}
-		if rc.srv.eventClient == nil {
+		if rc.srv.eventClient.Load() == nil {
 			log.Printf("remediation-consumer: event client unavailable, not subscribing")
 			return
 		}
 
 		uuid := Utility.RandomUUID()
-		err := rc.srv.eventClient.Subscribe("operation.restart_requested", uuid, rc.handleRestartRequested)
+		err := rc.srv.eventClient.Load().Subscribe("operation.restart_requested", uuid, rc.handleRestartRequested)
 		if err != nil {
 			log.Printf("remediation-consumer: subscribe failed: %v", err)
 			return

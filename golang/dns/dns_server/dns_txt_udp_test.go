@@ -15,6 +15,9 @@ import (
 )
 
 func TestTXTServedOverUDP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires ScyllaDB")
+	}
 	tmpDir := t.TempDir()
 	s := &server{
 		Logger: slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})),
@@ -68,6 +71,9 @@ func TestTXTServedOverUDP(t *testing.T) {
 }
 
 func TestTXTManagedDomainEnforcement(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires ScyllaDB")
+	}
 	// Use a unique subdomain per test run to avoid ScyllaDB state collision with
 	// other tests that share the same keyspace.
 	uniqueSuffix := fmt.Sprintf("txtenforce-%d", time.Now().UnixNano())
@@ -143,6 +149,9 @@ func TestTXTManagedDomainEnforcement(t *testing.T) {
 }
 
 func TestTXTNewMethodServedOverUDP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires ScyllaDB")
+	}
 	tmpDir := t.TempDir()
 	s := &server{
 		Logger: slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})),

@@ -191,7 +191,7 @@ func simulateRoleBindingCheck(clusterInitialized bool, method, subject string, r
 // TestAcceptance_WithRoleBinding_Operator_CanApplyRelease verifies that an
 // operator with the globular-operator role can call a mutating method they're granted.
 func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
-	method := "/cluster_controller.ClusterControllerService/ApproveJoin"
+	method := "cluster_controller.join_request.approve" // stable action key (operator has specific key, not wildcard)
 	roles := []string{"globular-operator"}
 
 	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
@@ -207,7 +207,7 @@ func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
 // TestAcceptance_WithoutRoleBinding_GetsDenied verifies that an authenticated
 // user with NO roles is denied access to role-based methods.
 func TestAcceptance_WithoutRoleBinding_GetsDenied(t *testing.T) {
-	method := "/cluster_controller.ClusterControllerService/ApproveJoin"
+	method := "cluster_controller.join_request.approve" // stable action key
 	roles := []string{} // no roles assigned
 
 	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)

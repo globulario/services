@@ -7,13 +7,19 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/policy"
+	"github.com/globulario/services/golang/security"
 )
 
-// TestMain loads generated permission files from the repo so that the
-// GlobalResolver has semantic action-key mappings available during tests.
-// On CI the generated/policy directory may not exist — that's OK; tests
-// that require semantic resolution will skip or use legacy fallbacks.
+// TestMain loads cluster-roles.json and any generated permission manifests
+// so that security.IsRoleBasedMethod, HasRolePermission, and the GlobalResolver
+// have correct data during acceptance tests.
 func TestMain(m *testing.M) {
+	// Load cluster-roles.json so RolePermissions (and derived methodSet/methodPrefix)
+	// are populated before any test runs.
+	security.ReloadClusterRoles()
+
+	// Also register generated action-key mappings if they exist on disk.
+	// On CI the generated/policy directory may not exist — that's OK.
 	_, thisFile, _, ok := runtime.Caller(0)
 	if ok {
 		repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))

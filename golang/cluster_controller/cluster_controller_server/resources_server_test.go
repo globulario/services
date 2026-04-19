@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,12 +13,29 @@ import (
 
 type fakeWatchServer struct {
 	ctx    context.Context
+	mu     sync.Mutex
 	events []*cluster_controllerpb.WatchEvent
 }
 
 func (f *fakeWatchServer) Send(e *cluster_controllerpb.WatchEvent) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.events = append(f.events, e)
 	return nil
+}
+
+func (f *fakeWatchServer) eventCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.events)
+}
+
+func (f *fakeWatchServer) getEvents() []*cluster_controllerpb.WatchEvent {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*cluster_controllerpb.WatchEvent, len(f.events))
+	copy(out, f.events)
+	return out
 }
 
 // Implement grpc.ServerStream minimal methods.
@@ -76,16 +94,16 @@ func TestResourcesServiceApplyListWatch(t *testing.T) {
 	waitForEvents := func(n int) bool {
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
-			if len(stream.events) >= n {
+			if stream.eventCount() >= n {
 				return true
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		return len(stream.events) >= n
+		return stream.eventCount() >= n
 	}
 
 	if !waitForEvents(1) {
-		t.Fatalf("expected at least 1 event, got %d", len(stream.events))
+		t.Fatalf("expected at least 1 event, got %d", stream.eventCount())
 	}
 	// Modify version
 	_, err = srv.ApplyServiceDesiredVersion(context.Background(), &cluster_controllerpb.ApplyServiceDesiredVersionRequest{
@@ -100,6 +118,6 @@ func TestResourcesServiceApplyListWatch(t *testing.T) {
 		t.Fatalf("ApplyServiceDesiredVersion (update): %v", err)
 	}
 	if !waitForEvents(2) {
-		t.Fatalf("expected at least 2 events, got %d", len(stream.events))
+		t.Fatalf("expected at least 2 events, got %d", stream.eventCount())
 	}
 }
