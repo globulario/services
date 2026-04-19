@@ -10,120 +10,306 @@ permissions:
 
 env:
   GOWORK: "off"
+  GOOS: linux
+  GOARCH: amd64
+  CGO_ENABLED: "0"
 
 jobs:
-  build-and-release:
+  release:
+    name: Build and Publish Release
     runs-on: ubuntu-latest
+
     steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
       - name: Checkout services
         uses: actions/checkout@v4
         with:
           path: services
 
-      - name: Checkout utility
+      - name: Checkout packages
         uses: actions/checkout@v4
         with:
-          repository: globulario/utility
-          path: utility
+          repository: globulario/packages
+          path: packages
 
-      - name: Checkout globular-installer
-        uses: actions/checkout@v4
-        with:
-          repository: globulario/globular-installer
-          path: globular-installer
-
+      # ── Go setup ──────────────────────────────────────────────────────────
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache-dependency-path: services/golang/go.sum
 
-      - name: Extract version from tag
+      # ── Version ───────────────────────────────────────────────────────────
+      - name: Extract version
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Building release: ${VERSION}"
 
+      # ── Build all Go binaries ─────────────────────────────────────────────
       - name: Build all Go services
         working-directory: services/golang
-        run: go build ./...
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../../dist/bin
 
+          # Inject version into every binary at link time
+          LDFLAGS="-X main.version=${VERSION} -X main.buildVersion=${VERSION} -s -w"
+
+          echo "Building all services with version=${VERSION}..."
+
+          # Read services.list and build each target
+          while IFS='|' read -r target output; do
+            target="${target%%#*}"
+            target="${target// /}"
+            output="${output// /}"
+            [[ -z "${target}" ]] && continue
+
+            bin_name=$(basename "${output}")
+            echo "  → Building ${bin_name}..."
+            go build -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "${target}"
+          done < build/services.list
+
+          # Rename CLI binary to 'globular' (its public name)
+          mv ../../dist/bin/globularcli ../../dist/bin/globular
+
+          echo "Build complete:"
+          ls -lh ../../dist/bin/
+
+      # ── Run tests ─────────────────────────────────────────────────────────
       - name: Run tests
         working-directory: services/golang
-        run: go test ./... -race -short
+        run: go test ./... -race -short -timeout 120s
 
-      - name: Build CLI
-        working-directory: services/golang
-        run: go build -o ../../dist/globular ./globularcli
-
-      - name: Build documentation site
-        working-directory: services
+      # ── Create service packages ───────────────────────────────────────────
+      - name: Create service packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          pip3 install mkdocs-material
-          mkdocs build
+          set -euo pipefail
+          mkdir -p dist/packages
 
-      - name: Create release archive
+          PACKAGES_DIST="packages/dist"
+          DIST_BIN="dist/bin"
+
+          # Map: package-name → binary filename in dist/bin
+          declare -A BIN_MAP=(
+            [authentication]=authentication_server
+            [backup-manager]=backup_manager_server
+            [blog]=blog_server
+            [catalog]=catalog_server
+            [cluster-controller]=cluster_controller_server
+            [cluster-doctor]=cluster_doctor_server
+            [conversation]=conversation_server
+            [discovery]=discovery_server
+            [dns]=dns_server
+            [echo]=echo_server
+            [event]=event_server
+            [file]=file_server
+            [ldap]=ldap_server
+            [log]=log_server
+            [mail]=mail_server
+            [media]=media_server
+            [monitoring]=monitoring_server
+            [node-agent]=node_agent_server
+            [persistence]=persistence_server
+            [rbac]=rbac_server
+            [repository]=repository_server
+            [resource]=resource_server
+            [search]=search_server
+            [sql]=sql_server
+            [storage]=storage_server
+            [title]=title_server
+            [torrent]=torrent_server
+            [workflow]=workflow_server
+            [compute]=compute_server
+            [ai-memory]=ai_memory_server
+            [ai-executor]=ai_executor_server
+            [ai-watcher]=ai_watcher_server
+            [ai-router]=ai_router_server
+            [xds]=xds
+            [gateway]=gateway
+          )
+
+          for pkg_name in "${!BIN_MAP[@]}"; do
+            bin_name="${BIN_MAP[${pkg_name}]}"
+            bin_path="${DIST_BIN}/${bin_name}"
+
+            if [[ ! -f "${bin_path}" ]]; then
+              echo "  ⚠ Skipping ${pkg_name} (${bin_name} not built)"
+              continue
+            fi
+
+            # Find source package for metadata (any version — we only need the manifest/units/specs)
+            src_pkg=$(find "${PACKAGES_DIST}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1)
+            if [[ -z "${src_pkg}" ]]; then
+              echo "  ⚠ Skipping ${pkg_name} (no source package found for metadata)"
+              continue
+            fi
+
+            echo "  → Packaging ${pkg_name} v${VERSION}..."
+
+            tmpdir=$(mktemp -d)
+
+            # Extract metadata from reference package (systemd unit, spec, package.json)
+            tar -C "${tmpdir}" -xf "${src_pkg}" --exclude='bin/*'
+
+            # Place freshly built binary
+            mkdir -p "${tmpdir}/bin"
+            cp "${bin_path}" "${tmpdir}/bin/${bin_name}"
+            chmod 755 "${tmpdir}/bin/${bin_name}"
+
+            # Compute SHA256 of the binary
+            CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
+
+            # Update package.json: set version + checksum
+            python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" <<'PYEOF'
+          import json, sys
+          path, version, checksum = sys.argv[1], sys.argv[2], sys.argv[3]
+          with open(path) as f:
+              d = json.load(f)
+          d['version'] = version
+          d['entrypoint_checksum'] = checksum
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          PYEOF
+
+            out_file="dist/packages/${pkg_name}_${VERSION}_linux_amd64.tgz"
+            tar -C "${tmpdir}" -czf "${out_file}" .
+            rm -rf "${tmpdir}"
+
+            echo "    ✓ $(basename "${out_file}") ($(du -sh "${out_file}" | cut -f1))"
+          done
+
+          echo ""
+          echo "Packages:"
+          ls dist/packages/*.tgz | wc -l
+          du -sh dist/packages/
+
+      # ── Assemble release tarball ───────────────────────────────────────────
+      - name: Assemble release tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GIT_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          RELEASE_DIR="globular-${VERSION}"
-          mkdir -p "${RELEASE_DIR}"
+          set -euo pipefail
+
+          RELEASE_NAME="globular-${VERSION}-linux-amd64"
+          RELEASE_DIR="dist/${RELEASE_NAME}"
+
+          mkdir -p "${RELEASE_DIR}/packages"
 
           # CLI binary
-          cp dist/globular "${RELEASE_DIR}/"
+          cp dist/bin/globular "${RELEASE_DIR}/globular"
+          chmod 755 "${RELEASE_DIR}/globular"
 
-          # Documentation site
-          cp -r services/site "${RELEASE_DIR}/docs-site"
+          # Service packages
+          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/"
 
-          # Deploy script
-          cp services/scripts/deploy-docs.sh "${RELEASE_DIR}/"
-          cp services/mkdocs.yml "${RELEASE_DIR}/"
+          # Installer script
+          cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
+          chmod +x "${RELEASE_DIR}/install.sh"
 
-          # Source reference
-          echo "Built from: https://github.com/globulario/services/tree/${GITHUB_REF_NAME}" > "${RELEASE_DIR}/BUILD_INFO.txt"
-          echo "Version: ${VERSION}" >> "${RELEASE_DIR}/BUILD_INFO.txt"
-          echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${RELEASE_DIR}/BUILD_INFO.txt"
+          # Checksums for individual packages
+          (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 
-          # Note about full installation
-          cat > "${RELEASE_DIR}/README.md" << 'EOF'
-          # Globular v${VERSION}
+          # README
+          PKG_COUNT=$(ls dist/packages/*.tgz | wc -l)
+          cat > "${RELEASE_DIR}/README.md" <<HEREDOC
+          # Globular ${VERSION}
 
-          This release contains:
-          - `globular` — CLI tool
-          - `docs-site/` — pre-built documentation (deploy with deploy-docs.sh)
+          An open-source microservices platform for self-hosted distributed systems.
+          No containers. No Kubernetes. No cloud required.
 
-          For a full cluster installation (all services + infrastructure),
-          build from source. See: https://globular.io/docs/operators/building-from-source/
-          EOF
+          ## Install
 
-          # Checksums
-          cd "${RELEASE_DIR}"
-          sha256sum globular > checksums.sha256
-          cd ..
+          \`\`\`bash
+          sudo bash install.sh
+          \`\`\`
 
-          # Create tarball
-          tar czf "${RELEASE_DIR}-linux-amd64.tar.gz" "${RELEASE_DIR}/"
-          sha256sum "${RELEASE_DIR}-linux-amd64.tar.gz" > "${RELEASE_DIR}-linux-amd64.tar.gz.sha256"
+          ## What's Included
 
+          - \`globular\` — CLI tool (run as any user after install)
+          - \`packages/\` — ${PKG_COUNT} Globular service packages, version ${VERSION}
+          - \`install.sh\` — Installer
+
+          Infrastructure packages (etcd, MinIO, Envoy, ScyllaDB) are fetched
+          automatically during bootstrap — not bundled here.
+
+          ## Next Steps
+
+          After install.sh completes:
+
+          \`\`\`bash
+          sudo systemctl start globular-node-agent
+          globular cluster bootstrap --node localhost:11000 --domain <your-domain> --profile core --profile gateway
+          \`\`\`
+
+          Full guide: https://globular.io/docs/operators/installation
+
+          ## Built From
+
+          Repository: https://github.com/globulario/services
+          Tag:        ${GIT_TAG}
+          Commit:     ${GITHUB_SHA}
+          HEREDOC
+
+          # Create release tarball
+          cd dist
+          tar czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/"
+          sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
+
+          echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
+          echo "Contents:"
+          tar tzf "${RELEASE_NAME}.tar.gz" | head -40
+
+      # ── Publish ───────────────────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "Globular ${{ steps.version.outputs.version }}"
           files: |
-            globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
+            dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+            dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
           generate_release_notes: true
           body: |
             ## Globular ${{ steps.version.outputs.version }}
 
-            This release contains the CLI tool and pre-built documentation site.
+            An open-source microservices platform for self-hosted distributed systems — native Linux binaries, systemd supervision, etcd as the single source of truth.
 
-            For full cluster installation, see [Building from Source](https://globular.io/docs/operators/building-from-source/).
-
-            ### CLI
+            ### Install
 
             ```bash
-            curl -LO https://github.com/globulario/services/releases/download/${{ github.ref_name }}/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            tar xzf globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            sudo cp globular-${{ steps.version.outputs.version }}/globular /usr/local/bin/
+            VERSION="${{ steps.version.outputs.version }}"
+
+            curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
+            curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
+            sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
+
+            tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
+            cd "globular-${VERSION}-linux-amd64"
+            sudo bash install.sh
+            ```
+
+            ### Bootstrap
+
+            ```bash
+            sudo systemctl start globular-node-agent
+
+            globular cluster bootstrap \
+              --node localhost:11000 \
+              --domain <your-domain> \
+              --profile core \
+              --profile gateway
             ```
 
             ### Documentation
 
-            Full docs: https://globular.io/docs/
+            - [Getting Started](https://globular.io/docs/getting-started)
+            - [Installation Guide](https://globular.io/docs/operators/installation)
+            - [Architecture Overview](https://globular.io/docs/operators/architecture-overview)
+            - [Adding Nodes](https://globular.io/docs/operators/adding-nodes)

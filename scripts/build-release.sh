@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# Local release build — mirrors what GitHub Actions does in release.yml.
+#
+# Usage:
+#   cd /path/to/services
+#   bash scripts/build-release.sh [version]
+#
+# Output:
+#   dist/globular-<version>-linux-amd64.tar.gz
+#   dist/globular-<version>-linux-amd64.tar.gz.sha256
+#
+# Requires: go, python3, tar, sha256sum
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICES_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PACKAGES_ROOT="${SERVICES_ROOT}/../packages"
+DIST_DIR="${SERVICES_ROOT}/dist"
+
+VERSION="${1:-0.0.0-dev}"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+die()     { echo -e "${RED}ERROR: $*${NC}" >&2; exit 1; }
+ok()      { echo -e "${GREEN}  ✓ $*${NC}"; }
+warn()    { echo -e "${YELLOW}  ⚠ $*${NC}"; }
+info()    { echo "  → $*"; }
+section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
+
+[[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT} — clone it alongside services"
+
+section "Building Release ${VERSION}"
+
+rm -rf "${DIST_DIR}/bin" "${DIST_DIR}/packages" "${DIST_DIR}/globular-${VERSION}-linux-amd64"*
+mkdir -p "${DIST_DIR}/bin" "${DIST_DIR}/packages"
+
+# ── Build Go binaries ────────────────────────────────────────────────────────
+section "Building Go Services"
+
+LDFLAGS="-X main.version=${VERSION} -X main.buildVersion=${VERSION} -s -w"
+cd "${SERVICES_ROOT}/golang"
+
+while IFS='|' read -r target output; do
+  target="${target%%#*}"; target="${target// /}"
+  output="${output// /}"
+  [[ -z "${target}" ]] && continue
+
+  bin_name=$(basename "${output}")
+  info "Building ${bin_name}..."
+  go build -ldflags "${LDFLAGS}" -o "${DIST_DIR}/bin/${bin_name}" "${target}"
+done < build/services.list
+
+mv "${DIST_DIR}/bin/globularcli" "${DIST_DIR}/bin/globular" 2>/dev/null || true
+
+ok "$(ls "${DIST_DIR}/bin/" | wc -l) binaries built"
+cd "${SERVICES_ROOT}"
+
+# ── Create service packages ──────────────────────────────────────────────────
+section "Creating Service Packages"
+
+declare -A BIN_MAP=(
+  [authentication]=authentication_server
+  [backup-manager]=backup_manager_server
+  [blog]=blog_server
+  [catalog]=catalog_server
+  [cluster-controller]=cluster_controller_server
+  [cluster-doctor]=cluster_doctor_server
+  [conversation]=conversation_server
+  [discovery]=discovery_server
+  [dns]=dns_server
+  [echo]=echo_server
+  [event]=event_server
+  [file]=file_server
+  [ldap]=ldap_server
+  [log]=log_server
+  [mail]=mail_server
+  [media]=media_server
+  [monitoring]=monitoring_server
+  [node-agent]=node_agent_server
+  [persistence]=persistence_server
+  [rbac]=rbac_server
+  [repository]=repository_server
+  [resource]=resource_server
+  [search]=search_server
+  [sql]=sql_server
+  [storage]=storage_server
+  [title]=title_server
+  [torrent]=torrent_server
+  [workflow]=workflow_server
+  [compute]=compute_server
+  [ai-memory]=ai_memory_server
+  [ai-executor]=ai_executor_server
+  [ai-watcher]=ai_watcher_server
+  [ai-router]=ai_router_server
+  [xds]=xds
+  [gateway]=gateway
+)
+
+pkg_count=0
+for pkg_name in "${!BIN_MAP[@]}"; do
+  bin_name="${BIN_MAP[${pkg_name}]}"
+  bin_path="${DIST_DIR}/bin/${bin_name}"
+
+  if [[ ! -f "${bin_path}" ]]; then
+    warn "Skipping ${pkg_name} (${bin_name} not built)"
+    continue
+  fi
+
+  src_pkg=$(find "${PACKAGES_ROOT}/dist" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1)
+  if [[ -z "${src_pkg}" ]]; then
+    warn "Skipping ${pkg_name} (no source package in packages/dist/)"
+    continue
+  fi
+
+  info "Packaging ${pkg_name} v${VERSION}..."
+
+  tmpdir=$(mktemp -d)
+  tar -C "${tmpdir}" -xf "${src_pkg}" --exclude='bin/*'
+  mkdir -p "${tmpdir}/bin"
+  cp "${bin_path}" "${tmpdir}/bin/${bin_name}"
+  chmod 755 "${tmpdir}/bin/${bin_name}"
+
+  CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
+
+  python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" <<'PYEOF'
+import json, sys
+path, version, checksum = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f:
+    d = json.load(f)
+d['version'] = version
+d['entrypoint_checksum'] = checksum
+with open(path, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+
+  out_file="${DIST_DIR}/packages/${pkg_name}_${VERSION}_linux_amd64.tgz"
+  tar -C "${tmpdir}" -czf "${out_file}" .
+  rm -rf "${tmpdir}"
+  pkg_count=$((pkg_count + 1))
+done
+
+ok "${pkg_count} packages created"
+
+# ── Assemble release tarball ─────────────────────────────────────────────────
+section "Assembling Release Tarball"
+
+RELEASE_NAME="globular-${VERSION}-linux-amd64"
+RELEASE_DIR="${DIST_DIR}/${RELEASE_NAME}"
+
+mkdir -p "${RELEASE_DIR}/packages"
+
+cp "${DIST_DIR}/bin/globular"   "${RELEASE_DIR}/globular"
+chmod 755 "${RELEASE_DIR}/globular"
+
+cp "${DIST_DIR}/packages/"*.tgz "${RELEASE_DIR}/packages/"
+cp "${SCRIPT_DIR}/install.sh"   "${RELEASE_DIR}/install.sh"
+chmod +x "${RELEASE_DIR}/install.sh"
+
+(cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
+
+cat > "${RELEASE_DIR}/README.md" <<HEREDOC
+# Globular ${VERSION}
+
+## Install
+
+\`\`\`bash
+sudo bash install.sh
+\`\`\`
+
+## Next Steps
+
+\`\`\`bash
+sudo systemctl start globular-node-agent
+globular cluster bootstrap --node localhost:11000 --domain <your-domain> --profile core --profile gateway
+\`\`\`
+
+Full guide: https://globular.io/docs/operators/installation
+HEREDOC
+
+cd "${DIST_DIR}"
+tar czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/"
+sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
+
+section "Done"
+echo "Release tarball: ${DIST_DIR}/${RELEASE_NAME}.tar.gz"
+echo "Size:            $(du -sh "${DIST_DIR}/${RELEASE_NAME}.tar.gz" | cut -f1)"
+echo "Packages:        ${pkg_count}"
+echo ""
+echo "Contents:"
+tar tzf "${DIST_DIR}/${RELEASE_NAME}.tar.gz" | head -10
+echo "  ..."
+echo ""
+echo "To test the installer:"
+echo "  mkdir /tmp/globular-test && tar xzf ${DIST_DIR}/${RELEASE_NAME}.tar.gz -C /tmp/globular-test"
+echo "  sudo bash /tmp/globular-test/${RELEASE_NAME}/install.sh"
