@@ -55,8 +55,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-replace github.com/globulario/utility => ../../utility
-
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
@@ -242,5 +240,3 @@ require (
 	modernc.org/sqlite v1.21.1 // indirect
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
-
-replace github.com/globulario/globular-installer => ../../globular-installer
