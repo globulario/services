@@ -32,6 +32,12 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      - name: Checkout Globular (xds + gateway)
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/Globular
+          path: Globular
+
       - name: Checkout globular-installer
         uses: actions/checkout@v4
         with:
@@ -95,18 +101,18 @@ jobs:
           echo "Build complete:"
           ls -lh ../../dist/bin/
 
-      # ── Copy xds + gateway from pre-built stage ───────────────────────────
-      # xds and gateway live in the Globular repo which has a replace directive
-      # pointing to services/golang. Until the proto types are fully synced
-      # between repos, we use the committed stage binaries (built locally).
-      - name: Copy xds and gateway from stage
+      # ── Build xds + gateway (from Globular repo) ──────────────────────────
+      - name: Build xds and gateway
+        working-directory: Globular
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          STAGE="services/golang/tools/stage/linux-amd64/usr/local/bin"
-          cp "${STAGE}/xds"     dist/bin/xds
-          cp "${STAGE}/gateway" dist/bin/gateway
-          chmod +x dist/bin/xds dist/bin/gateway
-          echo "xds:     $(ls -lh dist/bin/xds | awk '{print $5}')"
-          echo "gateway: $(ls -lh dist/bin/gateway | awk '{print $5}')"
+          set -euo pipefail
+          LDFLAGS="-X main.version=${VERSION} -X main.buildVersion=${VERSION} -s -w"
+          go build -ldflags "${LDFLAGS}" -o ../dist/bin/xds ./cmd/xds
+          go build -ldflags "${LDFLAGS}" -o ../dist/bin/gateway ./cmd/gateway
+          echo "xds:     $(ls -lh ../dist/bin/xds | awk '{print $5}')"
+          echo "gateway: $(ls -lh ../dist/bin/gateway | awk '{print $5}')"
 
       # ── Run tests ─────────────────────────────────────────────────────────
       - name: Run tests
