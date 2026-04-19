@@ -34,7 +34,7 @@ jobs:
 
       # ── System dependencies for CGO packages ─────────────────────────────
       - name: Install system dependencies
-        run: sudo apt-get install -y libsqlite3-dev libwebp-dev
+        run: sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev
 
       # ── Go setup ──────────────────────────────────────────────────────────
       - name: Setup Go
