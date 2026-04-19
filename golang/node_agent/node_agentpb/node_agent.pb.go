@@ -3354,6 +3354,140 @@ func (x *DeleteCacheArtifactResponse) GetPath() string {
 	return ""
 }
 
+// CleanupDiskJournalRequest asks the node to vacuum its systemd journal.
+// All fields are optional — defaults reclaim aggressively but safely.
+type CleanupDiskJournalRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Keep journal entries newer than this many days (0 = use size limit only).
+	MaxAgeDays int32 `protobuf:"varint,1,opt,name=max_age_days,json=maxAgeDays,proto3" json:"max_age_days,omitempty"`
+	// Vacuum until journal is below this many MiB (0 = no size limit).
+	TargetSizeMb uint64 `protobuf:"varint,2,opt,name=target_size_mb,json=targetSizeMb,proto3" json:"target_size_mb,omitempty"`
+	// If true, report what would be freed without actually deleting anything.
+	DryRun        bool `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CleanupDiskJournalRequest) Reset() {
+	*x = CleanupDiskJournalRequest{}
+	mi := &file_node_agent_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CleanupDiskJournalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CleanupDiskJournalRequest) ProtoMessage() {}
+
+func (x *CleanupDiskJournalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CleanupDiskJournalRequest.ProtoReflect.Descriptor instead.
+func (*CleanupDiskJournalRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *CleanupDiskJournalRequest) GetMaxAgeDays() int32 {
+	if x != nil {
+		return x.MaxAgeDays
+	}
+	return 0
+}
+
+func (x *CleanupDiskJournalRequest) GetTargetSizeMb() uint64 {
+	if x != nil {
+		return x.TargetSizeMb
+	}
+	return 0
+}
+
+func (x *CleanupDiskJournalRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+// CleanupDiskJournalResponse reports the outcome of the journal vacuum.
+type CleanupDiskJournalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`                                   // true if vacuum completed (even if nothing freed)
+	FreedBytes    uint64                 `protobuf:"varint,2,opt,name=freed_bytes,json=freedBytes,proto3" json:"freed_bytes,omitempty"` // approximate bytes reclaimed (0 on dry_run)
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`                          // human-readable summary ("Freed 1.2 GiB of journal logs")
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`                              // non-empty on failure
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CleanupDiskJournalResponse) Reset() {
+	*x = CleanupDiskJournalResponse{}
+	mi := &file_node_agent_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CleanupDiskJournalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CleanupDiskJournalResponse) ProtoMessage() {}
+
+func (x *CleanupDiskJournalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CleanupDiskJournalResponse.ProtoReflect.Descriptor instead.
+func (*CleanupDiskJournalResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *CleanupDiskJournalResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *CleanupDiskJournalResponse) GetFreedBytes() uint64 {
+	if x != nil {
+		return x.FreedBytes
+	}
+	return 0
+}
+
+func (x *CleanupDiskJournalResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CleanupDiskJournalResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_node_agent_proto protoreflect.FileDescriptor
 
 const file_node_agent_proto_rawDesc = "" +
@@ -3646,14 +3780,25 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x1bDeleteCacheArtifactResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path*\xc3\x01\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"|\n" +
+	"\x19CleanupDiskJournalRequest\x12 \n" +
+	"\fmax_age_days\x18\x01 \x01(\x05R\n" +
+	"maxAgeDays\x12$\n" +
+	"\x0etarget_size_mb\x18\x02 \x01(\x04R\ftargetSizeMb\x12\x17\n" +
+	"\adry_run\x18\x03 \x01(\bR\x06dryRun\"}\n" +
+	"\x1aCleanupDiskJournalResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x1f\n" +
+	"\vfreed_bytes\x18\x02 \x01(\x04R\n" +
+	"freedBytes\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error*\xc3\x01\n" +
 	"\x0eSubsystemState\x12\x1f\n" +
 	"\x1bSUBSYSTEM_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17SUBSYSTEM_STATE_HEALTHY\x10\x01\x12\x1c\n" +
 	"\x18SUBSYSTEM_STATE_DEGRADED\x10\x02\x12\x1a\n" +
 	"\x16SUBSYSTEM_STATE_FAILED\x10\x03\x12\x1c\n" +
 	"\x18SUBSYSTEM_STATE_STARTING\x10\x04\x12\x1b\n" +
-	"\x17SUBSYSTEM_STATE_STOPPED\x10\x052\x9b\x1e\n" +
+	"\x17SUBSYSTEM_STATE_STOPPED\x10\x052\xd0\x1f\n" +
 	"\x10NodeAgentService\x12\x90\x01\n" +
 	"\vJoinCluster\x12\x1e.node_agent.JoinClusterRequest\x1a\x1f.node_agent.JoinClusterResponse\"@\x82\xb5\x18<\n" +
 	"\x17node_agent.cluster.join\x12\x05admin\x1a\x13/node_agent/cluster*\x05admin\x12\x97\x01\n" +
@@ -3696,7 +3841,9 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x16VerifyPackageIntegrity\x12).node_agent.VerifyPackageIntegrityRequest\x1a*.node_agent.VerifyPackageIntegrityResponse\"[\x82\xb5\x18W\n" +
 	"#node_agent.package_integrity.verify\x12\x04read\x1a#/node_agent/packages/{package_name}*\x05admin\x12\xb5\x01\n" +
 	"\x13DeleteCacheArtifact\x12&.node_agent.DeleteCacheArtifactRequest\x1a'.node_agent.DeleteCacheArtifactResponse\"M\x82\xb5\x18I\n" +
-	"\x17node_agent.cache.delete\x12\x05admin\x1a /node_agent/cache/{package_name}*\x05adminBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
+	"\x17node_agent.cache.delete\x12\x05admin\x1a /node_agent/cache/{package_name}*\x05admin\x12\xb2\x01\n" +
+	"\x12CleanupDiskJournal\x12%.node_agent.CleanupDiskJournalRequest\x1a&.node_agent.CleanupDiskJournalResponse\"M\x82\xb5\x18I\n" +
+	"\x1fnode_agent.disk.cleanup_journal\x12\x05admin\x1a\x18/node_agent/disk/journal*\x05adminBLZJgithub.com/globulario/services/golang/node_agent/node_agentpb;node_agentpbb\x06proto3"
 
 var (
 	file_node_agent_proto_rawDescOnce sync.Once
@@ -3711,7 +3858,7 @@ func file_node_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_node_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
 var file_node_agent_proto_goTypes = []any{
 	(SubsystemState)(0),                       // 0: node_agent.SubsystemState
 	(*JoinClusterRequest)(nil),                // 1: node_agent.JoinClusterRequest
@@ -3765,47 +3912,49 @@ var file_node_agent_proto_goTypes = []any{
 	(*ApplyPackageReleaseResponse)(nil),       // 49: node_agent.ApplyPackageReleaseResponse
 	(*DeleteCacheArtifactRequest)(nil),        // 50: node_agent.DeleteCacheArtifactRequest
 	(*DeleteCacheArtifactResponse)(nil),       // 51: node_agent.DeleteCacheArtifactResponse
-	nil,                                       // 52: node_agent.InstalledPackage.MetadataEntry
-	nil,                                       // 53: node_agent.BackupProviderSpec.OptionsEntry
-	nil,                                       // 54: node_agent.RunBackupProviderRequest.LabelsEntry
-	nil,                                       // 55: node_agent.BackupProviderResult.OutputsEntry
-	nil,                                       // 56: node_agent.BackupProviderResult.ArtifactsEntry
-	nil,                                       // 57: node_agent.RestoreProviderSpec.OptionsEntry
-	nil,                                       // 58: node_agent.SubsystemHealth.MetadataEntry
-	nil,                                       // 59: node_agent.RunWorkflowRequest.InputsEntry
-	(*cluster_controllerpb.NodeIdentity)(nil), // 60: cluster_controller.NodeIdentity
-	(*timestamppb.Timestamp)(nil),             // 61: google.protobuf.Timestamp
-	(cluster_controllerpb.OperationPhase)(0),  // 62: cluster_controller.OperationPhase
+	(*CleanupDiskJournalRequest)(nil),         // 52: node_agent.CleanupDiskJournalRequest
+	(*CleanupDiskJournalResponse)(nil),        // 53: node_agent.CleanupDiskJournalResponse
+	nil,                                       // 54: node_agent.InstalledPackage.MetadataEntry
+	nil,                                       // 55: node_agent.BackupProviderSpec.OptionsEntry
+	nil,                                       // 56: node_agent.RunBackupProviderRequest.LabelsEntry
+	nil,                                       // 57: node_agent.BackupProviderResult.OutputsEntry
+	nil,                                       // 58: node_agent.BackupProviderResult.ArtifactsEntry
+	nil,                                       // 59: node_agent.RestoreProviderSpec.OptionsEntry
+	nil,                                       // 60: node_agent.SubsystemHealth.MetadataEntry
+	nil,                                       // 61: node_agent.RunWorkflowRequest.InputsEntry
+	(*cluster_controllerpb.NodeIdentity)(nil), // 62: cluster_controller.NodeIdentity
+	(*timestamppb.Timestamp)(nil),             // 63: google.protobuf.Timestamp
+	(cluster_controllerpb.OperationPhase)(0),  // 64: cluster_controller.OperationPhase
 }
 var file_node_agent_proto_depIdxs = []int32{
-	52, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
+	54, // 0: node_agent.InstalledPackage.metadata:type_name -> node_agent.InstalledPackage.MetadataEntry
 	4,  // 1: node_agent.ListInstalledPackagesResponse.packages:type_name -> node_agent.InstalledPackage
 	4,  // 2: node_agent.GetInstalledPackageResponse.package:type_name -> node_agent.InstalledPackage
 	4,  // 3: node_agent.SetInstalledPackageRequest.package:type_name -> node_agent.InstalledPackage
-	60, // 4: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
-	61, // 5: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
+	62, // 4: node_agent.Inventory.identity:type_name -> cluster_controller.NodeIdentity
+	63, // 5: node_agent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
 	3,  // 6: node_agent.Inventory.components:type_name -> node_agent.InstalledComponent
 	11, // 7: node_agent.Inventory.units:type_name -> node_agent.UnitStatus
 	12, // 8: node_agent.GetInventoryResponse.inventory:type_name -> node_agent.Inventory
-	62, // 9: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
-	61, // 10: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
-	53, // 11: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
+	64, // 9: node_agent.OperationEvent.phase:type_name -> cluster_controller.OperationPhase
+	63, // 10: node_agent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	55, // 11: node_agent.BackupProviderSpec.options:type_name -> node_agent.BackupProviderSpec.OptionsEntry
 	19, // 12: node_agent.RunBackupProviderRequest.spec:type_name -> node_agent.BackupProviderSpec
-	54, // 13: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
-	55, // 14: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
-	56, // 15: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
+	56, // 13: node_agent.RunBackupProviderRequest.labels:type_name -> node_agent.RunBackupProviderRequest.LabelsEntry
+	57, // 14: node_agent.BackupProviderResult.outputs:type_name -> node_agent.BackupProviderResult.OutputsEntry
+	58, // 15: node_agent.BackupProviderResult.artifacts:type_name -> node_agent.BackupProviderResult.ArtifactsEntry
 	23, // 16: node_agent.GetBackupTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
-	57, // 17: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
+	59, // 17: node_agent.RestoreProviderSpec.options:type_name -> node_agent.RestoreProviderSpec.OptionsEntry
 	25, // 18: node_agent.RunRestoreProviderRequest.spec:type_name -> node_agent.RestoreProviderSpec
 	23, // 19: node_agent.GetRestoreTaskResultResponse.result:type_name -> node_agent.BackupProviderResult
 	38, // 20: node_agent.GetCertificateStatusResponse.server_cert:type_name -> node_agent.CertificateInfo
 	38, // 21: node_agent.GetCertificateStatusResponse.ca_cert:type_name -> node_agent.CertificateInfo
 	0,  // 22: node_agent.SubsystemHealth.state:type_name -> node_agent.SubsystemState
-	61, // 23: node_agent.SubsystemHealth.last_tick:type_name -> google.protobuf.Timestamp
-	58, // 24: node_agent.SubsystemHealth.metadata:type_name -> node_agent.SubsystemHealth.MetadataEntry
+	63, // 23: node_agent.SubsystemHealth.last_tick:type_name -> google.protobuf.Timestamp
+	60, // 24: node_agent.SubsystemHealth.metadata:type_name -> node_agent.SubsystemHealth.MetadataEntry
 	43, // 25: node_agent.GetSubsystemHealthResponse.subsystems:type_name -> node_agent.SubsystemHealth
 	0,  // 26: node_agent.GetSubsystemHealthResponse.overall:type_name -> node_agent.SubsystemState
-	59, // 27: node_agent.RunWorkflowRequest.inputs:type_name -> node_agent.RunWorkflowRequest.InputsEntry
+	61, // 27: node_agent.RunWorkflowRequest.inputs:type_name -> node_agent.RunWorkflowRequest.InputsEntry
 	1,  // 28: node_agent.NodeAgentService.JoinCluster:input_type -> node_agent.JoinClusterRequest
 	13, // 29: node_agent.NodeAgentService.GetInventory:input_type -> node_agent.GetInventoryRequest
 	15, // 30: node_agent.NodeAgentService.WatchOperation:input_type -> node_agent.WatchOperationRequest
@@ -3827,29 +3976,31 @@ var file_node_agent_proto_depIdxs = []int32{
 	48, // 46: node_agent.NodeAgentService.ApplyPackageRelease:input_type -> node_agent.ApplyPackageReleaseRequest
 	30, // 47: node_agent.NodeAgentService.VerifyPackageIntegrity:input_type -> node_agent.VerifyPackageIntegrityRequest
 	50, // 48: node_agent.NodeAgentService.DeleteCacheArtifact:input_type -> node_agent.DeleteCacheArtifactRequest
-	2,  // 49: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
-	14, // 50: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
-	16, // 51: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
-	18, // 52: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
-	21, // 53: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
-	24, // 54: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
-	27, // 55: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
-	29, // 56: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
-	6,  // 57: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
-	8,  // 58: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
-	10, // 59: node_agent.NodeAgentService.SetInstalledPackage:output_type -> node_agent.SetInstalledPackageResponse
-	33, // 60: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
-	35, // 61: node_agent.NodeAgentService.GetServiceLogs:output_type -> node_agent.GetServiceLogsResponse
-	40, // 62: node_agent.NodeAgentService.ControlService:output_type -> node_agent.ControlServiceResponse
-	37, // 63: node_agent.NodeAgentService.SearchServiceLogs:output_type -> node_agent.SearchServiceLogsResponse
-	42, // 64: node_agent.NodeAgentService.GetCertificateStatus:output_type -> node_agent.GetCertificateStatusResponse
-	45, // 65: node_agent.NodeAgentService.GetSubsystemHealth:output_type -> node_agent.GetSubsystemHealthResponse
-	47, // 66: node_agent.NodeAgentService.RunWorkflow:output_type -> node_agent.RunWorkflowResponse
-	49, // 67: node_agent.NodeAgentService.ApplyPackageRelease:output_type -> node_agent.ApplyPackageReleaseResponse
-	31, // 68: node_agent.NodeAgentService.VerifyPackageIntegrity:output_type -> node_agent.VerifyPackageIntegrityResponse
-	51, // 69: node_agent.NodeAgentService.DeleteCacheArtifact:output_type -> node_agent.DeleteCacheArtifactResponse
-	49, // [49:70] is the sub-list for method output_type
-	28, // [28:49] is the sub-list for method input_type
+	52, // 49: node_agent.NodeAgentService.CleanupDiskJournal:input_type -> node_agent.CleanupDiskJournalRequest
+	2,  // 50: node_agent.NodeAgentService.JoinCluster:output_type -> node_agent.JoinClusterResponse
+	14, // 51: node_agent.NodeAgentService.GetInventory:output_type -> node_agent.GetInventoryResponse
+	16, // 52: node_agent.NodeAgentService.WatchOperation:output_type -> node_agent.OperationEvent
+	18, // 53: node_agent.NodeAgentService.BootstrapFirstNode:output_type -> node_agent.BootstrapFirstNodeResponse
+	21, // 54: node_agent.NodeAgentService.RunBackupProvider:output_type -> node_agent.RunBackupProviderResponse
+	24, // 55: node_agent.NodeAgentService.GetBackupTaskResult:output_type -> node_agent.GetBackupTaskResultResponse
+	27, // 56: node_agent.NodeAgentService.RunRestoreProvider:output_type -> node_agent.RunRestoreProviderResponse
+	29, // 57: node_agent.NodeAgentService.GetRestoreTaskResult:output_type -> node_agent.GetRestoreTaskResultResponse
+	6,  // 58: node_agent.NodeAgentService.ListInstalledPackages:output_type -> node_agent.ListInstalledPackagesResponse
+	8,  // 59: node_agent.NodeAgentService.GetInstalledPackage:output_type -> node_agent.GetInstalledPackageResponse
+	10, // 60: node_agent.NodeAgentService.SetInstalledPackage:output_type -> node_agent.SetInstalledPackageResponse
+	33, // 61: node_agent.NodeAgentService.RotateNodeToken:output_type -> node_agent.RotateNodeTokenResponse
+	35, // 62: node_agent.NodeAgentService.GetServiceLogs:output_type -> node_agent.GetServiceLogsResponse
+	40, // 63: node_agent.NodeAgentService.ControlService:output_type -> node_agent.ControlServiceResponse
+	37, // 64: node_agent.NodeAgentService.SearchServiceLogs:output_type -> node_agent.SearchServiceLogsResponse
+	42, // 65: node_agent.NodeAgentService.GetCertificateStatus:output_type -> node_agent.GetCertificateStatusResponse
+	45, // 66: node_agent.NodeAgentService.GetSubsystemHealth:output_type -> node_agent.GetSubsystemHealthResponse
+	47, // 67: node_agent.NodeAgentService.RunWorkflow:output_type -> node_agent.RunWorkflowResponse
+	49, // 68: node_agent.NodeAgentService.ApplyPackageRelease:output_type -> node_agent.ApplyPackageReleaseResponse
+	31, // 69: node_agent.NodeAgentService.VerifyPackageIntegrity:output_type -> node_agent.VerifyPackageIntegrityResponse
+	51, // 70: node_agent.NodeAgentService.DeleteCacheArtifact:output_type -> node_agent.DeleteCacheArtifactResponse
+	53, // 71: node_agent.NodeAgentService.CleanupDiskJournal:output_type -> node_agent.CleanupDiskJournalResponse
+	50, // [50:72] is the sub-list for method output_type
+	28, // [28:50] is the sub-list for method input_type
 	28, // [28:28] is the sub-list for extension type_name
 	28, // [28:28] is the sub-list for extension extendee
 	0,  // [0:28] is the sub-list for field type_name
@@ -3866,7 +4017,7 @@ func file_node_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_agent_proto_rawDesc), len(file_node_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   59,
+			NumMessages:   61,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

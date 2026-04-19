@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -935,21 +936,42 @@ func (srv *server) invariantRepairDiskSpace(ctx context.Context, diskReport map[
 		agent, err := srv.getAgentClient(ctx, t.endpoint)
 		if err != nil {
 			log.Printf("invariant-disk: cannot reach agent on %s for journal vacuum: %v", t.hostname, err)
+			repaired = append(repaired, map[string]any{
+				"node_id":  t.id,
+				"hostname": t.hostname,
+				"severity": t.severity,
+				"action":   "alert_emitted_agent_unreachable",
+			})
 			continue
 		}
-		// ControlService("systemd-journald.service", "vacuum") is not a real
-		// action; we use the existing node-agent RunAction to call the
-		// check.disk_free action as a diagnostic, not a repair. The real
-		// journal vacuum runs via ControlService + ExecStart override, which
-		// requires a new node-agent action. For now: log + alert is the
-		// best-effort bound; a future node-agent version will add cleanup.disk_journal.
-		log.Printf("invariant-disk: CRITICAL disk pressure on %s (%.1f%% free) — alert emitted, manual cleanup required", t.hostname, t.freePct)
-		_ = agent // suppress unused warning; will be used when cleanup action is added
+		resp, vacErr := agent.client.CleanupDiskJournal(ctx, &node_agentpb.CleanupDiskJournalRequest{
+			MaxAgeDays:   7,  // keep 7 days of logs
+			TargetSizeMb: 512, // cap journal at 512 MiB on critical nodes
+		})
+		if vacErr != nil {
+			log.Printf("invariant-disk: journal vacuum failed on %s: %v", t.hostname, vacErr)
+			repaired = append(repaired, map[string]any{
+				"node_id":  t.id,
+				"hostname": t.hostname,
+				"severity": t.severity,
+				"action":   "journal_vacuum_failed",
+				"error":    vacErr.Error(),
+			})
+			continue
+		}
+		action := "journal_vacuum_completed"
+		if !resp.GetOk() {
+			action = "journal_vacuum_partial"
+		}
+		log.Printf("invariant-disk: journal vacuum on %s: %s (freed %d bytes)",
+			t.hostname, resp.GetMessage(), resp.GetFreedBytes())
 		repaired = append(repaired, map[string]any{
-			"node_id":  t.id,
-			"hostname": t.hostname,
-			"severity": t.severity,
-			"action":   "alert_emitted",
+			"node_id":     t.id,
+			"hostname":    t.hostname,
+			"severity":    t.severity,
+			"action":      action,
+			"freed_bytes": resp.GetFreedBytes(),
+			"message":     resp.GetMessage(),
 		})
 	}
 

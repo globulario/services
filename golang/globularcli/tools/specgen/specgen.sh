@@ -72,6 +72,7 @@ catalog_priority() {
     prometheus|node_exporter|sidekick) echo 11 ;;
     scylla_manager|scylla_manager_agent) echo 12 ;;
     workflow)      echo 900 ;;
+    compute)       echo 950 ;;
     *)             echo 1000 ;;
   esac
 }
@@ -111,6 +112,7 @@ service_deps() {
     ai_router)          deps="resource" ;;
     ai_watcher)         deps="ai_executor event resource" ;;
     workflow)           deps="event" ;;
+    compute)            deps="event workflow rbac resource" ;;
     backup_manager)     deps="resource" ;;
     blog)               deps="event resource" ;;
     catalog)            deps="event persistence resource" ;;

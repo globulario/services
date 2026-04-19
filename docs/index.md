@@ -108,6 +108,7 @@ Build services and applications for the Globular platform.
 - [Writing a Microservice](developers/writing-a-microservice.md) — Proto contract, code generation, server implementation, shared primitives
 - [Service Packaging](developers/service-packaging.md) — Package format, spec files, build process
 - [Publishing to Repository](developers/publishing-to-repository.md) — Publish workflow, provenance, CI/CD integration
+- [Writing a Compute Job](developers/writing-a-compute-job.md) — Build, package, submit, and verify distributed batch jobs
 - [RBAC Integration (quick reference)](developers/rbac-integration.md) — Proto annotations, permission model, role design
 - [RBAC: Roles and Permissions (deep dive)](developers/rbac-roles-and-permissions.md) — Full model, worked example, patterns, testing, extension
 - [Application Deployment](developers/application-deployment.md) — Web app packaging, gRPC-Web clients

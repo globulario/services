@@ -396,6 +396,21 @@ service NodeAgentService {
       default_role_hint: "admin"
     };
   };
+
+  // CleanupDiskJournal runs journalctl --vacuum to reclaim disk space on the node.
+  // Called by the cluster controller's disk invariant enforcement when a node
+  // is below the critical free-space threshold (<5%). Best-effort: the RPC
+  // always returns a result even when little space is reclaimed.
+  //
+  // Idempotent: safe to call multiple times.
+  rpc CleanupDiskJournal(CleanupDiskJournalRequest) returns (CleanupDiskJournalResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.disk.cleanup_journal"
+      permission: "admin"
+      resource_template: "/node_agent/disk/journal"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // VerifyPackageIntegrityRequest narrows the scope of a verify_integrity run.
@@ -586,4 +601,23 @@ message DeleteCacheArtifactResponse {
   bool   ok      = 1; // true if deleted or already absent (idempotent)
   string message = 2; // human-readable outcome
   string path    = 3; // the path that was (or would have been) deleted
+}
+
+// CleanupDiskJournalRequest asks the node to vacuum its systemd journal.
+// All fields are optional — defaults reclaim aggressively but safely.
+message CleanupDiskJournalRequest {
+  // Keep journal entries newer than this many days (0 = use size limit only).
+  int32  max_age_days         = 1;
+  // Vacuum until journal is below this many MiB (0 = no size limit).
+  uint64 target_size_mb       = 2;
+  // If true, report what would be freed without actually deleting anything.
+  bool   dry_run              = 3;
+}
+
+// CleanupDiskJournalResponse reports the outcome of the journal vacuum.
+message CleanupDiskJournalResponse {
+  bool   ok           = 1; // true if vacuum completed (even if nothing freed)
+  uint64 freed_bytes  = 2; // approximate bytes reclaimed (0 on dry_run)
+  string message      = 3; // human-readable summary ("Freed 1.2 GiB of journal logs")
+  string error        = 4; // non-empty on failure
 }

@@ -40,6 +40,7 @@ const (
 	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
 	NodeAgentService_DeleteCacheArtifact_FullMethodName    = "/node_agent.NodeAgentService/DeleteCacheArtifact"
+	NodeAgentService_CleanupDiskJournal_FullMethodName     = "/node_agent.NodeAgentService/CleanupDiskJournal"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
@@ -95,6 +96,13 @@ type NodeAgentServiceClient interface {
 	//
 	// Idempotent: returns ok=true if the file was deleted OR was already absent.
 	DeleteCacheArtifact(ctx context.Context, in *DeleteCacheArtifactRequest, opts ...grpc.CallOption) (*DeleteCacheArtifactResponse, error)
+	// CleanupDiskJournal runs journalctl --vacuum to reclaim disk space on the node.
+	// Called by the cluster controller's disk invariant enforcement when a node
+	// is below the critical free-space threshold (<5%). Best-effort: the RPC
+	// always returns a result even when little space is reclaimed.
+	//
+	// Idempotent: safe to call multiple times.
+	CleanupDiskJournal(ctx context.Context, in *CleanupDiskJournalRequest, opts ...grpc.CallOption) (*CleanupDiskJournalResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -324,6 +332,16 @@ func (c *nodeAgentServiceClient) DeleteCacheArtifact(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) CleanupDiskJournal(ctx context.Context, in *CleanupDiskJournalRequest, opts ...grpc.CallOption) (*CleanupDiskJournalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CleanupDiskJournalResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_CleanupDiskJournal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeAgentServiceServer is the server API for NodeAgentService service.
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
@@ -377,6 +395,13 @@ type NodeAgentServiceServer interface {
 	//
 	// Idempotent: returns ok=true if the file was deleted OR was already absent.
 	DeleteCacheArtifact(context.Context, *DeleteCacheArtifactRequest) (*DeleteCacheArtifactResponse, error)
+	// CleanupDiskJournal runs journalctl --vacuum to reclaim disk space on the node.
+	// Called by the cluster controller's disk invariant enforcement when a node
+	// is below the critical free-space threshold (<5%). Best-effort: the RPC
+	// always returns a result even when little space is reclaimed.
+	//
+	// Idempotent: safe to call multiple times.
+	CleanupDiskJournal(context.Context, *CleanupDiskJournalRequest) (*CleanupDiskJournalResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -448,6 +473,9 @@ func (UnimplementedNodeAgentServiceServer) VerifyPackageIntegrity(context.Contex
 }
 func (UnimplementedNodeAgentServiceServer) DeleteCacheArtifact(context.Context, *DeleteCacheArtifactRequest) (*DeleteCacheArtifactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteCacheArtifact not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) CleanupDiskJournal(context.Context, *CleanupDiskJournalRequest) (*CleanupDiskJournalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CleanupDiskJournal not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -840,6 +868,24 @@ func _NodeAgentService_DeleteCacheArtifact_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_CleanupDiskJournal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CleanupDiskJournalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).CleanupDiskJournal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_CleanupDiskJournal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).CleanupDiskJournal(ctx, req.(*CleanupDiskJournalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeAgentService_ServiceDesc is the grpc.ServiceDesc for NodeAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -926,6 +972,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteCacheArtifact",
 			Handler:    _NodeAgentService_DeleteCacheArtifact_Handler,
+		},
+		{
+			MethodName: "CleanupDiskJournal",
+			Handler:    _NodeAgentService_CleanupDiskJournal_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
