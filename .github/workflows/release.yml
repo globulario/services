@@ -32,9 +32,23 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      - name: Checkout Globular (xds + gateway)
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/Globular
+          path: Globular
+
+      - name: Checkout globular-installer
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/globular-installer
+          path: globular-installer
+
       # ── System dependencies for CGO packages ─────────────────────────────
       - name: Install system dependencies
-        run: sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev bzip2 unzip
 
       # ── Go setup ──────────────────────────────────────────────────────────
       - name: Setup Go
@@ -52,7 +66,7 @@ jobs:
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "Building release: ${VERSION}"
 
-      # ── Build all Go binaries ─────────────────────────────────────────────
+      # ── Build all Go services ─────────────────────────────────────────────
       - name: Build all Go services
         working-directory: services/golang
         env:
@@ -74,20 +88,204 @@ jobs:
             [[ -z "${target}" ]] && continue
 
             bin_name=$(basename "${output}")
+            # compute_server is not yet ready for release
+            [[ "${bin_name}" == "compute_server" ]] && continue
+
             echo "  → Building ${bin_name}..."
             go build -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "${target}"
           done < build/services.list
 
-          # Rename CLI binary to 'globular' (its public name)
-          mv ../../dist/bin/globularcli ../../dist/bin/globular
+          # Keep globularcli for the service package; also expose as 'globular' for CLI install
+          cp ../../dist/bin/globularcli ../../dist/bin/globular
 
           echo "Build complete:"
           ls -lh ../../dist/bin/
+
+      # ── Build xds + gateway (from Globular repo) ──────────────────────────
+      - name: Build xds and gateway
+        working-directory: Globular
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          LDFLAGS="-X main.version=${VERSION} -X main.buildVersion=${VERSION} -s -w"
+          go build -ldflags "${LDFLAGS}" -o ../dist/bin/xds ./cmd/xds
+          go build -ldflags "${LDFLAGS}" -o ../dist/bin/gateway ./cmd/gateway
+          echo "xds:     $(ls -lh ../dist/bin/xds | awk '{print $5}')"
+          echo "gateway: $(ls -lh ../dist/bin/gateway | awk '{print $5}')"
 
       # ── Run tests ─────────────────────────────────────────────────────────
       - name: Run tests
         working-directory: services/golang
         run: go test ./... -race -short -timeout 120s
+
+      # ── Build globular-installer ───────────────────────────────────────────
+      - name: Build globular-installer
+        working-directory: globular-installer
+        env:
+          GOWORK: "off"
+          CGO_ENABLED: "0"
+        run: |
+          go build -o ../dist/bin/globular-installer ./cmd/globular-installer
+          chmod +x ../dist/bin/globular-installer
+          echo "globular-installer: $(ls -lh ../dist/bin/globular-installer | awk '{print $5}')"
+
+      # ── Create noop binary for scylladb ───────────────────────────────────
+      - name: Create noop binary
+        run: |
+          printf '#!/bin/sh\n# Scylladb is installed via .deb packages.\nexit 0\n' > dist/bin/noop
+          chmod +x dist/bin/noop
+
+      # ── Download third-party infra binaries ───────────────────────────────
+      - name: Download infra binaries
+        run: |
+          set -euo pipefail
+          cd dist/bin
+
+          ETCD_VERSION="3.5.14"
+          ENVOY_VERSION="1.35.3"
+          PROMETHEUS_VERSION="3.5.1"
+          ALERTMANAGER_VERSION="0.28.1"
+          NODE_EXPORTER_VERSION="1.10.2"
+          SIDEKICK_VERSION="7.0.0"
+          RESTIC_VERSION="0.18.1"
+          RCLONE_VERSION="1.73.1"
+
+          echo "→ etcd ${ETCD_VERSION}..."
+          curl -fsSL "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/etcd" "*/etcdctl"
+          chmod +x etcd etcdctl
+
+          echo "→ envoy ${ENVOY_VERSION}..."
+          curl -fsSL "https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64" -o envoy
+          chmod +x envoy
+
+          echo "→ minio (latest stable)..."
+          curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o minio
+          chmod +x minio
+
+          echo "→ mc (latest stable)..."
+          curl -fsSL "https://dl.min.io/client/mc/release/linux-amd64/mc" -o mc
+          chmod +x mc
+
+          echo "→ prometheus ${PROMETHEUS_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/prometheus"
+          chmod +x prometheus
+
+          echo "→ alertmanager ${ALERTMANAGER_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/alertmanager"
+          chmod +x alertmanager
+
+          echo "→ node_exporter ${NODE_EXPORTER_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/node_exporter"
+          chmod +x node_exporter
+
+          echo "→ sidekick ${SIDEKICK_VERSION}..."
+          curl -fsSL "https://github.com/minio/sidekick/releases/download/v${SIDEKICK_VERSION}/sidekick-linux-amd64" -o sidekick
+          chmod +x sidekick
+
+          echo "→ restic ${RESTIC_VERSION}..."
+          curl -fsSL "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2" \
+            | bunzip2 > restic
+          chmod +x restic
+
+          echo "→ rclone ${RCLONE_VERSION}..."
+          curl -fsSL "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-amd64.zip" \
+            -o /tmp/rclone.zip
+          unzip -j /tmp/rclone.zip "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" -d .
+          chmod +x rclone
+
+          echo ""
+          echo "Infra binaries:"
+          ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop
+
+      # ── Create infra packages ─────────────────────────────────────────────
+      - name: Create infra packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist/packages
+
+          PACKAGES_META="packages/metadata"
+          DIST_BIN="dist/bin"
+
+          # Map: package-name → binary-filename-in-dist-bin
+          declare -A INFRA_BIN_MAP=(
+            [scylladb]=noop
+            [etcd]=etcd
+            [etcdctl]=etcdctl
+            [envoy]=envoy
+            [minio]=minio
+            [mc]=mc
+            [prometheus]=prometheus
+            [alertmanager]=alertmanager
+            [node-exporter]=node_exporter
+            [sidekick]=sidekick
+            [restic]=restic
+            [rclone]=rclone
+          )
+
+          for pkg_name in "${!INFRA_BIN_MAP[@]}"; do
+            bin_name="${INFRA_BIN_MAP[${pkg_name}]}"
+            bin_path="${DIST_BIN}/${bin_name}"
+
+            if [[ ! -f "${bin_path}" ]]; then
+              echo "  ⚠ Skipping ${pkg_name} (${bin_name} not found)"
+              continue
+            fi
+
+            meta_dir="${PACKAGES_META}/${pkg_name}"
+            if [[ ! -d "${meta_dir}" ]]; then
+              echo "  ⚠ Skipping ${pkg_name} (no metadata at ${meta_dir})"
+              continue
+            fi
+
+            # Read version and entrypoint from existing package.json
+            PKG_VERSION=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['version'])")
+            PKG_ENTRYPOINT=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['entrypoint'].split('/')[-1])")
+
+            echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
+
+            tmpdir=$(mktemp -d)
+
+            # Copy all metadata (package.json, specs/, systemd/, scripts/, debs/)
+            cp -r "${meta_dir}/." "${tmpdir}/"
+
+            # Place binary using the entrypoint name from package.json
+            mkdir -p "${tmpdir}/bin"
+            cp "${bin_path}" "${tmpdir}/bin/${PKG_ENTRYPOINT}"
+            chmod 755 "${tmpdir}/bin/${PKG_ENTRYPOINT}"
+
+            # Compute SHA256 of binary
+            CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
+
+            # Update package.json checksum (version stays fixed from metadata)
+            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" <<'PYEOF'
+          import json, sys
+          path, version, checksum = sys.argv[1], sys.argv[2], sys.argv[3]
+          with open(path) as f:
+              d = json.load(f)
+          d['version'] = version
+          d['entrypoint_checksum'] = checksum
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          PYEOF
+
+            out_file="dist/packages/${pkg_name}_${PKG_VERSION}_linux_amd64.tgz"
+            tar -C "${tmpdir}" -czf "${out_file}" .
+            rm -rf "${tmpdir}"
+
+            echo "    ✓ $(basename "${out_file}") ($(du -sh "${out_file}" | cut -f1))"
+          done
+
+          echo ""
+          echo "Infra packages built: $(ls dist/packages/*.tgz | wc -l)"
 
       # ── Create service packages ───────────────────────────────────────────
       - name: Create service packages
@@ -95,7 +293,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          mkdir -p dist/packages
 
           PACKAGES_META="packages/metadata"
           DIST_BIN="dist/bin"
@@ -137,6 +334,8 @@ jobs:
             [ai-router]=ai_router_server
             [xds]=xds
             [gateway]=gateway
+            [mcp]=mcp
+            [globular-cli]=globularcli
           )
 
           for pkg_name in "${!BIN_MAP[@]}"; do
@@ -207,14 +406,22 @@ jobs:
 
           mkdir -p "${RELEASE_DIR}/packages"
 
-          # CLI binary
+          # CLI binary (user-facing name)
           cp dist/bin/globular "${RELEASE_DIR}/globular"
           chmod 755 "${RELEASE_DIR}/globular"
 
-          # Service packages
+          # Day-0 installer binary
+          cp dist/bin/globular-installer "${RELEASE_DIR}/globular-installer"
+          chmod 755 "${RELEASE_DIR}/globular-installer"
+
+          # Scripts from globular-installer (setup-tls.sh, install-day0.sh, etc.)
+          cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
+          chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
+
+          # All packages (infra + service)
           cp dist/packages/*.tgz "${RELEASE_DIR}/packages/"
 
-          # Installer script
+          # Installer script (wrapper that sets up compat symlinks then calls install-day0.sh)
           cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
           chmod +x "${RELEASE_DIR}/install.sh"
 
@@ -237,12 +444,13 @@ jobs:
 
           ## What's Included
 
-          - \`globular\` — CLI tool (run as any user after install)
-          - \`packages/\` — ${PKG_COUNT} Globular service packages, version ${VERSION}
-          - \`install.sh\` — Installer
+          - \`globular\` — CLI tool
+          - \`globular-installer\` — Day-0 package installer
+          - \`scripts/\` — Bootstrap scripts (TLS, minio contract, DNS, etc.)
+          - \`packages/\` — ${PKG_COUNT} packages (Globular services + infrastructure)
+          - \`install.sh\` — Installer entry point
 
-          Infrastructure packages (etcd, MinIO, Envoy, ScyllaDB) are fetched
-          automatically during bootstrap — not bundled here.
+          Infrastructure (etcd, MinIO, Envoy, ScyllaDB, Prometheus, etc.) is bundled in packages/.
 
           ## Next Steps
 
@@ -250,7 +458,7 @@ jobs:
 
           \`\`\`bash
           sudo systemctl start globular-node-agent
-          globular cluster bootstrap --node localhost:11000 --domain <your-domain> --profile core --profile gateway
+          globular cluster bootstrap --domain <your-domain> --profile core --profile gateway
           \`\`\`
 
           Full guide: https://globular.io/docs/operators/installation
@@ -269,7 +477,7 @@ jobs:
 
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
           echo "Contents:"
-          tar tzf "${RELEASE_NAME}.tar.gz" | head -40
+          tar tzf "${RELEASE_NAME}.tar.gz" | head -50
 
       # ── Publish ───────────────────────────────────────────────────────────
       - name: Create GitHub Release

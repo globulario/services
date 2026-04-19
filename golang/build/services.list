@@ -34,3 +34,4 @@
 ./ai_router/ai_router_server | usr/local/bin/ai_router_server
 ./workflow/workflow_server | usr/local/bin/workflow_server
 ./compute/compute_server | usr/local/bin/compute_server
+./mcp | usr/local/bin/mcp
