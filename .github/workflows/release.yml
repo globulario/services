@@ -97,7 +97,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist/packages
 
-          PACKAGES_DIST="packages/dist"
+          PACKAGES_META="packages/metadata"
           DIST_BIN="dist/bin"
 
           # Map: package-name → binary filename in dist/bin
@@ -148,10 +148,10 @@ jobs:
               continue
             fi
 
-            # Find source package for metadata (any version — we only need the manifest/units/specs)
-            src_pkg=$(find "${PACKAGES_DIST}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1)
-            if [[ -z "${src_pkg}" ]]; then
-              echo "  ⚠ Skipping ${pkg_name} (no source package found for metadata)"
+            # Use pre-committed metadata directory (package.json, specs/, systemd/)
+            meta_dir="${PACKAGES_META}/${pkg_name}"
+            if [[ ! -d "${meta_dir}" ]]; then
+              echo "  ⚠ Skipping ${pkg_name} (no metadata at ${meta_dir})"
               continue
             fi
 
@@ -159,8 +159,8 @@ jobs:
 
             tmpdir=$(mktemp -d)
 
-            # Extract metadata from reference package (systemd unit, spec, package.json)
-            tar -C "${tmpdir}" -xf "${src_pkg}" --exclude='bin/*'
+            # Copy metadata (package.json, specs/, systemd/) into tmpdir
+            cp -r "${meta_dir}/." "${tmpdir}/"
 
             # Place freshly built binary
             mkdir -p "${tmpdir}/bin"
