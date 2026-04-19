@@ -119,7 +119,7 @@ steps:
           ExecStart={{.Prefix}}/bin/<<% .ExecName %>>
           Type=notify
           WatchdogSec=60
-          Restart=on-failure
+          Restart=always
           RestartSec=2
           LimitNOFILE=524288
 

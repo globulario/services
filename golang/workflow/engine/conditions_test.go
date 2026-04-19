@@ -74,7 +74,10 @@ func TestDefaultEvalCond_Len(t *testing.T) {
 		{"len(selected_targets) != 0", true},
 		{"len(empty_list) == 0", true},
 		{"len(empty_list) > 0", false},
-		{"len(missing_var) == 0", true},
+		// Undefined variables return length -1 (fail-closed: undefined ≠ empty).
+		// This prevents accidental short-circuit when a prior step was skipped.
+		{"len(missing_var) == 0", false},
+		{"len(missing_var) == -1", true},
 	}
 
 	for _, tt := range tests {

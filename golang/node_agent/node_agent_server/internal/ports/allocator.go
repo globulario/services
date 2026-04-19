@@ -16,6 +16,8 @@ type Allocator struct {
 	start, end int
 	reserved   map[int]string
 	mu         sync.Mutex
+	// portCheck overrides portFree for testing. nil means use portFree.
+	portCheck func(int) bool
 }
 
 var infraReservedPorts = map[int]string{
@@ -70,7 +72,11 @@ func (a *Allocator) Reserve(key string, preferred ...int) (int, error) {
 			}
 			return 0, false
 		}
-		if !portFree(p) {
+		checkFn := portFree
+		if a.portCheck != nil {
+			checkFn = a.portCheck
+		}
+		if !checkFn(p) {
 			return 0, false
 		}
 		a.reserved[p] = key

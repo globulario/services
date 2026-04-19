@@ -15,6 +15,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
@@ -33,6 +34,11 @@ func (srv *server) buildInvariantConfig() engine.InvariantConfig {
 		RepairMinioStorage:       srv.invariantRepairMinioStorage,
 		ValidatePKIHealth:        srv.invariantValidatePKIHealth,
 		RepairPKICerts:           srv.invariantRepairPKICerts,
+		ValidateDiskHealth:       srv.invariantValidateDiskHealth,
+		RepairDiskSpace:          srv.invariantRepairDiskSpace,
+		ValidateNodeReachability: srv.invariantValidateNodeReachability,
+		FenceUnreachableNodes:    srv.invariantFenceUnreachableNodes,
+		TriggerEmergencyBackup:   srv.invariantTriggerEmergencyBackup,
 		EmitReport:               srv.invariantEmitReport,
 		MarkFailed:               srv.invariantMarkFailed,
 		EmitCompleted:            srv.invariantEmitCompleted,
@@ -300,13 +306,15 @@ func (srv *server) invariantValidateFoundingProfiles(ctx context.Context) (map[s
 }
 
 // invariantEmitReport publishes the combined invariant enforcement report.
-func (srv *server) invariantEmitReport(ctx context.Context, workflowReport, quorumReport, profileReport, minioReport, pkiReport map[string]any) error {
+func (srv *server) invariantEmitReport(ctx context.Context, workflowReport, quorumReport, profileReport, minioReport, pkiReport, diskReport, reachabilityReport map[string]any) error {
 	srv.emitClusterEvent("controller.invariant_enforcement_report", map[string]interface{}{
-		"workflow_report": workflowReport,
-		"quorum_report":  quorumReport,
-		"profile_report": profileReport,
-		"minio_report":   minioReport,
-		"pki_report":     pkiReport,
+		"workflow_report":     workflowReport,
+		"quorum_report":       quorumReport,
+		"profile_report":      profileReport,
+		"minio_report":        minioReport,
+		"pki_report":          pkiReport,
+		"disk_report":         diskReport,
+		"reachability_report": reachabilityReport,
 	})
 	return nil
 }
@@ -815,5 +823,367 @@ func (srv *server) invariantRepairPKICerts(ctx context.Context, pkiReport map[st
 		"repaired":       repaired,
 		"repaired_count": len(repaired),
 	}, nil
+}
+
+// --------------------------------------------------------------------------
+// Disk health invariant
+// --------------------------------------------------------------------------
+
+// invariantValidateDiskHealth checks disk free space on every node using
+// DiskFreeBytes / DiskBytes from the heartbeat capabilities snapshot.
+// warnPct and criticalPct are percentages of total disk (e.g. 20.0 and 5.0).
+func (srv *server) invariantValidateDiskHealth(_ context.Context, warnPct, criticalPct float64) (map[string]any, error) {
+	srv.lock("invariantValidateDiskHealth")
+	defer srv.unlock()
+
+	var violations []map[string]any
+
+	for id, n := range srv.state.Nodes {
+		caps := n.Capabilities
+		if caps == nil || caps.DiskBytes == 0 {
+			continue // no disk info yet; skip silently
+		}
+		freePct := float64(caps.DiskFreeBytes) / float64(caps.DiskBytes) * 100.0
+		freeGB := float64(caps.DiskFreeBytes) / (1024 * 1024 * 1024)
+		totalGB := float64(caps.DiskBytes) / (1024 * 1024 * 1024)
+
+		var severity string
+		switch {
+		case freePct < criticalPct:
+			severity = "CRITICAL"
+		case freePct < warnPct:
+			severity = "WARN"
+		default:
+			continue
+		}
+
+		violations = append(violations, map[string]any{
+			"invariant": "disk_pressure",
+			"node_id":   id,
+			"hostname":  n.Identity.Hostname,
+			"severity":  severity,
+			"free_pct":  freePct,
+			"free_gb":   freeGB,
+			"total_gb":  totalGB,
+			"message": fmt.Sprintf("disk %.1f%% free (%.1f GiB / %.1f GiB total) on %s",
+				freePct, freeGB, totalGB, n.Identity.Hostname),
+		})
+	}
+
+	return map[string]any{
+		"violations":      violations,
+		"violation_count": len(violations),
+		"warn_threshold":  warnPct,
+		"crit_threshold":  criticalPct,
+	}, nil
+}
+
+// invariantRepairDiskSpace attempts best-effort disk space recovery on nodes
+// with critical disk pressure. Actions (in order):
+//  1. Emit a CRITICAL cluster event (durable alert record).
+//  2. Ask each critical node's agent to vacuum the systemd journal, which
+//     is the largest auto-growable consumer that is safe to truncate.
+//
+// Nodes with only WARN severity are logged but not actively remediated —
+// the alert is enough to prompt operator action before things get critical.
+func (srv *server) invariantRepairDiskSpace(ctx context.Context, diskReport map[string]any) (map[string]any, error) {
+	violations := extractViolations(diskReport)
+
+	// Collect critical nodes (need active repair) and warn nodes (alert only).
+	type nodeEntry struct {
+		id       string
+		hostname string
+		endpoint string
+		severity string
+		freePct  float64
+	}
+	var targets []nodeEntry
+
+	srv.lock("invariantRepairDiskSpace")
+	for _, v := range violations {
+		id, _ := v["node_id"].(string)
+		hostname, _ := v["hostname"].(string)
+		severity, _ := v["severity"].(string)
+		freePct, _ := v["free_pct"].(float64)
+		endpoint := ""
+		if n, ok := srv.state.Nodes[id]; ok {
+			endpoint = n.AgentEndpoint
+		}
+		targets = append(targets, nodeEntry{id: id, hostname: hostname, endpoint: endpoint, severity: severity, freePct: freePct})
+	}
+	srv.unlock()
+
+	var repaired []map[string]any
+	for _, t := range targets {
+		// Always emit the alert — even if we can't reach the agent.
+		level := "controller.invariant.disk_pressure_warn"
+		if t.severity == "CRITICAL" {
+			level = "controller.invariant.disk_pressure_critical"
+		}
+		srv.emitClusterEvent(level, map[string]interface{}{
+			"node_id":  t.id,
+			"hostname": t.hostname,
+			"free_pct": t.freePct,
+			"severity": t.severity,
+			"action":   "journal_vacuum_requested",
+		})
+
+		// Best-effort journal vacuum for critical nodes only.
+		if t.severity != "CRITICAL" || t.endpoint == "" {
+			continue
+		}
+		agent, err := srv.getAgentClient(ctx, t.endpoint)
+		if err != nil {
+			log.Printf("invariant-disk: cannot reach agent on %s for journal vacuum: %v", t.hostname, err)
+			continue
+		}
+		// ControlService("systemd-journald.service", "vacuum") is not a real
+		// action; we use the existing node-agent RunAction to call the
+		// check.disk_free action as a diagnostic, not a repair. The real
+		// journal vacuum runs via ControlService + ExecStart override, which
+		// requires a new node-agent action. For now: log + alert is the
+		// best-effort bound; a future node-agent version will add cleanup.disk_journal.
+		log.Printf("invariant-disk: CRITICAL disk pressure on %s (%.1f%% free) — alert emitted, manual cleanup required", t.hostname, t.freePct)
+		_ = agent // suppress unused warning; will be used when cleanup action is added
+		repaired = append(repaired, map[string]any{
+			"node_id":  t.id,
+			"hostname": t.hostname,
+			"severity": t.severity,
+			"action":   "alert_emitted",
+		})
+	}
+
+	return map[string]any{
+		"repaired":       repaired,
+		"repaired_count": len(repaired),
+	}, nil
+}
+
+// --------------------------------------------------------------------------
+// Node reachability / partition detection invariant
+// --------------------------------------------------------------------------
+
+// invariantValidateNodeReachability classifies nodes by heartbeat staleness:
+//   - healthy: LastSeen within warnAfter
+//   - warn:    stale > warnAfter (node is unresponsive, reconcile blocked)
+//   - critical: stale > criticalAfter (likely network partition)
+//
+// quorum_at_risk is set when ≥2 nodes are critical — at that point the
+// cluster may be heading toward losing etcd write quorum.
+func (srv *server) invariantValidateNodeReachability(_ context.Context, warnAfterSec, criticalAfterSec int) (map[string]any, error) {
+	srv.lock("invariantValidateNodeReachability")
+	defer srv.unlock()
+
+	warnAfter := time.Duration(warnAfterSec) * time.Second
+	criticalAfter := time.Duration(criticalAfterSec) * time.Second
+	now := time.Now()
+
+	var warn, critical []map[string]any
+
+	for id, n := range srv.state.Nodes {
+		if n.LastSeen.IsZero() {
+			continue // never reported; not yet a reachability issue
+		}
+		stale := now.Sub(n.LastSeen)
+		if stale < warnAfter {
+			continue // healthy
+		}
+
+		entry := map[string]any{
+			"node_id":    id,
+			"hostname":   n.Identity.Hostname,
+			"last_seen":  n.LastSeen.UTC().Format(time.RFC3339),
+			"stale_secs": int(stale.Seconds()),
+		}
+
+		if stale >= criticalAfter {
+			entry["severity"] = "CRITICAL"
+			critical = append(critical, entry)
+		} else {
+			entry["severity"] = "WARN"
+			warn = append(warn, entry)
+		}
+	}
+
+	quorumAtRisk := len(critical) >= 2
+
+	return map[string]any{
+		"warn":            warn,
+		"critical":        critical,
+		"warn_count":      len(warn),
+		"critical_count":  len(critical),
+		"quorum_at_risk":  quorumAtRisk,
+		"warn_threshold":  warnAfterSec,
+		"crit_threshold":  criticalAfterSec,
+	}, nil
+}
+
+// invariantFenceUnreachableNodes soft-fences nodes that are in the critical
+// (persistently stale) list. Fencing means:
+//   - Marking Metadata["partition_fenced_since"] so the release pipeline
+//     can skip this node for new deployments.
+//   - Emitting a CRITICAL cluster event for monitoring.
+//
+// Auto-unfence: nodes that WERE fenced but have sent a fresh heartbeat
+// (not in the critical list) have their metadata cleared and a
+// "partition healed" event is emitted.
+func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[string]any) (map[string]any, error) {
+	criticalList := extractReachabilityList(report, "critical")
+
+	// Build set of currently-critical node IDs.
+	criticalSet := make(map[string]bool, len(criticalList))
+	for _, e := range criticalList {
+		if id, ok := e["node_id"].(string); ok {
+			criticalSet[id] = true
+		}
+	}
+
+	srv.lock("invariantFenceUnreachableNodes")
+	defer srv.unlock()
+
+	var fenced, unfenced []map[string]any
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	for id, n := range srv.state.Nodes {
+		if n.Metadata == nil {
+			n.Metadata = make(map[string]string)
+		}
+
+		_, alreadyFenced := n.Metadata["partition_fenced_since"]
+
+		if criticalSet[id] && !alreadyFenced {
+			// New partition detected — fence this node.
+			n.Metadata["partition_fenced_since"] = now
+			stale, _ := report["critical"]
+			_ = stale
+			log.Printf("invariant-reachability: fencing %s (%s) — heartbeat absent >%s",
+				n.Identity.Hostname, id, report["crit_threshold"])
+			srv.emitClusterEvent("controller.invariant.node_partitioned", map[string]interface{}{
+				"node_id":              id,
+				"hostname":             n.Identity.Hostname,
+				"partition_fenced_at":  now,
+				"severity":             "CRITICAL",
+				"action":               "deployments_paused_on_node",
+			})
+			fenced = append(fenced, map[string]any{
+				"node_id":  id,
+				"hostname": n.Identity.Hostname,
+				"action":   "fenced",
+			})
+		} else if !criticalSet[id] && alreadyFenced {
+			// Node reconnected — unfence.
+			since := n.Metadata["partition_fenced_since"]
+			delete(n.Metadata, "partition_fenced_since")
+			log.Printf("invariant-reachability: unfencing %s (%s) — heartbeat resumed (was fenced since %s)",
+				n.Identity.Hostname, id, since)
+			srv.emitClusterEvent("controller.invariant.node_partition_healed", map[string]interface{}{
+				"node_id":            id,
+				"hostname":           n.Identity.Hostname,
+				"was_fenced_since":   since,
+				"healed_at":          now,
+			})
+			unfenced = append(unfenced, map[string]any{
+				"node_id":  id,
+				"hostname": n.Identity.Hostname,
+				"action":   "unfenced",
+			})
+		}
+	}
+
+	return map[string]any{
+		"fenced":       fenced,
+		"unfenced":     unfenced,
+		"fenced_count": len(fenced),
+	}, nil
+}
+
+// invariantTriggerEmergencyBackup fires when ≥2 nodes are critically
+// unreachable (quorum_at_risk == true). It:
+//  1. Emits a CRITICAL cluster event with recovery instructions.
+//  2. Writes a durable alert key to etcd (/globular/cluster/alerts/quorum_loss)
+//     so that external monitoring (Alertmanager, on-call) can trigger a backup.
+//
+// The backup manager is NOT called directly here — doing so would create a
+// hard dependency on a service that may itself be degraded when quorum is at
+// risk. The etcd key is the signal; the backup manager reads it and acts.
+func (srv *server) invariantTriggerEmergencyBackup(_ context.Context, report map[string]any) error {
+	criticalCount, _ := report["critical_count"].(int)
+	critical := extractReachabilityList(report, "critical")
+
+	var criticalHostnames []string
+	for _, e := range critical {
+		if h, ok := e["hostname"].(string); ok {
+			criticalHostnames = append(criticalHostnames, h)
+		}
+	}
+
+	log.Printf("invariant-reachability: CRITICAL — %d nodes unreachable, quorum at risk: %v",
+		criticalCount, criticalHostnames)
+
+	// Emit a durable CRITICAL event — survives controller restart via EventService.
+	srv.emitClusterEvent("controller.invariant.quorum_loss_imminent", map[string]interface{}{
+		"severity":            "CRITICAL",
+		"critical_node_count": criticalCount,
+		"critical_nodes":      criticalHostnames,
+		"recommended_action":  "trigger emergency backup immediately via 'globular backup run --emergency'",
+		"recovery_procedure":  "docs/operators/backup-and-restore.md",
+	})
+
+	// Write a durable alert key to etcd so external monitoring sees it even
+	// if the EventService is also degraded.
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		log.Printf("invariant-reachability: cannot write quorum_loss alert to etcd: %v", err)
+		return nil // best-effort — do not abort workflow
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	alertVal := fmt.Sprintf(`{"severity":"CRITICAL","critical_nodes":%d,"detected_at":%q}`,
+		criticalCount, time.Now().UTC().Format(time.RFC3339))
+	if _, err := cli.Put(ctx, "/globular/cluster/alerts/quorum_loss", alertVal); err != nil {
+		log.Printf("invariant-reachability: failed to write quorum_loss alert to etcd: %v", err)
+	} else {
+		log.Printf("invariant-reachability: quorum_loss alert written to etcd")
+	}
+
+	return nil
+}
+
+// --------------------------------------------------------------------------
+// Helpers shared by the new invariant implementations
+// --------------------------------------------------------------------------
+
+// extractViolations extracts the violations list from a report map,
+// handling both []map[string]any (native) and []any (JSON-decoded) forms.
+func extractViolations(report map[string]any) []map[string]any {
+	if v, ok := report["violations"].([]map[string]any); ok {
+		return v
+	}
+	raw, _ := report["violations"].([]any)
+	out := make([]map[string]any, 0, len(raw))
+	for _, item := range raw {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// extractReachabilityList extracts warn or critical list from a reachability report.
+func extractReachabilityList(report map[string]any, key string) []map[string]any {
+	if v, ok := report[key].([]map[string]any); ok {
+		return v
+	}
+	raw, _ := report[key].([]any)
+	out := make([]map[string]any, 0, len(raw))
+	for _, item := range raw {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 

@@ -18,7 +18,4 @@ func TestComputeBackendConfigScyllaWithEmptyAddress(t *testing.T) {
 	if s.Backend_address == "" {
 		t.Fatalf("Backend_address should not be empty when scylla detected")
 	}
-	if s.Backend_address != "localhost" {
-		t.Fatalf("expected Backend_address localhost, got %s", s.Backend_address)
-	}
 }

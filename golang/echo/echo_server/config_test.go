@@ -130,7 +130,8 @@ func TestConfigValidation(t *testing.T) {
 				Proxy:    10001,
 				Protocol: "grpc",
 			},
-			wantErr: true,
+			// Empty version is valid — injected via ldflags at build time.
+			wantErr: false,
 		},
 	}
 
@@ -220,23 +221,14 @@ func TestConfigClone(t *testing.T) {
 	}
 }
 
-// TestConfigEnvironmentVariables verifies env var handling
-func TestConfigEnvironmentVariables(t *testing.T) {
-	// Set test environment variables
-	os.Setenv("GLOBULAR_DOMAIN", "test.globular.local")
-	os.Setenv("GLOBULAR_ADDRESS", "test.globular.local:8080")
-	defer func() {
-		os.Unsetenv("GLOBULAR_DOMAIN")
-		os.Unsetenv("GLOBULAR_ADDRESS")
-	}()
-
+// TestConfigCanonicalDomain verifies the default config uses a canonical cluster domain.
+// No env vars — service config comes from etcd, not environment.
+func TestConfigCanonicalDomain(t *testing.T) {
 	cfg := DefaultConfig()
-
-	if cfg.Domain != "test.globular.local" {
-		t.Errorf("Domain = %q, want %q (from env)", cfg.Domain, "test.globular.local")
+	if cfg.Domain == "" {
+		t.Error("DefaultConfig().Domain must not be empty")
 	}
-
-	if cfg.Address != "test.globular.local:8080" {
-		t.Errorf("Address = %q, want %q (from env)", cfg.Address, "test.globular.local:8080")
+	if cfg.Address == "" {
+		t.Error("DefaultConfig().Address must not be empty")
 	}
 }

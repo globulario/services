@@ -62,6 +62,15 @@ func TestNoAdHocLoopbackRewrites(t *testing.T) {
 		"service_discovery.go": true,
 		// Non-dialer: local-node detection in backup_manager
 		"node_tasks.go": true,
+		// Non-dialer: artifact address validation (checking if improperly set to loopback)
+		"release_hash.go": true,
+		// Non-dialer: invariant validation (asserting node IPs are not loopback)
+		"workflow_invariant.go": true,
+		// Non-dialer: TLS server name validation in cluster_doctor
+		"collector.go": true,
+		"server.go":    true,
+		// Non-dialer: skip local node when broadcasting to peers
+		"peers.go": true,
 	}
 
 	var violations []string

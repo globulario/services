@@ -60,7 +60,7 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "0.0.1",
+		Version:         "",
 		PublisherID:     "localhost",
 		Description:     "LDAP service",
 		Keywords:        []string{"LDAP", "Directory"},

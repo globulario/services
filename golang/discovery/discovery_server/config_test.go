@@ -121,7 +121,7 @@ func TestConfigValidation(t *testing.T) {
 			modify: func(c *Config) {
 				c.Version = ""
 			},
-			wantError: true,
+			wantError: false,
 		},
 		{
 			name: "missing dependencies",

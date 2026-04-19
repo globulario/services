@@ -1074,6 +1074,17 @@ func gracefulStopWithTimeout(srv *grpc.Server, d time.Duration) {
 
 // ── systemd sd_notify helpers ─────────────────────────────────────────────────
 
+// SdNotify sends a notification to systemd via the NOTIFY_SOCKET.
+// Safe to call from any service — it is a no-op when NOTIFY_SOCKET is not set
+// (Type=simple units or non-systemd environments). Exported so that services
+// that manage their own gRPC server (e.g. cluster_controller) can signal
+// readiness without using the globular_service lifecycle manager.
+func SdNotify(state string) { sdNotify(state) }
+
+// SdWatchdogLoop is the exported counterpart of sdWatchdogLoop.
+// Call it in a goroutine once the service is fully ready.
+func SdWatchdogLoop() { go sdWatchdogLoop() }
+
 // sdNotify sends a notification to systemd via the NOTIFY_SOCKET.
 // It is a no-op when the socket is not set (i.e., Type=simple units or
 // non-systemd environments). Errors are logged but never fatal.

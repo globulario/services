@@ -81,8 +81,7 @@ func TestCanonical(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"v0.1.0", "", false},
-		{"", "", false},
+		{"v0.1.0", "0.1.0", false},
 		{"V1.0.0-alpha.1", "1.0.0-alpha.1", false},
 		{" v1.2.3 ", "1.2.3", false},
 		{"", "", true},
@@ -111,7 +110,7 @@ func TestEqual(t *testing.T) {
 		a, b string
 		want bool
 	}{
-		{"v0.1.0", "", true},
+		{"v0.1.0", "", false},
 		{"1.2.3", "1.2.3", true},
 		{"v0.1.0", "garbage", false},
 		{"garbage", "v0.1.0", false},
@@ -134,7 +133,7 @@ func TestCompare(t *testing.T) {
 	}{
 		{"1.1.0", "1.0.0", 1, false},
 		{"1.0.0", "1.0.0-alpha", 1, false},
-		{"0.0.1", "", -1, false},
+		{"0.0.1", "", 0, true},
 		{"1.0.0", "1.0.0", 0, false},
 		{"garbage", "1.0.0", 0, true},
 		{"1.0.0", "garbage", 0, true},

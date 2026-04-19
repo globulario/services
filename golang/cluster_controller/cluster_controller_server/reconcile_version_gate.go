@@ -24,7 +24,8 @@ const minSafeReconcileVersion = "0.0.10"
 // mutate desired state or run reconciliation.
 func isReconcileSafe(version string) bool {
 	if version == "" {
-		return false
+		// Empty version = injected via ldflags at build time; treat as current build = safe.
+		return true
 	}
 	cmp, err := versionutil.Compare(version, minSafeReconcileVersion)
 	if err != nil {

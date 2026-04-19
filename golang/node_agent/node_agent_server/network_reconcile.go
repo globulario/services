@@ -21,6 +21,10 @@ import (
 
 // deleted: plan-era function removed
 
+// minioContractPath is the default path to the MinIO contract file. It is a
+// package-level variable so tests can redirect it without env vars.
+var minioContractPath = "/var/lib/globular/objectstore/minio.json"
+
 func (srv *NodeAgentServer) acmeDNSPreflight(ctx context.Context, spec *cluster_controllerpb.ClusterNetworkSpec) error {
 	if spec == nil || !strings.EqualFold(spec.GetProtocol(), "https") || !spec.GetAcmeEnabled() {
 		return nil
@@ -71,7 +75,7 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 		return errors.New("ensure_objectstore_layout handler not registered")
 	}
 
-	contractPath := "/var/lib/globular/objectstore/minio.json"
+	contractPath := minioContractPath
 	log.Printf("  contract_path: %s", contractPath)
 
 	// Retry defaults; no env var overrides — etcd is the source of truth for config.

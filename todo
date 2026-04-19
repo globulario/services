@@ -1,9 +1,0 @@
-Add a metric/log for every bootstrap allow and deny, with subject and reason.
-Add an integration test proving that once normal role bindings are present, the same subjects succeed through RBAC and do not require bootstrap.
-Add one test for malformed JSON or partial/corrupt gate file.
-Document the bootstrap contract in one short MD file:
-who can use it
-when it exists
-how it expires
-what denies access
-that it is not a steady-state auth path

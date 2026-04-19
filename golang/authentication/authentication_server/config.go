@@ -78,7 +78,7 @@ func DefaultConfig() *Config {
 		Port:        defaultPort,
 		Proxy:       defaultProxy,
 		Protocol:    "grpc",
-		Version:     "0.0.1",
+		Version:     "",
 		PublisherID: "localhost",
 		Description: "Authentication service",
 		Keywords:    []string{"Authentication"},

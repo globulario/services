@@ -57,7 +57,7 @@ func DefaultConfig() *Config {
 		Port:        defaultPort,
 		Proxy:       defaultProxy,
 		Protocol:    "grpc",
-		Version:     "0.0.1",
+		Version:     "",
 		PublisherID: "localhost",
 		Description: "The Hello World of gRPC services.",
 		Keywords:    []string{"Example", "Echo", "Test", "Service"},

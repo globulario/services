@@ -113,7 +113,7 @@ func TestDNS01Solver_ExtractRelativeName(t *testing.T) {
 	}{
 		{"test.example.com", "test"},
 		{"sub.test.example.com", "sub.test"},
-		{"example.com", "@"},
+		{"example.com", ""}, // apex domain returns empty string, not "@"
 	}
 
 	for _, tt := range tests {
@@ -265,9 +265,9 @@ func TestDNS01Solver_ApexDomain(t *testing.T) {
 		t.Fatalf("Present() for apex domain failed: %v", err)
 	}
 
-	// Verify TXT record created with @ name
+	// Verify TXT record created at _acme-challenge (apex domain has no "@" in the name)
 	expectedTxtValue := solver.computeTXTValue("keyauth")
-	if !fakeProvider.HasRecord("_acme-challenge.@", "TXT", expectedTxtValue) {
+	if !fakeProvider.HasRecord("_acme-challenge", "TXT", expectedTxtValue) {
 		t.Error("expected TXT record for apex domain not found")
 	}
 }

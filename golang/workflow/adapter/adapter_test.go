@@ -239,6 +239,10 @@ func TestEndToEndWithEngine(t *testing.T) {
 	nodeRouter.Register(v1alpha1.ActorNodeAgent, "node.sync_installed_state", func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		return &engine.ActionResult{OK: true}, nil
 	})
+	nodeRouter.Register(v1alpha1.ActorNodeAgent, "node.probe_infra_health", func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		return &engine.ActionResult{OK: true}, nil
+	})
+	engine.RegisterNodeVerificationActions(nodeRouter, engine.NodeVerificationConfig{})
 
 	executor := NewStepExecutor(nodeRouter, "node-1")
 	transport := NewMemoryTransport()
@@ -258,6 +262,10 @@ func TestEndToEndWithEngine(t *testing.T) {
 	engineRouter.Register(v1alpha1.ActorClusterController, "controller.bootstrap.emit_ready", func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
 		return &engine.ActionResult{OK: true}, nil
 	})
+	engineRouter.Register(v1alpha1.ActorClusterController, "controller.bootstrap.wait_condition", func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+		return &engine.ActionResult{OK: true}, nil
+	})
+	engine.RegisterControllerVerificationActions(engineRouter, engine.ControllerVerificationConfig{})
 
 	// Load and execute a real workflow definition.
 	loader := v1alpha1.NewLoader()

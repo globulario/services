@@ -292,12 +292,27 @@ func (srv *server) Init() error {
 	srv.depCancel = depCancel
 	go srv.depHealth.Start(depCtx)
 
-	// I will get the existing domains from storage
-	domains, err := srv.loadDomainsFromStore()
-	if err == nil && domains != nil {
+	// Load zone list from ScyllaDB. If ScyllaDB is empty (e.g. after a
+	// restart that cleared data), fall back to the etcd mirror so zones
+	// survive without manual re-registration.
+	domains, loadErr := srv.loadDomainsFromStore()
+	if loadErr == nil && len(domains) > 0 {
 		srv.mu.Lock()
 		srv.Domains = domains
 		srv.mu.Unlock()
+	} else {
+		if etcdDomains, etcdErr := srv.loadDomainListFromEtcd(); etcdErr == nil && len(etcdDomains) > 0 {
+			logger.Info("dns: ScyllaDB zone list empty at startup — restoring from etcd mirror", "zones", etcdDomains)
+			srv.mu.Lock()
+			srv.Domains = etcdDomains
+			srv.mu.Unlock()
+			// Re-persist to ScyllaDB so subsequent restarts don't need etcd.
+			if domainsData, mErr := json.Marshal(etcdDomains); mErr == nil {
+				if wErr := srv.store.SetItem("domains", domainsData); wErr != nil {
+					logger.Warn("dns: re-persist etcd zones to ScyllaDB failed", "err", wErr)
+				}
+			}
+		}
 	}
 
 	// Keep the hot-path domain cache fresh with changes from other nodes.
@@ -422,7 +437,11 @@ func (srv *server) openConnection() error {
 		rf = 1
 	}
 
-	opts := fmt.Sprintf(`{"hosts":%s,"port":%d,"keyspace":"dns","table":"records","replication_factor":%d,"consistency":"one"}`,
+	// Use local_quorum so that writes are visible to subsequent reads even
+	// when RF > 1 (the keyspace is created with RF=cluster-size at first
+	// open). ONE consistency causes read-after-write failures in a 3-node
+	// cluster, which is critical for ACME challenge tokens.
+	opts := fmt.Sprintf(`{"hosts":%s,"port":%d,"keyspace":"dns","table":"records","replication_factor":%d,"consistency":"local_quorum"}`,
 		mustJSON(hosts), port, rf)
 
 	srv.store = storage_store.NewScylla_store("", "", rf)
@@ -490,6 +509,56 @@ func (srv *server) loadDomainsFromStore() ([]string, error) {
 	var domains []string
 	if err := json.Unmarshal(data, &domains); err != nil {
 		return nil, fmt.Errorf("unmarshal domains: %w", err)
+	}
+	return domains, nil
+}
+
+// etcdDNSZonesKey is the well-known etcd key that mirrors the DNS zone list.
+// etcd is NOT the primary store — ScyllaDB is. This mirror exists only so that
+// zones can be restored after a ScyllaDB restart without manual re-registration.
+const etcdDNSZonesKey = "/globular/dns/v1/zones"
+
+// saveDomainListToEtcd writes the domain list to etcd as a JSON array.
+// Failure is logged but never fatal — ScyllaDB remains the primary store.
+func (srv *server) saveDomainListToEtcd(domains []string) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		logger.Debug("dns: cannot get etcd client for zone mirror", "err", err)
+		return
+	}
+	defer cli.Close()
+	data, marshalErr := json.Marshal(domains)
+	if marshalErr != nil {
+		logger.Warn("dns: cannot marshal domains for etcd mirror", "err", marshalErr)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, putErr := cli.Put(ctx, etcdDNSZonesKey, string(data)); putErr != nil {
+		logger.Warn("dns: failed to mirror zone list to etcd", "err", putErr)
+	}
+}
+
+// loadDomainListFromEtcd reads the domain list from the etcd mirror.
+// Returns nil, nil when the key does not exist (not an error).
+func (srv *server) loadDomainListFromEtcd() ([]string, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := cli.Get(ctx, etcdDNSZonesKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	var domains []string
+	if err := json.Unmarshal(resp.Kvs[0].Value, &domains); err != nil {
+		return nil, fmt.Errorf("unmarshal etcd dns zones: %w", err)
 	}
 	return domains, nil
 }

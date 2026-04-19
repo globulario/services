@@ -49,6 +49,9 @@ func TestExecuteNodeBootstrap(t *testing.T) {
 		return &ActionResult{OK: true}, nil
 	})
 
+	// Verification actions (verify steps in node.bootstrap.yaml).
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
+
 	// Condition evaluator that understands "contains(inputs.node_profiles, 'X')".
 	evalCond := func(ctx context.Context, expr string, inputs, outputs map[string]any) (bool, error) {
 		if strings.HasPrefix(expr, "contains(inputs.node_profiles,") {
@@ -179,6 +182,10 @@ func TestStepSkippedWhenConditionFalse(t *testing.T) {
 	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.emit_ready", func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		return &ActionResult{OK: true}, nil
 	})
+	router.Register(v1alpha1.ActorClusterController, "controller.bootstrap.mark_failed", func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		return &ActionResult{OK: true}, nil
+	})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 
 	// No profiles → all conditional steps should be skipped.
 	eng := &Engine{

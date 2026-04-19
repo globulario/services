@@ -48,7 +48,7 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "0.0.1",
+		Version:         "",
 		PublisherID:     "localhost",
 		Description:     "Storage service.",
 		Keywords:        []string{"Storage", "KV", "Blob"},

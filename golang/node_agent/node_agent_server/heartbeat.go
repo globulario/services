@@ -301,7 +301,7 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			for _, pkg := range pkgs {
 				name := pkg.GetName()
 				ver := pkg.GetVersion()
-				if name == "" || ver == "" || ver == "" {
+				if name == "" || ver == "" {
 					continue // skip unknown/fallback versions
 				}
 				markerPath := versionutil.MarkerPath(name)

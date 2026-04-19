@@ -81,9 +81,8 @@ func ValidateCommonFields(name string, port, proxy int, protocol, version string
 		return fmt.Errorf("protocol is required")
 	}
 
-	if version == "" {
-		return fmt.Errorf("version is required")
-	}
+	// Empty version is valid for dev builds — version is injected via ldflags at build time.
+	// Production services will always have a non-empty version from the build pipeline.
 
 	return nil
 }

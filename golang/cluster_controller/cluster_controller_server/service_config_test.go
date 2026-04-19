@@ -178,12 +178,13 @@ func TestRenderEtcdConfig(t *testing.T) {
 		if !strings.Contains(config, "initial-cluster-token") {
 			t.Error("config missing initial-cluster-token field")
 		}
-		// Fresh bootstrap single-node uses localhost only
-		if !strings.Contains(config, `listen-client-urls: "https://127.0.0.1:2379"`) {
-			t.Errorf("single node bootstrap should use localhost-only listen-client-urls, got:\n%s", config)
+		// listen-client-urls must include localhost so etcdctl / local clients work.
+		// The routable IP is also included so expanding nodes can reach etcd.
+		if !strings.Contains(config, "https://127.0.0.1:2379") {
+			t.Errorf("listen-client-urls must include localhost, got:\n%s", config)
 		}
-		// Must use HTTPS
-		if strings.Contains(config, "https://") {
+		// Must use HTTPS (no plain http:// URLs)
+		if strings.Contains(config, "http://") {
 			t.Error("etcd config must use HTTPS, found http://")
 		}
 		// Fresh bootstrap = initial-cluster-state: "new"
@@ -267,8 +268,8 @@ func TestRenderEtcdConfig(t *testing.T) {
 		if !strings.Contains(config, "https://127.0.0.1:2379") {
 			t.Error("multi-node should have localhost in listen-client-urls")
 		}
-		// No HTTP URLs
-		if strings.Contains(config, "https://") {
+		// No plain HTTP URLs
+		if strings.Contains(config, "http://") {
 			t.Error("etcd config must use HTTPS, found http://")
 		}
 	})
@@ -619,14 +620,15 @@ func TestRenderMinioConfigIncludesCICD(t *testing.T) {
 
 func TestRenderXDSConfig(t *testing.T) {
 	t.Run("single node cluster", func(t *testing.T) {
+		// control-plane runs both etcd and xds; "core" alone does not run xds.
 		ctx := &serviceConfigContext{
 			Membership: &clusterMembership{
 				ClusterID: "test-cluster",
 				Nodes: []memberNode{
-					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"control-plane"}},
 				},
 			},
-			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"control-plane"}},
 			Domain:      "example.com",
 		}
 
@@ -860,14 +862,16 @@ func TestGenerateSOASerial(t *testing.T) {
 
 func TestRenderServiceConfigs(t *testing.T) {
 	t.Run("core profile gets all configs", func(t *testing.T) {
+		// A founding node has core+control-plane: etcd/minio/dns from "core",
+		// xds from "control-plane". Use both profiles to get all expected configs.
 		ctx := &serviceConfigContext{
 			Membership: &clusterMembership{
 				ClusterID: "test-cluster",
 				Nodes: []memberNode{
-					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core", "control-plane"}},
 				},
 			},
-			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core", "control-plane"}},
 			ClusterID:   "test-cluster",
 			Domain:      "example.com",
 		}
@@ -931,7 +935,8 @@ func TestRenderServiceConfigs(t *testing.T) {
 }
 
 func TestRenderXDSConfigTLSPaths(t *testing.T) {
-	node := memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}}
+	// xds runs on control-plane/gateway nodes, not "core" alone.
+	node := memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"control-plane"}}
 	ctx := &serviceConfigContext{
 		Membership: &clusterMembership{
 			ClusterID: "test-cluster",

@@ -27,6 +27,9 @@ func TestCatalogNoDuplicateNames(t *testing.T) {
 func TestCatalogNoDuplicateUnits(t *testing.T) {
 	seen := make(map[string]bool)
 	for _, c := range catalog {
+		if c.Unit == "" {
+			continue // CLI tools / commands have no systemd unit
+		}
 		u := strings.ToLower(c.Unit)
 		if seen[u] {
 			t.Errorf("duplicate unit: %q (component %q)", c.Unit, c.Name)
@@ -341,12 +344,13 @@ func TestDerivedProfileCapabilities(t *testing.T) {
 	rebuildProfileCapabilities()
 
 	// "core" profile should include config-store (from etcd), dns, service-discovery,
-	// event-bus, object-store, monitoring, local-db (from scylladb)
+	// event-bus, object-store (minio), monitoring.
+	// Note: local-db (scylladb) is NOT in "core" — it is in "storage", "control-plane", "scylla", "database".
 	coreCaps := ProfileCapabilities["core"]
 	if coreCaps == nil {
 		t.Fatal("core profile missing from ProfileCapabilities")
 	}
-	required := []Capability{CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapLocalDB}
+	required := []Capability{CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore}
 	capSet := make(map[Capability]bool)
 	for _, c := range coreCaps {
 		capSet[c] = true

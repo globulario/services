@@ -90,6 +90,13 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 			continue
 		}
 
+		// 3a. Partition-fenced nodes — the invariant enforcement detected a
+		// sustained heartbeat absence and marked this node. Skip it for new
+		// deployments until the heartbeat resumes and the fence is cleared.
+		if _, fenced := node.Metadata["partition_fenced_since"]; fenced {
+			continue
+		}
+
 		// 3. Catalog profile placement rules — skip nodes whose profiles
 		//    don't overlap with the service's required profiles.
 		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {

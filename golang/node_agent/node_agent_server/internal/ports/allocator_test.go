@@ -19,7 +19,14 @@ func TestPortFreeDetectsWildcardInUse(t *testing.T) {
 }
 
 func TestReserveSkipsInfraReservedPorts(t *testing.T) {
-	alloc := &Allocator{start: 10000, end: 10005, reserved: make(map[int]string)}
+	// Use portCheck=always-free so the test is not environment-dependent.
+	// Port 10000 is in infraReservedPorts, so 10001 must be the first allocated.
+	alloc := &Allocator{
+		start:     10000,
+		end:       10005,
+		reserved:  make(map[int]string),
+		portCheck: func(int) bool { return true },
+	}
 	port, err := alloc.Reserve("svc")
 	if err != nil {
 		t.Fatalf("reserve failed: %v", err)

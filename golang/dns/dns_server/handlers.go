@@ -73,6 +73,10 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Mirror to etcd so zones survive a ScyllaDB restart without
+	// manual re-registration. etcd is secondary; ScyllaDB is primary.
+	srv.saveDomainListToEtcd(srv.Domains)
+
 	// Auto-initialize SOA, NS, and dns A record for each new zone.
 	// This ensures every managed zone is a proper authoritative zone.
 	for _, domain := range normalized {

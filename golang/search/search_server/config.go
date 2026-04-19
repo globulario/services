@@ -47,7 +47,7 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "0.0.1",
+		Version:         "",
 		PublisherID:     "localhost",
 		Description:     "Search service",
 		Keywords:        []string{"Search", "Index", "Bleve", "Service"},

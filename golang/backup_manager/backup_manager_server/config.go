@@ -142,7 +142,7 @@ func DefaultConfig() *Config {
 		Port:        defaultPort,
 		Proxy:       defaultProxy,
 		Protocol:    "grpc",
-		Version:     "0.0.1",
+		Version:     "",
 		PublisherID: "localhost",
 		Description: "Backup orchestrator for Globular cluster components",
 		Keywords:    []string{"backup", "restore", "snapshot", "disaster-recovery"},

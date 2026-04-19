@@ -356,7 +356,7 @@ func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
 
 	artifactPath := filepath.Join(t.TempDir(), "rbac.tgz")
-	createDescribeArchive(t, artifactPath, "rbac_server", `{"Id":"rbac-id","Address":"localhost:63001"}`)
+	createDescribeArchive(t, artifactPath, "rbac_server", `{"Id":"rbac.RbacService","Address":"localhost:63001"}`)
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
 		"service":       "rbac",
@@ -368,7 +368,7 @@ func TestServiceInstallPayloadCreatesConfigWithPort(t *testing.T) {
 		t.Fatalf("apply install: %v", err)
 	}
 
-	cfgPath := filepath.Join(sr, "services", "rbac-id.json")
+	cfgPath := filepath.Join(sr, "services", "rbac.RbacService.json")
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		t.Fatalf("read cfg: %v", err)
@@ -405,17 +405,17 @@ func TestServiceStartPreflightRewritesOutOfRange(t *testing.T) {
 	t.Cleanup(func() { serviceports.StateDir = "/var/lib/globular" })
 
 	binPath := filepath.Join(binDir, "resource_server")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"resource-id\",\"Address\":\"localhost:65001\"}'; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"resource.ResourceService\",\"Address\":\"localhost:65001\"}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(sr, "services", "resource-id.json")
+	cfgPath := filepath.Join(sr, "services", "resource.ResourceService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	// out-of-range port
-	cfg := map[string]any{"Id": "resource-id", "Address": "localhost:42", "Port": 42}
+	cfg := map[string]any{"Id": "resource.ResourceService", "Address": "localhost:42", "Port": 42}
 	b, _ := json.Marshal(cfg)
 	if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 		t.Fatalf("write cfg: %v", err)

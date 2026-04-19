@@ -308,8 +308,9 @@ func TestResolveIntent_RequiredCapabilities(t *testing.T) {
 	}
 	sort.Strings(caps)
 
-	// Core profile requires: config-store, dns, event-bus, local-db, monitoring, object-store, service-discovery
-	want := []string{"config-store", "dns", "event-bus", "local-db", "monitoring", "object-store", "service-discovery"}
+	// Core profile requires: config-store, dns, event-bus, monitoring, object-store, service-discovery
+	// Note: local-db (ScyllaDB) is NOT in "core" — it is in control-plane/storage/scylla/database.
+	want := []string{"config-store", "dns", "event-bus", "monitoring", "object-store", "service-discovery"}
 	if len(caps) != len(want) {
 		t.Fatalf("core caps: got %v want %v", caps, want)
 	}
@@ -379,6 +380,7 @@ func TestDay1Phase_Ready(t *testing.T) {
 		{Name: "globular-ai-memory.service", State: "active"},
 		{Name: "globular-ai-executor.service", State: "active"},
 		{Name: "globular-ai-watcher.service", State: "active"},
+		{Name: "globular-workflow.service", State: "active"},
 	}
 	intent, _ := ResolveNodeIntent("n1", []string{"database"}, units)
 	node := &nodeState{

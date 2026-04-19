@@ -14,6 +14,10 @@ import (
 var tlsScanAllowPrefixes = []string{
 	"golang/node_agent/node_agent_server/internal/certs/etcd_kv.go",
 	"golang/node_agent/node_agent_server/tls_scan_test.go",
+	// CLI reads user home-dir CA cert (~/.config/globular/tls/<domain>/ca.crt); not server PKI.
+	"golang/config/service_discovery.go",
+	// Tests for legacy TLS path migration; intentionally exercise the old layout.
+	"golang/globularcli/tls_helper_test.go",
 }
 
 var forbiddenPatterns = []*regexp.Regexp{

@@ -53,7 +53,7 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "0.0.1",
+		Version:         "",
 		PublisherID:     "localhost",
 		Description:     "Event service",
 		Keywords:        []string{"Event", "PubSub", "Subscribe", "Publish"},

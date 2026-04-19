@@ -778,6 +778,12 @@ func (srv *server) setLeader(isLeader bool, id, addr string) {
 		//   /globular/routing/refresh-generation to get immediate push
 		//   notification, eliminating the polling latency entirely.
 		srv.writeRoutingRefresh()
+
+		// Re-publish MinIO connection info to etcd so worker nodes that
+		// run reconcileMinioContract() on every heartbeat always get the
+		// current credentials — even if the well-known etcd key was lost
+		// (e.g. after an etcd rebuild or a key TTL expiry).
+		srv.publishMinioConfigLocked()
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -67,6 +68,11 @@ func TestTXTServedOverUDP(t *testing.T) {
 }
 
 func TestTXTManagedDomainEnforcement(t *testing.T) {
+	// Use a unique subdomain per test run to avoid ScyllaDB state collision with
+	// other tests that share the same keyspace.
+	uniqueSuffix := fmt.Sprintf("txtenforce-%d", time.Now().UnixNano())
+	testDomain := fmt.Sprintf("_acme-challenge.%s.globular.io", uniqueSuffix)
+
 	tmpDir := t.TempDir()
 	s := &server{
 		Logger: slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})),
@@ -77,13 +83,17 @@ func TestTXTManagedDomainEnforcement(t *testing.T) {
 		t.Fatalf("open connection: %v", err)
 	}
 
-	// Set managed domain
+	// Set managed domain — all *.globular.io subdomains are managed.
 	if _, err := s.SetDomains(context.Background(), &dnspb.SetDomainsRequest{Domains: []string{"globular.io"}}); err != nil {
 		t.Fatalf("SetDomains: %v", err)
 	}
+	// Clean up unique test key at end.
+	t.Cleanup(func() {
+		s.RemoveTXT(context.Background(), &dnspb.RemoveTXTRequest{Domain: testDomain, Txt: ""}) //nolint:errcheck
+	})
 
 	// Test SetTXT for managed domain - should succeed
-	if _, err := s.SetTXT(context.Background(), &dnspb.SetTXTRequest{Domain: "_acme-challenge.globular.io", Txt: "test-token", Ttl: 300}); err != nil {
+	if _, err := s.SetTXT(context.Background(), &dnspb.SetTXTRequest{Domain: testDomain, Txt: "test-token", Ttl: 300}); err != nil {
 		t.Fatalf("SetTXT for managed domain: %v", err)
 	}
 
@@ -93,7 +103,7 @@ func TestTXTManagedDomainEnforcement(t *testing.T) {
 	}
 
 	// Test GetTXT
-	resp, err := s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: "_acme-challenge.globular.io"})
+	resp, err := s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: testDomain})
 	if err != nil {
 		t.Fatalf("GetTXT: %v", err)
 	}
@@ -102,31 +112,31 @@ func TestTXTManagedDomainEnforcement(t *testing.T) {
 	}
 
 	// Test RemoveTXT with specific value
-	if _, err := s.SetTXT(context.Background(), &dnspb.SetTXTRequest{Domain: "_acme-challenge.globular.io", Txt: "test-token-2", Ttl: 300}); err != nil {
+	if _, err := s.SetTXT(context.Background(), &dnspb.SetTXTRequest{Domain: testDomain, Txt: "test-token-2", Ttl: 300}); err != nil {
 		t.Fatalf("SetTXT second value: %v", err)
 	}
 
-	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: "_acme-challenge.globular.io"})
+	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: testDomain})
 	if len(resp.Txt) != 2 {
 		t.Fatalf("expected 2 TXT values, got %d", len(resp.Txt))
 	}
 
 	// Remove specific value
-	if _, err := s.RemoveTXT(context.Background(), &dnspb.RemoveTXTRequest{Domain: "_acme-challenge.globular.io", Txt: "test-token"}); err != nil {
+	if _, err := s.RemoveTXT(context.Background(), &dnspb.RemoveTXTRequest{Domain: testDomain, Txt: "test-token"}); err != nil {
 		t.Fatalf("RemoveTXT: %v", err)
 	}
 
-	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: "_acme-challenge.globular.io"})
+	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: testDomain})
 	if len(resp.Txt) != 1 || resp.Txt[0] != "test-token-2" {
 		t.Fatalf("expected [test-token-2], got %v", resp.Txt)
 	}
 
 	// Remove all TXT values
-	if _, err := s.RemoveTXT(context.Background(), &dnspb.RemoveTXTRequest{Domain: "_acme-challenge.globular.io", Txt: ""}); err != nil {
+	if _, err := s.RemoveTXT(context.Background(), &dnspb.RemoveTXTRequest{Domain: testDomain, Txt: ""}); err != nil {
 		t.Fatalf("RemoveTXT all: %v", err)
 	}
 
-	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: "_acme-challenge.globular.io"})
+	resp, _ = s.GetTXT(context.Background(), &dnspb.GetTXTRequest{Domain: testDomain})
 	if len(resp.Txt) != 0 {
 		t.Fatalf("expected empty TXT values, got %v", resp.Txt)
 	}

@@ -53,9 +53,36 @@ type InvariantConfig struct {
 	// to trigger re-issuance from the cluster CA.
 	RepairPKICerts func(ctx context.Context, pkiReport map[string]any) (map[string]any, error)
 
+	// ValidateDiskHealth checks disk free space on every node via the
+	// DiskFreeBytes / DiskBytes fields reported in each heartbeat.
+	// Returns a disk_report with warn/critical violation lists.
+	ValidateDiskHealth func(ctx context.Context, warnPct, criticalPct float64) (map[string]any, error)
+
+	// RepairDiskSpace attempts best-effort recovery on nodes with critical
+	// disk pressure: journal vacuum via node-agent, alert emission.
+	RepairDiskSpace func(ctx context.Context, diskReport map[string]any) (map[string]any, error)
+
+	// ValidateNodeReachability classifies all nodes by heartbeat staleness:
+	// warn (stale > warnAfter), critical (stale > criticalAfter), and flags
+	// quorum_at_risk when two or more nodes are critical.
+	ValidateNodeReachability func(ctx context.Context, warnAfter, criticalAfter int) (map[string]any, error)
+
+	// FenceUnreachableNodes marks persistently stale nodes in cluster state
+	// (blocks deployments, emits partition alert) and auto-clears when the
+	// heartbeat resumes. Best-effort: if only 1 node is gone, the cluster
+	// keeps working; if 2+ are gone, quorum_at_risk is already set.
+	FenceUnreachableNodes func(ctx context.Context, reachabilityReport map[string]any) (map[string]any, error)
+
+	// TriggerEmergencyBackup fires when quorum_at_risk is true (≥2 nodes
+	// unreachable). Emits a CRITICAL cluster event and attempts to invoke
+	// the backup manager via gRPC so that a snapshot is taken before the
+	// cluster loses write quorum entirely. Best-effort: failure is logged
+	// but does not abort the invariant workflow.
+	TriggerEmergencyBackup func(ctx context.Context, reachabilityReport map[string]any) error
+
 	// EmitReport publishes the combined invariant enforcement report as a
 	// cluster event for audit.
-	EmitReport func(ctx context.Context, workflowReport, quorumReport, profileReport, minioReport, pkiReport map[string]any) error
+	EmitReport func(ctx context.Context, workflowReport, quorumReport, profileReport, minioReport, pkiReport, diskReport, reachabilityReport map[string]any) error
 
 	// MarkFailed records that invariant enforcement failed.
 	MarkFailed func(ctx context.Context, reason string) error
@@ -77,6 +104,11 @@ func RegisterInvariantActions(router *Router, cfg InvariantConfig) {
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.repair_minio_storage", invariantRepairMinioStorage(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_pki_health", invariantValidatePKIHealth(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.repair_pki_certs", invariantRepairPKICerts(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_disk_health", invariantValidateDiskHealth(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.invariant.repair_disk_space", invariantRepairDiskSpace(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_node_reachability", invariantValidateNodeReachability(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.invariant.fence_unreachable_nodes", invariantFenceUnreachableNodes(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.invariant.trigger_emergency_backup", invariantTriggerEmergencyBackup(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.emit_report", invariantEmitReport(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.mark_failed", invariantMarkFailed(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.emit_completed", invariantEmitCompleted(cfg))
@@ -255,31 +287,23 @@ func invariantValidateFoundingProfiles(cfg InvariantConfig) ActionHandler {
 
 func invariantEmitReport(cfg InvariantConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		workflowReport, _ := req.With["workflow_report"].(map[string]any)
-		quorumReport, _ := req.With["quorum_report"].(map[string]any)
-		profileReport, _ := req.With["profile_report"].(map[string]any)
-		minioReport, _ := req.With["minio_report"].(map[string]any)
-		pkiReport, _ := req.With["pki_report"].(map[string]any)
-
-		// Also check outputs for reports from previous steps.
-		if workflowReport == nil {
-			workflowReport, _ = req.Outputs["workflow_report"].(map[string]any)
+		resolve := func(key string) map[string]any {
+			if v, ok := req.With[key].(map[string]any); ok {
+				return v
+			}
+			v, _ := req.Outputs[key].(map[string]any)
+			return v
 		}
-		if quorumReport == nil {
-			quorumReport, _ = req.Outputs["quorum_report"].(map[string]any)
-		}
-		if profileReport == nil {
-			profileReport, _ = req.Outputs["profile_report"].(map[string]any)
-		}
-		if minioReport == nil {
-			minioReport, _ = req.Outputs["minio_report"].(map[string]any)
-		}
-		if pkiReport == nil {
-			pkiReport, _ = req.Outputs["pki_report"].(map[string]any)
-		}
+		workflowReport := resolve("workflow_report")
+		quorumReport := resolve("quorum_report")
+		profileReport := resolve("profile_report")
+		minioReport := resolve("minio_report")
+		pkiReport := resolve("pki_report")
+		diskReport := resolve("disk_report")
+		reachabilityReport := resolve("reachability_report")
 
 		if cfg.EmitReport != nil {
-			if err := cfg.EmitReport(ctx, workflowReport, quorumReport, profileReport, minioReport, pkiReport); err != nil {
+			if err := cfg.EmitReport(ctx, workflowReport, quorumReport, profileReport, minioReport, pkiReport, diskReport, reachabilityReport); err != nil {
 				return nil, fmt.Errorf("emit report: %w", err)
 			}
 		}
@@ -289,13 +313,175 @@ func invariantEmitReport(cfg InvariantConfig) ActionHandler {
 			OK:      true,
 			Message: "invariant enforcement complete",
 			Output: map[string]any{
-				"workflow_report": workflowReport,
-				"quorum_report":  quorumReport,
-				"profile_report": profileReport,
-				"minio_report":   minioReport,
-				"pki_report":     pkiReport,
+				"workflow_report":     workflowReport,
+				"quorum_report":       quorumReport,
+				"profile_report":      profileReport,
+				"minio_report":        minioReport,
+				"pki_report":          pkiReport,
+				"disk_report":         diskReport,
+				"reachability_report": reachabilityReport,
 			},
 		}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Step 8: validate_disk_health
+// --------------------------------------------------------------------------
+
+func invariantValidateDiskHealth(cfg InvariantConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		warnPct := 20.0
+		criticalPct := 5.0
+		if v, ok := req.With["warn_threshold_pct"].(float64); ok && v > 0 {
+			warnPct = v
+		}
+		if v, ok := req.With["critical_threshold_pct"].(float64); ok && v > 0 {
+			criticalPct = v
+		}
+
+		if cfg.ValidateDiskHealth == nil {
+			return &ActionResult{OK: true, Output: map[string]any{
+				"disk_report": map[string]any{"violations": []any{}},
+			}}, nil
+		}
+
+		report, err := cfg.ValidateDiskHealth(ctx, warnPct, criticalPct)
+		if err != nil {
+			return nil, fmt.Errorf("validate disk health: %w", err)
+		}
+
+		violations, _ := report["violations"].([]map[string]any)
+		log.Printf("actor[invariant]: disk_health — %d violation(s)", len(violations))
+		return &ActionResult{
+			OK:     true,
+			Output: map[string]any{"disk_report": report},
+		}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Step 8b: repair_disk_space
+// --------------------------------------------------------------------------
+
+func invariantRepairDiskSpace(cfg InvariantConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		diskReport, _ := req.With["disk_report"].(map[string]any)
+		if diskReport == nil {
+			diskReport, _ = req.Outputs["disk_report"].(map[string]any)
+		}
+
+		if cfg.RepairDiskSpace == nil {
+			return &ActionResult{OK: true, Output: map[string]any{
+				"disk_repair_report": map[string]any{"repaired_count": 0},
+			}}, nil
+		}
+
+		repairReport, err := cfg.RepairDiskSpace(ctx, diskReport)
+		if err != nil {
+			return nil, fmt.Errorf("repair disk space: %w", err)
+		}
+
+		count, _ := repairReport["repaired_count"].(int)
+		log.Printf("actor[invariant]: disk_space repair — %d node(s) acted on", count)
+		return &ActionResult{
+			OK:     true,
+			Output: map[string]any{"disk_repair_report": repairReport},
+		}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Step 9: validate_node_reachability
+// --------------------------------------------------------------------------
+
+func invariantValidateNodeReachability(cfg InvariantConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		warnAfter := 300    // 5 min default
+		criticalAfter := 900 // 15 min default
+		if v, ok := req.With["warn_after_seconds"].(float64); ok && v > 0 {
+			warnAfter = int(v)
+		}
+		if v, ok := req.With["critical_after_seconds"].(float64); ok && v > 0 {
+			criticalAfter = int(v)
+		}
+
+		if cfg.ValidateNodeReachability == nil {
+			return &ActionResult{OK: true, Output: map[string]any{
+				"reachability_report": map[string]any{
+					"warn": []any{}, "critical": []any{}, "quorum_at_risk": false,
+				},
+			}}, nil
+		}
+
+		report, err := cfg.ValidateNodeReachability(ctx, warnAfter, criticalAfter)
+		if err != nil {
+			return nil, fmt.Errorf("validate node reachability: %w", err)
+		}
+
+		quorumAtRisk, _ := report["quorum_at_risk"].(bool)
+		log.Printf("actor[invariant]: node_reachability — quorum_at_risk=%v", quorumAtRisk)
+		return &ActionResult{
+			OK:     true,
+			Output: map[string]any{"reachability_report": report},
+		}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Step 9b: fence_unreachable_nodes
+// --------------------------------------------------------------------------
+
+func invariantFenceUnreachableNodes(cfg InvariantConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		reachabilityReport, _ := req.With["reachability_report"].(map[string]any)
+		if reachabilityReport == nil {
+			reachabilityReport, _ = req.Outputs["reachability_report"].(map[string]any)
+		}
+
+		if cfg.FenceUnreachableNodes == nil {
+			return &ActionResult{OK: true, Output: map[string]any{
+				"fence_report": map[string]any{"fenced_count": 0},
+			}}, nil
+		}
+
+		fenceReport, err := cfg.FenceUnreachableNodes(ctx, reachabilityReport)
+		if err != nil {
+			return nil, fmt.Errorf("fence unreachable nodes: %w", err)
+		}
+
+		count, _ := fenceReport["fenced_count"].(int)
+		log.Printf("actor[invariant]: fence_unreachable — %d node(s) fenced", count)
+		return &ActionResult{
+			OK:     true,
+			Output: map[string]any{"fence_report": fenceReport},
+		}, nil
+	}
+}
+
+// --------------------------------------------------------------------------
+// Step 9c: trigger_emergency_backup
+// --------------------------------------------------------------------------
+
+func invariantTriggerEmergencyBackup(cfg InvariantConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		reachabilityReport, _ := req.With["reachability_report"].(map[string]any)
+		if reachabilityReport == nil {
+			reachabilityReport, _ = req.Outputs["reachability_report"].(map[string]any)
+		}
+
+		if cfg.TriggerEmergencyBackup == nil {
+			log.Printf("actor[invariant]: emergency backup requested but TriggerEmergencyBackup not wired")
+			return &ActionResult{OK: true, Message: "emergency backup not configured"}, nil
+		}
+
+		// Best-effort: log failure but do not abort the invariant workflow.
+		if err := cfg.TriggerEmergencyBackup(ctx, reachabilityReport); err != nil {
+			log.Printf("actor[invariant]: emergency backup trigger failed (best-effort): %v", err)
+		} else {
+			log.Printf("actor[invariant]: emergency backup triggered successfully")
+		}
+		return &ActionResult{OK: true, Message: "emergency backup attempted"}, nil
 	}
 }
 

@@ -76,33 +76,36 @@ func EnsureServicePortConfig(ctx context.Context, service, binDir string) error 
 
 	// ── 3. No port in etcd — check disk config ──
 	cfg, _ := readServiceConfig(cfgPath)
-	hasFile := cfg != nil
 	diskPort := 0
 	if cfg != nil {
 		diskPort = firstPort(cfg.Port, portFromAddress(cfg.Address))
 	}
-	if diskPort > 0 && hasFile {
-		// Disk config exists with a port — keep it.
-		return nil
-	}
 
-	// ── 4. No port anywhere — allocate from range ──
+	// ── 4. Validate port via allocator (handles range, infra-reserved, and in-use checks) ──
 	alloc, err := ports.New(getPortsRange())
 	if err != nil {
 		return err
 	}
-	seedReservations(alloc, servicesDir)
+	// Skip the current service's own config so its port is checked fresh by the allocator.
+	seedReservationsExcept(alloc, servicesDir, serviceId)
 
-	// Try --describe for a hint.
-	hintPort := 0
+	// Use disk port as hint; fall back to --describe.
+	hintPort := diskPort
 	binPath := filepath.Join(binDir, exe)
-	if desc, err := runDescribe(ctx, binPath); err == nil && desc != nil {
-		hintPort = firstPort(desc.Port, portFromAddress(desc.Address))
+	if hintPort == 0 {
+		if desc, err := runDescribe(ctx, binPath); err == nil && desc != nil {
+			hintPort = firstPort(desc.Port, portFromAddress(desc.Address))
+		}
 	}
 
 	newPort, err := alloc.Reserve(serviceId, hintPort)
 	if err != nil {
 		return err
+	}
+
+	// If the disk port is already correct, no write needed.
+	if cfg != nil && diskPort == newPort {
+		return nil
 	}
 
 	out := &describePayload{

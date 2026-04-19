@@ -10,6 +10,30 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// Bootstrap decision counters. Labels:
+//
+//	reason — the denial reason string (e.g. "bootstrap_expired") or "bootstrap_allowed"
+//
+// Counters are low-cardinality: the reason set is fixed and small.
+var (
+	bootstrapAllowedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "bootstrap",
+		Name:      "allowed_total",
+		Help:      "Total requests allowed by the bootstrap gate.",
+	})
+
+	bootstrapDeniedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "bootstrap",
+		Name:      "denied_total",
+		Help:      "Total requests denied by the bootstrap gate, labelled by reason.",
+	}, []string{"reason"})
 )
 
 // Bootstrap constants define the security boundaries for Day-0 installation mode.
@@ -186,6 +210,7 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 			"method", authCtx.GRPCMethod,
 			"subject", authCtx.Subject,
 		)
+		bootstrapDeniedTotal.WithLabelValues("bootstrap_expired").Inc()
 		return false, "bootstrap_expired"
 	}
 
@@ -198,6 +223,7 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 			"method", authCtx.GRPCMethod,
 			"subject", authCtx.Subject,
 		)
+		bootstrapDeniedTotal.WithLabelValues("bootstrap_remote").Inc()
 		return false, "bootstrap_remote"
 	}
 
@@ -210,6 +236,7 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 			"method", authCtx.GRPCMethod,
 			"subject", authCtx.Subject,
 		)
+		bootstrapDeniedTotal.WithLabelValues("bootstrap_method_blocked").Inc()
 		return false, "bootstrap_method_blocked"
 	}
 
@@ -222,6 +249,7 @@ func (g *BootstrapGate) ShouldAllow(authCtx *AuthContext) (bool, string) {
 		"subject", authCtx.Subject,
 		"enabled_via", enabledReason,
 	)
+	bootstrapAllowedTotal.Inc()
 	return true, "bootstrap_allowed"
 }
 

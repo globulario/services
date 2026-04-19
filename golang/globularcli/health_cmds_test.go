@@ -303,12 +303,12 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 			t.Errorf("checkEtcd() failed: %s", result.Details)
 		}
 
-		// Verify probe was called with fallback endpoint (no config available)
+		// Verify probe was called with etcd port (host may be resolved from etcd or fallback).
 		if capturedEndpoint.Port != 2379 {
 			t.Errorf("tcpProbe called with port %d, want 2379", capturedEndpoint.Port)
 		}
-		if capturedEndpoint.Host != "127.0.0.1" {
-			t.Errorf("tcpProbe called with host %s, want 127.0.0.1", capturedEndpoint.Host)
+		if capturedEndpoint.Host == "" {
+			t.Errorf("tcpProbe called with empty host")
 		}
 	})
 

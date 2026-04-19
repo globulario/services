@@ -34,12 +34,11 @@ const (
 // ProfileCapabilities maps each profile to the capabilities it requires.
 // A capability triggers installation of the infra component(s) that provide it.
 var ProfileCapabilities = map[string][]Capability{
-	// core is the base profile — every node that runs services needs all
-	// foundational infra including ScyllaDB (for resource, persistence, etc.).
-	"core":          {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB},
-	"compute":       {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB},
-	// control-plane includes everything core has — a control-plane node IS a
-	// core node that also runs the controller, doctor, etc.
+	// core provides foundational infra: etcd, dns, event, file, minio, monitoring.
+	// ScyllaDB (local-db) is NOT in "core" — it lives in control-plane/storage/scylla/database.
+	"core":          {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
+	"compute":       {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring},
+	// control-plane extends core and adds xds/envoy/gateway + local-db (ScyllaDB).
 	"control-plane": {CapConfigStore, CapDNS, CapServiceDiscovery, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB, CapHTTPProxy, CapServiceMesh, CapGateway},
 	"gateway":       {CapHTTPProxy, CapServiceMesh, CapGateway},
 	"storage":       {CapObjectStore},
@@ -250,7 +249,7 @@ func buildCatalog() []*Component {
 			Unit:                 "scylla-server.service",
 			Kind:                 KindInfrastructure,
 			Priority:             6,
-			Profiles:             []string{"core", "compute", "control-plane", "scylla", "database"},
+			Profiles:             []string{"control-plane", "storage", "scylla", "database"},
 			ProvidesCapabilities: []Capability{CapLocalDB},
 			InstallMode:          InstallModeDay0Join, // OS package (apt install), not a repo artifact
 			HealthCheck:          &HealthCheckHintC{Unit: "scylla-server.service", Port: 9042},
@@ -280,7 +279,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-xds.service",
 			Kind:                 KindInfrastructure,
 			Priority:             9,
-			Profiles:             []string{"core", "compute", "control-plane", "gateway"},
+			Profiles:             []string{"control-plane", "gateway"},
 			ProvidesCapabilities: []Capability{CapServiceMesh},
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-xds.service"},
 		},
@@ -289,7 +288,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-gateway.service",
 			Kind:                 KindInfrastructure,
 			Priority:             9,
-			Profiles:             []string{"core", "compute", "control-plane", "gateway"},
+			Profiles:             []string{"control-plane", "gateway"},
 			ProvidesCapabilities: []Capability{CapGateway},
 			RuntimeLocalDependencies: []string{"xds", "envoy"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-gateway.service", Port: 8080},
@@ -299,7 +298,7 @@ func buildCatalog() []*Component {
 			Unit:                 "globular-envoy.service",
 			Kind:                 KindInfrastructure,
 			Priority:             10,
-			Profiles:             []string{"core", "compute", "control-plane", "gateway"},
+			Profiles:             []string{"control-plane", "gateway"},
 			ProvidesCapabilities: []Capability{CapHTTPProxy},
 			RuntimeLocalDependencies: []string{"xds"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-envoy.service", Port: 8443},
@@ -785,11 +784,13 @@ func ValidateCatalog() error {
 			return fmt.Errorf("duplicate component name: %q", c.Name)
 		}
 		names[c.Name] = true
-		unitLower := strings.ToLower(c.Unit)
-		if units[unitLower] {
-			return fmt.Errorf("duplicate unit: %q", c.Unit)
+		if c.Unit != "" {
+			unitLower := strings.ToLower(c.Unit)
+			if units[unitLower] {
+				return fmt.Errorf("duplicate unit: %q", c.Unit)
+			}
+			units[unitLower] = true
 		}
-		units[unitLower] = true
 	}
 
 	// Check dependency references.

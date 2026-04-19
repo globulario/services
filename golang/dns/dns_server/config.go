@@ -67,7 +67,7 @@ func DefaultConfig() *Config {
 		Port:              defaultPort,
 		Proxy:             defaultProxy,
 		Protocol:          "grpc",
-		Version:           "0.0.1",
+		Version:           "",
 		PublisherID:       netutil.DefaultClusterDomain(),
 		Description:       "DNS service",
 		Keywords:          []string{"DNS", "Records", "Resolver"},

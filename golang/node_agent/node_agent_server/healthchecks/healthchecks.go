@@ -29,7 +29,12 @@ func RunChecks(ctx context.Context, checks []Check) error {
 		}
 		attempts := 30
 		var lastErr error
+	retryLoop:
 		for i := 0; i < attempts; i++ {
+			if err := ctx.Err(); err != nil {
+				lastErr = err
+				break
+			}
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
 			if err != nil {
 				lastErr = err
@@ -58,7 +63,12 @@ func RunChecks(ctx context.Context, checks []Check) error {
 				}
 				lastErr = fmt.Errorf("status %d", resp.StatusCode)
 			}
-			time.Sleep(time.Second)
+			select {
+			case <-ctx.Done():
+				lastErr = ctx.Err()
+				break retryLoop
+			case <-time.After(time.Second):
+			}
 		}
 		if lastErr != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", c.Name, lastErr))

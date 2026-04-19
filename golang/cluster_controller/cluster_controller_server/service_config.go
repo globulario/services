@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -477,17 +478,19 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 		ingressDomains = append(ingressDomains, ext)
 	}
 
-	tlsDir, fullchain, privkey, ca := configpkg.CanonicalTLSPaths(configpkg.GetRuntimeConfigDir())
+	// XDS is the external-facing ingress gateway and uses the ACME/wildcard
+	// certificate, not the internal service PKI cert.
+	xdsTLSDir := filepath.Join(configpkg.GetRuntimeConfigDir(), "config", "tls")
 	config := map[string]interface{}{
 		"etcd_endpoints":        etcdEndpoints,
 		"sync_interval_seconds": 5,
 		"ingress": map[string]interface{}{
 			"tls": map[string]interface{}{
 				"enabled":          true,
-				"cert_chain_path":  fullchain,
-				"private_key_path": privkey,
-				"tls_dir":          tlsDir,
-				"ca_path":          ca,
+				"cert_chain_path":  filepath.Join(xdsTLSDir, "fullchain.pem"),
+				"private_key_path": filepath.Join(xdsTLSDir, "privkey.pem"),
+				"tls_dir":          xdsTLSDir,
+				"ca_path":          filepath.Join(xdsTLSDir, "ca.pem"),
 			},
 		},
 	}

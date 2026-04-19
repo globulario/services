@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -45,6 +46,16 @@ func newTestServer(t *testing.T, rootPassword string) *server {
 	t.Cleanup(func() {
 		dataPath = oldDataPath
 	})
+	// Skip if the key store directory is not writable — these tests require access to
+	// /var/lib/globular/keys to write JWT signing keys.
+	keysDir := config.GetKeysDir()
+	probe, err := os.CreateTemp(keysDir, ".test-probe-*")
+	if err != nil {
+		t.Skipf("keys dir %s not writable (need root or mounted volume): %v", keysDir, err)
+	}
+	probe.Close()
+	os.Remove(probe.Name())
+
 	seedRootCreds(t, rootPassword, "root@example.com")
 	return &server{
 		Domain:         "example.com",

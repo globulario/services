@@ -72,6 +72,7 @@ Day-0 through Day-2 operational guides.
 High availability, failure handling, networking, and certificate management.
 
 - [High Availability](operators/high-availability.md) — Leader election, etcd quorum, MinIO erasure coding, failover
+- [Cluster Self-Healing Reference](operators/cluster-self-healing.md) — What the cluster fixes automatically, what it cannot, operator signals and actions
 - [Failure Scenarios and Recovery](operators/failure-scenarios.md) — Infrastructure, service, and node failure catalog
 - [Node Full-Reseed Recovery](operators/node-recovery.md) — Complete wipe-and-rebuild workflow: snapshot, fencing, reprovision, reseed, verify
 - [Platform Status](operators/platform-status.md) — What is implemented, partial, planned, and intentionally unsupported today

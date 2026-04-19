@@ -24,6 +24,11 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 
 	router := NewRouter()
 
+	// Register node-agent actions (needed for infra health probes).
+	RegisterNodeAgentActions(router, NodeAgentConfig{
+		ProbeInfraHealth: func(ctx context.Context, probeName string) bool { return true },
+	})
+
 	// Register installer actions.
 	RegisterInstallerActions(router, InstallerConfig{
 		SetupTLS: func(ctx context.Context, clusterID string) error {
@@ -151,9 +156,10 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	// Verify ordering where dependencies exist in the YAML.
 	// Note: steps with no dependsOn run in parallel, so we only assert
 	// ordering between steps that have explicit dependency chains.
-	assertBefore(t, steps, "install_set:scylladb,etcd,minio", "configure_shared_storage")
 	assertBefore(t, steps, "configure_shared_storage", "install:persistence")
-	assertBefore(t, steps, "bootstrap_dns:globular.internal", "install_profiles:ops,workloads")
+	assertBefore(t, steps, "write_bootstrap_credentials", "install:persistence")
+	assertBefore(t, steps, "install:persistence", "install_set:xds,envoy,gateway")
+	assertBefore(t, steps, "bootstrap_dns:globular.internal", "validate_cluster_health")
 	assertBefore(t, steps, "validate_cluster_health", "generate_join_token")
 	assertBefore(t, steps, "cluster_bootstrap", "publish_artifacts:local-bootstrap-cache")
 	assertBefore(t, steps, "seed_desired", "reconcile_until_stable")

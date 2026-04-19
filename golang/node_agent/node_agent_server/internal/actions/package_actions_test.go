@@ -37,11 +37,13 @@ func TestPackageVerify_FileExists(t *testing.T) {
 }
 
 func TestPackageVerify_FileNotFound(t *testing.T) {
+	// Use "gateway" — it IS in the identity registry (so executableForService returns "gateway"),
+	// but don't create the file so os.Stat fails.
 	ActionBinDir = t.TempDir()
 	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
-		"name": "nonexistent",
+		"name": "gateway",
 		"kind": "SERVICE",
 	})
 
@@ -79,16 +81,17 @@ func TestPackageVerify_ChecksumMatch(t *testing.T) {
 }
 
 func TestPackageVerify_ChecksumMismatch(t *testing.T) {
+	// Use "gateway" — in identity registry, binary = "gateway".
 	dir := t.TempDir()
 	binDir := filepath.Join(dir, "bin")
 	os.MkdirAll(binDir, 0o755)
-	os.WriteFile(filepath.Join(binDir, "test_server"), []byte("content"), 0o755)
+	os.WriteFile(filepath.Join(binDir, "gateway"), []byte("content"), 0o755)
 
 	ActionBinDir = binDir
 	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
 
 	args, _ := structpb.NewStruct(map[string]interface{}{
-		"name":              "test",
+		"name":              "gateway",
 		"kind":              "SERVICE",
 		"expected_checksum": "0000000000000000000000000000000000000000000000000000000000000000",
 	})

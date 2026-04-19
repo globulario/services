@@ -22,16 +22,17 @@ func TestEnsureServicePortReadyHealsConflict(t *testing.T) {
 	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:61001\"}'; else exit 0; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac.RbacService\",\"Address\":\"localhost:61001\"}'; else exit 0; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
+	// Use the ID that the identity registry returns for "rbac" (rbac.RbacService).
+	cfgPath := filepath.Join(stateDir, "services", "rbac.RbacService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	initial := map[string]any{"Id": "rbac-id", "Address": "localhost:61001", "Port": 61001}
+	initial := map[string]any{"Id": "rbac.RbacService", "Address": "localhost:61001", "Port": 61001}
 	b, _ := json.Marshal(initial)
 	if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 		t.Fatalf("write cfg: %v", err)
@@ -84,13 +85,14 @@ func TestEnsureServicePortReadyAvoidsOtherConfigPorts(t *testing.T) {
 
 	// Target service wants 61001 (will be in-use)
 	binPath := filepath.Join(binDir, "rbac_server")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:61001\"}'; else exit 0; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac.RbacService\",\"Address\":\"localhost:61001\"}'; else exit 0; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
-	initial := map[string]any{"Id": "rbac-id", "Address": "localhost:61001", "Port": 61001}
+	// Use the ID that the identity registry returns for "rbac" (rbac.RbacService).
+	cfgPath := filepath.Join(stateDir, "services", "rbac.RbacService.json")
+	initial := map[string]any{"Id": "rbac.RbacService", "Address": "localhost:61001", "Port": 61001}
 	b, _ = json.Marshal(initial)
 	if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 		t.Fatalf("write cfg: %v", err)
@@ -186,20 +188,22 @@ func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
 	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
 	StateDir = stateDir
 	t.Cleanup(func() { StateDir = "/var/lib/globular" })
-	PortRange = "10000-10002"
+	// Range starts at 10000 (infra-reserved scylla-admin) to 49005 (free high ports).
+	PortRange = "10000-49005"
 	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:10000\",\"Port\":10000}'; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac.RbacService\",\"Address\":\"localhost:10000\",\"Port\":10000}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
+	// Use the ID that the identity registry returns for "rbac" (rbac.RbacService).
+	cfgPath := filepath.Join(stateDir, "services", "rbac.RbacService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
-	cfg := map[string]any{"Id": "rbac-id", "Address": "localhost:10000", "Port": 10000}
+	cfg := map[string]any{"Id": "rbac.RbacService", "Address": "localhost:10000", "Port": 10000}
 	if b, err := json.Marshal(cfg); err == nil {
 		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 			t.Fatalf("write cfg: %v", err)
@@ -219,7 +223,7 @@ func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
 	if port == 10000 {
 		t.Fatalf("reserved port not rewritten, still %d", port)
 	}
-	if port < 10000 || port > 10002 {
+	if port < 10000 || port > 49005 {
 		t.Fatalf("port out of range after rewrite: %d", port)
 	}
 }
@@ -231,27 +235,29 @@ func TestEnsureServicePortConfigRewritesInUsePort(t *testing.T) {
 	t.Cleanup(func() { BinDir = "/usr/lib/globular/bin" })
 	StateDir = stateDir
 	t.Cleanup(func() { StateDir = "/var/lib/globular" })
-	PortRange = "12000-12002"
+	// Use high ports unlikely to be occupied on any machine.
+	PortRange = "49010-49012"
 	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "rbac_server")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:12001\",\"Port\":12001}'; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac.RbacService\",\"Address\":\"localhost:49011\",\"Port\":49011}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "rbac-id.json")
+	// Use the ID that the identity registry returns for "rbac" (rbac.RbacService).
+	cfgPath := filepath.Join(stateDir, "services", "rbac.RbacService.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
-	cfg := map[string]any{"Id": "rbac-id", "Address": "localhost:12001", "Port": 12001}
+	cfg := map[string]any{"Id": "rbac.RbacService", "Address": "localhost:49011", "Port": 49011}
 	if b, err := json.Marshal(cfg); err == nil {
 		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 			t.Fatalf("write cfg: %v", err)
 		}
 	}
 
-	ln, err := net.Listen("tcp", "0.0.0.0:12001")
+	ln, err := net.Listen("tcp", "0.0.0.0:49011")
 	if err != nil {
 		t.Skipf("cannot bind listener: %v", err)
 	}
@@ -267,10 +273,10 @@ func TestEnsureServicePortConfigRewritesInUsePort(t *testing.T) {
 		t.Fatalf("unmarshal final: %v", err)
 	}
 	port := int(final["Port"].(float64))
-	if port == 12001 {
+	if port == 49011 {
 		t.Fatalf("in-use port not rewritten, still %d", port)
 	}
-	if port < 12000 || port > 12002 {
+	if port < 49010 || port > 49012 {
 		t.Fatalf("port out of range after rewrite: %d", port)
 	}
 }
@@ -312,16 +318,17 @@ func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
 	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "xds")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"xds.XdsService\",\"Address\":\"localhost:62001\",\"Port\":62001}'; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"globular-xds\",\"Address\":\"localhost:62001\",\"Port\":62001}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write xds bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "xds.XdsService.json")
+	// Use the ID that the identity registry returns for "xds" (globular-xds).
+	cfgPath := filepath.Join(stateDir, "services", "globular-xds.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
-	initial := map[string]any{"Id": "xds.XdsService", "Address": "localhost:62001", "Port": 62001}
+	initial := map[string]any{"Id": "globular-xds", "Address": "localhost:62001", "Port": 62001}
 	if b, err := json.Marshal(initial); err == nil {
 		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 			t.Fatalf("write cfg: %v", err)
@@ -363,16 +370,17 @@ func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 	t.Cleanup(func() { PortRange = "" })
 
 	binPath := filepath.Join(binDir, "gateway")
-	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"gateway.GatewayService\",\"Address\":\"localhost:80\",\"Port\":80}'; fi\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"globular-gateway\",\"Address\":\"localhost:80\",\"Port\":80}'; fi\n"
 	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write gateway bin: %v", err)
 	}
 
-	cfgPath := filepath.Join(stateDir, "services", "gateway.GatewayService.json")
+	// Use the ID that the identity registry returns for "globular-gateway".
+	cfgPath := filepath.Join(stateDir, "services", "globular-gateway.json")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatalf("mkdir cfg: %v", err)
 	}
-	initial := map[string]any{"Id": "gateway.GatewayService", "Address": "localhost:80", "Port": 80}
+	initial := map[string]any{"Id": "globular-gateway", "Address": "localhost:80", "Port": 80}
 	if b, err := json.Marshal(initial); err == nil {
 		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
 			t.Fatalf("write cfg: %v", err)

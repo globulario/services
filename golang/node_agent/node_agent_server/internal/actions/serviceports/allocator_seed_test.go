@@ -39,7 +39,8 @@ func TestInstallPayloadDuplicatePortGetsRewritten(t *testing.T) {
 		t.Fatalf("ensure B: %v", err)
 	}
 
-	cfgBPath := filepath.Join(stateDir, "services", "resource-id.json")
+	// Use the ID that the identity registry returns for "resource".
+	cfgBPath := filepath.Join(stateDir, "services", "resource.ResourceService.json")
 	b, err := os.ReadFile(cfgBPath)
 	if err != nil {
 		t.Fatalf("read cfgB: %v", err)

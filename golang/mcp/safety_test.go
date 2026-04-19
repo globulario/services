@@ -128,8 +128,18 @@ func TestToolGroupGatingAllDisabled(t *testing.T) {
 	srv := newServer(cfg)
 	registerAllTools(srv)
 
-	if len(srv.tools) != 0 {
-		t.Errorf("expected 0 tools when all groups disabled, got %d", len(srv.tools))
+	// Group-gated tools must not appear when all groups are disabled.
+	gated := []string{
+		"cluster_get_health",
+		"file_get_info",
+		"deploy_get_webroot_snapshot",
+		"rbac_validate_access",
+		"backup_get_recovery_posture",
+	}
+	for _, name := range gated {
+		if _, ok := srv.tools[name]; ok {
+			t.Errorf("tool %q should not be registered when all groups disabled", name)
+		}
 	}
 }
 

@@ -5,9 +5,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/miekg/dns"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -71,10 +71,15 @@ func TestRunConvergenceChecksDNSFailure(t *testing.T) {
 	}
 	defer func() { dnsLookupHost = origLookup }()
 
-	// Avoid HTTP calls to real endpoints by pointing to unreachable but RunChecks should still attempt and fail due DNS
+	// Point HTTP checks at an unreachable address. Use a short-lived context so
+	// the RunChecks retry loop exits quickly instead of waiting 30s.
 	t.Setenv("GLOBULAR_HEALTH_MINIO_URL", "http://127.0.0.1:0")
 	t.Setenv("GLOBULAR_HEALTH_ENVOY_URL", "http://127.0.0.1:0")
 	t.Setenv("GLOBULAR_HEALTH_GATEWAY_URL", "http://127.0.0.1:0")
+	// Supplemental TCP probes: point to closed ports so they fail fast too.
+	t.Setenv("GLOBULAR_ETCD_ADDR", "127.0.0.1:1")
+	t.Setenv("GLOBULAR_MINIO_ADDR", "127.0.0.1:1")
+	t.Setenv("GLOBULAR_SCYLLA_ADDR", "127.0.0.1:1")
 
 	spec := &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: "example.com",
@@ -82,15 +87,11 @@ func TestRunConvergenceChecksDNSFailure(t *testing.T) {
 		PortHttps:     443,
 		PortHttp:      80,
 	}
-	if err := runConvergenceChecks(context.Background(), spec); err == nil {
-		t.Fatalf("expected DNS failure, got nil")
-	} else {
-		_ = err // expected
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := runConvergenceChecks(ctx, spec); err == nil {
+		t.Fatalf("expected failure, got nil")
 	}
-	// reset env
-	os.Unsetenv("GLOBULAR_HEALTH_MINIO_URL")
-	os.Unsetenv("GLOBULAR_HEALTH_ENVOY_URL")
-	os.Unsetenv("GLOBULAR_HEALTH_GATEWAY_URL")
 }
 
 func TestDNSUDPCheckPasses(t *testing.T) {

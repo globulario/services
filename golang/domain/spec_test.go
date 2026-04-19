@@ -99,8 +99,8 @@ func TestExternalDomainSpec_Validate(t *testing.T) {
 				NodeID:   "node-1",
 				TargetIP: "auto",
 			},
-			wantErr: true,
-			errMsg:  "provider_ref is required",
+			// provider_ref is optional — manual cert management doesn't need a provider
+			wantErr: false,
 		},
 		{
 			name: "ACME enabled without email",

@@ -13,7 +13,7 @@ metadata:
       2. Infrastructure quorum — etcd (all nodes), ScyllaDB (≥3), MinIO (≥3)
       3. Founding profiles — first 3 nodes MUST have core+control-plane+storage
       4. MinIO storage health — pool membership, join phases, credentials, service running
-      5. PKI health — cert expiry, SAN coverage, chain validity, CA present
+      5. PKI health \xe2\x80\x94 cert expiry, SAN coverage, chain validity, CA present\n      6. Disk health \xe2\x80\x94 free space <20% WARN, <5% CRITICAL; best-effort journal vacuum\n      7. Node reachability \xe2\x80\x94 partition detection, soft-fencing, emergency backup on quorum loss
 spec:
   inputSchema:
     type: object
@@ -192,10 +192,99 @@ spec:
         idempotency: safe_retry
         resume_policy: retry
 
-    # ── Step 8: Emit invariant report ──────────────────────────────────
+    # ── Step 8: Validate disk health ───────────────────────────────────
+    # Checks disk free space on every node using DiskFreeBytes from the
+    # heartbeat. WARN < 20%, CRITICAL < 5%. Critical nodes get a journal
+    # vacuum request via node-agent (best-effort).
+    - id: validate_disk_health
+      title: Validate disk free space on all nodes
+      dependsOn: [validate_infra_quorum]
+      actor: cluster-controller
+      action: controller.invariant.validate_disk_health
+      with:
+        cluster_id: $.cluster_id
+        warn_threshold_pct: 20
+        critical_threshold_pct: 5
+      # Handler writes: disk_report with violations list
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 8b: Repair disk space ─────────────────────────────────────
+    # Emits CRITICAL alert events and requests journal vacuum on nodes
+    # below the critical threshold. Cannot add disk — best effort only.
+    - id: repair_disk_space
+      title: Attempt disk space recovery on critical nodes
+      dependsOn: [validate_disk_health]
+      when:
+        expr: len(disk_report.violations) > 0 && enforce == true
+      actor: cluster-controller
+      action: controller.invariant.repair_disk_space
+      with:
+        disk_report: $.disk_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 9: Validate node reachability ─────────────────────────────
+    # Checks heartbeat staleness for every node. Classifies into:
+    #   warn: stale > 5 min (reconcile already blocks deployments)
+    #   critical: stale > 15 min (likely network partition)
+    # Sets quorum_at_risk=true when ≥2 nodes are critical.
+    - id: validate_node_reachability
+      title: Detect network partitions and unreachable nodes
+      dependsOn: [validate_infra_quorum]
+      actor: cluster-controller
+      action: controller.invariant.validate_node_reachability
+      with:
+        warn_after_seconds: 300    # 5 min = heartbeatStaleThreshold
+        critical_after_seconds: 900 # 15 min = partition
+      # Handler writes: reachability_report with warn/critical lists and quorum_at_risk
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 9b: Fence persistently unreachable nodes ──────────────────
+    # Marks critical nodes in cluster state (Metadata["partition_fenced_since"])
+    # so the release pipeline skips them for new deployments. Auto-clears
+    # the fence when the heartbeat resumes and emits a "healed" event.
+    - id: fence_unreachable_nodes
+      title: Fence nodes unreachable beyond partition threshold
+      dependsOn: [validate_node_reachability]
+      when:
+        expr: len(reachability_report.critical) > 0 && enforce == true
+      actor: cluster-controller
+      action: controller.invariant.fence_unreachable_nodes
+      with:
+        reachability_report: $.reachability_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 9c: Emergency backup on quorum loss ───────────────────────
+    # When ≥2 nodes are critically unreachable the cluster may be heading
+    # toward losing etcd write quorum. This step:
+    #   1. Emits a CRITICAL "quorum_loss_imminent" cluster event.
+    #   2. Writes /globular/cluster/alerts/quorum_loss to etcd so external
+    #      monitoring (Alertmanager) can trigger a backup immediately.
+    # Best-effort: failure does not abort the invariant workflow.
+    - id: trigger_emergency_backup
+      title: Trigger emergency backup snapshot on quorum loss
+      dependsOn: [validate_node_reachability]
+      when:
+        expr: reachability_report.quorum_at_risk == true
+      actor: cluster-controller
+      action: controller.invariant.trigger_emergency_backup
+      with:
+        reachability_report: $.reachability_report
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    # ── Step 10: Emit invariant report ─────────────────────────────────
     - id: emit_report
       title: Emit invariant enforcement report
-      dependsOn: [repair_missing_workflows, enforce_quorum, validate_founding_profiles, repair_minio_storage, repair_pki_certs]
+      dependsOn: [repair_missing_workflows, enforce_quorum, validate_founding_profiles, repair_minio_storage, repair_pki_certs, repair_disk_space, fence_unreachable_nodes, trigger_emergency_backup]
       actor: cluster-controller
       action: controller.invariant.emit_report
       with:
@@ -204,6 +293,8 @@ spec:
         profile_report: $.profile_report
         minio_report: $.minio_report
         pki_report: $.pki_report
+        disk_report: $.disk_report
+        reachability_report: $.reachability_report
       execution:
         idempotency: safe_retry
         resume_policy: retry

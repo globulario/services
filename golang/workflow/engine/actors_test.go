@@ -55,6 +55,9 @@ func TestNodeJoinWorkflow(t *testing.T) {
 		SyncInstalledState: func(ctx context.Context) error {
 			return nil
 		},
+		ProbeInfraHealth: func(ctx context.Context, probeName string) bool {
+			return true // all infra healthy in test
+		},
 		NodeID: "node-1",
 	})
 
@@ -69,6 +72,8 @@ func TestNodeJoinWorkflow(t *testing.T) {
 			return nil
 		},
 	})
+	RegisterNodeVerificationActions(router, NodeVerificationConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 
 	eng := &Engine{
 		Router: router,
@@ -171,6 +176,8 @@ func TestNodeJoinWithInstallFailure(t *testing.T) {
 		NodeID:          "node-1",
 	})
 	RegisterControllerActions(router, ControllerConfig{})
+	RegisterNodeVerificationActions(router, NodeVerificationConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 
 	eng := &Engine{Router: router}
 	run, err := eng.Execute(context.Background(), def, map[string]any{

@@ -102,10 +102,11 @@ func TestEnsureNetworkCertsUsesACME(t *testing.T) {
 	if !fake.acmeCalled {
 		t.Fatalf("expected ACME path invoked")
 	}
-	tlsDir := filepath.Join(tmpDir, "config", "tls")
-	for _, f := range []string{"privkey.pem", "fullchain.pem", "ca.pem"} {
-		if _, err := os.Stat(filepath.Join(tlsDir, f)); err != nil {
-			t.Fatalf("expected %s written: %v", f, err)
+	// Verify files were written to the canonical TLS destination paths.
+	_, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	for _, p := range []string{keyDst, fullchainDst, caDst} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("expected cert file at %s: %v", p, err)
 		}
 	}
 }
@@ -254,15 +255,16 @@ func TestCopyFilePermSetsMode(t *testing.T) {
 func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
-	t.Setenv("GLOBULAR_CERT_ISSUER_NODE", "node-0")
 
-	tlsDir := filepath.Join(tmpDir, "config", "tls")
-	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
-		t.Fatalf("mkdir tls dir: %v", err)
-	}
-	for _, f := range []string{"privkey.pem", "fullchain.pem", "ca.pem"} {
-		if err := os.WriteFile(filepath.Join(tlsDir, f), []byte("data"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", f, err)
+	// Pre-create cert files at the canonical TLS destination so waitForFiles
+	// returns immediately without hanging.
+	_, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	for _, p := range []string{keyDst, fullchainDst, caDst} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", p, err)
 		}
 	}
 
@@ -276,6 +278,7 @@ func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
 		networkPKIManager = orig
 	}()
 
+	// node-1 is not the issuer (default issuer is "node-0").
 	srv := &NodeAgentServer{nodeID: "node-1"}
 	spec := &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: "example.com",

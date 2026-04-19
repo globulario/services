@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 
@@ -51,24 +50,40 @@ func TestReportStatusRetriesToLeader(t *testing.T) {
 		return &cluster_controllerpb.ReportNodeStatusResponse{}, nil
 	})
 
+	// Build plain gRPC connections via bufconn (no TLS needed in tests).
+	makeConn := func(lis *bufconn.Listener) *grpc.ClientConn {
+		conn, err := grpc.DialContext(context.Background(), "bufnet",
+			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+				return lis.Dial()
+			}),
+			grpc.WithInsecure(), //nolint:staticcheck // bufconn test only
+		)
+		if err != nil {
+			t.Fatalf("bufconn dial: %v", err)
+		}
+		t.Cleanup(func() { conn.Close() })
+		return conn
+	}
+	followerClient := cluster_controllerpb.NewClusterControllerServiceClient(makeConn(follower))
+	leaderClient := cluster_controllerpb.NewClusterControllerServiceClient(makeConn(leader))
+
 	srv := NewNodeAgentServer("", nil, NodeAgentConfig{})
 	srv.useInsecure = true
 	srv.nodeID = "node-1"
 	srv.controllerEndpoint = "follower"
-	srv.controllerDialer = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		var l *bufconn.Listener
-		switch target {
+	// Use override so we can inject pre-built clients without a TLS dial.
+	srv.controllerClientOverride = func(addr string) cluster_controllerpb.ClusterControllerServiceClient {
+		switch addr {
 		case "follower":
-			l = follower
+			return followerClient
 		case "leader:9999":
-			l = leader
+			return leaderClient
 		default:
-			return nil, fmt.Errorf("unknown target %s", target)
+			t.Fatalf("unexpected target %s", addr)
+			return nil
 		}
-		return grpc.DialContext(ctx, target, append(opts, grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return l.Dial()
-		}))...)
 	}
+	srv.controllerClient = followerClient
 
 	statusReq := &cluster_controllerpb.NodeStatus{
 		NodeId: "node-1",

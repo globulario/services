@@ -114,6 +114,10 @@ func RegisterRemoteNodeAgent(router *engine.Router, transport StepTransport, nod
 		"node.verify_services_active",
 		"node.sync_installed_state",
 		"node.execute_plan",
+		"node.probe_infra_health",
+		"node.verify_packages_installed",
+		"node.verify_installed_state_synced",
+		"node.verify_installed_package_state",
 	}
 	for _, action := range actions {
 		router.Register(v1alpha1.ActorNodeAgent, action, rh.Handle)

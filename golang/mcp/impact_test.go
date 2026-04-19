@@ -191,7 +191,7 @@ func TestNormalizePlan_DesiredSet(t *testing.T) {
 	if plan.TargetService != "ldap" {
 		t.Fatalf("expected target service 'ldap', got %q", plan.TargetService)
 	}
-	if plan.TargetVersion != "" {
+	if plan.TargetVersion != "0.0.1" {
 		t.Fatalf("expected target version '0.0.1', got %q", plan.TargetVersion)
 	}
 }

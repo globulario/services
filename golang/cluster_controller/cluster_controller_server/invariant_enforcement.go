@@ -59,7 +59,39 @@ func (srv *server) enforceAllInvariantsLocked() bool {
 		srv.workflowRepairNeeded = srv.checkWorkflowCompleteness()
 	}
 
+	// 3. Disk health — log WARN/CRITICAL based on heartbeat capabilities.
+	//    Best-effort: no state modification, just structured logging so
+	//    operators see disk pressure in logs even when the workflow service
+	//    is down and invariantValidateDiskHealth cannot run.
+	srv.checkDiskHealthLocked()
+
 	return modified
+}
+
+const (
+	diskWarnPct     = 20.0 // log WARN when free < 20 %
+	diskCriticalPct = 5.0  // log CRITICAL when free < 5 %
+)
+
+// checkDiskHealthLocked logs disk-pressure warnings based on the DiskFreeBytes
+// reported by each node's heartbeat. Called under srv.lock(). Never modifies state.
+func (srv *server) checkDiskHealthLocked() {
+	for id, n := range srv.state.Nodes {
+		caps := n.Capabilities
+		if caps == nil || caps.DiskBytes == 0 {
+			continue
+		}
+		freePct := float64(caps.DiskFreeBytes) / float64(caps.DiskBytes) * 100.0
+		freeGB := float64(caps.DiskFreeBytes) / (1024 * 1024 * 1024)
+		switch {
+		case freePct < diskCriticalPct:
+			log.Printf("invariant[disk] CRITICAL: node %s (%s) disk %.1f%% free (%.1f GiB) — manual cleanup required",
+				n.Identity.Hostname, id, freePct, freeGB)
+		case freePct < diskWarnPct:
+			log.Printf("invariant[disk] WARN: node %s (%s) disk %.1f%% free (%.1f GiB)",
+				n.Identity.Hostname, id, freePct, freeGB)
+		}
+	}
 }
 
 // checkWorkflowCompleteness checks if all core workflow definitions exist

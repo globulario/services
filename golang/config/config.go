@@ -892,6 +892,9 @@ func GetStateRootDir() string {
 		}
 		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular"
 	}
+	if d := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR")); d != "" {
+		return d
+	}
 	return "/var/lib/globular"
 }
 

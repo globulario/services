@@ -93,6 +93,8 @@ func newReleasePackageRouter(t *testing.T, opts releasePackageTestOpts) *Router 
 		VerifyPackageRuntime:   opts.verifyPackageRuntime,
 		SyncInstalledPackage:   opts.syncInstalledPackage,
 	})
+	// Verification actions (verify steps in release.apply.package.yaml).
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 	return router
 }
 

@@ -51,6 +51,11 @@ var rootCmd = &cobra.Command{
 			// Failure is non-fatal here; individual commands will surface the error
 			// when they actually attempt a TLS connection.
 		}
+		if rootCfg.caFile != "" {
+			// Export so that service client code finds the right CA regardless
+			// of install layout (InitClient → GetEtcdTLS → GetCACertificatePath).
+			_ = os.Setenv("GLOBULAR_CA_CERT", rootCfg.caFile)
+		}
 		if rootCfg.token == "" {
 			home := os.Getenv("HOME")
 			if home == "" {

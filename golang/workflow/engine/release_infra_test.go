@@ -67,6 +67,9 @@ func newReleaseTestRouter(t *testing.T, opts releaseTestOpts) *Router {
 		SyncInstalledPackage:   opts.syncInstalledPackage,
 	})
 
+	// Verification actions (verify steps in release.apply.infrastructure.yaml).
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
+
 	return router
 }
 
@@ -404,6 +407,9 @@ func TestInfraRelease_NoPlanArtifacts(t *testing.T) {
 			router.Register(v1alpha1.ActorNodeAgent, action, trackHandler(action, h))
 		}
 	}
+
+	// Verification handlers (verify steps in release.apply.infrastructure.yaml).
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 
 	eng := &Engine{Router: router}
 	def := loadReleaseInfraDef(t)

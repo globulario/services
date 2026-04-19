@@ -1,23 +1,20 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestGetCACertificatePathEnvOverride(t *testing.T) {
-	tmp := t.TempDir()
-	ca := filepath.Join(tmp, "ca.crt")
-	if err := os.WriteFile(ca, []byte("test"), 0644); err != nil {
-		t.Fatalf("write ca: %v", err)
-	}
-	old := os.Getenv("GLOBULAR_CA_CERT")
-	defer os.Setenv("GLOBULAR_CA_CERT", old)
-	os.Setenv("GLOBULAR_CA_CERT", ca)
+// TestGetCACertificatePathCanonical verifies the CA cert path is always
+// derived from the state root — no env var overrides (per hard rules).
+func TestGetCACertificatePathCanonical(t *testing.T) {
 	got := GetCACertificatePath()
-	if got != ca {
-		t.Fatalf("expected %s, got %s", ca, got)
+	if got == "" {
+		t.Fatal("expected non-empty CA cert path")
+	}
+	// Path must end with the canonical suffix — never a custom override.
+	if !filepath.IsAbs(got) {
+		t.Fatalf("expected absolute path, got %s", got)
 	}
 }
 

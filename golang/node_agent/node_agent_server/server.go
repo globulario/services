@@ -325,35 +325,53 @@ func buildHealthChecks(spec *cluster_controllerpb.ClusterNetworkSpec) []healthch
 	// Use routable IP for health checks on services that bind to NodeIP.
 	// Envoy admin is intentionally local-only (127.0.0.1:9901).
 	// Gateway binds 0.0.0.0 so either IP works.
+	// Test isolation: GLOBULAR_HEALTH_* env vars redirect to local mock servers.
 	nodeIP := nodeRoutableIP()
+
+	minioURL := fmt.Sprintf("http://%s:9000/minio/health/ready", nodeIP)
+	if v := os.Getenv("GLOBULAR_HEALTH_MINIO_URL"); v != "" {
+		minioURL = v
+	}
+	envoyURL := "http://127.0.0.1:9901/ready"
+	if v := os.Getenv("GLOBULAR_HEALTH_ENVOY_URL"); v != "" {
+		envoyURL = v
+	}
 
 	checks := []healthchecks.Check{
 		{
 			Name:           "minio",
-			URL:            fmt.Sprintf("http://%s:9000/minio/health/ready", nodeIP),
+			URL:            minioURL,
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 		},
 		{
 			Name:           "envoy-admin",
-			URL:            "http://127.0.0.1:9901/ready",
+			URL:            envoyURL,
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 		},
 	}
 	if strings.EqualFold(spec.GetProtocol(), "https") {
+		gatewayURL := fmt.Sprintf("https://%s:%d/health", nodeIP, httpsPort)
+		if v := os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL"); v != "" {
+			gatewayURL = v
+		}
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-https",
-			URL:            fmt.Sprintf("https://%s:%d/health", nodeIP, httpsPort),
+			URL:            gatewayURL,
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			InsecureTLS:    true,
 			HostHeader:     domain,
 		})
 	} else {
+		gatewayURL := fmt.Sprintf("http://%s:%d/health", nodeIP, httpPort)
+		if v := os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL"); v != "" {
+			gatewayURL = v
+		}
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-http",
-			URL:            fmt.Sprintf("http://%s:%d/health", nodeIP, httpPort),
+			URL:            gatewayURL,
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			HostHeader:     domain,
@@ -385,7 +403,11 @@ func runSupplementalChecks(ctx context.Context, spec *cluster_controllerpb.Clust
 	if domain == "" {
 		errs = append(errs, "dns: empty domain")
 	} else {
+		// Test isolation: GLOBULAR_DNS_UDP_ADDR redirects to a local mock DNS server.
 		dnsAddr := nodeRoutableIP() + ":53"
+		if v := os.Getenv("GLOBULAR_DNS_UDP_ADDR"); v != "" {
+			dnsAddr = v
+		}
 		resolver := &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -398,13 +420,28 @@ func runSupplementalChecks(ctx context.Context, spec *cluster_controllerpb.Clust
 		}
 	}
 
+	// Test isolation: GLOBULAR_ETCD_ADDR / GLOBULAR_MINIO_ADDR / GLOBULAR_SCYLLA_ADDR
+	// redirect TCP probes to local listeners. In production the node routable IP is used.
+	etcdAddr := nodeRoutableIP() + ":2379"
+	if v := os.Getenv("GLOBULAR_ETCD_ADDR"); v != "" {
+		etcdAddr = v
+	}
+	minioAddr := nodeRoutableIP() + ":9000"
+	if v := os.Getenv("GLOBULAR_MINIO_ADDR"); v != "" {
+		minioAddr = v
+	}
+	scyllaAddr := nodeRoutableIP() + ":9042"
+	if v := os.Getenv("GLOBULAR_SCYLLA_ADDR"); v != "" {
+		scyllaAddr = v
+	}
+
 	addrs := []struct {
 		name string
 		addr string
 	}{
-		{"etcd", nodeRoutableIP() + ":2379"},
-		{"minio-tcp", nodeRoutableIP() + ":9000"},
-		{"scylla", nodeRoutableIP() + ":9042"},
+		{"etcd", etcdAddr},
+		{"minio-tcp", minioAddr},
+		{"scylla", scyllaAddr},
 	}
 	for _, a := range addrs {
 		d := net.Dialer{Timeout: 3 * time.Second}

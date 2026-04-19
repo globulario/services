@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"google.golang.org/grpc/credentials"
 
@@ -57,7 +58,15 @@ func userPKIPath(name string) (string, error) {
 //
 // Permission errors are never silently ignored.
 func resolveCAPath() (string, error) {
-	// Priority 1: user PKI directory
+	// Priority 1: GLOBULAR_CA_CERT environment variable
+	if p := strings.TrimSpace(os.Getenv("GLOBULAR_CA_CERT")); p != "" {
+		if _, err := os.Stat(p); err != nil {
+			return "", fmt.Errorf("GLOBULAR_CA_CERT: %w", err)
+		}
+		return p, nil
+	}
+
+	// Priority 2: user PKI directory
 	if p, err := userPKIPath("ca.crt"); err == nil {
 		if _, statErr := os.Stat(p); statErr == nil {
 			return p, nil
@@ -113,6 +122,16 @@ func resolveCAPath() (string, error) {
 // If requireClientCert is true and no keypair can be located, ErrNeedInstallCerts
 // is returned. If false, nil is returned (caller proceeds without client cert).
 func resolveClientKeypair(requireClientCert bool) (*clientKeypair, error) {
+	// Priority 1: GLOBULAR_CLIENT_CERT / GLOBULAR_CLIENT_KEY environment variables
+	envCert := strings.TrimSpace(os.Getenv("GLOBULAR_CLIENT_CERT"))
+	envKey := strings.TrimSpace(os.Getenv("GLOBULAR_CLIENT_KEY"))
+	if envCert != "" || envKey != "" {
+		if envCert == "" || envKey == "" {
+			return nil, fmt.Errorf("both GLOBULAR_CLIENT_CERT and GLOBULAR_CLIENT_KEY must be set together")
+		}
+		return &clientKeypair{certFile: envCert, keyFile: envKey}, nil
+	}
+
 	// User PKI directory
 	certPath, cerr := userPKIPath("client.crt")
 	keyPath, kerr := userPKIPath("client.key")

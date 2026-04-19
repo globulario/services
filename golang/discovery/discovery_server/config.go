@@ -69,7 +69,7 @@ func DefaultConfig() *Config {
 		Port:        10029,
 		Proxy:       10030,
 		Protocol:    "grpc",
-		Version:     "0.0.1",
+		Version:     "",
 		PublisherID: "localhost",
 		Description: "Service discovery client",
 		Keywords:    []string{"Discovery", "Package", "Service", "Application"},

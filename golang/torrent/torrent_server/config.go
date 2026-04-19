@@ -63,7 +63,7 @@ func DefaultConfig() *Config {
 		Port:            defaultPort,
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
-		Version:         "0.0.1",
+		Version:         "",
 		PublisherID:     "localhost",
 		Description:     "Torrent gRPC service for Globular.",
 		Keywords:        []string{"Torrent", "Download", "P2P", "Service"},

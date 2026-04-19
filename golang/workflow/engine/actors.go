@@ -198,6 +198,7 @@ func controllerSetPhase(cfg ControllerConfig) ActionHandler {
 	}
 }
 
+
 func controllerMarkFailed(cfg ControllerConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		reason := fmt.Sprint(req.With["reason"])

@@ -390,6 +390,12 @@ func main() {
 		logger.Warn("failed to register in Globular service registry; xDS routing may be unavailable", "err", err)
 	}
 
+	// Signal systemd that the service is ready. The unit file uses Type=notify
+	// + WatchdogSec=60, so without READY=1 the unit stays in "activating"
+	// forever and Restart=on-failure cannot fire on a clean stop.
+	globular_service.SdNotify("READY=1\nSTATUS=serving")
+	globular_service.SdWatchdogLoop()
+
 	// Block main goroutine — the gRPC server runs in its own goroutine above.
 	logger.Info("cluster controller ready",
 		"address", address,

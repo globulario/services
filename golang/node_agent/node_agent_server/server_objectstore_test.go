@@ -11,7 +11,11 @@ func TestEnsureObjectstoreLayoutMissingContract(t *testing.T) {
 	srv := NewNodeAgentServer("", nil, NodeAgentConfig{})
 	tmp := t.TempDir()
 	missing := filepath.Join(tmp, "minio.json")
-	t.Setenv("NODE_AGENT_MINIO_CONTRACT", missing)
+
+	// Redirect contract path via package-level variable (same pattern as ActionBinDir).
+	orig := minioContractPath
+	minioContractPath = missing
+	t.Cleanup(func() { minioContractPath = orig })
 
 	err := srv.ensureObjectstoreLayout(context.Background(), "example.com")
 	if err == nil {

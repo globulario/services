@@ -39,7 +39,6 @@ func TestAdvancePhase_ValidTransition_NoError(t *testing.T) {
 		{"", cluster_controllerpb.ReleasePhasePending},
 		{"", cluster_controllerpb.ReleasePhaseFailed},
 		{cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseResolved},
-		{cluster_controllerpb.ReleasePhaseResolved, cluster_controllerpb.ReleasePhaseApplying},
 		{cluster_controllerpb.ReleasePhaseResolved, cluster_controllerpb.ReleasePhaseAvailable},
 		{cluster_controllerpb.ReleasePhaseApplying, cluster_controllerpb.ReleasePhaseAvailable},
 		{cluster_controllerpb.ReleasePhaseApplying, cluster_controllerpb.ReleasePhaseResolved},

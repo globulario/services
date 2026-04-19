@@ -22,7 +22,10 @@ func TestInitResourceStoreMem(t *testing.T) {
 func TestInitResourceStoreEtcd(t *testing.T) {
 	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
 	dummy := &clientv3.Client{}
-	srv.initResourceStore(dummy)
+	// Assign directly to test type selection without triggering cleanup RPCs
+	// (which would panic on an unconnected client).
+	srv.etcdClient = dummy
+	srv.resources = resourcestore.NewEtcdStore(dummy)
 	if !resourcestore.IsEtcdStore(srv.resources) {
 		t.Fatalf("expected etcd store")
 	}

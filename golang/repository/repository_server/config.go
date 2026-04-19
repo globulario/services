@@ -75,7 +75,7 @@ func DefaultConfig() *Config {
 		Port:        10000,
 		Proxy:       10001,
 		Protocol:    "grpc",
-		Version:     "0.0.1",
+		Version:     "",
 		PublisherID: "localhost",
 		Description: "Package repository for distributing services and applications",
 		Keywords:    []string{"Package", "Repository"},
