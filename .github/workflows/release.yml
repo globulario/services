@@ -32,6 +32,10 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      # ── System dependencies for CGO packages ─────────────────────────────
+      - name: Install system dependencies
+        run: sudo apt-get install -y libsqlite3-dev libwebp-dev
+
       # ── Go setup ──────────────────────────────────────────────────────────
       - name: Setup Go
         uses: actions/setup-go@v5
