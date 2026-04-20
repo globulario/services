@@ -44,6 +44,16 @@ jobs:
           repository: globulario/globular-installer
           path: globular-installer
 
+      # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
+      - name: Free disk space
+        run: |
+          sudo docker system prune -af 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h /
+
       # ── System dependencies for CGO packages ─────────────────────────────
       - name: Install system dependencies
         run: |
@@ -392,6 +402,12 @@ jobs:
           echo "Packages:"
           ls dist/packages/*.tgz | wc -l
           du -sh dist/packages/
+
+      # ── Clean intermediate build artifacts to reclaim disk space ─────────
+      - name: Clean build artifacts
+        run: |
+          rm -rf dist/bin
+          df -h /
 
       # ── Assemble release tarball ───────────────────────────────────────────
       - name: Assemble release tarball
