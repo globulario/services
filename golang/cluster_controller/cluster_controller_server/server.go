@@ -1071,6 +1071,76 @@ func (srv *server) publishMinioConfigLocked() {
 	}
 }
 
+// publishScyllaHostsIfNeeded writes /globular/cluster/scylla/hosts to etcd
+// whenever the set of approved ScyllaDB-carrying nodes changes. It is called
+// from the periodic reconcile loop so every new storage node join and every
+// node leave is reflected in the host list automatically.
+//
+// ScyllaDB runs on nodes with the "core" or "storage" profile. Only nodes
+// that are approved (Status "healthy" or "active") and have a routable IP
+// are included.
+//
+// Must NOT be called with srv.mu held.
+func (srv *server) publishScyllaHostsIfNeeded(ctx context.Context) {
+	srv.lock("scylla-hosts")
+	var hosts []string
+	for _, node := range srv.state.Nodes {
+		if node == nil || node.NodeID == "" {
+			continue
+		}
+		// Exclude nodes that are definitively gone or broken.
+		if node.Status == "removed" || node.Status == "unreachable" || node.Status == "blocked" {
+			continue
+		}
+		hasScylla := false
+		for _, p := range node.Profiles {
+			if p == "core" || p == "storage" {
+				hasScylla = true
+				break
+			}
+		}
+		if !hasScylla {
+			continue
+		}
+		ip := node.PrimaryIP()
+		if ip == "" {
+			continue
+		}
+		hosts = append(hosts, ip)
+	}
+	srv.unlock()
+
+	if len(hosts) == 0 {
+		return
+	}
+
+	sort.Strings(hosts)
+
+	// Read current list from etcd to avoid unnecessary writes.
+	existing, _ := config.GetScyllaHosts()
+	existing2 := append([]string(nil), existing...)
+	sort.Strings(existing2)
+
+	equal := len(hosts) == len(existing2)
+	if equal {
+		for i := range hosts {
+			if hosts[i] != existing2[i] {
+				equal = false
+				break
+			}
+		}
+	}
+	if equal {
+		return
+	}
+
+	if err := config.SaveClusterHostList(config.EtcdKeyClusterScyllaHosts, hosts); err != nil {
+		log.Printf("publish scylla hosts to etcd failed: %v", err)
+		return
+	}
+	log.Printf("scylla hosts updated in etcd: %v", hosts)
+}
+
 func protoToStoredIdentity(pi *cluster_controllerpb.NodeIdentity) storedIdentity {
 	if pi == nil {
 		return storedIdentity{}

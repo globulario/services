@@ -445,6 +445,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		srv.infraRetryOnce(ctx)
 	}
 
+	// Keep /globular/cluster/scylla/hosts in sync with approved storage nodes.
+	// Idempotent: only writes when the list changes.
+	srv.publishScyllaHostsIfNeeded(ctx)
+
 	if stateDirty {
 		srv.lock("reconcile:persist")
 		func() {

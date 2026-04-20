@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -16,16 +17,47 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+// minioCredentialsFile is the installer-managed file that holds the MinIO
+// root credentials in "access:secret" format. When this file exists we
+// reuse those credentials so the controller and the running MinIO instance
+// share the same root account without any reconciliation step.
+const minioCredentialsFile = "/var/lib/globular/minio/credentials"
+
 // generateMinioCredentials creates random MinIO root credentials.
+// Access key is kept to ≤20 chars (MinIO enforces this limit).
 func generateMinioCredentials() *minioCredentials {
-	user := make([]byte, 10)
+	user := make([]byte, 5) // "gl-" (3) + 10 hex chars = 13 chars total (well under 20)
 	pass := make([]byte, 16)
 	rand.Read(user)
 	rand.Read(pass)
 	return &minioCredentials{
-		RootUser:     "globular-" + hex.EncodeToString(user),
+		RootUser:     "gl-" + hex.EncodeToString(user),
 		RootPassword: hex.EncodeToString(pass),
 	}
+}
+
+// readOrGenerateMinioCredentials reads the MinIO root credentials from the
+// well-known installer credential file when it exists and is valid. Falls back
+// to generating fresh random credentials. This prevents a mismatch between the
+// credentials the controller stores in etcd and the credentials MinIO was
+// actually initialized with by the installer package.
+func readOrGenerateMinioCredentials() *minioCredentials {
+	data, err := os.ReadFile(minioCredentialsFile)
+	if err == nil {
+		line := strings.TrimSpace(string(data))
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" &&
+			len(parts[0]) <= 20 { // MinIO access key max is 20 chars
+			log.Printf("minio-creds: read from %s (user=%s)", minioCredentialsFile, parts[0])
+			return &minioCredentials{
+				RootUser:     parts[0],
+				RootPassword: parts[1],
+			}
+		}
+	}
+	creds := generateMinioCredentials()
+	log.Printf("minio-creds: generated fresh credentials (user=%s)", creds.RootUser)
+	return creds
 }
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
@@ -326,7 +358,7 @@ func newControllerState() *controllerState {
 			Protocol:      "https",
 		},
 		NetworkingGeneration: 1,
-		MinioCredentials:     generateMinioCredentials(),
+		MinioCredentials:     readOrGenerateMinioCredentials(),
 	}
 }
 
