@@ -498,7 +498,7 @@ jobs:
 
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
           echo "Contents:"
-          tar tzf "${RELEASE_NAME}.tar.gz" | head -50
+          tar tzf "${RELEASE_NAME}.tar.gz" | head -50 || true
 
       # ── Publish ───────────────────────────────────────────────────────────
       - name: Create GitHub Release
