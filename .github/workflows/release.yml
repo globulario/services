@@ -439,6 +439,11 @@ jobs:
           cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
           chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
 
+          # Welcome page assets — seeded into MinIO webroot on first install
+          if [[ -d globular-installer/internal/assets/webroot ]]; then
+            cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
+          fi
+
           # All packages (infra + service) — move to avoid doubling disk usage
           mv dist/packages/*.tgz "${RELEASE_DIR}/packages/"
 
