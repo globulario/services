@@ -24,10 +24,23 @@ Before bootstrapping, ensure the following:
 
 ## Installing Globular Binaries
 
-Globular is distributed as a set of compiled binaries and infrastructure packages. The installation process places these on the target machine:
+Download the latest release tarball from GitHub and run the installer:
 
 ```bash
-# The installer places binaries and packages:
+# Check https://github.com/globulario/services/releases for the latest version
+VERSION="1.0.17"
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
+curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
+sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
+
+tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
+cd "globular-${VERSION}-linux-amd64"
+sudo bash install.sh
+```
+
+`install.sh` places binaries and packages on the machine:
+
+```bash
 /usr/local/bin/
 ├── globular              # CLI tool
 ├── node_agent_server     # Node Agent binary
@@ -36,10 +49,10 @@ Globular is distributed as a set of compiled binaries and infrastructure package
 └── ...                   # All other service binaries
 
 /var/lib/globular/packages/
-├── globular-etcd-3.5.14-linux_amd64-1.tgz
-├── globular-minio-...-linux_amd64-1.tgz
-├── globular-prometheus-...-linux_amd64-1.tgz
-├── globular-authentication-0.0.1-linux_amd64-1.tgz
+├── etcd_3.5.14_linux_amd64.tgz
+├── minio_*_linux_amd64.tgz
+├── prometheus_*_linux_amd64.tgz
+├── authentication_1.0.17_linux_amd64.tgz
 └── ...                   # All service and infrastructure packages
 ```
 
@@ -177,7 +190,7 @@ If the Repository service is running, the bootstrap process publishes all local 
 The bootstrap process creates desired-state entries for all installed services:
 ```
 /globular/resources/DesiredService/etcd → { version: "3.5.14" }
-/globular/resources/DesiredService/authentication → { version: "0.0.1" }
+/globular/resources/DesiredService/authentication → { version: "1.0.17" }
 ...
 ```
 
@@ -206,10 +219,10 @@ globular services desired list
 # Output:
 # SERVICE            VERSION    NODES   STATUS
 # etcd               3.5.14     1/1     INSTALLED
-# authentication     0.0.1      1/1     INSTALLED
-# rbac               0.0.1      1/1     INSTALLED
-# controller         0.0.1      1/1     INSTALLED
-# gateway            0.0.1      1/1     INSTALLED
+# authentication     1.0.17     1/1     INSTALLED
+# rbac               1.0.17     1/1     INSTALLED
+# controller         1.0.17     1/1     INSTALLED
+# gateway            1.0.17     1/1     INSTALLED
 # ...
 
 # Check installed packages

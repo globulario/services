@@ -26,8 +26,8 @@ There are two ways to install Globular: from a release tarball (recommended) or 
 Download the latest release from GitHub:
 
 ```bash
-# Download latest release (replace VERSION with the actual version, e.g., 0.1.0)
-VERSION="0.1.0"
+# Check https://github.com/globulario/services/releases for the latest version
+VERSION="1.0.17"
 curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 
 # Verify checksum
@@ -39,8 +39,6 @@ tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
 cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
-
-> **Note**: If no GitHub release is available yet, see [Building from Source](operators/building-from-source.md) for how to build and install from the Git repositories.
 
 ### Option B: From Source
 
@@ -97,11 +95,11 @@ Expected output:
 ```
 SERVICE            VERSION    NODES   STATUS
 etcd               3.5.14     1/1     INSTALLED
-authentication     0.0.1      1/1     INSTALLED
-rbac               0.0.1      1/1     INSTALLED
-controller         0.0.1      1/1     INSTALLED
-gateway            0.0.1      1/1     INSTALLED
-repository         0.0.1      1/1     INSTALLED
+authentication     1.0.17     1/1     INSTALLED
+rbac               1.0.17     1/1     INSTALLED
+controller         1.0.17     1/1     INSTALLED
+gateway            1.0.17     1/1     INSTALLED
+repository         1.0.17     1/1     INSTALLED
 ...
 ```
 
@@ -353,9 +351,8 @@ If you have all six, the cluster is genuinely healthy. If `globular cluster heal
 
 ## What is still evolving
 
-Globular at v0.1.x is stable for 3-node production use, but some areas are still maturing. Know this before you go further:
+Globular at v1.0.x is stable for 3-node production use, but some areas are still maturing. Know this before you go further:
 
-- **No GitHub release yet**: The "from release" install path in this guide assumes a v0.1.0 tag. Until that tag is published, you must build from source.
 - **Single-node is for development only**: A single node has no etcd quorum, no MinIO erasure redundancy, no ScyllaDB replication. Data can be lost if the node fails. Add at least two more nodes before storing anything you care about.
 - **Compute service not deployed**: The compute server code exists but is not built or packaged. It is a Phase 2 feature.
 - **Some CLI commands missing**: Backup, monitoring, and AI commands documented elsewhere have no CLI wrapper yet. Use the MCP tools or direct gRPC. See [Known Issues](operators/known-issues.md) for the full list.
