@@ -273,6 +273,7 @@ github.com/frankban/quicktest v1.11.3/go.mod h1:wRf/ReqHper53s+kmmSZizM8NamnL3IM
 github.com/fsnotify/fsnotify v1.5.1/go.mod h1:T3375wBYaZdLLcVNkcVbzGHY7f1l/uK5T5Ai1i3InKU=
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6HKRL6CGdk+aubisF/M5GcPfT7nKyLpA0lbSSk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
+github.com/globulario/globular-installer v0.0.0-20260413200737-a8ca92f13618/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
 github.com/go-acme/alidns-20150109/v4 v4.5.10/go.mod h1:qGRq8kD0xVgn82qRSQmhHwh/oWxKRjF4Db5OI4ScV5g=
 github.com/go-acme/alidns-20150109/v4 v4.7.0/go.mod h1:btQvB6xZoN6ykKB74cPhiR+uvhrEE2AFVXm6RDmCHm0=
 github.com/go-acme/esa-20240910/v2 v2.48.0/go.mod h1:shPb6hzc1rJL15IJBY8HQ4GZk4E8RC52+52twutEwIg=
