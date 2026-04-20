@@ -6,6 +6,9 @@ golang/tools/stage/
 golang/globularcli/generated/
 generated/
 
+# Release build output
+dist/
+
 # Build artifacts
 golang/generated/
 golang/globularcli/globularcli
