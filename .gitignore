@@ -9,16 +9,42 @@ generated/
 # Release build output
 dist/
 
-# Build artifacts
-golang/generated/
+# Build / stage directories
+golang/build/stage/
+golang/tools/stage/
+stage/
+build/
+
+# Compiled service binaries (root dumps from local builds)
+ai_memory_server
+mcp
+*_server
+
+# Compiled service binaries (in golang/ root — local build dumps)
+golang/*_server
+golang/authzgen
+golang/globular-mcp-server
+golang/mcp/mcp
 golang/globularcli/globularcli
-golang/clustercontroller/clustercontroller_server/clustercontroller_server
-golang/nodeagent/nodeagent_server/nodeagent_server
+golang/globularcli/tools/setup-minio/setup-minio
+golang/cmd/detect-unmapped/detect-unmapped
+
+# Per-package built binaries
+golang/*/*_server/*_server
+golang/*/mcp/mcp
+
+# C# / .NET build artifacts
+csharp/**/bin/
+csharp/**/obj/
+
+# Stale scratch/debug files
+golang/error
+golang/checks_test.go
+TODO.md
 
 # Binary executables
 *.exe
 *.dll
 *.so
 *.dylib
-golang/globularcli/globular
 site/
