@@ -439,8 +439,8 @@ jobs:
           cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
           chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
 
-          # All packages (infra + service)
-          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/"
+          # All packages (infra + service) — move to avoid doubling disk usage
+          mv dist/packages/*.tgz "${RELEASE_DIR}/packages/"
 
           # Installer script (wrapper that sets up compat symlinks then calls install-day0.sh)
           cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
@@ -450,7 +450,7 @@ jobs:
           (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 
           # README
-          PKG_COUNT=$(ls dist/packages/*.tgz | wc -l)
+          PKG_COUNT=$(ls "${RELEASE_DIR}/packages/"*.tgz | wc -l)
           cat > "${RELEASE_DIR}/README.md" <<HEREDOC
           # Globular ${VERSION}
 
