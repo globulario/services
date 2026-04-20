@@ -406,6 +406,11 @@ jobs:
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
         run: |
+          # Preserve the two binaries needed for the release tarball,
+          # then wipe the rest of dist/bin (service binaries, xds, gateway, etc.)
+          mkdir -p dist/release-bin
+          mv dist/bin/globular dist/release-bin/globular
+          mv dist/bin/globular-installer dist/release-bin/globular-installer
           rm -rf dist/bin
           df -h /
 
@@ -423,11 +428,11 @@ jobs:
           mkdir -p "${RELEASE_DIR}/packages"
 
           # CLI binary (user-facing name)
-          cp dist/bin/globular "${RELEASE_DIR}/globular"
+          cp dist/release-bin/globular "${RELEASE_DIR}/globular"
           chmod 755 "${RELEASE_DIR}/globular"
 
           # Day-0 installer binary
-          cp dist/bin/globular-installer "${RELEASE_DIR}/globular-installer"
+          cp dist/release-bin/globular-installer "${RELEASE_DIR}/globular-installer"
           chmod 755 "${RELEASE_DIR}/globular-installer"
 
           # Scripts from globular-installer (setup-tls.sh, install-day0.sh, etc.)
