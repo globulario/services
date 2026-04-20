@@ -338,7 +338,7 @@ func TestGenerateMinioCredentials(t *testing.T) {
 	if c1.RootUser == c2.RootUser {
 		t.Fatal("two generated credentials should be different")
 	}
-	if !strings.HasPrefix(c1.RootUser, "globular-") {
-		t.Errorf("root user should start with globular-, got %s", c1.RootUser)
+	if !strings.HasPrefix(c1.RootUser, "gl-") {
+		t.Errorf("root user should start with gl-, got %s", c1.RootUser)
 	}
 }
