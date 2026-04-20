@@ -442,7 +442,7 @@ jobs:
           # All packages (infra + service) — move to avoid doubling disk usage
           mv dist/packages/*.tgz "${RELEASE_DIR}/packages/"
 
-          # Installer script (wrapper that sets up compat symlinks then calls install-day0.sh)
+          # Installer script (installs node_agent, caches packages, creates systemd unit)
           cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
           chmod +x "${RELEASE_DIR}/install.sh"
 
