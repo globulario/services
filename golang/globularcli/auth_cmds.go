@@ -30,17 +30,22 @@ import (
 
 // defaultAuthPort is the fallback when all discovery methods are unavailable.
 // Must match the authentication_server binary's own default port.
-const defaultAuthPort = 10004
+const defaultAuthPort = 10000
 
 // resolveAuthAddr discovers the authentication service endpoint.
 // Discovery order:
-//  1. etcd (authoritative registry in a running cluster; returns the best instance)
-//  2. Local service config files in GetServicesConfigDir() (standalone / Day-0)
-//  3. Hardcoded fallback
+//  1. --auth flag (explicit override; bypasses mesh routing — used for Day-0 bootstrap)
+//  2. etcd (authoritative registry in a running cluster; returns the best instance)
+//  3. Hardcoded fallback (localhost:defaultAuthPort, direct — no mesh rewrite)
 //
 // In a cluster with multiple authentication instances, a random one is chosen
 // to distribute load (see config.ResolveServiceAddr).
 func resolveAuthAddr() string {
+	// Explicit override via --auth flag: return as-is, no mesh rewriting.
+	// Used during Day-0 bootstrap when Envoy is not yet running.
+	if rootCfg.authAddr != "" {
+		return rootCfg.authAddr
+	}
 	return config.ResolveServiceAddr(
 		"authentication.AuthenticationService",
 		fmt.Sprintf("localhost:%d", defaultAuthPort),

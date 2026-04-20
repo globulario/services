@@ -14,6 +14,7 @@ var rootCfg = struct {
 	controllerAddr string
 	nodeAddr       string
 	dnsAddr        string
+	authAddr       string
 	token          string
 	caFile         string
 	insecure       bool
@@ -74,6 +75,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCfg.controllerAddr, "controller", rootCfg.controllerAddr, "Cluster controller gRPC endpoint")
 	rootCmd.PersistentFlags().StringVar(&rootCfg.nodeAddr, "node", rootCfg.nodeAddr, "Node agent gRPC endpoint")
 	rootCmd.PersistentFlags().StringVar(&rootCfg.dnsAddr, "dns", rootCfg.dnsAddr, "DNS service gRPC endpoint")
+	rootCmd.PersistentFlags().StringVar(&rootCfg.authAddr, "auth", "", "Authentication service gRPC endpoint (bypasses mesh routing, e.g. for Day-0 bootstrap)")
 	rootCmd.PersistentFlags().StringVar(&rootCfg.token, "token", "", "Authorization token for the control plane")
 	rootCmd.PersistentFlags().BoolVar(&rootCfg.insecure, "insecure", false, "Skip TLS verification")
 	rootCmd.PersistentFlags().StringVar(&rootCfg.caFile, "ca", "", "Path to CA bundle")
