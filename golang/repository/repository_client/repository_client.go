@@ -885,3 +885,57 @@ func (client *Repository_Service_Client) GetNamespace(namespaceID string) (*repo
 	}
 	return nil, fmt.Errorf("unexpected response type")
 }
+
+// ── Upstream Source Registry ─────────────────────────────────────────────────
+
+// RegisterUpstream registers a named upstream artifact source.
+func (client *Repository_Service_Client) RegisterUpstream(src *repositorypb.UpstreamSource) (*repositorypb.RegisterUpstreamResponse, error) {
+	req := &repositorypb.RegisterUpstreamRequest{Source: src}
+	rsp, err := client.Invoke("RegisterUpstream", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.RegisterUpstreamResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from RegisterUpstream")
+}
+
+// ListUpstreams returns all registered upstream sources.
+func (client *Repository_Service_Client) ListUpstreams() (*repositorypb.ListUpstreamsResponse, error) {
+	req := &repositorypb.ListUpstreamsRequest{}
+	rsp, err := client.Invoke("ListUpstreams", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.ListUpstreamsResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from ListUpstreams")
+}
+
+// RemoveUpstream removes a registered upstream source by name.
+func (client *Repository_Service_Client) RemoveUpstream(name string) error {
+	req := &repositorypb.RemoveUpstreamRequest{Name: name}
+	_, err := client.Invoke("RemoveUpstream", req, client.GetCtx())
+	return err
+}
+
+// SyncFromUpstream fetches a release index from the named upstream source and
+// imports new artifacts. release_tag is required. Set dry_run=true to preview.
+func (client *Repository_Service_Client) SyncFromUpstream(sourceName, releaseTag string, dryRun bool, only []string) (*repositorypb.SyncFromUpstreamResponse, error) {
+	req := &repositorypb.SyncFromUpstreamRequest{
+		SourceName: sourceName,
+		ReleaseTag: releaseTag,
+		DryRun:     dryRun,
+		Only:       only,
+	}
+	rsp, err := client.Invoke("SyncFromUpstream", req, client.GetCtx())
+	if err != nil {
+		return nil, err
+	}
+	if resp, ok := rsp.(*repositorypb.SyncFromUpstreamResponse); ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("unexpected response type from SyncFromUpstream")
+}

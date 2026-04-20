@@ -479,11 +479,17 @@ func installerCaptureFailureBundle(cfg InstallerConfig) ActionHandler {
 // RepositoryConfig provides dependencies for repository actor actions.
 type RepositoryConfig struct {
 	PublishBootstrapArtifacts func(ctx context.Context, source string) error
+
+	// SyncUpstream calls SyncFromUpstream on the repository service.
+	// sourceName and releaseTag are required. dryRun=true for preview only.
+	// Returns a summary map suitable for workflow output (imported/skipped/rejected/failed counts).
+	SyncUpstream func(ctx context.Context, sourceName, releaseTag string, dryRun bool, only []string) (map[string]any, error)
 }
 
 // RegisterRepositoryActions registers repository actor handlers.
 func RegisterRepositoryActions(router *Router, cfg RepositoryConfig) {
 	router.Register(v1alpha1.ActorRepository, "repository.publish_bootstrap_artifacts", repoPublishBootstrapArtifacts(cfg))
+	router.Register(v1alpha1.ActorRepository, "repository.sync.upstream", repoSyncUpstream(cfg))
 }
 
 func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
@@ -495,6 +501,33 @@ func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
 			}
 		}
 		return &ActionResult{OK: true}, nil
+	}
+}
+
+func repoSyncUpstream(cfg RepositoryConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		sourceName := fmt.Sprint(req.With["source_name"])
+		releaseTag := fmt.Sprint(req.With["release_tag"])
+		dryRun, _ := req.With["dry_run"].(bool)
+
+		var only []string
+		if onlyRaw, ok := req.With["only"]; ok {
+			if onlyList, ok := onlyRaw.([]any); ok {
+				for _, v := range onlyList {
+					only = append(only, fmt.Sprint(v))
+				}
+			}
+		}
+
+		if cfg.SyncUpstream == nil {
+			return &ActionResult{OK: true, Message: "repository.sync.upstream: no handler configured (noop)"}, nil
+		}
+
+		summary, err := cfg.SyncUpstream(ctx, sourceName, releaseTag, dryRun, only)
+		if err != nil {
+			return nil, fmt.Errorf("repository.sync.upstream: %w", err)
+		}
+		return &ActionResult{OK: true, Output: summary}, nil
 	}
 }
 

@@ -312,6 +312,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			log.Printf("day0: no publish mechanism available, skipping artifact publish")
 			return nil
 		},
+		// SyncUpstream is not triggered during Day-0; the controller handles
+		// repository.sync.upstream for post-bootstrap upstream sync workflows.
+		SyncUpstream: nil,
 	})
 
 	// Wire controller actions (called locally via CLI since controller starts mid-bootstrap).

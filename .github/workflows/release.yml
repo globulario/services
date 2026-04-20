@@ -218,6 +218,8 @@ jobs:
 
       # ── Create infra packages ─────────────────────────────────────────────
       - name: Create infra packages
+        env:
+          BUILD_ID: ${{ github.run_number }}
         run: |
           set -euo pipefail
           mkdir -p dist/packages
@@ -275,14 +277,18 @@ jobs:
             # Compute SHA256 of binary
             CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
-            # Update package.json checksum (version stays fixed from metadata)
-            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" <<'PYEOF'
-          import json, sys
-          path, version, checksum = sys.argv[1], sys.argv[2], sys.argv[3]
+            # Update package.json: version + entrypoint_checksum + build_id (mandatory for release)
+            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
+          import json, sys, os
+          path, version, checksum, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+          if not build_id:
+              print(f"ERROR: BUILD_ID is empty for {path}", file=sys.stderr)
+              sys.exit(1)
           with open(path) as f:
               d = json.load(f)
           d['version'] = version
           d['entrypoint_checksum'] = checksum
+          d['build_id'] = build_id
           with open(path, 'w') as f:
               json.dump(d, f, indent=2)
           PYEOF
@@ -301,6 +307,7 @@ jobs:
       - name: Create service packages
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          BUILD_ID: ${{ github.run_number }}
         run: |
           set -euo pipefail
 
@@ -379,14 +386,18 @@ jobs:
             # Compute SHA256 of the binary
             CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
-            # Update package.json: set version + checksum
-            python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" <<'PYEOF'
+            # Update package.json: version + entrypoint_checksum + build_id (mandatory for release)
+            python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
           import json, sys
-          path, version, checksum = sys.argv[1], sys.argv[2], sys.argv[3]
+          path, version, checksum, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+          if not build_id:
+              print(f"ERROR: BUILD_ID is empty for {path}", file=sys.stderr)
+              sys.exit(1)
           with open(path) as f:
               d = json.load(f)
           d['version'] = version
           d['entrypoint_checksum'] = checksum
+          d['build_id'] = build_id
           with open(path, 'w') as f:
               json.dump(d, f, indent=2)
           PYEOF
@@ -413,6 +424,115 @@ jobs:
           mv dist/bin/globular-installer dist/release-bin/globular-installer
           rm -rf dist/bin
           df -h /
+
+      # ── Generate release index (Phase 2) ─────────────────────────────────
+      # Reads every .tgz in dist/packages/, validates required fields and
+      # uniqueness, then writes dist/release-index.json.
+      # Fails the release job loudly if any validation rule is violated.
+      - name: Generate release index
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, hashlib, tarfile, glob, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import os
+
+          version  = os.environ["RELEASE_VERSION"]
+          tag      = os.environ["GITHUB_REF_NAME"]
+          repo     = os.environ["GITHUB_REPOSITORY"]
+          base_url = f"https://github.com/{repo}/releases/download/{tag}"
+          platform = "linux-amd64"
+
+          seen_keys  = {}   # (name, version, build_id, platform) → filename
+          seen_files = set()
+          entries    = []
+          errors     = []
+
+          for f in sorted(glob.glob("dist/packages/*.tgz")):
+              path       = Path(f)
+              raw        = path.read_bytes()
+              pkg_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+              file_errors = []
+              pkg = {}
+
+              # Package format invariant: every archive must contain ./package.json
+              try:
+                  with tarfile.open(path) as tf:
+                      try:
+                          member = tf.getmember("./package.json")
+                          pkg = json.loads(tf.extractfile(member).read())
+                      except KeyError:
+                          file_errors.append("missing ./package.json")
+              except Exception as e:
+                  file_errors.append(f"failed to read archive: {e}")
+
+              if not file_errors:
+                  # Required release fields — no silent defaults allowed
+                  for field in ("name", "version", "build_id"):
+                      if not pkg.get(field):
+                          file_errors.append(f"package.json missing required field '{field}'")
+
+                  # Platform consistency (if declared in manifest)
+                  pkg_platform = pkg.get("platform", "")
+                  if pkg_platform and pkg_platform != platform:
+                      file_errors.append(
+                          f"platform '{pkg_platform}' != release platform '{platform}'"
+                      )
+
+                  # Duplicate artifact key check
+                  key = (pkg.get("name",""), pkg.get("version",""), pkg.get("build_id",""), platform)
+                  if key in seen_keys:
+                      file_errors.append(
+                          f"duplicate artifact key {key} — also in {seen_keys[key]}"
+                      )
+                  else:
+                      seen_keys[key] = path.name
+
+                  # Duplicate filename check
+                  if path.name in seen_files:
+                      file_errors.append("duplicate filename in release set")
+                  seen_files.add(path.name)
+
+              if file_errors:
+                  for e in file_errors:
+                      errors.append(f"  {path.name}: {e}")
+                  continue
+
+              entries.append({
+                  "name":                pkg["name"],
+                  "kind":                pkg.get("kind", "service"),
+                  "publisher":           pkg.get("publisher", "globulario"),
+                  "version":             pkg["version"],
+                  "build_id":            pkg["build_id"],
+                  "platform":            platform,
+                  "filename":            path.name,
+                  "package_digest":      pkg_digest,
+                  "manifest_digest":     "",
+                  "entrypoint_checksum": pkg.get("entrypoint_checksum", ""),
+                  "asset_url":           f"{base_url}/{path.name}",
+                  "release_tag":         tag,
+                  "published_at":        datetime.now(timezone.utc).isoformat(),
+              })
+
+          if errors:
+              print("ERROR: Release index generation failed:", file=sys.stderr)
+              for e in errors:
+                  print(e, file=sys.stderr)
+              sys.exit(1)
+
+          index = {
+              "schema_version":   1,
+              "release_tag":      tag,
+              "globular_version": version,
+              "publisher":        "globulario",
+              "packages":         entries,
+          }
+          out = Path("dist/release-index.json")
+          out.write_text(json.dumps(index, indent=2))
+          print(f"Generated release index: {len(entries)} packages → {out}")
+          PYEOF
 
       # ── Assemble release tarball ───────────────────────────────────────────
       - name: Assemble release tarball
@@ -446,6 +566,9 @@ jobs:
 
           # All packages (infra + service) — move to avoid doubling disk usage
           mv dist/packages/*.tgz "${RELEASE_DIR}/packages/"
+
+          # Release index — included in tarball and uploaded as a standalone asset
+          cp dist/release-index.json "${RELEASE_DIR}/release-index.json"
 
           # Installer script (installs node_agent, caches packages, creates systemd unit)
           cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
@@ -513,6 +636,8 @@ jobs:
           files: |
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
             dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
+            dist/globular-${{ steps.version.outputs.version }}-linux-amd64/packages/*.tgz
+            dist/release-index.json
           generate_release_notes: true
           body: |
             ## Globular ${{ steps.version.outputs.version }}

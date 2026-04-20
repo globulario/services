@@ -1,0 +1,53 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: repository.sync.upstream
+  displayName: Sync packages from upstream source
+  description: >-
+    Imports new packages from a registered upstream source (e.g. a GitHub
+    Releases index) into the local Globular repository. Each artifact is
+    verified by sha256 digest before import. Existing artifacts with the
+    same key are skipped. Digest conflicts are recorded as audit events
+    and counted as rejected (not imported).
+
+    The workflow advances last_synced_tag only when all artifacts are
+    imported or skipped (zero rejected, zero failed) and dry_run=false.
+
+    Prerequisites:
+      - Repository service is healthy
+      - Upstream source registered via RegisterUpstream
+      - release_tag exists in the upstream index
+
+spec:
+  inputSchema:
+    type: object
+    required:
+      - source_name
+      - release_tag
+    properties:
+      source_name: { type: string, description: "Name of the registered upstream source" }
+      release_tag:  { type: string, description: "Release tag to sync (e.g. v1.0.18)" }
+      dry_run:      { type: boolean, default: false, description: "Preview only — no artifacts are written" }
+      only:
+        type: array
+        items: { type: string }
+        description: "If non-empty, import only packages whose names are in this list"
+  defaults:
+    dry_run: false
+    only: []
+  strategy:
+    mode: single
+  steps:
+    - id: sync_upstream
+      title: Import packages from upstream release
+      actor: repository
+      action: repository.sync.upstream
+      with:
+        source_name: $.source_name
+        release_tag:  $.release_tag
+        dry_run:      $.dry_run
+        only:         $.only
+      timeout: 30m
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry

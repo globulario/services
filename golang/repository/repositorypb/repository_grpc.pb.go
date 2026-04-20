@@ -39,6 +39,10 @@ const (
 	PackageRepository_ResolveArtifact_FullMethodName             = "/repository.PackageRepository/ResolveArtifact"
 	PackageRepository_ResolveByEntrypointChecksum_FullMethodName = "/repository.PackageRepository/ResolveByEntrypointChecksum"
 	PackageRepository_ArchiveUnreachableArtifacts_FullMethodName = "/repository.PackageRepository/ArchiveUnreachableArtifacts"
+	PackageRepository_RegisterUpstream_FullMethodName            = "/repository.PackageRepository/RegisterUpstream"
+	PackageRepository_ListUpstreams_FullMethodName               = "/repository.PackageRepository/ListUpstreams"
+	PackageRepository_RemoveUpstream_FullMethodName              = "/repository.PackageRepository/RemoveUpstream"
+	PackageRepository_SyncFromUpstream_FullMethodName            = "/repository.PackageRepository/SyncFromUpstream"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -111,6 +115,19 @@ type PackageRepositoryClient interface {
 	// installed state) is moved to ARCHIVED state.  dry_run=true previews without
 	// writing.  Returns a per-artifact report.
 	ArchiveUnreachableArtifacts(ctx context.Context, in *ArchiveUnreachableArtifactsRequest, opts ...grpc.CallOption) (*ArchiveUnreachableArtifactsResponse, error)
+	// Registers a named upstream artifact source (e.g. GitHub Releases).
+	// Overwrites if a source with the same name already exists.
+	RegisterUpstream(ctx context.Context, in *RegisterUpstreamRequest, opts ...grpc.CallOption) (*RegisterUpstreamResponse, error)
+	// Lists all registered upstream sources.
+	ListUpstreams(ctx context.Context, in *ListUpstreamsRequest, opts ...grpc.CallOption) (*ListUpstreamsResponse, error)
+	// Removes a registered upstream source by name.
+	RemoveUpstream(ctx context.Context, in *RemoveUpstreamRequest, opts ...grpc.CallOption) (*RemoveUpstreamResponse, error)
+	// Fetches a release index from the named upstream source, validates each
+	// entry, and imports missing artifacts. Leaf operation — intended to be
+	// called by the repository.sync.upstream workflow.
+	// release_tag is REQUIRED in phase 1 — empty tag returns InvalidArgument.
+	// dry_run=true previews without writing anything.
+	SyncFromUpstream(ctx context.Context, in *SyncFromUpstreamRequest, opts ...grpc.CallOption) (*SyncFromUpstreamResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -348,6 +365,46 @@ func (c *packageRepositoryClient) ArchiveUnreachableArtifacts(ctx context.Contex
 	return out, nil
 }
 
+func (c *packageRepositoryClient) RegisterUpstream(ctx context.Context, in *RegisterUpstreamRequest, opts ...grpc.CallOption) (*RegisterUpstreamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterUpstreamResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RegisterUpstream_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) ListUpstreams(ctx context.Context, in *ListUpstreamsRequest, opts ...grpc.CallOption) (*ListUpstreamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUpstreamsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListUpstreams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) RemoveUpstream(ctx context.Context, in *RemoveUpstreamRequest, opts ...grpc.CallOption) (*RemoveUpstreamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveUpstreamResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_RemoveUpstream_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) SyncFromUpstream(ctx context.Context, in *SyncFromUpstreamRequest, opts ...grpc.CallOption) (*SyncFromUpstreamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncFromUpstreamResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_SyncFromUpstream_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -418,6 +475,19 @@ type PackageRepositoryServer interface {
 	// installed state) is moved to ARCHIVED state.  dry_run=true previews without
 	// writing.  Returns a per-artifact report.
 	ArchiveUnreachableArtifacts(context.Context, *ArchiveUnreachableArtifactsRequest) (*ArchiveUnreachableArtifactsResponse, error)
+	// Registers a named upstream artifact source (e.g. GitHub Releases).
+	// Overwrites if a source with the same name already exists.
+	RegisterUpstream(context.Context, *RegisterUpstreamRequest) (*RegisterUpstreamResponse, error)
+	// Lists all registered upstream sources.
+	ListUpstreams(context.Context, *ListUpstreamsRequest) (*ListUpstreamsResponse, error)
+	// Removes a registered upstream source by name.
+	RemoveUpstream(context.Context, *RemoveUpstreamRequest) (*RemoveUpstreamResponse, error)
+	// Fetches a release index from the named upstream source, validates each
+	// entry, and imports missing artifacts. Leaf operation — intended to be
+	// called by the repository.sync.upstream workflow.
+	// release_tag is REQUIRED in phase 1 — empty tag returns InvalidArgument.
+	// dry_run=true previews without writing anything.
+	SyncFromUpstream(context.Context, *SyncFromUpstreamRequest) (*SyncFromUpstreamResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -486,6 +556,18 @@ func (UnimplementedPackageRepositoryServer) ResolveByEntrypointChecksum(context.
 }
 func (UnimplementedPackageRepositoryServer) ArchiveUnreachableArtifacts(context.Context, *ArchiveUnreachableArtifactsRequest) (*ArchiveUnreachableArtifactsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveUnreachableArtifacts not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RegisterUpstream(context.Context, *RegisterUpstreamRequest) (*RegisterUpstreamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterUpstream not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListUpstreams(context.Context, *ListUpstreamsRequest) (*ListUpstreamsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUpstreams not implemented")
+}
+func (UnimplementedPackageRepositoryServer) RemoveUpstream(context.Context, *RemoveUpstreamRequest) (*RemoveUpstreamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveUpstream not implemented")
+}
+func (UnimplementedPackageRepositoryServer) SyncFromUpstream(context.Context, *SyncFromUpstreamRequest) (*SyncFromUpstreamResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncFromUpstream not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -820,6 +902,78 @@ func _PackageRepository_ArchiveUnreachableArtifacts_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageRepository_RegisterUpstream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterUpstreamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RegisterUpstream(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RegisterUpstream_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RegisterUpstream(ctx, req.(*RegisterUpstreamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_ListUpstreams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUpstreamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListUpstreams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListUpstreams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListUpstreams(ctx, req.(*ListUpstreamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_RemoveUpstream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveUpstreamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).RemoveUpstream(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_RemoveUpstream_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).RemoveUpstream(ctx, req.(*RemoveUpstreamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_SyncFromUpstream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncFromUpstreamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).SyncFromUpstream(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_SyncFromUpstream_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).SyncFromUpstream(ctx, req.(*SyncFromUpstreamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -886,6 +1040,22 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ArchiveUnreachableArtifacts",
 			Handler:    _PackageRepository_ArchiveUnreachableArtifacts_Handler,
+		},
+		{
+			MethodName: "RegisterUpstream",
+			Handler:    _PackageRepository_RegisterUpstream_Handler,
+		},
+		{
+			MethodName: "ListUpstreams",
+			Handler:    _PackageRepository_ListUpstreams_Handler,
+		},
+		{
+			MethodName: "RemoveUpstream",
+			Handler:    _PackageRepository_RemoveUpstream_Handler,
+		},
+		{
+			MethodName: "SyncFromUpstream",
+			Handler:    _PackageRepository_SyncFromUpstream_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

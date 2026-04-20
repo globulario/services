@@ -151,6 +151,11 @@ message ArtifactManifest {
   // yet been imported into the repository. Cleared on successful import.
   bool provisional = 43;
 
+  // Upstream import provenance — present only when artifact was imported from
+  // a named upstream source (SyncFromUpstream). Informational; not required
+  // for installation. Written once at import time, never modified.
+  UpstreamImportRecord upstream_import = 61;
+
   // SHA256 of the entrypoint binary (not the archive). Computed at build time
   // and stored alongside the package checksum. Enables reverse lookup:
   // "which package version contains this binary?" — used by node-agent process
@@ -679,6 +684,54 @@ service PackageRepository {
       default_role_hint: "owner"
     };
   };
+
+  // ── Upstream Source Registry (Phase 3) ───────────────────────────────────
+  // All upstream operations require cluster-admin or repository-admin role.
+
+  // Registers a named upstream artifact source (e.g. GitHub Releases).
+  // Overwrites if a source with the same name already exists.
+  rpc RegisterUpstream(RegisterUpstreamRequest) returns(RegisterUpstreamResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.upstream.write"
+      permission: "admin"
+      collection_template: "/repository/upstreams"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Lists all registered upstream sources.
+  rpc ListUpstreams(ListUpstreamsRequest) returns(ListUpstreamsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.upstream.read"
+      permission: "admin"
+      collection_template: "/repository/upstreams"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Removes a registered upstream source by name.
+  rpc RemoveUpstream(RemoveUpstreamRequest) returns(RemoveUpstreamResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.upstream.write"
+      permission: "admin"
+      collection_template: "/repository/upstreams"
+      default_role_hint: "admin"
+    };
+  };
+
+  // Fetches a release index from the named upstream source, validates each
+  // entry, and imports missing artifacts. Leaf operation — intended to be
+  // called by the repository.sync.upstream workflow.
+  // release_tag is REQUIRED in phase 1 — empty tag returns InvalidArgument.
+  // dry_run=true previews without writing anything.
+  rpc SyncFromUpstream(SyncFromUpstreamRequest) returns(SyncFromUpstreamResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.upstream.sync"
+      permission: "admin"
+      collection_template: "/repository/upstreams"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // ── ResolveArtifact (deterministic resolver) ────────────────────────────────
@@ -795,6 +848,101 @@ message ImportProvisionalResponse {
   string confirmed_version = 3;     // may differ if admin re-versioned
   string state = 4;                 // "RELEASED"
   string message = 5;
+}
+
+// ── Upstream Source Registry ─────────────────────────────────────────────────
+//
+// UpstreamSource is a named, registered upstream artifact source.
+// Stored in etcd at /globular/repository/upstreams/<name>.
+// Source type is extensible: add new enum values for future source systems.
+
+enum UpstreamSourceType {
+  UPSTREAM_TYPE_UNSPECIFIED = 0;
+  GITHUB_RELEASE = 1;   // GitHub Releases (public or token-authenticated)
+  HTTP_INDEX     = 2;   // Generic HTTPS index endpoint
+}
+
+message UpstreamSource {
+  string name             = 1;  // unique identifier, e.g. "globulario-github"
+  UpstreamSourceType type = 2;  // source system type
+  string index_url        = 3;  // URL or template; use {tag} for release tag substitution
+  string channel          = 4;  // "stable" (default)
+  string platform         = 5;  // e.g. "linux-amd64"
+  bool   enabled          = 6;
+  string last_synced_tag  = 7;  // tag of the last fully successful sync (no rejected/failed)
+  string credentials_ref  = 8;  // etcd key to a credential record; empty = public
+}
+
+message RegisterUpstreamRequest  { UpstreamSource source = 1; }
+message RegisterUpstreamResponse { UpstreamSource source = 1; }
+message ListUpstreamsRequest     {}
+message ListUpstreamsResponse    { repeated UpstreamSource sources = 1; }
+message RemoveUpstreamRequest    { string name = 1; }
+message RemoveUpstreamResponse   {}
+
+// ── SyncFromUpstream ─────────────────────────────────────────────────────────
+//
+// Leaf operation invoked by the repository.sync.upstream workflow (or directly
+// by an authorized operator). Fetches a release index from a named upstream
+// source, validates each entry, and imports missing or new artifacts.
+//
+// Phase 1 rule: release_tag is REQUIRED. Empty tag returns InvalidArgument.
+// "Latest" discovery is not implemented — operators specify the tag explicitly.
+//
+// dry_run=true produces a full preview without any writes to ScyllaDB, MinIO,
+// or etcd. Preview results use SYNC_WOULD_* statuses exclusively.
+//
+// last_synced_tag advances only on a fully clean successful run (no rejected
+// or failed entries). Partial success does not advance the tag.
+
+enum UpstreamSyncStatus {
+  // Real run outcomes (dry_run=false)
+  SYNC_IMPORTED  = 0;  // artifact downloaded, verified, registered
+  SYNC_SKIPPED   = 1;  // already present with same digest — idempotent
+  SYNC_REJECTED  = 2;  // digest conflict — audit record written, binary not stored
+  SYNC_FAILED    = 3;  // download or digest verification error
+
+  // Preview outcomes (dry_run=true) — no writes of any kind
+  SYNC_WOULD_IMPORT = 4;
+  SYNC_WOULD_SKIP   = 5;
+  SYNC_WOULD_REJECT = 6;
+  SYNC_WOULD_FAIL   = 7;
+}
+
+message UpstreamSyncResult {
+  string name           = 1;
+  string version        = 2;
+  string build_id       = 3;   // from release index (run number as string)
+  string platform       = 4;
+  string package_digest = 5;
+  UpstreamSyncStatus status = 6;
+  string detail         = 7;
+}
+
+message SyncFromUpstreamRequest {
+  string source_name   = 1;  // references a registered UpstreamSource
+  string release_tag   = 2;  // REQUIRED: explicit release tag (e.g. "v1.0.17")
+  bool   dry_run       = 3;
+  repeated string only = 4;  // optional: restrict to these package names
+}
+
+message SyncFromUpstreamResponse {
+  repeated UpstreamSyncResult results = 1;
+  int32 imported  = 2;
+  int32 skipped   = 3;
+  int32 rejected  = 4;
+  int32 failed    = 5;
+  bool  dry_run   = 6;  // echoes request mode — callers can always verify
+}
+
+// UpstreamImportRecord is written once at import time and never modified.
+// Attached to ArtifactManifest for artifacts sourced from upstream.
+message UpstreamImportRecord {
+  string source_name  = 1;  // references UpstreamSource.name
+  string release_tag  = 2;  // e.g. "v1.0.17"
+  string asset_url    = 3;  // direct URL the binary was downloaded from
+  string index_url    = 4;  // URL of the release index used
+  int64  imported_at  = 5;  // unix timestamp of import
 }
 
 // ── GC / Archive ────────────────────────────────────────────────────────────
