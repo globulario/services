@@ -761,22 +761,26 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	ctx := stream.Context()
 
 	// ── Version resolution ───────────────────────────────────────────────
-	// The repository is the sole authority on versioning. The client-provided
-	// version is ignored — the repository always auto-bumps patch from the
-	// latest PUBLISHED version. This eliminates version collisions, removes
-	// versioning responsibility from clients, and makes build scripts trivial.
-	autoVer, err := srv.resolveVersionIntent(ctx,
-		ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
-		repopb.VersionIntent_BUMP_PATCH, "")
-	if err != nil {
-		return status.Errorf(codes.Internal, "auto-version resolution failed: %v", err)
+	// If the client supplies a version (e.g. from a release pipeline that
+	// stamps 1.0.26 into package.json), use it exactly so the repository
+	// record matches what the binary self-reports at runtime. This keeps
+	// drift detection accurate.
+	// If no version is provided, fall back to auto-bumping the patch number.
+	var resolvedVer string
+	var verErr error
+	if clientVer := ref.GetVersion(); clientVer != "" {
+		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
+			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
+			repopb.VersionIntent_EXACT, clientVer)
+	} else {
+		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
+			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
+			repopb.VersionIntent_BUMP_PATCH, "")
 	}
-	if ref.GetVersion() != "" && ref.GetVersion() != autoVer {
-		slog.Info("version overridden by repository",
-			"client_version", ref.GetVersion(), "assigned_version", autoVer,
-			"name", ref.GetName())
+	if verErr != nil {
+		return status.Errorf(codes.Internal, "version resolution failed: %v", verErr)
 	}
-	ref.Version = autoVer
+	ref.Version = resolvedVer
 
 	// ── Publisher namespace + package-level validation ────────────────────
 	publisherID := ref.GetPublisherId()
