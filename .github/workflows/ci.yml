@@ -45,6 +45,9 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Generate version stub
+        run: bash build/gen-version.sh 0.0.0-ci
+
       - name: Build
         run: go build ./...
 
@@ -94,4 +97,5 @@ jobs:
       - name: Check proto files compile
         run: |
           cd services/golang
+          bash build/gen-version.sh 0.0.0-ci
           go build ./...
