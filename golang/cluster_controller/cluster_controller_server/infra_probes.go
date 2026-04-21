@@ -73,9 +73,11 @@ func isActiveInfraMember(node *nodeState, pkgName string) bool {
 	name := strings.ToLower(pkgName)
 
 	switch {
-	case name == "scylladb" || strings.Contains(name, "scylla"):
+	case name == "scylladb":
 		// ScyllaJoinConfigured means config was rendered but service hasn't started.
 		// It does NOT mean the node is an active ring member — don't block installation.
+		// Note: scylla-manager and scylla-manager-agent are auxiliary services, NOT ring
+		// members — they must NOT be caught by this check.
 		switch node.ScyllaJoinPhase {
 		case ScyllaJoinVerified, ScyllaJoinStarted:
 			return true

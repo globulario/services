@@ -524,8 +524,10 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 					ec.nodeID, pkgName, wantBuildID)
 				continue
 			}
-			// Fallback: hash-based convergence when build_id is not available.
-			if wantBuildID == "" && desiredHash != "" && pkg.GetChecksum() == desiredHash {
+			// Hash-based convergence: if the installed checksum matches the desired
+			// artifact hash, the package content is identical — skip regardless of
+			// build_id. Handles transition-era installs that lack a build_id record.
+			if desiredHash != "" && pkg.GetChecksum() == desiredHash {
 				log.Printf("release-workflow: skip node %s for %s (checksum match: %s)",
 					ec.nodeID, pkgName, desiredHash[:16])
 				continue

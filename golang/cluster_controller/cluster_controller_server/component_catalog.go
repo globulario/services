@@ -587,8 +587,7 @@ func buildCatalog() []*Component {
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
-			InstallMode:              InstallModeDay0Join, // apt package, not a repo artifact
-			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
+			HealthCheck: &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
 		},
 		{
 			Name:                     "scylla-manager-agent",
@@ -597,7 +596,6 @@ func buildCatalog() []*Component {
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
-			InstallMode:              InstallModeDay0Join, // apt package, not a repo artifact
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager-agent.service", Port: 10001},
 		},
 		{
