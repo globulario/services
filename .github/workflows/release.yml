@@ -224,12 +224,7 @@ jobs:
 
           echo "→ ffmpeg (stable static build via BtbN)..."
           FFMPEG_URL=$(curl -fsSL "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
-            | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-url = next(a['browser_download_url'] for a in data['assets']
-           if 'release-linux64-gpl.tar.xz' in a['name'])
-print(url)")
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(a['browser_download_url'] for a in d['assets'] if 'release-linux64-gpl.tar.xz' in a['name']))")
           curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
