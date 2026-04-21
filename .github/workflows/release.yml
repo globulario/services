@@ -224,7 +224,7 @@ jobs:
 
           echo "→ ffmpeg (stable static build via BtbN)..."
           FFMPEG_URL=$(curl -fsSL "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(a['browser_download_url'] for a in d['assets'] if 'release-linux64-gpl.tar.xz' in a['name']))")
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assets=sorted(a['browser_download_url'] for a in d['assets'] if 'linux64-gpl' in a['name'] and 'shared' not in a['name'] and a['name'].endswith('.tar.xz') and not a['name'].startswith('ffmpeg-N-')); print(assets[-1])")
           curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
