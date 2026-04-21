@@ -160,6 +160,9 @@ jobs:
           SIDEKICK_VERSION="7.0.0"
           RESTIC_VERSION="0.18.1"
           RCLONE_VERSION="1.73.1"
+          SCYLLA_MGR_VERSION="3.8.1"
+          FFMPEG_VERSION="7.0.2"
+          YTDLP_VERSION="2026.02.21"
 
           echo "→ etcd ${ETCD_VERSION}..."
           curl -fsSL "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" \
@@ -212,9 +215,50 @@ jobs:
           unzip -j /tmp/rclone.zip "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" -d .
           chmod +x rclone
 
+          echo "→ sha256sum (coreutils, from system)..."
+          cp /usr/bin/sha256sum sha256sum
+          chmod +x sha256sum
+
+          echo "→ yt-dlp ${YTDLP_VERSION}..."
+          curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux" -o yt-dlp
+          chmod +x yt-dlp
+
+          echo "→ ffmpeg ${FFMPEG_VERSION} (static build)..."
+          curl -fsSL "https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-${FFMPEG_VERSION}-amd64-static.tar.xz" \
+            | tar xJf - --strip-components=1 --wildcards "*/ffmpeg"
+          chmod +x ffmpeg
+
+          echo "→ scylla-manager server ${SCYLLA_MGR_VERSION}..."
+          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-server_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
+            -o /tmp/smgr-server.deb
+          tmpd=$(mktemp -d)
+          dpkg-deb -x /tmp/smgr-server.deb "${tmpd}"
+          find "${tmpd}" -type f -name "scylla-manager" | head -1 | xargs -I{} cp {} scylla_manager
+          chmod +x scylla_manager
+          rm -rf "${tmpd}"
+
+          echo "→ scylla-manager-agent ${SCYLLA_MGR_VERSION}..."
+          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-agent_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
+            -o /tmp/smgr-agent.deb
+          tmpd=$(mktemp -d)
+          dpkg-deb -x /tmp/smgr-agent.deb "${tmpd}"
+          find "${tmpd}" -type f -name "scylla-manager-agent" | head -1 | xargs -I{} cp {} scylla_manager_agent
+          chmod +x scylla_manager_agent
+          rm -rf "${tmpd}"
+
+          echo "→ sctool (scylla-manager-client) ${SCYLLA_MGR_VERSION}..."
+          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-client_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
+            -o /tmp/smgr-client.deb
+          tmpd=$(mktemp -d)
+          dpkg-deb -x /tmp/smgr-client.deb "${tmpd}"
+          find "${tmpd}" -type f -name "sctool" | head -1 | xargs -I{} cp {} sctool
+          chmod +x sctool
+          rm -rf "${tmpd}"
+
           echo ""
           echo "Infra binaries:"
-          ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop
+          ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop \
+                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool
 
       # ── Create infra packages ─────────────────────────────────────────────
       - name: Create infra packages
@@ -230,6 +274,7 @@ jobs:
           # Map: package-name → binary-filename-in-dist-bin
           declare -A INFRA_BIN_MAP=(
             [scylladb]=noop
+            [keepalived]=noop
             [etcd]=etcd
             [etcdctl]=etcdctl
             [envoy]=envoy
@@ -241,6 +286,12 @@ jobs:
             [sidekick]=sidekick
             [restic]=restic
             [rclone]=rclone
+            [sha256sum]=sha256sum
+            [yt-dlp]=yt-dlp
+            [ffmpeg]=ffmpeg
+            [scylla-manager]=scylla_manager
+            [scylla-manager-agent]=scylla_manager_agent
+            [sctool]=sctool
           )
 
           for pkg_name in "${!INFRA_BIN_MAP[@]}"; do
