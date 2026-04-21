@@ -222,9 +222,15 @@ jobs:
           curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux" -o yt-dlp
           chmod +x yt-dlp
 
-          echo "→ ffmpeg (stable static build)..."
-          curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-release-linux64-gpl.tar.xz" \
-            | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
+          echo "→ ffmpeg (stable static build via BtbN)..."
+          FFMPEG_URL=$(curl -fsSL "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
+            | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+url = next(a['browser_download_url'] for a in data['assets']
+           if 'release-linux64-gpl.tar.xz' in a['name'])
+print(url)")
+          curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
           echo "→ scylla-manager server ${SCYLLA_MGR_VERSION}..."
