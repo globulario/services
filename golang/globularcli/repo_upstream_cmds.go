@@ -82,6 +82,36 @@ var repoRemoveUpstreamCmd = &cobra.Command{
 	RunE:  runRepoRemoveUpstream,
 }
 
+// repoSyncCmd calls SyncFromUpstream directly on the repository service,
+// bypassing the WorkflowService. Use this during bootstrap (Day-0) when the
+// workflow service and cluster controller may not yet be registered in etcd.
+// For Day-1+ operations, prefer `pkg sync-upstream` (workflow-tracked, audited).
+var repoSyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Import packages from a registered upstream release (direct, no workflow)",
+	Long: `Sync packages from a registered upstream source directly via the
+repository service. No WorkflowService or ClusterController needed.
+
+Each artifact in the release index is verified by sha256 digest before
+import. Existing artifacts with the same identity key are skipped.
+Digest conflicts are counted as rejected (audit-logged, not imported).
+
+Use --dry-run to preview what would be imported without writing anything.
+
+This command is suitable for bootstrap (Day-0) and air-gapped environments
+where the workflow infrastructure may not yet be available.
+For audited Day-1 upgrades, use 'globular pkg sync-upstream' instead.`,
+	Example: `  # Day-0 bootstrap sync (direct, no workflow)
+  globular repo sync --source globulario-github --tag v1.0.27
+
+  # Preview what would be imported
+  globular repo sync --source globulario-github --tag v1.0.27 --dry-run
+
+  # Import only specific packages
+  globular repo sync --source globulario-github --tag v1.0.27 --only dns,rbac`,
+	RunE: runRepoSync,
+}
+
 var pkgSyncUpstreamCmd = &cobra.Command{
 	Use:   "sync-upstream",
 	Short: "Import packages from a registered upstream release",
@@ -319,6 +349,51 @@ func runPkgSyncUpstream(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runRepoSync(cmd *cobra.Command, args []string) error {
+	if syncSource == "" {
+		return fmt.Errorf("--source is required")
+	}
+	if syncTag == "" {
+		return fmt.Errorf("--tag is required")
+	}
+
+	var only []string
+	if syncOnly != "" {
+		for _, s := range strings.Split(syncOnly, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				only = append(only, s)
+			}
+		}
+	}
+
+	rc, err := repoClient()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	if syncDryRun {
+		fmt.Printf("Dry-run: previewing sync from %q @ %s\n\n", syncSource, syncTag)
+	} else {
+		fmt.Printf("Syncing from %q @ %s (direct)...\n\n", syncSource, syncTag)
+	}
+
+	resp, err := rc.SyncFromUpstream(syncSource, syncTag, syncDryRun, only)
+	if err != nil {
+		return fmt.Errorf("sync: %w", err)
+	}
+
+	summary := map[string]any{
+		"imported": int64(resp.Imported),
+		"skipped":  int64(resp.Skipped),
+		"rejected": int64(resp.Rejected),
+		"failed":   int64(resp.Failed),
+	}
+	printSyncSummary(summary, syncDryRun)
+	return nil
+}
+
 func printSyncSummary(summary map[string]any, dryRun bool) {
 	toI := func(v any) int64 {
 		switch n := v.(type) {
@@ -386,9 +461,16 @@ func init() {
 	pkgSyncUpstreamCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview only — no artifacts are written")
 	pkgSyncUpstreamCmd.Flags().StringVar(&syncOnly, "only", "", "Comma-separated list of package names to import")
 
+	// repo sync flags (shared with pkg sync-upstream where applicable)
+	repoSyncCmd.Flags().StringVar(&syncSource, "source", "", "Registered upstream source name (required)")
+	repoSyncCmd.Flags().StringVar(&syncTag, "tag", "", "Release tag to sync (required)")
+	repoSyncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview only — no artifacts are written")
+	repoSyncCmd.Flags().StringVar(&syncOnly, "only", "", "Comma-separated list of package names to import")
+
 	repoCmd.AddCommand(repoRegisterUpstreamCmd)
 	repoCmd.AddCommand(repoListUpstreamsCmd)
 	repoCmd.AddCommand(repoRemoveUpstreamCmd)
+	repoCmd.AddCommand(repoSyncCmd)
 
 	pkgCmd.AddCommand(pkgSyncUpstreamCmd)
 }
