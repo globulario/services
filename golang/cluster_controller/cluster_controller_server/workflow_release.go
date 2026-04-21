@@ -515,7 +515,6 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			log.Printf("release-workflow: installed check %s/%s on %s: %v", ec.installedKind, pkgName, ec.nodeID, err)
 		}
 		if pkg != nil {
-			// Phase 2: build_id is the sole convergence identity. No hash fallback.
 			wantBuildID := ""
 			if len(resolvedBuildID) > 0 {
 				wantBuildID = resolvedBuildID[0]
@@ -525,8 +524,23 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 					ec.nodeID, pkgName, wantBuildID)
 				continue
 			}
-			log.Printf("release-workflow: node %s needs update for %s (installed_build_id=%s desired_build_id=%s)",
-				ec.nodeID, pkgName, pkg.GetBuildId(), wantBuildID)
+			// Fallback: hash-based convergence when build_id is not available.
+			if wantBuildID == "" && desiredHash != "" && pkg.GetChecksum() == desiredHash {
+				log.Printf("release-workflow: skip node %s for %s (checksum match: %s)",
+					ec.nodeID, pkgName, desiredHash[:16])
+				continue
+			}
+			// No convergence identity at all — package is installed, assume no drift.
+			// Without a build_id or hash, we cannot determine if the installed version
+			// differs from the desired version. Selecting the node would cause a
+			// perpetual install+restart loop with no convergence signal.
+			if wantBuildID == "" && desiredHash == "" {
+				log.Printf("release-workflow: skip node %s for %s (no convergence identity, already installed)",
+					ec.nodeID, pkgName)
+				continue
+			}
+			log.Printf("release-workflow: node %s needs update for %s (installed_build_id=%s desired_build_id=%s installed_checksum=%s desired_hash=%s)",
+				ec.nodeID, pkgName, pkg.GetBuildId(), wantBuildID, pkg.GetChecksum()[:min(16, len(pkg.GetChecksum()))], desiredHash)
 		} else {
 			log.Printf("release-workflow: node %s has no installed record for %s/%s", ec.nodeID, ec.installedKind, pkgName)
 		}

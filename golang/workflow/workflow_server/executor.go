@@ -93,13 +93,6 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	defer dispatcher.close()
 
 	router := engine.NewRouter()
-	// Safety net: advance_infra_joins is a no-op when invoked on the workflow
-	// service (should be handled by the controller). This prevents "no handler"
-	// failures if the controller callback router is missing after a restart.
-	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.advance_infra_joins", func(ctx context.Context, _ engine.ActionRequest) (*engine.ActionResult, error) {
-		return &engine.ActionResult{OK: true, Message: "noop advance_infra_joins (workflow service)"}, nil
-	})
-
 	// Register workflow-service as a local actor (self-dispatch for child
 	// workflows and drift tracking). Uses a no-op config for now — these
 	// actions are only used by cluster.reconcile which is Phase E.

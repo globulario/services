@@ -99,13 +99,6 @@ func (s *ControllerActorServer) ExecuteAction(ctx context.Context, req *workflow
 		return nil, fmt.Errorf("actor is required")
 	}
 
-	// Hardwired no-op for advance_infra_joins to prevent reconcile deadlocks when
-	// routers are missing (e.g., after a restart). The real handler lives on the
-	// controller; falling back to OK is safe because it only advances join state.
-	if req.Actor == string(v1alpha1.ActorClusterController) && req.Action == "controller.reconcile.advance_infra_joins" {
-		return &workflowpb.ExecuteActionResponse{Ok: true, Message: "noop advance_infra_joins (controller fallback)"}, nil
-	}
-
 	// Look up the per-run Router registered by the workflow runner.
 	router := s.resolveRouter(req.RunId)
 	if router == nil {

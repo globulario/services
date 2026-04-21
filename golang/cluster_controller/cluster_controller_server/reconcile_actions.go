@@ -93,6 +93,16 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 	// Recover bootstrap workflows that were interrupted by a controller restart.
 	srv.recoverStuckBootstrapWorkflows(nodes, time.Now())
 
+	// Advance bootstrap phases that unblocked due to join phase changes above.
+	// reconcileBootstrapPhases is normally triggered by reconcileNodes (event-driven),
+	// but nodes in storage_joining bypass that trigger (bootstrapPhaseReady=true).
+	// Running it here ensures storage_joining → workload_ready fires promptly.
+	if bootDirty := reconcileBootstrapPhases(nodes, srv); bootDirty {
+		srv.lock("reconcileAdvanceInfraJoins:bootstrap-persist")
+		_ = srv.persistStateLocked(false)
+		srv.unlock()
+	}
+
 	log.Printf("reconcile-workflow: advance_infra_joins completed for %d nodes", len(nodes))
 	return nil
 }
