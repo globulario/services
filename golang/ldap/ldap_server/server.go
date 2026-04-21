@@ -38,7 +38,6 @@ var (
 
 // Version information (set via ldflags during build)
 var (
-	Version   = ""
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

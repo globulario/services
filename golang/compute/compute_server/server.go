@@ -268,7 +268,6 @@ func buildComputeActorRouter(srv *server) *engine.Router {
 // ─── main ────────────────────────────────────────────────────────────────────
 
 var (
-	Version   = ""
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

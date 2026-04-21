@@ -645,7 +645,6 @@ func (srv *server) StopService() error {
 // --- Version / Build ---
 
 var (
-	Version   = ""
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )

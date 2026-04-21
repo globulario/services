@@ -56,7 +56,6 @@ func init() { encoding.RegisterCodec(jsonCodec{}) }
 
 // Version information (set via ldflags during build)
 var (
-	Version        = ""
 	BuildTime      = "unknown"
 	GitCommit      = "unknown"
 	BuildNumberStr = "0" // injected via ldflags: -X main.BuildNumberStr=6
