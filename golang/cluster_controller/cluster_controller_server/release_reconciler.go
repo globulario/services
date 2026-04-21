@@ -283,6 +283,18 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 				TransitionReason: "auto_retry",
 				SetFields:        "phase",
 			})
+		} else {
+			// All nodes are already at the desired version (convergence signal #2).
+			// The release previously failed (e.g., unit start timeout), but nodes
+			// have since self-healed. Re-enter PENDING to trigger a no-op workflow
+			// run that will advance the release to AVAILABLE.
+			log.Printf("release %s: %s → PENDING (all nodes converged, clearing failure)",
+				releaseName, h.Phase)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "self_healed_converged",
+				SetFields:        "phase",
+			})
 		}
 	}
 }
@@ -704,6 +716,17 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 			h.PatchStatus(ctx, statusPatch{
 				Phase:            cluster_controllerpb.ReleasePhasePending,
 				TransitionReason: "auto_retry_unserved",
+				SetFields:        "phase",
+			})
+		} else {
+			// All nodes are at the desired version. Re-enter PENDING so the no-op
+			// workflow run advances the release to AVAILABLE (FAILED → AVAILABLE
+			// is not a valid direct transition).
+			log.Printf("infra-release %s: %s → PENDING (all nodes converged, clearing failure)",
+				releaseName, h.Phase)
+			h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "self_healed_converged",
 				SetFields:        "phase",
 			})
 		}

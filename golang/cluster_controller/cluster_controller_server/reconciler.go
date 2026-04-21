@@ -110,6 +110,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				version:     pkg.GetVersion(),
 				buildNumber: pkg.GetBuildNumber(),
 				status:      pkg.GetStatus(),
+				checksum:    pkg.GetChecksum(),
 			}
 		}
 
@@ -118,6 +119,12 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 
 			// Already aligned.
 			if found && versionutil.EqualFull(dv.version, dv.buildNumber, pkg.version, pkg.buildNumber) {
+				continue
+			}
+			// Transition-era installs: if the installed record has no build_id (0 = not tracked),
+			// version equality is sufficient. We cannot determine which specific build was
+			// installed, so we do not report drift against a known version match.
+			if found && pkg.buildNumber == 0 && versionutil.Equal(dv.version, pkg.version) {
 				continue
 			}
 			// Node-agent is already applying this package.
@@ -219,6 +226,14 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				resolvedBuild = dv.buildNumber
 			}
 
+			// Checksum-based convergence: if the installed artifact content matches
+			// the desired artifact digest, suppress the drift event even if build_id
+			// metadata is stale. This handles transition-era installs that lack a
+			// build_id record but are otherwise identical to the desired artifact.
+			if found && resolved.Digest != "" && pkg.checksum == resolved.Digest {
+				continue
+			}
+
 			installedVer := "<none>"
 			if found {
 				installedVer = fmt.Sprintf("%s-b%d", pkg.version, pkg.buildNumber)
@@ -245,6 +260,7 @@ type installedInfo struct {
 	version     string
 	buildNumber int64
 	status      string
+	checksum    string
 }
 
 func (r *driftReconciler) isInflight(key string) bool {
