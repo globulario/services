@@ -309,8 +309,10 @@ func (srv *server) processSyncEntry(
 	ledger := srv.readLedger(ctx, publisher, entry.Name)
 	if ledger != nil {
 		for _, r := range ledger.Releases {
-			if r.Version == entry.Version && r.Platform == entry.Platform {
-				// Version+platform exists — compare digest (the content binding).
+			// Artifact key = (name, version, build_id, platform). All four must
+			// match to be the same artifact. Different build_id → distinct artifact.
+			if r.Version == entry.Version && r.BuildID == entry.BuildID && r.Platform == entry.Platform {
+				// Same key — compare digest (the content binding).
 				if r.Digest == entry.PackageDigest {
 					// Same key + same digest → idempotent skip.
 					if dryRun {
@@ -447,9 +449,11 @@ func (srv *server) importUpstreamArtifact(
 	}
 	srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_PUBLISHED, mjson)
 
-	// Append to release ledger.
+	// Append to release ledger using the original CI build_id from the release
+	// index (not confirmedBuildID which is the internal UUIDv7). The ledger
+	// tracks the CI build_id so future syncs can look up the exact artifact key.
 	if ledgerErr := srv.appendToLedger(ctx, publisher, entry.Name, entry.Version,
-		confirmedBuildID, digest, entry.Platform, int64(len(data))); ledgerErr != nil {
+		entry.BuildID, digest, entry.Platform, int64(len(data))); ledgerErr != nil {
 		slog.Warn("upstream: ledger append failed (non-fatal)", "name", entry.Name, "err", ledgerErr)
 	}
 	return nil
