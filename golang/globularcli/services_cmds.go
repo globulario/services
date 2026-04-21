@@ -1144,14 +1144,17 @@ func autoDiscoverController(cmd *cobra.Command) {
 		}
 	}
 
-	// Priority 2: resolve cluster controller from etcd, fall back to routable IP
+	// Priority 2: resolve cluster controller from etcd, fall back to cluster DNS
 	if discovered == "" {
 		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
 			discovered = addr
 			source = "etcd service discovery"
 		} else {
-			discovered = fmt.Sprintf("%s:12000", config.GetRoutableIPv4())
-			source = "default controller port"
+			// Never fall back to localhost/IP — use the cluster DNS name so TLS
+			// validation and leader forwarding work correctly. Port comes from the
+			// Envoy mesh at :443. (CLAUDE.md rule 3: no localhost, no hardcoded ports)
+			discovered = "controller.globular.internal"
+			source = "cluster DNS"
 		}
 	}
 

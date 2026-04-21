@@ -166,6 +166,14 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	synced := 0
 
+	// Phase -1: Adopt services that are running but have no version marker.
+	// This covers the legacy Day-0 installer path: binaries deployed to
+	// globularBinDir with active systemd units but no version marker written.
+	// Without this phase, loadSystemdUnits() marks them RuntimeUnmanaged and
+	// IsAuthoritative() filters them out, so etcd never learns they exist.
+	// After adoption, Phase 0 and Phase 1 handle them normally.
+	srv.adoptRunningUnmanagedServices(ctx)
+
 	// Phase 0: Refresh version markers from deployed binaries. When an
 	// operator direct-installs a service binary (e.g. `sudo install`), the
 	// version marker at /var/lib/globular/services/<name>/version is not
@@ -441,6 +449,109 @@ func (srv *NodeAgentServer) refreshMarkersFromBinaries(ctx context.Context) {
 	}
 	if refreshed > 0 {
 		log.Printf("nodeagent: refreshed %d version markers from binary probes", refreshed)
+	}
+}
+
+// adoptRunningUnmanagedServices creates version markers for Globular service
+// binaries that are actively running (systemd unit active) but have no version
+// marker file. This is the legacy Day-0 installer gap: old installers deployed
+// binaries and systemd units without writing the /var/lib/globular/services/
+// <name>/version marker that the managed install path produces.
+//
+// Without this adoption step, loadSystemdUnits() classifies these services as
+// RuntimeUnmanaged and IsAuthoritative() filters them out, so they never appear
+// in etcd installed-state and the controller perpetually believes they are not
+// installed. Phase 0 (refreshMarkersFromBinaries) then enriches markers from
+// binary probes — but only when a marker already exists. This phase fills the
+// gap for the very first heartbeat after a legacy Day-0 deploy.
+//
+// Safeguards:
+//   - Only creates markers (never downgrades or removes them).
+//   - Only for binaries following the Globular naming convention (*_server).
+//   - Only when the corresponding globular-<name>.service is active right now.
+//   - Skips infrastructure managed by loadDay0JoinInfra / syncRepoArtifacts.
+func (srv *NodeAgentServer) adoptRunningUnmanagedServices(ctx context.Context) {
+	// Infrastructure whose version/kind is managed by other discovery paths.
+	skipAdopt := map[string]bool{
+		"etcd": true, "minio": true, "envoy": true,
+		"xds": true, "gateway": true, "mcp": true,
+		"node-exporter": true, "prometheus": true,
+		"scylla-manager": true, "scylla-manager-agent": true,
+		"scylladb": true, "keepalived": true, "sidekick": true,
+	}
+
+	entries, err := os.ReadDir(globularBinDir)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("nodeagent: adopt unmanaged: read %s: %v", globularBinDir, err)
+		}
+		return
+	}
+
+	adopted := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), "_server") {
+			continue
+		}
+		// Derive canonical service name from binary name (e.g. "echo_server" → "echo").
+		rawName := strings.TrimSuffix(e.Name(), "_server")
+		svcName := canonicalServiceName(rawName)
+		if svcName == "" || skipAdopt[svcName] {
+			continue
+		}
+
+		// Skip if a version marker already exists — refreshMarkersFromBinaries
+		// handles the update case.
+		markerPath := versionutil.MarkerPath(svcName)
+		if _, err := os.Stat(markerPath); err == nil {
+			continue
+		}
+
+		// Only adopt if the unit is currently active — don't create markers
+		// for services that are installed but not running (they may be
+		// intentionally stopped, or failed).
+		unitName := "globular-" + svcName + ".service"
+		if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unitName).Run(); err != nil {
+			continue
+		}
+
+		// Probe the binary for its self-reported version.
+		binPath := filepath.Join(globularBinDir, e.Name())
+		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		out, probeErr := exec.CommandContext(probeCtx, binPath, "--describe").Output()
+		cancel()
+		if probeErr != nil {
+			// Binary does not support --describe — skip silently.
+			continue
+		}
+		var payload struct {
+			Version string `json:"Version"`
+		}
+		if err := json.Unmarshal(out, &payload); err != nil {
+			continue
+		}
+		ver := strings.TrimSpace(payload.Version)
+		if ver == "" {
+			continue
+		}
+		if cv, err := versionutil.Canonical(ver); err == nil {
+			ver = cv
+		}
+
+		// Create marker directory and file.
+		if err := os.MkdirAll(filepath.Dir(markerPath), 0o755); err != nil {
+			log.Printf("nodeagent: adopt unmanaged: mkdir %s: %v", filepath.Dir(markerPath), err)
+			continue
+		}
+		if err := os.WriteFile(markerPath, []byte(ver+"\n"), 0o644); err != nil {
+			log.Printf("nodeagent: adopt unmanaged: write marker %s: %v", markerPath, err)
+			continue
+		}
+		log.Printf("nodeagent: adopted running service %s v%s (created version marker from binary probe)", svcName, ver)
+		adopted++
+	}
+	if adopted > 0 {
+		log.Printf("nodeagent: adopted %d running services that had no version marker", adopted)
 	}
 }
 

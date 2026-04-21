@@ -242,10 +242,18 @@ jobs:
           chmod +x scylla_manager scylla_manager_agent sctool
           rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
+          echo "→ claude (Anthropic Claude Code CLI via npm)..."
+          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../packages/metadata/claude/package.json'))['version'])")
+          echo "  version: ${CLAUDE_VERSION}"
+          echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
+          cp "$(which claude)" claude
+          chmod +x claude
+
           echo ""
           echo "Infra binaries:"
           ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop \
-                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool
+                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude
 
       # ── Create infra packages ─────────────────────────────────────────────
       - name: Create infra packages
@@ -279,6 +287,7 @@ jobs:
             [scylla-manager]=scylla_manager
             [scylla-manager-agent]=scylla_manager_agent
             [sctool]=sctool
+            [claude]=claude
           )
 
           for pkg_name in "${!INFRA_BIN_MAP[@]}"; do
@@ -313,6 +322,9 @@ jobs:
               [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
             elif [[ "${pkg_name}" == "scylla-manager" || "${pkg_name}" == "scylla-manager-agent" || "${pkg_name}" == "sctool" ]]; then
               [[ -n "${SCYLLA_MGR_VERSION:-}" ]] && PKG_VERSION="${SCYLLA_MGR_VERSION}"
+            elif [[ "${pkg_name}" == "claude" ]]; then
+              # Use the pinned version from npm install (CLAUDE_VERSION env var set during download)
+              [[ -n "${CLAUDE_VERSION:-}" ]] && PKG_VERSION="${CLAUDE_VERSION}"
             fi
 
             echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."

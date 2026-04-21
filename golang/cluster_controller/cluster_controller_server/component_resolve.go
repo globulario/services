@@ -438,6 +438,14 @@ func ComputeDay1Phase(node *nodeState) (Day1Phase, string) {
 		healthyUnits := buildHealthySet(node.Units)
 		var notReady []string
 		for _, c := range intent.DesiredWorkloads {
+			if c.Kind == KindCommand {
+				// CLI tools have no systemd unit — readiness is determined by
+				// presence in InstalledVersions (version-marker written by node agent).
+				if node.InstalledVersions[c.Name] == "" {
+					notReady = append(notReady, c.Name)
+				}
+				continue
+			}
 			if !healthyUnits[strings.ToLower(c.Unit)] {
 				notReady = append(notReady, c.Name)
 			}

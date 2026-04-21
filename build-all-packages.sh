@@ -156,6 +156,24 @@ else
     echo "  ✓ mcp ($(ls -lh "${PACKAGES_ROOT}/bin/mcp" | awk '{print $5}'))"
 fi
 
+# Claude CLI — copy from system PATH if available, else install via npm
+CLAUDE_META="${PACKAGES_ROOT}/metadata/claude/package.json"
+CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('${CLAUDE_META}'))['version'])")
+echo "→ claude ${CLAUDE_VERSION}..."
+if command -v claude >/dev/null 2>&1 && claude --version 2>&1 | grep -q "${CLAUDE_VERSION}"; then
+    cp "$(which claude)" "${PACKAGES_ROOT}/bin/claude"
+    chmod +x "${PACKAGES_ROOT}/bin/claude"
+    echo "  ✓ claude ${CLAUDE_VERSION} (from PATH)"
+elif [[ -x "${PACKAGES_ROOT}/bin/claude" ]]; then
+    echo "  ✓ claude already in packages/bin/ ($(ls -lh "${PACKAGES_ROOT}/bin/claude" | awk '{print $5}'))"
+else
+    echo "  → Installing @anthropic-ai/claude-code@${CLAUDE_VERSION} via npm..."
+    npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
+    cp "$(which claude)" "${PACKAGES_ROOT}/bin/claude"
+    chmod +x "${PACKAGES_ROOT}/bin/claude"
+    echo "  ✓ claude ${CLAUDE_VERSION} ($(ls -lh "${PACKAGES_ROOT}/bin/claude" | awk '{print $5}'))"
+fi
+
 echo ""
 
 # ── Step 2: Build infrastructure packages ─────────────────────────────────

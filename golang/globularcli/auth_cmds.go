@@ -28,16 +28,12 @@ import (
 	"github.com/globulario/services/golang/config"
 )
 
-// defaultAuthPort is the fallback when all discovery methods are unavailable.
-// Must match the authentication_server binary's own default port.
-const defaultAuthPort = 10000
-
 // resolveAuthAddr discovers the authentication service endpoint.
 // Discovery order:
 //  1. --auth flag (explicit override; bypasses mesh routing — used for Day-0 bootstrap)
 //  2. etcd (authoritative registry in a running cluster; returns the best instance)
-//  3. Hardcoded fallback (localhost:defaultAuthPort, direct — no mesh rewrite)
 //
+// Port comes from etcd — never hardcoded. (CLAUDE.md rule 1 & 4)
 // In a cluster with multiple authentication instances, a random one is chosen
 // to distribute load (see config.ResolveServiceAddr).
 func resolveAuthAddr() string {
@@ -46,10 +42,7 @@ func resolveAuthAddr() string {
 	if rootCfg.authAddr != "" {
 		return rootCfg.authAddr
 	}
-	return config.ResolveServiceAddr(
-		"authentication.AuthenticationService",
-		fmt.Sprintf("localhost:%d", defaultAuthPort),
-	)
+	return config.ResolveServiceAddr("authentication.AuthenticationService", "")
 }
 
 // tokenFilePath returns the canonical path for the cached token.

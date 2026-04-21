@@ -105,9 +105,9 @@ Full workflow:
 Authentication is required: run 'globular auth login' then 'globular auth install-certs'.
 
 Examples:
-  globular pkg publish --file echo_1.0.0_linux_amd64.tgz --repository localhost:10007
-  globular pkg publish --dir ./packages --repository localhost:10007
-  globular pkg publish --file pkg.tgz --repository localhost:10007 --output json | jq -e '.status=="success"'
+  globular pkg publish --file echo_1.0.0_linux_amd64.tgz --repository repository.globular.internal
+  globular pkg publish --dir ./packages --repository repository.globular.internal
+  globular pkg publish --file pkg.tgz --repository repository.globular.internal --output json | jq -e '.status=="success"'
 `,
 		RunE: runPkgPublish,
 	}
@@ -819,9 +819,6 @@ func isAuthErr(err error) bool {
 
 // ── Descriptor upsert ──────────────────────────────────────────────────────
 
-// defaultResourcePort is the fallback used when service discovery is unavailable.
-const defaultResourcePort = 10010
-
 // setPackageDescriptor calls ResourceService.SetPackageDescriptor with the
 // caller's JWT (injected by dialGRPC) so RBAC applies under user identity.
 //
@@ -833,10 +830,8 @@ func setPackageDescriptor(name, publisherID, version, description string, keywor
 	if cv, err := versionutil.Canonical(version); err == nil {
 		version = cv
 	}
-	addr := config.ResolveServiceAddr(
-		"resource.ResourceService",
-		fmt.Sprintf("localhost:%d", defaultResourcePort),
-	)
+	// Port comes from etcd — never hardcoded. (CLAUDE.md rule 1 & 4)
+	addr := config.ResolveServiceAddr("resource.ResourceService", "")
 	conn, err := dialGRPC(addr)
 	if err != nil {
 		return "", fmt.Errorf("connect to resource service: %w", err)

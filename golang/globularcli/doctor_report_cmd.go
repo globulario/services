@@ -80,7 +80,7 @@ func init() {
 	doctorReportCmd.AddCommand(doctorReportDriftCmd)
 
 	for _, c := range []*cobra.Command{doctorReportClusterCmd, doctorReportNodeCmd, doctorReportDriftCmd} {
-		c.Flags().StringVar(&doctorReportEndpoint, "endpoint", "", "cluster-doctor gRPC endpoint (default localhost:10080)")
+		c.Flags().StringVar(&doctorReportEndpoint, "endpoint", "", "cluster-doctor gRPC endpoint (resolved from etcd when omitted)")
 		c.Flags().BoolVar(&doctorReportFresh, "fresh", false, "Force a fresh snapshot (bypass cache)")
 		c.Flags().BoolVar(&doctorReportJSON, "json", false, "Output as JSON")
 	}

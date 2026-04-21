@@ -16,13 +16,9 @@ import (
 	"github.com/globulario/services/golang/config"
 )
 
-const defaultBackupManagerPort = 10040
-
 func resolveBackupAddr() string {
-	return config.ResolveServiceAddr(
-		"backup_manager.BackupManagerService",
-		fmt.Sprintf("localhost:%d", defaultBackupManagerPort),
-	)
+	// Port comes from etcd — never hardcoded. (CLAUDE.md rule 1 & 4)
+	return config.ResolveServiceAddr("backup_manager.BackupManagerService", "")
 }
 
 // ---- Variables for flags ----

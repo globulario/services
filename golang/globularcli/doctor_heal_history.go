@@ -40,9 +40,14 @@ Examples:
 }
 
 func runDoctorHealHistory(cmd *cobra.Command, args []string) error {
+	// Prefer the local instance; fall back to any reachable instance from etcd.
+	// Port comes from etcd — never hardcoded. (CLAUDE.md rule 1 & 4)
 	doctorAddr := config.ResolveLocalServiceAddr("cluster_doctor.ClusterDoctorService")
 	if doctorAddr == "" {
-		doctorAddr = "localhost:12100"
+		doctorAddr = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
+	}
+	if doctorAddr == "" {
+		return fmt.Errorf("cluster-doctor not found in etcd service registry — is it running?")
 	}
 	cc, err := dialGRPC(doctorAddr)
 	if err != nil {
