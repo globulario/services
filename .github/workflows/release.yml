@@ -306,7 +306,6 @@ jobs:
       # ── Create service packages ───────────────────────────────────────────
       - name: Create service packages
         env:
-          VERSION: ${{ steps.version.outputs.version }}
           BUILD_ID: ${{ github.run_number }}
         run: |
           set -euo pipefail
@@ -371,7 +370,14 @@ jobs:
               continue
             fi
 
-            echo "  → Packaging ${pkg_name} v${VERSION}..."
+            # Read per-package version from metadata — the release tag is NOT the package version
+            PKG_VERSION=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['version'])")
+            if [[ -z "${PKG_VERSION}" ]]; then
+              echo "  ✗ ${pkg_name}: version field missing in ${meta_dir}/package.json" >&2
+              exit 1
+            fi
+
+            echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
 
             tmpdir=$(mktemp -d)
 
@@ -386,8 +392,8 @@ jobs:
             # Compute SHA256 of the binary
             CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
-            # Update package.json: version + entrypoint_checksum + build_id (mandatory for release)
-            python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
+            # Stamp package.json: version (per-package) + entrypoint_checksum + build_id (mandatory)
+            python3 - "${tmpdir}/package.json" "${PKG_VERSION}" "${CHECKSUM}" "${BUILD_ID}" <<'PYEOF'
           import json, sys
           path, version, checksum, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
           if not build_id:
@@ -402,7 +408,7 @@ jobs:
               json.dump(d, f, indent=2)
           PYEOF
 
-            out_file="dist/packages/${pkg_name}_${VERSION}_linux_amd64.tgz"
+            out_file="dist/packages/${pkg_name}_${PKG_VERSION}_linux_amd64.tgz"
             tar -C "${tmpdir}" -czf "${out_file}" .
             rm -rf "${tmpdir}"
 
@@ -443,7 +449,7 @@ jobs:
           tag      = os.environ["GITHUB_REF_NAME"]
           repo     = os.environ["GITHUB_REPOSITORY"]
           base_url = f"https://github.com/{repo}/releases/download/{tag}"
-          platform = "linux-amd64"
+          platform = "linux_amd64"
 
           seen_keys  = {}   # (name, version, build_id, platform) → filename
           seen_files = set()
