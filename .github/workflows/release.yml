@@ -262,6 +262,16 @@ jobs:
             PKG_VERSION=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['version'])")
             PKG_ENTRYPOINT=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['entrypoint'].split('/')[-1])")
 
+            # minio and mc are downloaded as "latest stable" (no pinned version in download URL).
+            # Detect the real version from the binary so the repository record matches reality.
+            if [[ "${pkg_name}" == "minio" ]]; then
+              DETECTED=$("${bin_path}" --version 2>/dev/null | awk '/^minio version/{print $3}' || echo "")
+              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
+            elif [[ "${pkg_name}" == "mc" ]]; then
+              DETECTED=$("${bin_path}" --version 2>/dev/null | awk '/^mc version/{print $3}' || echo "")
+              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
+            fi
+
             echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
 
             tmpdir=$(mktemp -d)
