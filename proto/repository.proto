@@ -867,7 +867,7 @@ message UpstreamSource {
   UpstreamSourceType type = 2;  // source system type
   string index_url        = 3;  // URL or template; use {tag} for release tag substitution
   string channel          = 4;  // "stable" (default)
-  string platform         = 5;  // e.g. "linux-amd64"
+  string platform         = 5;  // e.g. "linux_amd64"
   bool   enabled          = 6;
   string last_synced_tag  = 7;  // tag of the last fully successful sync (no rejected/failed)
   string credentials_ref  = 8;  // etcd key to a credential record; empty = public
