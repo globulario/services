@@ -195,10 +195,12 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	}
 	// Update installed versions when the node reports inventory, even if empty
 	// (inventoryComplete=true means the node has finished scanning).
+	installedChanged := false
 	if len(installedVersions) > 0 || inventoryComplete {
 		if !mapsEqual(node.InstalledVersions, installedVersions) {
 			node.InstalledVersions = installedVersions
 			changed = true
+			installedChanged = true
 		}
 	}
 	// Update installed build_ids — the authoritative convergence identity.
@@ -397,6 +399,13 @@ skipHashEnqueue:
 	// would stay stuck because the reconciler is event-driven (watches
 	// ClusterNetwork/ServiceDesiredVersion) and heartbeats don't trigger it.
 	if !bootstrapPhaseReady(node.BootstrapPhase) && srv.enqueueReconcile != nil {
+		srv.enqueueReconcile()
+	}
+
+	// When the installed inventory changes on a fully-bootstrapped node, trigger
+	// reconcileNodes so materializeMissingInfraDesired runs and new services are
+	// picked up without waiting for the next spec-change event.
+	if installedChanged && bootstrapPhaseReady(node.BootstrapPhase) && srv.enqueueReconcile != nil {
 		srv.enqueueReconcile()
 	}
 
