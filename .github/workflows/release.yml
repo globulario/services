@@ -621,6 +621,12 @@ jobs:
           cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
           chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
 
+          # Workflow YAML definitions — installed to /var/lib/globular/workflows/
+          # by install-day0.sh. The controller reads them at startup to seed etcd.
+          # Without these files on disk the cluster cannot reconcile or deploy.
+          mkdir -p "${RELEASE_DIR}/workflows"
+          cp services/golang/workflow/definitions/*.yaml "${RELEASE_DIR}/workflows/"
+
           # Welcome page assets — seeded into MinIO webroot on first install
           if [[ -d globular-installer/internal/assets/webroot ]]; then
             cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
