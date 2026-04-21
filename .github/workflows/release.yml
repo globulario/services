@@ -307,6 +307,7 @@ jobs:
       - name: Create service packages
         env:
           BUILD_ID: ${{ github.run_number }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
@@ -370,10 +371,12 @@ jobs:
               continue
             fi
 
-            # Read per-package version from metadata — the release tag is NOT the package version
-            PKG_VERSION=$(python3 -c "import json; print(json.load(open('${meta_dir}/package.json'))['version'])")
+            # Service packages use the release tag as their version so that the
+            # repository record matches what the binary reports at runtime (injected
+            # via ldflags: -X main.version=${VERSION}).
+            PKG_VERSION="${VERSION}"
             if [[ -z "${PKG_VERSION}" ]]; then
-              echo "  ✗ ${pkg_name}: version field missing in ${meta_dir}/package.json" >&2
+              echo "  ✗ ${pkg_name}: VERSION env var is empty" >&2
               exit 1
             fi
 
