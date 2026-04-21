@@ -161,7 +161,6 @@ jobs:
           RESTIC_VERSION="0.18.1"
           RCLONE_VERSION="1.73.1"
           SCYLLA_MGR_VERSION="3.8.1"
-          FFMPEG_VERSION="7.0.2"
           YTDLP_VERSION="2026.02.21"
 
           echo "→ etcd ${ETCD_VERSION}..."
@@ -223,9 +222,9 @@ jobs:
           curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux" -o yt-dlp
           chmod +x yt-dlp
 
-          echo "→ ffmpeg ${FFMPEG_VERSION} (static build)..."
-          curl -fsSL "https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-${FFMPEG_VERSION}-amd64-static.tar.xz" \
-            | tar xJf - --strip-components=1 --wildcards "*/ffmpeg"
+          echo "→ ffmpeg (stable static build)..."
+          curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-release-linux64-gpl.tar.xz" \
+            | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
           echo "→ scylla-manager server ${SCYLLA_MGR_VERSION}..."
@@ -320,6 +319,9 @@ jobs:
               [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
             elif [[ "${pkg_name}" == "mc" ]]; then
               DETECTED=$("${bin_path}" --version 2>/dev/null | awk '/^mc version/{print $3}' || echo "")
+              [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
+            elif [[ "${pkg_name}" == "ffmpeg" ]]; then
+              DETECTED=$("${bin_path}" -version 2>/dev/null | awk 'NR==1{print $3}' || echo "")
               [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
             fi
 
