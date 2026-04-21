@@ -23,6 +23,32 @@ func (srv *server) buildRepositoryConfig() engine.RepositoryConfig {
 		// it runs from the node-agent during Day-0. No-op here.
 		PublishBootstrapArtifacts: nil,
 
+		ValidateUpstreamSource: func(ctx context.Context, sourceName string) error {
+			repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+			if repoAddr == "" {
+				return fmt.Errorf("repository service not found in registry")
+			}
+			rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+			if err != nil {
+				return fmt.Errorf("repository client: %w", err)
+			}
+			defer rc.Close()
+
+			resp, err := rc.ListUpstreams()
+			if err != nil {
+				return fmt.Errorf("ListUpstreams: %w", err)
+			}
+			for _, s := range resp.Sources {
+				if s.Name == sourceName {
+					if !s.Enabled {
+						return fmt.Errorf("upstream source %q is registered but disabled", sourceName)
+					}
+					return nil
+				}
+			}
+			return fmt.Errorf("upstream source %q not found", sourceName)
+		},
+
 		SyncUpstream: func(ctx context.Context, sourceName, releaseTag string, dryRun bool, only []string) (map[string]any, error) {
 			repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
 			if repoAddr == "" {

@@ -37,9 +37,21 @@ spec:
     only: []
   strategy:
     mode: single
+
   steps:
-    - id: sync_upstream
+    - id: validate_source
+      title: Validate upstream source is registered and enabled
+      actor: repository
+      action: repository.validate.upstream_source
+      with:
+        source_name: $.source_name
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: sync
       title: Import packages from upstream release
+      dependsOn: [validate_source]
       actor: repository
       action: repository.sync.upstream
       with:
@@ -48,6 +60,19 @@ spec:
         dry_run:      $.dry_run
         only:         $.only
       timeout: 30m
+      export: sync_summary
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: report
+      title: Emit sync outcome report
+      dependsOn: [sync]
+      actor: repository
+      action: repository.emit.sync_report
+      with:
+        sync_summary: $.sync_summary
+        dry_run:      $.dry_run
       execution:
         idempotency: safe_retry
         resume_policy: retry

@@ -5,15 +5,25 @@
 //   globular repo list-upstreams
 //   globular repo remove-upstream <name>
 //   globular pkg sync-upstream --source <name> --tag <tag> [--dry-run] [--only a,b,c]
+//
+// Sync entrypoint:
+//   pkg sync-upstream triggers the repository.sync.upstream workflow via the
+//   centralized WorkflowService. The workflow executes three steps on the
+//   repository actor (dispatched through the cluster-controller):
+//     1. validate_source  — confirm source exists and is enabled
+//     2. sync             — fetch index, verify digests, import artifacts
+//     3. report           — emit structured audit outcome
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/spf13/cobra"
 )
 
@@ -230,53 +240,113 @@ func runPkgSyncUpstream(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	rc, err := repoClient()
-	if err != nil {
-		return err
+	// Resolve workflow service address from etcd registry.
+	wfAddr := config.ResolveServiceAddr("workflow.WorkflowService", "")
+	if wfAddr == "" {
+		if a, err := config.GetMeshAddress(); err == nil {
+			wfAddr = a
+		}
 	}
-	defer rc.Close()
+	if wfAddr == "" {
+		return fmt.Errorf("workflow service not found (check etcd or use --controller)")
+	}
+
+	// Resolve controller address for actor endpoint callbacks.
+	// The workflow service dispatches repository actor actions to the controller,
+	// which has the repository actor handler registered in its defaultRouter.
+	controllerAddr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if controllerAddr == "" {
+		controllerAddr = rootCfg.controllerAddr
+	}
+
+	// Build workflow inputs.
+	inputs := map[string]any{
+		"source_name": syncSource,
+		"release_tag": syncTag,
+		"dry_run":     syncDryRun,
+	}
+	if len(only) > 0 {
+		inputs["only"] = only
+	}
+	inputsJSON, err := json.Marshal(inputs)
+	if err != nil {
+		return fmt.Errorf("marshal inputs: %w", err)
+	}
+
+	corrID := fmt.Sprintf("cli-sync-%s-%s", syncSource, syncTag)
 
 	if syncDryRun {
 		fmt.Printf("Dry-run: previewing sync from %q @ %s\n\n", syncSource, syncTag)
 	} else {
-		fmt.Printf("Syncing from %q @ %s...\n\n", syncSource, syncTag)
+		fmt.Printf("Syncing from %q @ %s via workflow...\n\n", syncSource, syncTag)
 	}
 
-	resp, err := rc.SyncFromUpstream(syncSource, syncTag, syncDryRun, only)
+	cc, err := dialGRPC(wfAddr)
 	if err != nil {
-		return fmt.Errorf("sync: %w", err)
+		return fmt.Errorf("connect to workflow service at %s: %w", wfAddr, err)
+	}
+	defer cc.Close()
+
+	wfClient := workflowpb.NewWorkflowServiceClient(cc)
+	resp, err := wfClient.ExecuteWorkflow(ctxWithTimeout(), &workflowpb.ExecuteWorkflowRequest{
+		WorkflowName: "repository.sync.upstream",
+		InputsJson:   string(inputsJSON),
+		ActorEndpoints: map[string]string{
+			"repository":         controllerAddr,
+			"cluster-controller": controllerAddr,
+		},
+		CorrelationId: corrID,
+	})
+	if err != nil {
+		return fmt.Errorf("workflow: %w", err)
 	}
 
-	// Print per-artifact results.
-	if len(resp.Results) > 0 {
-		fmt.Printf("%-28s  %-10s  %-12s  %-8s  %s\n", "PACKAGE", "VERSION", "BUILD_ID", "STATUS", "DETAIL")
-		fmt.Println(strings.Repeat("-", 90))
-		for _, r := range resp.Results {
-			detail := r.Detail
-			if detail == "" {
-				detail = "-"
+	fmt.Printf("Run ID: %s\n", resp.RunId)
+
+	// Decode outputs from the workflow's accumulated step exports.
+	if resp.OutputsJson != "" {
+		var outputs map[string]any
+		if jsonErr := json.Unmarshal([]byte(resp.OutputsJson), &outputs); jsonErr == nil {
+			if summary, ok := outputs["sync_summary"].(map[string]any); ok {
+				printSyncSummary(summary, syncDryRun)
 			}
-			fmt.Printf("%-28s  %-10s  %-12s  %-8s  %s\n",
-				r.Name, r.Version, r.BuildId, statusLabel(r.Status), detail)
 		}
-		fmt.Println()
 	}
 
-	// Summary.
-	if syncDryRun {
-		fmt.Printf("Would import: %d   would skip: %d   would reject: %d   would fail: %d\n",
-			resp.Imported, resp.Skipped, resp.Rejected, resp.Failed)
-	} else {
-		fmt.Printf("Imported: %d   skipped: %d   rejected: %d   failed: %d\n",
-			resp.Imported, resp.Skipped, resp.Rejected, resp.Failed)
-	}
-
-	if resp.Rejected > 0 || resp.Failed > 0 {
-		return fmt.Errorf("sync completed with %d rejected and %d failed artifacts", resp.Rejected, resp.Failed)
+	if resp.Status == "FAILED" {
+		return fmt.Errorf("sync workflow failed: %s", resp.Error)
 	}
 	return nil
 }
 
+func printSyncSummary(summary map[string]any, dryRun bool) {
+	toI := func(v any) int64 {
+		switch n := v.(type) {
+		case float64:
+			return int64(n)
+		case int32:
+			return int64(n)
+		case int64:
+			return n
+		}
+		return 0
+	}
+
+	imported := toI(summary["imported"])
+	skipped := toI(summary["skipped"])
+	rejected := toI(summary["rejected"])
+	failed := toI(summary["failed"])
+
+	if dryRun {
+		fmt.Printf("Would import: %d   would skip: %d   would reject: %d   would fail: %d\n",
+			imported, skipped, rejected, failed)
+	} else {
+		fmt.Printf("Imported: %d   skipped: %d   rejected: %d   failed: %d\n",
+			imported, skipped, rejected, failed)
+	}
+}
+
+// statusLabel is kept for potential future use with direct-repo commands.
 func statusLabel(s repopb.UpstreamSyncStatus) string {
 	switch s {
 	case repopb.UpstreamSyncStatus_SYNC_IMPORTED:

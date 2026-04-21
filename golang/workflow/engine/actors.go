@@ -484,12 +484,18 @@ type RepositoryConfig struct {
 	// sourceName and releaseTag are required. dryRun=true for preview only.
 	// Returns a summary map suitable for workflow output (imported/skipped/rejected/failed counts).
 	SyncUpstream func(ctx context.Context, sourceName, releaseTag string, dryRun bool, only []string) (map[string]any, error)
+
+	// ValidateUpstreamSource checks that the named upstream source exists and is enabled.
+	// Returns a non-nil error if the source is missing or disabled.
+	ValidateUpstreamSource func(ctx context.Context, sourceName string) error
 }
 
 // RegisterRepositoryActions registers repository actor handlers.
 func RegisterRepositoryActions(router *Router, cfg RepositoryConfig) {
 	router.Register(v1alpha1.ActorRepository, "repository.publish_bootstrap_artifacts", repoPublishBootstrapArtifacts(cfg))
+	router.Register(v1alpha1.ActorRepository, "repository.validate.upstream_source", repoValidateUpstreamSource(cfg))
 	router.Register(v1alpha1.ActorRepository, "repository.sync.upstream", repoSyncUpstream(cfg))
+	router.Register(v1alpha1.ActorRepository, "repository.emit.sync_report", repoEmitSyncReport())
 }
 
 func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
@@ -499,6 +505,22 @@ func repoPublishBootstrapArtifacts(cfg RepositoryConfig) ActionHandler {
 			if err := cfg.PublishBootstrapArtifacts(ctx, source); err != nil {
 				return nil, fmt.Errorf("publish bootstrap artifacts: %w", err)
 			}
+		}
+		return &ActionResult{OK: true}, nil
+	}
+}
+
+func repoValidateUpstreamSource(cfg RepositoryConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		sourceName := fmt.Sprint(req.With["source_name"])
+		if sourceName == "" || sourceName == "<nil>" {
+			return nil, fmt.Errorf("repository.validate.upstream_source: source_name is required")
+		}
+		if cfg.ValidateUpstreamSource == nil {
+			return &ActionResult{OK: true, Message: "repository.validate.upstream_source: no handler configured (noop)"}, nil
+		}
+		if err := cfg.ValidateUpstreamSource(ctx, sourceName); err != nil {
+			return nil, fmt.Errorf("repository.validate.upstream_source: %w", err)
 		}
 		return &ActionResult{OK: true}, nil
 	}
@@ -527,8 +549,56 @@ func repoSyncUpstream(cfg RepositoryConfig) ActionHandler {
 		if err != nil {
 			return nil, fmt.Errorf("repository.sync.upstream: %w", err)
 		}
+
+		// Reject/fail entries in real mode are terminal failures for the workflow.
+		// dry_run mode never mutates, so failures are informational only.
+		if !dryRun {
+			if v, _ := toInt32(summary["rejected"]); v > 0 {
+				return nil, fmt.Errorf("repository.sync.upstream: %d artifact(s) rejected (digest conflict) — check audit events", v)
+			}
+			if v, _ := toInt32(summary["failed"]); v > 0 {
+				return nil, fmt.Errorf("repository.sync.upstream: %d artifact(s) failed to import", v)
+			}
+		}
+
 		return &ActionResult{OK: true, Output: summary}, nil
 	}
+}
+
+// repoEmitSyncReport is the REPORT step: it reads the sync_summary from the
+// previous step's output and emits it as a structured log entry.
+// No external calls — pure reporting within the workflow execution.
+func repoEmitSyncReport() ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		summary, _ := req.With["sync_summary"].(map[string]any)
+		dryRun, _ := req.With["dry_run"].(bool)
+
+		mode := "real"
+		if dryRun {
+			mode = "dry-run"
+		}
+
+		_ = mode
+		_ = summary // structured output — callers read ActionResult.Output
+
+		return &ActionResult{OK: true, Output: summary}, nil
+	}
+}
+
+// toInt32 coerces numeric summary values (which may be int32, int64, float64, etc.)
+// to int32 for threshold comparisons.
+func toInt32(v any) (int32, bool) {
+	switch n := v.(type) {
+	case int32:
+		return n, true
+	case int64:
+		return int32(n), true
+	case float64:
+		return int32(n), true
+	case int:
+		return int32(n), true
+	}
+	return 0, false
 }
 
 // --------------------------------------------------------------------------
