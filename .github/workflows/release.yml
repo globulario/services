@@ -160,7 +160,6 @@ jobs:
           SIDEKICK_VERSION="7.0.0"
           RESTIC_VERSION="0.18.1"
           RCLONE_VERSION="1.73.1"
-          SCYLLA_MGR_VERSION="3.8.1"
           YTDLP_VERSION="2026.02.21"
 
           echo "→ etcd ${ETCD_VERSION}..."
@@ -228,32 +227,20 @@ jobs:
           curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
           chmod +x ffmpeg
 
-          echo "→ scylla-manager server ${SCYLLA_MGR_VERSION}..."
-          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-server_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
-            -o /tmp/smgr-server.deb
+          echo "→ scylla-manager + agent + sctool (latest stable from GitHub)..."
+          SCYLLA_MGR_VERSION=$(curl -fsSL "https://api.github.com/repos/scylladb/scylla-manager/releases" \
+            | python3 -c "import json,sys; releases=[r for r in json.load(sys.stdin) if r['assets'] and not r['prerelease']]; print(releases[0]['tag_name'].lstrip('v'))")
+          echo "  version: ${SCYLLA_MGR_VERSION}"
+          echo "SCYLLA_MGR_VERSION=${SCYLLA_MGR_VERSION}" >> "$GITHUB_ENV"
+          curl -fsSL "https://github.com/scylladb/scylla-manager/releases/download/v${SCYLLA_MGR_VERSION}/scylla-manager_${SCYLLA_MGR_VERSION}_linux_x86_64.tar.gz" \
+            -o /tmp/scylla-manager.tar.gz
           tmpd=$(mktemp -d)
-          dpkg-deb -x /tmp/smgr-server.deb "${tmpd}"
-          find "${tmpd}" -type f -name "scylla-manager" | head -1 | xargs -I{} cp {} scylla_manager
-          chmod +x scylla_manager
-          rm -rf "${tmpd}"
-
-          echo "→ scylla-manager-agent ${SCYLLA_MGR_VERSION}..."
-          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-agent_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
-            -o /tmp/smgr-agent.deb
-          tmpd=$(mktemp -d)
-          dpkg-deb -x /tmp/smgr-agent.deb "${tmpd}"
+          tar xzf /tmp/scylla-manager.tar.gz -C "${tmpd}"
+          find "${tmpd}" -type f -name "scylla-manager" ! -name "*agent*" | head -1 | xargs -I{} cp {} scylla_manager
           find "${tmpd}" -type f -name "scylla-manager-agent" | head -1 | xargs -I{} cp {} scylla_manager_agent
-          chmod +x scylla_manager_agent
-          rm -rf "${tmpd}"
-
-          echo "→ sctool (scylla-manager-client) ${SCYLLA_MGR_VERSION}..."
-          curl -fsSL "https://downloads.scylladb.com/manager/deb/pool/stable/s/scylla-manager/scylla-manager-client_${SCYLLA_MGR_VERSION}-0_amd64.deb" \
-            -o /tmp/smgr-client.deb
-          tmpd=$(mktemp -d)
-          dpkg-deb -x /tmp/smgr-client.deb "${tmpd}"
           find "${tmpd}" -type f -name "sctool" | head -1 | xargs -I{} cp {} sctool
-          chmod +x sctool
-          rm -rf "${tmpd}"
+          chmod +x scylla_manager scylla_manager_agent sctool
+          rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
           echo ""
           echo "Infra binaries:"
@@ -324,6 +311,8 @@ jobs:
             elif [[ "${pkg_name}" == "ffmpeg" ]]; then
               DETECTED=$("${bin_path}" -version 2>/dev/null | awk 'NR==1{print $3}' || echo "")
               [[ -n "${DETECTED}" ]] && PKG_VERSION="${DETECTED}"
+            elif [[ "${pkg_name}" == "scylla-manager" || "${pkg_name}" == "scylla-manager-agent" || "${pkg_name}" == "sctool" ]]; then
+              [[ -n "${SCYLLA_MGR_VERSION:-}" ]] && PKG_VERSION="${SCYLLA_MGR_VERSION}"
             fi
 
             echo "  → Packaging ${pkg_name} v${PKG_VERSION}..."
