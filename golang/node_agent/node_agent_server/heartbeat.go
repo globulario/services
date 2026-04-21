@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -524,10 +525,17 @@ func (srv *NodeAgentServer) adoptRunningUnmanagedServices(ctx context.Context) {
 			// Binary does not support --describe — skip silently.
 			continue
 		}
+		// Some binaries emit log lines to stdout before the JSON payload
+		// (e.g. "INFO policy: loaded cluster roles ..."). Strip everything
+		// before the first '{' so json.Unmarshal gets clean JSON.
+		jsonStart := bytes.IndexByte(out, '{')
+		if jsonStart < 0 {
+			continue
+		}
 		var payload struct {
 			Version string `json:"Version"`
 		}
-		if err := json.Unmarshal(out, &payload); err != nil {
+		if err := json.Unmarshal(out[jsonStart:], &payload); err != nil {
 			continue
 		}
 		ver := strings.TrimSpace(payload.Version)
