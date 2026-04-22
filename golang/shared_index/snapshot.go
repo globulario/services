@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +21,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+const clusterCAPath = "/var/lib/globular/pki/ca.crt"
 
 const (
 	snapshotBucket = "globular-search-index"
@@ -43,10 +48,18 @@ func newSnapshotSync(group string, logger *slog.Logger) *snapshotSync {
 
 func (s *snapshotSync) minioClient() (*minio.Client, error) {
 	cfg := config.GetMinIOConfig()
-	return minio.New(cfg.Endpoint, &minio.Options{
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.Secure,
-	})
+	}
+	if cfg.Secure {
+		if pem, err := os.ReadFile(clusterCAPath); err == nil {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(pem)
+			opts.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+		}
+	}
+	return minio.New(cfg.Endpoint, opts)
 }
 
 // EnsureBucket creates the snapshot bucket if it doesn't exist.

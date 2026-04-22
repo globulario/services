@@ -242,7 +242,11 @@ func buildMinioClient(cfg *config.MinioProxyConfig) (*minio.Client, error) {
 
 	// Cluster DNS dialer for *.globular.internal names.
 	transport := &http.Transport{DialContext: config.ClusterDialContext}
-	if bundle := strings.TrimSpace(cfg.CABundlePath); bundle != "" {
+	if cfg.Secure {
+		bundle := strings.TrimSpace(cfg.CABundlePath)
+		if bundle == "" {
+			bundle = "/var/lib/globular/pki/ca.crt"
+		}
 		pem, err := os.ReadFile(bundle)
 		if err != nil {
 			return nil, fmt.Errorf("read CA bundle: %w", err)

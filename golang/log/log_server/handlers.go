@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/log/logpb"
@@ -16,6 +17,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// Rate-limit "store write failed" warnings to once per 30s to prevent stderr
+// storms when ScyllaDB is down and the log service is receiving high RPC volume.
+var lastStoreWriteWarnAt atomic.Int64 // unix seconds of last warn emission
 
 ////////////////////////////////////////////////////////////////////////////////
 // Internal helpers
@@ -208,7 +213,10 @@ func (srv *server) log(info *logpb.LogInfo) error {
 			// Write entry
 			if data, err := protojson.Marshal(info); err == nil {
 				if err := entries.SetItem(key, data); err != nil {
-					logger.Warn("store write failed", "err", err)
+					now := time.Now().Unix()
+					if prev := lastStoreWriteWarnAt.Swap(now); now-prev > 30 {
+						logger.Warn("store write failed (suppressing repeats for 30s)", "err", err)
+					}
 				}
 			}
 

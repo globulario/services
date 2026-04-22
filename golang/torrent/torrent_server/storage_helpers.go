@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"mime"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,6 +15,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+const clusterCAPath = "/var/lib/globular/pki/ca.crt"
 
 func (srv *server) minioEnabled() bool {
 	return srv.UseMinio && srv.MinioEndpoint != "" && srv.MinioBucket != ""
@@ -23,10 +29,18 @@ func (srv *server) ensureMinioClient() error {
 	if srv.minioClient != nil {
 		return nil
 	}
-	client, err := minio.New(srv.MinioEndpoint, &minio.Options{
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(srv.MinioAccessKey, srv.MinioSecretKey, ""),
 		Secure: srv.MinioUseSSL,
-	})
+	}
+	if srv.MinioUseSSL {
+		if pem, err := os.ReadFile(clusterCAPath); err == nil {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(pem)
+			opts.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+		}
+	}
+	client, err := minio.New(srv.MinioEndpoint, opts)
 	if err != nil {
 		return err
 	}

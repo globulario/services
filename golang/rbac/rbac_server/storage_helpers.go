@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +17,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+const clusterCAPath = "/var/lib/globular/pki/ca.crt"
 
 func (srv *server) minioEnabled() bool {
 	return srv.MinioConfig != nil && srv.MinioConfig.Endpoint != "" && srv.MinioConfig.Bucket != ""
@@ -52,10 +57,31 @@ func (srv *server) ensureMinioClient() error {
 		return fmt.Errorf("unknown minio auth mode: %s", auth.Mode)
 	}
 
-	client, err := minio.New(srv.MinioConfig.Endpoint, &minio.Options{
+	opts := &minio.Options{
 		Creds:  creds,
 		Secure: srv.MinioConfig.Secure,
-	})
+	}
+
+	if srv.MinioConfig.Secure {
+		// Load the Globular cluster CA so the MinIO client can verify the
+		// minio.globular.internal TLS cert (signed by Globular Root CA, not
+		// the system CA bundle).
+		caPath := srv.MinioConfig.CABundlePath
+		if caPath == "" {
+			caPath = clusterCAPath
+		}
+		if pem, err := os.ReadFile(caPath); err == nil {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(pem)
+			opts.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: pool},
+			}
+		} else {
+			logger.Warn("minio: could not load CA bundle, falling back to system pool", "path", caPath, "err", err)
+		}
+	}
+
+	client, err := minio.New(srv.MinioConfig.Endpoint, opts)
 	if err != nil {
 		return err
 	}
