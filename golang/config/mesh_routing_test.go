@@ -93,24 +93,25 @@ func TestNormalizePassesThroughHostPort(t *testing.T) {
 	}
 }
 
-// TestMeshRouteAddrsLocalhostPreserved verifies that meshRouteAddrs does NOT
-// rewrite localhost/loopback addresses to :443. localhost means "this node,
-// direct port" and must never go through the Envoy mesh.
-func TestMeshRouteAddrsLocalhostPreserved(t *testing.T) {
+// TestMeshRouteAddrsLoopbackRejected verifies that meshRouteAddrs drops
+// loopback addresses (127.0.0.1, localhost) rather than passing them through.
+// A loopback address in etcd means a service misconfigured itself — rejecting
+// it makes the misconfiguration visible instead of silently routing to a dead port.
+func TestMeshRouteAddrsLoopbackRejected(t *testing.T) {
 	cases := []struct {
 		name  string
 		input []string
 		want  []string
 	}{
 		{
-			"localhost stays direct",
+			"localhost rejected",
 			[]string{"localhost:10101"},
-			[]string{"localhost:10101"},
+			[]string{},
 		},
 		{
-			"127.0.0.1 stays direct",
+			"127.0.0.1 rejected",
 			[]string{"127.0.0.1:10010"},
-			[]string{"127.0.0.1:10010"},
+			[]string{},
 		},
 		{
 			"remote IP gets mesh port",
@@ -118,9 +119,9 @@ func TestMeshRouteAddrsLocalhostPreserved(t *testing.T) {
 			[]string{"10.0.0.63:443"},
 		},
 		{
-			"mixed localhost and remote",
+			"loopback dropped, remote kept",
 			[]string{"localhost:10101", "10.0.0.63:10101"},
-			[]string{"localhost:10101", "10.0.0.63:443"},
+			[]string{"10.0.0.63:443"},
 		},
 		{
 			"multiple remote same host dedup",
