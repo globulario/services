@@ -9,7 +9,7 @@
 #   VERSION="1.0.17"
 #   curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
 #   curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
-#   sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
+#   /usr/bin/sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
 #   tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
 #   cd "globular-${VERSION}-linux-amd64"
 #   sudo bash install.sh
