@@ -171,24 +171,31 @@ func defaultConfig() *MCPConfig {
 
 // loadConfig loads config from the canonical path. If missing, it writes
 // defaults. If the file exists, it is never overwritten (no auto-rewrite).
+// The GLOBULAR_MCP_CONFIG env var overrides the default path, which is
+// useful for running the MCP server in stdio mode from a dev checkout.
 func loadConfig() *MCPConfig {
 	cfg := defaultConfig()
 
-	data, err := os.ReadFile(defaultConfigPath)
+	configPath := defaultConfigPath
+	if override := os.Getenv("GLOBULAR_MCP_CONFIG"); override != "" {
+		configPath = override
+	}
+
+	data, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Println("mcp: no config file found, writing defaults to " + defaultConfigPath)
+		log.Println("mcp: no config file found, writing defaults to " + configPath)
 		// Enable TLS by default when certs are present.
 		_ = maybeEnableTLSFromServiceCert(cfg)
-		writeConfig(defaultConfigPath, cfg)
+		writeConfig(configPath, cfg)
 		return cfg
 	}
 
 	if err := json.Unmarshal(data, cfg); err != nil {
-		log.Printf("mcp: warning: failed to parse config %s: %v", defaultConfigPath, err)
+		log.Printf("mcp: warning: failed to parse config %s: %v", configPath, err)
 		return cfg
 	}
 
-	log.Printf("mcp: loaded config from %s", defaultConfigPath)
+	log.Printf("mcp: loaded config from %s", configPath)
 
 	// Apply defaults for new tool groups that may be missing from
 	// older config files. When a bool field is absent from the JSON
