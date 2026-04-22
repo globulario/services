@@ -86,7 +86,16 @@ func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
 			// We don't send notifications, so just hold the connection open
 			// until the client disconnects.
 			if !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]string{
+					"status":        "ok",
+					"service":       "globular-mcp",
+					"message":       "MCP endpoint is reachable. Use POST /mcp for JSON-RPC requests or GET /mcp with Accept: text/event-stream for SSE.",
+					"health":        "/health",
+					"mcp_endpoint":  "/mcp",
+					"required_post": "application/json",
+				})
 				return
 			}
 			w.Header().Set("Content-Type", "text/event-stream")
