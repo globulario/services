@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -82,53 +81,43 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 
 // runProbeEtcdHealth checks whether etcd is healthy on this node.
 //
-// Runs: etcdctl endpoint health --endpoints=https://<routable-ip>:2379 ... -w json
-// Expects JSON output containing {"health":true}.
+// Uses the canonical config.GetEtcdClient() TLS wiring so probes do not depend
+// on legacy/non-canonical certificate file paths.
 func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
-
-	etcdctl, err := exec.LookPath("etcdctl")
+	cli, err := config.GetEtcdClient()
 	if err != nil {
-		return probeFail(start, "etcdctl not found in PATH"), nil
+		return probeFail(start, fmt.Sprintf("etcd client unavailable: %v", err)), nil
 	}
+	// IMPORTANT: GetEtcdClient returns a shared singleton. Do NOT close it here;
+	// closing would tear down other in-flight etcd operations and create retry storms.
 
-	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	// Use the node's routable IP for etcd health check — never localhost.
-	etcdIP := config.GetRoutableIPv4()
-	if etcdIP == "" {
-		return probeFail(start, "cannot determine routable IP for etcd health check"), nil
-	}
-	cmd := exec.CommandContext(cmdCtx, etcdctl,
-		"endpoint", "health",
-		fmt.Sprintf("--endpoints=https://%s:2379", etcdIP),
-		"--cert=/var/lib/globular/pki/issued/etcd/client.crt",
-		"--key=/var/lib/globular/pki/issued/etcd/client.key",
-		"--cacert=/var/lib/globular/pki/ca.crt",
-		"-w", "json",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return probeFail(start, fmt.Sprintf("etcdctl failed: %s (%v)", strings.TrimSpace(string(out)), err)), nil
-	}
-
-	// Parse JSON — etcdctl outputs an array: [{"endpoint":"...","health":true,"took":"..."}]
-	var results []struct {
-		Endpoint string `json:"endpoint"`
-		Health   bool   `json:"health"`
-	}
-	if err := json.Unmarshal(out, &results); err != nil {
-		return probeFail(start, fmt.Sprintf("failed to parse etcdctl output: %v; raw: %s", err, strings.TrimSpace(string(out)))), nil
-	}
-
-	for _, r := range results {
-		if r.Health {
+	// Prefer probing the local node endpoint directly.
+	localIP := config.GetRoutableIPv4()
+	if localIP != "" {
+		localEndpoint := fmt.Sprintf("https://%s:2379", localIP)
+		if _, err := cli.Maintenance.Status(probeCtx, localEndpoint); err == nil {
 			return probeOK(start), nil
 		}
 	}
 
-	return probeFail(start, fmt.Sprintf("etcd reports unhealthy: %s", strings.TrimSpace(string(out)))), nil
+	// Fallback: any reachable configured etcd endpoint implies etcd control
+	// plane is healthy enough for cluster operations.
+	var errs []string
+	for _, ep := range cli.Endpoints() {
+		if _, err := cli.Maintenance.Status(probeCtx, ep); err == nil {
+			return probeOK(start), nil
+		} else {
+			errs = append(errs, fmt.Sprintf("%s: %v", ep, err))
+		}
+	}
+	if len(errs) == 0 {
+		return probeFail(start, "no etcd endpoints available for health probe"), nil
+	}
+	return probeFail(start, "etcd status failed on all endpoints: "+strings.Join(errs, "; ")), nil
 }
 
 // runProbeMinioHealth checks whether MinIO is healthy on this node.

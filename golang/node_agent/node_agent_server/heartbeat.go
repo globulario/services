@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,16 +50,24 @@ func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 
 func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	hb := globular_service.RegisterSubsystem("heartbeat", 30*time.Second)
+	withOpTimeout := func(d time.Duration, fn func(context.Context)) {
+		opCtx, cancel := context.WithTimeout(ctx, d)
+		defer cancel()
+		fn(opCtx)
+	}
 	// Initial sync: populate installed-state etcd records for packages
 	// installed by the Day-0 installer (which doesn't go through plan execution).
-	srv.syncInstalledStateToEtcd(ctx)
-	srv.syncEtcHosts(ctx)
+	withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
+	withOpTimeout(15*time.Second, srv.syncEtcHosts)
 	// Heal /var/lib/globular/objectstore/minio.json if it was clobbered
 	// out-of-band; etcd is authoritative. See minio_contract_reconcile.go.
-	srv.reconcileMinioContract(ctx)
+	withOpTimeout(15*time.Second, srv.reconcileMinioContract)
+	// Ensure scylla-manager-agent config always has a valid auth_token.
+	withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 
-	heartbeat := time.NewTicker(30 * time.Second)
-	defer heartbeat.Stop()
+	heartbeatDelay := 30 * time.Second
+	heartbeatTimer := time.NewTimer(0) // immediate first heartbeat
+	defer heartbeatTimer.Stop()
 
 	// Re-sync installed state every 5 minutes so late-arriving packages
 	// (e.g. repository not ready at first boot) eventually land in etcd.
@@ -73,9 +82,12 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// avoid repeating the same message every 30 seconds.
 	loggedMissingEndpoint := false
 
-	for {
+	runHeartbeat := func() {
 		now := time.Now()
-		if err := srv.reportStatus(ctx); err != nil {
+		hbCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		err := srv.reportStatus(hbCtx)
+		cancel()
+		if err != nil {
 			srv.consecutiveHeartbeatFail++
 			recordHeartbeatFailure(srv.consecutiveHeartbeatFail)
 			// After 3 consecutive failures, reset the cached gRPC client
@@ -113,14 +125,21 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
+	}
+
+	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-heartbeatTimer.C:
+			runHeartbeat()
+			heartbeatTimer.Reset(heartbeatDelay)
 		case <-syncTicker.C:
-			srv.syncInstalledStateToEtcd(ctx)
-			srv.syncEtcHosts(ctx)
-			srv.reconcileMinioContract(ctx)
-			srv.importProvisionalPackages(ctx)
+			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
+			withOpTimeout(15*time.Second, srv.syncEtcHosts)
+			withOpTimeout(15*time.Second, srv.reconcileMinioContract)
+			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
+			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
@@ -141,7 +160,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 					loggedMissingEndpoint = false
 				}
 			}
-		case <-heartbeat.C:
 		}
 	}
 }
@@ -158,6 +176,10 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 //  2. Repository catalog — discovers APPLICATION and INFRASTRUCTURE packages
 //     that were published and are assumed installed on this (bootstrap) node.
 func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
+	if !isAnyEtcdEndpointReachable(300 * time.Millisecond) {
+		log.Printf("nodeagent: sync installed-state skipped — no reachable etcd endpoint")
+		return
+	}
 	if srv.nodeID == "" {
 		log.Printf("nodeagent: sync skipped — node ID not yet assigned")
 		return
@@ -828,7 +850,8 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 
 	// Phase 2: etcd installed_state (from repository) overrides local versions.
 	// The repository is the source of truth for version numbers.
-	if srv.nodeID != "" {
+	etcdReachable := isAnyEtcdEndpointReachable(300 * time.Millisecond)
+	if srv.nodeID != "" && etcdReachable {
 		for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
@@ -857,8 +880,11 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	//
 	// This is best-effort: if etcd is slow or no peer has the checksum,
 	// the service stays "unknown" — no harm done.
-	if srv.nodeID != "" {
+	if srv.nodeID != "" && etcdReachable {
 		srv.peerChecksumLookup(ctx, statusReq.InstalledVersions, statusReq.InstalledBuildIds)
+	}
+	if srv.nodeID != "" && !etcdReachable {
+		log.Printf("nodeagent: etcd unavailable — skipping installed_state and peer checksum phases")
 	}
 
 	// Phase 3 REMOVED — repository reverse-lookup caused cascading failures.
@@ -963,6 +989,59 @@ func (srv *NodeAgentServer) sendStatusWithRetry(ctx context.Context, statusReq *
 			log.Printf("node-agent: failed to persist redirected controller endpoint (%s -> %s): %v", old, srv.controllerEndpoint, err)
 		}
 		return nil
+	}
+	return nil
+}
+
+func isAnyEtcdEndpointReachable(timeout time.Duration) bool {
+	endpoints := configuredEtcdEndpoints()
+	for _, ep := range endpoints {
+		ep = strings.TrimSpace(ep)
+		if ep == "" {
+			continue
+		}
+		target := ep
+		if strings.Contains(ep, "://") {
+			if u, err := url.Parse(ep); err == nil {
+				target = u.Host
+			}
+		}
+		if !strings.Contains(target, ":") {
+			target = net.JoinHostPort(target, "2379")
+		}
+		conn, err := net.DialTimeout("tcp", target, timeout)
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+	}
+	return false
+}
+
+func configuredEtcdEndpoints() []string {
+	path := "/var/lib/globular/config/etcd_endpoints"
+	if b, err := os.ReadFile(path); err == nil {
+		raw := strings.TrimSpace(string(b))
+		if raw != "" {
+			parts := strings.FieldsFunc(raw, func(r rune) bool {
+				return r == ',' || r == '\n' || r == '\r' || r == '\t' || r == ' '
+			})
+			out := make([]string, 0, len(parts))
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					out = append(out, p)
+				}
+			}
+			if len(out) > 0 {
+				return out
+			}
+		}
+	}
+	if cli, err := config.GetEtcdClient(); err == nil && cli != nil {
+		if eps := cli.Endpoints(); len(eps) > 0 {
+			return eps
+		}
 	}
 	return nil
 }

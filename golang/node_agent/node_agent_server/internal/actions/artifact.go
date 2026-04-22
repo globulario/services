@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -457,6 +458,13 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	svcWorkDir := filepath.Join(ActionStateDir, service)
 	if err := os.MkdirAll(svcWorkDir, 0o755); err != nil {
 		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
+	}
+	// Alertmanager may be installed without a default config file in some
+	// artifacts. Seed a minimal config so the unit can start on first boot.
+	if strings.EqualFold(service, "alertmanager") {
+		if err := ensureAlertmanagerConfigFile(ActionStateDir); err != nil {
+			return "", fmt.Errorf("prepare alertmanager config: %w", err)
+		}
 	}
 
 	if wroteUnit && !skipSystemd {
@@ -955,21 +963,41 @@ func renderTemplateVars(path, stateRoot, binDir string) error {
 	content := string(data)
 	prefix := filepath.Dir(binDir) // e.g. /usr/lib/globular/bin -> /usr/lib/globular
 
-	// Resolve NodeIP from the machine's routable network interfaces.
-	// This matches the globular-installer's detectPrimaryIP() behavior.
-	nodeIP := resolveNodeIP()
+	// Resolve NodeIP from routable config first, then interface scan fallback.
+	nodeIP := strings.TrimSpace(config.GetRoutableIPv4())
+	if nodeIP == "" {
+		nodeIP = resolveNodeIP()
+	}
 
-	replacer := strings.NewReplacer(
-		"{{.StateDir}}", stateRoot,
-		"{{.Prefix}}", prefix,
-		"{{.BinDir}}", binDir,
-		"{{.NodeIP}}", nodeIP,
-	)
-	rendered := replacer.Replace(content)
+	rendered := replaceTemplateVars(content, map[string]string{
+		"statedir": stateRoot,
+		"prefix":   prefix,
+		"bindir":   binDir,
+		"nodeip":   nodeIP,
+	})
 	if rendered == content {
 		return nil // no templates found, skip write
 	}
 	return os.WriteFile(path, []byte(rendered), 0o644)
+}
+
+var simpleTemplateVarRE = regexp.MustCompile(`\{\{\s*\.\s*([A-Za-z0-9_]+)\s*\}\}`)
+
+// replaceTemplateVars replaces simple Go-template variables such as
+// "{{.NodeIP}}" and tolerant variants like "{{ .NodeIp }}".
+// Unknown variables are preserved as-is.
+func replaceTemplateVars(content string, vars map[string]string) string {
+	return simpleTemplateVarRE.ReplaceAllStringFunc(content, func(match string) string {
+		sub := simpleTemplateVarRE.FindStringSubmatch(match)
+		if len(sub) != 2 {
+			return match
+		}
+		key := strings.ToLower(strings.TrimSpace(sub[1]))
+		if v, ok := vars[key]; ok {
+			return v
+		}
+		return match
+	})
 }
 
 // resolveNodeIP returns the node's primary routable IPv4 address.
@@ -991,6 +1019,19 @@ func resolveNodeIP() string {
 		return ip.String()
 	}
 	return ""
+}
+
+func ensureAlertmanagerConfigFile(stateRoot string) error {
+	cfgDir := filepath.Join(stateRoot, "alertmanager")
+	cfgPath := filepath.Join(cfgDir, "alertmanager.yml")
+	if _, err := os.Stat(cfgPath); err == nil {
+		return nil
+	}
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		return err
+	}
+	const cfg = "global:\n  resolve_timeout: 5m\nroute:\n  receiver: default\nreceivers:\n  - name: default\n"
+	return os.WriteFile(cfgPath, []byte(cfg), 0o644)
 }
 
 func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {

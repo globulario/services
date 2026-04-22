@@ -736,8 +736,21 @@ func resolveRepositoryAddr(cmd *cobra.Command) {
 	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if addr != "" {
 		svcApplyRepoAddr = addr
-		fmt.Printf("Auto-discovered repository: %s\n", svcApplyRepoAddr)
+		fmt.Printf("Auto-discovered repository: %s (etcd service discovery)\n", svcApplyRepoAddr)
+		return
 	}
+	// Fallback: on fresh nodes etcd registrations can lag behind desired-state
+	// application. Reuse the controller endpoint when available because the
+	// cluster ingress typically fronts both APIs on the same address.
+	if rootCfg.controllerAddr != "" {
+		svcApplyRepoAddr = rootCfg.controllerAddr
+		fmt.Printf("Auto-discovered repository: %s (controller endpoint fallback)\n", svcApplyRepoAddr)
+		return
+	}
+	// Final fallback uses cluster DNS; this preserves routability and avoids
+	// passing an empty gRPC target to the resolver.
+	svcApplyRepoAddr = "repository.globular.internal"
+	fmt.Printf("Auto-discovered repository: %s (cluster DNS fallback)\n", svcApplyRepoAddr)
 }
 
 // ─── Artifact download ───────────────────────────────────────────────────────
@@ -844,11 +857,15 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 
 	// Template variables for systemd unit files shipped as Go templates.
 	unitVars := struct {
-		Prefix   string
-		StateDir string
+		Prefix       string
+		StateDir     string
+		MinioDataDir string
+		NodeIP       string
 	}{
-		Prefix:   prefix,
-		StateDir: stateDir,
+		Prefix:       prefix,
+		StateDir:     stateDir,
+		MinioDataDir: detectMinioDataDir(),
+		NodeIP:       config.GetRoutableIPv4(),
 	}
 
 	// ── Stage 1: extract tgz to a temp staging dir (no sudo needed) ─────
@@ -878,6 +895,7 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 		mode      os.FileMode
 	}
 	var binFiles, unitFiles, cfgFiles []stagedFile
+	workDirs := map[string]struct{}{}
 
 	tr := tar.NewReader(gz)
 	for {
@@ -931,6 +949,11 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 			}
 			writeData = rendered.Bytes()
 		}
+		if isUnit {
+			for _, dir := range extractUnitWorkingDirectories(writeData) {
+				workDirs[dir] = struct{}{}
+			}
+		}
 
 		// Write to staging dir.
 		stageFile := filepath.Join(staging, name)
@@ -957,6 +980,14 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 	if err := sudoMkdirAll(wdDir, isRoot); err != nil {
 		return "", fmt.Errorf("mkdir %s: %w", wdDir, err)
 	}
+	// Also ensure all explicitly declared WorkingDirectory values exist before
+	// first restart. Many units set WorkingDirectory to underscore-form service
+	// names (e.g. ai_router) while desired state IDs use hyphens (ai-router).
+	for dir := range workDirs {
+		if err := ensureWorkDir(dir, isRoot); err != nil {
+			return "", fmt.Errorf("prepare working directory %s: %w", dir, err)
+		}
+	}
 
 	allFiles := make([]stagedFile, 0, len(binFiles)+len(unitFiles)+len(cfgFiles))
 	allFiles = append(allFiles, binFiles...)
@@ -966,6 +997,13 @@ func installServiceTgz(tgzPath, service string) (unitName string, err error) {
 	for _, sf := range allFiles {
 		if err := sudoInstallFile(sf.stagePath, sf.destPath, sf.mode, isRoot); err != nil {
 			return "", fmt.Errorf("install %s: %w", sf.destPath, err)
+		}
+	}
+	// Alertmanager package currently ships a unit + binary but may omit the
+	// runtime config file. Seed a minimal default config so first start succeeds.
+	if strings.EqualFold(service, "alertmanager") {
+		if err := ensureAlertmanagerConfig(isRoot, stateDir); err != nil {
+			return "", fmt.Errorf("prepare alertmanager config: %w", err)
 		}
 	}
 
@@ -1031,6 +1069,83 @@ func systemctlActivate(unit string) error {
 		}
 	}
 	return nil
+}
+
+func extractUnitWorkingDirectories(unit []byte) []string {
+	var out []string
+	seen := make(map[string]struct{})
+	for _, raw := range strings.Split(string(unit), "\n") {
+		line := strings.TrimSpace(raw)
+		if !strings.HasPrefix(line, "WorkingDirectory=") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(line, "WorkingDirectory="))
+		if value == "" {
+			continue
+		}
+		if strings.HasPrefix(value, "-") {
+			value = strings.TrimSpace(strings.TrimPrefix(value, "-"))
+		}
+		if value == "" || !strings.HasPrefix(value, "/") {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func ensureWorkDir(dir string, isRoot bool) error {
+	if err := sudoMkdirAll(dir, isRoot); err != nil {
+		return err
+	}
+	// Keep this best-effort aligned with service unit expectations.
+	if err := sudoRun(isRoot, "chown", "globular:globular", dir); err != nil {
+		return err
+	}
+	return nil
+}
+
+func detectMinioDataDir() string {
+	// Preserve existing on-host layouts when present.
+	if fi, err := os.Stat("/mnt/data/minio/data"); err == nil && fi.IsDir() {
+		return "/mnt/data/minio/data"
+	}
+	return "/var/lib/globular/minio/data"
+}
+
+func ensureAlertmanagerConfig(isRoot bool, stateDir string) error {
+	cfgDir := filepath.Join(stateDir, "alertmanager")
+	cfgPath := filepath.Join(cfgDir, "alertmanager.yml")
+	if _, err := os.Stat(cfgPath); err == nil {
+		return nil
+	}
+	if err := sudoMkdirAll(cfgDir, isRoot); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp("", "globular-alertmanager-*.yml")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.WriteString(defaultAlertmanagerConfig()); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	defer os.Remove(tmpPath)
+	return sudoInstallFile(tmpPath, cfgPath, 0o644, isRoot)
+}
+
+func defaultAlertmanagerConfig() string {
+	return "global:\n  resolve_timeout: 5m\nroute:\n  receiver: default\nreceivers:\n  - name: default\n"
 }
 
 

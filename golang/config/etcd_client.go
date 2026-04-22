@@ -201,6 +201,7 @@ func hasServerTriplet(base string) bool {
 // etcd client library (which requires bare host:port, TLS is configured separately).
 func normalizeEndpoints(raw []string) []string {
 	hostports := make([]string, 0, len(raw))
+	seen := map[string]bool{}
 	for _, ep := range raw {
 		u, err := url.Parse(ep)
 		if err != nil {
@@ -216,9 +217,54 @@ func normalizeEndpoints(raw []string) []string {
 			host = h
 			port = "2379"
 		}
-		hostports = append(hostports, net.JoinHostPort(host, port))
+		hp := net.JoinHostPort(host, port)
+		if !seen[hp] {
+			seen[hp] = true
+			hostports = append(hostports, hp)
+		}
 	}
-	return hostports
+	return preferLocalEtcdEndpoint(hostports)
+}
+
+// preferLocalEtcdEndpoint reorders endpoints so local addresses are first.
+// This avoids retry storms when the first endpoint is a down remote member
+// while a local etcd instance is available.
+func preferLocalEtcdEndpoint(in []string) []string {
+	if len(in) < 2 {
+		return in
+	}
+	localHosts := map[string]bool{
+		"127.0.0.1": true,
+		"localhost": true,
+	}
+	if ip := strings.TrimSpace(GetRoutableIPv4()); ip != "" {
+		localHosts[ip] = true
+	}
+	if name, err := os.Hostname(); err == nil {
+		name = strings.TrimSpace(strings.ToLower(name))
+		if name != "" {
+			localHosts[name] = true
+		}
+	}
+
+	local := make([]string, 0, len(in))
+	remote := make([]string, 0, len(in))
+	for _, ep := range in {
+		host, _, err := net.SplitHostPort(ep)
+		if err != nil {
+			remote = append(remote, ep)
+			continue
+		}
+		if localHosts[strings.ToLower(strings.TrimSpace(host))] {
+			local = append(local, ep)
+		} else {
+			remote = append(remote, ep)
+		}
+	}
+	if len(local) == 0 {
+		return in
+	}
+	return append(local, remote...)
 }
 
 // etcdEndpointsFile is the path where the cluster controller renders the list
