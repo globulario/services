@@ -197,7 +197,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 
 		// Day 1 intent resolution: resolve the node's desired component set
 		// from its profiles + catalog, then scope desired services accordingly.
-		intent, intentErr := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units)
+		intent, intentErr := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units, node.InstalledVersions)
 		if intentErr != nil {
 			log.Printf("reconcile: node %s intent resolution failed: %v", node.NodeID, intentErr)
 			node.Day1Phase = Day1PackageMetadataInvalid
@@ -269,7 +269,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		// local deps (e.g. scylladb for ai-memory) are not yet active.
 		var blockedWorkloads []BlockedWorkload
 		if !infraOnly {
-			desiredCanon, blockedWorkloads = GateDependencies(desiredCanon, node.Units)
+			desiredCanon, blockedWorkloads = GateDependencies(desiredCanon, node.Units, node.InstalledVersions)
 		}
 
 		// Update observability fields from dependency gating.

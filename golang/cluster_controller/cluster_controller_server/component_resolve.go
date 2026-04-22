@@ -72,7 +72,7 @@ type BlockedWorkload struct {
 //  4. Expand transitive install and runtime dependencies.
 //  5. Classify into infra vs workload.
 //  6. Gate workloads on runtime dependency health.
-func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecord) (*NodeIntent, error) {
+func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecord, installedVersions map[string]string) (*NodeIntent, error) {
 	normalized := normalizeProfiles(profiles)
 	if len(normalized) == 0 {
 		normalized = []string{"core"}
@@ -190,7 +190,7 @@ func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecor
 	healthyUnits := buildHealthySet(units)
 	var readyWorkloads []*Component
 	for _, w := range workloads {
-		missing := checkRuntimeDeps(w, healthyUnits)
+		missing := checkRuntimeDeps(w, healthyUnits, installedVersions)
 		if len(missing) > 0 {
 			intent.BlockedWorkloads = append(intent.BlockedWorkloads, BlockedWorkload{
 				Name:        w.Name,
@@ -242,7 +242,7 @@ func FilterDesiredByIntent(desired map[string]string, intent *NodeIntent) map[st
 // GateDependencies removes workload services from the desired map whose
 // runtime local dependencies are not healthy. Returns the filtered map
 // and a list of blocked services.
-func GateDependencies(desired map[string]string, units []unitStatusRecord) (map[string]string, []BlockedWorkload) {
+func GateDependencies(desired map[string]string, units []unitStatusRecord, installedVersions map[string]string) (map[string]string, []BlockedWorkload) {
 	healthyUnits := buildHealthySet(units)
 	filtered := make(map[string]string, len(desired))
 	var blocked []BlockedWorkload
@@ -255,7 +255,7 @@ func GateDependencies(desired map[string]string, units []unitStatusRecord) (map[
 			filtered[svc] = ver
 			continue
 		}
-		missing := checkRuntimeDeps(comp, healthyUnits)
+		missing := checkRuntimeDeps(comp, healthyUnits, installedVersions)
 		if len(missing) > 0 {
 			blocked = append(blocked, BlockedWorkload{
 				Name:        svc,
@@ -329,11 +329,20 @@ func buildHealthySet(units []unitStatusRecord) map[string]bool {
 	return healthy
 }
 
-func checkRuntimeDeps(c *Component, healthyUnits map[string]bool) []string {
+func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersions map[string]string) []string {
 	var missing []string
 	for _, dep := range c.RuntimeLocalDependencies {
 		depComp := CatalogByName(dep)
 		if depComp == nil {
+			continue
+		}
+		// KindCommand components (rclone, restic, sctool, etc.) have no systemd
+		// unit — readiness is determined by whether the binary is installed,
+		// not by unit health. Check InstalledVersions instead of healthyUnits.
+		if depComp.Kind == KindCommand {
+			if installedVersions[dep] == "" {
+				missing = append(missing, dep)
+			}
 			continue
 		}
 		if !healthyUnits[strings.ToLower(depComp.Unit)] {

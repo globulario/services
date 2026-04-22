@@ -6,7 +6,7 @@ import (
 )
 
 func TestResolveIntent_CoreProfile(t *testing.T) {
-	intent, err := ResolveNodeIntent("test-node", []string{"core"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"core"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestResolveIntent_DatabaseProfile(t *testing.T) {
 		{Name: "globular-ai-memory.service", State: "active"},
 		{Name: "globular-ai-executor.service", State: "active"},
 	}
-	intent, err := ResolveNodeIntent("test-node", []string{"database"}, units)
+	intent, err := ResolveNodeIntent("test-node", []string{"database"}, units, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestResolveIntent_DatabaseProfile(t *testing.T) {
 }
 
 func TestResolveIntent_GatewayProfile(t *testing.T) {
-	intent, err := ResolveNodeIntent("test-node", []string{"gateway"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"gateway"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestResolveIntent_GatewayProfile(t *testing.T) {
 }
 
 func TestResolveIntent_StorageDatabaseProfile(t *testing.T) {
-	intent, err := ResolveNodeIntent("test-node", []string{"storage", "database"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"storage", "database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestResolveIntent_StorageDatabaseProfile(t *testing.T) {
 
 func TestResolveIntent_CapabilityResolution(t *testing.T) {
 	// "database" profile requires "local-db" capability → scylladb provides it.
-	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestResolveIntent_CapabilityResolution(t *testing.T) {
 func TestResolveIntent_MissingInfraTriggersInstall(t *testing.T) {
 	// ai-memory needs scylladb. Even if scylladb isn't healthy yet,
 	// it should appear in DesiredInfra (to be installed).
-	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestResolveIntent_MissingInfraTriggersInstall(t *testing.T) {
 func TestResolveIntent_TransitiveDependencyExpansion(t *testing.T) {
 	// ai-watcher → ai-executor → ai-memory → scylladb, event
 	// On a database profile, all should be resolved.
-	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestResolveIntent_TransitiveDependencyExpansion(t *testing.T) {
 }
 
 func TestResolveIntent_UnknownProfile(t *testing.T) {
-	_, err := ResolveNodeIntent("test-node", []string{"does-not-exist"}, nil)
+	_, err := ResolveNodeIntent("test-node", []string{"does-not-exist"}, nil, nil)
 	if err == nil {
 		t.Error("expected error for unknown profile")
 	}
@@ -206,7 +206,7 @@ func TestGateDependencies_ScyllaNotHealthy(t *testing.T) {
 		{Name: "globular-event.service", State: "active"},
 		// scylla-server.service NOT active
 	}
-	filtered, blocked := GateDependencies(desired, units)
+	filtered, blocked := GateDependencies(desired, units, nil)
 	if _, ok := filtered["ai_memory"]; ok {
 		t.Error("ai_memory should be blocked when scylladb is not healthy")
 	}
@@ -226,7 +226,7 @@ func TestGateDependencies_AllDepsHealthy(t *testing.T) {
 		{Name: "scylla-server.service", State: "active"},
 		{Name: "globular-event.service", State: "active"},
 	}
-	filtered, blocked := GateDependencies(desired, units)
+	filtered, blocked := GateDependencies(desired, units, nil)
 	if _, ok := filtered["ai_memory"]; !ok {
 		t.Error("ai_memory should pass when all deps healthy")
 	}
@@ -243,7 +243,7 @@ func TestGateDependencies_TransitiveDep(t *testing.T) {
 		{Name: "globular-event.service", State: "active"},
 		// ai-executor not active
 	}
-	filtered, blocked := GateDependencies(desired, units)
+	filtered, blocked := GateDependencies(desired, units, nil)
 	if _, ok := filtered["ai_watcher"]; ok {
 		t.Error("ai_watcher should be blocked when ai-executor is not healthy")
 	}
@@ -253,7 +253,7 @@ func TestGateDependencies_TransitiveDep(t *testing.T) {
 }
 
 func TestNodeScope_GatewayExcludesAI(t *testing.T) {
-	intent, err := ResolveNodeIntent("test-node", []string{"gateway"}, nil)
+	intent, err := ResolveNodeIntent("test-node", []string{"gateway"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestFilterDesiredByIntent_NilIntent(t *testing.T) {
 }
 
 func TestNodeIntentIncludesService(t *testing.T) {
-	intent, _ := ResolveNodeIntent("test", []string{"database"}, nil)
+	intent, _ := ResolveNodeIntent("test", []string{"database"}, nil, nil)
 	node := &nodeState{
 		NodeID:         "test",
 		Profiles:       []string{"database"},
@@ -297,7 +297,7 @@ func TestNodeIntentIncludesService(t *testing.T) {
 }
 
 func TestResolveIntent_RequiredCapabilities(t *testing.T) {
-	intent, err := ResolveNodeIntent("test", []string{"core"}, nil)
+	intent, err := ResolveNodeIntent("test", []string{"core"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestDay1Phase_JoinedNode(t *testing.T) {
 
 func TestDay1Phase_InfraNotInstalled(t *testing.T) {
 	// Node with core profile, bootstrap done, but no units reporting.
-	intent, _ := ResolveNodeIntent("n1", []string{"core"}, nil)
+	intent, _ := ResolveNodeIntent("n1", []string{"core"}, nil, nil)
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
@@ -358,7 +358,7 @@ func TestDay1Phase_InfraHealthyWorkloadsBlocked(t *testing.T) {
 		{Name: "scylla-server.service", State: "active"},
 		// event NOT active
 	}
-	intent, _ := ResolveNodeIntent("n1", []string{"database"}, units)
+	intent, _ := ResolveNodeIntent("n1", []string{"database"}, units, nil)
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
@@ -382,7 +382,7 @@ func TestDay1Phase_Ready(t *testing.T) {
 		{Name: "globular-ai-watcher.service", State: "active"},
 		{Name: "globular-workflow.service", State: "active"},
 	}
-	intent, _ := ResolveNodeIntent("n1", []string{"database"}, units)
+	intent, _ := ResolveNodeIntent("n1", []string{"database"}, units, nil)
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
@@ -410,7 +410,7 @@ func TestDay1Phase_BootstrapFailed(t *testing.T) {
 
 func TestDay1Phase_GatewayNoAIWorkloads(t *testing.T) {
 	// Gateway node should NOT include ai-memory in its intent.
-	intent, _ := ResolveNodeIntent("gw1", []string{"gateway"}, nil)
+	intent, _ := ResolveNodeIntent("gw1", []string{"gateway"}, nil, nil)
 	for _, name := range intent.ResolvedComponents {
 		if name == "ai-memory" || name == "ai-executor" || name == "ai-watcher" {
 			t.Errorf("gateway node should not include %q", name)
@@ -425,7 +425,7 @@ func TestDay1Phase_GatewayNoAIWorkloads(t *testing.T) {
 }
 
 func TestDay1Phase_StorageMinio(t *testing.T) {
-	intent, _ := ResolveNodeIntent("s1", []string{"storage"}, nil)
+	intent, _ := ResolveNodeIntent("s1", []string{"storage"}, nil, nil)
 	if !contains(intent.DesiredInfraNames, "minio") {
 		t.Errorf("storage node should have minio in infra, got %v", intent.DesiredInfraNames)
 	}

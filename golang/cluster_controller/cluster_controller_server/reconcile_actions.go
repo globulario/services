@@ -187,7 +187,7 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		srv.mergeInfraDesiredInto(ctx, desiredCanon)
 
 		// Scope desired to this node's resolved intent.
-		intent, _ := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units)
+		intent, _ := ResolveNodeIntent(node.NodeID, node.Profiles, node.Units, node.InstalledVersions)
 		desiredCanon = FilterDesiredByIntent(desiredCanon, intent)
 
 		for svc, desiredVer := range desiredCanon {
