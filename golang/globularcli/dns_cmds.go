@@ -93,6 +93,24 @@ func resolveDnsResolverEndpoint() string {
 	return fallback
 }
 
+// resolveDnsResolverEndpointForGRPC derives the DNS resolver endpoint (port 53)
+// from the selected gRPC endpoint host.
+func resolveDnsResolverEndpointForGRPC(grpcEndpoint string) string {
+	host := strings.TrimSpace(grpcEndpoint)
+	if host == "" {
+		return resolveDnsResolverEndpoint()
+	}
+	if strings.Contains(host, ":") {
+		if h, _, err := net.SplitHostPort(host); err == nil && h != "" {
+			host = h
+		}
+	}
+	if host == "" {
+		host = config.GetRoutableIPv4()
+	}
+	return net.JoinHostPort(host, "53")
+}
+
 // getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint resolved from etcd,
 // or an error if the service is not registered.
 func getEffectiveDnsGrpcAddr() (string, error) {
@@ -790,7 +808,7 @@ func runDNSInspect(cmd *cobra.Command, args []string) error {
 // runDNSStatus shows DNS service status (PR-DNSCLI)
 func runDNSStatus(cmd *cobra.Command, args []string) error {
 	grpcEndpoint, err := getEffectiveDnsGrpcAddr()
-	resolverEndpoint := resolveDnsResolverEndpoint()
+	resolverEndpoint := resolveDnsResolverEndpointForGRPC(grpcEndpoint)
 
 	fmt.Printf("DNS Service Status\n")
 	fmt.Printf("==================\n\n")
@@ -816,6 +834,12 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 
 	resp, err := client.GetDomains(ctx1, &dnspb.GetDomainsRequest{})
 	if err != nil {
+		// Auth errors mean transport is OK; caller needs token/cluster context.
+		if strings.Contains(err.Error(), "Unauthenticated") || strings.Contains(err.Error(), "cluster_id required") {
+			fmt.Printf("⚠  gRPC Check: CONNECTED but authentication required (%v)\n", err)
+			fmt.Printf("  Hint: run `globular auth login ...` or provide `--token` for remote DNS queries.\n")
+			return nil
+		}
 		// Check if it's a "key not found" error (DNS not initialized)
 		if strings.Contains(err.Error(), "Key not found") || strings.Contains(err.Error(), "badger") {
 			fmt.Printf("✓ gRPC Check: OK (connected)\n")

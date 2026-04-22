@@ -165,6 +165,10 @@ func (srv *server) GetDomains(_ context.Context, _ *dnspb.GetDomainsRequest) (*d
 		srv.Logger.Error("GetDomains getItem", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	// Missing "domains" key means no zones configured yet; return an empty list.
+	if len(domainsData) == 0 {
+		return &dnspb.GetDomainsResponse{Domains: []string{}}, nil
+	}
 	var domains []string
 	err = json.Unmarshal(domainsData, &domains)
 	if err != nil {
@@ -366,6 +370,10 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 	if err != nil {
 		return nil, err
 	}
+	// A missing record is a valid DNS miss; return an empty answer instead of INTERNAL.
+	if len(data) == 0 {
+		return &dnspb.GetAResponse{A: []string{}}, nil
+	}
 	values := make([]string, 0)
 	if err := json.Unmarshal(data, &values); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -555,14 +563,16 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 	}
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	data, err := srv.store.GetItem(uuid)
-	values := make([]string, 0)
-	if err == nil {
-		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if len(values) == 0 {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no value found for domain "+domain)))
+	// A missing AAAA record is expected for IPv4-only names.
+	if len(data) == 0 {
+		return &dnspb.GetAAAAResponse{Aaaa: []string{}}, nil
+	}
+	values := make([]string, 0)
+	if err := json.Unmarshal(data, &values); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &dnspb.GetAAAAResponse{Aaaa: values}, nil
 }

@@ -981,14 +981,22 @@ func nodeClientWith(override string) (*grpc.ClientConn, error) {
 // requires after cluster initialization. Without it, services like DNS reject
 // requests with "cluster_id required".
 type tokenCredentials struct {
-	token  string
-	domain string // cluster domain (e.g., "globular.internal")
+	token     string
+	domain    string // cluster domain (e.g., "globular.internal")
+	clusterID string // same value as domain, explicit key for interceptors
 }
 
 func (t tokenCredentials) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	md := map[string]string{"token": t.token}
+	md := map[string]string{}
+	if t.token != "" {
+		md["token"] = t.token
+		md["authorization"] = "Bearer " + t.token
+	}
 	if t.domain != "" {
 		md["domain"] = t.domain
+	}
+	if t.clusterID != "" {
+		md["cluster_id"] = t.clusterID
 	}
 	return md, nil
 }
@@ -1029,13 +1037,21 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	// Centralized token + cluster_id injection: attach on every RPC (unary + streaming).
-	// The domain metadata carries the cluster_id required by the gRPC interceptor.
-	if rootCfg.token != "" {
-		domain, _ := config.GetDomain()
+	// Centralized metadata injection: attach token and cluster identity on every RPC
+	// (unary + streaming). Cluster identity metadata is required post-Day-0.
+	domain, _ := config.GetDomain()
+	clusterID, _ := security.GetLocalClusterID()
+	if clusterID == "" {
+		clusterID = domain
+	}
+	if domain == "" {
+		domain = clusterID
+	}
+	if rootCfg.token != "" || domain != "" || clusterID != "" {
 		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{
-			token:  rootCfg.token,
-			domain: domain,
+			token:     rootCfg.token,
+			domain:    domain,
+			clusterID: clusterID,
 		}))
 	}
 
