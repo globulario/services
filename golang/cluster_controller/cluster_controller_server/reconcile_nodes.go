@@ -56,6 +56,21 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		nodes = append(nodes, node)
 	}
 	stateDirty := srv.cleanupJoinStateLocked(time.Now())
+	// Re-seed the configured join token if it was cleaned up or never persisted.
+	// This makes the token durable across controller restarts and reconcile cycles.
+	if tok := strings.TrimSpace(srv.cfg.JoinToken); tok != "" {
+		if existing := srv.state.JoinTokens[tok]; existing == nil || existing.Uses >= existing.MaxUses {
+			if srv.state.JoinTokens == nil {
+				srv.state.JoinTokens = make(map[string]*joinTokenRecord)
+			}
+			srv.state.JoinTokens[tok] = &joinTokenRecord{
+				Token:     tok,
+				ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+				MaxUses:   100,
+			}
+			stateDirty = true
+		}
+	}
 
 	// INVARIANT ENFORCEMENT: Run all cluster invariants during the snapshot
 	// phase. This is the last line of defense — runs without depending on

@@ -146,21 +146,29 @@ func main() {
 
 	// Seed configured join token into runtime state so Day-0 bootstrap can use it.
 	// cfg.JoinToken comes from config.json "join_token" or CLUSTER_JOIN_TOKEN env var.
+	//
+	// Always re-seed on every startup, not just when the token is absent. The install
+	// script restarts the controller twice (once for the token, once for final
+	// stabilization). Between those restarts a reconcile or state-save may overwrite
+	// the state file and lose the token. Re-seeding is idempotent: if the token is
+	// already present with remaining uses, the existing record is kept unchanged.
 	if tok := strings.TrimSpace(cfg.JoinToken); tok != "" {
 		if state.JoinTokens == nil {
 			state.JoinTokens = make(map[string]*joinTokenRecord)
 		}
-		if state.JoinTokens[tok] == nil {
+		if existing := state.JoinTokens[tok]; existing == nil || existing.Uses >= existing.MaxUses {
 			state.JoinTokens[tok] = &joinTokenRecord{
 				Token:     tok,
 				ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7-day bootstrap window
-				MaxUses:   10,                                  // allow multiple bootstrap attempts
+				MaxUses:   100,                                 // allow many join attempts (multi-node cluster)
 			}
 			if err := state.save(*statePath); err != nil {
 				logger.Warn("failed to persist seeded join token", "err", err)
 			} else {
 				logger.Info("seeded Day-0 join token from config into runtime state")
 			}
+		} else {
+			logger.Info("Day-0 join token already active in runtime state", "uses", existing.Uses, "max", existing.MaxUses)
 		}
 	}
 
