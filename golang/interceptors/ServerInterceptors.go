@@ -493,6 +493,88 @@ var (
 	nodeHostname     string
 )
 
+// errDedup suppresses log-service floods for identical repeated errors.
+// Key: "<method>\x00<grpc-code>\x00<message>".  Value: *errDedupEntry.
+// A background goroutine flushes summaries every errDedupFlushInterval.
+var (
+	errDedupMu            sync.Mutex
+	errDedupMap           = map[string]*errDedupEntry{}
+	errDedupFlushInterval = 30 * time.Second
+	errDedupOnce          sync.Once
+)
+
+type errDedupEntry struct {
+	// fields used for the flush summary log call
+	address, application, method, msg string
+	code                              string
+	// counters
+	first   time.Time
+	count   int64
+	flushed bool // true once flushed at least once (prevents double-flush on shutdown)
+}
+
+// logDeduped forwards an error to the log service, suppressing identical
+// messages that repeat within errDedupFlushInterval.
+// The first occurrence is always forwarded immediately.  Subsequent identical
+// errors within the window increment a counter; the background flusher emits
+// a single "repeated N times" summary at the end of each window.
+func logDeduped(address, application, method string, hErr error) {
+	c := status.Code(hErr)
+	key := method + "\x00" + c.String() + "\x00" + hErr.Error()
+
+	errDedupOnce.Do(startErrDedupFlusher)
+
+	errDedupMu.Lock()
+	e, exists := errDedupMap[key]
+	if !exists {
+		e = &errDedupEntry{
+			address:     address,
+			application: application,
+			method:      method,
+			msg:         hErr.Error(),
+			code:        c.String(),
+			first:       time.Now(),
+			count:       0,
+		}
+		errDedupMap[key] = e
+	}
+	e.count++
+	isFirst := e.count == 1
+	errDedupMu.Unlock()
+
+	if isFirst {
+		// Always log the first occurrence immediately.
+		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+	}
+	// Subsequent occurrences are silently counted; the flusher logs the summary.
+}
+
+// startErrDedupFlusher runs once: every errDedupFlushInterval it drains the
+// dedup map and emits a "repeated N times" log entry for any entry with count > 1.
+func startErrDedupFlusher() {
+	go func() {
+		t := time.NewTicker(errDedupFlushInterval)
+		defer t.Stop()
+		for range t.C {
+			errDedupMu.Lock()
+			snapshot := errDedupMap
+			errDedupMap = map[string]*errDedupEntry{}
+			errDedupMu.Unlock()
+
+			for _, e := range snapshot {
+				if e.count <= 1 {
+					continue // already logged on first occurrence
+				}
+				summary := fmt.Sprintf("%s (repeated %d times in %s)",
+					e.msg, e.count, time.Since(e.first).Round(time.Second))
+				log(e.address, e.application, "", e.method,
+					"interceptors/ServerInterceptors.go:errDedupFlusher", "logDeduped",
+					summary, logpb.LogLevel_ERROR_MESSAGE)
+			}
+		}
+	}()
+}
+
 // getNodeHostname returns the hostname of this node (cached).
 func getNodeHostname() string {
 	nodeHostnameOnce.Do(func() {
@@ -720,7 +802,7 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 		// Forwarding these floods the log service and creates cascade storms.
 		c := status.Code(hErr)
 		if c != codes.Unavailable && c != codes.NotFound {
-			log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			logDeduped(address, application, method, hErr)
 		}
 		return nil, hErr
 	}
