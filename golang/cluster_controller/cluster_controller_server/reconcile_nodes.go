@@ -743,6 +743,51 @@ func (srv *server) enqueueInfraReleases() {
 	}
 }
 
+// enqueueReleasesForConvergingNodes re-enqueues all ServiceRelease objects
+// when there are bootstrap-ready nodes that are still converging. This closes
+// the Day-1 gap where a new node finishes infra install (hash stabilises) but
+// the AVAILABLE ServiceReleases are never re-enqueued to dispatch workloads,
+// because the hash-change trigger in ReportNodeStatus only fires for nodes
+// already tracked in a release's Status.Nodes.
+func (srv *server) enqueueReleasesForConvergingNodes(ctx context.Context) {
+	if srv.resources == nil || srv.releaseEnqueue == nil {
+		return
+	}
+
+	// Check if any bootstrap-ready node is still converging (not "ready").
+	// If all nodes are ready, no sweep needed.
+	srv.lock("enqueueReleasesForConvergingNodes")
+	hasConverging := false
+	for _, node := range srv.state.Nodes {
+		if bootstrapPhaseReady(node.BootstrapPhase) && node.Status == "converging" {
+			hasConverging = true
+			break
+		}
+	}
+	srv.unlock()
+
+	if !hasConverging {
+		return
+	}
+
+	items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+	if err != nil {
+		return
+	}
+	count := 0
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+		if !ok || rel.Meta == nil {
+			continue
+		}
+		srv.releaseEnqueue(rel.Meta.Name)
+		count++
+	}
+	if count > 0 {
+		log.Printf("enqueueReleasesForConvergingNodes: enqueued %d service releases for converging node check", count)
+	}
+}
+
 func backoffDuration(fails int) time.Duration {
 	switch {
 	case fails <= 0:

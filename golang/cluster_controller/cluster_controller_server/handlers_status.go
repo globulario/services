@@ -354,9 +354,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		}()
 	}
 
-	// When the applied services hash changes, re-enqueue any ServiceReleases that
-	// include this node so drift detection can re-evaluate and potentially recover
-	// DEGRADED releases without waiting for the next spec change.
+	// When the applied services hash changes, re-enqueue ServiceReleases so
+	// reconcileAvailable can detect drift and new-node installs.
 	// Debounced per-node: skip if the same node triggered re-enqueue within the
 	// last 30 seconds. This prevents reconcile storms when delayed heartbeats
 	// arrive in rapid succession after a network partition.
@@ -373,6 +372,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			enqueue := srv.releaseEnqueue
 			resources := srv.resources
 			nID := nodeID
+			isBootstrapReady := bootstrapPhaseReady(node.BootstrapPhase)
 			go func() {
 				items, _, err := resources.List(context.Background(), "ServiceRelease", "")
 				if err != nil {
@@ -384,6 +384,15 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 						continue
 					}
 					if rel.Status == nil {
+						continue
+					}
+					// Always enqueue if this node is already tracked in the release
+					// (drift detection). Also enqueue ALL releases when the node is
+					// bootstrap-ready so reconcileAvailable can detect new unserved
+					// nodes (Day 1 join: a new node never appears in Status.Nodes
+					// of AVAILABLE releases until it gets dispatched).
+					if isBootstrapReady {
+						enqueue(rel.Meta.Name)
 						continue
 					}
 					for _, nrs := range rel.Status.Nodes {

@@ -119,6 +119,20 @@ type joinRequestRecord struct {
 	SuggestedProfiles []string            `json:"suggested_profiles,omitempty"`
 }
 
+func (jr *joinRequestRecord) statusMessage() string {
+	switch jr.Status {
+	case "approved":
+		return "approved; node will receive configuration on first heartbeat"
+	case "rejected":
+		if jr.Reason != "" {
+			return "rejected: " + jr.Reason
+		}
+		return "rejected"
+	default:
+		return "pending approval"
+	}
+}
+
 // BootstrapPhase tracks where a node is in the phased bootstrap sequence.
 // A new node must join the cluster as a machine (trust), then as an
 // infrastructure participant (etcd, xDS, Envoy), and only then as a

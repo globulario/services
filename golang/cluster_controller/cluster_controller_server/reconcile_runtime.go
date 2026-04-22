@@ -383,6 +383,41 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	safeGo("startup-auto-import", func() {
 		srv.startupAutoImport(ctx, queue)
 	})
+
+	// New-node sweep: periodically re-enqueue all AVAILABLE ServiceReleases so
+	// reconcileAvailable can detect nodes that joined after the release reached
+	// AVAILABLE. Without this, a Day-1 join that stabilises on infra packages
+	// (no further hash changes) never triggers workload service installs because
+	// the hash-change re-enqueue path only fires for nodes already tracked in a
+	// release's Status.Nodes.
+	//
+	// This is a low-frequency safety net (2 min interval). The primary path is
+	// the hash-change trigger in ReportNodeStatus. This loop closes the gap for
+	// nodes whose installed hash stopped changing before workloads were dispatched.
+	safeGoTracked("new-node-release-sweep", 120*time.Second, func(h *globular_service.SubsystemHandle) {
+		// Initial delay: let existing releases settle and the release pipeline
+		// complete its startup enqueue before we sweep.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(90 * time.Second):
+		}
+		ticker := time.NewTicker(120 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !srv.isLeader() {
+					h.Tick()
+					continue
+				}
+				srv.enqueueReleasesForConvergingNodes(ctx)
+				h.Tick()
+			}
+		}
+	})
 }
 
 // startupAutoImport waits for nodes to report installed versions, then

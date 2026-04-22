@@ -56,16 +56,18 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		return nil, status.Error(codes.InvalidArgument, "join_token is required")
 	}
 	token := strings.TrimSpace(req.GetJoinToken())
-	srv.lock("unknown")
-	defer srv.unlock()
+	srv.lock("RequestJoin")
 	jt := srv.state.JoinTokens[token]
 	if jt == nil {
+		srv.unlock()
 		return nil, status.Error(codes.NotFound, "join token not found")
 	}
 	if time.Now().After(jt.ExpiresAt) {
+		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token expired")
 	}
 	if jt.Uses >= jt.MaxUses {
+		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token uses exhausted")
 	}
 	jt.Uses++
@@ -82,13 +84,27 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		SuggestedProfiles: deduceProfiles(caps, countNodesWithProfile(srv.state.Nodes, "storage")),
 	}
 	srv.state.JoinRequests[reqID] = jr
+
+	// A valid token is proof the operator authorised this join. Auto-approve
+	// immediately instead of queuing for manual review. The request stays
+	// "pending" only if approveJoinRecordLocked somehow fails (shouldn't
+	// happen), in which case the operator can approve manually.
+	srv.approveJoinRecordLocked(jr, nil)
+
 	if err := srv.persistStateLocked(true); err != nil {
+		srv.unlock()
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
 	}
+	srv.unlock()
+
+	// Async side-effects (RBAC binding + bootstrap workflow trigger) must run
+	// outside the lock because they re-acquire it internally.
+	srv.postApproveJoinAsync(jr)
+
 	return &cluster_controllerpb.RequestJoinResponse{
 		RequestId: reqID,
-		Status:    "pending",
-		Message:   "pending approval",
+		Status:    jr.Status,
+		Message:   jr.statusMessage(),
 	}, nil
 }
 
@@ -148,12 +164,38 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		srv.unlock()
 		return nil, status.Error(codes.FailedPrecondition, "request not pending")
 	}
-	jr.Status = "approved"
-	rawProfiles := req.GetProfiles()
-	if len(rawProfiles) == 0 {
-		rawProfiles = srv.cfg.DefaultProfiles
+
+	srv.approveJoinRecordLocked(jr, req.GetProfiles())
+
+	if err := srv.persistStateLocked(true); err != nil {
+		srv.unlock()
+		return nil, status.Errorf(codes.Internal, "persist node state: %v", err)
 	}
-	profiles := normalizeProfiles(rawProfiles)
+	srv.unlock()
+
+	srv.postApproveJoinAsync(jr)
+
+	return &cluster_controllerpb.ApproveJoinResponse{
+		NodeId:        jr.AssignedNodeID,
+		Message:       "approved; node will receive configuration on first heartbeat",
+		NodeToken:     jr.NodeToken,
+		NodePrincipal: jr.NodePrincipal,
+	}, nil
+}
+
+// approveJoinRecordLocked performs the in-memory approval of a pending join
+// request. It MUST be called with srv.lock held. It does NOT persist state or
+// launch async tasks — callers are responsible for that.
+//
+// profiles may be nil/empty; in that case the suggested or default profiles are used.
+func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []string) {
+	if len(profiles) == 0 {
+		profiles = jr.SuggestedProfiles
+	}
+	if len(profiles) == 0 {
+		profiles = srv.cfg.DefaultProfiles
+	}
+	profiles = normalizeProfiles(profiles)
 
 	// INVARIANT: The first 3 nodes MUST have foundational profiles
 	// (core, control-plane, storage) to establish quorum for etcd,
@@ -163,8 +205,10 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
 	profiles = enforceFoundingProfiles(profiles, storageCount)
 	jr.Profiles = profiles
+
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
 	jr.AssignedNodeID = nodeID
+	jr.Status = "approved"
 
 	// Compute the node's advertised FQDN for DNS registration.
 	// Format: <hostname>.<cluster-domain> (e.g. globule-dell.globular.internal)
@@ -179,7 +223,6 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		}
 	}
 
-	// Create new node with current network generation
 	node := &nodeState{
 		NodeID:                nodeID,
 		Identity:              jr.Identity,
@@ -187,45 +230,36 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 		LastSeen:              time.Now(),
 		Status:                "converging",
 		Metadata:              copyLabels(jr.Labels),
-		LastAppliedGeneration: 0, // New node hasn't applied any generation yet
+		LastAppliedGeneration: 0,
 		BootstrapPhase:        BootstrapAdmitted,
 		BootstrapStartedAt:    time.Now(),
 		AdvertiseFqdn:         advertiseFqdn,
 	}
 	srv.state.Nodes[nodeID] = node
-
-	// Clean up stale nodes with the same hostname or IP.
 	srv.removeStaleNodesLocked(nodeID, jr.Identity, "")
 
-	// Generate node-scoped identity token
 	nodePrincipal := "node_" + nodeID
 	nodeToken, err := security.GenerateToken(
-		365*24*60,                   // 1 year TTL
-		nodeID,                      // audience = node ID
-		nodePrincipal,               // principal_id = node_<uuid>
-		"node-agent",                // display name
-		"",                          // email (not applicable)
+		365*24*60,    // 1 year TTL
+		nodeID,       // audience = node ID
+		nodePrincipal,
+		"node-agent",
+		"",
 	)
 	if err != nil {
 		log.Printf("WARN: failed to generate node token for %s: %v", nodeID, err)
-		// Non-fatal: node falls back to existing auth
 	} else {
 		jr.NodeToken = nodeToken
 		jr.NodePrincipal = nodePrincipal
 	}
+}
 
-	if err := srv.persistStateLocked(true); err != nil {
-		srv.unlock()
-		return nil, status.Errorf(codes.Internal, "persist node state: %v", err)
-	}
+// postApproveJoinAsync launches the async side-effects after an approval:
+// RBAC binding and bootstrap workflow trigger. Must be called WITHOUT the lock.
+func (srv *server) postApproveJoinAsync(jr *joinRequestRecord) {
+	nodeID := jr.AssignedNodeID
+	nodePrincipal := jr.NodePrincipal
 
-	// Immediately dispatch initial plan with network config if node has endpoint
-	// Note: New nodes won't have endpoint yet, so reconciliation loop will pick this up
-	// when the node first reports status with its agent endpoint
-	srv.unlock()
-	// NOTE: lock is released here; remaining code below does not need the lock.
-
-	// Create RBAC binding for node-executor role (best-effort, async)
 	if nodePrincipal != "" {
 		go srv.ensureNodeExecutorBinding(nodePrincipal)
 	}
@@ -233,27 +267,15 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 	// Trigger the join workflow immediately if the node-agent is already
 	// reachable. The "first heartbeat" trigger in ReportNodeStatus may miss
 	// if the agent started heartbeating before approval (race condition).
-	// Agent endpoint comes from the node's heartbeat report (source of truth).
-	// Do not construct it from IPs with a hardcoded port.
-	agentEndpoint := ""
-	srv.lock("ApproveJoin:triggerWorkflow")
-	node = srv.state.Nodes[nodeID]
+	srv.lock("postApproveJoinAsync:triggerWorkflow")
+	node := srv.state.Nodes[nodeID]
 	if node != nil && !node.BootstrapWorkflowActive {
-		if node.AgentEndpoint != "" {
-			agentEndpoint = node.AgentEndpoint
-		}
 		node.BootstrapWorkflowActive = true
+		agentEndpoint := node.AgentEndpoint
 		log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
 		go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
 	}
 	srv.unlock()
-
-	return &cluster_controllerpb.ApproveJoinResponse{
-		NodeId:        nodeID,
-		Message:       "approved; node will receive configuration on first heartbeat",
-		NodeToken:     jr.NodeToken,
-		NodePrincipal: jr.NodePrincipal,
-	}, nil
 }
 
 func (srv *server) RejectJoin(ctx context.Context, req *cluster_controllerpb.RejectJoinRequest) (*cluster_controllerpb.RejectJoinResponse, error) {
