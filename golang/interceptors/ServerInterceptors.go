@@ -714,11 +714,12 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 	EmitRequestLog(method, "", remoteAddr, duration, hErr)
 
 	if hErr != nil {
-		// Don't forward codes.Unavailable to the log service — these are
-		// infrastructure-down errors already tracked by the dephealth watchdog.
-		// Forwarding each individual RPC failure floods the log service when a
-		// dependency (ScyllaDB/MinIO) is down, creating a cascade storm.
-		if status.Code(hErr) != codes.Unavailable {
+		// Don't forward infrastructure-level errors to the log service:
+		//   codes.Unavailable — dependency (ScyllaDB/MinIO) is down, tracked by dephealth watchdog.
+		//   codes.NotFound    — normal "no record" responses (e.g. RBAC bindings), not errors.
+		// Forwarding these floods the log service and creates cascade storms.
+		c := status.Code(hErr)
+		if c != codes.Unavailable && c != codes.NotFound {
 			log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		}
 		return nil, hErr

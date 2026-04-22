@@ -158,7 +158,7 @@ func (srv *server) GetRoleBinding(ctx context.Context, rqst *rbacpb.GetRoleBindi
 
 	data, err := srv.getItem(roleBindingPrefix + rqst.GetSubject())
 	if err != nil {
-		if strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
+		if isNotFoundErr(err) {
 			// No binding stored — return empty (not an error)
 			return &rbacpb.GetRoleBindingRsp{
 				Binding: &rbacpb.RoleBinding{Subject: rqst.GetSubject(), Roles: []string{}},
