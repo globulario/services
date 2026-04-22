@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -351,10 +352,19 @@ type storedIdentity struct {
 // PrimaryIP returns the first routable (non-loopback) IP from the node's identity.
 // Returns "" if no routable IP is found.
 func (n *nodeState) PrimaryIP() string {
-	for _, ip := range n.Identity.Ips {
-		if ip != "" && ip != "127.0.0.1" && ip != "::1" {
-			return ip
+	for _, raw := range n.Identity.Ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
 		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil {
+			continue
+		}
+		if parsed.IsLoopback() {
+			continue
+		}
+		return ip
 	}
 	return ""
 }

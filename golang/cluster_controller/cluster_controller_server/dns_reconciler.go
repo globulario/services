@@ -278,8 +278,24 @@ func (r *DNSReconciler) reconcile() error {
 			FQDN:     fqdn,
 			Profiles: node.Profiles,
 		}
-		if len(node.Identity.Ips) > 0 {
-			info.IPv4 = node.Identity.Ips[0]
+		// Never publish loopback into cluster DNS records. Use routable primary IP.
+		if ipv4 := strings.TrimSpace(node.PrimaryIP()); ipv4 != "" {
+			if parsed := net.ParseIP(ipv4); parsed != nil && !parsed.IsLoopback() {
+				info.IPv4 = ipv4
+			}
+		}
+		// Best-effort IPv6 selection: first non-loopback global IPv6.
+		for _, raw := range node.Identity.Ips {
+			ipv6 := strings.TrimSpace(raw)
+			if ipv6 == "" {
+				continue
+			}
+			parsed := net.ParseIP(ipv6)
+			if parsed == nil || parsed.IsLoopback() || parsed.To4() != nil {
+				continue
+			}
+			info.IPv6 = ipv6
+			break
 		}
 		nodeInfos = append(nodeInfos, info)
 		if fqdn != "" {
@@ -518,6 +534,19 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 	for _, rec := range desired.Records {
 		switch rec.Type {
 		case RecordTypeA:
+			if current, getErr := dnsClient.GetA(authCtx, &dnspb.GetARequest{Domain: rec.Name}); getErr == nil {
+				for _, existing := range current.GetA() {
+					parsed := net.ParseIP(strings.TrimSpace(existing))
+					if parsed == nil || !parsed.IsLoopback() {
+						continue
+					}
+					if _, rmErr := dnsClient.RemoveA(authCtx, &dnspb.RemoveARequest{Domain: rec.Name, A: existing}); rmErr != nil {
+						log.Printf("dns reconciler: WARN - failed to remove loopback A record %s -> %s on %s: %v", rec.Name, existing, endpoint, rmErr)
+					} else {
+						log.Printf("dns reconciler: removed loopback A record %s -> %s on %s", rec.Name, existing, endpoint)
+					}
+				}
+			}
 			_, err := dnsClient.SetA(authCtx, &dnspb.SetARequest{Domain: rec.Name, A: rec.Value, Ttl: rec.TTL})
 			if err != nil {
 				log.Printf("dns reconciler: WARN - failed to set A record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
@@ -525,6 +554,19 @@ func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string,
 				recordCount[RecordTypeA]++
 			}
 		case RecordTypeAAAA:
+			if current, getErr := dnsClient.GetAAAA(authCtx, &dnspb.GetAAAARequest{Domain: rec.Name}); getErr == nil {
+				for _, existing := range current.GetAaaa() {
+					parsed := net.ParseIP(strings.TrimSpace(existing))
+					if parsed == nil || !parsed.IsLoopback() {
+						continue
+					}
+					if _, rmErr := dnsClient.RemoveAAAA(authCtx, &dnspb.RemoveAAAARequest{Domain: rec.Name, Aaaa: existing}); rmErr != nil {
+						log.Printf("dns reconciler: WARN - failed to remove loopback AAAA record %s -> %s on %s: %v", rec.Name, existing, endpoint, rmErr)
+					} else {
+						log.Printf("dns reconciler: removed loopback AAAA record %s -> %s on %s", rec.Name, existing, endpoint)
+					}
+				}
+			}
 			_, err := dnsClient.SetAAAA(authCtx, &dnspb.SetAAAARequest{Domain: rec.Name, Aaaa: rec.Value, Ttl: rec.TTL})
 			if err != nil {
 				log.Printf("dns reconciler: WARN - failed to set AAAA record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
@@ -818,9 +860,13 @@ func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodes
 				break
 			}
 		}
-		if hasGateway && len(node.Identity.Ips) > 0 {
-			ip := net.ParseIP(node.Identity.Ips[0])
-			if ip != nil {
+		if hasGateway {
+			primary := strings.TrimSpace(node.PrimaryIP())
+			if primary == "" {
+				continue
+			}
+			ip := net.ParseIP(primary)
+			if ip != nil && !ip.IsLoopback() {
 				ips = append(ips, ip)
 			}
 		}
@@ -855,9 +901,13 @@ func (r *DNSReconciler) publishController(ctx context.Context, domain string, no
 				break
 			}
 		}
-		if hasController && len(node.Identity.Ips) > 0 {
-			ip := net.ParseIP(node.Identity.Ips[0])
-			if ip != nil {
+		if hasController {
+			primary := strings.TrimSpace(node.PrimaryIP())
+			if primary == "" {
+				continue
+			}
+			ip := net.ParseIP(primary)
+			if ip != nil && !ip.IsLoopback() {
 				ips = append(ips, ip)
 			}
 		}

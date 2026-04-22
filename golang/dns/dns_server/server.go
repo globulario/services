@@ -352,31 +352,9 @@ func (srv *server) ensureDefaultInternalZone() error {
 		return fmt.Errorf("bootstrap zone: %w", err)
 	}
 
-	// Add baseline A records for core services.
-	// Note: dns.<domain> is created automatically by ensureZoneAuthority
-	// (called from SetDomains above) with the real node IP.
-	baseRecords := []struct {
-		name string
-		ip   string
-	}{
-		{"globular-gateway." + internalDomain, "127.0.0.1"},
-		{"controller." + internalDomain, "127.0.0.1"},
-		{"etcd." + internalDomain, "127.0.0.1"},
-	}
-
-	for _, rec := range baseRecords {
-		_, err := srv.SetA(context.Background(), &dnspb.SetARequest{
-			Domain: rec.name,
-			A:      rec.ip,
-			Ttl:    300,
-		})
-		if err != nil {
-			logger.Warn("Failed to add bootstrap DNS record", "record", rec.name, "err", err)
-			// Continue adding other records even if one fails
-		} else {
-			logger.Info("Added bootstrap DNS record", "record", rec.name, "ip", rec.ip)
-		}
-	}
+	// Do not seed controller/gateway/etcd loopback records.
+	// Those records are reconciled from cluster state by cluster-controller.
+	// Seeding 127.0.0.1 here causes stale/non-routable answers in multi-node clusters.
 
 	logger.Info("Default internal zone created", "domain", internalDomain)
 	return nil
