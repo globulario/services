@@ -1,0 +1,140 @@
+Good. Phase 4 is complete enough.
+
+Do not revisit:
+
+* release pipeline changes
+* version semantics
+* platform normalization
+* repository sync leaf logic
+* workflow structure for `repository.sync.upstream`
+
+Treat those as settled unless a real bug is found.
+
+The next task is **Phase 5 only**:
+
+* register the default upstream source during bootstrap seeding
+* align bootstrap registration with the repository upstream registry model already implemented
+* do not add auto-sync
+* do not add “latest” resolution
+* do not redesign installer flow
+
+## Scope for this phase
+
+### 1. Update bootstrap seeding to register the default upstream
+
+After Day-0 package seeding completes, register a default upstream source in etcd using the repository registry model.
+
+The intended source is something like:
+
+* name: `globulario-github`
+* type: `github_release`
+* index URL template: `https://github.com/globulario/services/releases/download/{tag}/release-index.json`
+* channel: `stable`
+* platform: canonical `linux_amd64`
+* enabled: true
+
+This should match the source model already used by:
+
+* `RegisterUpstream`
+* `ListUpstreams`
+* `RemoveUpstream`
+* `SyncFromUpstream`
+
+Do not invent a second bootstrap-only upstream format.
+
+### 2. Use the real repository API/CLI path if possible
+
+Prefer to register the upstream using the actual CLI command or repository RPC path already implemented, rather than hand-writing raw etcd JSON in a shell script, unless the existing bootstrap environment makes that impossible.
+
+The goal is:
+
+* one registry path
+* one schema
+* one way of validating source registration
+
+If bootstrap cannot easily call the repository RPC yet, explain why and make the smallest safe fallback.
+
+### 3. Keep bootstrap behavior additive
+
+Bootstrap must still:
+
+* seed the repository from bundled packages
+* finish successfully even if no sync is run afterward
+
+Upstream registration is additive metadata for Day-1+, not a hard requirement for Day-0 service start.
+
+### 4. Do not trigger sync automatically
+
+Phase 5 is registration only.
+
+Do not:
+
+* auto-run `repository.sync.upstream`
+* poll for newer releases
+* resolve “latest”
+* change desired state automatically
+
+The operator remains in charge of when sync happens.
+
+### 5. Preserve strict platform and tag semantics
+
+Use:
+
+* canonical platform `linux_amd64`
+* explicit release tag value from the installed bundle/version context if available
+
+If the bootstrap script records an initial synced/imported tag, keep that behavior aligned with the locked rules.
+
+Do not introduce loose or guessed tag handling.
+
+### 6. Make reruns idempotent
+
+Bootstrap registration should be safe if the installer is re-run or resumed.
+
+That means:
+
+* if the upstream source already exists with the same effective config, do not fail noisily
+* if it exists with conflicting config, surface the conflict clearly
+* do not create duplicate upstream records
+
+### 7. Keep security/auth context correct
+
+If bootstrap uses CLI/RPC to register the upstream, ensure it is using the correct credentials/context for an admin-authorized repository operation.
+
+Do not bypass authorization in a sloppy way just because it is Day-0.
+
+### 8. Do not move beyond Phase 5 yet
+
+After this phase, stop.
+
+Do not begin:
+
+* auto-sync features
+* latest-tag discovery
+* desired-state expansion from release sets
+* installer-triggered sync
+* extra UI polish
+
+## What to inspect before patching
+
+Before editing:
+
+1. inspect `ensure-bootstrap-artifacts.sh` and any related bootstrap/install scripts
+2. identify the exact point after repository seeding where upstream registration belongs
+3. inspect the current CLI path for `register-upstream`
+4. determine whether bootstrap can reliably call that CLI path at install time
+5. if not, explain the constraint and implement the minimum compliant fallback
+
+## What I want back after this phase
+
+Return a grounded implementation summary with:
+
+1. files changed
+2. exact bootstrap insertion point for upstream registration
+3. whether registration uses CLI/RPC or direct etcd fallback
+4. how idempotency is handled on rerun
+5. what upstream record is written
+6. how bootstrap remains successful even without any sync being run
+7. any mismatch found between installer reality and the locked upstream registry design
+
+Do not start any post-Phase-5 work yet.

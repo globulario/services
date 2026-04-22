@@ -18,7 +18,8 @@ func isTransientWorkflowError(errMsg string) bool {
 		strings.Contains(errMsg, "Unavailable") ||
 		strings.Contains(errMsg, "circuit breaker") ||
 		strings.Contains(errMsg, "DeadlineExceeded") ||
-		strings.Contains(errMsg, "connection refused")
+		strings.Contains(errMsg, "connection refused") ||
+		strings.Contains(errMsg, "posture gate")
 }
 
 func TestTransientErrorClassification(t *testing.T) {
@@ -56,6 +57,12 @@ func TestTransientErrorClassification(t *testing.T) {
 		{
 			name:      "plain connection refused",
 			errMsg:    "connection refused",
+			transient: true,
+		},
+
+		{
+			name:      "posture gate suppression",
+			errMsg:    "posture gate: cluster in RECOVERY_ONLY — release.apply.package dispatch suppressed (will retry when posture clears)",
 			transient: true,
 		},
 

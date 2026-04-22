@@ -464,7 +464,8 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				strings.Contains(errMsg, "Unimplemented") ||
 				strings.Contains(errMsg, "circuit breaker") ||
 				strings.Contains(errMsg, "DeadlineExceeded") ||
-				strings.Contains(errMsg, "connection refused") {
+				strings.Contains(errMsg, "connection refused") ||
+				strings.Contains(errMsg, "posture gate") {
 				log.Printf("%s %s: release workflow transient error, staying RESOLVED for retry: %v", h.ResourceType, h.Name, err)
 				h.PatchStatus(ctx, statusPatch{
 					Phase:                cluster_controllerpb.ReleasePhaseResolved,

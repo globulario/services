@@ -263,6 +263,16 @@ type server struct {
 	// new callers wait for it to complete rather than piling on.
 	inflightRestarts sync.Map // key: "nodeID::unit" → chan struct{} (closed on completion)
 
+	// posture is the current ClusterPosture (Normal/Degraded/RecoveryOnly).
+	// Written by postureLoop, read by enforcement gates (phase 2) and observability.
+	// atomic.Int32 stores a ClusterPosture value; use getPosture() to read.
+	posture atomic.Int32
+
+	// postureSnap holds the last *PostureSnapshot computed by postureLoop.
+	// Stored as an atomic.Value to avoid locking on reads.
+	// Type stored: *PostureSnapshot (always; Load returns nil until first eval).
+	postureSnap atomic.Value
+
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
 	testDialNodeAgent        func(endpoint string) (*grpc.ClientConn, error)

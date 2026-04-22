@@ -43,6 +43,7 @@
   - [Keepalived and Ingress](operators/keepalived-and-ingress.md)
   - [Computing](operators/computing.md)
   - [MCP Setup](operators/mcp-setup.md)
+  - [Adaptive Concurrency Control](operators/adaptive-concurrency-control.md)
 
 - **Tasks**
   - [Deploy Application](tasks/deploy-application.md)

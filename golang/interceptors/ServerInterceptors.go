@@ -788,6 +788,9 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 	res, hErr := handler(ctx, rqst)
 	duration := time.Since(start)
 
+	// Feed RTT into the ACC ring buffer and trigger AIMD adjustment for P2 methods.
+	accRecordRTT(method, duration)
+
 	// Track anomalies: slow requests and error spikes.
 	remoteAddr := extractRemoteAddr(ctx)
 	getAnomalyTracker().record(remoteAddr, method, duration, hErr != nil)
@@ -817,6 +820,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		slog.Error("call depth exceeded", "method", info.FullMethod, "err", err)
 		return nil, err
 	}
+
+	// Adaptive Concurrency Control: classify method and enforce priority pools.
+	// Runs before auth so we shed load before doing expensive RBAC network calls.
+	accRelease, accErr := accAdmit(ctx, info.FullMethod)
+	if accErr != nil {
+		return nil, accErr
+	}
+	defer accRelease()
 
 	var (
 		token        string

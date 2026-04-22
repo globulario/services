@@ -47,6 +47,24 @@ func (srv *server) executeWorkflowCentralized(
 		}
 	}
 
+	// Posture gate (Gate 1): suppress ROLLOUT-class dispatch in RECOVERY_ONLY.
+	// postureGateCheck returns a transient error ("posture gate: …") so the
+	// release pipeline classifies it as retryable and keeps the release RESOLVED.
+	// No goroutine is blocked — the caller returns immediately.
+	if err := postureGateCheck(ClusterPosture(srv.posture.Load()), workflowName); err != nil {
+		class := mapWorkflowToClass(workflowName)
+		postureGateSuppressedTotal.WithLabelValues(PostureRecoveryOnly.String(), string(class)).Inc()
+		log.Printf("posture gate: suppressed workflow=%s class=%s posture=RECOVERY_ONLY workflow_cb_open=%v reconcile_cb_open=%v",
+			workflowName, class, srv.workflowGate.IsOpen(), srv.reconcileBreaker.IsOpen())
+		srv.emitClusterEvent("posture.gate_suppressed", map[string]interface{}{
+			"severity": "WARNING",
+			"workflow": workflowName,
+			"class":    string(class),
+			"posture":  PostureRecoveryOnly.String(),
+		})
+		return nil, err
+	}
+
 	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
 		return nil, fmt.Errorf("marshal inputs: %w", err)

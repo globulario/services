@@ -79,6 +79,15 @@ func (g *workflowHealthGate) RecordSuccess() {
 	}
 }
 
+// IsOpen returns true if the circuit breaker is currently open (dispatch blocked).
+// This is a read-only probe — it does NOT advance the half-open state.
+func (g *workflowHealthGate) IsOpen() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pruneOld()
+	return time.Now().Before(g.circuitOpenUntil)
+}
+
 func (g *workflowHealthGate) pruneOld() {
 	cutoff := time.Now().Add(-g.windowSize)
 	i := 0
@@ -214,6 +223,15 @@ func (cb *reconcileCircuitBreaker) RecordSuccess() {
 	if wasOpen {
 		log.Printf("reconcile circuit breaker: CLOSED — reconcile succeeded")
 	}
+}
+
+// IsOpen returns true if the reconcile circuit breaker is currently open.
+// Read-only probe — does NOT advance the half-open state.
+func (cb *reconcileCircuitBreaker) IsOpen() bool {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.pruneOld()
+	return time.Now().Before(cb.openUntil)
 }
 
 func (cb *reconcileCircuitBreaker) pruneOld() {

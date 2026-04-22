@@ -368,6 +368,7 @@ func main() {
 	srv.startOperationCleanupLoop(ctx)
 	srv.startHealthMonitorLoop(ctx)
 	srv.startLeaderLivenessCheck(ctx)
+	srv.startPostureLoop(ctx)
 
 	// Bring up read-only projections (node_identity, …). Best-effort: the
 	// server continues if ScyllaDB is unreachable. See projection-clauses.md.
