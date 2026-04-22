@@ -604,7 +604,7 @@ func meshRouteAddrs(addrs []string) []string {
 	seen := make(map[string]bool, len(addrs))
 	var mesh []string
 	for _, addr := range addrs {
-		host, port, err := net.SplitHostPort(addr)
+		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			// Can't parse — keep as-is.
 			if !seen[addr] {
@@ -613,14 +613,13 @@ func meshRouteAddrs(addrs []string) []string {
 			}
 			continue
 		}
-		// localhost / loopback means "this node, direct port" — never rewrite.
-		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-			direct := net.JoinHostPort(host, port)
-			if !seen[direct] {
-				seen[direct] = true
-				mesh = append(mesh, direct)
-			}
-			continue
+		// Loopback addresses must never appear as cluster service endpoints in etcd.
+		// If one does, a service registered itself with 127.0.0.1 — reject it loudly
+		// so the misconfiguration surfaces instead of silently routing to a dead port.
+		if ip := net.ParseIP(host); host == "localhost" || host == "127.0.0.1" || host == "::1" || (ip != nil && ip.IsLoopback()) {
+			slog.Error("service discovery: loopback address rejected from etcd — service registered with 127.0.0.1/localhost; fix the service config",
+				"addr", addr)
+			continue // drop it — a loopback is never a valid cluster endpoint
 		}
 		meshAddr := net.JoinHostPort(host, "443")
 		if !seen[meshAddr] {

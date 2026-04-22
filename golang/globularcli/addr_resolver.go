@@ -25,6 +25,15 @@ import (
 //
 // An explicit port always overrides the default, allowing direct connections
 // that bypass the mesh (useful for bootstrap, join, and debug operations).
+// isLoopbackHost reports whether host is a loopback address or hostname.
+func isLoopbackHost(host string) bool {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 func resolveGRPCAddr(input string) (string, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -38,10 +47,16 @@ func resolveGRPCAddr(input string) (string, error) {
 		if host == "" {
 			return "", fmt.Errorf("address %q: missing host", input)
 		}
+		if isLoopbackHost(host) {
+			return "", fmt.Errorf("address %q: loopback addresses are not valid cluster endpoints — use a routable IP or hostname", input)
+		}
 		return net.JoinHostPort(host, port), nil
 	}
 
 	// No port present. The input is a bare IP address or a bare hostname.
+	if isLoopbackHost(input) {
+		return "", fmt.Errorf("address %q: loopback addresses are not valid cluster endpoints — use a routable IP or hostname", input)
+	}
 	// Append port 443 (Envoy mesh ingress).
 	return net.JoinHostPort(input, "443"), nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,21 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	nodeID := strings.TrimSpace(ns.GetNodeId())
 	newIdentity := protoToStoredIdentity(ns.GetIdentity())
 	newEndpoint := strings.TrimSpace(ns.GetAgentEndpoint())
+
+	// Guard: loopback agent endpoints are never valid in a cluster.
+	// A node must advertise a routable address so other nodes and the
+	// controller can reach it. Reject before touching any state.
+	if newEndpoint != "" {
+		if epHost, _, _ := net.SplitHostPort(newEndpoint); epHost == "127.0.0.1" || epHost == "::1" || epHost == "localhost" {
+			ip := net.ParseIP(epHost)
+			if epHost == "localhost" || epHost == "127.0.0.1" || epHost == "::1" || (ip != nil && ip.IsLoopback()) {
+				return nil, status.Errorf(codes.InvalidArgument,
+					"agent_endpoint %q is a loopback address — cluster nodes must advertise a routable IP, not localhost/127.0.0.1",
+					newEndpoint)
+			}
+		}
+	}
+
 	reportedAt := time.Now()
 	if ts := ns.GetReportedAt(); ts != nil {
 		reportedAt = ts.AsTime()

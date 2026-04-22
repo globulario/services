@@ -134,6 +134,24 @@ func (e *EndpointError) Error() string {
 	return "endpoint resolution failed: " + e.Reason + " (endpoint=" + e.Endpoint + ")"
 }
 
+// ValidateRemoteAddr returns an error if addr is a loopback address.
+// Loopback addresses (127.0.0.1, ::1, localhost) are never valid for
+// inter-node cluster communication. Call this at every address boundary
+// where an address arrives from outside (user input, etcd, gRPC fields).
+func ValidateRemoteAddr(addr string) error {
+	host, _ := splitHostPortLoose(strings.TrimSpace(addr))
+	if host == "" {
+		return nil // empty is a separate validation concern
+	}
+	if host == "localhost" || isLoopbackLiteral(host) {
+		return &EndpointError{
+			Endpoint: addr,
+			Reason:   "loopback address rejected — this is a cluster, not a local server; use a routable IP or hostname",
+		}
+	}
+	return nil
+}
+
 func isLoopbackLiteral(host string) bool {
 	if host == "" {
 		return false
