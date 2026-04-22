@@ -66,7 +66,7 @@ func runDoctorRemediate(cmd *cobra.Command, args []string) error {
 		endpoint = config.ResolveServiceAddr("cluster_doctor.ClusterDoctorService", "")
 	}
 	if endpoint == "" {
-		endpoint = fmt.Sprintf("%s:10080", config.GetRoutableIPv4())
+		return fmt.Errorf("cluster-doctor service not found in etcd — is the cluster-doctor running?")
 	}
 
 	resolvedEndpoint, resolveErr := resolveGRPCAddr(endpoint)

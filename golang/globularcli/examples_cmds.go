@@ -644,9 +644,7 @@ func createDNSRecord(ctx context.Context, serviceType string) DeploymentStepResu
 	}
 
 	// Connect to DNS server
-	dnsAddr := getEffectiveDnsGrpcAddr()
-
-	conn, err := dialGRPC(dnsAddr)
+	conn, err := dialDNSService()
 	if err != nil {
 		return DeploymentStepResult{
 			Name:    "create-dns",
@@ -901,9 +899,7 @@ func stopService(ctx context.Context, unitName string) error {
 
 func removeDNSRecord(ctx context.Context, fqdn string) error {
 	// Connect to DNS server
-	dnsAddr := getEffectiveDnsGrpcAddr()
-
-	conn, err := dialGRPC(dnsAddr)
+	conn, err := dialDNSService()
 	if err != nil {
 		return fmt.Errorf("connect to DNS: %w", err)
 	}

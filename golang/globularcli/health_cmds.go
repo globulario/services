@@ -418,10 +418,12 @@ func checkGateway(ctx context.Context, spec *cluster_controllerpb.ClusterNetwork
 func checkDNS(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "dns"}
 
-	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 10006, Scheme: "grpc"}
-	endpoint, _ := ResolveEndpoint("dns", fallback)
-
-	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
+	address := config.ResolveServiceAddr("dns.DnsService", "")
+	if address == "" {
+		result.OK = false
+		result.Details = "dns service not found in etcd"
+		return result
+	}
 
 	cc, err := dialGRPC(address)
 	if err != nil {

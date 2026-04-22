@@ -57,12 +57,14 @@ type mcpServerConf struct {
 	Args    []string `json:"args,omitempty"`
 }
 
-// defaultMCPURL returns the MCP URL, resolving from etcd if available.
+// defaultMCPURL returns the MCP URL, resolving from etcd.
+// Returns empty string if the MCP service is not registered.
 func defaultMCPURL() string {
-	if addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", ""); addr != "" {
-		return fmt.Sprintf("http://%s/mcp", addr)
+	addr := config.ResolveServiceAddr("mcp.McpService", "")
+	if addr == "" {
+		return ""
 	}
-	return fmt.Sprintf("http://%s:10260/mcp", config.GetRoutableIPv4())
+	return fmt.Sprintf("http://%s/mcp", addr)
 }
 
 // proposedSettings returns the recommended Claude Code settings for Globular dev.

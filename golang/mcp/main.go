@@ -47,16 +47,16 @@ func main() {
 	case "http":
 		addr := cfg.HTTPListenAddr
 		if addr == "" {
-			// Resolve port from etcd; bind to all interfaces.
-			// 10260 is the default (sibling of the 102xx service block);
-			// avoids conflict with kubelet's conventional 10250.
-			port := 10260
-			if sc, err := config.GetServiceConfigurationById("mcp.McpService"); err == nil {
-				if p, ok := sc["Port"].(float64); ok && p > 0 {
-					port = int(p)
-				}
+			// Port must come from etcd — no hardcoded default.
+			sc, err := config.GetServiceConfigurationById("mcp.McpService")
+			if err != nil {
+				log.Fatalf("mcp: cannot determine listen port: service not configured in etcd: %v", err)
 			}
-			addr = fmt.Sprintf("0.0.0.0:%d", port)
+			p, ok := sc["Port"].(float64)
+			if !ok || p <= 0 {
+				log.Fatalf("mcp: etcd config for mcp.McpService has no valid Port field")
+			}
+			addr = fmt.Sprintf("0.0.0.0:%d", int(p))
 		}
 		if err := srv.serveHTTP(ctx, addr); err != nil {
 			log.Fatalf("globular-mcp-server: %v", err)

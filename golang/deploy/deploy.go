@@ -131,7 +131,11 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 
 	repoAddr := opts.RepoAddr
 	if repoAddr == "" {
-		repoAddr = resolveRepoAddr()
+		var rerr error
+		repoAddr, rerr = resolveRepoAddr()
+		if rerr != nil {
+			return nil, rerr
+		}
 	}
 
 	if opts.DryRun {
@@ -511,30 +515,28 @@ func DeployAll(ctx context.Context, opts DeployOptions, _ int) ([]*DeployResult,
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 func resolveControllerAddr() string {
-	// Discover the controller via etcd service registration.
-	// If the discovered address routes through the mesh (port 443), the subprocess
-	// needs the direct port (12000) instead, since the CLI's --controller flag
-	// creates a direct gRPC connection, not a mesh connection.
-	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
-	if addr != "" {
-		// Replace mesh port 443 with direct controller port 12000.
-		if strings.HasSuffix(addr, ":443") {
-			addr = strings.TrimSuffix(addr, ":443") + ":12000"
-		}
-		return addr
+	// Read the controller's actual registered address and port from etcd.
+	// Never guess or substitute the port — use what the controller published.
+	sc, err := config.GetServiceConfigurationById("cluster_controller.ClusterControllerService")
+	if err != nil {
+		return ""
 	}
-	return ""
+	host, _ := sc["Address"].(string)
+	portRaw, _ := sc["Port"].(float64)
+	port := int(portRaw)
+	if host == "" || port == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", host, port)
 }
 
-func resolveRepoAddr() string {
+func resolveRepoAddr() (string, error) {
 	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if addr != "" {
 		fmt.Printf("  Auto-discovered repository: %s\n", addr)
-		return addr
+		return addr, nil
 	}
-	addr = fmt.Sprintf("%s:10007", config.GetRoutableIPv4())
-	fmt.Printf("  Using fallback repository: %s\n", addr)
-	return addr
+	return "", fmt.Errorf("repository service not found in etcd — is the repository service running?")
 }
 
 func checksumFile(path string) (string, error) {

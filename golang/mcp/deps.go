@@ -1,5 +1,11 @@
 package main
 
+import (
+	"strings"
+
+	"github.com/globulario/services/golang/config"
+)
+
 // ── Dependency Source ────────────────────────────────────────────────────────
 
 // ServiceDependency describes a single dependency of a service.
@@ -25,13 +31,11 @@ type DependencySource interface {
 // ── Static (bootstrap) implementation ────────────────────────────────────────
 
 type staticDeps struct {
-	deps  map[string][]ServiceDependency
-	ports map[string][]int
+	deps map[string][]ServiceDependency
 }
 
-// NewStaticDependencySource returns a DependencySource backed by a hard-coded
-// map of known Globular services. This is the bootstrap implementation; the
-// interface allows swapping to descriptor-backed metadata later.
+// NewStaticDependencySource returns a DependencySource backed by the dependency
+// graph for known Globular services. Ports are resolved from etcd at runtime.
 func NewStaticDependencySource() DependencySource {
 	return &staticDeps{
 		deps: map[string][]ServiceDependency{
@@ -113,34 +117,6 @@ func NewStaticDependencySource() DependencySource {
 				{Name: "ai_memory", Required: true},
 			},
 		},
-
-		ports: map[string][]int{
-			"authentication": {10101},
-			"event":          {10102},
-			"file":           {10103},
-			"rbac":           {10104},
-			"dns":            {10006},
-			"persistence":    {10201},
-			"resource":       {10301},
-			"discovery":      {10401},
-			"monitoring":     {10501},
-			"ldap":           {10601},
-			"blog":           {10701},
-			"mail":           {10801},
-			"media":          {10901},
-			"title":          {11001},
-			"conversation":   {11101},
-			"search":         {11201},
-			"storage":        {11301},
-			"catalog":        {11401},
-			"repository":     {11501},
-			"log":            {11601},
-			"spc":            {11701},
-			"torrent":        {11801},
-			"sql":            {11901},
-			"ai_memory":      {10200},
-			"ai_watcher":     {10210},
-		},
 	}
 }
 
@@ -148,8 +124,33 @@ func (s *staticDeps) Dependencies(service string) []ServiceDependency {
 	return s.deps[service]
 }
 
+// DefaultPorts resolves the ports for a named service from etcd.
+// etcd is the sole source of truth — no hardcoded port constants.
+// Returns nil if the service is not registered or etcd is unreachable.
 func (s *staticDeps) DefaultPorts(service string) []int {
-	return s.ports[service]
+	all, err := config.GetServicesConfigurations()
+	if err != nil {
+		return nil
+	}
+	var ports []int
+	for _, sc := range all {
+		name, _ := sc["Name"].(string)
+		// Match services whose Name or Id contains the short service name.
+		if !strings.Contains(strings.ToLower(name), strings.ToLower(service)) {
+			continue
+		}
+		switch p := sc["Port"].(type) {
+		case float64:
+			if int(p) > 0 {
+				ports = append(ports, int(p))
+			}
+		case int:
+			if p > 0 {
+				ports = append(ports, p)
+			}
+		}
+	}
+	return ports
 }
 
 // ReverseDeps inverts the dependency graph: returns installed services that

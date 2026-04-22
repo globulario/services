@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 	"gopkg.in/yaml.v3"
 
 	"github.com/globulario/services/golang/config"
@@ -92,20 +93,31 @@ func resolveDnsResolverEndpoint() string {
 	return fallback
 }
 
-// getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint to use,
-// preferring user-specified flag over dynamic discovery.
-func getEffectiveDnsGrpcAddr() string {
+// getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint resolved from etcd,
+// or an error if the service is not registered.
+func getEffectiveDnsGrpcAddr() (string, error) {
 	// If user explicitly set --dns flag to something other than the default, use it.
 	if rootCfg.dnsAddr != "" && rootCfg.dnsAddr != "globular.internal" {
 		addr, err := resolveGRPCAddr(rootCfg.dnsAddr)
 		if err == nil {
-			return addr
+			return addr, nil
 		}
 	}
 
-	// Otherwise, try to discover it from etcd, then fallback to routable IP.
-	fallback := fmt.Sprintf("%s:10006", config.GetRoutableIPv4())
-	return resolveDnsGrpcEndpoint(fallback)
+	addr := resolveDnsGrpcEndpoint("")
+	if addr == "" {
+		return "", fmt.Errorf("dns service not found in etcd — is globular-dns.service running?")
+	}
+	return addr, nil
+}
+
+// dialDNSService resolves the DNS gRPC endpoint from etcd and dials it.
+func dialDNSService() (*grpc.ClientConn, error) {
+	addr, err := getEffectiveDnsGrpcAddr()
+	if err != nil {
+		return nil, err
+	}
+	return dialGRPC(addr)
 }
 
 var (
@@ -123,7 +135,7 @@ var (
 		Use:   "get",
 		Short: "Get managed domains",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -149,7 +161,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -171,7 +183,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -201,7 +213,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -240,7 +252,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -259,7 +271,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -289,7 +301,7 @@ var (
 				}
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -321,7 +333,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -340,7 +352,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -370,7 +382,7 @@ var (
 				}
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -398,7 +410,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -417,7 +429,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -444,7 +456,7 @@ var (
 				text = args[1]
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -492,7 +504,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -532,7 +544,7 @@ var (
 				return fmt.Errorf("invalid port: %s (must be 1-65535)", port)
 			}
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -560,7 +572,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+			cc, err := dialDNSService()
 			if err != nil {
 				return err
 			}
@@ -735,7 +747,7 @@ func runDNSInspect(cmd *cobra.Command, args []string) error {
 	typesStr, _ := cmd.Flags().GetString("types")
 	types := strings.Split(typesStr, ",")
 
-	cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
+	cc, err := dialDNSService()
 	if err != nil {
 		return err
 	}
@@ -777,7 +789,7 @@ func runDNSInspect(cmd *cobra.Command, args []string) error {
 
 // runDNSStatus shows DNS service status (PR-DNSCLI)
 func runDNSStatus(cmd *cobra.Command, args []string) error {
-	grpcEndpoint := getEffectiveDnsGrpcAddr()
+	grpcEndpoint, err := getEffectiveDnsGrpcAddr()
 	resolverEndpoint := resolveDnsResolverEndpoint()
 
 	fmt.Printf("DNS Service Status\n")
@@ -787,6 +799,10 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 
 	// gRPC check with short timeout
 	fmt.Printf("Checking gRPC connectivity...\n")
+	if err != nil {
+		fmt.Printf("❌ gRPC Check: FAILED (%v)\n", err)
+		return nil
+	}
 	cc, err := dialGRPC(grpcEndpoint)
 	if err != nil {
 		fmt.Printf("❌ gRPC Check: FAILED (cannot connect to %s: %v)\n", grpcEndpoint, err)

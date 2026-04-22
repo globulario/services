@@ -193,13 +193,7 @@ func (s *server) resolveNodeAgentEndpoint(ctx context.Context, nodeID string) (s
 			if ep != "" {
 				return ep, nil
 			}
-			// Fallback: use node IP + default agent port
-			if node.GetIdentity() != nil {
-				for _, ip := range node.GetIdentity().GetIps() {
-					return fmt.Sprintf("%s:11000", ip), nil
-				}
-			}
-			return "", fmt.Errorf("node %s has no agent endpoint", nodeID)
+				return "", fmt.Errorf("node %s has no agent endpoint registered in etcd", nodeID)
 		}
 	}
 	return "", fmt.Errorf("node %s not found", nodeID)

@@ -157,7 +157,7 @@ func defaultConfig() *MCPConfig {
 		MaxFileReadBytes:          32768,
 		ConcurrencyLimit:          10,
 		RedactFields:              nil, // uses built-in defaults
-		HTTPListenAddr:            ":10260",
+		HTTPListenAddr:            "", // resolved from etcd at startup
 		HTTPReadTimeout:           Duration{30 * time.Second},
 		HTTPWriteTimeout:          Duration{60 * time.Second},
 		HTTPUseTLS:                true,

@@ -58,10 +58,9 @@ func runLogs(cmd *cobra.Command, args []string) error {
 }
 
 func tryLogServerRPC(serviceName string) error {
-	// Resolve log_server address from etcd, fall back to routable IP
 	logServerAddr := config.ResolveServiceAddr("log.LogService", "")
 	if logServerAddr == "" {
-		logServerAddr = fmt.Sprintf("%s:10030", config.GetRoutableIPv4())
+		return fmt.Errorf("log service not found in etcd — is the log service running?")
 	}
 
 	cc, err := dialGRPC(logServerAddr)

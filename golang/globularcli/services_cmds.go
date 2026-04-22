@@ -738,9 +738,6 @@ func resolveRepositoryAddr(cmd *cobra.Command) {
 		svcApplyRepoAddr = addr
 		fmt.Printf("Auto-discovered repository: %s\n", svcApplyRepoAddr)
 	}
-	if svcApplyRepoAddr == "" {
-		svcApplyRepoAddr = fmt.Sprintf("%s:10007", config.GetRoutableIPv4()) // common default
-	}
 }
 
 // ─── Artifact download ───────────────────────────────────────────────────────
