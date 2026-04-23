@@ -62,6 +62,7 @@ spec:
           - { name: sidekick, kind: INFRASTRUCTURE }
           - { name: node-exporter, kind: INFRASTRUCTURE }
           - { name: prometheus, kind: INFRASTRUCTURE }
+          - { name: alertmanager, kind: INFRASTRUCTURE }
           - { name: xds, kind: INFRASTRUCTURE }
       timeout: $.install_timeout
       execution:
@@ -78,6 +79,7 @@ spec:
             - { name: sidekick, kind: INFRASTRUCTURE }
             - { name: node-exporter, kind: INFRASTRUCTURE }
             - { name: prometheus, kind: INFRASTRUCTURE }
+            - { name: alertmanager, kind: INFRASTRUCTURE }
             - { name: xds, kind: INFRASTRUCTURE }
         success:
           expr: all_installed == true
