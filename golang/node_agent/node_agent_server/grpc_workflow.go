@@ -20,6 +20,13 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+func defaultClusterID() string {
+	if d, err := config.GetDomain(); err == nil && strings.TrimSpace(d) != "" {
+		return strings.TrimSpace(d)
+	}
+	return "globular.internal"
+}
+
 // RunWorkflow implements the gRPC endpoint for workflow execution.
 // The controller (or CLI) calls this to trigger a workflow on the node.
 func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
@@ -60,7 +67,7 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	}
 	// Fill in defaults from local state.
 	if _, ok := inputs["cluster_id"]; !ok {
-		inputs["cluster_id"] = "globular.internal"
+		inputs["cluster_id"] = defaultClusterID()
 	}
 	if _, ok := inputs["node_id"]; !ok {
 		inputs["node_id"] = srv.nodeID
@@ -317,7 +324,7 @@ func (srv *NodeAgentServer) runDay0Bootstrap(ctx context.Context, req *node_agen
 		inputs[k] = v
 	}
 	if _, ok := inputs["cluster_id"]; !ok {
-		inputs["cluster_id"] = "globular.internal"
+		inputs["cluster_id"] = defaultClusterID()
 	}
 	if _, ok := inputs["bootstrap_node_id"]; !ok {
 		inputs["bootstrap_node_id"] = srv.nodeID
@@ -326,7 +333,7 @@ func (srv *NodeAgentServer) runDay0Bootstrap(ctx context.Context, req *node_agen
 		inputs["bootstrap_node_hostname"] = srv.state.NodeName
 	}
 	if _, ok := inputs["domain"]; !ok {
-		inputs["domain"] = "globular.internal"
+		inputs["domain"] = defaultClusterID()
 	}
 	if _, ok := inputs["repository_address"]; !ok {
 		inputs["repository_address"] = ""

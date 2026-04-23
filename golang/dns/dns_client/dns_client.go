@@ -2,10 +2,13 @@ package dns_client
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/dns/dnspb"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/netutil"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -60,7 +63,7 @@ func NewDnsService_Client(address string, id string) (*Dns_Client, error) {
 	client := new(Dns_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
-		
+
 		return nil, err
 	}
 
@@ -110,7 +113,21 @@ func (client *Dns_Client) GetCtx() context.Context {
 // SetTokenCtx sets the client context with an externally provided token.
 // Use this when the caller has its own token (e.g., cluster-controller using sa token).
 func (client *Dns_Client) SetTokenCtx(token string) {
-	md := metadata.New(map[string]string{"token": token, "domain": client.domain})
+	clusterID := ""
+	if id, err := security.GetLocalClusterID(); err == nil && strings.TrimSpace(id) != "" {
+		clusterID = id
+	} else if d := strings.TrimSpace(client.domain); d != "" {
+		clusterID = strings.TrimSuffix(d, ".")
+	}
+	if clusterID == "" {
+		clusterID = netutil.DefaultClusterDomain()
+	}
+	md := metadata.New(map[string]string{
+		"token":         token,
+		"authorization": "Bearer " + token,
+		"domain":        client.domain,
+		"cluster_id":    clusterID,
+	})
 	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 }
 
@@ -253,7 +270,6 @@ func (client *Dns_Client) GetA(domain string) ([]string, error) {
 	return rsp.A, nil
 }
 
-
 // SetDomains sets the specified DNS domains with the given TTL using the DNS client.
 // It accepts an authentication token, a slice of domain names, and a TTL value.
 // If a token is provided, it is added to the outgoing context metadata for authentication.
@@ -272,13 +288,13 @@ func (client *Dns_Client) SetDomains(token string, domains []string) error {
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		
+
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
+
 	_, err := client.c.SetDomains(ctx, rqst)
 	return err
 }
@@ -286,7 +302,7 @@ func (client *Dns_Client) SetDomains(token string, domains []string) error {
 // GetDomains retrieves the list of domain names managed by the DNS service.
 // It returns a slice of domain names and an error if the operation fails.
 func (client *Dns_Client) GetDomains() ([]string, error) {
-	
+
 	rqst := &dnspb.GetDomainsRequest{}
 	rsp, err := client.c.GetDomains(client.GetCtx(), rqst)
 	if err != nil {
