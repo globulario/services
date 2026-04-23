@@ -52,7 +52,6 @@ func kidFromPub(pub ed25519.PublicKey) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])[:16]
 }
 
-
 func readEd25519Private(path string) (ed25519.PrivateKey, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -78,6 +77,10 @@ func readEd25519Public(path string) (ed25519.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseEd25519PublicPEM(b)
+}
+
+func parseEd25519PublicPEM(b []byte) (ed25519.PublicKey, error) {
 	block, _ := pem.Decode(b)
 	if block == nil || block.Type != pemTypePublic {
 		return nil, errors.New("invalid or missing PEM block for public key")
@@ -91,6 +94,14 @@ func readEd25519Public(path string) (ed25519.PublicKey, error) {
 		return nil, errors.New("public key is not ed25519")
 	}
 	return pub, nil
+}
+
+func encodeEd25519PublicPEM(pub ed25519.PublicKey) ([]byte, error) {
+	raw, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: pemTypePublic, Bytes: raw}), nil
 }
 
 func writeEd25519Private(path string, priv ed25519.PrivateKey) error {
@@ -162,7 +173,8 @@ func findExistingPrivate(issuer string) (ed25519.PrivateKey, string, error) {
 
 // fileKeystoreGetIssuerSigningKey returns (and lazily creates) the issuer's Ed25519 private key
 // and a stable KID derived from the public key. Keys are stored under:
-//   <configDir>/keys/<normalized_issuer>[_<kid>]_private|public
+//
+//	<configDir>/keys/<normalized_issuer>[_<kid>]_private|public
 func fileKeystoreGetIssuerSigningKey(issuer string) (ed25519.PrivateKey, string, error) {
 	if issuer == "" {
 		return nil, "", errors.New("issuer is empty")
@@ -170,6 +182,10 @@ func fileKeystoreGetIssuerSigningKey(issuer string) (ed25519.PrivateKey, string,
 
 	// 1) Try existing key (legacy or rotated)
 	if priv, kid, err := findExistingPrivate(issuer); err == nil {
+		pub := priv.Public().(ed25519.PublicKey)
+		if enc, encErr := encodeEd25519PublicPEM(pub); encErr == nil {
+			_ = publishPeerPublicKeyToCluster(issuer, kid, enc)
+		}
 		return priv, kid, nil
 	}
 
@@ -195,6 +211,9 @@ func fileKeystoreGetIssuerSigningKey(issuer string) (ed25519.PrivateKey, string,
 	legacyPub := publicKeyPath(issuer, "")
 	_ = writeEd25519Private(legacyPriv, priv)
 	_ = writeEd25519Public(legacyPub, pub)
+	if enc, encErr := encodeEd25519PublicPEM(pub); encErr == nil {
+		_ = publishPeerPublicKeyToCluster(issuer, kid, enc)
+	}
 
 	return priv, kid, nil
 }
@@ -212,12 +231,25 @@ func fileKeystoreGetPeerPublicKey(issuer, kid string) (ed25519.PublicKey, error)
 		if pub, err := readEd25519Public(publicKeyPath(issuer, kid)); err == nil {
 			return pub, nil
 		}
+		if enc, err := fetchPeerPublicKeyFromCluster(issuer, kid); err == nil {
+			if pub, parseErr := parseEd25519PublicPEM(enc); parseErr == nil {
+				_ = writeEd25519Public(publicKeyPath(issuer, kid), pub)
+				_ = writeEd25519Public(publicKeyPath(issuer, ""), pub)
+				return pub, nil
+			}
+		}
 		// If kid-specific file not found, fall back to current public key
 	}
 
 	// Legacy/current key
 	pub, err := readEd25519Public(publicKeyPath(issuer, ""))
 	if err != nil {
+		if enc, ferr := fetchPeerPublicKeyFromCluster(issuer, ""); ferr == nil {
+			if p, parseErr := parseEd25519PublicPEM(enc); parseErr == nil {
+				_ = writeEd25519Public(publicKeyPath(issuer, ""), p)
+				return p, nil
+			}
+		}
 		return nil, fmt.Errorf("load peer public key: %w", err)
 	}
 	return pub, nil
