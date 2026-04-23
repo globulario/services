@@ -1326,7 +1326,11 @@ func runServicesListDesired(cmd *cobra.Command, args []string) error {
 
 	// 3. Scan locally-installed services (version markers + systemd), same
 	//    sources the node agent uses for computeAppliedServicesHash.
-	installedMap := scanLocalInstalledServices()
+	installedMap, scanErr := scanLocalInstalledServices()
+	if scanErr != nil {
+		return fmt.Errorf("scan local installed services: %w\n"+
+			"Hint: run with sudo or grant read access to %s", scanErr, versionutil.BaseDir())
+	}
 	installedHash := stableHash(installedMap)
 
 	// 4. Merge keys from both maps to show a unified diff.
@@ -1429,12 +1433,15 @@ func stableHash(versions map[string]string) string {
 // scanLocalInstalledServices discovers services the same way the node agent
 // does: version markers first, then active systemd units as fallback.
 // Returns canonical-name → version map.
-func scanLocalInstalledServices() map[string]string {
+func scanLocalInstalledServices() (map[string]string, error) {
 	installed := make(map[string]string)
 
 	// Source 1: version markers.
 	markerRoot := versionutil.BaseDir()
 	entries, err := os.ReadDir(markerRoot)
+	if err != nil && os.IsPermission(err) {
+		return nil, fmt.Errorf("permission denied reading %s", markerRoot)
+	}
 	if err == nil {
 		for _, e := range entries {
 			if !e.IsDir() {
@@ -1536,5 +1543,5 @@ func scanLocalInstalledServices() map[string]string {
 		}
 	}
 
-	return installed
+	return installed, nil
 }

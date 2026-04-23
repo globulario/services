@@ -104,11 +104,11 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 		}
 		// Version filter (if specified).
 		if targetVersion != "" {
-			cv, cvErr := versionutil.Canonical(targetVersion)
+			cv, cvErr := versionutil.NormalizeExact(targetVersion)
 			if cvErr != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", targetVersion, cvErr)
 			}
-			refCV, refErr := versionutil.Canonical(ref.GetVersion())
+			refCV, refErr := versionutil.NormalizeExact(ref.GetVersion())
 			if refErr != nil {
 				continue
 			}

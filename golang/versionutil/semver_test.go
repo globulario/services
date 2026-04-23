@@ -105,6 +105,41 @@ func TestCanonical(t *testing.T) {
 	}
 }
 
+func TestNormalizeExactCanonicalizesSemver(t *testing.T) {
+	got, err := NormalizeExact(" v1.2.3 ")
+	if err != nil {
+		t.Fatalf("NormalizeExact returned error: %v", err)
+	}
+	if got != "1.2.3" {
+		t.Fatalf("NormalizeExact = %q, want 1.2.3", got)
+	}
+}
+
+func TestNormalizeExactPreservesUpstreamTags(t *testing.T) {
+	tests := []string{
+		"RELEASE.2025-09-07T16-13-09Z",
+		"n8.1-10-g7f5c90f77e-20260422",
+		"vNotSemver",
+	}
+	for _, tt := range tests {
+		got, err := NormalizeExact(tt)
+		if err != nil {
+			t.Fatalf("NormalizeExact(%q) returned error: %v", tt, err)
+		}
+		if got != tt {
+			t.Fatalf("NormalizeExact(%q) = %q, want original", tt, got)
+		}
+	}
+}
+
+func TestNormalizeExactRejectsUnsafeTags(t *testing.T) {
+	for _, tt := range []string{"", "../1.0.0", "one two", "pkg%1"} {
+		if got, err := NormalizeExact(tt); err == nil {
+			t.Fatalf("NormalizeExact(%q) expected error, got %q", tt, got)
+		}
+	}
+}
+
 func TestEqual(t *testing.T) {
 	tests := []struct {
 		a, b string

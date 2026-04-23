@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/installed_state"
@@ -531,6 +532,7 @@ func (srv *server) reconcileEmitCompleted(ctx context.Context) error {
 // and dispatches child remediation workflows (which are also centralized).
 func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb.ExecuteWorkflowResponse, error) {
 	router := engine.NewRouter()
+	var childResults sync.Map // runID -> map[string]any
 
 	// Wire reconcile controller actions.
 	engine.RegisterReconcileControllerActions(router, srv.buildReconcileControllerConfig())
@@ -544,6 +546,7 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 					reason = fmt.Sprint(inputs["reason"])
 				}
 				log.Printf("reconcile-workflow: noop child: %s", reason)
+				childResults.Store("noop-run", map[string]any{"status": "SUCCEEDED", "run_id": "noop-run"})
 				return "noop-run", nil
 			}
 
@@ -565,6 +568,11 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				if err != nil {
 					return "", err
 				}
+				childResults.Store(resp.RunId, map[string]any{
+					"status": resp.Status,
+					"run_id": resp.RunId,
+					"error":  resp.Error,
+				})
 				return resp.RunId, nil
 			}
 
@@ -582,6 +590,11 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				if err != nil {
 					return "", err
 				}
+				childResults.Store(resp.RunId, map[string]any{
+					"status": resp.Status,
+					"run_id": resp.RunId,
+					"error":  resp.Error,
+				})
 				return resp.RunId, nil
 			}
 
@@ -590,7 +603,16 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 		WaitChildTerminal: func(ctx context.Context, childRunID string) (map[string]any, error) {
 			// Child workflows run synchronously via ExecuteWorkflow,
 			// so by the time StartChild returns, the run is already terminal.
-			return map[string]any{"status": "SUCCEEDED", "run_id": childRunID}, nil
+			if result, ok := childResults.Load(childRunID); ok {
+				if m, ok := result.(map[string]any); ok {
+					return m, nil
+				}
+			}
+			return map[string]any{
+				"status": "UNKNOWN",
+				"run_id": childRunID,
+				"error":  "child workflow result was not recorded",
+			}, nil
 		},
 	})
 

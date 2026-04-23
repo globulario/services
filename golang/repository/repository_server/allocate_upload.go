@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -186,13 +186,14 @@ func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, pl
 		if exactVersion == "" {
 			return "", status.Error(codes.InvalidArgument, "exact_version is required when intent=EXACT")
 		}
-		cv, err := versionutil.Canonical(exactVersion)
+		cv, err := versionutil.NormalizeExact(exactVersion)
 		if err != nil {
 			return "", status.Errorf(codes.InvalidArgument, "invalid version %q: %v", exactVersion, err)
 		}
-		// Validate monotonicity.
+		// Validate monotonicity only when both versions are SemVer. Exact
+		// upstream-native tags are identities, not ordered release streams.
 		latestVer, _ := srv.getLatestRelease(ctx, publisher, name, platform)
-		if latestVer != "" {
+		if latestVer != "" && versionutil.IsSemver(cv) && versionutil.IsSemver(latestVer) {
 			cmp, cmpErr := versionutil.Compare(cv, latestVer)
 			if cmpErr == nil && cmp < 0 {
 				return "", status.Errorf(codes.FailedPrecondition,

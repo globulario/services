@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -99,5 +100,47 @@ func TestArchivedState_IsNotDownloadBlocked(t *testing.T) {
 	// ARCHIVED is hidden but download is NOT blocked — owners/admins can retrieve it.
 	if repopb.IsDownloadBlocked(repopb.PublishState_ARCHIVED) {
 		t.Error("ARCHIVED should NOT block downloads — owners/admins may still retrieve the binary")
+	}
+}
+
+func TestArchiveUnreachableArtifacts_DuplicateDigestBypassesRetention(t *testing.T) {
+	srv := newTestServer(t)
+	srv.GCRetentionWindow = 3
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "workflow",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "019d0001-0000-7000-8000-000000000001",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 67,
+		BuildId:     "019d0001-0000-7000-8000-000000000067",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+
+	resp, err := srv.ArchiveUnreachableArtifacts(context.Background(), &repopb.ArchiveUnreachableArtifactsRequest{DryRun: true})
+	if err != nil {
+		t.Fatalf("ArchiveUnreachableArtifacts: %v", err)
+	}
+	if resp.GetArchivedCount() != 1 {
+		t.Fatalf("expected one duplicate archived in dry-run, got %d", resp.GetArchivedCount())
+	}
+	archived := resp.GetArchived()[0]
+	if archived.GetKey() != artifactKeyWithBuild(ref, 1) {
+		t.Fatalf("expected build 1 duplicate to be archived, got %q", archived.GetKey())
+	}
+	if archived.GetReason() != "duplicate_digest" {
+		t.Fatalf("expected duplicate_digest reason, got %q", archived.GetReason())
 	}
 }

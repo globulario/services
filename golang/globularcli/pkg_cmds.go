@@ -16,10 +16,10 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globularcli/pkgpack"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // Exit codes for pkg publish (used with os.Exit).
@@ -542,8 +542,9 @@ func publishOne(file, token string) pkgPublishOne {
 	r.buildNumber = summary.BuildNumber
 	r.platform = summary.Platform
 
-	// Normalize version to canonical semver.
-	if cv, err := versionutil.Canonical(summary.Version); err != nil {
+	// Normalize exact package identity. SemVer is canonicalized; upstream-native
+	// tags (for example MinIO RELEASE.*) are preserved.
+	if cv, err := versionutil.NormalizeExact(summary.Version); err != nil {
 		r.err = fmt.Errorf("invalid version %q in package: %w", summary.Version, err)
 		r.duration = time.Since(start)
 		return r

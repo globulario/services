@@ -84,6 +84,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 
 	runHeartbeat := func() {
 		now := time.Now()
+		withOpTimeout(15*time.Second, srv.ensureRuntimeTLSConvergence)
 		// Keep scylla-manager-agent token/config convergent with fast feedback.
 		// The install path can leave a commented auth_token line; healing only
 		// every 5 minutes delays node convergence. Run this every heartbeat.
@@ -502,7 +503,7 @@ func (srv *NodeAgentServer) adoptRunningUnmanagedServices(ctx context.Context) {
 	skipAdopt := map[string]bool{
 		"etcd": true, "minio": true, "envoy": true,
 		"xds": true, "gateway": true, "mcp": true,
-		"node-exporter": true, "prometheus": true,
+		"node-exporter": true, "prometheus": true, "alertmanager": true,
 		"scylla-manager": true, "scylla-manager-agent": true,
 		"scylladb": true, "keepalived": true, "sidekick": true,
 	}
@@ -775,35 +776,19 @@ func (srv *NodeAgentServer) detectPartialApply(ctx context.Context, now int64) {
 	}
 }
 
-// rediscoverControllerEndpoint attempts to resolve the controller endpoint
-// using the same 3-step discovery order as node-agent startup (server.go):
-//  1. etcd service registry (config.ResolveServiceAddr)
-//  2. DNS form: controller.<clusterDomain>:<port>
-//  3. persisted state fallback
+// rediscoverControllerEndpoint resolves the controller endpoint using:
+//  1. etcd service registry (source of truth)
+//  2. persisted state fallback (last-known cache)
 func (srv *NodeAgentServer) rediscoverControllerEndpoint() string {
 	// Step 1: etcd service registry — same call used at startup.
 	if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
 		return addr
 	}
-
-	// Step 2: DNS-based discovery — same as startup when clusterDomain is set.
-	clusterDomain := ""
-	if srv.state != nil {
-		clusterDomain = strings.TrimSpace(srv.state.ClusterDomain)
-	}
-	if clusterDomain != "" {
-		controllerPort := "12000"
-		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
-			if _, p, err := net.SplitHostPort(addr); err == nil && p != "" {
-				controllerPort = p
-			}
-		}
-		return fmt.Sprintf("controller.%s:%s", clusterDomain, controllerPort)
-	}
-
-	// Step 3: persisted state fallback.
+	// Step 2: persisted state fallback.
 	if srv.state != nil && srv.state.ControllerEndpoint != "" {
-		return srv.state.ControllerEndpoint
+		if !isNonRoutableEndpoint(srv.state.ControllerEndpoint) {
+			return srv.state.ControllerEndpoint
+		}
 	}
 
 	return ""

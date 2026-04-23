@@ -107,6 +107,9 @@ func main() {
 
 	srv := NewNodeAgentServer(statePath, state, cfg)
 	srv.SetEtcdMode(*etcdModeFlag)
+	if err := srv.saveState(); err != nil {
+		log.Printf("unable to persist node agent startup state: %v", err)
+	}
 	// Plan store removed — workflows handle all execution.
 	if planPath := strings.TrimSpace(*bootstrapPlanFlag); planPath != "" {
 		if plan, err := loadBootstrapPlan(planPath); err != nil {

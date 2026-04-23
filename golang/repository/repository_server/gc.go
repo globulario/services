@@ -31,6 +31,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -46,6 +47,12 @@ var gcEligibleStates = map[repopb.PublishState]string{
 	repopb.PublishState_VERIFIED:   "abandoned_upload",
 	repopb.PublishState_FAILED:     "failed_upload",
 	repopb.PublishState_ORPHANED:   "orphaned_upload",
+}
+
+type gcArtifactEntry struct {
+	key   string
+	state repopb.PublishState
+	m     *repopb.ArtifactManifest
 }
 
 // ArchiveUnreachableArtifacts implements the GC RPC.
@@ -66,12 +73,7 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	}
 
 	// Build (catalog, key→state) maps in one pass.
-	type entry struct {
-		key   string
-		state repopb.PublishState
-		m     *repopb.ArtifactManifest
-	}
-	var all []entry
+	var all []gcArtifactEntry
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".manifest.json") {
 			continue
@@ -81,7 +83,7 @@ func (srv *server) ArchiveUnreachableArtifacts(
 		if readErr != nil {
 			continue
 		}
-		all = append(all, entry{key: key, state: st, m: m})
+		all = append(all, gcArtifactEntry{key: key, state: st, m: m})
 	}
 
 	// Build catalog slice for the reachability engine.
@@ -90,9 +92,10 @@ func (srv *server) ArchiveUnreachableArtifacts(
 		catalog[i] = e.m
 	}
 
-	// Compute reachable set (retention-window + installed-state explicit roots).
-	explicit := collectInstalledBuildIDs(ctx)
+	// Compute reachable set (retention-window + installed/desired-state roots).
+	explicit := mergeBuildIDRoots(collectInstalledBuildIDs(ctx), collectDesiredBuildIDs(ctx))
 	rs := ComputeReachable(catalog, explicit, srv.reachabilityConfig())
+	duplicateReasons := duplicateDigestArchiveReasons(all, explicit)
 
 	// Classify and archive.
 	resp := &repopb.ArchiveUnreachableArtifactsResponse{}
@@ -105,6 +108,14 @@ func (srv *server) ArchiveUnreachableArtifacts(
 			continue
 		}
 
+		if reason, duplicate := duplicateReasons[e.key]; duplicate {
+			if srv.archiveCandidate(ctx, dryRun, resp, e.key, e.m, reason) {
+				continue
+			}
+			resp.SkippedCount++
+			continue
+		}
+
 		if rs.Contains(e.m) {
 			// Reachable — protected.
 			resp.ProtectedCount++
@@ -112,35 +123,9 @@ func (srv *server) ArchiveUnreachableArtifacts(
 		}
 
 		// Unreachable + eligible → archive.
-		ref := e.m.GetRef()
-		record := &repopb.ArchivedArtifactRecord{
-			Key:       e.key,
-			BuildId:   e.m.GetBuildId(),
-			Name:      ref.GetName(),
-			Version:   ref.GetVersion(),
-			Publisher: ref.GetPublisherId(),
-			Reason:    reason,
+		if !srv.archiveCandidate(ctx, dryRun, resp, e.key, e.m, reason) {
+			resp.SkippedCount++
 		}
-
-		if !dryRun {
-			if archiveErr := srv.archiveOne(ctx, e.key, e.m); archiveErr != nil {
-				slog.Warn("GC: failed to archive artifact",
-					"key", e.key, "err", archiveErr)
-				resp.SkippedCount++
-				continue
-			}
-			slog.Info("GC: archived artifact",
-				"key", e.key,
-				"build_id", e.m.GetBuildId(),
-				"publisher", ref.GetPublisherId(),
-				"name", ref.GetName(),
-				"version", ref.GetVersion(),
-				"reason", reason,
-			)
-		}
-
-		resp.Archived = append(resp.Archived, record)
-		resp.ArchivedCount++
 	}
 
 	mode := "dry-run"
@@ -163,6 +148,91 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	})
 
 	return resp, nil
+}
+
+func duplicateDigestArchiveReasons(all []gcArtifactEntry, explicit map[string]bool) map[string]string {
+	type groupKey struct {
+		publisher string
+		name      string
+		version   string
+		platform  string
+		checksum  string
+	}
+	groups := map[groupKey][]gcArtifactEntry{}
+	for _, e := range all {
+		ref := e.m.GetRef()
+		if ref == nil || e.m.GetChecksum() == "" {
+			continue
+		}
+		key := groupKey{
+			publisher: ref.GetPublisherId(),
+			name:      ref.GetName(),
+			version:   ref.GetVersion(),
+			platform:  ref.GetPlatform(),
+			checksum:  e.m.GetChecksum(),
+		}
+		groups[key] = append(groups[key], e)
+	}
+
+	reasons := map[string]string{}
+	for _, group := range groups {
+		if len(group) < 2 {
+			continue
+		}
+		sort.SliceStable(group, func(i, j int) bool {
+			iExplicit := explicit[group[i].m.GetBuildId()]
+			jExplicit := explicit[group[j].m.GetBuildId()]
+			if iExplicit != jExplicit {
+				return iExplicit
+			}
+			return group[i].m.GetBuildNumber() > group[j].m.GetBuildNumber()
+		})
+		for i, e := range group {
+			if explicit[e.m.GetBuildId()] {
+				continue
+			}
+			if i == 0 {
+				continue
+			}
+			reasons[e.key] = "duplicate_digest"
+		}
+	}
+	return reasons
+}
+
+func (srv *server) archiveCandidate(ctx context.Context, dryRun bool, resp *repopb.ArchiveUnreachableArtifactsResponse, key string, m *repopb.ArtifactManifest, reason string) bool {
+	ref := m.GetRef()
+	if ref == nil {
+		return false
+	}
+	record := &repopb.ArchivedArtifactRecord{
+		Key:       key,
+		BuildId:   m.GetBuildId(),
+		Name:      ref.GetName(),
+		Version:   ref.GetVersion(),
+		Publisher: ref.GetPublisherId(),
+		Reason:    reason,
+	}
+
+	if !dryRun {
+		if archiveErr := srv.archiveOne(ctx, key, m); archiveErr != nil {
+			slog.Warn("GC: failed to archive artifact",
+				"key", key, "err", archiveErr)
+			return false
+		}
+		slog.Info("GC: archived artifact",
+			"key", key,
+			"build_id", m.GetBuildId(),
+			"publisher", ref.GetPublisherId(),
+			"name", ref.GetName(),
+			"version", ref.GetVersion(),
+			"reason", reason,
+		)
+	}
+
+	resp.Archived = append(resp.Archived, record)
+	resp.ArchivedCount++
+	return true
 }
 
 // archiveOne transitions a single artifact to ARCHIVED state.

@@ -27,6 +27,7 @@ const defaultPublisherID = "core@globular.io"
 //   - name: package name (e.g. "dns", "envoy")
 //   - kind: SERVICE, INFRASTRUCTURE, or COMMAND
 //   - repositoryAddr: gRPC address of the repository (e.g. "10.0.0.63:443")
+//
 // localPackageDirs are searched (in order) when the repository is unreachable.
 // The installer script copies .tgz packages here before starting the workflow.
 var localPackageDirs = []string{
@@ -228,6 +229,8 @@ func resolvePackageVersion(name string) string {
 		return "7.0.0"
 	case "prometheus":
 		return "3.5.1"
+	case "alertmanager":
+		return "0.28.1"
 	case "node-exporter":
 		return "1.10.2"
 	case "scylladb":

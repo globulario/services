@@ -31,10 +31,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/versionutil"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -159,9 +159,9 @@ func artifactKeyLegacy(ref *repopb.ArtifactRef) string {
 	return ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform()
 }
 
-func manifestStorageKey(key string) string    { return artifactsDir + "/" + key + ".manifest.json" }
-func binaryStorageKey(key string) string      { return artifactsDir + "/" + key + ".bin" }
-func publishStateKey(key string) string       { return artifactsDir + "/" + key + ".publish_state" }
+func manifestStorageKey(key string) string { return artifactsDir + "/" + key + ".manifest.json" }
+func binaryStorageKey(key string) string   { return artifactsDir + "/" + key + ".bin" }
+func publishStateKey(key string) string    { return artifactsDir + "/" + key + ".publish_state" }
 
 // ── publish state helpers ─────────────────────────────────────────────────
 
@@ -420,6 +420,46 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 		}
 	}
 	return best
+}
+
+// findExistingArtifactByDigest returns an existing artifact with the same
+// package identity and content digest. Build numbers are display metadata; the
+// repository must not create a second build row for identical bytes just
+// because two import paths disagree on a CI/build counter.
+func (srv *server) findExistingArtifactByDigest(ctx context.Context, ref *repopb.ArtifactRef, checksum string) (*repopb.ArtifactManifest, repopb.PublishState, string, bool) {
+	if ref == nil || checksum == "" {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+	names := srv.cachedDirNames(ctx)
+	if names == nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+
+	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+	suffix := ".manifest.json"
+
+	var best *repopb.ArtifactManifest
+	var bestState repopb.PublishState
+	var bestKey string
+	for _, name := range names {
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		key := strings.TrimSuffix(name, suffix)
+		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
+		if err != nil || m == nil || m.GetChecksum() != checksum {
+			continue
+		}
+		if best == nil || m.GetBuildNumber() > best.GetBuildNumber() {
+			best = m
+			bestState = state
+			bestKey = key
+		}
+	}
+	if best == nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+	}
+	return best, bestState, bestKey, true
 }
 
 // cachedDirNames returns the artifact directory entry names, using the cache
@@ -789,6 +829,16 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	}
 
 	newChecksum := checksumBytes(data)
+
+	if existing, state, key, ok := srv.findExistingArtifactByDigest(ctx, ref, newChecksum); ok {
+		slog.Info("artifact upload idempotent: identical artifact already exists",
+			"key", key,
+			"build_id", existing.GetBuildId(),
+			"build", existing.GetBuildNumber(),
+			"publish_state", state.String(),
+		)
+		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: true, BuildId: existing.GetBuildId()})
+	}
 
 	// buildNumber is auto-assigned by the repository to the next available
 	// number for this version, ensuring uniqueness.
@@ -1163,7 +1213,6 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 	return &repopb.DeleteArtifactResponse{Result: true, Message: msg}, nil
 }
 
-
 // ── kind inference ───────────────────────────────────────────────────────────
 
 // inferCorrectKind returns the correct ArtifactKind for a package name.
@@ -1184,7 +1233,8 @@ func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactK
 	infraNames := map[string]bool{
 		"etcd": true, "minio": true, "envoy": true, "xds": true,
 		"gateway": true, "prometheus": true, "node-exporter": true,
-		"scylladb": true, "scylla-manager": true, "scylla-manager-agent": true,
+		"alertmanager": true,
+		"scylladb":     true, "scylla-manager": true, "scylla-manager-agent": true,
 		"keepalived": true, "sidekick": true,
 	}
 	if infraNames[lower] {
@@ -1626,33 +1676,33 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	newBuildID := uuid.Must(uuid.NewV7()).String()
 
 	newManifest := &repopb.ArtifactManifest{
-		Ref:                       ref,
-		BuildNumber:               newBuild,
-		BuildId:                   newBuildID,
-		Checksum:                  actualChecksum,
-		SizeBytes:                 int64(len(data)),
-		ModifiedUnix:              time.Now().Unix(),
-		Profiles:                  latestManifest.GetProfiles(),
-		Priority:                  latestManifest.GetPriority(),
-		InstallMode:               latestManifest.GetInstallMode(),
-		ManagedUnit:               latestManifest.GetManagedUnit(),
-		SystemdUnit:               latestManifest.GetSystemdUnit(),
-		RuntimeLocalDependencies:  latestManifest.GetRuntimeLocalDependencies(),
-		InstallDependencies:       latestManifest.GetInstallDependencies(),
-		HardDeps:                  latestManifest.GetHardDeps(),
-		RuntimeUses:               latestManifest.GetRuntimeUses(),
-		HealthCheckUnit:           latestManifest.GetHealthCheckUnit(),
-		HealthCheckPort:           latestManifest.GetHealthCheckPort(),
-		Provides:                  latestManifest.GetProvides(),
-		Requires:                  latestManifest.GetRequires(),
-		Defaults:                  latestManifest.GetDefaults(),
-		Entrypoints:               latestManifest.GetEntrypoints(),
-		Description:               latestManifest.GetDescription(),
-		Keywords:                  latestManifest.GetKeywords(),
-		Icon:                      latestManifest.GetIcon(),
-		Alias:                     latestManifest.GetAlias(),
-		License:                   latestManifest.GetLicense(),
-		MinGlobularVersion:        latestManifest.GetMinGlobularVersion(),
+		Ref:                      ref,
+		BuildNumber:              newBuild,
+		BuildId:                  newBuildID,
+		Checksum:                 actualChecksum,
+		SizeBytes:                int64(len(data)),
+		ModifiedUnix:             time.Now().Unix(),
+		Profiles:                 latestManifest.GetProfiles(),
+		Priority:                 latestManifest.GetPriority(),
+		InstallMode:              latestManifest.GetInstallMode(),
+		ManagedUnit:              latestManifest.GetManagedUnit(),
+		SystemdUnit:              latestManifest.GetSystemdUnit(),
+		RuntimeLocalDependencies: latestManifest.GetRuntimeLocalDependencies(),
+		InstallDependencies:      latestManifest.GetInstallDependencies(),
+		HardDeps:                 latestManifest.GetHardDeps(),
+		RuntimeUses:              latestManifest.GetRuntimeUses(),
+		HealthCheckUnit:          latestManifest.GetHealthCheckUnit(),
+		HealthCheckPort:          latestManifest.GetHealthCheckPort(),
+		Provides:                 latestManifest.GetProvides(),
+		Requires:                 latestManifest.GetRequires(),
+		Defaults:                 latestManifest.GetDefaults(),
+		Entrypoints:              latestManifest.GetEntrypoints(),
+		Description:              latestManifest.GetDescription(),
+		Keywords:                 latestManifest.GetKeywords(),
+		Icon:                     latestManifest.GetIcon(),
+		Alias:                    latestManifest.GetAlias(),
+		License:                  latestManifest.GetLicense(),
+		MinGlobularVersion:       latestManifest.GetMinGlobularVersion(),
 	}
 
 	// Copy type_detail from the latest manifest.
@@ -1713,9 +1763,9 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 // process fingerprinting to resolve "which version is this binary?"
 //
 // Two-phase approach:
-//   1. Fast lookup via ScyllaDB secondary index on entrypoint_checksum.
-//   2. Validate from MinIO: crack open the .tgz, verify the binary inside
-//      matches the declared checksum. If mismatch → mark CORRUPTED.
+//  1. Fast lookup via ScyllaDB secondary index on entrypoint_checksum.
+//  2. Validate from MinIO: crack open the .tgz, verify the binary inside
+//     matches the declared checksum. If mismatch → mark CORRUPTED.
 //
 // Falls back to MinIO full scan if ScyllaDB is unavailable or has no match
 // (handles packages published before entrypoint_checksum was indexed).

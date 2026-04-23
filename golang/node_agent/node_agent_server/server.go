@@ -130,6 +130,26 @@ type NodeAgentServer struct {
 	cfg NodeAgentConfig
 }
 
+func isNonRoutableEndpoint(endpoint string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(endpoint))
+	if err != nil {
+		return true
+	}
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" {
+		return true
+	}
+	switch strings.ToLower(host) {
+	case "localhost", "0.0.0.0", "::":
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsUnspecified()
+}
+
 func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentConfig) *NodeAgentServer {
 	if state == nil {
 		state = newNodeAgentState()
@@ -162,27 +182,47 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	}
 	useInsecure := cfg.Insecure
 
-	// Determine cluster domain early for controller discovery (PR3)
-	clusterDomain := cfg.ClusterDomain
-
-	// Controller endpoint discovery (PR3: prefer DNS in cluster mode)
-	controllerEndpoint := strings.TrimSpace(cfg.ControllerEndpoint)
-	if controllerEndpoint == "" && clusterDomain != "" && clusterMode {
-		// In cluster mode with domain configured, use DNS-based discovery.
-		// Controller port resolved from etcd; fall back to default 12000.
-		controllerPort := "12000"
-		if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
-			if _, p, err := net.SplitHostPort(addr); err == nil && p != "" {
-				controllerPort = p
+	// Determine cluster domain early for controller discovery (PR3).
+	// Fallback order is important for wipe/reinstall day-1:
+	// flags -> persisted state -> runtime config.
+	clusterDomain := strings.TrimSpace(cfg.ClusterDomain)
+	if clusterDomain == "" {
+		clusterDomain = strings.TrimSpace(cfg.Domain)
+	}
+	if clusterDomain == "" {
+		clusterDomain = strings.TrimSpace(state.ClusterDomain)
+	}
+	if clusterDomain == "" {
+		if domain, err := config.GetDomain(); err == nil {
+			clusterDomain = strings.TrimSpace(domain)
+		}
+	}
+	protocol := strings.TrimSpace(state.Protocol)
+	if protocol == "" {
+		if localCfg, err := config.GetLocalConfig(true); err == nil {
+			if v, ok := localCfg["Protocol"].(string); ok {
+				protocol = strings.TrimSpace(strings.ToLower(v))
 			}
 		}
-		controllerEndpoint = fmt.Sprintf("controller.%s:%s", clusterDomain, controllerPort)
-		log.Printf("node-agent: using DNS-based controller discovery: %s", controllerEndpoint)
+	}
+
+	// Controller endpoint discovery:
+	// etcd registry is source of truth; persisted state is only last-known cache.
+	controllerEndpoint := strings.TrimSpace(cfg.ControllerEndpoint)
+	if controllerEndpoint == "" {
+		controllerEndpoint = strings.TrimSpace(config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""))
 	}
 	if controllerEndpoint == "" {
 		controllerEndpoint = state.ControllerEndpoint
-	} else {
+	}
+	if clusterMode && controllerEndpoint != "" && isNonRoutableEndpoint(controllerEndpoint) {
+		log.Printf("node-agent: ignoring non-routable cached controller endpoint in cluster mode: %s", controllerEndpoint)
+		controllerEndpoint = ""
+	}
+	if controllerEndpoint != "" {
 		state.ControllerEndpoint = controllerEndpoint
+	} else if clusterMode {
+		state.ControllerEndpoint = ""
 	}
 	state.ControllerInsecure = useInsecure
 
@@ -227,6 +267,9 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	if clusterDomain != "" {
 		state.AdvertiseFQDN = fmt.Sprintf("%s.%s", nodeName, clusterDomain)
 		state.ClusterDomain = clusterDomain
+	}
+	if protocol != "" {
+		state.Protocol = protocol
 	}
 	state.AdvertiseIP = strings.Split(advertised, ":")[0]
 
@@ -868,9 +911,18 @@ func (srv *NodeAgentServer) saveState() error {
 		srv.state = newNodeAgentState()
 	}
 	srv.state.ControllerEndpoint = srv.controllerEndpoint
+	srv.state.ControllerInsecure = srv.useInsecure
 	srv.state.RequestID = srv.joinRequestID
 	srv.state.NodeID = srv.nodeID
 	srv.state.NetworkGeneration = srv.lastNetworkGeneration
+	if domain, err := config.GetDomain(); err == nil && strings.TrimSpace(domain) != "" {
+		srv.state.ClusterDomain = strings.TrimSpace(domain)
+	}
+	if localCfg, err := config.GetLocalConfig(true); err == nil {
+		if v, ok := localCfg["Protocol"].(string); ok && strings.TrimSpace(v) != "" {
+			srv.state.Protocol = strings.TrimSpace(strings.ToLower(v))
+		}
+	}
 	return srv.state.save(srv.statePath)
 }
 
@@ -1024,4 +1076,3 @@ func convertNodeAgentUnits(units []*node_agentpb.UnitStatus) []*cluster_controll
 	}
 	return out
 }
-

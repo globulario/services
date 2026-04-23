@@ -32,11 +32,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // ── etcd helpers ──────────────────────────────────────────────────────────
@@ -57,6 +60,74 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 		}
 	}
 	return ids
+}
+
+// collectDesiredBuildIDs returns build_ids pinned by desired-state resources.
+// Best-effort: callers combine this with installed-state roots so GC never
+// archives a build that the controller still intends to roll out.
+func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
+	ids := map[string]bool{}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return ids
+	}
+
+	type serviceSpec struct {
+		BuildID string `json:"build_id"`
+	}
+	type serviceRec struct {
+		Spec *serviceSpec `json:"spec"`
+	}
+	if resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
+		clientv3.WithPrefix(), clientv3.WithLimit(500)); err == nil {
+		for _, kv := range resp.Kvs {
+			var rec serviceRec
+			if json.Unmarshal(kv.Value, &rec) == nil && rec.Spec != nil && rec.Spec.BuildID != "" {
+				ids[rec.Spec.BuildID] = true
+			}
+		}
+	}
+
+	type infraSpec struct {
+		BuildID string `json:"build_id"`
+	}
+	type infraStatus struct {
+		ResolvedBuildID string `json:"resolved_build_id"`
+	}
+	type infraRec struct {
+		Spec   *infraSpec   `json:"spec"`
+		Status *infraStatus `json:"status"`
+	}
+	if resp, err := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
+		clientv3.WithPrefix(), clientv3.WithLimit(500)); err == nil {
+		for _, kv := range resp.Kvs {
+			var rec infraRec
+			if json.Unmarshal(kv.Value, &rec) != nil {
+				continue
+			}
+			if rec.Status != nil && rec.Status.ResolvedBuildID != "" {
+				ids[rec.Status.ResolvedBuildID] = true
+				continue
+			}
+			if rec.Spec != nil && rec.Spec.BuildID != "" {
+				ids[rec.Spec.BuildID] = true
+			}
+		}
+	}
+
+	return ids
+}
+
+func mergeBuildIDRoots(sets ...map[string]bool) map[string]bool {
+	merged := map[string]bool{}
+	for _, set := range sets {
+		for id := range set {
+			if id != "" {
+				merged[id] = true
+			}
+		}
+	}
+	return merged
 }
 
 // loadAllManifests returns every manifest in the repository regardless of

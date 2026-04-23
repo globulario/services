@@ -47,7 +47,7 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 	if opts.Version == "" {
 		return nil, fmt.Errorf("version is required")
 	}
-	canonical, err := versionutil.Canonical(opts.Version)
+	canonical, err := versionutil.NormalizeExact(opts.Version)
 	if err != nil {
 		return nil, fmt.Errorf("invalid version %q: %w", opts.Version, err)
 	}

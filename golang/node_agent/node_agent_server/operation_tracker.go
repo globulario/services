@@ -26,26 +26,25 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 		profiles = []string{"control-plane", "gateway"}
 	}
 
-	// Derive a routable controller endpoint.
-	// The bind address (e.g. ":12000" or "0.0.0.0:12000") is not a valid client
-	// endpoint. Derive a routable address from the cluster domain + default port.
-	controllerEndpoint := ""
 	bindAddr := strings.TrimSpace(req.GetControllerBind())
-	// Extract port from bind address (default 12000).
-	ctrlPort := "12000"
-	if bindAddr != "" {
-		if _, p, err := net.SplitHostPort(bindAddr); err == nil && p != "" {
-			ctrlPort = p
+	if bindAddr == "" {
+		return nil, status.Error(codes.InvalidArgument, "controller bind address is required")
+	}
+	host, port, err := net.SplitHostPort(bindAddr)
+	if err != nil || strings.TrimSpace(port) == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid controller bind address %q", bindAddr)
+	}
+	host = strings.TrimSpace(host)
+	// If bind host is wildcard/empty, use node advertised host (routable).
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		if advHost, _, splitErr := net.SplitHostPort(strings.TrimSpace(srv.advertisedAddr)); splitErr == nil && advHost != "" {
+			host = advHost
 		}
 	}
-
-	// Build routable endpoint for Day-0 bootstrap.
-	// During initial bootstrap the cluster domain (e.g. "globular.internal")
-	// is typically not resolvable yet because DNS hasn't been configured.
-	// Always use localhost for the bootstrap connection — the controller is
-	// co-located on the same machine. The domain-based endpoint will be set
-	// later when the cluster grows or DNS is ready.
-	controllerEndpoint = "localhost:" + ctrlPort
+	if host == "" {
+		return nil, status.Error(codes.InvalidArgument, "cannot derive routable controller endpoint host")
+	}
+	controllerEndpoint := net.JoinHostPort(host, port)
 
 	srv.controllerEndpoint = controllerEndpoint
 	srv.state.ControllerEndpoint = controllerEndpoint

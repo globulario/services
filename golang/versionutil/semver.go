@@ -2,10 +2,13 @@ package versionutil
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
 )
+
+var exactTagPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+:-]*$`)
 
 // Canonical normalizes a version string to canonical SemVer form
 // (MAJOR.MINOR.PATCH[-prerelease][+build], no leading "v").
@@ -23,6 +26,32 @@ func Canonical(raw string) (string, error) {
 		return "", fmt.Errorf("invalid semver %q: %w", raw, err)
 	}
 	return parsed.String(), nil
+}
+
+// IsSemver reports whether raw can be parsed as semantic version after the
+// same leading-v normalization used by Canonical.
+func IsSemver(raw string) bool {
+	_, err := Canonical(raw)
+	return err == nil
+}
+
+// NormalizeExact preserves upstream-native version tags while still
+// canonicalizing real semantic versions. This is for exact artifact identities:
+// package versions such as RELEASE.2025-09-07T16-13-09Z and
+// n8.1-10-g7f5c90f77e-20260422 are valid package tags even though they are not
+// SemVer and cannot participate in bump semantics.
+func NormalizeExact(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", fmt.Errorf("empty version string")
+	}
+	if cv, err := Canonical(v); err == nil {
+		return cv, nil
+	}
+	if !exactTagPattern.MatchString(v) {
+		return "", fmt.Errorf("invalid exact version tag %q: allowed characters are letters, digits, dot, underscore, plus, colon, and hyphen", raw)
+	}
+	return v, nil
 }
 
 // MustCanonical is like Canonical but panics on invalid input.

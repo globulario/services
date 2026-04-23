@@ -173,6 +173,7 @@ spec:
           - sidekick
           - node-exporter
           - prometheus
+          - alertmanager
           - monitoring
           - event
           - log

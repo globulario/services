@@ -16,6 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICES_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PACKAGES_ROOT="${SERVICES_ROOT}/../packages"
+INSTALLER_ROOT="${SERVICES_ROOT}/../globular-installer"
 DIST_DIR="${SERVICES_ROOT}/dist"
 
 VERSION="${1:-0.0.0-dev}"
@@ -28,6 +29,22 @@ info()    { echo "  → $*"; }
 section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
 
 [[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT} — clone it alongside services"
+
+find_source_packages_dir() {
+  if compgen -G "${PACKAGES_ROOT}/dist/*.tgz" >/dev/null; then
+    echo "${PACKAGES_ROOT}/dist"
+    return 0
+  fi
+
+  local candidate
+  candidate=$(find /tmp "${SERVICES_ROOT}/dist" "${SERVICES_ROOT}/.." -maxdepth 3 -type d -path "*/globular-*-linux-amd64/packages" 2>/dev/null | sort -V | tail -1 || true)
+  if [[ -n "${candidate}" ]] && compgen -G "${candidate}/*.tgz" >/dev/null; then
+    echo "${candidate}"
+    return 0
+  fi
+
+  return 1
+}
 
 section "Building Release ${VERSION}"
 
@@ -50,7 +67,7 @@ while IFS='|' read -r target output; do
   go build -ldflags "${LDFLAGS}" -o "${DIST_DIR}/bin/${bin_name}" "${target}"
 done < build/services.list
 
-mv "${DIST_DIR}/bin/globularcli" "${DIST_DIR}/bin/globular" 2>/dev/null || true
+cp "${DIST_DIR}/bin/globularcli" "${DIST_DIR}/bin/globular" 2>/dev/null || true
 
 ok "$(ls "${DIST_DIR}/bin/" | wc -l) binaries built"
 cd "${SERVICES_ROOT}"
@@ -92,9 +109,27 @@ declare -A BIN_MAP=(
   [ai-executor]=ai_executor_server
   [ai-watcher]=ai_watcher_server
   [ai-router]=ai_router_server
+  [globular-cli]=globularcli
+  [mcp]=mcp
   [xds]=xds
   [gateway]=gateway
 )
+
+SOURCE_PACKAGES_DIR="$(find_source_packages_dir)" || die "no source packages found; expected ${PACKAGES_ROOT}/dist/*.tgz or an extracted globular release"
+SOURCE_RELEASE_DIR="$(cd "${SOURCE_PACKAGES_DIR}/.." && pwd)"
+info "Using source packages from ${SOURCE_PACKAGES_DIR}"
+
+copied_external=0
+for src_pkg in "${SOURCE_PACKAGES_DIR}"/*.tgz; do
+  base="$(basename "${src_pkg}")"
+  pkg_name="${base%_*_linux_amd64.tgz}"
+  if [[ -n "${BIN_MAP[${pkg_name}]+x}" ]]; then
+    continue
+  fi
+  cp "${src_pkg}" "${DIST_DIR}/packages/${base}"
+  copied_external=$((copied_external + 1))
+done
+ok "${copied_external} external/unchanged packages copied"
 
 pkg_count=0
 for pkg_name in "${!BIN_MAP[@]}"; do
@@ -102,11 +137,17 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   bin_path="${DIST_DIR}/bin/${bin_name}"
 
   if [[ ! -f "${bin_path}" ]]; then
-    warn "Skipping ${pkg_name} (${bin_name} not built)"
+    src_pkg=$(find "${SOURCE_PACKAGES_DIR}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1 || true)
+    if [[ -n "${src_pkg}" ]]; then
+      warn "Carrying forward ${pkg_name} ($(basename "${src_pkg}"); ${bin_name} not built)"
+      cp "${src_pkg}" "${DIST_DIR}/packages/$(basename "${src_pkg}")"
+    else
+      warn "Skipping ${pkg_name} (${bin_name} not built and no source package found)"
+    fi
     continue
   fi
 
-  src_pkg=$(find "${PACKAGES_ROOT}/dist" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1)
+  src_pkg=$(find "${SOURCE_PACKAGES_DIR}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1 || true)
   if [[ -z "${src_pkg}" ]]; then
     warn "Skipping ${pkg_name} (no source package in packages/dist/)"
     continue
@@ -148,13 +189,38 @@ RELEASE_NAME="globular-${VERSION}-linux-amd64"
 RELEASE_DIR="${DIST_DIR}/${RELEASE_NAME}"
 
 mkdir -p "${RELEASE_DIR}/packages"
+mkdir -p "${RELEASE_DIR}/scripts" "${RELEASE_DIR}/workflows"
 
 cp "${DIST_DIR}/bin/globular"   "${RELEASE_DIR}/globular"
 chmod 755 "${RELEASE_DIR}/globular"
 
+if [[ -x "${INSTALLER_ROOT}/globular-installer" ]]; then
+  cp "${INSTALLER_ROOT}/globular-installer" "${RELEASE_DIR}/globular-installer"
+elif [[ -x "${INSTALLER_ROOT}/bin/globular-installer" ]]; then
+  cp "${INSTALLER_ROOT}/bin/globular-installer" "${RELEASE_DIR}/globular-installer"
+else
+  die "globular-installer binary not found in ${INSTALLER_ROOT}"
+fi
+chmod 755 "${RELEASE_DIR}/globular-installer"
+
 cp "${DIST_DIR}/packages/"*.tgz "${RELEASE_DIR}/packages/"
 cp "${SCRIPT_DIR}/install.sh"   "${RELEASE_DIR}/install.sh"
 chmod +x "${RELEASE_DIR}/install.sh"
+
+if [[ -d "${INSTALLER_ROOT}/scripts" ]]; then
+  cp -a "${INSTALLER_ROOT}/scripts/." "${RELEASE_DIR}/scripts/"
+elif [[ -d "${SOURCE_RELEASE_DIR}/scripts" ]]; then
+  cp -a "${SOURCE_RELEASE_DIR}/scripts/." "${RELEASE_DIR}/scripts/"
+else
+  die "installer scripts not found"
+fi
+chmod +x "${RELEASE_DIR}/scripts/"*.sh 2>/dev/null || true
+
+cp "${SERVICES_ROOT}/golang/workflow/definitions/"*.yaml "${RELEASE_DIR}/workflows/"
+
+if [[ -d "${SOURCE_RELEASE_DIR}/webroot" ]]; then
+  cp -a "${SOURCE_RELEASE_DIR}/webroot" "${RELEASE_DIR}/webroot"
+fi
 
 (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 
@@ -187,7 +253,7 @@ echo "Size:            $(du -sh "${DIST_DIR}/${RELEASE_NAME}.tar.gz" | cut -f1)"
 echo "Packages:        ${pkg_count}"
 echo ""
 echo "Contents:"
-tar tzf "${DIST_DIR}/${RELEASE_NAME}.tar.gz" | head -10
+tar tzf "${DIST_DIR}/${RELEASE_NAME}.tar.gz" | head -10 || true
 echo "  ..."
 echo ""
 echo "To test the installer:"

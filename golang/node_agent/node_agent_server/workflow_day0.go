@@ -407,7 +407,7 @@ func inferPackageKind(name string) string {
 	switch name {
 	case "scylladb", "etcd", "minio", "envoy", "xds", "gateway",
 		"node-agent", "cluster-controller", "cluster-doctor",
-		"prometheus", "node-exporter", "sidekick",
+		"prometheus", "alertmanager", "node-exporter", "sidekick",
 		"scylla-manager", "scylla-manager-agent":
 		return "INFRASTRUCTURE"
 	case "mc", "globular-cli", "etcdctl", "rclone", "restic", "sctool",

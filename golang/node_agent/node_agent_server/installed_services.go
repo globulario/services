@@ -193,7 +193,6 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 	}
 }
 
-
 // loadSystemdUnits discovers loaded globular-*.service systemd units and adds
 // them as installed services when they were not already found by markers or
 // config files. This ensures services installed by the installer (which does
@@ -220,7 +219,7 @@ func loadSystemdUnits(ctx context.Context, byService map[string]*InstalledServic
 		"etcd": true, "minio": true, "envoy": true,
 		"xds": true, "gateway": true, "mcp": true,
 		// Infrastructure services (from /packages/specs/*_service.yaml)
-		"node-exporter": true, "prometheus": true,
+		"node-exporter": true, "prometheus": true, "alertmanager": true,
 		"scylla-manager": true, "scylla-manager-agent": true,
 		"scylladb": true, "keepalived": true, "sidekick": true,
 		// CLI tools — not services (from /packages/specs/*_cmd.yaml)
@@ -363,9 +362,9 @@ func isDay0JoinInfra(name string) bool {
 // computeAppliedServicesHash returns a SHA256 (lowercase hex) over the installed service set.
 //
 // Canonical format per entry: "<canonical_service_name>=<version>;"
-// - Entries are sorted by canonical service name.
-// - This format matches the controller's hashDesiredServiceVersions() so that
-//   the two hashes are directly comparable when the service sets agree.
+//   - Entries are sorted by canonical service name.
+//   - This format matches the controller's hashDesiredServiceVersions() so that
+//     the two hashes are directly comparable when the service sets agree.
 func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) string {
 	if len(installed) == 0 {
 		return ""
@@ -415,4 +414,3 @@ func canonicalServiceName(name string) string {
 	key, _ := identity.NormalizeServiceKey(name)
 	return key
 }
-

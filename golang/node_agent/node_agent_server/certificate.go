@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
@@ -34,6 +37,66 @@ func (srv *NodeAgentServer) StartACMERenewal(ctx context.Context) {
 // bootstrap node goes down, other nodes can still issue certificates.
 func (srv *NodeAgentServer) StartCAKeySync(ctx context.Context) {
 	go srv.caKeySyncLoop(ctx)
+}
+
+func validateLeafSignedByCA(certPath, keyPath, caPath string) error {
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return fmt.Errorf("read CA certificate %s: %w", caPath, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return fmt.Errorf("parse CA certificate bundle %s", caPath)
+	}
+
+	leafPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return fmt.Errorf("read leaf certificate %s: %w", certPath, err)
+	}
+	block, _ := pem.Decode(leafPEM)
+	if block == nil {
+		return fmt.Errorf("decode leaf certificate PEM %s", certPath)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("parse leaf certificate %s: %w", certPath, err)
+	}
+
+	if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+		return fmt.Errorf("leaf/key pair invalid (%s,%s): %w", certPath, keyPath, err)
+	}
+
+	if _, err := leaf.Verify(x509.VerifyOptions{
+		Roots:     pool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}); err != nil {
+		return fmt.Errorf("leaf not signed by current CA (%s): %w", caPath, err)
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
+	if srv == nil || srv.state == nil || srv.lastSpec == nil {
+		return
+	}
+	if strings.ToLower(strings.TrimSpace(srv.lastSpec.GetProtocol())) != "https" {
+		return
+	}
+
+	certPath := config.GetLocalServerCertificatePath()
+	keyPath := config.GetLocalServerKeyPath()
+	caPath := config.GetLocalCACertificate()
+	err := validateLeafSignedByCA(certPath, keyPath, caPath)
+	if err == nil {
+		return
+	}
+
+	log.Printf("tls-convergence: runtime TLS chain invalid; repairing certs from current CA: %v", err)
+	if repairErr := srv.ensureNetworkCerts(srv.lastSpec); repairErr != nil {
+		log.Printf("tls-convergence: repair failed: %v", repairErr)
+		return
+	}
+	log.Printf("tls-convergence: repaired runtime TLS certificate chain")
 }
 
 func (srv *NodeAgentServer) caKeySyncLoop(ctx context.Context) {

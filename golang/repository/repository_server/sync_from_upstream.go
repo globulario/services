@@ -42,9 +42,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -352,6 +352,23 @@ func (srv *server) processSyncEntry(
 		}
 	}
 
+	ref := &repopb.ArtifactRef{
+		PublisherId: publisher,
+		Name:        entry.Name,
+		Version:     entry.Version,
+		Platform:    entry.Platform,
+	}
+	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, entry.PackageDigest); ok {
+		detail := fmt.Sprintf("already present with matching digest at build %d (%s)", existing.GetBuildNumber(), state.String())
+		if dryRun {
+			result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_SKIP
+		} else {
+			result.Status = repopb.UpstreamSyncStatus_SYNC_SKIPPED
+		}
+		result.Detail = detail
+		return result
+	}
+
 	// Not found → would import (or import).
 	if dryRun {
 		result.Status = repopb.UpstreamSyncStatus_SYNC_WOULD_IMPORT
@@ -408,6 +425,17 @@ func (srv *server) importUpstreamArtifact(
 		Platform:    entry.Platform,
 	}
 
+	if existing, state, _, ok := srv.findExistingArtifactByDigest(ctx, ref, digest); ok {
+		slog.Info("upstream: identical artifact already exists, skipping import",
+			"name", entry.Name,
+			"version", entry.Version,
+			"build", existing.GetBuildNumber(),
+			"build_id", existing.GetBuildId(),
+			"publish_state", state.String(),
+		)
+		return nil
+	}
+
 	key := artifactKeyWithBuild(ref, buildNumber)
 
 	if err := srv.Storage().MkdirAll(ctx, artifactsDir, 0o755); err != nil {
@@ -427,11 +455,11 @@ func (srv *server) importUpstreamArtifact(
 		EntrypointChecksum: entry.EntrypointChecksum,
 		Provisional:        false,
 		UpstreamImport: &repopb.UpstreamImportRecord{
-			SourceName:  src.GetName(),
-			ReleaseTag:  releaseTag,
-			AssetUrl:    entry.AssetURL,
-			IndexUrl:    strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
-			ImportedAt:  time.Now().Unix(),
+			SourceName: src.GetName(),
+			ReleaseTag: releaseTag,
+			AssetUrl:   entry.AssetURL,
+			IndexUrl:   strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
+			ImportedAt: time.Now().Unix(),
 		},
 	}
 

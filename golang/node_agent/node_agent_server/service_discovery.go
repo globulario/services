@@ -55,34 +55,19 @@ func localCertHostname() string {
 	return hostname + "." + domain
 }
 
-// discoverGatewayAddr returns <controller-host>:443 for remote service access.
-// The gateway (Envoy) proxies all gRPC traffic to backend services based on
-// the service path prefix.
-//
-// Discovery uses etcd service registry (source of truth):
-//  1. Resolve controller address from etcd
-//  2. Use DNS-based discovery as fallback
+// discoverGatewayAddr resolves remote routing endpoint from etcd only.
+// Address and port must come from service registry (source of truth).
+// No DNS or hardcoded port fallback.
 func discoverGatewayAddr() string {
-	// Try etcd: resolve the controller's registered address.
-	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
-	if addr != "" {
-		if host := hostFromEndpoint(addr); host != "" {
-			return net.JoinHostPort(host, "443")
-		}
+	// Preferred: explicit gateway service endpoint from etcd.
+	if addr := config.ResolveServiceAddr("gateway.GatewayService", ""); addr != "" {
+		return addr
 	}
 
-	// Fallback: DNS-based discovery.
-	domain, _ := config.GetDomain()
-	if domain == "" {
-		domain = netutil.DefaultClusterDomain()
+	// Compatibility fallback: controller endpoint from etcd.
+	if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+		return addr
 	}
-	candidate := fmt.Sprintf("controller.%s:443", domain)
-	if host := hostFromEndpoint(candidate); host != "" {
-		if addrs, err := net.LookupHost(host); err == nil && len(addrs) > 0 {
-			return candidate
-		}
-	}
-
 	return ""
 }
 

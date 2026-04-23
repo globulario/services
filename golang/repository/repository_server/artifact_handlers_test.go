@@ -378,6 +378,64 @@ func TestLegacyKeyFallback(t *testing.T) {
 	}
 }
 
+func TestFindExistingArtifactByDigestIgnoresBuildNumber(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "discovery",
+		Version:     "1.0.53",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 67,
+		BuildId:     "019d0001-0000-7000-8000-000000000067",
+		Checksum:    "sha256:same-content",
+		SizeBytes:   100,
+	})
+
+	got, state, key, ok := srv.findExistingArtifactByDigest(context.Background(), ref, "sha256:same-content")
+	if !ok {
+		t.Fatal("expected identical artifact to be found")
+	}
+	if got.GetBuildNumber() != 67 {
+		t.Fatalf("expected build 67, got %d", got.GetBuildNumber())
+	}
+	if got.GetBuildId() != "019d0001-0000-7000-8000-000000000067" {
+		t.Fatalf("unexpected build_id %q", got.GetBuildId())
+	}
+	if state != repopb.PublishState_PUBLISHED {
+		t.Fatalf("expected PUBLISHED, got %s", state.String())
+	}
+	if key != artifactKeyWithBuild(ref, 67) {
+		t.Fatalf("unexpected key %q", key)
+	}
+
+	if _, _, _, ok := srv.findExistingArtifactByDigest(context.Background(), ref, "sha256:different-content"); ok {
+		t.Fatal("did not expect different content digest to match")
+	}
+}
+
+func TestResolveVersionIntentExactAcceptsUpstreamNativeVersion(t *testing.T) {
+	srv := newTestServer(t)
+	got, err := srv.resolveVersionIntent(
+		context.Background(),
+		"core@globular.io",
+		"minio",
+		"linux_amd64",
+		repopb.VersionIntent_EXACT,
+		"RELEASE.2025-09-07T16-13-09Z",
+	)
+	if err != nil {
+		t.Fatalf("resolveVersionIntent returned error: %v", err)
+	}
+	if got != "RELEASE.2025-09-07T16-13-09Z" {
+		t.Fatalf("version = %q, want upstream-native tag preserved", got)
+	}
+}
+
 func TestCanonicalizeRefVersion_NormalizesVersion(t *testing.T) {
 	ref := &repopb.ArtifactRef{Version: "v1.2.3"}
 	canonicalizeRefVersion(ref)
