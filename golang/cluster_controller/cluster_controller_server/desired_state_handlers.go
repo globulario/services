@@ -19,9 +19,9 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -46,13 +46,29 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	}
 	var (
 		sdvRes, svcRelRes, infraRelRes, appRelRes listResult
-		wg                                         sync.WaitGroup
+		wg                                        sync.WaitGroup
 	)
 	wg.Add(4)
-	go func() { defer wg.Done(); items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", ""); sdvRes = listResult{items, rv} }()
-	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "ServiceRelease", ""); svcRelRes = listResult{items: items} }()
-	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", ""); infraRelRes = listResult{items: items} }()
-	go func() { defer wg.Done(); items, _, _ := srv.resources.List(ctx, "ApplicationRelease", ""); appRelRes = listResult{items: items} }()
+	go func() {
+		defer wg.Done()
+		items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+		sdvRes = listResult{items, rv}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "ServiceRelease", "")
+		svcRelRes = listResult{items: items}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
+		infraRelRes = listResult{items: items}
+	}()
+	go func() {
+		defer wg.Done()
+		items, _, _ := srv.resources.List(ctx, "ApplicationRelease", "")
+		appRelRes = listResult{items: items}
+	}()
 	wg.Wait()
 
 	// Build phase lookup from all release types.
@@ -448,11 +464,13 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 
 // importStats tracks the results of an import-from-installed operation.
 type importStats struct {
-	Imported      int      // new desired-state entries created
-	AlreadyPresent int     // entries skipped (desired version already matches)
-	Updated       int      // entries updated (desired version changed to match installed)
-	Failed        int      // entries that failed to upsert
-	FailedNames   []string // names of failed entries
+	Imported       int      // new desired-state entries created
+	AlreadyPresent int      // entries skipped (desired version already matches)
+	Updated        int      // entries updated (desired version changed to match installed)
+	Skipped        int      // installed entries intentionally not imported
+	SkippedNames   []string // names of skipped entries
+	Failed         int      // entries that failed to upsert
+	FailedNames    []string // names of failed entries
 }
 
 // importInstalledToDesired is the core idempotent logic for importing
@@ -624,6 +642,15 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			Version:     inst.version,
 			BuildNumber: inst.buildNumber,
 		}); err != nil {
+			if status.Code(err) == codes.NotFound {
+				stats.Skipped++
+				stats.SkippedNames = append(stats.SkippedNames, name)
+				logger.Warn("importInstalledToDesired: skipping installed service without repository artifact",
+					slog.String("service", name),
+					slog.String("version", inst.version),
+					slog.Any("error", err))
+				continue
+			}
 			stats.Failed++
 			stats.FailedNames = append(stats.FailedNames, name)
 			logger.Warn("importInstalledToDesired: failed to upsert",
@@ -652,6 +679,8 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	stats.Imported += appStats.Imported
 	stats.AlreadyPresent += appStats.AlreadyPresent
 	stats.Updated += appStats.Updated
+	stats.Skipped += appStats.Skipped
+	stats.SkippedNames = append(stats.SkippedNames, appStats.SkippedNames...)
 	stats.Failed += appStats.Failed
 	stats.FailedNames = append(stats.FailedNames, appStats.FailedNames...)
 
@@ -660,6 +689,8 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	stats.Imported += infraStats.Imported
 	stats.AlreadyPresent += infraStats.AlreadyPresent
 	stats.Updated += infraStats.Updated
+	stats.Skipped += infraStats.Skipped
+	stats.SkippedNames = append(stats.SkippedNames, infraStats.SkippedNames...)
 	stats.Failed += infraStats.Failed
 	stats.FailedNames = append(stats.FailedNames, infraStats.FailedNames...)
 
@@ -876,6 +907,8 @@ func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controller
 			slog.Int("imported", stats.Imported),
 			slog.Int("updated", stats.Updated),
 			slog.Int("already_present", stats.AlreadyPresent),
+			slog.Int("skipped", stats.Skipped),
+			slog.Any("skipped_names", stats.SkippedNames),
 			slog.Int("failed", stats.Failed))
 
 		if stats.Failed > 0 {
@@ -912,9 +945,9 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	repoClient, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
 	if err != nil {
 		return &cluster_controllerpb.ValidationReport{
-			ChecksumOk:     false,
+			ChecksumOk:      false,
 			SignatureStatus: "unknown",
-			PlatformOk:     true,
+			PlatformOk:      true,
 			Issues: []*cluster_controllerpb.ValidationIssue{{
 				Severity: cluster_controllerpb.ValidationIssue_WARNING,
 				Message:  fmt.Sprintf("repository unreachable (%s): %v", addr, err),
@@ -932,9 +965,9 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	pkg, pkgFound := pkgIndex[normalizeServiceName(serviceId)+"@"+version]
 	if !pkgFound {
 		return &cluster_controllerpb.ValidationReport{
-			ChecksumOk:     false,
+			ChecksumOk:      false,
 			SignatureStatus: "unknown",
-			PlatformOk:     false,
+			PlatformOk:      false,
 			Issues: []*cluster_controllerpb.ValidationIssue{{
 				Severity: cluster_controllerpb.ValidationIssue_ERROR,
 				Message:  fmt.Sprintf("artifact %q@%q not found in repository", serviceId, version),
@@ -1015,7 +1048,7 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 
 	return &cluster_controllerpb.ValidationReport{
 		ChecksumOk:      checksumOk,
-		SignatureStatus:  "unsigned",
+		SignatureStatus: "unsigned",
 		PlatformOk:      platformOk,
 		Issues:          issues,
 	}, nil
