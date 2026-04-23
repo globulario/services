@@ -336,8 +336,10 @@ func (srv *server) ensureDefaultInternalZone() error {
 		return nil
 	}
 
-	// Determine internal domain name
-	internalDomain := netutil.DefaultClusterDomain()
+	// Determine internal domain name from cluster identity first.
+	// This must match installer/bootstrap defaults so Day-0 writes target
+	// a managed zone on fresh installs.
+	internalDomain := resolveInternalDomain()
 	if !strings.HasSuffix(internalDomain, ".") {
 		internalDomain += "."
 	}
@@ -358,6 +360,16 @@ func (srv *server) ensureDefaultInternalZone() error {
 
 	logger.Info("Default internal zone created", "domain", internalDomain)
 	return nil
+}
+
+func resolveInternalDomain() string {
+	if cid, _ := security.GetLocalClusterID(); strings.TrimSpace(cid) != "" {
+		return strings.TrimSpace(cid)
+	}
+	if dom, _ := config.GetDomain(); strings.TrimSpace(dom) != "" {
+		return strings.TrimSpace(dom)
+	}
+	return netutil.DefaultClusterDomain()
 }
 
 func (srv *server) Save() error { return globular.SaveService(srv) }
@@ -503,7 +515,6 @@ func (srv *server) saveDomainListToEtcd(domains []string) {
 		logger.Debug("dns: cannot get etcd client for zone mirror", "err", err)
 		return
 	}
-	defer cli.Close()
 	data, marshalErr := json.Marshal(domains)
 	if marshalErr != nil {
 		logger.Warn("dns: cannot marshal domains for etcd mirror", "err", marshalErr)
@@ -523,7 +534,6 @@ func (srv *server) loadDomainListFromEtcd() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer cli.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	resp, err := cli.Get(ctx, etcdDNSZonesKey)
