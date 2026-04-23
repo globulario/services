@@ -223,7 +223,7 @@ Version 0.0.10 is available. The operator can upgrade when ready:
 globular services desired set authentication 0.0.10 --publisher core@globular.io
 ```
 
-The AI **does not** set the desired version itself — that is an operator decision (see [AI Rules](ai/ai-rules.md): "AI cannot modify desired state").
+The AI **does not** set the desired version itself — that is an operator decision (see [AI Rules](ai-rules.md): "AI cannot modify desired state").
 
 ---
 

@@ -450,5 +450,5 @@ Before deploying a service that AI will interact with:
 
 ## What's Next
 
-- [AI Patterns and Anti-Patterns](ai/ai-patterns-and-anti-patterns.md): Concrete examples of good and bad AI integration
-- [AI Rules](ai/ai-rules.md): The complete constraint specification
+- [AI Patterns and Anti-Patterns](ai-patterns-and-anti-patterns.md): Concrete examples of good and bad AI integration
+- [AI Rules](ai-rules.md): The complete constraint specification

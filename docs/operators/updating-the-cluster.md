@@ -316,5 +316,5 @@ globular cluster health
 
 ## What's Next
 
-- [Debugging Failures](operators/debugging-failures.md): Diagnose deployment and service problems
-- [Observability](operators/observability.md): Prometheus, logs, and workflow monitoring
+- [Debugging Failures](debugging-failures.md): Diagnose deployment and service problems
+- [Observability](observability.md): Prometheus, logs, and workflow monitoring

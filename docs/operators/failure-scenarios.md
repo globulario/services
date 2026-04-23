@@ -594,5 +594,5 @@ globular cluster health
 
 ## What's Next
 
-- [Cluster Doctor and Invariants](operators/cluster-doctor.md): Automated health analysis
-- [Network and Routing](operators/network-and-routing.md): Gateway, xDS, and service discovery
+- [Cluster Doctor and Invariants](cluster-doctor.md): Automated health analysis
+- [Network and Routing](network-and-routing.md): Gateway, xDS, and service discovery

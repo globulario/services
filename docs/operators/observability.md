@@ -387,5 +387,5 @@ globular metrics query --expr '1 - rate(node_cpu_seconds_total{mode="idle"}[5m])
 
 ## What's Next
 
-- [Backup and Restore](operators/backup-and-restore.md): Protect your cluster data
-- [High Availability](operators/high-availability.md): Leader election, failover, and fault tolerance
+- [Backup and Restore](backup-and-restore.md): Protect your cluster data
+- [High Availability](high-availability.md): Leader election, failover, and fault tolerance

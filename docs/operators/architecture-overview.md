@@ -401,5 +401,5 @@ MinIO runs in erasure-coded mode across cluster nodes. The controller manages po
 
 ## What's Next
 
-- [Convergence Model](operators/convergence-model.md): Deep dive into how Globular detects drift and converges desired state to reality
-- [What is Globular](operators/what-is-globular.md): Introduction and comparison with Kubernetes
+- [Convergence Model](convergence-model.md): Deep dive into how Globular detects drift and converges desired state to reality
+- [What is Globular](what-is-globular.md): Introduction and comparison with Kubernetes

@@ -517,6 +517,6 @@ The placement engine selects only nodes with GPU profiles, scoring by GPU availa
 
 ## What's Next
 
-- [Workflows](operators/workflows.md): How the workflow engine orchestrates compute jobs
-- [Services and Packages](operators/services-and-packages.md): Package the compute runner for deployment
-- [Observability](operators/observability.md): Monitor compute job metrics and logs
+- [Workflows](workflows.md): How the workflow engine orchestrates compute jobs
+- [Services and Packages](services-and-packages.md): Package the compute runner for deployment
+- [Observability](observability.md): Monitor compute job metrics and logs

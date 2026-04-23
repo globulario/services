@@ -375,6 +375,6 @@ globular ai deny inc-abc123 --reason "Need to check if WAL can be recovered"
 
 ## What's Next
 
-- [AI Rules](ai/ai-rules.md): Complete constraint specification
-- [AI Services](ai/ai-services.md): Detailed service documentation
-- [AI Developer Guide](ai/ai-developer-guide.md): Building AI-aware services
+- [AI Rules](ai-rules.md): Complete constraint specification
+- [AI Services](ai-services.md): Detailed service documentation
+- [AI Developer Guide](ai-developer-guide.md): Building AI-aware services

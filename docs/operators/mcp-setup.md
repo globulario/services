@@ -466,4 +466,4 @@ After this, Claude can help you operate your entire Globular cluster — inspect
 - [AI Overview](../ai/ai-overview.md) — How the AI layer works
 - [AI Rules](../ai/ai-rules.md) — What AI can and cannot do
 - [AI Operator Guide](../ai/ai-operator-guide.md) — Monitor and control AI behavior
-- [Observability](operators/observability.md) — Prometheus, logs, and monitoring
+- [Observability](observability.md) — Prometheus, logs, and monitoring

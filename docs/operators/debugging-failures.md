@@ -461,5 +461,5 @@ globular node logs --node <node>:11000 --unit <service> --lines 100
 
 ## What's Next
 
-- [Observability](operators/observability.md): Prometheus metrics, log aggregation, and monitoring
-- [Backup and Restore](operators/backup-and-restore.md): Protect your cluster data
+- [Observability](observability.md): Prometheus metrics, log aggregation, and monitoring
+- [Backup and Restore](backup-and-restore.md): Protect your cluster data

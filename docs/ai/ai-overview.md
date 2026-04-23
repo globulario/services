@@ -120,4 +120,4 @@ The AI layer is explicitly constrained:
 
 These constraints are not aspirational — they are enforced by the architecture. AI actions flow through gRPC services with interceptors, RBAC checks, and audit logging. There is no backdoor.
 
-See [AI Rules](ai/ai-rules.md) for the complete constraint specification.
+See [AI Rules](ai-rules.md) for the complete constraint specification.

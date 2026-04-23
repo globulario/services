@@ -255,5 +255,5 @@ globular services desired set admin_dashboard 1.1.0
 
 ## What's Next
 
-- [Workflow Integration](developers/workflow-integration.md): Custom workflow steps and hooks
-- [Writing a Microservice](developers/writing-a-microservice.md): Backend service development
+- [Workflow Integration](workflow-integration.md): Custom workflow steps and hooks
+- [Writing a Microservice](writing-a-microservice.md): Backend service development

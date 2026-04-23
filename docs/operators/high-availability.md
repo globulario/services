@@ -299,5 +299,5 @@ globular cluster health
 
 ## What's Next
 
-- [Failure Scenarios and Recovery](operators/failure-scenarios.md): Comprehensive failure pattern guide
-- [Network and Routing](operators/network-and-routing.md): Envoy gateway, xDS, and service mesh
+- [Failure Scenarios and Recovery](failure-scenarios.md): Comprehensive failure pattern guide
+- [Network and Routing](network-and-routing.md): Envoy gateway, xDS, and service mesh

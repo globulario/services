@@ -341,5 +341,5 @@ After expansion, the cluster tolerates the loss of any one node without data los
 
 ## What's Next
 
-- [Deploying Applications](operators/deploying-applications.md): Deploy and manage services
-- [Updating the Cluster](operators/updating-the-cluster.md): Upgrade services and infrastructure
+- [Deploying Applications](deploying-applications.md): Deploy and manage services
+- [Updating the Cluster](updating-the-cluster.md): Upgrade services and infrastructure

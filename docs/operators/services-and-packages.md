@@ -495,5 +495,5 @@ globular services desired list
 
 ## What's Next
 
-- [Security](operators/security.md): PKI, RBAC, mTLS, and the authentication model
-- [Installation](operators/installation.md): Day-0 bootstrap walkthrough
+- [Security](security.md): PKI, RBAC, mTLS, and the authentication model
+- [Installation](installation.md): Day-0 bootstrap walkthrough

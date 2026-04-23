@@ -379,5 +379,5 @@ globular doctor report --fresh
 
 ## What's Next
 
-- [Network and Routing](operators/network-and-routing.md): Envoy gateway, xDS routing, and DNS
-- [Certificate Lifecycle](operators/certificate-lifecycle.md): Certificate management and rotation
+- [Network and Routing](network-and-routing.md): Envoy gateway, xDS routing, and DNS
+- [Certificate Lifecycle](certificate-lifecycle.md): Certificate management and rotation

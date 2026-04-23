@@ -363,5 +363,5 @@ globular services desired set etcd 3.5.15
 
 ## What's Next
 
-- [Updating the Cluster](operators/updating-the-cluster.md): Upgrade cluster services and infrastructure
-- [Debugging Failures](operators/debugging-failures.md): Diagnose deployment problems
+- [Updating the Cluster](updating-the-cluster.md): Upgrade cluster services and infrastructure
+- [Debugging Failures](debugging-failures.md): Diagnose deployment problems

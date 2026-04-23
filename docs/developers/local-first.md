@@ -366,6 +366,6 @@ type memoryStore struct {
 
 ## What's Next
 
-- [Writing a Microservice](developers/writing-a-microservice.md) — Complete service development guide
-- [Service Packaging](developers/service-packaging.md) — Package for deployment
+- [Writing a Microservice](writing-a-microservice.md) — Complete service development guide
+- [Service Packaging](service-packaging.md) — Package for deployment
 - [Day-0/1/2 Operations](../operators/day-0-1-2-operations.md) — From bootstrap to production

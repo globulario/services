@@ -551,5 +551,5 @@ globular backup restore --backup-id <backup-id>
 
 ## What's Next
 
-- [High Availability](operators/high-availability.md): Controller failover, etcd quorum, and fault tolerance
-- [Failure Scenarios and Recovery](operators/failure-scenarios.md): Common failure patterns and how to recover
+- [High Availability](high-availability.md): Controller failover, etcd quorum, and fault tolerance
+- [Failure Scenarios and Recovery](failure-scenarios.md): Common failure patterns and how to recover
