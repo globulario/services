@@ -84,6 +84,10 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 
 	runHeartbeat := func() {
 		now := time.Now()
+		// Keep scylla-manager-agent token/config convergent with fast feedback.
+		// The install path can leave a commented auth_token line; healing only
+		// every 5 minutes delays node convergence. Run this every heartbeat.
+		withOpTimeout(5*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 		hbCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		err := srv.reportStatus(hbCtx)
 		cancel()

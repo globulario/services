@@ -67,6 +67,10 @@ export INSTALLER_BIN="${SCRIPT_DIR}/globular-installer"
 # Override with: sudo MINIO_DATA_DIR=/data/minio bash install.sh
 export MINIO_DATA_DIR="${MINIO_DATA_DIR:-/var/lib/globular/minio/data}"
 
+# STATE_DIR: canonical Globular state root used by Day-0 scripts
+# (some installer script revisions read it before setting a default).
+export STATE_DIR="${STATE_DIR:-/var/lib/globular}"
+
 # GLOBULAR_DOMAIN: internal cluster domain (used for etcd/MinIO config keys)
 # The external/operator domain is set at bootstrap time via --domain flag
 export GLOBULAR_DOMAIN="${GLOBULAR_DOMAIN:-globular.internal}"
@@ -84,4 +88,31 @@ echo ""
 info "Starting Day-0 installation..."
 echo ""
 
-exec "${SCRIPT_DIR}/scripts/install-day0.sh"
+"${SCRIPT_DIR}/scripts/install-day0.sh"
+
+# Print a corrected bootstrap command using a detected node-agent gRPC port.
+# This supersedes stale script output that may omit the port suffix.
+NODE_IP="$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+if [[ -z "${NODE_IP}" ]]; then
+  NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+if [[ -z "${NODE_IP}" ]]; then
+  NODE_IP="127.0.0.1"
+fi
+
+NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | grep -E '^11000$' | head -n1)"
+if [[ -z "${NODE_AGENT_PORT}" ]]; then
+  NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | head -n1)"
+fi
+if [[ -z "${NODE_AGENT_PORT}" ]]; then
+  NODE_AGENT_PORT="11000"
+fi
+
+echo ""
+echo "Corrected bootstrap command:"
+echo "  globular cluster bootstrap \\"
+echo "    --node ${NODE_IP}:${NODE_AGENT_PORT} \\"
+echo "    --domain <your-domain> \\"
+echo "    --profile core \\"
+echo "    --profile gateway"
+echo ""
