@@ -342,6 +342,10 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 	hostname := node.Identity.Hostname
 	srv.unlock()
 
+	if err := srv.removeNodeEtcdMembership(ctx, nodeID); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "remove node etcd membership: %v", err)
+	}
+
 	opID := uuid.NewString()
 	var drainErr error
 
@@ -439,6 +443,45 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 		OperationId: opID,
 		Message:     message,
 	}, nil
+}
+
+func (srv *server) removeNodeEtcdMembership(ctx context.Context, removedNodeID string) error {
+	if srv == nil || srv.etcdMembers == nil || removedNodeID == "" {
+		return nil
+	}
+
+	membership := srv.snapshotClusterMembership()
+	if membership == nil {
+		return nil
+	}
+
+	filtered := make([]memberNode, 0, len(membership.Nodes))
+	removedWasEtcd := false
+	for _, node := range membership.Nodes {
+		if node.NodeID == removedNodeID {
+			removedWasEtcd = nodeHasProfile(&node, profilesForEtcd)
+			continue
+		}
+		filtered = append(filtered, node)
+	}
+	if !removedWasEtcd {
+		return nil
+	}
+
+	desired := filterNodesByProfile(&clusterMembership{
+		ClusterID: membership.ClusterID,
+		Nodes:     filtered,
+	}, profilesForEtcd)
+	if len(desired) == 0 {
+		return nil
+	}
+
+	pruneCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := srv.etcdMembers.removeStaleMembers(pruneCtx, desired); err != nil {
+		return err
+	}
+	return nil
 }
 
 // cleanNodeEtcdPrefix deletes all keys under a given prefix and returns

@@ -19,12 +19,12 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/operator"
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/projections"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/security"
-	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/netutil"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
@@ -131,43 +131,42 @@ type kvClient interface {
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
 }
 
-
 type server struct {
 	cluster_controllerpb.UnimplementedClusterControllerServiceServer
 
-	cfg                  *clusterControllerConfig
-	cfgPath              string
-	statePath            string
-	state                *controllerState
-	mu                   sync.Mutex
-	muHeldSince          atomic.Int64
-	muHeldBy             atomic.Value
-	kv                   kvClient
-	agentMu              sync.Mutex
-	agentClients         map[string]*agentClient
-	agentInsecure        bool
-	agentIdleTimeout     time.Duration
-	agentCAPath          string
-	lastStateSave        time.Time
-	agentServerName      string
-	opMu                 sync.Mutex
-	operations           map[string]*operationState
-	watchMu              sync.Mutex
-	watchers             map[*operationWatcher]struct{}
-	serviceBlock         map[string]time.Time
-	enableServiceRemoval bool
-	leader               atomic.Bool
-	leaderID             atomic.Value
-	leaderAddr           atomic.Value
-	leaderEpoch          atomic.Int64
-	resignCh             chan struct{} // signal leader election to resign
-	lastHeartbeatProcessed atomic.Int64 // UnixNano of last successful ReportNodeStatus
-	reconcileRunning            atomic.Bool
-	clusterReconcileRunning     atomic.Bool
-	clusterReconcilePending     atomic.Bool
-	workflowRepairNeeded        []string // set under lock, repaired after unlock
-	resources            resourcestore.Store
-	etcdClient           *clientv3.Client
+	cfg                     *clusterControllerConfig
+	cfgPath                 string
+	statePath               string
+	state                   *controllerState
+	mu                      sync.Mutex
+	muHeldSince             atomic.Int64
+	muHeldBy                atomic.Value
+	kv                      kvClient
+	agentMu                 sync.Mutex
+	agentClients            map[string]*agentClient
+	agentInsecure           bool
+	agentIdleTimeout        time.Duration
+	agentCAPath             string
+	lastStateSave           time.Time
+	agentServerName         string
+	opMu                    sync.Mutex
+	operations              map[string]*operationState
+	watchMu                 sync.Mutex
+	watchers                map[*operationWatcher]struct{}
+	serviceBlock            map[string]time.Time
+	enableServiceRemoval    bool
+	leader                  atomic.Bool
+	leaderID                atomic.Value
+	leaderAddr              atomic.Value
+	leaderEpoch             atomic.Int64
+	resignCh                chan struct{} // signal leader election to resign
+	lastHeartbeatProcessed  atomic.Int64  // UnixNano of last successful ReportNodeStatus
+	reconcileRunning        atomic.Bool
+	clusterReconcileRunning atomic.Bool
+	clusterReconcilePending atomic.Bool
+	workflowRepairNeeded    []string // set under lock, repaired after unlock
+	resources               resourcestore.Store
+	etcdClient              *clientv3.Client
 	// releaseEnqueue is set by startControllerRuntime so that ReportNodeStatus can
 	// trigger release re-evaluation when a node's AppliedServicesHash changes.
 	releaseEnqueue func(releaseName string)
@@ -225,8 +224,8 @@ type server struct {
 	// repeatedly without convergence.
 	applyLoopDet *applyLoopDetector
 
-	// etcd cluster membership manager (for multi-node expansion)
-	etcdMembers *etcdMemberManager
+	// etcd cluster membership manager (for multi-node expansion/removal)
+	etcdMembers etcdMembershipManager
 
 	// ScyllaDB cluster join manager (gossip-based expansion)
 	scyllaMembers *scyllaClusterManager
@@ -275,7 +274,7 @@ type server struct {
 
 	// test seams
 	testHasActivePlanWithLock func(context.Context, string, string) bool
-	testDialNodeAgent        func(endpoint string) (*grpc.ClientConn, error)
+	testDialNodeAgent         func(endpoint string) (*grpc.ClientConn, error)
 	// Plan test seams removed.
 }
 
@@ -433,19 +432,19 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	agentCAPath := config.GetTLSFile("", "", "ca.crt")
 	serverName := ""
 	srv := &server{
-		cfg:              cfg,
-		cfgPath:          cfgPath,
-		statePath:        statePath,
-		state:            state,
-		kv:               kv,
-		agentClients:     make(map[string]*agentClient),
-		serviceBlock:     make(map[string]time.Time),
-		agentInsecure:    false, // always mTLS in production
-		agentIdleTimeout: agentIdleTimeoutDefault,
-		agentCAPath:      agentCAPath,
-		agentServerName:  serverName,
-		operations:       make(map[string]*operationState),
-		watchers:         make(map[*operationWatcher]struct{}),
+		cfg:               cfg,
+		cfgPath:           cfgPath,
+		statePath:         statePath,
+		state:             state,
+		kv:                kv,
+		agentClients:      make(map[string]*agentClient),
+		serviceBlock:      make(map[string]time.Time),
+		agentInsecure:     false, // always mTLS in production
+		agentIdleTimeout:  agentIdleTimeoutDefault,
+		agentCAPath:       agentCAPath,
+		agentServerName:   serverName,
+		operations:        make(map[string]*operationState),
+		watchers:          make(map[*operationWatcher]struct{}),
 		workflowSem:       make(chan struct{}, 3), // max 3 concurrent release workflows
 		resolveSem:        make(chan struct{}, 2), // max 2 concurrent repository resolve calls
 		inflightWorkflows: make(map[string]context.CancelFunc),
@@ -980,52 +979,56 @@ func deterministicNodeID(identity storedIdentity, labels map[string]string) stri
 	return uuid.NewSHA1(globularNodeIDNamespace, []byte("host:"+key)).String()
 }
 
-// removeStaleNodesLocked removes nodes that share the same hostname or IP as
-// the newly registered node but have a different ID and are unreachable/unhealthy.
-// This handles post-restore scenarios where the same physical machine gets a
-// new node ID and the old entry lingers as "unreachable" in the UI.
+const staleDuplicateNodeWindow = 90 * time.Second
+
+// removeStaleNodesLocked removes nodes that clearly refer to the same physical
+// machine as the reported node but have a different ID.
+//
+// Immediate removal is only done when the duplicate advertises the same agent
+// endpoint, because two different nodes cannot legitimately own the same
+// routable node-agent address. Host/IP matches without endpoint equality are
+// removed once they are stale or already unhealthy, which avoids deleting an
+// unrelated healthy node on ambiguous signals.
+//
+// This handles post-restore/rejoin scenarios where the same machine gets a new
+// node ID or where an old duplicate entry survives after the node rejoins.
 // MUST be called while srv.mu is held.
 func (srv *server) removeStaleNodesLocked(newNodeID string, newIdentity storedIdentity, newEndpoint string) {
 	if srv.state.Nodes == nil {
 		return
 	}
+	now := time.Now()
 	var toRemove []string
 	for id, existing := range srv.state.Nodes {
-		if id == newNodeID {
+		if id == newNodeID || existing == nil {
 			continue
 		}
-		// Only remove nodes that are not healthy.
-		switch existing.Status {
-		case "ready", "converging":
-			continue
-		}
-		// Match by hostname or by overlapping IPs.
-		match := false
-		if newIdentity.Hostname != "" && existing.Identity.Hostname == newIdentity.Hostname {
-			match = true
-		}
-		if !match && newEndpoint != "" && existing.AgentEndpoint == newEndpoint {
-			match = true
-		}
-		if !match {
-			for _, newIP := range newIdentity.Ips {
-				for _, existIP := range existing.Identity.Ips {
-					if newIP != "" && newIP == existIP {
-						match = true
-						break
-					}
-				}
-				if match {
+		sameHostname := newIdentity.Hostname != "" && existing.Identity.Hostname == newIdentity.Hostname
+		sameEndpoint := newEndpoint != "" && existing.AgentEndpoint == newEndpoint
+		sharedIP := false
+		for _, newIP := range newIdentity.Ips {
+			for _, existIP := range existing.Identity.Ips {
+				if newIP != "" && newIP == existIP {
+					sharedIP = true
 					break
 				}
 			}
+			if sharedIP {
+				break
+			}
 		}
-		if match {
+		if !sameHostname && !sameEndpoint && !sharedIP {
+			continue
+		}
+
+		stale := !existing.LastSeen.IsZero() && now.Sub(existing.LastSeen) > staleDuplicateNodeWindow
+		healthy := existing.Status == "ready" || existing.Status == "converging"
+		if sameEndpoint || !healthy || stale {
 			toRemove = append(toRemove, id)
 		}
 	}
 	for _, id := range toRemove {
-		log.Printf("removeStaleNodesLocked: removing stale node %s (same host as %s)", id, newNodeID)
+		log.Printf("removeStaleNodesLocked: removing duplicate/stale node %s (same host as %s)", id, newNodeID)
 		delete(srv.state.Nodes, id)
 	}
 }

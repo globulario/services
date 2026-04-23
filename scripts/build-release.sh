@@ -30,19 +30,39 @@ section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
 
 [[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT} — clone it alongside services"
 
-find_source_packages_dir() {
-  if compgen -G "${PACKAGES_ROOT}/dist/*.tgz" >/dev/null; then
-    echo "${PACKAGES_ROOT}/dist"
-    return 0
-  fi
-
+collect_source_package_dirs() {
+  local -a dirs=()
   local candidate
-  candidate=$(find /tmp "${SERVICES_ROOT}/dist" "${SERVICES_ROOT}/.." -maxdepth 3 -type d -path "*/globular-*-linux-amd64/packages" 2>/dev/null | sort -V | tail -1 || true)
-  if [[ -n "${candidate}" ]] && compgen -G "${candidate}/*.tgz" >/dev/null; then
-    echo "${candidate}"
-    return 0
+
+  if compgen -G "${PACKAGES_ROOT}/dist/*.tgz" >/dev/null; then
+    dirs+=("${PACKAGES_ROOT}/dist")
+  fi
+  if compgen -G "${SERVICES_ROOT}/generated/*.tgz" >/dev/null; then
+    dirs+=("${SERVICES_ROOT}/generated")
+  fi
+  while IFS= read -r candidate; do
+    [[ -n "${candidate}" ]] || continue
+    dirs+=("${candidate}")
+  done < <(find /tmp "${SERVICES_ROOT}/dist" "${SERVICES_ROOT}/.." -maxdepth 3 -type d -path "*/globular-*-linux-amd64/packages" 2>/dev/null | sort -uV)
+
+  if [[ ${#dirs[@]} -eq 0 ]]; then
+    return 1
   fi
 
+  printf '%s\n' "${dirs[@]}"
+}
+
+find_source_package() {
+  local pkg_name="$1"
+  local -a dirs=("${@:2}")
+  local dir match
+  for dir in "${dirs[@]}"; do
+    match=$(find "${dir}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1 || true)
+    if [[ -n "${match}" ]]; then
+      echo "${match}"
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -104,7 +124,6 @@ declare -A BIN_MAP=(
   [title]=title_server
   [torrent]=torrent_server
   [workflow]=workflow_server
-  [compute]=compute_server
   [ai-memory]=ai_memory_server
   [ai-executor]=ai_executor_server
   [ai-watcher]=ai_watcher_server
@@ -115,19 +134,30 @@ declare -A BIN_MAP=(
   [gateway]=gateway
 )
 
-SOURCE_PACKAGES_DIR="$(find_source_packages_dir)" || die "no source packages found; expected ${PACKAGES_ROOT}/dist/*.tgz or an extracted globular release"
-SOURCE_RELEASE_DIR="$(cd "${SOURCE_PACKAGES_DIR}/.." && pwd)"
-info "Using source packages from ${SOURCE_PACKAGES_DIR}"
+mapfile -t SOURCE_PACKAGE_DIRS < <(collect_source_package_dirs) || die "no source packages found; expected generated/*.tgz, ${PACKAGES_ROOT}/dist/*.tgz, or an extracted globular release"
+SOURCE_RELEASE_DIR="$(cd "${SOURCE_PACKAGE_DIRS[0]}/.." && pwd)"
+info "Using source packages from:"
+for dir in "${SOURCE_PACKAGE_DIRS[@]}"; do
+  info "  - ${dir}"
+done
 
 copied_external=0
-for src_pkg in "${SOURCE_PACKAGES_DIR}"/*.tgz; do
-  base="$(basename "${src_pkg}")"
-  pkg_name="${base%_*_linux_amd64.tgz}"
-  if [[ -n "${BIN_MAP[${pkg_name}]+x}" ]]; then
-    continue
-  fi
-  cp "${src_pkg}" "${DIST_DIR}/packages/${base}"
-  copied_external=$((copied_external + 1))
+declare -A seen_external=()
+for dir in "${SOURCE_PACKAGE_DIRS[@]}"; do
+  for src_pkg in "${dir}"/*.tgz; do
+    [[ -e "${src_pkg}" ]] || continue
+    base="$(basename "${src_pkg}")"
+    pkg_name="${base%_*_linux_amd64.tgz}"
+    if [[ -n "${BIN_MAP[${pkg_name}]+x}" ]]; then
+      continue
+    fi
+    if [[ -n "${seen_external[${base}]+x}" ]]; then
+      continue
+    fi
+    cp "${src_pkg}" "${DIST_DIR}/packages/${base}"
+    seen_external["${base}"]=1
+    copied_external=$((copied_external + 1))
+  done
 done
 ok "${copied_external} external/unchanged packages copied"
 
@@ -137,7 +167,7 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   bin_path="${DIST_DIR}/bin/${bin_name}"
 
   if [[ ! -f "${bin_path}" ]]; then
-    src_pkg=$(find "${SOURCE_PACKAGES_DIR}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1 || true)
+    src_pkg="$(find_source_package "${pkg_name}" "${SOURCE_PACKAGE_DIRS[@]}" || true)"
     if [[ -n "${src_pkg}" ]]; then
       warn "Carrying forward ${pkg_name} ($(basename "${src_pkg}"); ${bin_name} not built)"
       cp "${src_pkg}" "${DIST_DIR}/packages/$(basename "${src_pkg}")"
@@ -147,10 +177,9 @@ for pkg_name in "${!BIN_MAP[@]}"; do
     continue
   fi
 
-  src_pkg=$(find "${SOURCE_PACKAGES_DIR}" -maxdepth 1 -name "${pkg_name}_*_linux_amd64.tgz" 2>/dev/null | sort -V | tail -1 || true)
+  src_pkg="$(find_source_package "${pkg_name}" "${SOURCE_PACKAGE_DIRS[@]}" || true)"
   if [[ -z "${src_pkg}" ]]; then
-    warn "Skipping ${pkg_name} (no source package in packages/dist/)"
-    continue
+    die "missing source package template for ${pkg_name} (${bin_name} was built, but no ${pkg_name}_*_linux_amd64.tgz was found in any source package directory)"
   fi
 
   info "Packaging ${pkg_name} v${VERSION}..."

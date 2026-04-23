@@ -128,6 +128,12 @@ type etcdMemberManager struct {
 	client *clientv3.Client
 }
 
+type etcdMembershipManager interface {
+	snapshotEtcdMembers(ctx context.Context) (*etcdMemberState, error)
+	reconcileEtcdJoinPhases(ctx context.Context, nodes []*nodeState) (dirty bool)
+	removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error
+}
+
 func newEtcdMemberManager(client *clientv3.Client) *etcdMemberManager {
 	return &etcdMemberManager{client: client}
 }

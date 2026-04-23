@@ -22,9 +22,9 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/units"
-	"github.com/globulario/services/golang/workflow"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/pki"
+	"github.com/globulario/services/golang/workflow"
 	"google.golang.org/grpc"
 )
 
@@ -41,27 +41,27 @@ var (
 // NodeAgentConfig holds all bootstrap-time configuration for the node agent.
 // Values come from CLI flags or the persisted state file — never from os.Getenv.
 type NodeAgentConfig struct {
-	Port                    string
-	AdvertiseAddr           string
-	AdvertiseIP             string
-	ClusterMode             bool
-	Insecure                bool
-	ClusterDomain           string
-	ControllerEndpoint      string
-	NodeID                  string
-	NodeName                string
-	JoinToken               string
-	BootstrapToken          string
-	AgentVersion            string
-	ControllerCAPath        string
-	ControllerSNI           string
+	Port                     string
+	AdvertiseAddr            string
+	AdvertiseIP              string
+	ClusterMode              bool
+	Insecure                 bool
+	ClusterDomain            string
+	ControllerEndpoint       string
+	NodeID                   string
+	NodeName                 string
+	JoinToken                string
+	BootstrapToken           string
+	AgentVersion             string
+	ControllerCAPath         string
+	ControllerSNI            string
 	ControllerUseSystemRoots bool
-	Labels                  map[string]string
-	Domain                  string // node domain for FQDN construction
+	Labels                   map[string]string
+	Domain                   string // node domain for FQDN construction
 
 	// DNS overrides (optional, for multi-NIC nodes)
-	DNSIPv4 string
-	DNSIPv6 string
+	DNSIPv4  string
+	DNSIPv6  string
 	DNSIface string
 }
 
@@ -303,7 +303,6 @@ func (srv *NodeAgentServer) SetEtcdMode(mode string) {
 	}
 	srv.etcdMode = strings.ToLower(strings.TrimSpace(mode))
 }
-
 
 func (srv *NodeAgentServer) isEtcdManaged() bool {
 	return strings.EqualFold(srv.etcdMode, "managed")
@@ -900,7 +899,6 @@ func queryUnitState(ctx context.Context, unit string) (activeState, subState, lo
 
 // buildBootstrapPlan deleted — bootstrap uses workflow-native day0.bootstrap.
 
-
 func (srv *NodeAgentServer) saveState() error {
 	if srv.statePath == "" {
 		return nil
@@ -995,6 +993,20 @@ func waitOrDone(ctx context.Context, ticker *time.Ticker) bool {
 	case <-ticker.C:
 		return true
 	}
+}
+
+func (srv *NodeAgentServer) joinRequestLabels() map[string]string {
+	labels := make(map[string]string)
+	for k, v := range srv.cfg.Labels {
+		labels[k] = v
+	}
+	if mac, err := identity.SelectBestMAC(); err == nil && mac != "" {
+		labels["node.mac"] = mac
+	}
+	if len(labels) == 0 {
+		return nil
+	}
+	return labels
 }
 
 func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {

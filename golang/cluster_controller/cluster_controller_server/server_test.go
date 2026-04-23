@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,33 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
+
+type recordingEtcdMembershipManager struct {
+	removeCalls []string
+	lastDesired []memberNode
+	removeErr   error
+}
+
+func (m *recordingEtcdMembershipManager) snapshotEtcdMembers(context.Context) (*etcdMemberState, error) {
+	return &etcdMemberState{}, nil
+}
+
+func (m *recordingEtcdMembershipManager) reconcileEtcdJoinPhases(context.Context, []*nodeState) bool {
+	return false
+}
+
+func (m *recordingEtcdMembershipManager) removeStaleMembers(_ context.Context, desiredEtcdNodes []memberNode) error {
+	ids := make([]string, 0, len(desiredEtcdNodes))
+	m.lastDesired = append([]memberNode(nil), desiredEtcdNodes...)
+	for _, node := range desiredEtcdNodes {
+		ids = append(ids, node.NodeID)
+	}
+	m.removeCalls = append(m.removeCalls, strings.Join(ids, ","))
+	if m.removeErr != nil {
+		return m.removeErr
+	}
+	return nil
+}
 
 // newTestServer creates a server with a writable temp state path for tests.
 func newTestServer(t *testing.T, state *controllerState) *server {
@@ -162,6 +190,129 @@ func TestRemoveNodeSuccess(t *testing.T) {
 		t.Fatal("expected node to be removed from state")
 	}
 	srv.unlock()
+}
+
+func TestRemoveNodeRemovesEtcdMembershipBeforeDeletingState(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID: "node-1",
+		Identity: storedIdentity{
+			Hostname: "host-1",
+			Ips:      []string{"10.0.0.1"},
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	state.Nodes["node-2"] = &nodeState{
+		NodeID: "node-2",
+		Identity: storedIdentity{
+			Hostname: "host-2",
+			Ips:      []string{"10.0.0.2"},
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	srv := newTestServer(t, state)
+	mgr := &recordingEtcdMembershipManager{}
+	srv.etcdMembers = mgr
+
+	resp, err := srv.RemoveNode(context.Background(), &cluster_controllerpb.RemoveNodeRequest{
+		NodeId: "node-2",
+		Force:  true,
+		Drain:  false,
+	})
+	if err != nil {
+		t.Fatalf("RemoveNode error: %v", err)
+	}
+	if resp.GetOperationId() == "" {
+		t.Fatal("expected operation_id in response")
+	}
+	if len(mgr.removeCalls) != 1 {
+		t.Fatalf("expected 1 etcd prune call, got %d", len(mgr.removeCalls))
+	}
+	if len(mgr.lastDesired) != 1 || mgr.lastDesired[0].NodeID != "node-1" {
+		t.Fatalf("unexpected desired etcd membership: %+v", mgr.lastDesired)
+	}
+
+	srv.lock("test")
+	_, removedExists := srv.state.Nodes["node-2"]
+	_, remainingExists := srv.state.Nodes["node-1"]
+	srv.unlock()
+	if removedExists {
+		t.Fatal("expected removed etcd node to be absent from state")
+	}
+	if !remainingExists {
+		t.Fatal("expected remaining node to stay in state")
+	}
+}
+
+func TestRemoveNodeAbortsWhenEtcdMembershipCleanupFails(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID: "node-1",
+		Identity: storedIdentity{
+			Hostname: "host-1",
+			Ips:      []string{"10.0.0.1"},
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	state.Nodes["node-2"] = &nodeState{
+		NodeID: "node-2",
+		Identity: storedIdentity{
+			Hostname: "host-2",
+			Ips:      []string{"10.0.0.2"},
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	srv := newTestServer(t, state)
+	srv.etcdMembers = &recordingEtcdMembershipManager{removeErr: fmt.Errorf("quorum failure")}
+
+	_, err := srv.RemoveNode(context.Background(), &cluster_controllerpb.RemoveNodeRequest{
+		NodeId: "node-2",
+		Force:  true,
+		Drain:  false,
+	})
+	if err == nil {
+		t.Fatal("expected RemoveNode to fail when etcd cleanup fails")
+	}
+	if !strings.Contains(err.Error(), "remove node etcd membership") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	srv.lock("test")
+	_, removedExists := srv.state.Nodes["node-2"]
+	srv.unlock()
+	if !removedExists {
+		t.Fatal("expected node state to remain when etcd cleanup fails")
+	}
+}
+
+func TestReconcileAdvanceInfraJoinsPrunesStaleEtcdMembers(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID: "node-1",
+		Identity: storedIdentity{
+			Hostname: "host-1",
+			Ips:      []string{"10.0.0.1"},
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	srv := newTestServer(t, state)
+	mgr := &recordingEtcdMembershipManager{}
+	srv.etcdMembers = mgr
+
+	if err := srv.reconcileAdvanceInfraJoins(context.Background(), state.ClusterId); err != nil {
+		t.Fatalf("reconcileAdvanceInfraJoins error: %v", err)
+	}
+	if len(mgr.removeCalls) != 1 {
+		t.Fatalf("expected stale-member prune during reconcile, got %d calls", len(mgr.removeCalls))
+	}
+	if len(mgr.lastDesired) != 1 || mgr.lastDesired[0].NodeID != "node-1" {
+		t.Fatalf("unexpected desired etcd membership during reconcile: %+v", mgr.lastDesired)
+	}
 }
 
 func TestGetClusterHealthEmpty(t *testing.T) {

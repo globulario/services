@@ -352,6 +352,76 @@ func TestDay1Phase_InfraNotInstalled(t *testing.T) {
 	}
 }
 
+func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
+	intent, err := ResolveNodeIntent("n1", []string{"core"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filtered := FilterIntentByDesired(intent, map[string]string{
+		"dns":            "1.0.56+b1",
+		"discovery":      "1.0.56+b1",
+		"event":          "1.0.56+b1",
+		"rbac":           "1.0.56+b1",
+		"resource":       "1.0.56+b1",
+		"authentication": "1.0.56+b1",
+		"repository":     "1.0.56+b1",
+		"monitoring":     "1.0.56+b1",
+		"workflow":       "1.0.56+b1",
+		"title":          "1.0.56+b1",
+	}, nil)
+
+	if contains(filtered.ResolvedComponents, "blog") || contains(filtered.ResolvedComponents, "catalog") {
+		t.Fatalf("filtered intent should not include unpublished catalog-only services: %v", filtered.ResolvedComponents)
+	}
+	if !contains(filtered.ResolvedComponents, "workflow") || !contains(filtered.ResolvedComponents, "title") {
+		t.Fatalf("filtered intent should retain desired services, got %v", filtered.ResolvedComponents)
+	}
+}
+
+func TestDay1Phase_FilteredIntentIgnoresUndesiredCatalogWorkloads(t *testing.T) {
+	units := []unitStatusRecord{
+		{Name: "globular-dns.service", State: "active"},
+		{Name: "globular-discovery.service", State: "active"},
+		{Name: "globular-event.service", State: "active"},
+		{Name: "globular-rbac.service", State: "active"},
+		{Name: "globular-resource.service", State: "active"},
+		{Name: "globular-authentication.service", State: "active"},
+		{Name: "globular-repository.service", State: "active"},
+		{Name: "globular-monitoring.service", State: "active"},
+		{Name: "globular-title.service", State: "active"},
+		{Name: "globular-minio.service", State: "active"},
+	}
+	intent, err := ResolveNodeIntent("n1", []string{"core"}, units, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent = FilterIntentByDesired(intent, map[string]string{
+		"dns":            "1.0.56+b1",
+		"discovery":      "1.0.56+b1",
+		"event":          "1.0.56+b1",
+		"rbac":           "1.0.56+b1",
+		"resource":       "1.0.56+b1",
+		"authentication": "1.0.56+b1",
+		"repository":     "1.0.56+b1",
+		"monitoring":     "1.0.56+b1",
+		"title":          "1.0.56+b1",
+		"minio":          "RELEASE.2025-09-07T16-13-09Z",
+	}, nil)
+
+	node := &nodeState{
+		NodeID:         "n1",
+		BootstrapPhase: BootstrapWorkloadReady,
+		Profiles:       []string{"core"},
+		ResolvedIntent: intent,
+		Units:          units,
+	}
+	phase, reason := ComputeDay1Phase(node)
+	if phase != Day1Ready {
+		t.Fatalf("got phase %q want %q (reason: %s)", phase, Day1Ready, reason)
+	}
+}
+
 func TestDay1Phase_InfraHealthyWorkloadsBlocked(t *testing.T) {
 	// Database node with scylladb healthy but event not healthy → workloads blocked.
 	units := []unitStatusRecord{

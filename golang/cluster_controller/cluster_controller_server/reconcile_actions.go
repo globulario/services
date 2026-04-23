@@ -72,6 +72,13 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 
 	// Drive etcd join phases.
 	if srv.etcdMembers != nil {
+		membership := srv.snapshotClusterMembership()
+		if membership != nil {
+			desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
+			if err := srv.etcdMembers.removeStaleMembers(ctx, desiredEtcdNodes); err != nil {
+				log.Printf("reconcile-workflow: etcd stale-member prune failed: %v", err)
+			}
+		}
 		if dirty := srv.etcdMembers.reconcileEtcdJoinPhases(ctx, nodes); dirty {
 			srv.lock("reconcileAdvanceInfraJoins:etcd-persist")
 			_ = srv.persistStateLocked(false)

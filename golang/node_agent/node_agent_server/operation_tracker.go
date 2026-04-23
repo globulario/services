@@ -10,7 +10,6 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -94,14 +93,7 @@ func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profi
 		return fmt.Errorf("no join token configured (set NODE_AGENT_JOIN_TOKEN env var or ensure controller seeds a Day-0 token)")
 	}
 
-	labels := srv.cfg.Labels
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	// Pass MAC address so the controller can generate a hardware-stable node ID.
-	if mac, err := identity.SelectBestMAC(); err == nil && mac != "" {
-		labels["node.mac"] = mac
-	}
+	labels := srv.joinRequestLabels()
 	joinResp, err := srv.controllerClient.RequestJoin(ctx, &cluster_controllerpb.RequestJoinRequest{
 		JoinToken:    srv.joinToken,
 		Identity:     srv.buildNodeIdentity(),

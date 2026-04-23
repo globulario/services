@@ -219,17 +219,6 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			node.Day1PhaseReason = intentErr.Error()
 			stateDirty = true
 			// Non-fatal: fall through with nil intent (backward compat — no filtering).
-		} else {
-			node.ResolvedIntent = intent
-			stateDirty = true
-		}
-
-		// Compute Day 1 lifecycle phase from current state.
-		d1Phase, d1Reason := ComputeDay1Phase(node)
-		if node.Day1Phase != d1Phase || node.Day1PhaseReason != d1Reason {
-			node.Day1Phase = d1Phase
-			node.Day1PhaseReason = d1Reason
-			stateDirty = true
 		}
 
 		// Services reconciliation — load desired state then auto-materialize
@@ -263,6 +252,20 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				}
 				stateDirty = true
 			}
+		}
+		if intent != nil {
+			intent = FilterIntentByDesired(intent, desiredCanon, node.InstalledVersions)
+			node.ResolvedIntent = intent
+			stateDirty = true
+		}
+
+		// Compute Day 1 lifecycle phase from current state after the intent has
+		// been narrowed to the desired/installable package set.
+		d1Phase, d1Reason := ComputeDay1Phase(node)
+		if node.Day1Phase != d1Phase || node.Day1PhaseReason != d1Reason {
+			node.Day1Phase = d1Phase
+			node.Day1PhaseReason = d1Reason
+			stateDirty = true
 		}
 		// During bootstrap, restrict to infrastructure-tier services only
 		// so workload services aren't installed before the node is ready.

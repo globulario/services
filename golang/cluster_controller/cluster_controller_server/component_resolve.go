@@ -239,6 +239,62 @@ func FilterDesiredByIntent(desired map[string]string, intent *NodeIntent) map[st
 	return filtered
 }
 
+// FilterIntentByDesired keeps only the components that are actually present in
+// desired state (or already installed locally) so Day-1 readiness reflects the
+// installable rollout set instead of the entire static catalog.
+func FilterIntentByDesired(intent *NodeIntent, desired map[string]string, installedVersions map[string]string) *NodeIntent {
+	if intent == nil {
+		return nil
+	}
+	allowed := make(map[string]bool, len(desired)+len(installedVersions))
+	for name := range desired {
+		canon := normalizeComponentName(canonicalServiceName(name))
+		if canon != "" {
+			allowed[canon] = true
+		}
+	}
+	for name := range installedVersions {
+		canon := normalizeComponentName(canonicalServiceName(name))
+		if canon != "" {
+			allowed[canon] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return intent
+	}
+
+	filtered := *intent
+	filtered.MaterializedDesired = append([]MaterializedInfra(nil), intent.MaterializedDesired...)
+	filtered.RequiredCapabilities = append([]Capability(nil), intent.RequiredCapabilities...)
+
+	filtered.DesiredInfra = filterIntentComponents(intent.DesiredInfra, allowed)
+	filtered.DesiredInfraNames = componentNames(filtered.DesiredInfra)
+	filtered.DesiredWorkloads = filterIntentComponents(intent.DesiredWorkloads, allowed)
+	filtered.DesiredWorkloadNames = componentNames(filtered.DesiredWorkloads)
+
+	filtered.BlockedWorkloads = make([]BlockedWorkload, 0, len(intent.BlockedWorkloads))
+	for _, bw := range intent.BlockedWorkloads {
+		if allowed[normalizeComponentName(bw.Name)] {
+			filtered.BlockedWorkloads = append(filtered.BlockedWorkloads, bw)
+		}
+	}
+
+	resolved := make([]string, 0, len(filtered.DesiredInfraNames)+len(filtered.DesiredWorkloadNames)+len(filtered.BlockedWorkloads))
+	for _, name := range filtered.DesiredInfraNames {
+		resolved = append(resolved, name)
+	}
+	for _, name := range filtered.DesiredWorkloadNames {
+		resolved = append(resolved, name)
+	}
+	for _, bw := range filtered.BlockedWorkloads {
+		resolved = append(resolved, normalizeComponentName(bw.Name))
+	}
+	sort.Strings(resolved)
+	filtered.ResolvedComponents = uniqueStrings(resolved)
+
+	return &filtered
+}
+
 // GateDependencies removes workload services from the desired map whose
 // runtime local dependencies are not healthy. Returns the filtered map
 // and a list of blocked services.
@@ -358,6 +414,34 @@ func componentNames(comps []*Component) []string {
 		names[i] = c.Name
 	}
 	return names
+}
+
+func filterIntentComponents(comps []*Component, allowed map[string]bool) []*Component {
+	filtered := make([]*Component, 0, len(comps))
+	for _, comp := range comps {
+		if comp == nil {
+			continue
+		}
+		if allowed[normalizeComponentName(comp.Name)] {
+			filtered = append(filtered, comp)
+		}
+	}
+	return filtered
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := values[:0]
+	var prev string
+	for i, v := range values {
+		if i == 0 || v != prev {
+			out = append(out, v)
+			prev = v
+		}
+	}
+	return out
 }
 
 // normalizeComponentName converts service names like "ai_memory" to catalog

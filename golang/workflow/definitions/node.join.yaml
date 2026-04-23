@@ -252,10 +252,18 @@ spec:
         packages:
           - { name: file, kind: SERVICE }
           - { name: log, kind: SERVICE }
+          - { name: sql, kind: SERVICE }
+          - { name: storage, kind: SERVICE }
+          - { name: catalog, kind: SERVICE }
           - { name: search, kind: SERVICE }
+          - { name: ldap, kind: SERVICE }
+          - { name: mail, kind: SERVICE }
+          - { name: blog, kind: SERVICE }
+          - { name: conversation, kind: SERVICE }
           - { name: title, kind: SERVICE }
           - { name: media, kind: SERVICE }
           - { name: torrent, kind: SERVICE }
+          - { name: echo, kind: SERVICE }
           - { name: persistence, kind: SERVICE }
           - { name: backup-manager, kind: SERVICE }
           - { name: workflow, kind: SERVICE }
@@ -279,10 +287,18 @@ spec:
           packages:
             - { name: file, kind: SERVICE }
             - { name: log, kind: SERVICE }
+            - { name: sql, kind: SERVICE }
+            - { name: storage, kind: SERVICE }
+            - { name: catalog, kind: SERVICE }
             - { name: search, kind: SERVICE }
+            - { name: ldap, kind: SERVICE }
+            - { name: mail, kind: SERVICE }
+            - { name: blog, kind: SERVICE }
+            - { name: conversation, kind: SERVICE }
             - { name: title, kind: SERVICE }
             - { name: media, kind: SERVICE }
             - { name: torrent, kind: SERVICE }
+            - { name: echo, kind: SERVICE }
             - { name: persistence, kind: SERVICE }
             - { name: backup-manager, kind: SERVICE }
             - { name: workflow, kind: SERVICE }
@@ -306,8 +322,11 @@ spec:
         packages:
           - { name: globular-cli, kind: COMMAND }
           - { name: etcdctl, kind: COMMAND }
+          - { name: rclone, kind: COMMAND }
+          - { name: restic, kind: COMMAND }
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
+          - { name: ffmpeg, kind: COMMAND }
       timeout: 2m
       execution:
         idempotency: verify_then_continue
@@ -321,8 +340,11 @@ spec:
           packages:
             - { name: globular-cli, kind: COMMAND }
             - { name: etcdctl, kind: COMMAND }
+            - { name: rclone, kind: COMMAND }
+            - { name: restic, kind: COMMAND }
             - { name: mc, kind: COMMAND }
             - { name: sctool, kind: COMMAND }
+            - { name: ffmpeg, kind: COMMAND }
         success:
           expr: all_installed == true
 

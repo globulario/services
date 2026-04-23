@@ -48,7 +48,7 @@ func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *node_agentpb.J
 	resp, err := srv.controllerClient.RequestJoin(ctx, &cluster_controllerpb.RequestJoinRequest{
 		JoinToken:    token,
 		Identity:     srv.buildNodeIdentity(),
-		Labels:       srv.cfg.Labels,
+		Labels:       srv.joinRequestLabels(),
 		Capabilities: buildNodeCapabilities(),
 	})
 	if err != nil {

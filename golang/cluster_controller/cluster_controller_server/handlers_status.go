@@ -132,6 +132,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.ReportedAt = reportedAt
 	node.LastSeen = reportedAt
 	changed = true // LastSeen must always persist so followers see fresh heartbeats
+	srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
 	if !unitsEqual(node.Units, units) {
 		// Detect units that transitioned from active to non-active (crash/stop).
