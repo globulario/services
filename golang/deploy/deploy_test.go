@@ -250,6 +250,60 @@ func TestGenerateSpec_MatchesExisting(t *testing.T) {
 	}
 }
 
+// TestGenerateSpec_WorkingDirectoryIsOptional verifies that every generated
+// spec uses WorkingDirectory=-{{.StateDir}}/<service> (with the '-' prefix
+// that makes systemd treat a missing directory as non-fatal).  Without it,
+// a missing state dir causes status=200/CHDIR before ExecStartPre runs.
+func TestGenerateSpec_WorkingDirectoryIsOptional(t *testing.T) {
+	catalogPath := findTestCatalog(t)
+	cat, err := LoadCatalog(catalogPath)
+	if err != nil {
+		t.Fatalf("LoadCatalog: %v", err)
+	}
+
+	for _, name := range cat.ServiceNames() {
+		entry, err := cat.Get(name)
+		if err != nil {
+			t.Errorf("Get(%s): %v", name, err)
+			continue
+		}
+		spec, err := GenerateSpec(entry)
+		if err != nil {
+			t.Errorf("GenerateSpec(%s): %v", name, err)
+			continue
+		}
+		// Must have the optional prefix.
+		if !strings.Contains(spec, "WorkingDirectory=-{{.StateDir}}/") {
+			t.Errorf("service %s: spec missing 'WorkingDirectory=-{{.StateDir}}/'", name)
+		}
+		// Must NOT have the fragile form.
+		if strings.Contains(spec, "WorkingDirectory={{.StateDir}}/") {
+			t.Errorf("service %s: spec contains fragile 'WorkingDirectory={{.StateDir}}/' (missing '-' prefix)", name)
+		}
+		if strings.Contains(spec, "WorkingDirectory=/var/lib/globular/") {
+			t.Errorf("service %s: spec contains hardcoded 'WorkingDirectory=/var/lib/globular/' (must use template var with '-' prefix)", name)
+		}
+		// Validate via the dedicated validator.
+		if err := ValidateSpec(spec); err != nil {
+			t.Errorf("service %s: ValidateSpec failed: %v", name, err)
+		}
+	}
+}
+
+// TestValidateSpec_RejectsFragile confirms ValidateSpec rejects specs with
+// a fragile WorkingDirectory line.
+func TestValidateSpec_RejectsFragile(t *testing.T) {
+	bad := "          WorkingDirectory=/var/lib/globular/myservice\n"
+	if err := ValidateSpec(bad); err == nil {
+		t.Error("ValidateSpec should reject fragile WorkingDirectory line, got nil")
+	}
+
+	good := "          WorkingDirectory=-/var/lib/globular/myservice\n"
+	if err := ValidateSpec(good); err != nil {
+		t.Errorf("ValidateSpec should accept optional WorkingDirectory, got: %v", err)
+	}
+}
+
 func TestVerifyBinary_Good(t *testing.T) {
 	// /bin/true should pass verification.
 	err := verifyBinary(context.Background(), "/bin/true")

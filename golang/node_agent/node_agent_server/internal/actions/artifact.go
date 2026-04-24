@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -55,6 +56,7 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	repositoryCAPath := strings.TrimSpace(fields["repository_ca_path"].GetStringValue())
 	buildNumber := int64(fields["build_number"].GetNumberValue())
 	expectedSHA := strings.TrimSpace(fields["expected_sha256"].GetStringValue())
+	buildID := strings.TrimSpace(fields["build_id"].GetStringValue())
 
 	if dest == "" {
 		return "", fmt.Errorf("artifact_path is required")
@@ -63,7 +65,11 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 		return "", fmt.Errorf("create dest dir: %w", err)
 	}
 	// Determine full artifact identity for logs and metadata resolution.
-	identity := fmt.Sprintf("%s/%s@%s+%d", publisherID, service, version, buildNumber)
+	identityStr := fmt.Sprintf("%s/%s@%s+%d", publisherID, service, version, buildNumber)
+	if buildID != "" {
+		identityStr = fmt.Sprintf("%s/%s@%s build_id=%s", publisherID, service, version, buildID)
+	}
+	identity := identityStr
 
 	// Resolve the repository address early — we may need it below to fetch
 	// the manifest digest when the caller didn't pass expected_sha256.
@@ -73,6 +79,36 @@ func (artifactFetchAction) Apply(ctx context.Context, args *structpb.Struct) (st
 	}
 	if effectiveRepoAddr == "" {
 		effectiveRepoAddr = discoverRepositoryViaGateway()
+	}
+
+	// build_id is the canonical artifact identity. When provided, resolve it
+	// to a concrete build_number+checksum before any fetch attempt. If the
+	// repository is unreachable, fail fast — the caller (installer_api.go)
+	// will use the local-package fallback path instead.
+	buildIDUnresolved := false
+	if buildID != "" {
+		if effectiveRepoAddr != "" && service != "" && platform != "" {
+			resolvedBN, resolvedChecksum, rerr := resolveArtifactByBuildID(ctx, effectiveRepoAddr, buildID, service, publisherID, platform)
+			if rerr != nil {
+				log.Printf("artifact.fetch: build_id=%s resolve failed (repo=%s): %v — aborting fetch",
+					buildID, effectiveRepoAddr, rerr)
+				buildIDUnresolved = true
+			} else {
+				log.Printf("artifact.fetch: resolved build_id=%s → build_number=%d checksum=%s",
+					buildID, resolvedBN, shortHash(resolvedChecksum))
+				buildNumber = resolvedBN
+				if expectedSHA == "" && resolvedChecksum != "" {
+					expectedSHA = resolvedChecksum
+				}
+			}
+		} else {
+			// Repository unreachable — cannot resolve build_id.
+			log.Printf("artifact.fetch: build_id=%s set but no repository reachable — aborting fetch", buildID)
+			buildIDUnresolved = true
+		}
+		if buildIDUnresolved {
+			return "", fmt.Errorf("artifact.fetch: build_id=%s could not be resolved (repository unreachable) — use local fallback", buildID)
+		}
 	}
 
 	// Safe cache decision matrix (see ROOT-CAUSE FIX in todo):
@@ -271,6 +307,46 @@ func resolveArtifactDigest(ctx context.Context, repoAddr, publisherID, service, 
 	return digest, nil
 }
 
+// resolveArtifactByBuildID resolves the exact build_number and checksum for a
+// given build_id by calling ResolveArtifact on the repository. This is the
+// correct path for controllers that dispatch workflows with a known build_id
+// but without a pre-resolved build_number.
+// Returns (buildNumber, checksum, error). checksum has "sha256:" prefix stripped.
+func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, publisherID, platform string) (int64, string, error) {
+	if repoAddr == "" {
+		return 0, "", fmt.Errorf("repository address not set")
+	}
+	conn, _, err := dialRepository(ctx, repoAddr)
+	if err != nil {
+		return 0, "", fmt.Errorf("dial repository: %w", err)
+	}
+	defer conn.Close()
+
+	authCtx := ctx
+	if clusterID, cerr := security.GetLocalClusterID(); cerr == nil && clusterID != "" {
+		md := metadata.Pairs("cluster_id", clusterID)
+		authCtx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	client := repositorypb.NewPackageRepositoryClient(conn)
+	resp, err := client.ResolveArtifact(authCtx, &repositorypb.ResolveArtifactRequest{
+		BuildId:     buildID,
+		Name:        service,
+		PublisherId: publisherID,
+		Platform:    platform,
+	})
+	if err != nil {
+		return 0, "", fmt.Errorf("resolve artifact by build_id %s: %w", buildID, err)
+	}
+	manifest := resp.GetManifest()
+	if manifest == nil {
+		return 0, "", fmt.Errorf("no manifest returned for build_id %s", buildID)
+	}
+	digest := strings.ToLower(strings.TrimSpace(manifest.GetChecksum()))
+	digest = strings.TrimPrefix(digest, "sha256:")
+	return manifest.GetBuildNumber(), digest, nil
+}
+
 // shortHash returns the first 12 chars of a hex digest for log readability.
 func shortHash(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
@@ -447,16 +523,30 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 				return "", fmt.Errorf("render template %s: %w", dest, err)
 			}
 		}
+		// Normalize fragile WorkingDirectory lines in systemd units.
+		// Old packages may contain WorkingDirectory=/var/lib/globular/<svc>
+		// (without the '-' optional prefix). systemd evaluates WorkingDirectory
+		// before ExecStartPre runs, so a missing directory causes status=200/CHDIR.
+		// Normalize at install time so the unit is always safe regardless of
+		// package age.
+		if strings.HasPrefix(name, "systemd/") || strings.HasPrefix(name, "units/") {
+			if err := normalizeUnitWorkingDirectory(tmp); err != nil {
+				os.Remove(tmp)
+				return "", fmt.Errorf("normalize unit %s: %w", dest, err)
+			}
+		}
 		if err := os.Rename(tmp, dest); err != nil {
 			os.Remove(tmp)
 			return "", fmt.Errorf("rename %s: %w", dest, err)
 		}
 	}
 
-	// Ensure the service working directory exists (systemd units reference
-	// WorkingDirectory=/var/lib/globular/<service> which must be created).
+	// Ensure the service working directory exists.  Even though we normalize
+	// unit files to use WorkingDirectory=-<path> (optional), the directory
+	// should still exist before the service starts so logs and state files
+	// have a home.  Owner globular:globular, mode 0750.
 	svcWorkDir := filepath.Join(ActionStateDir, service)
-	if err := os.MkdirAll(svcWorkDir, 0o755); err != nil {
+	if err := ensureServiceStateDir(svcWorkDir); err != nil {
 		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
 	}
 	// Alertmanager may be installed without a default config file in some
@@ -1064,6 +1154,59 @@ func verifyFileSHA256(path, expected string) error {
 // tests may set AllowMissingSHA256 = true for dev bypass scenarios.
 func allowMissingSHA256() bool {
 	return AllowMissingSHA256
+}
+
+// normalizeUnitWorkingDirectory rewrites a rendered systemd unit file,
+// replacing any fragile WorkingDirectory line that points at the Globular
+// state dir (without the '-' optional prefix) with the safe form.
+//
+// systemd evaluates WorkingDirectory= before ExecStartPre runs, so a missing
+// directory causes status=200/CHDIR.  The '-' prefix makes the directory
+// optional: systemd falls back to '/' and ExecStartPre can then create it.
+//
+// Accepts a path to the (already template-rendered) unit file. Rewrites in
+// place only if a fragile line is found.
+func normalizeUnitWorkingDirectory(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(data), "\n")
+	changed := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "WorkingDirectory=") {
+			continue
+		}
+		val := strings.TrimPrefix(trimmed, "WorkingDirectory=")
+		if strings.HasPrefix(val, "/var/lib/globular/") {
+			// Replace only the value part, preserving any leading whitespace.
+			prefix := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			lines[i] = prefix + "WorkingDirectory=-" + val
+			changed = true
+			log.Printf("install: normalized fragile WorkingDirectory in %s: %q → %q", filepath.Base(path), trimmed, strings.TrimSpace(lines[i]))
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// ensureServiceStateDir creates the given directory with the correct ownership
+// (globular:globular) and permissions (0750) if it does not already exist.
+func ensureServiceStateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	// Best-effort chown — may fail in test environments or when running as
+	// non-root. Production node-agent runs as root.
+	if u, err := user.Lookup("globular"); err == nil {
+		uid, _ := strconv.Atoi(u.Uid)
+		gid, _ := strconv.Atoi(u.Gid)
+		_ = os.Chown(dir, uid, gid)
+	}
+	return nil
 }
 
 func init() {

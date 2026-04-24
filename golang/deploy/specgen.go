@@ -7,6 +7,32 @@ import (
 	"text/template"
 )
 
+// ValidateSpec rejects any spec or systemd unit content that contains a
+// fragile WorkingDirectory line pointing at the Globular state dir without
+// the '-' optional prefix.  A missing state dir causes systemd to abort with
+// status=200/CHDIR before ExecStartPre can create the directory.
+//
+// Accepted:   WorkingDirectory=-/var/lib/globular/<service>
+// Accepted:   WorkingDirectory=-{{.StateDir}}/<service>
+// Rejected:   WorkingDirectory=/var/lib/globular/<service>
+// Rejected:   WorkingDirectory={{.StateDir}}/<service>
+func ValidateSpec(content string) error {
+	for i, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "WorkingDirectory=") {
+			continue
+		}
+		val := strings.TrimPrefix(trimmed, "WorkingDirectory=")
+		// Reject any path under the Globular state dir without the '-' prefix.
+		if (strings.HasPrefix(val, "/var/lib/globular/") ||
+			strings.HasPrefix(val, "{{.StateDir}}/")) {
+			return fmt.Errorf("line %d: fragile WorkingDirectory=%q — must use '-' prefix (WorkingDirectory=-%s) to make the state dir optional; "+
+				"without it systemd aborts with status=200/CHDIR when the directory is missing", i+1, val, val)
+		}
+	}
+	return nil
+}
+
 var funcMap = template.FuncMap{
 	"joinComma": func(s []string) string { return strings.Join(s, ", ") },
 	"joinSpace": func(s []string) string { return strings.Join(s, " ") },

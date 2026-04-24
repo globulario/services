@@ -504,3 +504,80 @@ func createDescribeArchive(t *testing.T, dest, exeName, describeJSON string) {
 		t.Fatalf("close file: %v", err)
 	}
 }
+
+// ── normalizeUnitWorkingDirectory tests ──────────────────────────────────────
+
+// TestNormalizeUnitWorkingDirectory_FixesFragile verifies that a unit file
+// containing WorkingDirectory=/var/lib/globular/<svc> (no '-' prefix) is
+// rewritten to WorkingDirectory=-/var/lib/globular/<svc>.
+func TestNormalizeUnitWorkingDirectory_FixesFragile(t *testing.T) {
+	unit := `[Unit]
+Description=Globular echo
+
+[Service]
+Type=simple
+User=globular
+Group=globular
+WorkingDirectory=/var/lib/globular/echo
+ExecStart=/usr/lib/globular/bin/echo_server
+Restart=always
+`
+	tmp := filepath.Join(t.TempDir(), "globular-echo.service")
+	if err := os.WriteFile(tmp, []byte(unit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := normalizeUnitWorkingDirectory(tmp); err != nil {
+		t.Fatalf("normalizeUnitWorkingDirectory: %v", err)
+	}
+	got, err := os.ReadFile(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "WorkingDirectory=-/var/lib/globular/echo") {
+		t.Errorf("expected normalized line, got:\n%s", got)
+	}
+	if strings.Contains(string(got), "WorkingDirectory=/var/lib/globular/echo\n") {
+		t.Errorf("fragile WorkingDirectory line still present:\n%s", got)
+	}
+}
+
+// TestNormalizeUnitWorkingDirectory_LeavesOptionalAlone confirms that a unit
+// already using WorkingDirectory=-/var/lib/globular/<svc> is not modified.
+func TestNormalizeUnitWorkingDirectory_LeavesOptionalAlone(t *testing.T) {
+	unit := `[Service]
+WorkingDirectory=-/var/lib/globular/echo
+ExecStart=/usr/lib/globular/bin/echo_server
+`
+	tmp := filepath.Join(t.TempDir(), "globular-echo.service")
+	if err := os.WriteFile(tmp, []byte(unit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(tmp)
+	if err := normalizeUnitWorkingDirectory(tmp); err != nil {
+		t.Fatalf("normalizeUnitWorkingDirectory: %v", err)
+	}
+	after, _ := os.ReadFile(tmp)
+	if string(before) != string(after) {
+		t.Errorf("already-safe unit was unexpectedly modified:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
+// TestNormalizeUnitWorkingDirectory_NoWorkingDirectory confirms that a unit
+// without any WorkingDirectory line is untouched.
+func TestNormalizeUnitWorkingDirectory_NoWorkingDirectory(t *testing.T) {
+	unit := `[Service]
+ExecStart=/usr/lib/globular/bin/echo_server
+Restart=always
+`
+	tmp := filepath.Join(t.TempDir(), "globular-echo.service")
+	if err := os.WriteFile(tmp, []byte(unit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := normalizeUnitWorkingDirectory(tmp); err != nil {
+		t.Fatalf("normalizeUnitWorkingDirectory: %v", err)
+	}
+	got, _ := os.ReadFile(tmp)
+	if !strings.Contains(string(got), "ExecStart=") {
+		t.Error("unit content was corrupted")
+	}
+}
