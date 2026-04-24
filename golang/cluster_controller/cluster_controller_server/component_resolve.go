@@ -441,7 +441,7 @@ func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersi
 		// unit — readiness is determined by whether the binary is installed,
 		// not by unit health. Check InstalledVersions instead of healthyUnits.
 		if depComp.Kind == KindCommand {
-			if installedVersions[dep] == "" {
+			if lookupInstalledVersionFromMap(installedVersions, dep) == "" {
 				missing = append(missing, dep)
 			}
 			continue

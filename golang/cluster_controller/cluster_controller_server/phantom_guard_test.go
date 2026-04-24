@@ -216,6 +216,35 @@ func TestCheckRuntimeDeps_CatalogMissTreatedAsMissing(t *testing.T) {
 	}
 }
 
+// TestCheckRuntimeDeps_CommandDepPublisherKey verifies that a KindCommand
+// dependency stored in InstalledVersions under a publisher-qualified key
+// ("core@globular.io/rclone") is found when the dep name is bare ("rclone").
+// Uses lookupInstalledVersionFromMap so publisher-prefix keys don't cause
+// false "missing" reports.
+func TestCheckRuntimeDeps_CommandDepPublisherKey(t *testing.T) {
+	// rclone is a real KindCommand in the catalog.
+	comp := CatalogByName("rclone")
+	if comp == nil {
+		t.Skip("rclone not in catalog")
+	}
+	// Workload that depends on rclone (backup has this dep; synthesise directly).
+	synthetic := &Component{
+		Name:                     "fake-backup-workload",
+		Kind:                     KindWorkload,
+		RuntimeLocalDependencies: []string{"rclone"},
+	}
+	// InstalledVersions uses the publisher-qualified key, as the node agent writes.
+	installed := map[string]string{
+		"core@globular.io/rclone": "1.73.1",
+	}
+	missing := checkRuntimeDeps(synthetic, map[string]bool{}, installed)
+	for _, m := range missing {
+		if normalizeComponentName(m) == "rclone" {
+			t.Errorf("checkRuntimeDeps reported rclone missing even though it is in InstalledVersions under publisher key")
+		}
+	}
+}
+
 // ── resolveInfraVersion: COMMAND kind heartbeat resolution ────────────────────
 
 // TestResolveInfraVersion_CommandKindFromHeartbeat verifies that
