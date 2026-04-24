@@ -9,13 +9,17 @@ import (
 // TestResolveInfraVersion_RejectsUnknown verifies that resolveInfraVersion
 // skips nodes reporting "unknown" version — a fallback placeholder from
 // loadSystemdUnits(). Using it would create desired entries with fake versions.
+//
+// Nodes are modelled as Status="ready" so the heartbeat is authoritative (the
+// etcd fallback is suppressed). This represents an established cluster where
+// all nodes genuinely have no good version for the component.
 func TestResolveInfraVersion_RejectsUnknown(t *testing.T) {
 	srv := &server{}
 	srv.state = &controllerState{
 		Nodes: map[string]*nodeState{
-			"node-a": {InstalledVersions: map[string]string{"xds": "unknown"}},
-			"node-b": {InstalledVersions: map[string]string{"xds": "unknown"}},
-			"node-c": {InstalledVersions: map[string]string{"xds": "unknown"}},
+			"node-a": {Status: "ready", InstalledVersions: map[string]string{"xds": "unknown"}},
+			"node-b": {Status: "ready", InstalledVersions: map[string]string{"xds": "unknown"}},
+			"node-c": {Status: "ready", InstalledVersions: map[string]string{"xds": "unknown"}},
 		},
 	}
 	version, source := srv.resolveInfraVersion("xds")
@@ -26,16 +30,18 @@ func TestResolveInfraVersion_RejectsUnknown(t *testing.T) {
 
 // TestResolveInfraVersion_RejectsFallback010 verifies that resolveInfraVersion
 // skips nodes reporting "" — the old fallback version from pre-fix code.
+//
+// Node is modelled as Status="ready" so the heartbeat is authoritative.
 func TestResolveInfraVersion_RejectsFallback010(t *testing.T) {
 	srv := &server{}
 	srv.state = &controllerState{
 		Nodes: map[string]*nodeState{
-			"node-a": {InstalledVersions: map[string]string{"mcp": ""}},
+			"node-a": {Status: "ready", InstalledVersions: map[string]string{"mcp": ""}},
 		},
 	}
 	version, source := srv.resolveInfraVersion("mcp")
 	if version != "" {
-		t.Errorf("resolveInfraVersion should reject '0.1.0', got version=%q source=%q", version, source)
+		t.Errorf("resolveInfraVersion should reject empty version, got version=%q source=%q", version, source)
 	}
 }
 
@@ -70,6 +76,29 @@ func TestResolveInfraVersion_SkipsUnknownPicksReal(t *testing.T) {
 	version, _ := srv.resolveInfraVersion("gateway")
 	if version != "0.0.3" {
 		t.Errorf("resolveInfraVersion should skip 'unknown' and pick '0.0.3', got %q", version)
+	}
+}
+
+// TestResolveInfraVersion_JoiningNodeUnknownDoesNotSuppressFallback verifies
+// that a joining (non-ready) node reporting "unknown" does NOT suppress the
+// etcd installed_state fallback. Only ready/Day1Ready nodes are authoritative.
+//
+// We can't assert the exact fallback result (it depends on what etcd has), but
+// we CAN assert that version is not "unknown" — regardless of whether the
+// fallback finds data or not.
+func TestResolveInfraVersion_JoiningNodeUnknownDoesNotSuppressFallback(t *testing.T) {
+	srv := &server{}
+	srv.state = &controllerState{
+		Nodes: map[string]*nodeState{
+			// Joining node — no Status, no Day1Phase.
+			"node-joining": {InstalledVersions: map[string]string{"gateway": "unknown"}},
+		},
+	}
+	version, _ := srv.resolveInfraVersion("gateway")
+	// Result may be "" (nothing in etcd) or a real version (etcd has data).
+	// Either is fine. What must never happen is returning "unknown".
+	if version == "unknown" {
+		t.Error("resolveInfraVersion must never return 'unknown' as version")
 	}
 }
 

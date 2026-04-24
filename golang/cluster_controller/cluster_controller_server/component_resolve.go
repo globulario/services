@@ -57,6 +57,11 @@ type BlockedWorkload struct {
 	Name        string   `json:"name"`
 	MissingDeps []string `json:"missing_deps"`
 	Reason      string   `json:"reason"`
+	// Kind classifies the block:
+	//   "dependency_not_ready"              — dep is in desired-state but not yet healthy
+	//   "dependency_seeding_in_progress"    — dep is absent from desired-state (being seeded this cycle)
+	//   "missing_desired_dependency_unresolvable" — dep absent from desired AND version cannot be resolved
+	Kind string `json:"kind,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +247,15 @@ func FilterDesiredByIntent(desired map[string]string, intent *NodeIntent) map[st
 // FilterIntentByDesired keeps only the components that are actually present in
 // desired state (or already installed locally) so Day-1 readiness reflects the
 // installable rollout set instead of the entire static catalog.
-func FilterIntentByDesired(intent *NodeIntent, desired map[string]string, installedVersions map[string]string) *NodeIntent {
+//
+// unresolvable is the set of dep names that materializeMissingInfraDesired
+// could not seed this cycle (version unresolvable). Passing it here ensures
+// that ComputeDay1Phase — which runs after this function — sees the correct
+// "missing_desired_dependency_unresolvable" classification and returns
+// Day1WorkloadBlocked instead of the transient Day1WorkloadsPlanned.
+// Pass nil when the unresolvable set is not available (e.g. in tests or
+// non-reconcile call sites).
+func FilterIntentByDesired(intent *NodeIntent, desired map[string]string, installedVersions map[string]string, unresolvable map[string]bool) *NodeIntent {
 	if intent == nil {
 		return nil
 	}
@@ -274,9 +287,12 @@ func FilterIntentByDesired(intent *NodeIntent, desired map[string]string, instal
 
 	filtered.BlockedWorkloads = make([]BlockedWorkload, 0, len(intent.BlockedWorkloads))
 	for _, bw := range intent.BlockedWorkloads {
-		if allowed[normalizeComponentName(bw.Name)] {
-			filtered.BlockedWorkloads = append(filtered.BlockedWorkloads, bw)
+		if !allowed[normalizeComponentName(bw.Name)] {
+			continue
 		}
+		annotated := bw
+		annotated.Kind = classifyBlockedDep(bw.MissingDeps, desired, unresolvable)
+		filtered.BlockedWorkloads = append(filtered.BlockedWorkloads, annotated)
 	}
 
 	resolved := make([]string, 0, len(filtered.DesiredInfraNames)+len(filtered.DesiredWorkloadNames)+len(filtered.BlockedWorkloads))
@@ -295,10 +311,33 @@ func FilterIntentByDesired(intent *NodeIntent, desired map[string]string, instal
 	return &filtered
 }
 
+// classifyBlockedDep returns the Kind for a BlockedWorkload given its missing
+// deps, the current desired-state map, and the set of deps whose version could
+// not be resolved during the current materialization cycle.
+//
+// Priority (highest to lowest):
+//
+//	"missing_desired_dependency_unresolvable" — dep absent AND version unresolvable
+//	"dependency_not_ready"                   — dep present in desired but not yet healthy
+//	"dependency_seeding_in_progress"         — dep absent from desired (being seeded)
+func classifyBlockedDep(missingDeps []string, desired map[string]string, unresolvable map[string]bool) string {
+	for _, dep := range missingDeps {
+		if unresolvable[normalizeComponentName(dep)] {
+			return "missing_desired_dependency_unresolvable"
+		}
+	}
+	for _, dep := range missingDeps {
+		if _, inDesired := desired[normalizeComponentName(dep)]; inDesired {
+			return "dependency_not_ready"
+		}
+	}
+	return "dependency_seeding_in_progress"
+}
+
 // GateDependencies removes workload services from the desired map whose
 // runtime local dependencies are not healthy. Returns the filtered map
 // and a list of blocked services.
-func GateDependencies(desired map[string]string, units []unitStatusRecord, installedVersions map[string]string) (map[string]string, []BlockedWorkload) {
+func GateDependencies(desired map[string]string, units []unitStatusRecord, installedVersions map[string]string, unresolvable map[string]bool) (map[string]string, []BlockedWorkload) {
 	healthyUnits := buildHealthySet(units)
 	filtered := make(map[string]string, len(desired))
 	var blocked []BlockedWorkload
@@ -317,6 +356,7 @@ func GateDependencies(desired map[string]string, units []unitStatusRecord, insta
 				Name:        svc,
 				MissingDeps: missing,
 				Reason:      fmt.Sprintf("waiting for: %s", strings.Join(missing, ", ")),
+				Kind:        classifyBlockedDep(missing, desired, unresolvable),
 			})
 		} else {
 			filtered[svc] = ver
@@ -519,11 +559,35 @@ func ComputeDay1Phase(node *nodeState) (Day1Phase, string) {
 
 	// Infra is healthy — check workload convergence.
 	if len(intent.BlockedWorkloads) > 0 {
-		names := make([]string, len(intent.BlockedWorkloads))
-		for i, bw := range intent.BlockedWorkloads {
-			names[i] = bw.Name
+		var seeding, hardBlocked, unresolvableReasons []string
+		for _, bw := range intent.BlockedWorkloads {
+			switch bw.Kind {
+			case "dependency_seeding_in_progress":
+				seeding = append(seeding, bw.Name)
+			case "missing_desired_dependency_unresolvable":
+				hardBlocked = append(hardBlocked, bw.Name)
+				for _, dep := range bw.MissingDeps {
+					unresolvableReasons = append(unresolvableReasons,
+						fmt.Sprintf("%s required by %s", dep, bw.Name))
+				}
+			default: // "dependency_not_ready" or unknown
+				hardBlocked = append(hardBlocked, bw.Name)
+			}
 		}
-		return Day1WorkloadBlocked, fmt.Sprintf("blocked workloads: %s", strings.Join(names, ", "))
+		// Unresolvable deps are terminal — they cannot be seeded.
+		if len(unresolvableReasons) > 0 {
+			sort.Strings(unresolvableReasons)
+			return Day1WorkloadBlocked, fmt.Sprintf("missing desired dependency unresolvable: %s",
+				strings.Join(unresolvableReasons, "; "))
+		}
+		// All blocks are transient: deps being seeded this cycle.
+		// Return WorkloadsPlanned so operators know the system is still converging.
+		if len(hardBlocked) == 0 {
+			return Day1WorkloadsPlanned, fmt.Sprintf("dependency seeding in progress: %s", strings.Join(seeding, ", "))
+		}
+		all := append(hardBlocked, seeding...)
+		sort.Strings(all)
+		return Day1WorkloadBlocked, fmt.Sprintf("blocked workloads: %s", strings.Join(all, ", "))
 	}
 
 	// Check if all desired workloads are installed.
