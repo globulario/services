@@ -102,7 +102,7 @@ steps:
           Type=simple
           User=<<% .User %>>
           Group=<<% .Group %>>
-          WorkingDirectory={{.StateDir}}/<<% .Name %>>
+          WorkingDirectory=-{{.StateDir}}/<<% .Name %>>
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
 
           ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/<<% .Name %>> && chown <<% .User %>>:<<% .Group %>> {{.StateDir}}/<<% .Name %>>'

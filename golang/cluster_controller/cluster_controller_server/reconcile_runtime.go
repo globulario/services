@@ -350,6 +350,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 			case <-ticker.C:
 				if srv.isLeader() {
 					srv.ensureServiceReleasesFromDesired(ctx)
+					srv.requeueFailedReleases(ctx) // re-enqueue FAILED releases past retry backoff
 				}
 				h.Tick()
 			}

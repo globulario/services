@@ -773,4 +773,63 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 	return ""
 }
 
+// requeueFailedReleases scans all ServiceRelease and InfrastructureRelease objects
+// for entries stuck in FAILED/ROLLED_BACK phase that have exceeded the retry backoff.
+// The watcher-driven work queue only fires on etcd changes; without this, a FAILED
+// release that was processed at startup (backoff applied) is never retried.
+// Called from the periodic-release-bridge every 2 minutes.
+func (srv *server) requeueFailedReleases(ctx context.Context) {
+	if srv.resources == nil || srv.releaseEnqueue == nil {
+		return
+	}
+	now := time.Now()
+	requeued := 0
+
+	if items, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
+		for _, obj := range items {
+			rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+			if !ok || rel.Meta == nil || rel.Status == nil {
+				continue
+			}
+			phase := rel.Status.Phase
+			if phase != cluster_controllerpb.ReleasePhaseFailed && phase != cluster_controllerpb.ReleasePhaseRolledBack {
+				continue
+			}
+			if rel.Status.LastTransitionUnixMs > 0 {
+				elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
+				if elapsed < releaseRetryBackoff {
+					continue
+				}
+			}
+			reconcileEnqueueTotal.WithLabelValues("retry_failed").Inc()
+			srv.releaseEnqueue(rel.Meta.Name)
+			requeued++
+		}
+	}
+	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
+		for _, obj := range items {
+			rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+			if !ok || rel.Meta == nil || rel.Status == nil {
+				continue
+			}
+			phase := rel.Status.Phase
+			if phase != cluster_controllerpb.ReleasePhaseFailed && phase != cluster_controllerpb.ReleasePhaseRolledBack {
+				continue
+			}
+			if rel.Status.LastTransitionUnixMs > 0 {
+				elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
+				if elapsed < releaseRetryBackoff {
+					continue
+				}
+			}
+			reconcileEnqueueTotal.WithLabelValues("retry_failed").Inc()
+			srv.infraReleaseEnqueue(rel.Meta.Name)
+			requeued++
+		}
+	}
+	if requeued > 0 {
+		log.Printf("periodic-release-bridge: re-queued %d FAILED/ROLLED_BACK release(s) past retry backoff", requeued)
+	}
+}
+
 // Deprecated: checkNodePlanStatuses deleted — workflow results are authoritative.
