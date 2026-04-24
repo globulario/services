@@ -28,10 +28,16 @@ var validPhaseTransitions = map[string]map[string]bool{
 		ReleasePhaseRemoving:                      true,
 	},
 	cluster_controllerpb.ReleasePhasePending: {
-		cluster_controllerpb.ReleasePhaseResolved:  true,
-		cluster_controllerpb.ReleasePhaseAvailable: true, // artifact not published — accept current version as-is
-		cluster_controllerpb.ReleasePhaseFailed:    true,
-		ReleasePhaseRemoving:                       true,
+		cluster_controllerpb.ReleasePhaseResolved: true,
+		cluster_controllerpb.ReleasePhaseWaiting:  true, // artifact not published — retry after backoff
+		cluster_controllerpb.ReleasePhaseFailed:   true,
+		ReleasePhaseRemoving:                      true,
+	},
+	cluster_controllerpb.ReleasePhaseWaiting: {
+		cluster_controllerpb.ReleasePhasePending:  true, // retry after releaseWaitingBackoff
+		cluster_controllerpb.ReleasePhaseResolved: true, // artifact appeared, resolve succeeded
+		cluster_controllerpb.ReleasePhaseFailed:   true, // persistent resolve failure
+		ReleasePhaseRemoving:                      true,
 	},
 	cluster_controllerpb.ReleasePhaseResolved: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true, // workflow finished: all nodes converged

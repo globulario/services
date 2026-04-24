@@ -19,6 +19,11 @@ import (
 // create a tight FAILED→PENDING→FAILED loop that starves other handlers.
 const releaseRetryBackoff = 5 * time.Minute
 
+// releaseWaitingBackoff is the minimum time to wait before retrying a WAITING
+// release (artifact not yet published in the repository). 2 minutes prevents
+// hammering the repository while keeping convergence responsive once published.
+const releaseWaitingBackoff = 2 * time.Minute
+
 // isServiceConverged checks whether a service is already installed at the
 // desired version on all eligible nodes. Used to suppress unnecessary release
 // creation and enqueue during startup — a restart must not become a full-
@@ -249,24 +254,29 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	releasePhaseTransitions.WithLabelValues(h.ResourceType, "RESOLVED").Inc()
 	if err != nil {
 		errMsg := err.Error()
-		// Artifact not found — the desired version doesn't exist in the
-		// repository. This is not a failure: the currently installed version
-		// is the correct state. Mark the release as AVAILABLE so the health
-		// checks reflect reality. When the artifact is eventually published
-		// and desired state is set via `globular deploy`, a new release
-		// cycle begins naturally.
+		// Artifact not found — the desired version hasn't been published yet
+		// (or the repository is resolving to the wrong MinIO backend). Enter
+		// WAITING with a backoff so the controller retries periodically without
+		// hammering the repository. The WAITING → PENDING transition fires after
+		// releaseWaitingBackoff; the installed version remains in service.
+		//
+		// IMPORTANT: do NOT transition to AVAILABLE here. AVAILABLE means all
+		// target nodes are at the desired version. If we mark a release AVAILABLE
+		// before installing, reconcileAvailable will detect unserved nodes and
+		// re-enter PENDING immediately, creating a tight PENDING→AVAILABLE→PENDING
+		// storm at ~10 etcd writes/second.
 		if strings.Contains(errMsg, "NotFound") || strings.Contains(errMsg, "not found") {
-			log.Printf("%s %s: desired version not in repository, accepting current installed version as available: %v",
-				h.ResourceType, h.Name, err)
+			log.Printf("%s %s: artifact not in repository, entering WAITING (retry in %s): %v",
+				h.ResourceType, h.Name, releaseWaitingBackoff, err)
 			h.PatchStatus(ctx, statusPatch{
-				Phase:                cluster_controllerpb.ReleasePhaseAvailable,
-				Message:              fmt.Sprintf("desired version not published — current version is authoritative"),
+				Phase:                cluster_controllerpb.ReleasePhaseWaiting,
+				Message:              "artifact not published — waiting for repository to confirm availability",
 				ObservedGeneration:   h.Generation,
 				LastTransitionUnixMs: nowMs,
 				TransitionReason:     "artifact_not_published",
 				WorkflowKind:         wfKind,
 				StartedAtUnixMs:      nowMs,
-				SetFields:            "phase",
+				SetFields:            "fail", // writes Phase+Message+LastTransitionUnixMs+ObservedGeneration (needed for backoff)
 			})
 			return
 		}
@@ -362,6 +372,19 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			if !profilesOverlap(catalogEntry.Profiles, expandedProfiles) {
 				log.Printf("%s %s: skip node %s, profiles %v don't match catalog %v",
 					h.ResourceType, h.Name, id, expandedProfiles, catalogEntry.Profiles)
+				continue
+			}
+		}
+		// Gate workload services on RuntimeLocalDependencies: if a service
+		// requires event/rbac/etc. and those deps are not yet active on this
+		// node, skip it so the semaphore slot stays free for dep installs.
+		// The release stays RESOLVED and retries on the next reconcile cycle.
+		if catalogEntry != nil && len(catalogEntry.RuntimeLocalDependencies) > 0 {
+			healthy := buildHealthySet(node.Units)
+			missing := checkRuntimeDeps(catalogEntry, healthy, node.InstalledVersions)
+			if len(missing) > 0 {
+				log.Printf("%s %s: skipping node %s — deps not ready: %v",
+					h.ResourceType, h.Name, node.Identity.Hostname, missing)
 				continue
 			}
 		}

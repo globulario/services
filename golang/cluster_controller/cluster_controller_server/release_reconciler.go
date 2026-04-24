@@ -221,7 +221,18 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
+	case "", cluster_controllerpb.ReleasePhasePending:
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseWaiting:
+		// Backoff: artifact was not found in the repository. Retry after
+		// releaseWaitingBackoff to avoid hammering the repository on every
+		// reconcile cycle while the artifact is being published.
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
@@ -570,7 +581,15 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
+	case "", cluster_controllerpb.ReleasePhasePending:
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseWaiting:
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
@@ -673,7 +692,15 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	}
 
 	switch h.Phase {
-	case "", cluster_controllerpb.ReleasePhasePending, cluster_controllerpb.ReleasePhaseWaiting:
+	case "", cluster_controllerpb.ReleasePhasePending:
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseWaiting:
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
