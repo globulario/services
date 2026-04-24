@@ -142,19 +142,19 @@ func TestCompileDay0Bootstrap(t *testing.T) {
 	if cw.Name != "day0.bootstrap" {
 		t.Errorf("name = %q, want day0.bootstrap", cw.Name)
 	}
-	if len(cw.Steps) != 21 {
-		t.Errorf("steps = %d, want 21", len(cw.Steps))
+	if len(cw.Steps) != 22 {
+		t.Errorf("steps = %d, want 22", len(cw.Steps))
 	}
 
-	// verify_etcd_healthy has no dependencies → entry point.
+	// enable_bootstrap_window has no dependencies → entry point.
 	found := false
 	for _, ep := range cw.EntryPoints {
-		if ep == "verify_etcd_healthy" {
+		if ep == "enable_bootstrap_window" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("verify_etcd_healthy should be entry point, got %v", cw.EntryPoints)
+		t.Errorf("enable_bootstrap_window should be entry point, got %v", cw.EntryPoints)
 	}
 
 	t.Logf("Compiled %s: %d steps, %d entry points", cw.Name, len(cw.Steps), len(cw.EntryPoints))
