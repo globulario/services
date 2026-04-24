@@ -235,6 +235,13 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		}
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
+		// Backoff for transient workflow errors (circuit breaker open, Scylla down).
+		// NextRetryUnixMs is set by the "retry" patch with an exponential backoff
+		// schedule. While it's in the future, skip dispatch entirely — the release
+		// will be re-enqueued by requeueFailedReleases once the window passes.
+		if rel.Status.NextRetryUnixMs > 0 && time.Now().UnixMilli() < rel.Status.NextRetryUnixMs {
+			return
+		}
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
 		// Workflow is executing; its callbacks will normally transition the
@@ -420,6 +427,11 @@ func (srv *server) serviceHealthyForRelease(node *nodeState, rel *cluster_contro
 
 // patchReleaseStatus loads the latest copy of a ServiceRelease, applies f to its status,
 // and saves via resources.Apply. This avoids conflicting with concurrent writes.
+//
+// Equality guard: if f mutates nothing (same phase, message, and transition
+// reason), the Apply is skipped entirely. This prevents no-op "retry" patches
+// from emitting MODIFIED watch events that re-enqueue the release and create
+// a reconcile storm when the workflow circuit breaker is open.
 func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f func(*cluster_controllerpb.ServiceReleaseStatus)) error {
 	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", releaseName)
 	if err != nil || obj == nil {
@@ -433,7 +445,21 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 		rel.Status = &cluster_controllerpb.ServiceReleaseStatus{}
 	}
 	previousPhase := rel.Status.Phase
+	prevMsg := rel.Status.Message
+	prevTransReason := rel.Status.TransitionReason
+	prevNextRetry := rel.Status.NextRetryUnixMs
 	f(rel.Status)
+
+	// Equality guard: skip Apply when nothing semantically changed.
+	// "retry" patches always increment RetryCount and advance NextRetryUnixMs,
+	// so they always pass this guard and persist the new backoff window.
+	// Truly no-op calls (same phase + message + reason + next-retry) are skipped.
+	if rel.Status.Phase == previousPhase &&
+		rel.Status.Message == prevMsg &&
+		rel.Status.TransitionReason == prevTransReason &&
+		rel.Status.NextRetryUnixMs == prevNextRetry {
+		return nil
+	}
 
 	// Hard enforcement: invalid transition blocks the patch.
 	if rel.Status.Phase != previousPhase {
@@ -637,7 +663,16 @@ func (srv *server) patchAppReleaseStatus(ctx context.Context, releaseName string
 		rel.Status = &cluster_controllerpb.ApplicationReleaseStatus{}
 	}
 	previousPhase := rel.Status.Phase
+	prevMsg := rel.Status.Message
+	prevReason := rel.Status.TransitionReason
 	f(rel.Status)
+
+	// Equality guard: skip Apply when nothing meaningful changed.
+	if rel.Status.Phase == previousPhase &&
+		rel.Status.Message == prevMsg &&
+		rel.Status.TransitionReason == prevReason {
+		return nil
+	}
 
 	if rel.Status.Phase != previousPhase {
 		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
@@ -781,7 +816,16 @@ func (srv *server) patchInfraReleaseStatus(ctx context.Context, releaseName stri
 		rel.Status = &cluster_controllerpb.InfrastructureReleaseStatus{}
 	}
 	previousPhase := rel.Status.Phase
+	prevMsg := rel.Status.Message
+	prevReason := rel.Status.TransitionReason
 	f(rel.Status)
+
+	// Equality guard: skip Apply when nothing meaningful changed.
+	if rel.Status.Phase == previousPhase &&
+		rel.Status.Message == prevMsg &&
+		rel.Status.TransitionReason == prevReason {
+		return nil
+	}
 
 	if rel.Status.Phase != previousPhase {
 		if err := srv.emitPhaseTransition(releaseName, previousPhase, rel.Status.Phase, rel.Status.Message); err != nil {
@@ -801,9 +845,10 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 }
 
 // requeueFailedReleases scans all ServiceRelease and InfrastructureRelease objects
-// for entries stuck in FAILED/ROLLED_BACK phase that have exceeded the retry backoff.
-// The watcher-driven work queue only fires on etcd changes; without this, a FAILED
-// release that was processed at startup (backoff applied) is never retried.
+// for entries stuck in FAILED/ROLLED_BACK phase or in RESOLVED+transient-error
+// state that have exceeded their retry backoff. The watcher-driven work queue
+// only fires on etcd changes; without this, a FAILED or transiently-blocked
+// RESOLVED release that was processed at startup is never retried.
 // Called from the periodic-release-bridge every 2 minutes.
 func (srv *server) requeueFailedReleases(ctx context.Context) {
 	if srv.resources == nil || srv.releaseEnqueue == nil {
@@ -811,6 +856,7 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 	}
 	now := time.Now()
 	requeued := 0
+	transientBlocked := 0
 
 	if items, _, err := srv.resources.List(ctx, "ServiceRelease", ""); err == nil {
 		for _, obj := range items {
@@ -819,20 +865,34 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 				continue
 			}
 			phase := rel.Status.Phase
-			if phase != cluster_controllerpb.ReleasePhaseFailed && phase != cluster_controllerpb.ReleasePhaseRolledBack {
-				continue
-			}
-			if rel.Status.LastTransitionUnixMs > 0 {
-				elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
-				if elapsed < releaseRetryBackoff {
+			switch phase {
+			case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+				if rel.Status.LastTransitionUnixMs > 0 {
+					elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
+					if elapsed < releaseRetryBackoff {
+						continue
+					}
+				}
+			case cluster_controllerpb.ReleasePhaseResolved:
+				// Re-enqueue RESOLVED releases blocked on a transient workflow error
+				// once their NextRetryUnixMs has passed. This is how the release
+				// resumes after the circuit breaker closes or Scylla recovers.
+				if rel.Status.NextRetryUnixMs <= 0 {
+					continue // no retry pending
+				}
+				if now.UnixMilli() < rel.Status.NextRetryUnixMs {
+					transientBlocked++ // still inside backoff window
 					continue
 				}
+			default:
+				continue
 			}
 			reconcileEnqueueTotal.WithLabelValues("retry_failed").Inc()
 			srv.releaseEnqueue(rel.Meta.Name)
 			requeued++
 		}
 	}
+	releaseTransientBlockedGauge.Set(float64(transientBlocked))
 	if items, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
 		for _, obj := range items {
 			rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)

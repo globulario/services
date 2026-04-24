@@ -24,6 +24,33 @@ const releaseRetryBackoff = 5 * time.Minute
 // hammering the repository while keeping convergence responsive once published.
 const releaseWaitingBackoff = 2 * time.Minute
 
+// workflowTransientRetryBackoff is kept for legacy callers but is superseded
+// by NextRetryUnixMs for new code. The reconciler now reads NextRetryUnixMs
+// directly from the release status instead of computing elapsed time from
+// LastTransitionUnixMs + this constant.
+const workflowTransientRetryBackoff = 30 * time.Second
+
+// transientRetryBackoffs is the exponential backoff schedule for workflow
+// transient errors. RetryCount (0-based) is used as the index; once past the
+// end, maxTransientRetryBackoff is used.
+var transientRetryBackoffs = []time.Duration{
+	5 * time.Second,
+	15 * time.Second,
+	30 * time.Second,
+	60 * time.Second,
+	2 * time.Minute,
+}
+
+const maxTransientRetryBackoff = 5 * time.Minute
+
+// transientRetryDelay returns the backoff duration for the given retry count.
+func transientRetryDelay(retryCount int64) time.Duration {
+	if retryCount < int64(len(transientRetryBackoffs)) {
+		return transientRetryBackoffs[retryCount]
+	}
+	return maxTransientRetryBackoff
+}
+
 // isServiceConverged checks whether a service is already installed at the
 // desired version on all eligible nodes. Used to suppress unnecessary release
 // creation and enqueue during startup — a restart must not become a full-
@@ -183,9 +210,12 @@ type statusPatch struct {
 	WorkflowKind           string
 	StartedAtUnixMs        int64
 	TransitionReason       string
+	// BlockedReason is a structured slug set by the "retry" path:
+	// workflow_unavailable, workflow_circuit_open, workflow_deadline, etc.
+	BlockedReason string
 	// SetFields controls which fields are meaningful in this patch.
 	// "resolve" = version/digest/hash/generation, "phase" = just phase,
-	// "nodes" = phase + nodes, "fail" = phase + message.
+	// "nodes" = phase + nodes, "fail" = phase + message, "retry" = transient error.
 	SetFields string
 }
 
@@ -474,28 +504,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		// FinalizeDirectApply, MarkReleaseFailed) already wrote the final
 		// release phase and per-node status. Controller does not re-patch.
 		if err != nil {
-			errMsg := err.Error()
-			// Engine-level errors (preflight failures, missing handlers,
-			// circuit breakers, unavailable backends) are transient — reset
-			// to RESOLVED so the drift reconciler retries on the next cycle.
-			// Only workflow callbacks (MarkNodeFailed, MarkReleaseFailed) set
-			// FAILED for real execution errors; the engine path stays retryable.
-			if strings.Contains(errMsg, "preflight") ||
-				strings.Contains(errMsg, "no registered handler") ||
-				strings.Contains(errMsg, "handler not found") ||
-				strings.Contains(errMsg, "Unavailable") ||
-				strings.Contains(errMsg, "Unimplemented") ||
-				strings.Contains(errMsg, "circuit breaker") ||
-				strings.Contains(errMsg, "DeadlineExceeded") ||
-				strings.Contains(errMsg, "connection refused") ||
-				strings.Contains(errMsg, "posture gate") {
-				log.Printf("%s %s: release workflow transient error, staying RESOLVED for retry: %v", h.ResourceType, h.Name, err)
+			// classifyWorkflowError distinguishes infrastructure/transient errors
+			// (keep RESOLVED, retry with backoff) from real execution failures
+			// (transition to FAILED, needs operator attention).
+			if isTransient, reason := classifyWorkflowError(err); isTransient {
+				log.Printf("%s %s: workflow transient error (%s), staying RESOLVED for retry: %v",
+					h.ResourceType, h.Name, reason, err)
 				h.PatchStatus(ctx, statusPatch{
-					Phase:                cluster_controllerpb.ReleasePhaseResolved,
-					Message:              fmt.Sprintf("workflow transient error (will retry): %v", err),
-					LastTransitionUnixMs: time.Now().UnixMilli(),
-					TransitionReason:     "resolved",
-					SetFields:            "retry",
+					Message:          fmt.Sprintf("workflow transient error (will retry): %v", err),
+					TransitionReason: "workflow_transient_error",
+					BlockedReason:    reason,
+					SetFields:        "retry",
 				})
 			} else {
 				log.Printf("%s %s: release workflow engine error: %v", h.ResourceType, h.Name, err)
@@ -828,8 +847,10 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 	return h
 }
 
-// applyPatchToSvcStatus applies a statusPatch to a ServiceReleaseStatus.
-func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statusPatch) {
+// applyPatchToSvcStatus applies a statusPatch to a ServiceReleaseStatus and
+// returns true if any field was actually mutated (i.e. Apply is warranted).
+// Returns false for unknown SetFields values so callers can skip Apply.
+func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statusPatch) (changed bool) {
 	if p.Phase == cluster_controllerpb.ReleasePhasePending {
 		buf := make([]byte, 2048)
 		n := runtime.Stack(buf, false)
@@ -851,6 +872,7 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 	case "phase":
 		s.Phase = p.Phase
 		applyWorkflowFields()
+		return true
 	case "resolve":
 		s.Phase = p.Phase
 		s.ResolvedVersion = p.ResolvedVersion
@@ -861,11 +883,13 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 		s.Message = p.Message
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
 		applyWorkflowFields()
+		return true
 	case "nodes":
 		s.Phase = p.Phase
 		s.Nodes = p.Nodes
 		s.LastTransitionUnixMs = p.LastTransitionUnixMs
 		applyWorkflowFields()
+		return true
 	case "fail":
 		s.Phase = p.Phase
 		s.Message = p.Message
@@ -874,6 +898,37 @@ func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statu
 			s.ObservedGeneration = p.ObservedGeneration
 		}
 		applyWorkflowFields()
+		return true
+	case "retry":
+		// Workflow transient error (circuit breaker open, Scylla unavailable, etc.).
+		// Increments RetryCount and computes NextRetryUnixMs with exponential backoff.
+		// Phase and LastTransitionUnixMs are NOT touched — those belong to the
+		// RESOLVED→APPLYING transition, not to the retry bookkeeping.
+		//
+		// The reconciler's "if NextRetryUnixMs > now → return early" guard is what
+		// prevents the dispatch storm; patchReleaseStatus calls Apply once per retry
+		// attempt, not on every reconcile tick.
+		now := time.Now()
+		backoff := transientRetryDelay(s.RetryCount)
+		s.RetryCount++
+		s.LastRetryUnixMs = now.UnixMilli()
+		s.NextRetryUnixMs = now.Add(backoff).UnixMilli()
+		s.LastTransientError = p.Message
+		if p.BlockedReason != "" {
+			s.BlockedReason = p.BlockedReason
+		} else if p.TransitionReason != "" {
+			s.BlockedReason = p.TransitionReason
+		}
+		if p.TransitionReason != "" {
+			s.TransitionReason = p.TransitionReason
+		}
+		s.Message = fmt.Sprintf("%s (retry %d, next in %s)", p.Message, s.RetryCount, backoff.Round(time.Second))
+		return true
+	default:
+		// Unknown SetFields: log once and skip — do not mutate anything.
+		log.Printf("applyPatchToSvcStatus: unknown SetFields=%q (release phase=%s) — patch skipped",
+			p.SetFields, s.Phase)
+		return false
 	}
 }
 

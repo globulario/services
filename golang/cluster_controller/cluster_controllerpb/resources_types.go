@@ -140,6 +140,15 @@ type ServiceReleaseStatus struct {
 	WorkflowKind           string               `json:"workflow_kind,omitempty"`       // "install", "upgrade", "remove"
 	StartedAtUnixMs        int64                `json:"started_at_unix_ms,omitempty"`  // workflow begin timestamp
 	TransitionReason       string               `json:"transition_reason,omitempty"`   // structured reason for last phase change
+
+	// Transient-retry state — populated when a workflow dispatch fails with a
+	// recoverable error (circuit breaker open, Scylla unavailable, etc.).
+	// The reconciler skips re-dispatch until NextRetryUnixMs has passed.
+	RetryCount         int64  `json:"retry_count,omitempty"`          // number of transient retry attempts since last success
+	LastRetryUnixMs    int64  `json:"last_retry_unix_ms,omitempty"`   // wall-clock timestamp of the most recent retry attempt
+	NextRetryUnixMs    int64  `json:"next_retry_unix_ms,omitempty"`   // earliest time to attempt the next dispatch
+	LastTransientError string `json:"last_transient_error,omitempty"` // last transient error message
+	BlockedReason      string `json:"blocked_reason,omitempty"`       // structured reason: workflow_unavailable, workflow_circuit_open, …
 }
 
 // ServiceRelease is the top-level desired-state object for service lifecycle.
