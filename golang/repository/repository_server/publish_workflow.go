@@ -198,8 +198,14 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	sKey := manifestStorageKey(key)
+	if err := srv.Storage().WriteFile(ctx, sKey, mjson, 0o644); err != nil {
 		return fmt.Errorf("write manifest: %w", err)
+	}
+	// Invalidate the in-memory cache so the next read sees PUBLISHED, not the
+	// stale VERIFIED entry that was cached before this promotion.
+	if srv.cache != nil {
+		srv.cache.invalidateManifest(sKey)
 	}
 	return nil
 }
