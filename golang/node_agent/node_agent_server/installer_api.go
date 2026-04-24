@@ -45,7 +45,7 @@ var localPackageDirs = []string{
 // resolve the digest from the repository manifest before trusting any cached
 // bytes. The contract is: no install ever silently succeeds on unvalidated
 // cached content.
-func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildNumber int64, expectedSHA256 string) error {
+func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildID string, expectedSHA256 string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	version := desiredVersion
 	if version == "" {
@@ -72,12 +72,12 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 				"publisher_id":    defaultPublisherID,
 				"repository_addr": repositoryAddr,
 				"artifact_kind":   kind,
-				"build_number":    float64(buildNumber),
+				"build_id":        buildID,
 				"expected_sha256": expectedSHA256,
 			})
 			if err == nil {
-				log.Printf("installer-api: fetching %s (%s) build=%d from %s",
-					name, kind, buildNumber, repositoryAddr)
+				log.Printf("installer-api: fetching %s (%s) build_id=%s from %s",
+					name, kind, buildID, repositoryAddr)
 				if _, err := fetchHandler.Apply(ctx, fetchArgs); err == nil {
 					fetched = true
 				} else {
