@@ -95,6 +95,13 @@ func (srv *server) executeWorkflowCentralized(
 			"node-agent":         controllerEndpoint, // controller proxies to real node-agents
 			"installer":          controllerEndpoint,
 			"repository":         controllerEndpoint,
+			// workflow-service actor (start_child / wait_child_terminal) must
+			// route back to this controller so the registered StartChild and
+			// WaitChildTerminal callbacks are invoked. Without this, the workflow
+			// service handles these actions locally with a no-op config, causing
+			// child workflows (release.apply.package) to silently return mock-run
+			// instead of actually dispatching to node-agents.
+			"workflow-service": controllerEndpoint,
 		},
 		CorrelationId: correlationID,
 	})
@@ -163,6 +170,7 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 			"node-agent":         controllerEndpoint,
 			"installer":          controllerEndpoint,
 			"repository":         controllerEndpoint,
+			"workflow-service":   controllerEndpoint,
 		},
 		CorrelationId: correlationID,
 	})
