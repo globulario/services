@@ -95,7 +95,8 @@ type server struct {
 	ScyllaHosts             []string
 	ScyllaPort              int
 	ScyllaReplicationFactor int
-	session                 *gocql.Session
+	session                 *gocql.Session // kept for backward-compat; always in sync with scyllaMgr
+	scyllaMgr               *scyllaSessionMgr
 
 	// Live watchers
 	watchersMu sync.RWMutex
@@ -230,16 +231,14 @@ func (srv *server) requireHealthy() error {
 // ScyllaDB connection
 // ---------------------------------------------------------------------------
 
-func (srv *server) connectScylla() error {
-	if srv.session != nil {
-		return nil
-	}
-
+// buildScyllaSession creates a fresh gocql session with the current hosts/port/rf.
+// It is called both at startup (by connectScylla) and by the reconnect loop.
+func (srv *server) buildScyllaSession() (*gocql.Session, error) {
 	hosts := srv.ScyllaHosts
 	if len(hosts) == 0 {
 		etcdHosts, err := config.GetScyllaHosts()
 		if err != nil {
-			return fmt.Errorf("scylla hosts: %w", err)
+			return nil, fmt.Errorf("scylla hosts: %w", err)
 		}
 		hosts = etcdHosts
 	}
@@ -268,23 +267,40 @@ func (srv *server) connectScylla() error {
 		cluster.Keyspace = ""
 		session, err = cluster.CreateSession()
 		if err != nil {
-			return fmt.Errorf("scylla connect: %w", err)
+			return nil, fmt.Errorf("scylla connect: %w", err)
 		}
 		cql := fmt.Sprintf(createWorkflowKeyspaceCQL, rf)
 		if err := session.Query(cql).Exec(); err != nil {
 			session.Close()
-			return fmt.Errorf("create keyspace: %w", err)
+			return nil, fmt.Errorf("create keyspace: %w", err)
 		}
 		session.Close()
 		// Reconnect with keyspace.
 		cluster.Keyspace = workflowKeyspace
 		session, err = cluster.CreateSession()
 		if err != nil {
-			return fmt.Errorf("scylla reconnect with keyspace: %w", err)
+			return nil, fmt.Errorf("scylla reconnect with keyspace: %w", err)
 		}
 	}
+	return session, nil
+}
 
-	// Check if tables already exist before running DDL (DDL can timeout on ScyllaDB 2025.3+).
+func (srv *server) connectScylla() error {
+	if srv.scyllaMgr != nil && srv.scyllaMgr.get() != nil {
+		return nil
+	}
+
+	// Initialize the session manager on first call.
+	if srv.scyllaMgr == nil {
+		srv.scyllaMgr = newScyllaSessionMgr(logger, srv.buildScyllaSession)
+	}
+
+	session, err := srv.buildScyllaSession()
+	if err != nil {
+		return err
+	}
+
+	// Run schema init on the initial session only (not on reconnects).
 	var tableCount int
 	if err := session.Query(`SELECT count(*) FROM system_schema.tables WHERE keyspace_name = ?`, workflowKeyspace).Scan(&tableCount); err != nil {
 		tableCount = 0
@@ -300,20 +316,30 @@ func (srv *server) connectScylla() error {
 	}
 	_ = tableCount
 
+	// Install session into the manager and keep srv.session in sync.
+	srv.scyllaMgr.set(session)
 	srv.session = session
-	if err != nil {
-		return fmt.Errorf("scylla connect (keyspace): %w", err)
-	}
 
-	logger.Info("ScyllaDB connected", "hosts", hosts, "keyspace", workflowKeyspace)
+	logger.Info("ScyllaDB connected", "hosts", srv.ScyllaHosts, "keyspace", workflowKeyspace)
 	return nil
 }
 
-func (srv *server) closeScylla() {
-	if srv.session != nil {
-		srv.session.Close()
-		srv.session = nil
+// getSession returns the current live Scylla session, or nil if the session
+// is unavailable (startup not done, or reconnect in progress).
+func (srv *server) getSession() *gocql.Session {
+	if srv.scyllaMgr == nil {
+		return srv.session
 	}
+	return srv.scyllaMgr.get()
+}
+
+func (srv *server) closeScylla() {
+	if srv.scyllaMgr != nil {
+		srv.scyllaMgr.close()
+	} else if srv.session != nil {
+		srv.session.Close()
+	}
+	srv.session = nil
 }
 
 // ---------------------------------------------------------------------------
@@ -346,12 +372,37 @@ func (srv *server) Init() error {
 	}
 
 	// Dependency health watchdog — gates RPCs when ScyllaDB is unreachable.
+	// The ping function uses scyllaMgr to detect session death and trigger
+	// automatic reconnect after reconnectFailThreshold consecutive failures.
 	srv.depHealth = dephealth.NewWatchdog(logger,
 		dephealth.Dep("scylladb", func(ctx context.Context) error {
-			if srv.session == nil {
-				return fmt.Errorf("scylladb not connected")
+			sess := srv.getSession()
+			if sess == nil {
+				// Session is nil: either initial connect failed or reconnect in
+				// progress. Count as a failure to drive reconnect if needed.
+				if srv.scyllaMgr != nil {
+					srv.scyllaMgr.onPingFailure(ctx)
+				}
+				return fmt.Errorf("scylladb: session unavailable (reconnecting)")
 			}
-			return srv.session.Query("SELECT now() FROM system.local").Consistency(gocql.One).Exec()
+			err := sess.Query("SELECT now() FROM system.local").Consistency(gocql.One).WithContext(ctx).Exec()
+			if err != nil {
+				if srv.scyllaMgr != nil {
+					srv.scyllaMgr.onPingFailure(ctx)
+				}
+				// Keep srv.session in sync: if the mgr has a fresh session after
+				// a reconnect, pick it up so background goroutines benefit too.
+			} else {
+				if srv.scyllaMgr != nil {
+					srv.scyllaMgr.onPingSuccess()
+					// Sync srv.session with whatever the mgr holds (may have
+					// been replaced by a reconnect since last ping).
+					if live := srv.scyllaMgr.get(); live != nil && live != srv.session {
+						srv.session = live
+					}
+				}
+			}
+			return err
 		}),
 	)
 	go srv.depHealth.Start(context.Background())
