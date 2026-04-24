@@ -171,5 +171,39 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
+	// ── Day-1 resilience signals (Phase 2-4) ────────────────────────────
+
+	if open, ok := snap.PromMetrics["workflow_circuit_open"]; ok && open > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("workflow.dispatch_circuit_open", "cluster", "workflow"),
+			InvariantID: "workflow.dispatch_circuit_open",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			Category:    "control_plane",
+			EntityRef:   "workflow",
+			Summary:     "Workflow dispatch circuit breaker is OPEN — all workflow dispatches are blocked until backend recovers",
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "circuit_open", map[string]string{
+				"circuit_open": fmt.Sprintf("%.0f", open),
+				"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if blocked, ok := snap.PromMetrics["release_transient_blocked"]; ok && blocked > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("release.blocked_workflow_unavailable", "cluster", "controller"),
+			InvariantID: "release.blocked_workflow_unavailable",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("%.0f release(s) blocked in transient retry backoff — workflow service was unreachable during last dispatch attempt", blocked),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "release_transient_blocked", map[string]string{
+				"blocked_releases": fmt.Sprintf("%.0f", blocked),
+				"timestamp":       snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
 	return findings
 }

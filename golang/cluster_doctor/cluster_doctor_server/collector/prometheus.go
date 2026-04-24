@@ -51,10 +51,13 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// with federation it returns the full membership.
 		"etcd_quorum_size": "count(etcd_server_id)",
 		// Storm protection signals (Phase A-D).
-		"apply_loop_detected":       "globular_controller_apply_loop_detected_total",
-		"drift_kind_mismatch":       "globular_controller_drift_kind_mismatch_total",
-		"reconcile_circuit_open":    "globular_controller_reconcile_circuit_open_total",
-		"workflow_dispatch_rejected": "globular_controller_workflow_dispatch_rejected_total",
+		"apply_loop_detected":        "globular_controller_apply_loop_detected_total",
+		"drift_kind_mismatch":        "globular_controller_drift_kind_mismatch_total",
+		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
+		"workflow_dispatch_rejected":  "globular_controller_workflow_dispatch_rejected_total",
+		// Day-1 resilience signals (Phase 2-4).
+		"workflow_circuit_open":      "globular_controller_workflow_circuit_open",
+		"release_transient_blocked":  "globular_controller_release_transient_blocked",
 	}
 
 	results := make(map[string]float64)
