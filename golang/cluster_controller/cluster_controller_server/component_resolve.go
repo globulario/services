@@ -430,6 +430,11 @@ func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersi
 	for _, dep := range c.RuntimeLocalDependencies {
 		depComp := CatalogByName(dep)
 		if depComp == nil {
+			// Dep is referenced by name but not in the catalog — treat as
+			// missing so the workload is blocked and the BFS can mark it
+			// unresolvable, surfacing Day1WorkloadBlocked instead of silently
+			// assuming it's satisfied.
+			missing = append(missing, dep)
 			continue
 		}
 		// KindCommand components (rclone, restic, sctool, etc.) have no systemd

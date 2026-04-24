@@ -181,6 +181,67 @@ func TestMinReconcileVersion_BelowMinimum(t *testing.T) {
 	}
 }
 
+// ── checkRuntimeDeps: catalog-miss edge cases ─────────────────────────────────
+
+// TestCheckRuntimeDeps_CatalogMissTreatedAsMissing verifies that a runtime
+// dependency whose name is not found in the catalog is returned as missing
+// (not silently skipped). A missing-from-catalog dep must block the workload
+// so BFS can classify it as unresolvable, surfacing Day1WorkloadBlocked instead
+// of letting the node spin in dependency_seeding_in_progress forever.
+func TestCheckRuntimeDeps_CatalogMissTreatedAsMissing(t *testing.T) {
+	// We need a Component whose RuntimeLocalDependencies contains a name that
+	// does not exist in the global catalog. Inject it directly.
+	synthetic := &Component{
+		Name:                     "fake-workload-zzz",
+		Kind:                     KindWorkload,
+		RuntimeLocalDependencies: []string{"nonexistent-ghost-dep-zzz"},
+	}
+
+	// Healthy units and installed versions are both empty — the dep is not
+	// installed and not running, which is fine: the important thing is that
+	// CatalogByName("nonexistent-ghost-dep-zzz") returns nil.
+	missing := checkRuntimeDeps(synthetic, map[string]bool{}, map[string]string{})
+
+	if len(missing) == 0 {
+		t.Fatal("checkRuntimeDeps should return 'nonexistent-ghost-dep-zzz' as missing, but returned empty slice")
+	}
+	found := false
+	for _, m := range missing {
+		if m == "nonexistent-ghost-dep-zzz" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("checkRuntimeDeps missing list = %v, want 'nonexistent-ghost-dep-zzz'", missing)
+	}
+}
+
+// ── resolveInfraVersion: COMMAND kind heartbeat resolution ────────────────────
+
+// TestResolveInfraVersion_CommandKindFromHeartbeat verifies that
+// resolveInfraVersion resolves a KindCommand package (rclone, restic, sctool,
+// mc, etc.) from the in-memory heartbeat map, just like KindInfrastructure.
+// The function is kind-agnostic at the heartbeat layer — it matches by name in
+// InstalledVersions regardless of the catalog kind.
+func TestResolveInfraVersion_CommandKindFromHeartbeat(t *testing.T) {
+	srv := &server{}
+	srv.state = &controllerState{
+		Nodes: map[string]*nodeState{
+			"node-a": {
+				Status:            "ready",
+				InstalledVersions: map[string]string{"rclone": "1.67.0"},
+			},
+		},
+	}
+	version, source := srv.resolveInfraVersion("rclone")
+	if version != "1.67.0" {
+		t.Errorf("resolveInfraVersion should pick up KindCommand 'rclone' from heartbeat, got version=%q source=%q", version, source)
+	}
+	if source != "installed:node-a" {
+		t.Errorf("expected source 'installed:node-a', got %q", source)
+	}
+}
+
 // makeStaleServices creates a map of N services all reporting "" fallback
 // version, simulating old node-agent behavior.
 func makeStaleServices(n int) map[string]string {

@@ -879,8 +879,15 @@ func (srv *server) resolveInfraVersion(componentName string) (version, source st
 	// node has already confirmed the component (even with a bad version) —
 	// in that case the heartbeat is authoritative and etcd would add nothing.
 	if !seenOnReadyNode {
-		pkgs, err := installed_state.ListAllNodes(context.Background(), "INFRASTRUCTURE", componentName)
-		if err == nil {
+		// Query both INFRASTRUCTURE and COMMAND kinds — resolveInfraVersion is
+		// called for both KindInfrastructure and KindCommand components (e.g.
+		// rclone, restic, sctool, mc). Querying only INFRASTRUCTURE would silently
+		// fail to resolve command packages stored under the COMMAND kind.
+		for _, kind := range []string{"INFRASTRUCTURE", "COMMAND"} {
+			pkgs, err := installed_state.ListAllNodes(context.Background(), kind, componentName)
+			if err != nil {
+				continue
+			}
 			for _, pkg := range pkgs {
 				if pkg == nil {
 					continue
