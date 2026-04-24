@@ -46,7 +46,7 @@ func discoverServiceAddr(defaultLocalPort int) string {
 func localCertHostname() string {
 	hostname, err := os.Hostname()
 	if err != nil || hostname == "" {
-		hostname = "localhost"
+		hostname = "node"
 	}
 	domain, err := config.GetDomain()
 	if err != nil || domain == "" {
@@ -83,7 +83,11 @@ func hostFromEndpoint(ep string) string {
 }
 
 func isLocalPortOpen(port int) bool {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 300*time.Millisecond)
+	ip := nodeRoutableIP()
+	if ip == "" {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ip, port), 300*time.Millisecond)
 	if err != nil {
 		return false
 	}

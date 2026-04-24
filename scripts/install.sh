@@ -56,24 +56,15 @@ command -v tar       >/dev/null 2>&1 || die "tar is required"
 [[ -d "${SCRIPT_DIR}/packages" ]]           || die "packages/ directory not found"
 [[ -f "${SCRIPT_DIR}/scripts/install-day0.sh" ]] || die "scripts/install-day0.sh not found"
 
-# ── Environment for install-day0.sh ──────────────────────────────────────────
-# PKG_DIR: where .tgz packages live in the tarball
-export PKG_DIR="${SCRIPT_DIR}/packages"
+PKG_DIR="${SCRIPT_DIR}/packages"
+INSTALLER_BIN="${SCRIPT_DIR}/globular-installer"
+MINIO_DATA_DIR="/var/lib/globular/minio/data"
+STATE_DIR="/var/lib/globular"
+GLOBULAR_DOMAIN="globular.internal"
 
-# INSTALLER_BIN: the globular-installer Go binary bundled in the tarball
-export INSTALLER_BIN="${SCRIPT_DIR}/globular-installer"
-
-# MINIO_DATA_DIR: default to /var/lib/globular/minio/data (non-interactive)
-# Override with: sudo MINIO_DATA_DIR=/data/minio bash install.sh
-export MINIO_DATA_DIR="${MINIO_DATA_DIR:-/var/lib/globular/minio/data}"
-
-# STATE_DIR: canonical Globular state root used by Day-0 scripts
-# (some installer script revisions read it before setting a default).
-export STATE_DIR="${STATE_DIR:-/var/lib/globular}"
-
-# GLOBULAR_DOMAIN: internal cluster domain (used for etcd/MinIO config keys)
-# The external/operator domain is set at bootstrap time via --domain flag
-export GLOBULAR_DOMAIN="${GLOBULAR_DOMAIN:-globular.internal}"
+mkdir -p "${SCRIPT_DIR}/bin" "${SCRIPT_DIR}/internal/assets"
+ln -sf "${INSTALLER_BIN}" "${SCRIPT_DIR}/bin/globular-installer"
+ln -sfn "${PKG_DIR}" "${SCRIPT_DIR}/internal/assets/packages"
 
 # ── Install CLI ───────────────────────────────────────────────────────────────
 info "Installing globular CLI..."
@@ -97,7 +88,7 @@ if [[ -z "${NODE_IP}" ]]; then
   NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 fi
 if [[ -z "${NODE_IP}" ]]; then
-  NODE_IP="127.0.0.1"
+  die "Could not determine a routable node IP for the bootstrap command"
 fi
 
 NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | grep -E '^11000$' | head -n1)"

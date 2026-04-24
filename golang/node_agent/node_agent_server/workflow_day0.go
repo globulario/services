@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"mime"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
@@ -17,6 +22,8 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 const (
@@ -109,14 +116,14 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		InstallPackage: func(ctx context.Context, name string) error {
 			// Day-0 bootstrap: no build pinning — fetch layer will resolve
 			// the latest published digest from the manifest.
-			return srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "", 0, "")
+			return srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "", "", "")
 		},
 
 		InstallPackageSet: func(ctx context.Context, packages []string) error {
 			var errs []string
 			for _, pkg := range packages {
 				kind := inferPackageKind(pkg)
-				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", 0, ""); err != nil {
+				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
 				}
 			}
@@ -134,17 +141,18 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		},
 
 		ConfigureSharedStorage: func(ctx context.Context) error {
-			// Create MinIO buckets if mc CLI is available.
-			mc, err := exec.LookPath("mc")
+			minioCfg, err := config.LoadMinIOConfig()
 			if err != nil {
-				log.Printf("day0: mc CLI not found, skipping MinIO bucket setup")
-				return nil
+				return fmt.Errorf("load MinIO config: %w", err)
 			}
-			buckets := []string{"globular-packages", "globular-config", "globular-backups"}
+			client, err := newDay0MinioClient(minioCfg)
+			if err != nil {
+				return fmt.Errorf("minio client: %w", err)
+			}
+			buckets := []string{"globular-packages", "globular-config", "globular-backups", minioCfg.Bucket}
 			for _, bucket := range buckets {
-				cmd := exec.CommandContext(ctx, mc, "mb", "--ignore-existing", "local/"+bucket)
-				if out, err := cmd.CombinedOutput(); err != nil {
-					log.Printf("day0: mc mb %s: %s (%v)", bucket, string(out), err)
+				if err := ensureDay0Bucket(ctx, client, bucket); err != nil {
+					return err
 				}
 			}
 
@@ -175,6 +183,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			}
 			log.Printf("day0: %d workflow definitions uploaded to MinIO globular-config/workflows/", uploaded)
 
+			if err := seedDay0Webroot(ctx, client, minioCfg, domain); err != nil {
+				return err
+			}
 			log.Printf("day0: shared storage configured (%d buckets)", len(buckets))
 			return nil
 		},
@@ -290,7 +301,6 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			script := "/usr/lib/globular/scripts/ensure-bootstrap-artifacts.sh"
 			if _, err := os.Stat(script); err == nil {
 				cmd := exec.CommandContext(ctx, "/bin/bash", script)
-				cmd.Env = os.Environ()
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return fmt.Errorf("publish artifacts: %s (%w)", strings.TrimSpace(string(out)), err)
@@ -349,9 +359,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
-			// Engine PackageRef does not carry build_number/digest yet;
+			// Engine PackageRef does not carry build_id/digest yet;
 			// the fetch layer resolves the manifest digest automatically.
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", 0, "")
+			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", "")
 		},
 		IsServiceActive: func(name string) bool {
 			return engine.DefaultIsServiceActive(name)
@@ -431,4 +441,122 @@ func resolveDay0WorkflowPath() string {
 		}
 	}
 	return ""
+}
+
+func newDay0MinioClient(cfg config.MinIOConfig) (*minio.Client, error) {
+	opts := &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure: cfg.Secure,
+	}
+	transport := &http.Transport{DialContext: config.ClusterDialContext}
+	if cfg.Secure {
+		caPath := config.GetLocalCACertificate()
+		if caPath == "" {
+			caPath = "/var/lib/globular/pki/ca.pem"
+		}
+		caPEM, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA bundle %s: %w", caPath, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parse CA bundle %s", caPath)
+		}
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool}
+	}
+	opts.Transport = transport
+	return minio.New(cfg.Endpoint, opts)
+}
+
+func ensureDay0Bucket(ctx context.Context, client *minio.Client, bucket string) error {
+	exists, err := client.BucketExists(ctx, bucket)
+	if err != nil {
+		return fmt.Errorf("bucket exists %s: %w", bucket, err)
+	}
+	if exists {
+		return nil
+	}
+	if err := client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil {
+		return fmt.Errorf("create bucket %s: %w", bucket, err)
+	}
+	return nil
+}
+
+func seedDay0Webroot(ctx context.Context, client *minio.Client, cfg config.MinIOConfig, domain string) error {
+	root, err := resolveDay0WebrootDir()
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("read webroot dir %s: %w", root, err)
+	}
+	prefixes := []string{"webroot"}
+	if trimmedDomain := strings.Trim(strings.TrimSpace(domain), "/"); trimmedDomain != "" {
+		prefixes = append(prefixes, trimmedDomain+"/webroot")
+	}
+	for _, prefix := range prefixes {
+		if err := putDay0TextObject(ctx, client, cfg.Bucket, prefix+"/.keep", "keep\n", "text/plain"); err != nil {
+			return err
+		}
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		data, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			return fmt.Errorf("read webroot asset %s: %w", name, err)
+		}
+		contentType := mime.TypeByExtension(filepath.Ext(name))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		for _, prefix := range prefixes {
+			if err := putDay0Object(ctx, client, cfg.Bucket, prefix+"/"+name, data, contentType); err != nil {
+				return err
+			}
+		}
+	}
+	if err := putDay0TextObject(ctx, client, cfg.Bucket, "users/.keep", "keep\n", "text/plain"); err != nil {
+		return err
+	}
+	if trimmedDomain := strings.Trim(strings.TrimSpace(domain), "/"); trimmedDomain != "" {
+		if err := putDay0TextObject(ctx, client, cfg.Bucket, trimmedDomain+"/users/.keep", "keep\n", "text/plain"); err != nil {
+			return err
+		}
+	}
+	log.Printf("day0: webroot assets uploaded from %s to bucket %s", root, cfg.Bucket)
+	return nil
+}
+
+func resolveDay0WebrootDir() (string, error) {
+	candidates := []string{
+		"/var/lib/globular/webroot",
+		"/usr/lib/globular/webroot",
+		"/opt/globular/webroot",
+	}
+	for _, candidate := range candidates {
+		entries, err := os.ReadDir(candidate)
+		if err != nil || len(entries) == 0 {
+			continue
+		}
+		return candidate, nil
+	}
+	return "", fmt.Errorf("no bundled webroot assets found in canonical locations")
+}
+
+func putDay0TextObject(ctx context.Context, client *minio.Client, bucket, key, content, contentType string) error {
+	return putDay0Object(ctx, client, bucket, key, []byte(content), contentType)
+}
+
+func putDay0Object(ctx context.Context, client *minio.Client, bucket, key string, data []byte, contentType string) error {
+	_, err := client.PutObject(ctx, bucket, key, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return fmt.Errorf("put %s/%s: %w", bucket, key, err)
+	}
+	return nil
 }

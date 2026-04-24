@@ -74,7 +74,7 @@ mkdir -p "${DIST_DIR}/bin" "${DIST_DIR}/packages"
 # ── Build Go binaries ────────────────────────────────────────────────────────
 section "Building Go Services"
 
-LDFLAGS="-X main.version=${VERSION} -X main.buildVersion=${VERSION} -s -w"
+LDFLAGS="-X main.Version=${VERSION} -s -w"
 cd "${SERVICES_ROOT}/golang"
 
 while IFS='|' read -r target output; do
@@ -243,11 +243,17 @@ elif [[ -d "${SOURCE_RELEASE_DIR}/scripts" ]]; then
 else
   die "installer scripts not found"
 fi
+
+if [[ -d "${SERVICES_ROOT}/scripts/release" ]]; then
+  cp -a "${SERVICES_ROOT}/scripts/release/." "${RELEASE_DIR}/scripts/"
+fi
 chmod +x "${RELEASE_DIR}/scripts/"*.sh 2>/dev/null || true
 
 cp "${SERVICES_ROOT}/golang/workflow/definitions/"*.yaml "${RELEASE_DIR}/workflows/"
 
-if [[ -d "${SOURCE_RELEASE_DIR}/webroot" ]]; then
+if [[ -d "${SERVICES_ROOT}/webroot" ]]; then
+  cp -a "${SERVICES_ROOT}/webroot" "${RELEASE_DIR}/webroot"
+elif [[ -d "${SOURCE_RELEASE_DIR}/webroot" ]]; then
   cp -a "${SOURCE_RELEASE_DIR}/webroot" "${RELEASE_DIR}/webroot"
 fi
 
@@ -266,7 +272,7 @@ sudo bash install.sh
 
 \`\`\`bash
 sudo systemctl start globular-node-agent
-globular cluster bootstrap --node localhost:11000 --domain <your-domain> --profile core --profile gateway
+globular cluster bootstrap --node <routable-node-ip>:11000 --domain <your-domain> --profile core --profile gateway
 \`\`\`
 
 Full guide: https://globular.io/docs/operators/installation

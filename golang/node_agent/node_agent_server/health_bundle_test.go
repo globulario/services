@@ -9,12 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/miekg/dns"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/miekg/dns"
 )
 
 func TestRunConvergenceChecksSuccess(t *testing.T) {
-	// HTTP endpoints
 	srv, err := newIPv4Server(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -23,29 +22,23 @@ func TestRunConvergenceChecksSuccess(t *testing.T) {
 	}
 	defer srv.Close()
 
-	// TCP listeners for supplemental checks
-	etcdLn, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Skipf("skipping, cannot listen: %v", err)
-	}
-	defer etcdLn.Close()
-	minioLn, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Skipf("skipping, cannot listen: %v", err)
-	}
-	defer minioLn.Close()
-	scyllaLn, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Skipf("skipping, cannot listen: %v", err)
-	}
-	defer scyllaLn.Close()
-
-	t.Setenv("GLOBULAR_HEALTH_MINIO_URL", srv.URL)
-	t.Setenv("GLOBULAR_HEALTH_ENVOY_URL", srv.URL)
-	t.Setenv("GLOBULAR_HEALTH_GATEWAY_URL", srv.URL)
-	t.Setenv("GLOBULAR_ETCD_ADDR", etcdLn.Addr().String())
-	t.Setenv("GLOBULAR_MINIO_ADDR", minioLn.Addr().String())
-	t.Setenv("GLOBULAR_SCYLLA_ADDR", scyllaLn.Addr().String())
+	oldMinioURL := minioHealthURLForSpec
+	oldGatewayURL := gatewayHealthURLForSpec
+	oldDNSAddr := dnsProbeAddr
+	oldTCPAddrs := tcpProbeAddrs
+	oldEnvoyUnit := envoyUnitActive
+	t.Cleanup(func() {
+		minioHealthURLForSpec = oldMinioURL
+		gatewayHealthURLForSpec = oldGatewayURL
+		dnsProbeAddr = oldDNSAddr
+		tcpProbeAddrs = oldTCPAddrs
+		envoyUnitActive = oldEnvoyUnit
+	})
+	minioHealthURLForSpec = func(spec *cluster_controllerpb.ClusterNetworkSpec, nodeIP string) string { return srv.URL }
+	gatewayHealthURLForSpec = func(spec *cluster_controllerpb.ClusterNetworkSpec, nodeIP string) string { return srv.URL }
+	dnsProbeAddr = func() string { return "127.0.0.1:53" }
+	tcpProbeAddrs = func() map[string]string { return map[string]string{} }
+	envoyUnitActive = func() error { return nil }
 
 	origLookup := dnsLookupHost
 	dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
@@ -65,21 +58,32 @@ func TestRunConvergenceChecksSuccess(t *testing.T) {
 }
 
 func TestRunConvergenceChecksDNSFailure(t *testing.T) {
+	oldMinioURL := minioHealthURLForSpec
+	oldGatewayURL := gatewayHealthURLForSpec
+	oldTCPAddrs := tcpProbeAddrs
+	oldEnvoyUnit := envoyUnitActive
+	t.Cleanup(func() {
+		minioHealthURLForSpec = oldMinioURL
+		gatewayHealthURLForSpec = oldGatewayURL
+		tcpProbeAddrs = oldTCPAddrs
+		envoyUnitActive = oldEnvoyUnit
+	})
+	minioHealthURLForSpec = func(spec *cluster_controllerpb.ClusterNetworkSpec, nodeIP string) string { return "http://127.0.0.1:0" }
+	gatewayHealthURLForSpec = func(spec *cluster_controllerpb.ClusterNetworkSpec, nodeIP string) string { return "http://127.0.0.1:0" }
+	tcpProbeAddrs = func() map[string]string {
+		return map[string]string{
+			"etcd":      "127.0.0.1:1",
+			"minio-tcp": "127.0.0.1:1",
+			"scylla":    "127.0.0.1:1",
+		}
+	}
+	envoyUnitActive = func() error { return context.DeadlineExceeded }
+
 	origLookup := dnsLookupHost
 	dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
 		return nil, context.DeadlineExceeded
 	}
 	defer func() { dnsLookupHost = origLookup }()
-
-	// Point HTTP checks at an unreachable address. Use a short-lived context so
-	// the RunChecks retry loop exits quickly instead of waiting 30s.
-	t.Setenv("GLOBULAR_HEALTH_MINIO_URL", "http://127.0.0.1:0")
-	t.Setenv("GLOBULAR_HEALTH_ENVOY_URL", "http://127.0.0.1:0")
-	t.Setenv("GLOBULAR_HEALTH_GATEWAY_URL", "http://127.0.0.1:0")
-	// Supplemental TCP probes: point to closed ports so they fail fast too.
-	t.Setenv("GLOBULAR_ETCD_ADDR", "127.0.0.1:1")
-	t.Setenv("GLOBULAR_MINIO_ADDR", "127.0.0.1:1")
-	t.Setenv("GLOBULAR_SCYLLA_ADDR", "127.0.0.1:1")
 
 	spec := &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: "example.com",
@@ -112,20 +116,17 @@ func TestDNSUDPCheckPasses(t *testing.T) {
 	go dnsServer.ActivateAndServe()
 	defer dnsServer.Shutdown()
 
-	t.Setenv("GLOBULAR_DNS_UDP_ADDR", udpLn.LocalAddr().String())
-	// TCP listeners to satisfy other checks
-	etcdLn, _ := net.Listen("tcp", "127.0.0.1:0")
-	defer etcdLn.Close()
-	minioLn, _ := net.Listen("tcp", "127.0.0.1:0")
-	defer minioLn.Close()
-	scyllaLn, _ := net.Listen("tcp", "127.0.0.1:0")
-	defer scyllaLn.Close()
-	t.Setenv("GLOBULAR_ETCD_ADDR", etcdLn.Addr().String())
-	t.Setenv("GLOBULAR_MINIO_ADDR", minioLn.Addr().String())
-	t.Setenv("GLOBULAR_SCYLLA_ADDR", scyllaLn.Addr().String())
-	t.Setenv("GLOBULAR_HEALTH_MINIO_URL", "http://127.0.0.1:0")   // skipped due to closed
-	t.Setenv("GLOBULAR_HEALTH_ENVOY_URL", "http://127.0.0.1:0")   // skipped due to closed
-	t.Setenv("GLOBULAR_HEALTH_GATEWAY_URL", "http://127.0.0.1:0") // skipped due to closed
+	oldDNSAddr := dnsProbeAddr
+	oldTCPAddrs := tcpProbeAddrs
+	oldEnvoyUnit := envoyUnitActive
+	t.Cleanup(func() {
+		dnsProbeAddr = oldDNSAddr
+		tcpProbeAddrs = oldTCPAddrs
+		envoyUnitActive = oldEnvoyUnit
+	})
+	dnsProbeAddr = func() string { return udpLn.LocalAddr().String() }
+	tcpProbeAddrs = func() map[string]string { return map[string]string{} }
+	envoyUnitActive = func() error { return nil }
 
 	spec := &cluster_controllerpb.ClusterNetworkSpec{ClusterDomain: "example.com", Protocol: "https", PortHttps: 443, PortHttp: 80}
 	if err := runSupplementalChecks(context.Background(), spec); err != nil {
@@ -134,7 +135,20 @@ func TestDNSUDPCheckPasses(t *testing.T) {
 }
 
 func TestEtcdPortCheckFails(t *testing.T) {
-	t.Setenv("GLOBULAR_ETCD_ADDR", "127.0.0.1:9") // closed port
+	oldTCPAddrs := tcpProbeAddrs
+	oldEnvoyUnit := envoyUnitActive
+	t.Cleanup(func() {
+		tcpProbeAddrs = oldTCPAddrs
+		envoyUnitActive = oldEnvoyUnit
+	})
+	tcpProbeAddrs = func() map[string]string {
+		return map[string]string{
+			"etcd":      "127.0.0.1:9",
+			"minio-tcp": "127.0.0.1:0",
+			"scylla":    "127.0.0.1:0",
+		}
+	}
+	envoyUnitActive = func() error { return nil }
 	origLookup := dnsLookupHost
 	dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
 		return []string{"127.0.0.1"}, nil
@@ -149,19 +163,14 @@ func TestEtcdPortCheckFails(t *testing.T) {
 }
 
 func TestScyllaPortCheckPasses(t *testing.T) {
-	// Three local listeners stand in for etcd, minio, and scylla.
-	listeners := make([]net.Listener, 3)
-	for i := range listeners {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Skipf("tcp listen not permitted: %v", err)
-		}
-		defer ln.Close()
-		listeners[i] = ln
-	}
-	t.Setenv("GLOBULAR_ETCD_ADDR", listeners[0].Addr().String())
-	t.Setenv("GLOBULAR_MINIO_ADDR", listeners[1].Addr().String())
-	t.Setenv("GLOBULAR_SCYLLA_ADDR", listeners[2].Addr().String())
+	oldTCPAddrs := tcpProbeAddrs
+	oldEnvoyUnit := envoyUnitActive
+	t.Cleanup(func() {
+		tcpProbeAddrs = oldTCPAddrs
+		envoyUnitActive = oldEnvoyUnit
+	})
+	tcpProbeAddrs = func() map[string]string { return map[string]string{} }
+	envoyUnitActive = func() error { return nil }
 	origLookup := dnsLookupHost
 	dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
 		return []string{"127.0.0.1"}, nil

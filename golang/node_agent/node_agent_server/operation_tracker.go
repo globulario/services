@@ -40,7 +40,7 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 			host = advHost
 		}
 	}
-	if host == "" {
+	if host == "" || isNonRoutableEndpoint(net.JoinHostPort(host, port)) {
 		return nil, status.Error(codes.InvalidArgument, "cannot derive routable controller endpoint host")
 	}
 	controllerEndpoint := net.JoinHostPort(host, port)
@@ -90,7 +90,7 @@ func (srv *NodeAgentServer) selfRegisterBootstrapNode(ctx context.Context, profi
 
 	// Validate that we have a join token.
 	if srv.joinToken == "" {
-		return fmt.Errorf("no join token configured (set NODE_AGENT_JOIN_TOKEN env var or ensure controller seeds a Day-0 token)")
+		return fmt.Errorf("no join token configured; controller must seed a Day-0 token before bootstrap self-registration")
 	}
 
 	labels := srv.joinRequestLabels()

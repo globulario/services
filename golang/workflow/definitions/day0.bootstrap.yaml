@@ -38,9 +38,20 @@ spec:
   strategy:
     mode: single
   steps:
+    - id: enable_bootstrap_window
+      title: Enable bootstrap window for early control-plane writes
+      actor: installer
+      action: installer.enable_bootstrap_window
+      with:
+        ttl: 30m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
     # ── Tier 0: Verify prerequisites are truly healthy ─────────────────
     - id: verify_etcd_healthy
       title: Verify etcd is healthy (etcdctl endpoint health)
+      dependsOn: [enable_bootstrap_window]
       actor: node-agent
       action: node.probe_infra_health
       with:
@@ -55,6 +66,7 @@ spec:
 
     - id: verify_scylla_healthy
       title: Verify ScyllaDB is accepting CQL connections
+      dependsOn: [enable_bootstrap_window]
       actor: node-agent
       action: node.probe_infra_health
       with:
@@ -69,6 +81,7 @@ spec:
 
     - id: verify_minio_healthy
       title: Verify MinIO is healthy (HTTP health endpoint)
+      dependsOn: [enable_bootstrap_window]
       actor: node-agent
       action: node.probe_infra_health
       with:

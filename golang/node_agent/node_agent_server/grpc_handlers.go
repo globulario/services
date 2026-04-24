@@ -35,6 +35,9 @@ func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *node_agentpb.J
 	if controllerEndpoint == "" {
 		return nil, status.Error(codes.InvalidArgument, "controller_endpoint is required")
 	}
+	if isNonRoutableEndpoint(controllerEndpoint) {
+		return nil, status.Errorf(codes.InvalidArgument, "controller_endpoint must be routable, got %q", controllerEndpoint)
+	}
 	srv.controllerEndpoint = controllerEndpoint
 	srv.state.ControllerEndpoint = controllerEndpoint
 	if err := srv.saveState(); err != nil {

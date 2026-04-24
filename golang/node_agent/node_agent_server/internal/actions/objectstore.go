@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/netutil"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -194,7 +195,7 @@ func deriveMinioLayoutForNodeAgent(cfg *config.MinioProxyConfig, domain string) 
 		if dom, err := config.GetDomain(); err == nil && dom != "" {
 			domain = dom
 		} else {
-			domain = "localhost"
+			domain = netutil.DefaultClusterDomain()
 		}
 	}
 
