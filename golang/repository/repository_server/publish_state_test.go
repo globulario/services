@@ -261,20 +261,27 @@ func TestPublishReconciler_PromotesStuckVerified(t *testing.T) {
 	}
 
 	// Seed a VERIFIED artifact with ModifiedUnix in the past (older than threshold).
+	// Phase 6 requires the binary blob to be present for promotion to succeed.
 	ctx := context.Background()
 	key := artifactKeyWithBuild(ref, 0)
 	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
+	blobContent := []byte("fake-binary-for-reconciler-test")
 	m := &repopb.ArtifactManifest{
-		Ref:         ref,
-		Checksum:    "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+		Ref:          ref,
+		Checksum:     "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 		ModifiedUnix: time.Now().Add(-2 * time.Minute).Unix(), // well past threshold
+		SizeBytes:    int64(len(blobContent)),
 	}
 	data, err := marshalManifestWithState(m, repopb.PublishState_VERIFIED)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), data, 0o644); err != nil {
-		t.Fatalf("write: %v", err)
+		t.Fatalf("write manifest: %v", err)
+	}
+	// Write binary blob — required by Phase 6 verified-publish rule.
+	if err := srv.Storage().WriteFile(ctx, binaryStorageKey(key), blobContent, 0o644); err != nil {
+		t.Fatalf("write binary: %v", err)
 	}
 
 	// Run reconciler tick.

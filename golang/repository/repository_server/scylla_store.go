@@ -64,6 +64,19 @@ var schemaIndexes = []string{
 	`CREATE INDEX IF NOT EXISTS idx_channel ON ` + scyllaKeyspace + `.` + scyllaManifestsTable + ` (channel)`,
 }
 
+// manifestLedger is the interface that abstracts the ScyllaDB manifest store.
+// Defining it here (where the concrete type lives) keeps the interface narrow
+// and allows tests to inject a fake implementation without needing a real
+// ScyllaDB cluster.
+type manifestLedger interface {
+	GetManifest(ctx context.Context, artifactKey string) (*manifestRow, error)
+	ListManifests(ctx context.Context) ([]manifestRow, error)
+	PutManifest(ctx context.Context, row manifestRow) error
+	UpdatePublishState(ctx context.Context, artifactKey, state string) error
+	DeleteManifest(ctx context.Context, artifactKey string) error
+	FindByEntrypointChecksum(ctx context.Context, checksum string) ([]manifestRow, error)
+}
+
 // manifestRow is a single row from the manifests table.
 type manifestRow struct {
 	ArtifactKey        string

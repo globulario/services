@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/versionutil"
@@ -245,6 +246,17 @@ func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.A
 // It also corrects the kind for manifests published before proper kind assignment.
 // Results are cached in-memory to reduce storage backend reads from the
 // reconcile loop (~6 req/s across the cluster).
+//
+// Phase 7 — Ledger-first read rule:
+// When ScyllaDB is available it is the authoritative ledger for artifact existence.
+//
+//   - Scylla miss  → codes.NotFound   (artifact absent from ledger — never published or GC'd)
+//   - Scylla hit   → manifest served from Scylla JSON (no MinIO round-trip for metadata)
+//   - Scylla down  → degraded fallback to MinIO-direct read (logged as WARN)
+//
+// This distinction matters: MinIO being unreachable does NOT mean an artifact is
+// absent. Only a Scylla miss is authoritative NotFound. MinIO failure surfaces as
+// codes.Unavailable at the binary-download layer, not codes.NotFound at manifest lookup.
 func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (string, repopb.PublishState, *repopb.ArtifactManifest, error) {
 	sKey := manifestStorageKey(key)
 
@@ -255,6 +267,41 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 		}
 	}
 
+	// Phase 7: Ledger-first read. Use Scylla as authoritative when available.
+	if srv.scylla != nil {
+		row, scyllaErr := srv.scylla.GetManifest(ctx, key)
+		switch {
+		case scyllaErr == nil:
+			// Scylla hit — parse manifest from ledger JSON.
+			m, state, err := unmarshalManifestWithState(row.ManifestJSON)
+			if err != nil {
+				return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil,
+					fmt.Errorf("parse manifest %q from ledger: %w", key, err)
+			}
+			if ref := m.GetRef(); ref != nil {
+				if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
+					ref.Kind = corrected
+				}
+			}
+			if srv.cache != nil {
+				srv.cache.putManifest(sKey, key, state, m)
+			}
+			return key, state, m, nil
+
+		case errors.Is(scyllaErr, gocql.ErrNotFound):
+			// Authoritative miss — artifact is not in the ledger.
+			return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil,
+				status.Errorf(codes.NotFound, "artifact %q not found", key)
+
+		default:
+			// Scylla temporarily unavailable — fall through to MinIO as degraded path.
+			// Log at WARN so operators know the service is running in degraded mode.
+			slog.Warn("ledger read failed, falling back to minio (degraded mode)",
+				"key", key, "err", scyllaErr)
+		}
+	}
+
+	// Fallback: MinIO-direct read (single-node / Scylla temporarily down).
 	data, err := srv.Storage().ReadFile(ctx, sKey)
 	if err != nil {
 		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, err

@@ -118,7 +118,7 @@ type server struct {
 	minioClient *minio.Client
 	storage     storage_backend.Storage
 	cache       *manifestCache            // in-memory TTL cache for manifest reads
-	scylla      *scyllaStore              // ScyllaDB manifest metadata store
+	scylla      manifestLedger            // ScyllaDB manifest metadata store (nil until connected)
 	depHealth   *depHealthWatchdog        // dependency health monitor
 
 	// --- Workflow tracing ---
@@ -842,13 +842,30 @@ func main() {
 	// 7c. Start dependency health watchdog.
 	// Continuously monitors MinIO + ScyllaDB. Gates RPCs with UNAVAILABLE when
 	// either dependency is down. Recovery is automatic.
-	s.depHealth = newDepHealthWatchdog(s.storage, s.scylla, logger)
+	//
+	// The watchdog holds a *scyllaStore directly (for Ping/Reconnect); the server
+	// holds a manifestLedger interface (for business-logic operations + testability).
+	// They point to the same underlying *scyllaStore when both are set.
+	var concreteScylla *scyllaStore
+	if s.scylla != nil {
+		concreteScylla = s.scylla.(*scyllaStore)
+	}
+	s.depHealth = newDepHealthWatchdog(s.storage, concreteScylla, logger)
 	s.depHealth.onScyllaReady = func(scylla *scyllaStore) {
 		s.scylla = scylla
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go s.depHealth.Start(ctx)
+
+	// Phase 2: Validate storage topology — reject unsafe round-robin endpoints
+	// in standalone_authority mode before serving any RPCs.
+	if topErr := s.validateStorageTopology(ctx); topErr != nil {
+		logger.Error("storage topology validation failed — service will start degraded",
+			"err", topErr)
+		// Non-fatal: log and continue. The dep_health watchdog gates RPCs.
+		// Operators must fix the topology config to restore full service.
+	}
 
 	// 7d. Run trust model migration (idempotent — only on first run).
 	if s.storage != nil {
