@@ -101,6 +101,9 @@ func main() {
 		DNSIPv6:                  *dnsIPv6Flag,
 		DNSIface:                 *dnsIfaceFlag,
 	}
+	if cfg.JoinToken == "" && state != nil {
+		cfg.JoinToken = strings.TrimSpace(state.JoinToken)
+	}
 	if cfg.AgentVersion == "" {
 		cfg.AgentVersion = ""
 	}
@@ -243,6 +246,20 @@ func main() {
 		}
 	}()
 
+	// Notify systemd that the service is ready (required for Type=notify units).
+	// Also kick the watchdog periodically so WatchdogSec doesn't kill us.
+	globular_service.SdNotify("READY=1")
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(15 * time.Second):
+				globular_service.SdNotify("WATCHDOG=1")
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	log.Printf("shutting down node agent (signal received)")
 	grpcServer.GracefulStop()
@@ -378,6 +395,9 @@ func writePromTargetFile(job string, port int) {
 	nodeIP := resolveRoutableIP()
 	hostname, _ := os.Hostname()
 	target := portTarget(nodeIP, port) // already "ip:port"
+	if target == "" {
+		return
+	}
 	content := fmt.Sprintf(
 		"- targets: [\"%s\"]\n  labels:\n    job: %s\n    instance: %s\n    node: %s\n",
 		target, job, target, hostname,
@@ -436,10 +456,10 @@ func registerMetricsService(name, ip string, port int) {
 	}
 }
 
-// portTarget returns ip:port with ip fallback to 127.0.0.1 if empty.
+// portTarget returns ip:port for a routable address, or "" if none is available.
 func portTarget(ip string, port int) string {
 	if ip == "" {
-		ip = "127.0.0.1"
+		return ""
 	}
 	return fmt.Sprintf("%s:%d", ip, port)
 }

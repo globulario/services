@@ -76,7 +76,7 @@ func newReleaseTestRouter(t *testing.T, opts releaseTestOpts) *Router {
 type releaseTestOpts struct {
 	selectTargets        func(ctx context.Context, candidates []any, pkg, hash string) ([]any, error)
 	aggregateDirectApply func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
-	installPackage       func(ctx context.Context, name, version, kind string) error
+	installPackage       func(ctx context.Context, name, version, kind, buildID string) error
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	restartPackageService func(ctx context.Context, name string) error
 	verifyPackageRuntime func(ctx context.Context, name, check string) error
@@ -96,7 +96,7 @@ func defaultReleaseOpts() releaseTestOpts {
 		aggregateDirectApply: func(ctx context.Context, releaseID, pkg string) (map[string]any, error) {
 			return map[string]any{"status": "AVAILABLE"}, nil
 		},
-		installPackage:         func(ctx context.Context, name, version, kind string) error { return nil },
+		installPackage:         func(ctx context.Context, name, version, kind, buildID string) error { return nil },
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		restartPackageService:  func(ctx context.Context, name string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
@@ -168,7 +168,7 @@ func TestInfraRelease_SingleNodeSuccess(t *testing.T) {
 	}
 
 	opts := defaultReleaseOpts()
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		record(fmt.Sprintf("install:%s@%s", name, version))
 		return nil
 	}
@@ -241,7 +241,7 @@ func TestInfraRelease_MultiNodePartialFailure(t *testing.T) {
 	}
 	// Make only node-3 fail.
 	failNode := "node-3"
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		return nil
 	}
 	opts.verifyPackageInstalled = func(ctx context.Context, name, version, hash string) error {
@@ -253,7 +253,7 @@ func TestInfraRelease_MultiNodePartialFailure(t *testing.T) {
 	// Use a more targeted approach: fail install on specific node.
 	var mu sync.Mutex
 	installCount := 0
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		mu.Lock()
 		installCount++
 		n := installCount
@@ -297,7 +297,7 @@ func TestInfraRelease_MultiNodePartialFailure(t *testing.T) {
 // Test 4: All nodes fail.
 func TestInfraRelease_MultiNodeFullFailure(t *testing.T) {
 	opts := defaultReleaseOpts()
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		return fmt.Errorf("download failed: repository unreachable")
 	}
 

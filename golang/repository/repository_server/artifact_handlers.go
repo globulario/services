@@ -43,7 +43,13 @@ import (
 
 // syncManifestToScylla writes manifest metadata to ScyllaDB for distributed
 // consistency. Best-effort: failure is logged but does not block the MinIO write.
-// The manifest JSON in MinIO remains the authoritative copy during migration.
+//
+// State authority rule:
+//   - manifest_json column: stores the manifest at upload time (state = VERIFIED).
+//     It is immutable historical metadata. Do NOT read it for current lifecycle state.
+//   - publish_state column: the SOLE authority for current lifecycle state.
+//     Updated by syncStateToScylla / UpdatePublishState on every transition.
+//   - Readers MUST use publish_state column. Never fall back to manifest_json.state.
 func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifest *repopb.ArtifactManifest, state repopb.PublishState, mjson []byte) {
 	if srv.scylla == nil {
 		return
@@ -72,6 +78,10 @@ func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifes
 }
 
 // syncStateToScylla updates only the publish state in ScyllaDB.
+// syncStateToScylla updates the publish_state column in ScyllaDB — the SOLE
+// authoritative source for current artifact lifecycle state. This MUST be called
+// on every state transition. Readers use this column and must not fall back to
+// manifest_json for lifecycle decisions.
 func (srv *server) syncStateToScylla(ctx context.Context, key string, state repopb.PublishState) {
 	if srv.scylla == nil {
 		return
@@ -278,6 +288,20 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 				return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil,
 					fmt.Errorf("parse manifest %q from ledger: %w", key, err)
 			}
+			// publish_state column is the SOLE authority for current lifecycle state.
+			// UpdatePublishState() updates only the column without rewriting manifest_json,
+			// so the column may be ahead of (or differ from) the JSON-embedded state.
+			// manifest_json is immutable historical metadata; never trust its embedded
+			// state for current lifecycle decisions.
+			if row.PublishState != "" {
+				if v, ok := repopb.PublishState_value[row.PublishState]; ok {
+					state = repopb.PublishState(v)
+				}
+			}
+			// Stamp authoritative state onto manifest proto so callers that read
+			// m.GetPublishState() (e.g. the controller release resolver) see the
+			// correct current state without re-querying.
+			m.PublishState = state
 			if ref := m.GetRef(); ref != nil {
 				if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
 					ref.Kind = corrected
@@ -310,6 +334,9 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 	if err != nil {
 		return key, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, nil, fmt.Errorf("parse manifest %q: %w", key, err)
 	}
+	// MinIO fallback path: state comes from manifest_json (no Scylla available).
+	// Stamp it onto the manifest proto so callers see the correct state via m.GetPublishState().
+	m.PublishState = state
 	// Correct kind for legacy manifests (published before COMMAND/INFRASTRUCTURE).
 	if ref := m.GetRef(); ref != nil {
 		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
@@ -1349,14 +1376,13 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 
-	// Read existing manifest and state.
-	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	// Read existing manifest and authoritative state via the ledger-first path.
+	// Using readManifestAndStateByKey ensures the current state comes from the
+	// publish_state column (not from stale manifest_json), which prevents incorrect
+	// transition validation when the reconciler has already promoted the artifact.
+	_, currentState, m, err := srv.readManifestAndStateByKey(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
-	}
-	m, currentState, err := unmarshalManifestWithState(data)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "parse manifest %q: %v", key, err)
 	}
 
 	// Validate transition.
@@ -1445,14 +1471,11 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 	buildNumber := req.GetBuildNumber()
 	key := artifactKeyWithBuild(ref, buildNumber)
 
-	// Read existing manifest and state FIRST (needed for authority check on un-quarantine).
-	data, err := srv.Storage().ReadFile(ctx, manifestStorageKey(key))
+	// Read existing manifest and authoritative state via the ledger-first path.
+	// publish_state column is the authority; manifest_json state is not trusted.
+	_, currentState, m, err := srv.readManifestAndStateByKey(ctx, key)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
-	}
-	m, currentState, err := unmarshalManifestWithState(data)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "parse manifest %q: %v", key, err)
 	}
 
 	// ── Authority boundaries for lifecycle transitions ──
@@ -2065,4 +2088,87 @@ func (srv *server) markCorrupted(ctx context.Context, key string, m *repopb.Arti
 		"declared_checksum": declared,
 		"actual_checksum":   actual,
 	})
+}
+
+// ── Publish-state backfill ──────────────────────────────────────────────────
+
+// BackfillPublishStateResult reports the outcome of a backfill run.
+type BackfillPublishStateResult struct {
+	RowsChecked    int
+	RowsBackfilled int // publish_state was empty → set from manifest_json
+	RowsDrifted    int // publish_state and manifest_json disagree (column wins, drift logged)
+	RowsFailed     int
+}
+
+// backfillPublishState repairs Scylla rows where the publish_state column is
+// empty (legacy rows written before the column was authoritative).
+//
+// Rules:
+//   - publish_state empty → set from manifest_json state (backfill)
+//   - publish_state present but differs from manifest_json → column wins, drift logged
+//   - Never downgrades PUBLISHED to VERIFIED from manifest_json
+//
+// Safe to call at startup or on demand. Idempotent.
+func (srv *server) backfillPublishState(ctx context.Context) BackfillPublishStateResult {
+	if srv.scylla == nil {
+		return BackfillPublishStateResult{}
+	}
+	rows, err := srv.scylla.ListManifests(ctx)
+	if err != nil {
+		slog.Warn("backfillPublishState: list manifests failed", "err", err)
+		return BackfillPublishStateResult{}
+	}
+
+	var result BackfillPublishStateResult
+	for _, row := range rows {
+		result.RowsChecked++
+
+		_, jsonState, parseErr := unmarshalManifestWithState(row.ManifestJSON)
+		if parseErr != nil {
+			result.RowsFailed++
+			continue
+		}
+
+		columnState := repopb.PublishState_PUBLISH_STATE_UNSPECIFIED
+		if row.PublishState != "" {
+			if v, ok := repopb.PublishState_value[row.PublishState]; ok {
+				columnState = repopb.PublishState(v)
+			}
+		}
+
+		if columnState == repopb.PublishState_PUBLISH_STATE_UNSPECIFIED {
+			// Column is empty — backfill from manifest_json state.
+			if jsonState == repopb.PublishState_PUBLISH_STATE_UNSPECIFIED {
+				continue // nothing to backfill
+			}
+			if err := srv.scylla.UpdatePublishState(ctx, row.ArtifactKey, jsonState.String()); err != nil {
+				slog.Warn("backfillPublishState: update failed", "key", row.ArtifactKey, "err", err)
+				result.RowsFailed++
+			} else {
+				result.RowsBackfilled++
+			}
+			continue
+		}
+
+		// Column is set. Check for drift with manifest_json.
+		if columnState != jsonState && jsonState != repopb.PublishState_PUBLISH_STATE_UNSPECIFIED {
+			slog.Warn("backfillPublishState: state drift detected — column wins",
+				"key", row.ArtifactKey,
+				"column_state", columnState,
+				"json_state", jsonState,
+				"authoritative", columnState,
+			)
+			result.RowsDrifted++
+		}
+	}
+
+	if result.RowsBackfilled > 0 || result.RowsDrifted > 0 {
+		slog.Info("backfillPublishState: complete",
+			"checked", result.RowsChecked,
+			"backfilled", result.RowsBackfilled,
+			"drifted", result.RowsDrifted,
+			"failed", result.RowsFailed,
+		)
+	}
+	return result
 }

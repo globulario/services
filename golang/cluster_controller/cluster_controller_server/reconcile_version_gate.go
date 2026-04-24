@@ -23,8 +23,9 @@ const minSafeReconcileVersion = "0.0.10"
 // the minimum safe reconcile version. Controllers below this version must not
 // mutate desired state or run reconciliation.
 func isReconcileSafe(version string) bool {
-	if version == "" {
-		// Empty version = injected via ldflags at build time; treat as current build = safe.
+	if version == "" || version == "0.0.0-dev" {
+		// Empty or dev version = local/dev build from current source; treat as safe.
+		// Production deployments always inject a real semver via -X main.Version=<ver>.
 		return true
 	}
 	cmp, err := versionutil.Compare(version, minSafeReconcileVersion)

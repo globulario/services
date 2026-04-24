@@ -593,20 +593,17 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		existingMap[canon] = existingInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber}
 	}
 
-	// Step 2.5: Clean up stale desired-state entries:
-	//   - Command-line tools (names ending in -cmd) should never be in desired state
-	//   - Services that are no longer in the installed-state registry were either
-	//     never truly installed or have been removed — remove from desired state
+	// Step 2.5: Remove command-type entries from desired state only.
+	// INVARIANT: Never delete desired entries because a service is not currently
+	// installed. Desired state (Layer 2) is authoritative — it must only change
+	// via explicit operator action (deploy/seed/desired-remove). Deleting based on
+	// Layer 3 (installed) observations is an authority inversion: a timing race
+	// (e.g. node-agent restart during a join) can make ListAllNodes return an
+	// incomplete snapshot, causing seed to wipe all workload desired state.
 	for canon := range existingMap {
-		shouldRemove := false
 		if strings.HasSuffix(canon, "-cmd") {
-			shouldRemove = true
-		} else if _, stillInstalled := installed[canon]; !stillInstalled {
-			shouldRemove = true
-		}
-		if shouldRemove {
 			if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", canon); err == nil {
-				logger.Info("importInstalledToDesired: removed stale desired entry", "name", canon)
+				logger.Info("importInstalledToDesired: removed command entry from desired state", "name", canon)
 			}
 			delete(existingMap, canon)
 		}

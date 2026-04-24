@@ -896,6 +896,7 @@ func (srv *NodeAgentServer) saveState() error {
 	srv.state.ControllerInsecure = srv.useInsecure
 	srv.state.RequestID = srv.joinRequestID
 	srv.state.NodeID = srv.nodeID
+	srv.state.JoinToken = strings.TrimSpace(srv.joinToken)
 	srv.state.NetworkGeneration = srv.lastNetworkGeneration
 	if domain, err := config.GetDomain(); err == nil && strings.TrimSpace(domain) != "" {
 		srv.state.ClusterDomain = strings.TrimSpace(domain)

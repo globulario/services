@@ -43,7 +43,7 @@ func releasePackageInputs(kind string, nodes ...string) map[string]any {
 type releasePackageTestOpts struct {
 	selectTargets        func(ctx context.Context, candidates []any, pkg, kind, hash string) ([]any, error)
 	aggregateDirectApply func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
-	installPackage       func(ctx context.Context, name, version, kind string) error
+	installPackage       func(ctx context.Context, name, version, kind, buildID string) error
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	maybeRestartPackage  func(ctx context.Context, name, kind, policy string) error
 	verifyPackageRuntime func(ctx context.Context, name, check string) error
@@ -62,7 +62,7 @@ func defaultReleasePackageOpts() releasePackageTestOpts {
 		aggregateDirectApply: func(ctx context.Context, releaseID, pkg string) (map[string]any, error) {
 			return map[string]any{"status": "AVAILABLE"}, nil
 		},
-		installPackage:         func(ctx context.Context, name, version, kind string) error { return nil },
+		installPackage:         func(ctx context.Context, name, version, kind, buildID string) error { return nil },
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		maybeRestartPackage:    func(ctx context.Context, name, kind, policy string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
@@ -132,7 +132,7 @@ func TestReleasePackage_ServiceRolloutSuccess(t *testing.T) {
 	}
 
 	opts := defaultReleasePackageOpts()
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		record(fmt.Sprintf("install:%s@%s(%s)", name, version, kind))
 		return nil
 	}
@@ -196,7 +196,7 @@ func TestReleasePackage_WorkloadPartialFailure(t *testing.T) {
 	installCount := 0
 
 	opts := defaultReleasePackageOpts()
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		mu.Lock()
 		installCount++
 		n := installCount
@@ -238,7 +238,7 @@ func TestReleasePackage_CommandSkipsRestart(t *testing.T) {
 	}
 
 	opts := defaultReleasePackageOpts()
-	opts.installPackage = func(ctx context.Context, name, version, kind string) error {
+	opts.installPackage = func(ctx context.Context, name, version, kind, buildID string) error {
 		record("install:" + kind)
 		return nil
 	}

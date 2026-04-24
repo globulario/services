@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -375,6 +376,31 @@ func (srv *server) reconcileMarkItemStarted(ctx context.Context, item map[string
 	return nil
 }
 
+// lookupServiceReleaseBuildID returns the resolved_build_id from a ServiceRelease
+// (or InfrastructureRelease) for the given package name. Returns "" if not found
+// or not set. This allows the reconciler to propagate exact artifact identity
+// through the drift-dispatch path.
+func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName string) (resolvedBuildID, resolvedHash string) {
+	relKey := defaultPublisherID() + "/" + canonicalServiceName(pkgName)
+	// Try ServiceRelease first.
+	if obj, _, err := srv.resources.Get(ctx, "ServiceRelease", relKey); err == nil && obj != nil {
+		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok {
+			if rel.Status != nil {
+				return rel.Status.ResolvedBuildID, rel.Status.ResolvedArtifactDigest
+			}
+		}
+	}
+	// Try InfrastructureRelease.
+	if obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", relKey); err == nil && obj != nil {
+		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok {
+			if rel.Status != nil {
+				return rel.Status.ResolvedBuildID, rel.Status.ResolvedArtifactDigest
+			}
+		}
+	}
+	return "", ""
+}
+
 // reconcileChooseWorkflow selects the appropriate child workflow for a drift item.
 func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]any) (map[string]any, error) {
 	driftType := fmt.Sprint(item["type"])
@@ -397,17 +423,22 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 				kind = "COMMAND"
 			}
 		}
+		// Look up the resolved build_id and artifact digest from the ServiceRelease
+		// or InfrastructureRelease resource. This threads the exact artifact identity
+		// through the drift-dispatch path so node-agents fetch the correct build.
+		resolvedBuildID, resolvedHash := srv.lookupServiceReleaseBuildID(ctx, pkgName)
 		return map[string]any{
 			"workflow_name": "release.apply.package",
 			"inputs": map[string]any{
-				"cluster_id":       srv.cfg.ClusterDomain,
-				"release_id":       fmt.Sprintf("reconcile-%s-%s", nodeID, pkgName),
-				"release_name":     fmt.Sprintf("reconcile-%s", pkgName),
-				"package_name":     pkgName,
-				"package_kind":     kind,
-				"resolved_version": desiredVersion,
-				"desired_hash":     "",
-				"candidate_nodes":  []any{nodeID},
+				"cluster_id":        srv.cfg.ClusterDomain,
+				"release_id":        fmt.Sprintf("reconcile-%s-%s", nodeID, pkgName),
+				"release_name":      fmt.Sprintf("reconcile-%s", pkgName),
+				"package_name":      pkgName,
+				"package_kind":      kind,
+				"resolved_version":  desiredVersion,
+				"desired_hash":      resolvedHash,
+				"resolved_build_id": resolvedBuildID,
+				"candidate_nodes":   []any{nodeID},
 			},
 		}, nil
 

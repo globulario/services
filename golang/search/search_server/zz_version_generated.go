@@ -3,7 +3,7 @@
 package main
 
 // Version is the release version injected at build time.
-const Version = "0.0.0-dev"
+var Version = "0.0.0-dev"
 
 func init() {
 	// Compile-time guard: this init() will not compile if Version is blank,

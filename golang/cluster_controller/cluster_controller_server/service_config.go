@@ -202,10 +202,9 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 		clusterState = "new"
 	}
 
-	// Client listen URLs: always bind both loopback and routable IP.
-	// Even single-node clusters need the routable IP so joining nodes
-	// can reach etcd for member-add operations during expansion.
-	listenClientURLs := fmt.Sprintf("https://%s:2379,https://127.0.0.1:2379", currentIP)
+	// Client listen URL: routable IP only.
+	// Joining nodes must reach etcd over the advertised cluster network.
+	listenClientURLs := fmt.Sprintf("https://%s:2379", currentIP)
 
 	// Build YAML with nested TLS sections (etcd native config format).
 	var sb strings.Builder
@@ -430,7 +429,7 @@ func renderMinioSystemdOverride(ctx *serviceConfigContext) (string, bool) {
 	// Clear the original ExecStart and replace with $MINIO_VOLUMES from env file.
 	currentIP := ctx.CurrentNode.IP
 	sb.WriteString("ExecStart=\n")
-	sb.WriteString(fmt.Sprintf("ExecStart=/usr/lib/globular/bin/minio server $MINIO_VOLUMES --address %s:9000 --console-address 127.0.0.1:9001\n", currentIP))
+	sb.WriteString(fmt.Sprintf("ExecStart=/usr/lib/globular/bin/minio server $MINIO_VOLUMES --address %s:9000 --console-address %s:9001\n", currentIP, currentIP))
 
 	return sb.String(), true
 }

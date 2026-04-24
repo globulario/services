@@ -902,7 +902,7 @@ func releaseFinalizeDirectApply(cfg ReleaseControllerConfig) ActionHandler {
 
 // NodeDirectApplyConfig provides dependencies for direct node-agent package operations.
 type NodeDirectApplyConfig struct {
-	InstallPackage         func(ctx context.Context, name, version, kind string) error
+	InstallPackage         func(ctx context.Context, name, version, kind, buildID string) error
 	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	RestartPackageService  func(ctx context.Context, name string) error
 	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
@@ -979,8 +979,12 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
 		kind := fmt.Sprint(req.With["kind"])
+		buildID := fmt.Sprint(req.With["build_id"])
+		if buildID == "<nil>" {
+			buildID = ""
+		}
 		if cfg.InstallPackage != nil {
-			if err := cfg.InstallPackage(ctx, name, version, kind); err != nil {
+			if err := cfg.InstallPackage(ctx, name, version, kind, buildID); err != nil {
 				return nil, fmt.Errorf("install %s: %w", name, err)
 			}
 		}

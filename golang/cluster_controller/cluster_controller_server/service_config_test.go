@@ -178,10 +178,12 @@ func TestRenderEtcdConfig(t *testing.T) {
 		if !strings.Contains(config, "initial-cluster-token") {
 			t.Error("config missing initial-cluster-token field")
 		}
-		// listen-client-urls must include localhost so etcdctl / local clients work.
-		// The routable IP is also included so expanding nodes can reach etcd.
-		if !strings.Contains(config, "https://127.0.0.1:2379") {
-			t.Errorf("listen-client-urls must include localhost, got:\n%s", config)
+		// listen-client-urls must bind only the routable IP.
+		if !strings.Contains(config, `listen-client-urls: "https://192.168.1.10:2379"`) {
+			t.Errorf("listen-client-urls must bind the node IP, got:\n%s", config)
+		}
+		if strings.Contains(config, "https://127.0.0.1:2379") {
+			t.Errorf("listen-client-urls must not include loopback, got:\n%s", config)
 		}
 		// Must use HTTPS (no plain http:// URLs)
 		if strings.Contains(config, "http://") {
@@ -261,12 +263,12 @@ func TestRenderEtcdConfig(t *testing.T) {
 		if !strings.Contains(config, `initial-cluster-state: "existing"`) {
 			t.Error("expansion should use initial-cluster-state: existing")
 		}
-		// Multi-node should have both IP and localhost in listen-client-urls
-		if !strings.Contains(config, "https://192.168.1.11:2379") {
+		// Multi-node should still bind only the node IP in listen-client-urls.
+		if !strings.Contains(config, `listen-client-urls: "https://192.168.1.11:2379"`) {
 			t.Error("multi-node should have node IP in listen-client-urls")
 		}
-		if !strings.Contains(config, "https://127.0.0.1:2379") {
-			t.Error("multi-node should have localhost in listen-client-urls")
+		if strings.Contains(config, "https://127.0.0.1:2379") {
+			t.Error("multi-node should not have loopback in listen-client-urls")
 		}
 		// No plain HTTP URLs
 		if strings.Contains(config, "http://") {

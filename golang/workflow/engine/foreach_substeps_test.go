@@ -87,7 +87,7 @@ func TestForeachWithSubSteps_AllSucceed(t *testing.T) {
 
 	router := NewRouter()
 	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind string) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID string) error {
 			record(fmt.Sprintf("install:%s", name))
 			return nil
 		},
@@ -181,7 +181,7 @@ func TestForeachWithSubSteps_PartialFailure(t *testing.T) {
 
 	router := NewRouter()
 	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind string) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID string) error {
 			mu.Lock()
 			installCount++
 			n := installCount
@@ -262,7 +262,7 @@ func TestForeachWithSubSteps_EmptyCollection(t *testing.T) {
 func TestForeachWithSubSteps_ChildStatesVisibleInParent(t *testing.T) {
 	router := NewRouter()
 	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
-		InstallPackage:         func(ctx context.Context, name, version, kind string) error { return nil },
+		InstallPackage:         func(ctx context.Context, name, version, kind, buildID string) error { return nil },
 		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		SyncInstalledPackage:   func(ctx context.Context, name, version, hash, kind string) error { return nil },
 	})

@@ -12,6 +12,7 @@ type nodeAgentState struct {
 	ControllerInsecure bool   `json:"controller_insecure"`
 	RequestID          string `json:"request_id"`
 	NodeID             string `json:"node_id"`
+	JoinToken          string `json:"join_token"`
 	NetworkGeneration  uint64 `json:"network_generation"`
 	ClusterDomain      string `json:"cluster_domain"`
 	Protocol           string `json:"protocol"`

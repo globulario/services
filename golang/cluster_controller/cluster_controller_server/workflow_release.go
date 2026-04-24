@@ -561,14 +561,14 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 
 func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 	return engine.NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind string) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID string) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			log.Printf("release-workflow: installing %s@%s (%s) on node %s via %s", name, version, kind, nodeID, endpoint)
+			log.Printf("release-workflow: installing %s@%s (%s) build_id=%s on node %s via %s", name, version, kind, buildID, nodeID, endpoint)
 			conn, err := srv.dialNodeAgent(endpoint)
 			if err != nil {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
@@ -582,6 +582,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 					"package_name": name,
 					"version":      version,
 					"kind":         kind,
+					"build_id":     buildID,
 				},
 			})
 			if err != nil {
