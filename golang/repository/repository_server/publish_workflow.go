@@ -191,22 +191,20 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 	)
 }
 
-// promoteToPublished re-writes the manifest with PUBLISHED state.
+// promoteToPublished marks an artifact PUBLISHED.
 //
-// Phase 6 — verified publish:
-// Before marking PUBLISHED, verify the binary blob is present in MinIO and
-// its size matches the manifest's declared size_bytes. This prevents the
-// ledger from declaring an artifact PUBLISHED when its binary is absent or
-// was silently truncated during upload.
-//
-// Write order:
+// Write order (Scylla-first):
 //  1. Verify binary present in authority MinIO (Stat check).
-//  2. Write PUBLISHED manifest JSON to MinIO.
-//  3. Sync PUBLISHED state to Scylla ledger.
-//  4. Only on success of all three: invalidate the in-memory cache.
+//  2. Write PUBLISHED state to Scylla ledger — REQUIRED. If this fails, the
+//     artifact stays VERIFIED and promotion fails. Scylla is the sole authority
+//     for publish state; all discovery paths read from Scylla first.
+//  3. Write PUBLISHED manifest_json to MinIO — best-effort for compatibility
+//     with degraded/single-node reads. Failure is logged but non-fatal since
+//     Scylla already has the authoritative PUBLISHED state.
+//  4. Invalidate the in-memory cache.
 //
-// If any step fails the manifest stays in VERIFIED state — visible to admins
-// but hidden from catalog queries and the release resolver.
+// If step 2 fails the manifest stays in VERIFIED state — invisible to the
+// release resolver until the Scylla write succeeds.
 func (srv *server) promoteToPublished(ctx context.Context, key string, manifest *repopb.ArtifactManifest) error {
 	// Step 1: Verify the binary blob is present in authority MinIO.
 	binKey := binaryStorageKey(key)
@@ -215,32 +213,35 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		return fmt.Errorf("promote to PUBLISHED blocked: binary %q not found in authority MinIO — artifact cannot be PUBLISHED without its blob: %w",
 			binKey, statErr)
 	}
-	// Check size integrity when the manifest declares a size.
 	if declared := manifest.GetSizeBytes(); declared > 0 && fi.Size() != declared {
 		return fmt.Errorf("promote to PUBLISHED blocked: binary %q size mismatch — manifest declares %d bytes but authority MinIO reports %d bytes",
 			binKey, declared, fi.Size())
 	}
 
-	// Step 2: Write PUBLISHED manifest JSON to MinIO.
 	manifest.PublishedUnix = time.Now().Unix()
+
+	// Step 2: Write PUBLISHED state to Scylla — this MUST succeed.
+	// Scylla publish_state is the authoritative source. All discovery paths
+	// (ListArtifacts, GetArtifactVersions, resolveLatestBuildNumber) read from
+	// Scylla first. If this write fails, callers must not treat the artifact as
+	// PUBLISHED — it stays VERIFIED and the reconciler will retry later.
+	if srv.scylla != nil {
+		if err := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); err != nil {
+			return fmt.Errorf("promote to PUBLISHED: ledger update failed — artifact stays in VERIFIED state: %w", err)
+		}
+	}
+
+	// Step 3: Write PUBLISHED manifest_json to MinIO (compatibility layer).
+	// Scylla is already authoritative; this write keeps the MinIO copy consistent
+	// for degraded-mode reads and tooling that inspects manifest files directly.
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_PUBLISHED)
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
 	sKey := manifestStorageKey(key)
 	if err := srv.Storage().WriteFile(ctx, sKey, mjson, 0o644); err != nil {
-		return fmt.Errorf("write manifest: %w", err)
-	}
-
-	// Step 3: Write PUBLISHED state to Scylla ledger.
-	// This is authoritative — the next read will see PUBLISHED from the ledger.
-	if srv.scylla != nil {
-		if err := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); err != nil {
-			// Best-effort: log but don't block. MinIO is the fallback.
-			// The next syncManifestToScylla call will repair the ledger.
-			slog.Warn("promoteToPublished: scylla ledger update failed (manifest written to minio, ledger will sync on next read)",
-				"key", key, "err", err)
-		}
+		slog.Warn("promoteToPublished: minio manifest write failed (scylla is authoritative, artifact is PUBLISHED)",
+			"key", key, "err", err)
 	}
 
 	// Step 4: Invalidate the in-memory cache so the next read sees PUBLISHED.

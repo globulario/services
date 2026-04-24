@@ -242,6 +242,30 @@ func isTerminalState(s repopb.PublishState) bool {
 
 // ── manifest helpers ──────────────────────────────────────────────────────
 
+// manifestFromRow builds a manifest proto from a Scylla manifestRow.
+// The publish_state column is authoritative — it always wins over the
+// JSON-embedded state. m.PublishState is always stamped with the authoritative value.
+func manifestFromRow(row manifestRow) (*repopb.ArtifactManifest, repopb.PublishState, error) {
+	m, state, err := unmarshalManifestWithState(row.ManifestJSON)
+	if err != nil {
+		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED,
+			fmt.Errorf("parse manifest %q: %w", row.ArtifactKey, err)
+	}
+	// Column is authoritative — override the JSON-embedded state.
+	if row.PublishState != "" {
+		if v, ok := repopb.PublishState_value[row.PublishState]; ok {
+			state = repopb.PublishState(v)
+		}
+	}
+	m.PublishState = state
+	if ref := m.GetRef(); ref != nil {
+		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
+			ref.Kind = corrected
+		}
+	}
+	return m, state, nil
+}
+
 // readManifestByKey reads and unmarshals a single manifest JSON from storage.
 func (srv *server) readManifestByKey(ctx context.Context, key string) (*repopb.ArtifactManifest, error) {
 	_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
@@ -454,35 +478,54 @@ func sortManifestsByVersionDesc(ms []*repopb.ArtifactManifest) {
 
 // ── build resolution helpers ─────────────────────────────────────────────
 
-// resolveLatestBuildNumber scans the artifacts directory for all builds of the
-// given artifact (publisher, name, version, platform) and returns the highest
-// build_number found. Returns 0 if no builds are found.
+// resolveLatestBuildNumber returns the highest PUBLISHED build_number for the
+// given artifact (publisher, name, version, platform). Returns 0 if none found.
 //
-// Directory listings are cached (30s TTL) to avoid repeated MinIO ListObjects
-// calls from the reconcile loop.
+// Scylla-first: when Scylla is available it uses the ledger directly (no MinIO
+// listing required). Falls back to the cached MinIO directory scan only when
+// Scylla is nil or temporarily unavailable.
 func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.ArtifactRef) int64 {
+	// Scylla-first: use ledger rows for authoritative build resolution.
+	if srv.scylla != nil {
+		rows, err := srv.scylla.ListManifests(ctx)
+		if err != nil {
+			slog.Warn("resolveLatestBuildNumber: scylla unavailable, falling back to minio", "err", err)
+			// fall through to MinIO path below
+		} else {
+			prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+			var best int64
+			for _, row := range rows {
+				if !strings.HasPrefix(row.ArtifactKey, prefix) {
+					continue
+				}
+				if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+					continue
+				}
+				if row.BuildNumber > best {
+					best = row.BuildNumber
+				}
+			}
+			return best
+		}
+	}
+
+	// Legacy / degraded fallback: scan cached MinIO directory.
 	names := srv.cachedDirNames(ctx)
 	if names == nil {
 		return 0
 	}
-
-	// Build the prefix that all builds of this artifact share:
-	// {publisherID}%{name}%{version}%{platform}%
 	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
 	suffix := ".manifest.json"
-
 	var best int64
 	for _, name := range names {
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
 			continue
 		}
-		// Extract build number from between prefix and suffix.
 		numStr := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
 		bn, err := strconv.ParseInt(numStr, 10, 64)
 		if err != nil || bn <= 0 {
 			continue
 		}
-		// Only consider PUBLISHED artifacts for latest-build resolution.
 		key := strings.TrimSuffix(name, suffix)
 		if _, state, _, readErr := srv.readManifestAndStateByKey(ctx, key); readErr == nil {
 			if state != repopb.PublishState_PUBLISHED {
@@ -500,18 +543,53 @@ func (srv *server) resolveLatestBuildNumber(ctx context.Context, ref *repopb.Art
 // package identity and content digest. Build numbers are display metadata; the
 // repository must not create a second build row for identical bytes just
 // because two import paths disagree on a CI/build counter.
+//
+// Scylla-first: when Scylla is available it searches ledger rows directly.
+// Falls back to the cached MinIO directory scan only when Scylla is unavailable.
 func (srv *server) findExistingArtifactByDigest(ctx context.Context, ref *repopb.ArtifactRef, checksum string) (*repopb.ArtifactManifest, repopb.PublishState, string, bool) {
 	if ref == nil || checksum == "" {
 		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
 	}
+
+	// Scylla-first: search ledger rows by checksum.
+	if srv.scylla != nil {
+		rows, err := srv.scylla.ListManifests(ctx)
+		if err != nil {
+			slog.Warn("findExistingArtifactByDigest: scylla unavailable, falling back to minio", "err", err)
+			// fall through to MinIO path below
+		} else {
+			prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
+			var best *repopb.ArtifactManifest
+			var bestState repopb.PublishState
+			var bestKey string
+			for _, row := range rows {
+				if !strings.HasPrefix(row.ArtifactKey, prefix) || row.Checksum != checksum {
+					continue
+				}
+				m, state, parseErr := manifestFromRow(row)
+				if parseErr != nil {
+					continue
+				}
+				if best == nil || m.GetBuildNumber() > best.GetBuildNumber() {
+					best = m
+					bestState = state
+					bestKey = row.ArtifactKey
+				}
+			}
+			if best != nil {
+				return best, bestState, bestKey, true
+			}
+			return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
+		}
+	}
+
+	// Legacy / degraded fallback: scan cached MinIO directory.
 	names := srv.cachedDirNames(ctx)
 	if names == nil {
 		return nil, repopb.PublishState_PUBLISH_STATE_UNSPECIFIED, "", false
 	}
-
 	prefix := ref.GetPublisherId() + "%" + ref.GetName() + "%" + ref.GetVersion() + "%" + ref.GetPlatform() + "%"
 	suffix := ".manifest.json"
-
 	var best *repopb.ArtifactManifest
 	var bestState repopb.PublishState
 	var bestKey string
@@ -562,7 +640,27 @@ func (srv *server) cachedDirNames(ctx context.Context) []string {
 // Used by the law validator for cross-artifact rules. Errors are swallowed —
 // a partial or empty catalog degrades validation gracefully (single-artifact
 // rules still run; cross-artifact rules become best-effort).
+//
+// Scylla-first: when Scylla is available it uses the ledger directly.
 func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactManifest {
+	if srv.scylla != nil {
+		rows, err := srv.scylla.ListManifests(ctx)
+		if err != nil {
+			slog.Warn("loadPublishedCatalog: scylla unavailable", "err", err)
+			return nil
+		}
+		var out []*repopb.ArtifactManifest
+		for _, row := range rows {
+			m, state, parseErr := manifestFromRow(row)
+			if parseErr != nil || state != repopb.PublishState_PUBLISHED {
+				continue
+			}
+			out = append(out, m)
+		}
+		return out
+	}
+
+	// Legacy / degraded fallback: scan MinIO.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return nil
@@ -752,22 +850,51 @@ func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*
 // ── public handlers ───────────────────────────────────────────────────────
 
 // ListArtifacts returns all manifests stored in the repository.
-// If the artifacts directory does not yet exist, an empty list is returned.
+//
+// Scylla-first: when Scylla is available it reads directly from the ledger
+// (no MinIO listing required). The publish_state column is authoritative.
+// Falls back to the MinIO directory scan only when Scylla is nil.
+// If Scylla is available but the query fails, returns codes.Unavailable
+// rather than an empty list — callers must not mistake a query failure for
+// an empty catalog.
 func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsRequest) (*repopb.ListArtifactsResponse, error) {
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
 	}
-	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
-	if err != nil {
-		// Directory not yet created → empty catalog (not an error for the caller).
-		slog.Debug("artifacts directory not found, returning empty catalog", "err", err)
-		return &repopb.ListArtifactsResponse{}, nil
-	}
 
-	// Determine if caller is admin/owner for visibility of hidden artifacts.
 	authCtx := security.FromContext(ctx)
 	isAdmin := authCtx != nil && authCtx.Subject == "sa"
 
+	// Scylla-first: use ledger as authoritative source.
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
+		}
+		var manifests []*repopb.ArtifactManifest
+		for _, row := range rows {
+			m, state, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				slog.Warn("skipping unreadable ledger row", "key", row.ArtifactKey, "err", parseErr)
+				continue
+			}
+			if repopb.IsDiscoveryHidden(state) && !isAdmin {
+				if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
+					continue
+				}
+			}
+			manifests = append(manifests, m)
+		}
+		sortManifestsByVersionDesc(manifests)
+		return &repopb.ListArtifactsResponse{Artifacts: manifests}, nil
+	}
+
+	// Legacy / single-node fallback: scan MinIO directory.
+	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
+	if err != nil {
+		slog.Debug("artifacts directory not found, returning empty catalog", "err", err)
+		return &repopb.ListArtifactsResponse{}, nil
+	}
 	var manifests []*repopb.ArtifactManifest
 	for _, e := range entries {
 		name := e.Name()
@@ -775,22 +902,18 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 			continue
 		}
 		key := strings.TrimSuffix(name, ".manifest.json")
-		_, state, m, err := srv.readManifestAndStateByKey(ctx, key)
-		if err != nil {
-			slog.Warn("skipping unreadable manifest", "key", key, "err", err)
+		_, state, m, readErr := srv.readManifestAndStateByKey(ctx, key)
+		if readErr != nil {
+			slog.Warn("skipping unreadable manifest", "key", key, "err", readErr)
 			continue
 		}
-
-		// Law 4: Hide VERIFIED/YANKED/QUARANTINED/etc. from non-admin catalog views.
 		if repopb.IsDiscoveryHidden(state) && !isAdmin {
 			if authCtx == nil || !srv.isNamespaceOwner(ctx, m.GetRef().GetPublisherId(), authCtx.Subject) {
 				continue
 			}
 		}
-
 		manifests = append(manifests, m)
 	}
-
 	sortManifestsByVersionDesc(manifests)
 	return &repopb.ListArtifactsResponse{Artifacts: manifests}, nil
 }
@@ -1145,6 +1268,12 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 // GetArtifactVersions returns all versions of a given package (publisher + name),
 // optionally filtered by platform. Results are sorted by semver desc then
 // build_number desc.
+//
+// Scylla-first: when Scylla is available it reads directly from the ledger.
+// The publish_state column is authoritative. Falls back to MinIO only when
+// Scylla is nil. If Scylla is available but the query fails, returns
+// codes.Unavailable so the release resolver can distinguish a transient failure
+// from a genuinely empty catalog.
 func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtifactVersionsRequest) (*repopb.GetArtifactVersionsResponse, error) {
 	if err := srv.requireHealthy(); err != nil {
 		return nil, err
@@ -1156,11 +1285,39 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 	}
 	filterPlat := strings.TrimSpace(req.GetPlatform())
 
+	// Scylla-first: use ledger rows for authoritative version listing.
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
+		}
+		var versions []*repopb.ArtifactManifest
+		for _, row := range rows {
+			if !strings.EqualFold(row.Name, name) {
+				continue
+			}
+			if pub != "" && !strings.EqualFold(row.PublisherID, pub) {
+				continue
+			}
+			if filterPlat != "" && !strings.EqualFold(row.Platform, filterPlat) {
+				continue
+			}
+			m, _, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				slog.Warn("skipping unreadable ledger row in GetArtifactVersions", "key", row.ArtifactKey, "err", parseErr)
+				continue
+			}
+			versions = append(versions, m)
+		}
+		sortManifestsByVersionDesc(versions)
+		return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
+	}
+
+	// Legacy / single-node fallback: scan MinIO directory.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return &repopb.GetArtifactVersionsResponse{}, nil
 	}
-
 	var versions []*repopb.ArtifactManifest
 	for _, e := range entries {
 		fname := e.Name()
@@ -1184,7 +1341,6 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 		}
 		versions = append(versions, m)
 	}
-
 	sortManifestsByVersionDesc(versions)
 	return &repopb.GetArtifactVersionsResponse{Versions: versions}, nil
 }
