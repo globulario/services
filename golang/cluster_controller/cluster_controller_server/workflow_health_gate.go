@@ -61,6 +61,7 @@ func (g *workflowHealthGate) RecordFailure() {
 		g.circuitOpenUntil = time.Now().Add(g.cooldownPeriod)
 		g.halfOpenProbe.Store(false)
 		workflowCircuitBreakerOpenTotal.Inc()
+		workflowCircuitOpenGauge.Set(1)
 		log.Printf("workflow health gate: circuit OPEN — %d failures in %s, cooldown %s",
 			len(g.failures), g.windowSize, g.cooldownPeriod)
 	}
@@ -75,6 +76,7 @@ func (g *workflowHealthGate) RecordSuccess() {
 	g.halfOpenProbe.Store(false)
 	g.failures = nil
 	if wasOpen {
+		workflowCircuitOpenGauge.Set(0)
 		log.Printf("workflow health gate: circuit CLOSED — probe succeeded")
 	}
 }

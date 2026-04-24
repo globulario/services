@@ -11,11 +11,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync/atomic"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
+
+// workflowGateLastLogMs is the Unix millisecond timestamp of the last
+// "workflow backend unhealthy" log line. Used to rate-limit log spam when
+// the circuit breaker is open and every reconcile tick is gated.
+var workflowGateLastLogMs atomic.Int64
 
 // executeWorkflowCentralized delegates workflow execution to the centralized
 // WorkflowService. It registers the provided Router with the actor service
@@ -38,7 +45,13 @@ func (srv *server) executeWorkflowCentralized(
 	// Health gate: block dispatch if workflow backend is under pressure.
 	if srv.workflowGate != nil {
 		if err := srv.workflowGate.Check(); err != nil {
-			log.Printf("workflow backend unhealthy, reconcile deferred: %v", err)
+			// Rate-limit: log at most once per minute to avoid log spam during
+			// a circuit-breaker-open period where every reconcile tick is gated.
+			nowMs := time.Now().UnixMilli()
+			if nowMs-workflowGateLastLogMs.Load() > 60_000 {
+				workflowGateLastLogMs.Store(nowMs)
+				log.Printf("workflow backend unhealthy, reconcile deferred: %v", err)
+			}
 			srv.emitClusterEvent("workflow.backend_pressure", map[string]interface{}{
 				"severity": "WARNING",
 				"message":  err.Error(),

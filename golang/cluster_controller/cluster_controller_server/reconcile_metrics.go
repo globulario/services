@@ -165,4 +165,23 @@ var (
 		Name:      "dispatch_dedup_suppressed_total",
 		Help:      "Dispatches suppressed by cross-path dedup registry.",
 	}, []string{"source", "held_by"})
+
+	// workflowCircuitOpenGauge is 1 when the workflow dispatch circuit breaker
+	// is currently open (all workflow dispatches blocked), 0 when closed.
+	workflowCircuitOpenGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "workflow_circuit_open",
+		Help:      "1 when the workflow dispatch circuit breaker is open (dispatches blocked), 0 when closed.",
+	})
+
+	// releaseTransientBlockedGauge is the number of ServiceRelease objects
+	// currently blocked in transient retry backoff (NextRetryUnixMs > now).
+	// Updated by requeueFailedReleases on each periodic bridge tick.
+	releaseTransientBlockedGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "release_transient_blocked",
+		Help:      "Number of ServiceRelease objects currently blocked in transient retry backoff.",
+	})
 )
