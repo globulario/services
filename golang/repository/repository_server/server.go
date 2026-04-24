@@ -544,10 +544,27 @@ func isLocalIP(ip string) bool {
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	// etcd is the only source of truth. No env vars, no disk contracts, no
 	// localhost fallbacks. Endpoint is a DNS name resolved via cluster DNS.
+	//
+	// Authority routing: if /globular/repository/authority is set, use its
+	// minio_endpoint instead of the cluster-wide minio/config endpoint.
+	// This prevents split-brain when minio.globular.internal round-robins to a
+	// node whose MinIO buckets are empty (non-authority node).
 	cfg, err := config.BuildMinioProxyConfig()
 	if err != nil {
 		return nil
 	}
+
+	// Override endpoint with authority's if available.
+	if auth, authErr := config.LoadRepositoryAuthority(); authErr == nil && auth.MinioEndpoint != "" {
+		if auth.MinioEndpoint != cfg.Endpoint {
+			logger.Info("repository authority: overriding minio endpoint",
+				"cluster_endpoint", cfg.Endpoint,
+				"authority_endpoint", auth.MinioEndpoint,
+				"authority_node", auth.NodeID)
+		}
+		cfg.Endpoint = auth.MinioEndpoint
+	}
+
 	return cfg
 }
 
