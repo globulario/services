@@ -61,9 +61,12 @@ func loadAccount(email string, dir string) (*acmeUser, error) {
 		return nil, fmt.Errorf("failed to unmarshal account: %w", err)
 	}
 
-	// Verify email matches
+	// Verify email matches. If it doesn't, the domain spec email was changed
+	// (e.g. from a previous install or a config update). Treat as "not found"
+	// so the caller creates a fresh account with the new email.
 	if persisted.Email != email {
-		return nil, fmt.Errorf("account email mismatch: expected %q, got %q", email, persisted.Email)
+		_ = os.Remove(accountFile)
+		return nil, nil
 	}
 
 	// Parse private key

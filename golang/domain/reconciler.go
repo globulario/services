@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dnsprovider"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
@@ -497,8 +499,21 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 		return fmt.Errorf("failed to ensure ACME registration: %w", err)
 	}
 
-	// Set DNS-01 challenge provider
-	if err := client.Challenge.SetDNS01Provider(NewLegoProvider(provider, spec.Zone)); err != nil {
+	// Set DNS-01 challenge provider.
+	// For locally-managed zones (provider type "local"), the cluster's own DNS
+	// service is authoritative. Public resolvers (1.1.1.1, 8.8.8.8) will never
+	// see the _acme-challenge TXT record, so we use the local nameserver (UDP:53)
+	// for the propagation check instead.
+	legoProvider := NewLegoProvider(provider, spec.Zone)
+	if localNS := r.resolveLocalNS(); localNS != "" && provider.Name() == "local" {
+		legoProvider.solver.SetPropagator(&PublicResolverPropagator{
+			Resolvers: []string{localNS},
+		})
+		r.logger.Info("using local nameserver for ACME propagation check",
+			"fqdn", spec.FQDN,
+			"nameserver", localNS)
+	}
+	if err := client.Challenge.SetDNS01Provider(legoProvider); err != nil {
 		return fmt.Errorf("failed to set DNS-01 provider: %w", err)
 	}
 
@@ -541,7 +556,7 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 			if err := r.ensureRegistration(ctx, client, user, domainDir); err != nil {
 				return fmt.Errorf("failed to re-register ACME account: %w", err)
 			}
-			if err := client.Challenge.SetDNS01Provider(NewLegoProvider(provider, spec.Zone)); err != nil {
+			if err := client.Challenge.SetDNS01Provider(legoProvider); err != nil {
 				return fmt.Errorf("failed to set DNS-01 provider on retry: %w", err)
 			}
 			certificates, err = client.Certificate.Obtain(request)
@@ -954,6 +969,21 @@ func (r *Reconciler) resolvePublicIP() string {
 		return ""
 	}
 	return ip
+}
+
+// resolveLocalNS returns the local DNS service's UDP port-53 address
+// (e.g. "10.0.0.63:53") by extracting the host from the gRPC endpoint.
+// Returns empty string if the DNS service address is unavailable.
+func (r *Reconciler) resolveLocalNS() string {
+	grpcAddr := config.ResolveDNSGrpcEndpoint("")
+	if grpcAddr == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(grpcAddr)
+	if err != nil || host == "" {
+		return ""
+	}
+	return host + ":53"
 }
 
 // acmeUser is now defined in acme_account.go

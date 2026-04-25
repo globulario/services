@@ -25,8 +25,8 @@ type LocalProvider struct {
 	zone    string
 	address string // gRPC address of the DNS service (resolved from etcd)
 
-	ensureOnce sync.Once
-	ensureErr  error
+	ensureMu      sync.Mutex
+	ensuredZones  map[string]bool // zones successfully registered
 }
 
 // NewLocalProvider creates a LocalProvider.
@@ -41,7 +41,7 @@ func NewLocalProvider(cfg dnsprovider.Config) (dnsprovider.Provider, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("dns provider: no address configured and service discovery failed")
 	}
-	return &LocalProvider{zone: cfg.Zone, address: addr}, nil
+	return &LocalProvider{zone: cfg.Zone, address: addr, ensuredZones: make(map[string]bool)}, nil
 }
 
 func (p *LocalProvider) Name() string { return "local" }
@@ -70,37 +70,46 @@ func (p *LocalProvider) dial() (*dns_client.Dns_Client, error) {
 
 // ensureManagedDomain adds the zone to the DNS service's managed domain list
 // if it is not already present. This is required before any record operations.
+//
+// Errors are NOT cached — each call retries if the previous attempt failed.
+// This handles cases where the DNS service restarts and loses its in-memory
+// zone list: the next reconciliation cycle will re-register the zone.
 func (p *LocalProvider) ensureManagedDomain() error {
-	p.ensureOnce.Do(func() {
-		client, err := p.dial()
-		if err != nil {
-			p.ensureErr = fmt.Errorf("local dns: connect for domain check: %w", err)
-			return
-		}
-		defer client.Close()
+	p.ensureMu.Lock()
+	defer p.ensureMu.Unlock()
 
-		// Get current managed domains
-		domains, err := client.GetDomains()
-		if err != nil {
-			p.ensureErr = fmt.Errorf("local dns: GetDomains: %w", err)
-			return
-		}
+	if p.ensuredZones[p.zone] {
+		return nil // already confirmed for this zone
+	}
 
-		// Check if zone is already managed
-		for _, d := range domains {
-			if d == p.zone {
-				return // already managed
-			}
-		}
+	client, err := p.dial()
+	if err != nil {
+		return fmt.Errorf("local dns: connect for domain check: %w", err)
+	}
+	defer client.Close()
 
-		// Add our zone to the list
-		domains = append(domains, p.zone)
-		if err := client.SetDomains("", domains); err != nil {
-			p.ensureErr = fmt.Errorf("local dns: SetDomains: %w", err)
-			return
+	// Get current managed domains
+	domains, err := client.GetDomains()
+	if err != nil {
+		return fmt.Errorf("local dns: GetDomains: %w", err)
+	}
+
+	// Check if zone is already managed
+	for _, d := range domains {
+		if d == p.zone {
+			p.ensuredZones[p.zone] = true
+			return nil
 		}
-	})
-	return p.ensureErr
+	}
+
+	// Add our zone to the list
+	domains = append(domains, p.zone)
+	if err := client.SetDomains("", domains); err != nil {
+		return fmt.Errorf("local dns: SetDomains: %w", err)
+	}
+
+	p.ensuredZones[p.zone] = true
+	return nil
 }
 
 // fqdn builds the full domain name the DNS service expects.
@@ -252,9 +261,7 @@ func (p *LocalProvider) GetRecords(ctx context.Context, zone, name, rtype string
 func (p *LocalProvider) checkZone(zone string) error {
 	if zone != "" && zone != p.zone {
 		p.zone = zone
-		// Reset ensureOnce so the new zone gets registered as a managed domain
-		p.ensureOnce = sync.Once{}
-		p.ensureErr = nil
+		// New zone — will be registered on the next ensureManagedDomain call.
 	}
 	return nil
 }
