@@ -549,6 +549,21 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if err := ensureServiceStateDir(svcWorkDir); err != nil {
 		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
 	}
+	// Ensure shared top-level dirs that services create at runtime are owned
+	// by globular:globular. The node-agent runs as root and MkdirAll would
+	// create them as root:root, causing permission denied for services that
+	// run as the globular user (e.g. authentication writing Ed25519 keys,
+	// backup-manager creating jobs/). These dirs are shared across services
+	// so we create them here at install time rather than per-service.
+	for _, sharedDir := range []string{
+		filepath.Join(ActionStateDir, "keys"),
+		filepath.Join(ActionStateDir, "backups"),
+		filepath.Join(ActionStateDir, "backups", "jobs"),
+	} {
+		if err := ensureServiceStateDir(sharedDir); err != nil {
+			log.Printf("install: warning: could not ensure shared dir %s: %v", sharedDir, err)
+		}
+	}
 	// Alertmanager may be installed without a default config file in some
 	// artifacts. Seed a minimal config so the unit can start on first boot.
 	if strings.EqualFold(service, "alertmanager") {
