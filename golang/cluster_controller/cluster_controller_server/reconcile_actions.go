@@ -431,7 +431,7 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 			"workflow_name": "release.apply.package",
 			"inputs": map[string]any{
 				"cluster_id":        srv.cfg.ClusterDomain,
-				"release_id":        fmt.Sprintf("reconcile-%s-%s", nodeID, pkgName),
+				"release_id":        fmt.Sprintf("reconcile-%s-%s-%d", nodeID, pkgName, time.Now().Unix()),
 				"release_name":      fmt.Sprintf("reconcile-%s", pkgName),
 				"package_name":      pkgName,
 				"package_kind":      kind,
