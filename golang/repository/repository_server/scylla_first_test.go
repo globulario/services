@@ -49,6 +49,7 @@ func buildScyllaOnlyServer(t *testing.T, ref *repopb.ArtifactRef, buildNum int64
 
 	srv := newTestServer(t)
 	srv.scylla = fl
+	srv.listCache = newListCache(fl)
 	// Storage intentionally left empty — no MinIO files written.
 	return srv, key
 }

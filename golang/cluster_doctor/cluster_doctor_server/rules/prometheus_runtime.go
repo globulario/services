@@ -205,5 +205,78 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
+	// ── Dependency cache watch health (Phase A-C depcache) ──────────────
+
+	if inactive, ok := snap.PromMetrics["depcache_watch_inactive"]; ok && inactive > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("depcache.watch_inactive", "cluster", "controller"),
+			InvariantID: "depcache.watch_inactive",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("%.0f dependency cache watch(es) are inactive — etcd invalidation events are not being received; cache may serve stale data", inactive),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "depcache_watch", map[string]string{
+				"inactive_watches": fmt.Sprintf("%.0f", inactive),
+				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	if errors5m, ok := snap.PromMetrics["depcache_watch_errors_5m"]; ok && errors5m > 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("depcache.watch_errors", "cluster", "controller"),
+			InvariantID: "depcache.watch_errors",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("%.0f dependency cache watch error(s) in the last 5 minutes — etcd connectivity may be degraded", errors5m),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "depcache_watch_errors", map[string]string{
+				"errors_5m": fmt.Sprintf("%.0f", errors5m),
+				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+
+	// ── xDS config generation tracking (Phase F) ─────────────────────────
+
+	xdsApplied, hasApplied := snap.PromMetrics["xds_config_applied_total"]
+	xdsEvents, hasEvents := snap.PromMetrics["xds_config_events_total"]
+	xdsLastUnix, hasLastUnix := snap.PromMetrics["xds_last_applied_unix"]
+
+	if hasApplied && hasEvents && xdsEvents > 0 && xdsApplied == 0 {
+		findings = append(findings, Finding{
+			FindingID:   FindingID("xds.no_applies", "cluster", "controller"),
+			InvariantID: "xds.no_applies",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("xDS config: %.0f event(s) received but no config has been applied — rendered config hash may be stuck or xDS renderer is not producing output", xdsEvents),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "xds_generation", map[string]string{
+				"events_total":  fmt.Sprintf("%.0f", xdsEvents),
+				"applied_total": fmt.Sprintf("%.0f", xdsApplied),
+				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	} else if hasApplied && xdsApplied > 0 && hasLastUnix && xdsLastUnix > 0 {
+		age := snap.PromTS.Unix() - int64(xdsLastUnix)
+		findings = append(findings, Finding{
+			FindingID:   FindingID("xds.last_applied", "cluster", "controller"),
+			InvariantID: "xds.last_applied",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_INFO,
+			Category:    "control_plane",
+			EntityRef:   "controller",
+			Summary:     fmt.Sprintf("xDS config applied %.0f time(s); last apply %ds ago", xdsApplied, age),
+			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "xds_generation", map[string]string{
+				"applied_total":    fmt.Sprintf("%.0f", xdsApplied),
+				"last_apply_age_s": fmt.Sprintf("%d", age),
+				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
+			})},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_PASS,
+		})
+	}
+
 	return findings
 }

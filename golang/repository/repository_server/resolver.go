@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -54,7 +55,73 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 		return srv.resolveByBuildID(ctx, buildID, publisher, name, platform, targetChannel)
 	}
 
-	// Load all manifest entries from storage.
+	targetVersion := strings.TrimSpace(req.GetVersion())
+
+	// Scylla-first: use ledger as authoritative source. Direct call — no cache.
+	// The resolver is an install-path entry point; stale lifecycle state (e.g. a
+	// YANKED artifact still appearing PUBLISHED) must never reach the reconciler.
+	// Falls back to the MinIO directory scan only when Scylla is nil.
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
+		}
+		var candidates []*repopb.ArtifactManifest
+		for _, row := range rows {
+			// Column-level filters — fast, no JSON parsing.
+			if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+				continue
+			}
+			if publisher != "" && !strings.EqualFold(row.PublisherID, publisher) {
+				continue
+			}
+			if !strings.EqualFold(row.Name, name) {
+				continue
+			}
+			if !strings.EqualFold(row.Platform, platform) {
+				continue
+			}
+			// Channel — replicate effectiveChannel logic using stored column.
+			rowChannel := repopb.ArtifactChannel_STABLE
+			if v, ok := repopb.ArtifactChannel_value[row.Channel]; ok &&
+				repopb.ArtifactChannel(v) != repopb.ArtifactChannel_CHANNEL_UNSET {
+				rowChannel = repopb.ArtifactChannel(v)
+			}
+			if rowChannel != targetChannel {
+				continue
+			}
+			// Kind filter using stored column.
+			if req.GetKind() != repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+				rowKind := repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+				if v, ok := repopb.ArtifactKind_value[row.Kind]; ok {
+					rowKind = repopb.ArtifactKind(v)
+				}
+				if rowKind != req.GetKind() {
+					continue
+				}
+			}
+			// Version filter using stored column — avoids JSON parse for non-matches.
+			if targetVersion != "" {
+				cv, cvErr := versionutil.NormalizeExact(targetVersion)
+				if cvErr != nil {
+					return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", targetVersion, cvErr)
+				}
+				refCV, refErr := versionutil.NormalizeExact(row.Version)
+				if refErr != nil || refCV != cv {
+					continue
+				}
+			}
+			m, _, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				slog.Warn("resolver: skipping unreadable ledger row", "key", row.ArtifactKey, "err", parseErr)
+				continue
+			}
+			candidates = append(candidates, m)
+		}
+		return srv.pickResolution(candidates, name, publisher, platform, targetVersion, targetChannel)
+	}
+
+	// Legacy / single-node fallback: scan MinIO directory.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "read artifact catalog: %v", err)
@@ -62,7 +129,6 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 
 	// Collect all candidates matching the request filters.
 	var candidates []*repopb.ArtifactManifest
-	targetVersion := strings.TrimSpace(req.GetVersion())
 
 	for _, e := range entries {
 		fname := e.Name()
@@ -120,6 +186,17 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 		candidates = append(candidates, m)
 	}
 
+	return srv.pickResolution(candidates, name, publisher, platform, targetVersion, targetChannel)
+}
+
+// pickResolution applies the final selection logic to a candidate set that has
+// already been filtered for PUBLISHED state, publisher, name, platform, channel,
+// and version. Both the Scylla and MinIO paths converge here.
+func (srv *server) pickResolution(
+	candidates []*repopb.ArtifactManifest,
+	name, publisher, platform, targetVersion string,
+	targetChannel repopb.ArtifactChannel,
+) (*repopb.ResolveArtifactResponse, error) {
 	if len(candidates) == 0 {
 		reason := fmt.Sprintf("no PUBLISHED artifact found: name=%q publisher=%q platform=%q channel=%s",
 			name, publisher, platform, targetChannel.String())
@@ -162,7 +239,31 @@ func (srv *server) ResolveArtifact(ctx context.Context, req *repopb.ResolveArtif
 }
 
 // resolveByBuildID finds an artifact by its exact build_id. Validates publisher/name/channel.
+// Scylla-first: when Scylla is available it scans the ledger directly — one round-trip
+// instead of N MinIO GetObject calls. Falls back to MinIO only when Scylla is nil.
 func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, name, platform string, targetChannel repopb.ArtifactChannel) (*repopb.ResolveArtifactResponse, error) {
+	if srv.scylla != nil {
+		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		if scyllaErr != nil {
+			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
+		}
+		for _, row := range rows {
+			if row.PublishState != repopb.PublishState_PUBLISHED.String() {
+				continue
+			}
+			m, _, parseErr := manifestFromRow(row)
+			if parseErr != nil {
+				continue
+			}
+			if m.GetBuildId() != buildID {
+				continue
+			}
+			return srv.validateBuildIDMatch(m, buildID, publisher, name, targetChannel)
+		}
+		return nil, status.Errorf(codes.NotFound, "build_id %q not found or not PUBLISHED", buildID)
+	}
+
+	// Legacy / single-node fallback: scan MinIO directory.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "read artifact catalog: %v", err)
@@ -180,25 +281,30 @@ func (srv *server) resolveByBuildID(ctx context.Context, buildID, publisher, nam
 		if m.GetBuildId() != buildID {
 			continue
 		}
-		ref := m.GetRef()
-		if publisher != "" && !strings.EqualFold(ref.GetPublisherId(), publisher) {
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"build_id %s belongs to publisher %q, not %q", buildID, ref.GetPublisherId(), publisher)
-		}
-		if !strings.EqualFold(ref.GetName(), name) {
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"build_id %s belongs to artifact %q, not %q", buildID, ref.GetName(), name)
-		}
-		if effectiveChannel(m) != targetChannel {
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"build_id %s is on channel %s, not %s", buildID, effectiveChannel(m).String(), targetChannel.String())
-		}
-		return &repopb.ResolveArtifactResponse{
-			Manifest:         m,
-			ResolutionSource: "exact-build_id",
-		}, nil
+		return srv.validateBuildIDMatch(m, buildID, publisher, name, targetChannel)
 	}
 	return nil, status.Errorf(codes.NotFound, "build_id %q not found or not PUBLISHED", buildID)
+}
+
+// validateBuildIDMatch checks publisher/name/channel constraints for a resolved build_id match.
+func (srv *server) validateBuildIDMatch(m *repopb.ArtifactManifest, buildID, publisher, name string, targetChannel repopb.ArtifactChannel) (*repopb.ResolveArtifactResponse, error) {
+	ref := m.GetRef()
+	if publisher != "" && !strings.EqualFold(ref.GetPublisherId(), publisher) {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"build_id %s belongs to publisher %q, not %q", buildID, ref.GetPublisherId(), publisher)
+	}
+	if !strings.EqualFold(ref.GetName(), name) {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"build_id %s belongs to artifact %q, not %q", buildID, ref.GetName(), name)
+	}
+	if effectiveChannel(m) != targetChannel {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"build_id %s is on channel %s, not %s", buildID, effectiveChannel(m).String(), targetChannel.String())
+	}
+	return &repopb.ResolveArtifactResponse{
+		Manifest:         m,
+		ResolutionSource: "exact-build_id",
+	}, nil
 }
 
 // pickHighestBuild returns the manifest with the highest build_number among candidates.

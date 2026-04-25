@@ -277,6 +277,9 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 		return fmt.Errorf("save runtime: %w", err)
 	}
 
+	// Invalidate the service config cache so the next read reflects the write.
+	getServiceCache().InvalidateAll()
+
 	// Fire-and-forget backup of /globular keys (best-effort).
 	go func() {
 		_, _ = BackupGlobularKeysJSON()
@@ -304,6 +307,9 @@ func DeleteServiceConfiguration(id string) error {
 	if _, err := c.Delete(ctx, prefix, clientv3.WithPrefix()); err != nil {
 		return fmt.Errorf("delete service config from etcd: %w", err)
 	}
+
+	// Invalidate the service config cache so the next read reflects the deletion.
+	getServiceCache().InvalidateAll()
 
 	// Remove on-disk JSON file (best effort)
 	configDir := GetServicesConfigDir()
@@ -339,12 +345,22 @@ func DeleteServiceConfigurationByName(name string) error {
 // When instance keys exist (/globular/services/{id}/instances/{node}), each instance
 // produces a separate entry with the shared config + per-node Address/Port/State.
 // This allows xDS to discover multiple endpoints per service across nodes.
+//
+// Results are cached with PolicyHotConfig (5s TTL, 60s stale-if-error) to prevent
+// reconcile storms from hammering etcd with a full prefix scan on every tick.
+// Call StartServiceConfigWatcher to get sub-TTL invalidation on writes.
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
+	return getServiceCache().Get(context.Background(), "all")
+}
+
+// fetchServicesFromEtcd performs the live etcd prefix scan for all service configs.
+// It is the fetch function backing the service config cache; do not call directly.
+func fetchServicesFromEtcd(ctx context.Context) ([]map[string]interface{}, error) {
 	c, err := etcdClient()
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	resp, err := c.Get(ctx, etcdPrefix, clientv3.WithPrefix())

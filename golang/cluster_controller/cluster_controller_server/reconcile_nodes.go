@@ -1120,6 +1120,13 @@ func (srv *server) computeNodePlan(node *nodeState) (*NodeUnitPlan, error) {
 		}
 		if restarts := restartActionsForChangedConfigs(compareHashes, rendered); len(restarts) > 0 {
 			plan.UnitActions = append(plan.UnitActions, restarts...)
+			for _, a := range restarts {
+				if a.GetUnitName() == "globular-xds.service" {
+					xdsConfigAppliedTotal.Inc()
+					xdsLastAppliedUnix.SetToCurrentTime()
+					break
+				}
+			}
 		}
 	}
 	return plan, nil

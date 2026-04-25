@@ -56,8 +56,15 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
 		"workflow_dispatch_rejected":  "globular_controller_workflow_dispatch_rejected_total",
 		// Day-1 resilience signals (Phase 2-4).
-		"workflow_circuit_open":      "globular_controller_workflow_circuit_open",
-		"release_transient_blocked":  "globular_controller_release_transient_blocked",
+		"workflow_circuit_open":     "globular_controller_workflow_circuit_open",
+		"release_transient_blocked": "globular_controller_release_transient_blocked",
+		// Dependency cache watch health (Phase A-C depcache).
+		"depcache_watch_inactive": "sum(globular_depcache_watch_active == 0)",
+		"depcache_watch_errors_5m": "sum(increase(globular_depcache_watch_errors_total[5m]))",
+		// xDS config generation tracking (Phase F).
+		"xds_config_events_total":  "globular_controller_xds_config_events_total",
+		"xds_config_applied_total": "globular_controller_xds_config_applied_total",
+		"xds_last_applied_unix":    "max(globular_controller_xds_last_applied_unix)",
 	}
 
 	results := make(map[string]float64)

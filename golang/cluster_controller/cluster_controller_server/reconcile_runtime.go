@@ -177,6 +177,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 			for evt := range ch {
 				_ = evt
 				reconcileEnqueueTotal.WithLabelValues("watch").Inc()
+				xdsConfigEventsTotal.Inc()
 				queue.Enqueue(networkReconcileKey)
 			}
 		})
@@ -191,6 +192,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 					continue
 				}
 				reconcileEnqueueTotal.WithLabelValues("watch").Inc()
+				xdsConfigEventsTotal.Inc()
 				queue.Enqueue(serviceKeyPrefix + canonicalServiceName(sdv.Meta.Name))
 			}
 		})

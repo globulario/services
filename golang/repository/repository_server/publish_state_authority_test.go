@@ -55,6 +55,7 @@ func buildServerWithLedger(t *testing.T, fl *fakeLedger, key string, jsonState, 
 	t.Helper()
 	srv := newTestServer(t)
 	srv.scylla = fl
+	srv.listCache = newListCache(fl)
 
 	// Also write the manifest to the MinIO-like storage so the fallback path
 	// and direct-read paths find it.
@@ -222,6 +223,7 @@ func TestPromotionVisibleWithoutManifestRewrite(t *testing.T) {
 
 	srv := newTestServer(t)
 	srv.scylla = fl
+	srv.listCache = newListCache(fl)
 	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
 	_ = srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644)
 	_ = srv.Storage().WriteFile(ctx, binaryStorageKey(key), []byte("blob"), 0o644)

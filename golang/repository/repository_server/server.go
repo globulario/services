@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/internal/depcache"
 	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -117,9 +118,10 @@ type server struct {
 	MinioConfig *config.MinioProxyConfig  // MinIO config from etcd (required in multi-node)
 	minioClient *minio.Client
 	storage     storage_backend.Storage
-	cache       *manifestCache            // in-memory TTL cache for manifest reads
-	scylla      manifestLedger            // ScyllaDB manifest metadata store (nil until connected)
-	depHealth   *depHealthWatchdog        // dependency health monitor
+	cache       *manifestCache                          // in-memory TTL cache for manifest reads
+	scylla      manifestLedger                          // ScyllaDB manifest metadata store (nil until connected)
+	listCache   *depcache.Cache[string, []manifestRow]  // display-path Scylla list cache (PolicyRepositoryListView)
+	depHealth   *depHealthWatchdog                      // dependency health monitor
 
 	// --- Workflow tracing ---
 	workflowRec *workflow.Recorder
@@ -824,6 +826,20 @@ func main() {
 		logger.Error("scylladb connection failed — service will start degraded", "err", scyllaErr)
 	}
 	s.scylla = scylla
+	s.listCache = depcache.New(
+		depcache.PolicyRepositoryListView,
+		func(ctx context.Context, _ string) ([]manifestRow, error) {
+			if s.scylla == nil {
+				return nil, fmt.Errorf("repository list cache: scylla not connected")
+			}
+			return s.scylla.ListManifests(ctx)
+		},
+		func(rows []manifestRow) []manifestRow {
+			out := make([]manifestRow, len(rows))
+			copy(out, rows)
+			return out
+		},
+	)
 
 	// 7b. Load MinIO config (etcd only — no env vars, no disk fallbacks).
 	s.MinioConfig = s.loadMinioConfig()

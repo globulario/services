@@ -22,10 +22,17 @@ const (
 // Returns an error if the key is missing, malformed, or empty. The returned
 // slice is a copy — callers may mutate it freely.
 //
-// Rejects any entry containing "127.0.0.1" or "localhost" — loopback is never
-// a valid cluster address (rule: etcd/DNS only, no loopback ever).
+// Results are cached with PolicyStableHosts (30s TTL, 120s stale-if-error).
+// Host lists change only during node joins/leaves; a 30s stale window is safe
+// and the 120s stale-if-error window shields callers from transient etcd blips.
 func LoadClusterHostList(key string) ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	return getHostCache().Get(context.Background(), key)
+}
+
+// loadClusterHostListFromEtcd is the live-etcd fetch function backing the host
+// list cache. Do not call directly — use LoadClusterHostList.
+func loadClusterHostListFromEtcd(ctx context.Context, key string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	cli, err := GetEtcdClient()
@@ -90,6 +97,8 @@ func SaveClusterHostList(key string, hosts []string) error {
 	if _, err := cli.Put(ctx, key, string(data)); err != nil {
 		return fmt.Errorf("cluster hosts: etcd put %s: %w", key, err)
 	}
+	// Invalidate the cache so the next read reflects the updated host list.
+	getHostCache().Invalidate(key)
 	return nil
 }
 

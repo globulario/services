@@ -74,7 +74,9 @@ func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifes
 	}
 	if err := srv.scylla.PutManifest(ctx, row); err != nil {
 		slog.Warn("scylladb manifest sync failed (non-fatal)", "key", key, "err", err)
+		return
 	}
+	srv.listCache.InvalidateAll()
 }
 
 // syncStateToScylla updates only the publish state in ScyllaDB.
@@ -88,7 +90,9 @@ func (srv *server) syncStateToScylla(ctx context.Context, key string, state repo
 	}
 	if err := srv.scylla.UpdatePublishState(ctx, key, state.String()); err != nil {
 		slog.Warn("scylladb state sync failed (non-fatal)", "key", key, "state", state, "err", err)
+		return
 	}
+	srv.listCache.InvalidateAll()
 }
 
 // deleteManifestFromScylla removes a manifest from ScyllaDB.
@@ -98,7 +102,9 @@ func (srv *server) deleteManifestFromScylla(ctx context.Context, key string) {
 	}
 	if err := srv.scylla.DeleteManifest(ctx, key); err != nil {
 		slog.Warn("scylladb manifest delete failed (non-fatal)", "key", key, "err", err)
+		return
 	}
+	srv.listCache.InvalidateAll()
 }
 
 const artifactsDir = "artifacts"
@@ -866,8 +872,11 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 	isAdmin := authCtx != nil && authCtx.Subject == "sa"
 
 	// Scylla-first: use ledger as authoritative source.
+	// listCache uses PolicyRepositoryListView (10s TTL, 30s stale-if-error) —
+	// display-path only. Install paths (GetArtifactVersions, resolveLatestBuildNumber)
+	// call Scylla directly and are never cached.
 	if srv.scylla != nil {
-		rows, scyllaErr := srv.scylla.ListManifests(ctx)
+		rows, scyllaErr := srv.listCache.Get(ctx, "all")
 		if scyllaErr != nil {
 			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
 		}

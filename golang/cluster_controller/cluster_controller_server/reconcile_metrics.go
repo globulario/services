@@ -184,4 +184,37 @@ var (
 		Name:      "release_transient_blocked",
 		Help:      "Number of ServiceRelease objects currently blocked in transient retry backoff.",
 	})
+
+	// ── xDS generation tracking (Phase F) ──────────────────────────────
+	//
+	// xdsConfigEventsTotal counts reconcile events (network or service desired
+	// version changes) that could require an xDS config rebuild. Incremented
+	// at enqueue time — before the reconciler determines whether a change is
+	// needed.
+	xdsConfigEventsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "xds_config_events_total",
+		Help:      "Total reconcile events that may require an xDS config rebuild.",
+	})
+
+	// xdsConfigAppliedTotal counts times an xDS config change was actually
+	// dispatched to a node (i.e., globular-xds.service restart action was
+	// included in a plan because the rendered config hash changed).
+	xdsConfigAppliedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "xds_config_applied_total",
+		Help:      "Total xDS config changes applied (hash-changed restart dispatched).",
+	})
+
+	// xdsLastAppliedUnix is the unix timestamp of the last xDS config apply.
+	// Zero until the first apply occurs. Used by the doctor to detect a
+	// controller that is receiving events but not applying them.
+	xdsLastAppliedUnix = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "xds_last_applied_unix",
+		Help:      "Unix timestamp of the last xDS config change applied to any node.",
+	})
 )
