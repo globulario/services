@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -58,6 +59,18 @@ type Snapshot struct {
 	// Prometheus-derived control-plane signals (optional)
 	PromMetrics map[string]float64 // small, fixed key set
 	PromTS      time.Time          // scrape timestamp
+
+	// ObjectStoreDesired is the authoritative objectstore topology read from
+	// etcd (/globular/objectstore/config) during snapshot collection.
+	// Nil when the key has not yet been published (pre-pool formation).
+	// Consumed by the "objectstore.*" invariant family.
+	ObjectStoreDesired *config.ObjectStoreDesiredState
+
+	// CAMetadata is the CA fingerprint descriptor published by the cluster
+	// controller to etcd (/globular/pki/ca). Used by "pki.*" invariants to
+	// detect CA rotation and per-node cert drift.
+	// Nil when the controller has not yet published (pre-bootstrap).
+	CAMetadata *config.CAMetadata
 
 	mu sync.Mutex
 }

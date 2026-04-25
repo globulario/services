@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -150,6 +151,18 @@ func SaveMinIOConfig(cfg MinIOConfig) error {
 	}
 	if strings.Contains(cfg.Endpoint, "127.0.0.1") || strings.Contains(cfg.Endpoint, "localhost") {
 		return fmt.Errorf("minio config: endpoint %q uses loopback — refuse to write (rule: no 127.0.0.1/localhost, ever)", cfg.Endpoint)
+	}
+	// Hard invariant: endpoint must be a bare IP:port, never a DNS hostname.
+	// DNS wildcards (minio.<domain>) resolve round-robin to all cluster nodes,
+	// most of which have empty per-node MinIO instances, causing silent
+	// object-not-found errors. Enforce at write time so bad state can never
+	// enter etcd regardless of the caller.
+	host := cfg.Endpoint
+	if h, _, err := net.SplitHostPort(cfg.Endpoint); err == nil {
+		host = h
+	}
+	if net.ParseIP(host) == nil {
+		return fmt.Errorf("minio config: endpoint %q is a DNS hostname — only bare IP:port endpoints are allowed; fix the controller to publish MinioPoolNodes[0]+\":9000\"", cfg.Endpoint)
 	}
 	stored := struct {
 		Endpoint  string `json:"endpoint"`

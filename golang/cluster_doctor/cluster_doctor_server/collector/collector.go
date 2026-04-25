@@ -169,17 +169,37 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		snap.addSource("cluster_controller.GetClusterHealthV1")
 	}
 
-	// ── 3. Per-node calls (concurrent, capped) ────────────────────────────────
+	// ── 3. ObjectStoreDesiredState — objectstore topology from etcd ──────────
+	osCtx, osCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer osCancel()
+	if desired, err := config.LoadObjectStoreDesiredState(osCtx); err != nil {
+		snap.addError("etcd", "LoadObjectStoreDesiredState", err)
+	} else if desired != nil {
+		snap.ObjectStoreDesired = desired
+		snap.addSource("etcd.objectstore_desired_state")
+	}
+
+	// ── 3b. CAMetadata — CA fingerprint from etcd ────────────────────────────
+	caCtx, caCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer caCancel()
+	if caMeta, err := config.LoadCAMetadata(caCtx); err != nil {
+		snap.addError("etcd", "LoadCAMetadata", err)
+	} else if caMeta != nil {
+		snap.CAMetadata = caMeta
+		snap.addSource("etcd.pki_ca_metadata")
+	}
+
+	// ── 4. Per-node calls (concurrent, capped) ────────────────────────────────
 	if len(snap.Nodes) > 0 {
 		c.fetchPerNode(ctx, snap)
 	}
 
-	// ── 4. Workflow convergence telemetry (optional) ─────────────────────────
+	// ── 5. Workflow convergence telemetry (optional) ─────────────────────────
 	if c.workflowClient != nil && c.clusterID != "" {
 		c.fetchWorkflowTelemetry(ctx, snap)
 	}
 
-	// ── 5. Prometheus control-plane signals (best-effort) ───────────────────
+	// ── 6. Prometheus control-plane signals (best-effort) ───────────────────
 	c.fetchPrometheus(ctx, snap)
 
 	return snap, nil

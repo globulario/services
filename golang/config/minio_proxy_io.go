@@ -11,10 +11,11 @@ import (
 var ErrInvalidObjectStoreContract = errors.New("invalid object store contract")
 
 // LoadMinioProxyConfigFrom parses the provided reader as the installer contract.
+// Unknown fields are tolerated so that files written by newer node agents (which
+// include RenderedBy provenance metadata) are accepted by older parsers.
 func LoadMinioProxyConfigFrom(r io.Reader) (*MinioProxyConfig, error) {
 	contract := ObjectStoreContract{Secure: true}
 	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(&contract); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidObjectStoreContract, err)
 	}
@@ -123,15 +124,20 @@ func normalizeAuthMode(mode string) string {
 	}
 }
 
-// ObjectStoreContract mirrors the JSON shape created by the installer.
+// ObjectStoreContract mirrors the JSON shape created by the installer and
+// rendered by the node agent. The RenderedBy field carries provenance metadata
+// proving the file was rendered from etcd, never authored locally.
 type ObjectStoreContract struct {
-	Type         string                   `json:"type"`
-	Endpoint     string                   `json:"endpoint"`
-	Bucket       string                   `json:"bucket"`
-	Prefix       string                   `json:"prefix,omitempty"`
-	Secure       bool                     `json:"secure"`
-	CABundlePath string                   `json:"caBundlePath,omitempty"`
-	Auth         *ObjectStoreContractAuth `json:"auth"`
+	Type         string                    `json:"type"`
+	Endpoint     string                    `json:"endpoint"`
+	Bucket       string                    `json:"bucket"`
+	Prefix       string                    `json:"prefix,omitempty"`
+	Secure       bool                      `json:"secure"`
+	CABundlePath string                    `json:"caBundlePath,omitempty"`
+	Auth         *ObjectStoreContractAuth  `json:"auth"`
+	// RenderedBy is present only in node-agent-rendered files.
+	// Nil in in-memory configs built from etcd or installer output.
+	RenderedBy   *RenderedArtifactMetadata `json:"_rendered_by,omitempty"`
 }
 
 // ObjectStoreContractAuth describes authentication details in the contract.
@@ -189,6 +195,28 @@ func contractFromMinioProxyConfig(cfg *MinioProxyConfig) *ObjectStoreContract {
 		CABundlePath: cfg.CABundlePath,
 		Auth:         contractAuthFromMinioProxyAuth(cfg.Auth),
 	}
+}
+
+// SaveMinioProxyConfigWithProvenanceTo writes the contract with embedded
+// provenance metadata proving the file was rendered from etcd, not authored locally.
+func SaveMinioProxyConfigWithProvenanceTo(w io.Writer, cfg *MinioProxyConfig, meta *RenderedArtifactMetadata) error {
+	cfg = NormalizeMinioProxyConfig(cfg)
+	if cfg == nil {
+		return fmt.Errorf("minio config is nil")
+	}
+	if err := ValidateMinioProxyConfig(cfg); err != nil {
+		return err
+	}
+	contract := contractFromMinioProxyConfig(cfg)
+	contract.RenderedBy = meta
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal contract: %w", err)
+	}
+	if _, err := w.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("write contract: %w", err)
+	}
+	return nil
 }
 
 func contractAuthFromMinioProxyAuth(auth *MinioProxyAuth) *ObjectStoreContractAuth {

@@ -342,6 +342,13 @@ func fileSPKIFingerprint(path string) (string, error) {
 	return spkiFingerprintFromPEM(data)
 }
 
+// FileSPKIFingerprint returns the SHA-256 hex fingerprint of the SubjectPublicKeyInfo
+// of the certificate at path. Stable across renewals — changes only when the key pair
+// is replaced (e.g. CA rotation). Exported for use by the cluster controller and node agent.
+func FileSPKIFingerprint(path string) (string, error) {
+	return fileSPKIFingerprint(path)
+}
+
 // ----------------------------------------------------------------------------
 // Client creds
 // ----------------------------------------------------------------------------
@@ -528,8 +535,32 @@ func getServerCredentialConfig(path string, domain string, country string, state
 // ----------------------------------------------------------------------------
 
 func GenerateServicesCertificates(pwd string, expiration_delay int, domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) error {
-	if Utility.Exists(filepath.Join(path, "client.crt")) {
-		return nil // already created
+	clientCrtPath := filepath.Join(path, "client.crt")
+	if Utility.Exists(clientCrtPath) {
+		// Verify the existing cert still chains to the local CA.
+		// After a CA rotation (wipe+rejoin, new node), the old cert is time-valid
+		// but PKI-invalid — it was signed by the previous CA. Without this check
+		// the service silently keeps running with a broken mTLS chain until restart.
+		localCA := filepath.Join(path, "ca.crt")
+		if !serviceCertNeedsRegeneration(clientCrtPath, localCA) {
+			return nil // cert exists and chains to current CA
+		}
+		// CA changed — remove stale cert/CSR/PEM artifacts before regenerating.
+		// Private keys are preserved: key material is safe to reuse; only the
+		// certificates and their intermediate artefacts must be re-derived from
+		// the current CA.  DO NOT remove ca.key or ca.crt — those are the new CA.
+		logger.Info("CA changed — removing stale cert artifacts", "domain", domain, "path", path)
+		for _, f := range []string{
+			"san.conf",
+			"server.csr", "server.crt", "server.pem",
+			"client.csr", "client.crt", "client.pem",
+		} {
+			if err := os.Remove(filepath.Join(path, f)); err != nil && !os.IsNotExist(err) {
+				logger.Info("removing stale artifact", "file", f, "err", err)
+			}
+		}
+		logger.Info("CA changed — regenerating service certificates", "domain", domain, "path", path)
+		// Fall through to regenerate with the current CA.
 	}
 
 	logger.Info("generate services certificates", "domain", domain, "alt", alternateDomains)
@@ -627,6 +658,131 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 // ----------------------------------------------------------------------------
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// serviceCertNeedsRegeneration returns true when the cert at certPath cannot be
+// verified against the CA at caPath. This happens after a CA rotation — the old
+// cert is time-valid but signed by the previous CA, which silently breaks gRPC
+// mTLS. Returns false (no regen needed) when the CA file is missing, so that
+// services that use a remotely-issued cert are not incorrectly regenerated.
+func serviceCertNeedsRegeneration(certPath, caPath string) bool {
+	certData, err := os.ReadFile(certPath)
+	if err != nil {
+		return true // can't read cert → must regenerate
+	}
+	block, _ := pem.Decode(certData)
+	if block == nil {
+		return true
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return true
+	}
+
+	caData, err := os.ReadFile(caPath)
+	if err != nil {
+		// No local CA — cert was issued remotely. Don't touch it.
+		return false
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caData) {
+		return false // malformed CA — leave cert alone
+	}
+	_, err = cert.Verify(x509.VerifyOptions{Roots: pool, CurrentTime: time.Now()})
+	return err != nil // verification failure → regenerate
+}
+
+// NeedsCertRegeneration is the authoritative cert-validity oracle. It checks every
+// condition that could make a certificate unsafe or incorrect for use:
+//
+//   - cert file exists
+//   - key file exists
+//   - cert/key pair match (public key coherence)
+//   - cert chains to the current CA at caPath (pass "" to skip)
+//   - cert is not expired
+//   - cert will not expire within renewBefore duration
+//   - all requiredDNS SANs are present in the cert
+//   - all requiredIPs SANs are present in the cert
+//
+// Returns (true, reason) when regeneration is needed, (false, "") when everything
+// is healthy. reason is a short human-readable string suitable for logging.
+//
+// Use this function everywhere instead of ad-hoc file-exists checks.
+func NeedsCertRegeneration(certPath, keyPath, caPath string, requiredDNS []string, requiredIPs []net.IP, renewBefore time.Duration) (bool, string) {
+	// --- file presence ---
+	if !fileExists(certPath) {
+		return true, "cert missing"
+	}
+	if keyPath != "" && !fileExists(keyPath) {
+		return true, "key missing"
+	}
+
+	// --- parse cert ---
+	certData, err := os.ReadFile(certPath)
+	if err != nil {
+		return true, "cert unreadable: " + err.Error()
+	}
+	block, _ := pem.Decode(certData)
+	if block == nil {
+		return true, "cert PEM decode failed"
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return true, "cert parse failed: " + err.Error()
+	}
+
+	// --- key/cert pair coherence ---
+	if keyPath != "" {
+		if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+			return true, "cert/key pair mismatch: " + err.Error()
+		}
+	}
+
+	// --- chain validation ---
+	if caPath != "" {
+		caData, err := os.ReadFile(caPath)
+		if err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caData) {
+				if _, err := cert.Verify(x509.VerifyOptions{Roots: pool, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
+					return true, "cert not signed by current CA: " + err.Error()
+				}
+			}
+		}
+	}
+
+	// --- expiry ---
+	now := time.Now()
+	if now.After(cert.NotAfter) {
+		return true, fmt.Sprintf("cert expired at %s", cert.NotAfter.Format(time.RFC3339))
+	}
+	if renewBefore > 0 && now.Add(renewBefore).After(cert.NotAfter) {
+		return true, fmt.Sprintf("cert expires in %s (renew_before=%s)", time.Until(cert.NotAfter).Round(time.Hour), renewBefore)
+	}
+
+	// --- DNS SANs ---
+	dnsSet := make(map[string]struct{}, len(cert.DNSNames))
+	for _, d := range cert.DNSNames {
+		dnsSet[strings.ToLower(d)] = struct{}{}
+	}
+	for _, required := range requiredDNS {
+		if _, ok := dnsSet[strings.ToLower(required)]; !ok {
+			return true, fmt.Sprintf("missing DNS SAN: %s", required)
+		}
+	}
+
+	// --- IP SANs ---
+	ipSet := make(map[string]struct{}, len(cert.IPAddresses))
+	for _, ip := range cert.IPAddresses {
+		ipSet[ip.String()] = struct{}{}
+	}
+	for _, required := range requiredIPs {
+		if _, ok := ipSet[required.String()]; !ok {
+			return true, fmt.Sprintf("missing IP SAN: %s", required)
+		}
+	}
+
+	return false, "" // cert is valid
+}
 
 func writePEM(path string, block *pem.Block, mode os.FileMode) error {
 	return os.WriteFile(path, pem.EncodeToMemory(block), mode)

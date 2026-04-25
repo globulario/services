@@ -206,6 +206,7 @@ func main() {
 	// Plan runner removed — workflows handle all execution.
 	srv.StartACMERenewal(ctx)
 	srv.StartCAKeySync(ctx)
+	srv.StartCACertDriftCheck(ctx)
 	srv.StartIngressReconciliation(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())

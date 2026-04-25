@@ -84,10 +84,18 @@ type controllerState struct {
 	// MinIO pool membership — ordered, append-only list of node IPs.
 	// New nodes are appended; existing entries never change order.
 	// This preserves erasure set boundaries across pool expansion.
-	MinioPoolNodes     []string          `json:"minio_pool_nodes,omitempty"`
-	MinioCredentials   *minioCredentials `json:"minio_credentials,omitempty"`
-	MinioNodePaths     map[string]string `json:"minio_node_paths,omitempty"`   // IP → base data path (default: /var/lib/globular/minio)
-	MinioDrivesPerNode int               `json:"minio_drives_per_node,omitempty"` // drives per node (0/1 = single, 2+ = multi-drive)
+	MinioPoolNodes       []string          `json:"minio_pool_nodes,omitempty"`
+	MinioCredentials     *minioCredentials `json:"minio_credentials,omitempty"`
+	MinioNodePaths       map[string]string `json:"minio_node_paths,omitempty"`      // IP → base data path (default: /var/lib/globular/minio)
+	MinioDrivesPerNode   int               `json:"minio_drives_per_node,omitempty"` // drives per node (0/1 = single, 2+ = multi-drive)
+	// ObjectStoreGeneration is incremented each time the MinIO pool topology changes.
+	// Monotonically increasing. Node agents compare their observed generation to detect drift.
+	ObjectStoreGeneration int64 `json:"objectstore_generation,omitempty"`
+
+	// CAGeneration is incremented each time the cluster CA is rotated.
+	// Monotonically increasing. Published in CAMetadata so doctor rules can track
+	// per-node CA drift (node still on generation N-1 after controller moved to N).
+	CAGeneration int64 `json:"ca_generation,omitempty"`
 }
 
 // minioCredentials holds the MinIO root credentials for the cluster.

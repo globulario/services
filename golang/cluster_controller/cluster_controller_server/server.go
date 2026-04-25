@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -1042,10 +1044,13 @@ func (srv *server) persistStateLocked(force bool) error {
 		log.Printf("persist state to etcd failed: %v", err)
 		// Continue to save to disk even if etcd write fails.
 	}
-	// Publish MinIO connection info to the well-known etcd key so that all
-	// cluster services can read it. Endpoint is a DNS name (minio.<domain>)
-	// served by the DNS reconciler — no IPs are baked in.
+	// Publish MinIO connection info (consumer key) and objectstore desired state
+	// (topology key for node-agent rendering). Both use bare IPs — never DNS names.
 	srv.publishMinioConfigLocked()
+	srv.publishObjectStoreDesiredStateLocked()
+	// Publish CA fingerprint so node agents can detect CA rotation without
+	// querying the gateway. Node agent compares its local CA SPKI to this value.
+	srv.publishCAMetadataLocked()
 	// Backup: persist to local disk.
 	if err := srv.state.save(srv.statePath); err != nil {
 		return err
@@ -1054,25 +1059,58 @@ func (srv *server) persistStateLocked(force bool) error {
 	return nil
 }
 
+// resolveMinioEndpointLocked returns the IP:port that cluster services should
+// use to reach MinIO. Must be called with srv.mu held.
+//
+// NEVER returns a DNS name. DNS wildcards (minio.<domain>) resolve round-robin
+// to all cluster nodes — most of which have empty per-node MinIO instances —
+// causing object-not-found errors on non-primary nodes.
+//
+// Uses the first node in MinioPoolNodes (the founding node, stable primary).
+// Returns "" if the pool is empty (controller not yet initialized).
+func (srv *server) resolveMinioEndpointLocked() string {
+	if len(srv.state.MinioPoolNodes) == 0 {
+		return ""
+	}
+	// MinioPoolNodes is append-only; index 0 is the founding node and the
+	// stable primary for consumer connections.
+	node := srv.state.MinioPoolNodes[0]
+	// Hard guard: MinioPoolNodes must contain routable IPs, never DNS names.
+	// A DNS wildcard (minio.<domain>) would resolve round-robin to ALL cluster
+	// nodes — most of which have empty per-node MinIO instances — causing
+	// silent object-not-found errors on every ~1/N request.
+	ip := net.ParseIP(node)
+	if ip == nil {
+		log.Printf("resolveMinioEndpoint: INVARIANT VIOLATION: MinioPoolNodes[0]=%q is not a valid IP — refusing to publish DNS endpoint; fix by ensuring join flow writes IPs not hostnames", node)
+		return ""
+	}
+	// net.JoinHostPort brackets IPv6 addresses correctly: [::1]:9000
+	return net.JoinHostPort(node, "9000")
+}
+
 // publishMinioConfigLocked writes /globular/cluster/minio/config to etcd.
 // Must be called with srv.mu held. Safe to call on every state persist —
-// the write is tiny and idempotent, so we always keep etcd in sync with
-// generated credentials and the current cluster domain.
+// the write is tiny and idempotent.
+//
+// The endpoint is always a bare IP — never a DNS wildcard hostname.
 func (srv *server) publishMinioConfigLocked() {
 	if srv.state == nil || srv.state.MinioCredentials == nil {
 		return
 	}
-	// The endpoint is a DNS name served by the cluster DNS (see DNSReconciler
-	// collectPoolMemberships → minio.<domain> multi-A records).
+
+	endpoint := srv.resolveMinioEndpointLocked()
+	if endpoint == "" {
+		// Pool not yet formed; don't publish an incomplete config.
+		return
+	}
+
 	domain := ""
 	if srv.state.ClusterNetworkSpec != nil {
 		domain = srv.state.ClusterNetworkSpec.ClusterDomain
 	}
-	if domain == "" {
-		return
-	}
+
 	cfg := config.MinIOConfig{
-		Endpoint:  fmt.Sprintf("minio.%s:9000", domain),
+		Endpoint:  endpoint,
 		AccessKey: srv.state.MinioCredentials.RootUser,
 		SecretKey: srv.state.MinioCredentials.RootPassword,
 		Secure:    true,
@@ -1081,6 +1119,108 @@ func (srv *server) publishMinioConfigLocked() {
 	}
 	if err := config.SaveMinIOConfig(cfg); err != nil {
 		log.Printf("publish minio config to etcd failed: %v", err)
+	}
+}
+
+// publishObjectStoreDesiredStateLocked writes /globular/objectstore/config to etcd.
+// This is the authoritative topology that node agents read to render local MinIO
+// config files. Must be called with srv.mu held.
+func (srv *server) publishObjectStoreDesiredStateLocked() {
+	if srv.state == nil || srv.state.MinioCredentials == nil {
+		return
+	}
+
+	endpoint := srv.resolveMinioEndpointLocked()
+	if endpoint == "" {
+		return
+	}
+
+	domain := ""
+	if srv.state.ClusterNetworkSpec != nil {
+		domain = srv.state.ClusterNetworkSpec.ClusterDomain
+	}
+
+	mode := config.ObjectStoreModeStandalone
+	if len(srv.state.MinioPoolNodes) >= 2 {
+		mode = config.ObjectStoreModeDistributed
+	}
+
+	// Build volumes map for hash computation.
+	nodeVolumes := make(map[string]string, len(srv.state.MinioPoolNodes))
+	for _, ip := range srv.state.MinioPoolNodes {
+		path := "/var/lib/globular/minio"
+		if srv.state.MinioNodePaths != nil {
+			if p, ok := srv.state.MinioNodePaths[ip]; ok && p != "" {
+				path = p
+			}
+		}
+		nodeVolumes[ip] = path
+	}
+
+	desired := &config.ObjectStoreDesiredState{
+		Mode:          mode,
+		Generation:    srv.state.ObjectStoreGeneration,
+		Endpoint:      endpoint,
+		AccessKey:     srv.state.MinioCredentials.RootUser,
+		SecretKey:     srv.state.MinioCredentials.RootPassword,
+		Bucket:        "globular",
+		Prefix:        domain,
+		Nodes:         append([]string(nil), srv.state.MinioPoolNodes...),
+		DrivesPerNode: srv.state.MinioDrivesPerNode,
+		VolumesHash:   config.ComputeVolumesHash(nodeVolumes),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := config.SaveObjectStoreDesiredState(ctx, desired); err != nil {
+		log.Printf("publish objectstore desired state failed: %v", err)
+	}
+}
+
+// publishCAMetadataLocked writes /globular/pki/ca to etcd so node agents can
+// detect CA rotation without querying the gateway. Must be called with srv.mu held.
+// Safe to call on every state persist — the write is idempotent when the CA is unchanged.
+func (srv *server) publishCAMetadataLocked() {
+	caPath := config.GetCACertificatePath()
+	if caPath == "" {
+		return
+	}
+
+	fp, err := security.FileSPKIFingerprint(caPath)
+	if err != nil {
+		// CA not yet present (bootstrap in progress) — skip silently.
+		return
+	}
+
+	// Parse the cert to extract validity bounds.
+	caBytes, err := os.ReadFile(caPath)
+	if err != nil {
+		log.Printf("publish ca metadata: read CA: %v", err)
+		return
+	}
+	meta := config.CAMetadata{
+		Generation:  int(srv.state.CAGeneration),
+		Fingerprint: fp,
+		Active:      true,
+	}
+	if block, _ := pem.Decode(caBytes); block != nil {
+		if cert, parseErr := x509.ParseCertificate(block.Bytes); parseErr == nil {
+			meta.Issuer = cert.Subject.CommonName
+			meta.NotBefore = cert.NotBefore.UTC().Format(time.RFC3339)
+			meta.NotAfter = cert.NotAfter.UTC().Format(time.RFC3339)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := config.SaveCAMetadata(ctx, meta); err != nil {
+		log.Printf("publish ca metadata: %v", err)
+		return
+	}
+	// Also publish the CA cert PEM to /globular/pki/ca.crt so joining nodes
+	// can bootstrap trust from etcd without needing MinIO to be healthy.
+	if err := config.SaveCACertificateIfEmpty(ctx, caBytes); err != nil {
+		log.Printf("publish ca cert: %v", err)
 	}
 }
 

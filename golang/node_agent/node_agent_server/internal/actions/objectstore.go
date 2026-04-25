@@ -158,10 +158,25 @@ func resolveContractPath() string {
 	return defaultMinioContractPath
 }
 
+// buildMinioProxyConfigFn is the etcd loader. Overridable in tests.
+var buildMinioProxyConfigFn = config.BuildMinioProxyConfig
+
+// loadMinioConfig loads MinIO connection config.
+// etcd is always the primary source of truth. The local rendered contract is
+// used only as a fallback when etcd is unreachable (e.g. during early startup).
+// This ensures node agents always pick up the IP-based endpoint published by
+// the controller rather than serving stale DNS-wildcard endpoints from disk.
 func loadMinioConfig(path string, strict bool) (*config.MinioProxyConfig, string, error) {
 	if strings.TrimSpace(path) == "" {
 		path = defaultMinioContractPath
 	}
+
+	// etcd first — source of truth.
+	if etcdCfg, err := buildMinioProxyConfigFn(); err == nil && etcdCfg != nil {
+		return etcdCfg, "etcd:" + config.EtcdKeyMinioConfig, nil
+	}
+
+	// etcd unavailable — fall back to local rendered contract.
 	f, err := os.Open(path)
 	if err == nil {
 		defer f.Close()
@@ -169,19 +184,15 @@ func loadMinioConfig(path string, strict bool) (*config.MinioProxyConfig, string
 		if cfgErr != nil {
 			return nil, "", fmt.Errorf("load minio contract %s: %w", path, cfgErr)
 		}
+		fmt.Printf("[objectstore] WARNING: etcd unavailable, using local contract %s (may be stale)\n", path)
 		return cfg, "contract:" + path, nil
 	}
+
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("[objectstore] Contract file not found at %s, trying fallbacks...\n", path)
 		if strict {
-			return nil, "", fmt.Errorf("minio contract not found at %s (strict contract mode enabled)", path)
+			return nil, "", fmt.Errorf("minio config unavailable: etcd unreachable and no local contract at %s", path)
 		}
-		// Fallback to etcd cluster config (the single source of truth).
-		if etcdCfg, err := config.BuildMinioProxyConfig(); err == nil && etcdCfg != nil {
-			fmt.Printf("[objectstore] Using MinIO config from etcd\n")
-			return etcdCfg, "etcd", nil
-		}
-		return nil, "", fmt.Errorf("minio contract not found at %s and etcd cluster config unavailable", path)
+		return nil, "", fmt.Errorf("minio config unavailable: etcd unreachable and no local contract at %s", path)
 	}
 	return nil, "", fmt.Errorf("open minio contract %s: %w", path, err)
 }

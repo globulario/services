@@ -139,20 +139,29 @@ func (srv *NodeAgentServer) GetServiceLogs(ctx context.Context, req *node_agentp
 func (srv *NodeAgentServer) GetCertificateStatus(ctx context.Context, _ *node_agentpb.GetCertificateStatusRequest) (*node_agentpb.GetCertificateStatusResponse, error) {
 	resp := &node_agentpb.GetCertificateStatusResponse{}
 
+	caPath := config.GetLocalCACertificate()
+
 	serverCertPath := config.GetLocalServerCertificatePath()
 	if serverCertPath != "" {
-		resp.ServerCert = parseCertInfo(serverCertPath)
+		// Verify the server cert against the local CA so ChainValid reflects
+		// actual PKI trust, not just time validity. A cert signed by an old
+		// (rotated) CA is time-valid but chain-invalid — which is a silent
+		// failure mode that breaks gRPC mTLS between nodes.
+		resp.ServerCert = parseCertInfo(serverCertPath, caPath)
 	}
 
-	caPath := config.GetLocalCACertificate()
 	if caPath != "" {
-		resp.CaCert = parseCertInfo(caPath)
+		// For the CA itself, verify it's self-consistent (no external chain).
+		resp.CaCert = parseCertInfo(caPath, "")
 	}
 
 	return resp, nil
 }
 
-func parseCertInfo(certPath string) *node_agentpb.CertificateInfo {
+// parseCertInfo reads and parses a PEM certificate file. If caPath is non-empty
+// the cert is verified against that CA bundle and ChainValid reflects the result.
+// Pass caPath="" for self-signed CA certs to skip chain verification.
+func parseCertInfo(certPath, caPath string) *node_agentpb.CertificateInfo {
 	data, err := os.ReadFile(certPath)
 	if err != nil {
 		return &node_agentpb.CertificateInfo{
@@ -185,6 +194,17 @@ func parseCertInfo(certPath string) *node_agentpb.CertificateInfo {
 	fingerprint := sha256.Sum256(cert.Raw)
 	fpHex := fmt.Sprintf("%x", fingerprint)
 
+	// Time validity is a prerequisite for chain validity.
+	timeValid := time.Now().Before(cert.NotAfter) && time.Now().After(cert.NotBefore)
+	chainValid := timeValid
+
+	// Real chain verification: verify the cert against the local CA bundle.
+	// This catches the "cert signed by old CA after CA rotation" case — a cert
+	// that is time-valid but PKI-invalid, causing silent gRPC mTLS failures.
+	if chainValid && caPath != "" {
+		chainValid = verifyCertChain(cert, caPath)
+	}
+
 	return &node_agentpb.CertificateInfo{
 		Subject:         cert.Subject.CommonName,
 		Issuer:          cert.Issuer.CommonName,
@@ -192,9 +212,27 @@ func parseCertInfo(certPath string) *node_agentpb.CertificateInfo {
 		NotBefore:       cert.NotBefore.UTC().Format(time.RFC3339),
 		NotAfter:        cert.NotAfter.UTC().Format(time.RFC3339),
 		DaysUntilExpiry: daysUntilExpiry,
-		ChainValid:      time.Now().Before(cert.NotAfter) && time.Now().After(cert.NotBefore),
+		ChainValid:      chainValid,
 		Fingerprint:     fpHex,
 	}
+}
+
+// verifyCertChain verifies cert against the CA bundle at caPath.
+// Returns true if the cert chains to the CA, false otherwise.
+func verifyCertChain(cert *x509.Certificate, caPath string) bool {
+	caData, err := os.ReadFile(caPath)
+	if err != nil {
+		return false
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caData) {
+		return false
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots:       pool,
+		CurrentTime: time.Now(),
+	})
+	return err == nil
 }
 
 // GetSubsystemHealth returns the health state of all registered background

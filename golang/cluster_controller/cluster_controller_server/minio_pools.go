@@ -132,8 +132,9 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 			}
 			if !ipInPool(ip, state.MinioPoolNodes) {
 				state.MinioPoolNodes = append(state.MinioPoolNodes, ip)
-				log.Printf("minio pool: appended %s to pool (total %d nodes)",
-					ip, len(state.MinioPoolNodes))
+				state.ObjectStoreGeneration++
+				log.Printf("minio pool: appended %s to pool (total %d nodes, gen=%d)",
+					ip, len(state.MinioPoolNodes), state.ObjectStoreGeneration)
 			}
 			node.MinioJoinPhase = MinioJoinPoolUpdated
 			dirty = true

@@ -95,6 +95,21 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 		return "", errors.New("vip_failover configuration is required when mode is vip_failover")
 	}
 
+	// Check participant membership BEFORE interface validation.
+	// Non-participant nodes should disable keepalived without needing a valid
+	// interface in the spec for their particular host.
+	isParticipant := false
+	for _, p := range spec.VIPFailover.Participants {
+		if p == nodeID {
+			isParticipant = true
+			break
+		}
+	}
+
+	if !isParticipant {
+		return a.disableKeepalived(ctx, nodeID, etcdClient, dryRun)
+	}
+
 	// Resolve interface for this node (use override if present, before validation)
 	effectiveSpec := *spec.VIPFailover
 	if iface, ok := effectiveSpec.InterfaceOverride[nodeID]; ok && iface != "" {
@@ -116,19 +131,6 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 			ingress.WriteStatus(ctx, etcdClient, nodeID, status)
 		}
 		return "", fmt.Errorf("invalid vip_failover spec: %w", err)
-	}
-
-	// Validate this node is in Participants
-	isParticipant := false
-	for _, p := range effectiveSpec.Participants {
-		if p == nodeID {
-			isParticipant = true
-			break
-		}
-	}
-
-	if !isParticipant {
-		return a.disableKeepalived(ctx, nodeID, etcdClient, dryRun)
 	}
 
 	// Get priority for this node (default to 100 if not specified)

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 )
@@ -30,16 +31,25 @@ const minioContractFile = "/var/lib/globular/objectstore/minio.json"
 //  3. File valid but stale (endpoint/bucket/auth drifted from etcd) —
 //     rewrites so local services don't use outdated connection info.
 //
+// Hard invariant: the rendered file always carries RenderedArtifactMetadata
+// proving it was rendered from etcd, never authored locally.
+//
 // On success with no changes the function is silent to keep the heartbeat
 // loop quiet. If etcd is unavailable the call is a no-op: a missing etcd
 // config is a transient condition, not a failure — we leave whatever is
 // on disk alone and try again on the next tick.
 func (srv *NodeAgentServer) reconcileMinioContract(ctx context.Context) {
-	// Source of truth: etcd.
+	// Source of truth: etcd — both the consumer config and the topology.
 	etcdCfg, err := config.BuildMinioProxyConfig()
 	if err != nil || etcdCfg == nil {
 		// etcd not ready yet — harmless; try again next tick.
 		return
+	}
+
+	// Load the objectstore desired state to get the current generation for provenance.
+	var sourceGeneration int64
+	if desired, err := config.LoadObjectStoreDesiredState(ctx); err == nil && desired != nil {
+		sourceGeneration = desired.Generation
 	}
 
 	// Current disk state (may be missing, corrupt, or stale).
@@ -58,7 +68,13 @@ func (srv *NodeAgentServer) reconcileMinioContract(ctx context.Context) {
 			minioContractFile, etcdCfg.Endpoint, etcdCfg.Bucket)
 	}
 
-	if err := writeMinioContractAtomic(minioContractFile, etcdCfg); err != nil {
+	meta := &config.RenderedArtifactMetadata{
+		SourceEtcdKey:    config.EtcdKeyObjectStoreDesired,
+		SourceGeneration: sourceGeneration,
+		RenderedAt:       time.Now(),
+		NodeID:           srv.nodeID,
+	}
+	if err := writeMinioContractAtomic(minioContractFile, etcdCfg, meta); err != nil {
 		log.Printf("minio-contract: write failed: %v", err)
 		return
 	}
@@ -78,7 +94,8 @@ func loadMinioContractFromDisk(path string) (*config.MinioProxyConfig, error) {
 
 // writeMinioContractAtomic writes the contract via tempfile+rename so a
 // crash mid-write cannot leave the canonical path half-written.
-func writeMinioContractAtomic(path string, cfg *config.MinioProxyConfig) error {
+// meta embeds provenance proving the file was rendered from etcd.
+func writeMinioContractAtomic(path string, cfg *config.MinioProxyConfig, meta *config.RenderedArtifactMetadata) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
@@ -95,7 +112,7 @@ func writeMinioContractAtomic(path string, cfg *config.MinioProxyConfig) error {
 		}
 	}()
 
-	if err := config.SaveMinioProxyConfigTo(tmp, cfg); err != nil {
+	if err := config.SaveMinioProxyConfigWithProvenanceTo(tmp, cfg, meta); err != nil {
 		_ = tmp.Close()
 		return err
 	}

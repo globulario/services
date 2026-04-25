@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ingress"
 	"github.com/globulario/services/golang/pki"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -35,7 +36,22 @@ func (srv *NodeAgentServer) StartACMERenewal(ctx context.Context) {
 // is available locally by pulling it from MinIO (globular-config/pki/ca.key).
 // This enables any node to act as a certificate authority — if the original
 // bootstrap node goes down, other nodes can still issue certificates.
+// caKeySyncEnabled gates the CA private key sync from MinIO.
+// Disabled by default: the CA private key must only reside on the signer
+// authority node. Enabling this in production requires RBAC signer role,
+// audit logging, and verified healthy distributed MinIO. See item 7 in the
+// PKI hardening plan.
+var caKeySyncEnabled = false
+
+// EnableCAKeySync opts in to CA key sync from MinIO. Only call from explicit
+// operator tooling that has verified MinIO health and RBAC requirements.
+func EnableCAKeySync() { caKeySyncEnabled = true }
+
 func (srv *NodeAgentServer) StartCAKeySync(ctx context.Context) {
+	if !caKeySyncEnabled {
+		log.Printf("ca-key-sync: DISABLED by default (CA private key must stay on signer authority; enable with EnableCAKeySync())")
+		return
+	}
 	go srv.caKeySyncLoop(ctx)
 }
 
@@ -711,4 +727,79 @@ func restartUnit(systemctl, unit string) error {
 		}
 	}
 	return nil
+}
+
+// StartCACertDriftCheck starts a background loop that detects CA rotation
+// by comparing the local CA's SPKI fingerprint against the authoritative value
+// published by the cluster controller at /globular/pki/ca. When drift is
+// detected the service cert is regenerated immediately.
+func (srv *NodeAgentServer) StartCACertDriftCheck(ctx context.Context) {
+	go srv.caCertDriftLoop(ctx)
+}
+
+func (srv *NodeAgentServer) caCertDriftLoop(ctx context.Context) {
+	// Delay startup: give etcd a chance to become reachable.
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(20 * time.Second):
+	}
+
+	srv.reconcileCACertDrift(ctx)
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			srv.reconcileCACertDrift(ctx)
+		}
+	}
+}
+
+// reconcileCACertDrift compares the local CA's SPKI fingerprint to the one
+// published by the controller in etcd. If they differ the node's service cert
+// was signed by a rotated CA and must be regenerated. This is the detection
+// half of the CA rotation convergence path.
+func (srv *NodeAgentServer) reconcileCACertDrift(ctx context.Context) {
+	caPath := config.GetLocalCACertificate()
+	if caPath == "" {
+		return // CA not yet present on this node
+	}
+
+	etcdMeta, err := config.LoadCAMetadata(ctx)
+	if err != nil {
+		log.Printf("ca-drift: load etcd CA metadata: %v (skipping)", err)
+		return
+	}
+	if etcdMeta == nil {
+		// Controller has not published CA metadata yet (pre-bootstrap).
+		return
+	}
+
+	localFP, err := security.FileSPKIFingerprint(caPath)
+	if err != nil {
+		log.Printf("ca-drift: compute local CA fingerprint: %v", err)
+		return
+	}
+
+	if localFP == etcdMeta.Fingerprint {
+		return // CA unchanged — nothing to do
+	}
+
+	log.Printf("ca-drift: LOCAL CA fingerprint %s does not match controller's %s (generation %d) — regenerating service cert",
+		localFP, etcdMeta.Fingerprint, etcdMeta.Generation)
+
+	// Regenerate service certs using the current CA.
+	if srv.lastSpec != nil {
+		if err := srv.ensureNetworkCerts(srv.lastSpec); err != nil {
+			log.Printf("ca-drift: cert regeneration failed: %v", err)
+			return
+		}
+		log.Printf("ca-drift: service cert regenerated for CA generation %d", etcdMeta.Generation)
+	} else {
+		log.Printf("ca-drift: detected but no lastSpec available — cert regeneration deferred until next TLS convergence cycle")
+	}
 }

@@ -53,6 +53,20 @@ func NewRegistry(cfg Config) *Registry {
 		// Subsystem health: detects stuck/failed background goroutines.
 		// Consumes per-node GetSubsystemHealth collected in Snapshot.SubsystemHealth.
 		subsystemStuck{},
+		// Objectstore topology invariants: DNS wildcard endpoint, standalone mode
+		// in multi-node cluster, unreachable endpoint, missing desired state.
+		// Consume ObjectStoreDesired populated from /globular/objectstore/config.
+		objectstoreEndpointDNSWildcard{},
+		objectstoreStandaloneInCluster{},
+		objectstoreEndpointUnreachable{},
+		objectstoreNoDesiredState{},
+		objectstoreConsumerEndpointDNSWildcard{},
+		// PKI health invariants: CA metadata publishing, CA expiry, per-node
+		// cert-wrong-CA (issued by rotated CA). Consume CAMetadata populated
+		// from /globular/pki/ca and CertificateStatus per node.
+		pkiCANotPublished{},
+		pkiCAExpiryWarning{},
+		pkiNodeCertWrongCA{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

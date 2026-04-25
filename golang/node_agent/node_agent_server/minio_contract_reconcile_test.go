@@ -60,7 +60,7 @@ func TestLoadMinioContractFromDisk_Corrupt(t *testing.T) {
 func TestWriteMinioContractAtomic_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "minio.json")
 	cfg := validContract()
-	if err := writeMinioContractAtomic(path, cfg); err != nil {
+	if err := writeMinioContractAtomic(path, cfg, nil); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	loaded, err := loadMinioContractFromDisk(path)
@@ -86,7 +86,7 @@ func TestWriteMinioContractAtomic_OverwritesCorrupt(t *testing.T) {
 	writeFile(t, path, []byte("globular-ak\nglobular-sk\n"))
 
 	cfg := validContract()
-	if err := writeMinioContractAtomic(path, cfg); err != nil {
+	if err := writeMinioContractAtomic(path, cfg, nil); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
