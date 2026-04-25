@@ -366,6 +366,13 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	// actually COMMAND (e.g. etcdctl, sha256sum, yt-dlp).
 	if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 		h.RepoKind = strings.ToUpper(resolved.RepoKind.String())
+		// Also correct InstalledStateKind so hasUnservedNodes checks the right
+		// etcd key. Without this, hasUnservedNodes looks up SERVICE/yt-dlp but
+		// nodes report the package as COMMAND/yt-dlp — node always appears
+		// unserved and the pipeline cycles RESOLVED without dispatching.
+		if h.InstalledStateKind == "SERVICE" && h.RepoKind == "COMMAND" {
+			h.InstalledStateKind = "COMMAND"
+		}
 	}
 
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
