@@ -50,10 +50,11 @@ func TestBootstrapPhaseReady(t *testing.T) {
 func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "test-node", Ips: []string{"10.0.0.20"}},
-		Profiles:       []string{"core", "gateway"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "test-node", Ips: []string{"10.0.0.20"}},
+		Profiles:           []string{"core", "gateway"},
+		BootstrapPhase:     BootstrapAdmitted,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -88,6 +89,13 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 
 	// etcd_joining → etcd_ready
 	node.EtcdJoinPhase = EtcdJoinVerified
+	// Runtime-aware bootstrap gating requires required infra runtime to be
+	// healthy before advancing past envoy_ready.
+	for i := range node.Units {
+		if node.Units[i].Name == "globular-etcd.service" {
+			node.Units[i].State = "active"
+		}
+	}
 	dirty = reconcileBootstrapPhases(nodes, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapEtcdReady {
 		t.Fatalf("expected etcd_ready, got %s", node.BootstrapPhase)
@@ -145,10 +153,10 @@ func TestBootstrap_SkipEtcd(t *testing.T) {
 	emitter := &mockEmitter{}
 	// "gateway" profile has no etcd, but has xds and envoy.
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "gw-node"},
-		Profiles:       []string{"gateway"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "gw-node"},
+		Profiles:           []string{"gateway"},
+		BootstrapPhase:     BootstrapAdmitted,
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -173,10 +181,11 @@ func TestBootstrap_SkipEnvoy(t *testing.T) {
 	emitter := &mockEmitter{}
 	// "storage" profile runs MinIO but not etcd/xds/envoy.
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "storage-node", Ips: []string{"10.0.0.5"}},
-		Profiles:       []string{"storage"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "storage-node", Ips: []string{"10.0.0.5"}},
+		Profiles:           []string{"storage"},
+		BootstrapPhase:     BootstrapAdmitted,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -207,10 +216,10 @@ func TestBootstrap_SkipEnvoy(t *testing.T) {
 func TestBootstrap_Timeout(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "slow-node", Ips: []string{"10.0.0.5"}},
-		Profiles:       []string{"core"},
-		BootstrapPhase: BootstrapInfraPreparing,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "slow-node", Ips: []string{"10.0.0.5"}},
+		Profiles:           []string{"core"},
+		BootstrapPhase:     BootstrapInfraPreparing,
 		BootstrapStartedAt: time.Now().Add(-bootstrapPhaseTimeout - time.Minute),
 	}
 	nodes := []*nodeState{node}
@@ -232,13 +241,13 @@ func TestBootstrap_Timeout(t *testing.T) {
 func TestBootstrap_EtcdJoinFailed(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "fail-node", Ips: []string{"10.0.0.5"}},
-		Profiles:       []string{"core"},
-		BootstrapPhase: BootstrapEtcdJoining,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "fail-node", Ips: []string{"10.0.0.5"}},
+		Profiles:           []string{"core"},
+		BootstrapPhase:     BootstrapEtcdJoining,
 		BootstrapStartedAt: time.Now(),
-		EtcdJoinPhase:  EtcdJoinFailed,
-		EtcdJoinError:  "quorum lost",
+		EtcdJoinPhase:      EtcdJoinFailed,
+		EtcdJoinError:      "quorum lost",
 	}
 	nodes := []*nodeState{node}
 
@@ -316,15 +325,73 @@ func TestBootstrap_FailedNodeAutoRetries(t *testing.T) {
 	}
 }
 
+func TestBootstrapDoesNotAdvanceOnInstalledOnly(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "joiner"},
+		Profiles:           []string{"core", "gateway"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+		LastSeen:           time.Now(),
+		// envoy active but minio inactive -> runtime mismatch
+		Units: []unitStatusRecord{
+			{Name: "globular-envoy.service", State: "active"},
+			{Name: "globular-minio.service", State: "inactive"},
+			{Name: "globular-sidekick.service", State: "active"},
+			{Name: "globular-node-exporter.service", State: "active"},
+			{Name: "globular-prometheus.service", State: "active"},
+			{Name: "globular-alertmanager.service", State: "active"},
+			{Name: "globular-gateway.service", State: "active"},
+			{Name: "globular-xds.service", State: "active"},
+			{Name: "globular-etcd.service", State: "active"},
+		},
+	}
+	nodes := []*nodeState{node}
+
+	dirty := reconcileBootstrapPhases(nodes, emitter)
+	if dirty {
+		t.Fatal("expected no phase change when required infra runtime is unhealthy")
+	}
+	if node.BootstrapPhase != BootstrapEnvoyReady {
+		t.Fatalf("expected phase to stay envoy_ready, got %s", node.BootstrapPhase)
+	}
+	if node.BlockedReason != "day1_infra_runtime_blocked" {
+		t.Fatalf("expected day1_infra_runtime_blocked, got %q", node.BlockedReason)
+	}
+	if node.BootstrapError == "" {
+		t.Fatal("expected bootstrap error detail for runtime block")
+	}
+
+	// Runtime heals => block clears and phase advances.
+	for i := range node.Units {
+		if node.Units[i].Name == "globular-minio.service" {
+			node.Units[i].State = "active"
+		}
+	}
+	node.MinioJoinPhase = MinioJoinVerified
+	dirty = reconcileBootstrapPhases(nodes, emitter)
+	if !dirty {
+		t.Fatal("expected phase change after runtime converges")
+	}
+	if node.BlockedReason != "" {
+		t.Fatalf("expected blocked reason cleared, got %q", node.BlockedReason)
+	}
+	if node.BootstrapPhase == BootstrapEnvoyReady {
+		t.Fatal("expected bootstrap to advance after runtime recovery")
+	}
+}
+
 // TestBootstrap_StorageOnlyNode tests a node with only storage profile
 // (no etcd, no xds, no envoy) → skips to storage_joining, then workload_ready.
 func TestBootstrap_StorageOnlyNode(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "storage-node"},
-		Profiles:       []string{"storage"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "storage-node"},
+		Profiles:           []string{"storage"},
+		BootstrapPhase:     BootstrapAdmitted,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -363,10 +430,11 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "core-node", Ips: []string{"10.0.0.5"}},
-		Profiles:       []string{"core", "gateway"},
-		BootstrapPhase: BootstrapEnvoyReady,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "core-node", Ips: []string{"10.0.0.5"}},
+		Profiles:           []string{"core", "gateway"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -391,10 +459,11 @@ func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "scylla-node"},
-		Profiles:       []string{"scylla"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "scylla-node"},
+		Profiles:           []string{"scylla"},
+		BootstrapPhase:     BootstrapAdmitted,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -427,10 +496,10 @@ func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
 func TestBootstrap_StorageJoin_Timeout(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "slow-storage"},
-		Profiles:       []string{"storage"},
-		BootstrapPhase: BootstrapStorageJoining,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "slow-storage"},
+		Profiles:           []string{"storage"},
+		BootstrapPhase:     BootstrapStorageJoining,
 		BootstrapStartedAt: time.Now().Add(-bootstrapPhaseTimeout - time.Minute),
 	}
 	nodes := []*nodeState{node}
@@ -452,10 +521,11 @@ func TestBootstrap_StorageJoin_Timeout(t *testing.T) {
 func TestBootstrap_GatewayOnly_NoStorageJoin(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "gw-only"},
-		Profiles:       []string{"gateway"},
-		BootstrapPhase: BootstrapEnvoyReady,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "gw-only"},
+		Profiles:           []string{"gateway"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		LastSeen:           time.Now(),
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}
@@ -472,10 +542,10 @@ func TestBootstrap_GatewayOnly_NoStorageJoin(t *testing.T) {
 func TestBootstrap_DnsOnly_NoStorageJoin(t *testing.T) {
 	emitter := &mockEmitter{}
 	node := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "dns-only"},
-		Profiles:       []string{"dns"},
-		BootstrapPhase: BootstrapAdmitted,
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "dns-only"},
+		Profiles:           []string{"dns"},
+		BootstrapPhase:     BootstrapAdmitted,
 		BootstrapStartedAt: time.Now(),
 	}
 	nodes := []*nodeState{node}

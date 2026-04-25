@@ -445,6 +445,7 @@ type releaseTargetCandidate struct {
 	nodeID        string
 	agentEndpoint string
 	installedKind string
+	nodeSnapshot  nodeState
 }
 
 // selectReleaseTargets filters candidate nodes: only include nodes that are
@@ -503,6 +504,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			nodeID:        nodeID,
 			agentEndpoint: node.AgentEndpoint,
 			installedKind: installedKind,
+			nodeSnapshot:  *node,
 		})
 	}
 	srv.unlock()
@@ -514,37 +516,45 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		if err != nil {
 			log.Printf("release-workflow: installed check %s/%s on %s: %v", ec.installedKind, pkgName, ec.nodeID, err)
 		}
-		if pkg != nil {
-			wantBuildID := ""
-			if len(resolvedBuildID) > 0 {
-				wantBuildID = resolvedBuildID[0]
-			}
-			if wantBuildID != "" && pkg.GetBuildId() == wantBuildID {
-				log.Printf("release-workflow: skip node %s for %s (build_id match: %s)",
-					ec.nodeID, pkgName, wantBuildID)
-				continue
-			}
-			// Hash-based convergence: if the installed checksum matches the desired
-			// artifact hash, the package content is identical — skip regardless of
-			// build_id. Handles transition-era installs that lack a build_id record.
-			if desiredHash != "" && pkg.GetChecksum() == desiredHash {
-				log.Printf("release-workflow: skip node %s for %s (checksum match: %s)",
-					ec.nodeID, pkgName, desiredHash[:16])
-				continue
-			}
-			// No convergence identity at all — package is installed, assume no drift.
-			// Without a build_id or hash, we cannot determine if the installed version
-			// differs from the desired version. Selecting the node would cause a
-			// perpetual install+restart loop with no convergence signal.
-			if wantBuildID == "" && desiredHash == "" {
-				log.Printf("release-workflow: skip node %s for %s (no convergence identity, already installed)",
-					ec.nodeID, pkgName)
-				continue
-			}
-			log.Printf("release-workflow: node %s needs update for %s (installed_build_id=%s desired_build_id=%s installed_checksum=%s desired_hash=%s)",
-				ec.nodeID, pkgName, pkg.GetBuildId(), wantBuildID, pkg.GetChecksum()[:min(16, len(pkg.GetChecksum()))], desiredHash)
-		} else {
+		wantBuildID := ""
+		if len(resolvedBuildID) > 0 {
+			wantBuildID = resolvedBuildID[0]
+		}
+		convergence := classifyPackageConvergence(
+			&ec.nodeSnapshot,
+			pkgName,
+			ec.installedKind,
+			"",
+			desiredHash,
+			wantBuildID,
+			pkg,
+			time.Now(),
+		)
+
+		if pkg == nil {
 			log.Printf("release-workflow: node %s has no installed record for %s/%s", ec.nodeID, ec.installedKind, pkgName)
+		} else if !convergence.RepairRequired && (wantBuildID != "" || desiredHash != "") {
+			log.Printf("release-workflow: skip node %s for %s (artifact+runtime converged: %s)", ec.nodeID, pkgName, convergence.Reason)
+			continue
+		} else if !convergence.RepairRequired && wantBuildID == "" && desiredHash == "" {
+			log.Printf("release-workflow: skip node %s for %s (no convergence identity, runtime converged)", ec.nodeID, pkgName)
+			continue
+		} else {
+			// Runtime-repair cooldown: don't redeliver same repair continuously.
+			if convergence.VersionOK && convergence.HashOK && convergence.BuildIDOK && convergence.RuntimeNeeded && !convergence.RuntimeOK {
+				cdKey := runtimeRepairCooldownKey(ec.nodeID, pkgName, ec.installedKind, "", desiredHash, wantBuildID)
+				if ok, wait := shouldDispatchRuntimeRepair(cdKey, time.Now()); !ok {
+					log.Printf("release-workflow: skip runtime repair for node=%s package=%s (%s), cooldown %s remaining",
+						ec.nodeID, pkgName, convergence.Reason, wait.Round(time.Second))
+					continue
+				}
+			}
+			if pkg != nil {
+				log.Printf("release-workflow: node %s needs update for %s (%s, installed_build_id=%s desired_build_id=%s installed_checksum=%s desired_hash=%s)",
+					ec.nodeID, pkgName, convergence.Reason, pkg.GetBuildId(), wantBuildID, pkg.GetChecksum()[:min(16, len(pkg.GetChecksum()))], desiredHash)
+			} else {
+				log.Printf("release-workflow: node %s needs install for %s (%s)", ec.nodeID, pkgName, convergence.Reason)
+			}
 		}
 
 		targets = append(targets, map[string]any{

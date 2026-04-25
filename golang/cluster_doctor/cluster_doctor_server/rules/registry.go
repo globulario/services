@@ -19,6 +19,7 @@ func NewRegistry(cfg Config) *Registry {
 		nodeInventoryComplete{},
 		nodeUnitFilesPresent{},
 		nodeUnitsRunning{},
+		installedStateRuntimeMismatch{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},
 		promRuntime{},

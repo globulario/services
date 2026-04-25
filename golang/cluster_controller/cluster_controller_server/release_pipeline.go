@@ -10,6 +10,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 )
@@ -141,6 +142,12 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		// This node is eligible — it must have the package installed.
 		eligibleCount++
 		if !installedNodes[id] {
+			return false
+		}
+		if conv := classifyPackageConvergence(node, canon, "SERVICE", desiredVersion, "", buildID, &node_agentpb.InstalledPackage{
+			Version: desiredVersion,
+			BuildId: buildID,
+		}, time.Now()); !conv.RuntimeOK {
 			return false
 		}
 	}
@@ -640,7 +647,17 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 		// This covers the "already installed, workflow short-circuited" case.
 		if h.InstalledStateName != "" && h.ResolvedVersion != "" && node.InstalledVersions != nil {
 			if node.InstalledVersions[h.InstalledStateName] == h.ResolvedVersion {
-				continue
+				conv := classifyPackageConvergence(node, h.InstalledStateName, h.InstalledStateKind, h.ResolvedVersion, h.DesiredHash, h.ResolvedBuildID, &node_agentpb.InstalledPackage{
+					Version:  h.ResolvedVersion,
+					Checksum: h.DesiredHash,
+					BuildId:  h.ResolvedBuildID,
+				}, time.Now())
+				if conv.RuntimeOK {
+					continue
+				} else {
+					log.Printf("hasUnservedNodes: release=%s node=%s version match but runtime unconverged (%s)",
+						h.Name, id, conv.Reason)
+				}
 			}
 		}
 		log.Printf("hasUnservedNodes: release=%s node=%s unserved (installed_name=%q resolved_v=%q installed_v=%q)",

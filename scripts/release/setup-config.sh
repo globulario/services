@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Initial Globular Configuration Bootstrap
+# Creates /var/lib/globular/config.json with HTTPS enabled
+
+STATE_DIR="/var/lib/globular"
+CONFIG_FILE="${STATE_DIR}/config.json"
+
+echo "[setup-config] Bootstrapping Globular configuration"
+echo "[setup-config] STATE_DIR=${STATE_DIR}"
+echo "[setup-config] CONFIG_FILE=${CONFIG_FILE}"
+
+# Check if config already exists
+if [[ -f "${CONFIG_FILE}" ]]; then
+    echo "[setup-config] Configuration file already exists"
+
+    # Check if Protocol is set
+    if grep -q '"Protocol"' "${CONFIG_FILE}"; then
+        CURRENT_PROTOCOL=$(jq -r '.Protocol // "https"' "${CONFIG_FILE}")
+        echo "[setup-config] Current Protocol: ${CURRENT_PROTOCOL}"
+
+        if [[ "${CURRENT_PROTOCOL}" != "https" ]]; then
+            echo "[setup-config] → Updating Protocol to https"
+            BACKUP="${CONFIG_FILE}.backup.$(date +%s)"
+            cp "${CONFIG_FILE}" "${BACKUP}"
+            jq '.Protocol = "https"' "${CONFIG_FILE}" > "${CONFIG_FILE}.tmp"
+            mv "${CONFIG_FILE}.tmp" "${CONFIG_FILE}"
+            echo "[setup-config] ✓ Protocol updated to https (backup: ${BACKUP})"
+        else
+            echo "[setup-config] ✓ Protocol already set to https"
+        fi
+    else
+        echo "[setup-config] → Adding Protocol: https"
+        BACKUP="${CONFIG_FILE}.backup.$(date +%s)"
+        cp "${CONFIG_FILE}" "${BACKUP}"
+        jq '. + {Protocol: "https"}' "${CONFIG_FILE}" > "${CONFIG_FILE}.tmp"
+        mv "${CONFIG_FILE}.tmp" "${CONFIG_FILE}"
+        echo "[setup-config] ✓ Protocol added (backup: ${BACKUP})"
+    fi
+else
+    echo "[setup-config] Creating new configuration file with HTTPS enabled"
+
+    DOMAIN="globular.internal"
+
+    # Determine the actual non-loopback IP address.
+    ADDRESS=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || echo "")
+    if [[ -z "$ADDRESS" ]]; then
+        ADDRESS=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.' | head -n1)
+    fi
+    if [[ -z "$ADDRESS" ]]; then
+        echo "[setup-config] ERROR: could not determine a routable IPv4 address" >&2
+        exit 1
+    fi
+
+    echo "[setup-config] → Domain: ${DOMAIN}"
+    echo "[setup-config] → Address: ${ADDRESS}"
+    echo "[setup-config] ✓ Using non-loopback address for cluster routing"
+
+    # Create minimal config with HTTPS and cluster-capable domain
+    cat > "${CONFIG_FILE}" << EOF
+{
+  "Protocol": "https",
+  "Domain": "${DOMAIN}",
+  "Address": "${ADDRESS}",
+  "PortHTTP": 8080,
+  "PortHTTPS": 8443
+}
+EOF
+
+    chmod 644 "${CONFIG_FILE}"
+    echo "[setup-config] ✓ Configuration file created with Protocol=https, Domain=${DOMAIN}"
+fi
+
+# Set ownership and permissions if running as root
+if [[ $EUID -eq 0 ]]; then
+    # Ensure state directory is accessible
+    chmod 755 "${STATE_DIR}"
+
+    # Config file should be world-readable (contains service discovery info, no secrets)
+    chmod 644 "${CONFIG_FILE}"
+
+    if id globular >/dev/null 2>&1; then
+        chown globular:globular "${CONFIG_FILE}"
+        echo "[setup-config] ✓ Ownership set to globular:globular"
+    else
+        echo "[setup-config] → globular user not yet created, ownership will be set later"
+    fi
+
+    echo "[setup-config] ✓ Permissions set (config.json: 644, state dir: 755)"
+fi
+
+echo "[setup-config] Configuration bootstrap complete"
+echo "[setup-config]   Config: ${CONFIG_FILE}"
+echo "[setup-config]   Protocol: https"

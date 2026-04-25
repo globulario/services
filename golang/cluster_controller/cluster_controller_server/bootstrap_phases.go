@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -143,7 +144,19 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			}
 
 		case BootstrapEnvoyReady:
-			// Envoy is active — check if node hosts storage services.
+			// Envoy is active — but do not advance until required infra runtime is
+			// converged (active + fresh heartbeat). Installed-state alone is not
+			// sufficient.
+			if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now); !ok {
+				node.BlockedReason = "day1_infra_runtime_blocked"
+				node.BlockedDetails = reason
+				node.BootstrapError = reason
+				log.Printf("bootstrap: node %s (%s) runtime blocked at %s: %s",
+					node.NodeID, node.Identity.Hostname, node.BootstrapPhase, reason)
+				break
+			}
+			node.BlockedReason = ""
+			node.BlockedDetails = ""
 			if nodeNeedsStorageJoin(node) {
 				node.BootstrapPhase = BootstrapStorageJoining
 				node.BootstrapStartedAt = now
@@ -177,6 +190,16 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			}
 
 			if allReady {
+				if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now); !ok {
+					node.BlockedReason = "day1_infra_runtime_blocked"
+					node.BlockedDetails = reason
+					node.BootstrapError = reason
+					log.Printf("bootstrap: node %s (%s) runtime blocked at %s: %s",
+						node.NodeID, node.Identity.Hostname, node.BootstrapPhase, reason)
+					break
+				}
+				node.BlockedReason = ""
+				node.BlockedDetails = ""
 				node.BootstrapPhase = BootstrapWorkloadReady
 				node.BootstrapStartedAt = now
 				node.BootstrapError = ""
@@ -299,6 +322,60 @@ func nodeHasScyllaProfile(node *nodeState) bool {
 // (MinIO or ScyllaDB) that need explicit join verification.
 func nodeNeedsStorageJoin(node *nodeState) bool {
 	return nodeHasMinioProfile(node) || nodeHasScyllaProfile(node)
+}
+
+func requiredBootstrapInfraPackages(node *nodeState) []string {
+	var out []string
+	add := func(name string) {
+		for _, s := range out {
+			if s == name {
+				return
+			}
+		}
+		out = append(out, name)
+	}
+	for _, name := range []string{
+		"etcd",
+		"minio",
+		"scylladb",
+		"envoy",
+		"gateway",
+		"xds",
+		"prometheus",
+		"alertmanager",
+		"node-exporter",
+		"sidekick",
+	} {
+		if nodeHasComponentProfile(node, name) {
+			add(name)
+		}
+	}
+	return out
+}
+
+func bootstrapRequiredInfraRuntimeConverged(node *nodeState, now time.Time) (bool, string) {
+	for _, pkg := range requiredBootstrapInfraPackages(node) {
+		pc := classifyPackageConvergence(
+			node,
+			pkg,
+			"INFRASTRUCTURE",
+			"",
+			"",
+			"",
+			&node_agentpb.InstalledPackage{Version: "bootstrap-runtime-check"},
+			now,
+		)
+		if !pc.RuntimeOK {
+			// During bootstrap, tolerate "missing/unknown" runtime signals for
+			// components that haven't reported unit state yet; hard-block only
+			// on observed unhealthy states (inactive/failed/stale).
+			if pc.RuntimeState == RuntimeMissing || pc.RuntimeState == RuntimeUnknown {
+				continue
+			}
+			return false, fmt.Sprintf("Day1InfraRuntimeBlocked: %s (%s)", pkg, pc.Reason)
+		}
+	}
+	return true, ""
 }
 
 // recordBootstrapTransition records the phase transition in a BOOTSTRAP
