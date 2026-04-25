@@ -62,6 +62,9 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// Heal /var/lib/globular/objectstore/minio.json if it was clobbered
 	// out-of-band; etcd is authoritative. See minio_contract_reconcile.go.
 	withOpTimeout(15*time.Second, srv.reconcileMinioContract)
+	// Render minio.env and distributed.conf from etcd ObjectStoreDesiredState.
+	// Never restarts MinIO — restart is coordinated by the topology workflow.
+	withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
 	// Ensure scylla-manager-agent config always has a valid auth_token.
 	withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 
@@ -143,6 +146,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
 			withOpTimeout(15*time.Second, srv.syncEtcHosts)
 			withOpTimeout(15*time.Second, srv.reconcileMinioContract)
+			withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 		case <-rediscoverTicker.C:

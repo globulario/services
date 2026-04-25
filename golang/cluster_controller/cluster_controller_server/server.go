@@ -1157,6 +1157,13 @@ func (srv *server) publishObjectStoreDesiredStateLocked() {
 		nodeVolumes[ip] = path
 	}
 
+	// Copy NodePaths so the desired state carries per-node base paths.
+	// Node agents use this to compute MINIO_VOLUMES locally from etcd.
+	nodePaths := make(map[string]string, len(nodeVolumes))
+	for k, v := range nodeVolumes {
+		nodePaths[k] = v
+	}
+
 	desired := &config.ObjectStoreDesiredState{
 		Mode:          mode,
 		Generation:    srv.state.ObjectStoreGeneration,
@@ -1168,6 +1175,7 @@ func (srv *server) publishObjectStoreDesiredStateLocked() {
 		Nodes:         append([]string(nil), srv.state.MinioPoolNodes...),
 		DrivesPerNode: srv.state.MinioDrivesPerNode,
 		VolumesHash:   config.ComputeVolumesHash(nodeVolumes),
+		NodePaths:     nodePaths,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

@@ -61,6 +61,10 @@ func NewRegistry(cfg Config) *Registry {
 		objectstoreEndpointUnreachable{},
 		objectstoreNoDesiredState{},
 		objectstoreConsumerEndpointDNSWildcard{},
+		// Topology generation consistency: fires when desired topology generation
+		// has not been applied via the objectstore.minio.apply_topology_generation
+		// workflow. Consumes ObjectStoreDesired + ObjectStoreAppliedGeneration.
+		objectstoreMinioTopologyConsistency{},
 		// PKI health invariants: CA metadata publishing, CA expiry, per-node
 		// cert-wrong-CA (issued by rotated CA). Consume CAMetadata populated
 		// from /globular/pki/ca and CertificateStatus per node.

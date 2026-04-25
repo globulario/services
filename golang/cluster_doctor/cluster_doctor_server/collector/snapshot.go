@@ -66,6 +66,12 @@ type Snapshot struct {
 	// Consumed by the "objectstore.*" invariant family.
 	ObjectStoreDesired *config.ObjectStoreDesiredState
 
+	// ObjectStoreAppliedGeneration is the last topology generation that was
+	// successfully applied by the objectstore.minio.apply_topology_generation
+	// workflow. Zero means the workflow has never run (standalone only).
+	// Compared against ObjectStoreDesired.Generation to detect unapplied topology changes.
+	ObjectStoreAppliedGeneration int64
+
 	// CAMetadata is the CA fingerprint descriptor published by the cluster
 	// controller to etcd (/globular/pki/ca). Used by "pki.*" invariants to
 	// detect CA rotation and per-node cert drift.

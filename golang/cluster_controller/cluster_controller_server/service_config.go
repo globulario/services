@@ -265,11 +265,8 @@ func renderEtcdEndpoints(ctx *serviceConfigContext) (string, bool) {
 // renderMinioConfig generates the MinIO environment configuration for a node.
 // File path: /var/lib/globular/minio/minio.env
 //
-// Pool-aware: uses the ordered MinioPoolNodes list (from controller state)
-// to preserve erasure set boundaries. New nodes are appended to the list,
-// never inserted. This ensures MinIO recognizes the original pool after expansion.
-//
-// Credentials: uses cluster-scoped generated credentials from MinioCredentials.
+// Delegates to configpkg.RenderMinioEnv which is the shared rendering function
+// also used by the node agent. Both must produce byte-identical output.
 func renderMinioConfig(ctx *serviceConfigContext) (string, bool) {
 	if ctx == nil || ctx.CurrentNode == nil {
 		return "", false
@@ -292,90 +289,41 @@ func renderMinioConfig(ctx *serviceConfigContext) (string, bool) {
 		return "", false
 	}
 
-	// minioBasePath returns the base data directory for a node IP.
-	// Falls back to /var/lib/globular/minio if not configured.
-	minioBasePath := func(ip string) string {
-		if ctx.MinioNodePaths != nil {
-			if p, ok := ctx.MinioNodePaths[ip]; ok && p != "" {
-				return strings.TrimRight(p, "/")
-			}
-		}
-		return "/var/lib/globular/minio"
-	}
-
-	var sb strings.Builder
-
-	drivesPerNode := ctx.MinioDrivesPerNode
-	if drivesPerNode < 2 {
-		// Single-drive mode (legacy).
-		if len(poolIPs) == 1 {
-			// Single node: standalone mode (local path only).
-			sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s/data\n", minioBasePath(poolIPs[0])))
-		} else {
-			// Distributed mode: ordered endpoints from pool list.
-			var endpoints []string
-			for _, ip := range poolIPs {
-				endpoints = append(endpoints, fmt.Sprintf("https://%s:9000%s/data", ip, minioBasePath(ip)))
-			}
-			sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s\n", strings.Join(endpoints, " ")))
-		}
-	} else {
-		// Multi-drive mode: each node contributes drivesPerNode drives (data1, data2, ...).
-		if len(poolIPs) == 1 {
-			// Single node with multiple drives — standalone erasure mode.
-			base := minioBasePath(poolIPs[0])
-			var drives []string
-			for d := 1; d <= drivesPerNode; d++ {
-				drives = append(drives, fmt.Sprintf("%s/data%d", base, d))
-			}
-			sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s\n", strings.Join(drives, " ")))
-		} else {
-			// Distributed multi-drive: http://IP:9000/basepath/dataN for each node+drive.
-			var endpoints []string
-			for _, ip := range poolIPs {
-				base := minioBasePath(ip)
-				for d := 1; d <= drivesPerNode; d++ {
-					endpoints = append(endpoints, fmt.Sprintf("https://%s:9000%s/data%d", ip, base, d))
-				}
-			}
-			sb.WriteString(fmt.Sprintf("MINIO_VOLUMES=%s\n", strings.Join(endpoints, " ")))
-		}
-	}
-
-	// Cluster-scoped credentials (generated at bootstrap, stored in controller state).
-	if ctx.MinioCredentials != nil && ctx.MinioCredentials.RootUser != "" {
-		sb.WriteString(fmt.Sprintf("MINIO_ROOT_USER=%s\n", ctx.MinioCredentials.RootUser))
-		sb.WriteString(fmt.Sprintf("MINIO_ROOT_PASSWORD=%s\n", ctx.MinioCredentials.RootPassword))
-	} else {
-		sb.WriteString("MINIO_ROOT_USER=minioadmin\n")
-		sb.WriteString("MINIO_ROOT_PASSWORD=minioadmin\n")
-	}
-
-	// Distributed mode: bypass the root-drive check. MinIO refuses drives on the
-	// same filesystem as / to prevent accidental data loss on single-disk hosts.
-	// In our cluster every node has dedicated drive directories managed by the
-	// controller, so the check is safe to disable.
+	mode := configpkg.ObjectStoreModeStandalone
 	if len(poolIPs) > 1 {
-		sb.WriteString("MINIO_CI_CD=1\n")
+		mode = configpkg.ObjectStoreModeDistributed
 	}
 
-	return sb.String(), true
+	var accessKey, secretKey string
+	if ctx.MinioCredentials != nil {
+		accessKey = ctx.MinioCredentials.RootUser
+		secretKey = ctx.MinioCredentials.RootPassword
+	}
+
+	state := &configpkg.ObjectStoreDesiredState{
+		Mode:          mode,
+		Nodes:         poolIPs,
+		DrivesPerNode: ctx.MinioDrivesPerNode,
+		NodePaths:     ctx.MinioNodePaths,
+		AccessKey:     accessKey,
+		SecretKey:     secretKey,
+	}
+	content := configpkg.RenderMinioEnv(state)
+	if content == "" {
+		return "", false
+	}
+	return content, true
 }
 
 // renderMinioSystemdOverride generates a systemd drop-in override for
 // globular-minio.service that:
-//  1. Replaces ExecStart to use $MINIO_VOLUMES from the env file (instead of a
-//     hardcoded positional path).
-//  2. Creates per-drive data directories (data1, data2, …) via ExecStartPre.
+//  1. Replaces ExecStart to use $MINIO_VOLUMES from the env file.
+//  2. Creates per-drive data directories via ExecStartPre.
 //
 // File path: /etc/systemd/system/globular-minio.service.d/distributed.conf
 //
-// This override is only rendered when:
-//   - the node has a MinIO profile, AND
-//   - the pool has more than 1 node OR multi-drive mode is enabled
-//
-// The override is idempotent — re-rendering the same content is a no-op because
-// the hash-based change detection in restartActionsForChangedConfigs will skip it.
+// Delegates to configpkg.RenderMinioSystemdOverride which is the shared rendering
+// function also used by the node agent. Both produce byte-identical output.
 func renderMinioSystemdOverride(ctx *serviceConfigContext) (string, bool) {
 	if ctx == nil || ctx.CurrentNode == nil {
 		return "", false
@@ -395,43 +343,18 @@ func renderMinioSystemdOverride(ctx *serviceConfigContext) (string, bool) {
 		}
 	}
 
-	// Only generate the override for distributed or multi-drive mode.
-	drivesPerNode := ctx.MinioDrivesPerNode
-	if len(poolIPs) <= 1 && drivesPerNode < 2 {
-		return "", false
+	mode := configpkg.ObjectStoreModeStandalone
+	if len(poolIPs) > 1 {
+		mode = configpkg.ObjectStoreModeDistributed
 	}
 
-	// Determine this node's base path and drive directories.
-	basePath := "/var/lib/globular/minio"
-	if ctx.MinioNodePaths != nil {
-		if p, ok := ctx.MinioNodePaths[ctx.CurrentNode.IP]; ok && p != "" {
-			basePath = strings.TrimRight(p, "/")
-		}
+	state := &configpkg.ObjectStoreDesiredState{
+		Mode:          mode,
+		Nodes:         poolIPs,
+		DrivesPerNode: ctx.MinioDrivesPerNode,
+		NodePaths:     ctx.MinioNodePaths,
 	}
-
-	var sb strings.Builder
-	sb.WriteString("# Managed by Globular cluster controller — do not edit manually.\n")
-	sb.WriteString("[Service]\n")
-
-	// ExecStartPre: create and chown drive directories.
-	if drivesPerNode >= 2 {
-		for d := 1; d <= drivesPerNode; d++ {
-			dir := fmt.Sprintf("%s/data%d", basePath, d)
-			sb.WriteString(fmt.Sprintf("ExecStartPre=+/usr/bin/mkdir -p %s\n", dir))
-			sb.WriteString(fmt.Sprintf("ExecStartPre=+/usr/bin/chown globular:globular %s\n", dir))
-		}
-	} else {
-		dir := basePath + "/data"
-		sb.WriteString(fmt.Sprintf("ExecStartPre=+/usr/bin/mkdir -p %s\n", dir))
-		sb.WriteString(fmt.Sprintf("ExecStartPre=+/usr/bin/chown globular:globular %s\n", dir))
-	}
-
-	// Clear the original ExecStart and replace with $MINIO_VOLUMES from env file.
-	currentIP := ctx.CurrentNode.IP
-	sb.WriteString("ExecStart=\n")
-	sb.WriteString(fmt.Sprintf("ExecStart=/usr/lib/globular/bin/minio server $MINIO_VOLUMES --address %s:9000 --console-address %s:9001\n", currentIP, currentIP))
-
-	return sb.String(), true
+	return configpkg.RenderMinioSystemdOverride(state, ctx.CurrentNode.IP)
 }
 
 // renderXDSConfig generates the XDS server configuration JSON for a node.

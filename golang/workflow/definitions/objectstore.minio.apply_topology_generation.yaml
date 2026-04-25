@@ -1,0 +1,147 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: objectstore.minio.apply_topology_generation
+  displayName: Apply MinIO topology generation
+  description: >-
+    Coordinated MinIO topology transition: waits for all pool nodes to render the
+    desired ObjectStoreDesiredState generation, then performs a simultaneous
+    stop-then-start of globular-minio.service across all pool nodes under the
+    distributed topology lock. Records the applied_generation on success.
+    The node agent renders minio.env and distributed.conf independently; this
+    workflow only coordinates the restart once all nodes are ready.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - target_generation
+      - pool_node_ids
+      - pool_nodes
+    properties:
+      cluster_id: { type: string }
+      target_generation: { type: integer }
+      # pool_node_ids is the flat list of node IDs used for generation checks.
+      pool_node_ids:
+        type: array
+        items: { type: string }
+      # pool_nodes is the list of objects with node_id + agent_endpoint for ControlService calls.
+      pool_nodes:
+        type: array
+        items:
+          type: object
+          properties:
+            node_id: { type: string }
+            agent_endpoint: { type: string }
+      render_wait_timeout: { type: string, default: "10m" }
+      restart_timeout: { type: string, default: "5m" }
+  defaults:
+    render_wait_timeout: "10m"
+    restart_timeout: "5m"
+  strategy:
+    mode: single
+
+  steps:
+    - id: check_all_rendered
+      title: Wait for all pool nodes to render target generation
+      actor: cluster-controller
+      action: controller.objectstore.check_all_nodes_rendered
+      with:
+        target_generation: $.target_generation
+        pool_node_ids: $.pool_node_ids
+      retry:
+        maxAttempts: 60
+        backoff: 10s
+      timeout: $.render_wait_timeout
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: mark_restart_in_progress
+      title: Mark objectstore restart in progress
+      dependsOn: [check_all_rendered]
+      actor: cluster-controller
+      action: controller.objectstore.mark_restart_in_progress
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: acquire_lock
+      title: Acquire topology lock
+      dependsOn: [mark_restart_in_progress]
+      actor: cluster-controller
+      action: controller.objectstore.acquire_topology_lock
+      retry:
+        maxAttempts: 10
+        backoff: 5s
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: stop_minio
+      title: Stop MinIO on all pool nodes
+      dependsOn: [acquire_lock]
+      foreach: $.pool_nodes
+      itemName: pool_node
+      strategy:
+        mode: parallel
+      steps:
+        - id: stop_node
+          actor: node-agent
+          action: node.stop_package_service
+          with:
+            node_id: $.pool_node.node_id
+            agent_endpoint: $.pool_node.agent_endpoint
+            package_name: minio
+          timeout: $.restart_timeout
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
+
+    - id: start_minio
+      title: Start MinIO on all pool nodes simultaneously
+      dependsOn: [stop_minio]
+      foreach: $.pool_nodes
+      itemName: pool_node
+      strategy:
+        mode: parallel
+      steps:
+        - id: start_node
+          actor: node-agent
+          action: node.restart_package_service
+          with:
+            node_id: $.pool_node.node_id
+            agent_endpoint: $.pool_node.agent_endpoint
+            package_name: minio
+          timeout: $.restart_timeout
+          execution:
+            idempotency: safe_retry
+            resume_policy: retry
+
+    - id: record_generation
+      title: Record applied topology generation
+      dependsOn: [start_minio]
+      actor: cluster-controller
+      action: controller.objectstore.record_applied_generation
+      with:
+        target_generation: $.target_generation
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: release_lock
+      title: Release topology lock
+      dependsOn: [record_generation]
+      actor: cluster-controller
+      action: controller.objectstore.release_topology_lock
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+  onFailure:
+    actor: cluster-controller
+    action: controller.objectstore.release_topology_lock
+
+  onSuccess:
+    actor: cluster-controller
+    action: controller.objectstore.clear_restart_in_progress

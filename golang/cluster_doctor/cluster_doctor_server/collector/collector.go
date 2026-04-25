@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -177,6 +178,18 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	} else if desired != nil {
 		snap.ObjectStoreDesired = desired
 		snap.addSource("etcd.objectstore_desired_state")
+	}
+
+	// ── 3a. ObjectStoreAppliedGeneration — last applied topology generation ──
+	if cli, err := config.GetEtcdClient(); err == nil {
+		applyCtx, applyCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer applyCancel()
+		if resp, err := cli.Get(applyCtx, config.EtcdKeyObjectStoreAppliedGeneration); err == nil && len(resp.Kvs) > 0 {
+			if gen, err := strconv.ParseInt(string(resp.Kvs[0].Value), 10, 64); err == nil {
+				snap.ObjectStoreAppliedGeneration = gen
+				snap.addSource("etcd.objectstore_applied_generation")
+			}
+		}
 	}
 
 	// ── 3b. CAMetadata — CA fingerprint from etcd ────────────────────────────

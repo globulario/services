@@ -76,9 +76,41 @@ type ObjectStoreDesiredState struct {
 	// the pool. Used by the doctor to detect per-node config drift.
 	VolumesHash string `json:"volumes_hash,omitempty"`
 
+	// NodePaths maps each pool node IP to its MinIO data base path
+	// (e.g. /var/lib/globular/minio or /mnt/data/minio). Node agents use this
+	// to compute local MINIO_VOLUMES without needing access to the controller's
+	// in-memory state. Falls back to "/var/lib/globular/minio" when absent.
+	NodePaths map[string]string `json:"node_paths,omitempty"`
+
 	// WrittenAt records when this state was last published by the controller.
 	WrittenAt time.Time `json:"written_at"`
 }
+
+// EtcdKeyNodeRenderedGeneration returns the etcd key where a node agent
+// records the ObjectStoreDesiredState generation it last successfully rendered.
+// The workflow reads these to verify all pool nodes are ready before restart.
+func EtcdKeyNodeRenderedGeneration(nodeID string) string {
+	return "/globular/nodes/" + nodeID + "/objectstore/rendered_generation"
+}
+
+// Objectstore workflow/lock etcd keys.
+const (
+	// EtcdKeyObjectStoreAppliedGeneration records the last generation that was
+	// successfully applied by the objectstore topology workflow.
+	EtcdKeyObjectStoreAppliedGeneration = "/globular/objectstore/applied_generation"
+
+	// EtcdKeyObjectStoreRestartInProgress is set while a topology restart
+	// workflow is executing. Cleared on success or workflow failure.
+	EtcdKeyObjectStoreRestartInProgress = "/globular/objectstore/restart_in_progress"
+
+	// EtcdKeyObjectStoreLastRestartResult stores a JSON summary of the last
+	// topology workflow run (success/failure, timestamp, details).
+	EtcdKeyObjectStoreLastRestartResult = "/globular/objectstore/last_restart_result"
+
+	// EtcdKeyObjectStoreTopologyLock is the distributed lock key that prevents
+	// concurrent topology transitions.
+	EtcdKeyObjectStoreTopologyLock = "/globular/locks/objectstore/minio/topology-restart"
+)
 
 // RenderedArtifactMetadata is embedded in every locally-rendered MinIO config
 // file to prove it originated from etcd, not local authorship. This enforces

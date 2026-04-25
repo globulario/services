@@ -97,6 +97,9 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
 		}
+		// Trigger the coordinated topology workflow when all pool nodes are
+		// verified and the applied_generation lags the desired generation.
+		srv.maybeRunObjectStoreTopologyWorkflow(ctx)
 	}
 
 	// Recover bootstrap workflows that were interrupted by a controller restart.
