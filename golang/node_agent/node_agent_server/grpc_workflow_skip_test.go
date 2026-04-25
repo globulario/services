@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -26,7 +27,7 @@ func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, n
 func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "",
+		"myservice", "SERVICE", "1.2.3", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysActive,
 		alwaysLoaded,
@@ -41,7 +42,7 @@ func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "",
+		"myservice", "SERVICE", "1.2.3", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysInactive,
 		alwaysLoaded,
@@ -56,7 +57,7 @@ func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenUnitMissing(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "",
+		"myservice", "SERVICE", "1.2.3", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -73,7 +74,7 @@ func TestInstallPackageDoesNotCrossKindSkip(t *testing.T) {
 	// was recorded under SERVICE.  Caller queries only INFRASTRUCTURE → nil.
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"scylladb", "INFRASTRUCTURE", "5.4.0", "",
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "",
 		nil, // exact-kind lookup returned nothing
 		alwaysActive,
 		alwaysLoaded,
@@ -86,9 +87,21 @@ func TestInstallPackageDoesNotCrossKindSkip(t *testing.T) {
 // TestCommandPackageSkipUsesBinaryProofOnly — command packages have no unit;
 // version match is sufficient proof.
 func TestCommandPackageSkipUsesBinaryProofOnly(t *testing.T) {
+	prevExists := commandBinaryExistsFunc
+	prevPath := commandBinaryPathFunc
+	prevChecksum := binaryChecksumFunc
+	commandBinaryExistsFunc = func(string) bool { return true }
+	commandBinaryPathFunc = func(string) string { return "/tmp/restic" }
+	binaryChecksumFunc = func(string) (string, error) { return "deadbeef", nil }
+	t.Cleanup(func() {
+		commandBinaryExistsFunc = prevExists
+		commandBinaryPathFunc = prevPath
+		binaryChecksumFunc = prevChecksum
+	})
+
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "",
+		"restic", "COMMAND", "0.16.0", "", "",
 		installedPkg("0.16.0", ""),
 		// isActive/isLoaded should never be called for command packages,
 		// but pass always-inactive to prove we don't care about their output.
@@ -105,7 +118,7 @@ func TestCommandPackageSkipUsesBinaryProofOnly(t *testing.T) {
 func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"scylladb", "INFRASTRUCTURE", "5.4.0", "",
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "",
 		installedPkg("5.4.0", ""),
 		alwaysInactive,
 		alwaysLoaded,
@@ -116,5 +129,125 @@ func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
 	// Confirm correct unit name is in the reason string.
 	if reason == "" {
 		t.Fatal("expected non-empty reason")
+	}
+}
+
+func TestInstallPackageDoesNotSkipWhenBuildIDMissing(t *testing.T) {
+	result, _ := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "", "build-123",
+		installedPkg("1.2.3", ""),
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion for missing build_id, got %d", result)
+	}
+}
+
+func TestInstallPackageDoesNotSkipWhenChecksumMismatch(t *testing.T) {
+	pkg := installedPkg("1.2.3", "")
+	pkg.Checksum = "sha256:aaaa"
+	result, _ := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "sha256:bbbb", "",
+		pkg,
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion for checksum mismatch, got %d", result)
+	}
+}
+
+func TestCommandPackageDoesNotSkipWhenBinaryMissing(t *testing.T) {
+	prevExists := commandBinaryExistsFunc
+	commandBinaryExistsFunc = func(string) bool { return false }
+	t.Cleanup(func() { commandBinaryExistsFunc = prevExists })
+
+	result, _ := canSkipInstallPackage(
+		context.Background(),
+		"restic", "COMMAND", "0.16.0", "", "",
+		installedPkg("0.16.0", ""),
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipDeniedUnitGone {
+		t.Fatalf("expected installSkipDeniedUnitGone when command binary missing, got %d", result)
+	}
+}
+
+func TestCommandPackageDoesNotSkipWhenBinaryChecksumMismatch(t *testing.T) {
+	prevExists := commandBinaryExistsFunc
+	prevPath := commandBinaryPathFunc
+	prevChecksum := binaryChecksumFunc
+	commandBinaryExistsFunc = func(string) bool { return true }
+	commandBinaryPathFunc = func(string) string { return "/tmp/restic" }
+	binaryChecksumFunc = func(string) (string, error) { return "aaaaaaaa", nil }
+	t.Cleanup(func() {
+		commandBinaryExistsFunc = prevExists
+		commandBinaryPathFunc = prevPath
+		binaryChecksumFunc = prevChecksum
+	})
+
+	result, _ := canSkipInstallPackage(
+		context.Background(),
+		"restic", "COMMAND", "0.16.0", "sha256:bbbbbbbb", "",
+		installedPkg("0.16.0", ""),
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion when command checksum mismatches, got %d", result)
+	}
+}
+
+func TestCommandPackageSkipWhenBinaryChecksumMatches(t *testing.T) {
+	prevExists := commandBinaryExistsFunc
+	prevPath := commandBinaryPathFunc
+	prevChecksum := binaryChecksumFunc
+	commandBinaryExistsFunc = func(string) bool { return true }
+	commandBinaryPathFunc = func(string) string { return "/tmp/restic" }
+	binaryChecksumFunc = func(string) (string, error) { return "abc123", nil }
+	t.Cleanup(func() {
+		commandBinaryExistsFunc = prevExists
+		commandBinaryPathFunc = prevPath
+		binaryChecksumFunc = prevChecksum
+	})
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"restic", "COMMAND", "0.16.0", "sha256:abc123", "",
+		installedPkg("0.16.0", ""),
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected installSkipAllowed for matching command checksum, got %d (%s)", result, reason)
+	}
+}
+
+func TestCommandPackageDoesNotSkipWhenChecksumReadFails(t *testing.T) {
+	prevExists := commandBinaryExistsFunc
+	prevPath := commandBinaryPathFunc
+	prevChecksum := binaryChecksumFunc
+	commandBinaryExistsFunc = func(string) bool { return true }
+	commandBinaryPathFunc = func(string) string { return "/tmp/restic" }
+	binaryChecksumFunc = func(string) (string, error) { return "", fmt.Errorf("checksum read failed") }
+	t.Cleanup(func() {
+		commandBinaryExistsFunc = prevExists
+		commandBinaryPathFunc = prevPath
+		binaryChecksumFunc = prevChecksum
+	})
+
+	result, _ := canSkipInstallPackage(
+		context.Background(),
+		"restic", "COMMAND", "0.16.0", "sha256:abc123", "",
+		installedPkg("0.16.0", ""),
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion when checksum read fails, got %d", result)
 	}
 }

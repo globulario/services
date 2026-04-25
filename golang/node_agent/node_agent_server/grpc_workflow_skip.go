@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 )
@@ -45,6 +49,10 @@ var commandPackages = map[string]bool{
 	"globular-cli": true,
 }
 
+var commandBinaryExistsFunc = commandBinaryExists
+var commandBinaryPathFunc = commandBinaryPath
+var binaryChecksumFunc = cachedSha256
+
 // isCommandPackage reports whether pkgName is a binary-only (no unit) package.
 func isCommandPackage(pkgName string) bool {
 	return commandPackages[pkgName]
@@ -82,7 +90,7 @@ func packageUnit(pkgName string) string {
 // query with the exact pkgKind and pass what it gets.
 func canSkipInstallPackage(
 	ctx context.Context,
-	pkgName, pkgKind, desiredVersion, buildID string,
+	pkgName, pkgKind, desiredVersion, desiredHash, buildID string,
 	existing *node_agentpb.InstalledPackage,
 	isActive func(context.Context, string) (bool, error),
 	isLoaded func(context.Context, string) (bool, error),
@@ -98,18 +106,46 @@ func canSkipInstallPackage(
 			pkgName, existing.GetVersion(), desiredVersion)
 	}
 
-	// build_id check: only enforce when both sides are non-empty.
-	if buildID != "" && existing.GetBuildId() != "" && existing.GetBuildId() != buildID {
+	// build_id check: when requested, exact match is required.
+	if buildID != "" && existing.GetBuildId() != buildID {
 		return installSkipDeniedVersion, fmt.Sprintf(
 			"install-package %s: build_id %s != desired %s",
 			pkgName, existing.GetBuildId(), buildID)
 	}
 
-	// Command packages have no systemd unit — binary presence is sufficient proof.
 	unit := packageUnit(pkgName)
+
+	// Checksum check: for managed services/infra, installed_state checksum must match
+	// when desired hash is provided. Command packages can prove checksum directly
+	// from the local binary below.
+	if unit != "" && normalizedHash(desiredHash) != "" && normalizedHash(existing.GetChecksum()) != normalizedHash(desiredHash) {
+		return installSkipDeniedVersion, fmt.Sprintf(
+			"install-package %s: checksum %s != desired %s",
+			pkgName, normalizedHash(existing.GetChecksum()), normalizedHash(desiredHash))
+	}
+
+	// Command packages have no systemd unit — binary presence is sufficient proof.
 	if unit == "" {
+		if !commandBinaryExistsFunc(pkgName) {
+			return installSkipDeniedUnitGone, fmt.Sprintf(
+				"install-package %s: command binary missing; reinstalling", pkgName)
+		}
+
+		if normalizedHash(desiredHash) != "" {
+			path := commandBinaryPathFunc(pkgName)
+			if path == "" {
+				return installSkipDeniedUnitGone, fmt.Sprintf(
+					"install-package %s: command binary path missing; reinstalling", pkgName)
+			}
+			actual, err := binaryChecksumFunc(path)
+			if err != nil || normalizedHash(actual) != normalizedHash(desiredHash) {
+				return installSkipDeniedVersion, fmt.Sprintf(
+					"install-package %s: command binary checksum mismatch; reinstalling", pkgName)
+			}
+		}
+
 		return installSkipAllowed, fmt.Sprintf(
-			"install-package %s: command package at %s, skipping", pkgName, desiredVersion)
+			"install-package %s: command package at %s converged, skipping", pkgName, desiredVersion)
 	}
 
 	// Runtime proof: unit must be active.
@@ -130,4 +166,24 @@ func canSkipInstallPackage(
 	return installSkipDeniedUnitGone, fmt.Sprintf(
 		"install-package %s: installed_state matches but %s is missing; reinstalling",
 		pkgName, unit)
+}
+
+func normalizedHash(hash string) string {
+	h := strings.ToLower(strings.TrimSpace(hash))
+	h = strings.TrimPrefix(h, "sha256:")
+	return h
+}
+
+func commandBinaryPath(name string) string {
+	bin := strings.TrimSuffix(name, "-cmd")
+	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
+		path := filepath.Join(dir, bin)
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
+	}
+	if p, err := exec.LookPath(bin); err == nil {
+		return p
+	}
+	return ""
 }

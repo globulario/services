@@ -157,10 +157,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	// Check if already installed at the desired version with runtime proof.
 	desiredVersion := inputs["version"]
 	buildID := inputs["build_id"]
+	desiredHash := strings.TrimSpace(inputs["desired_hash"])
+	if desiredHash == "" {
+		desiredHash = strings.TrimSpace(inputs["expected_sha256"])
+	}
 	if desiredVersion != "" {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
 		skipResult, reason := canSkipInstallPackage(
-			ctx, pkgName, pkgKind, desiredVersion, buildID, existing,
+			ctx, pkgName, pkgKind, desiredVersion, desiredHash, buildID, existing,
 			supervisor.IsActive, supervisor.IsLoaded,
 		)
 		switch skipResult {
@@ -206,7 +210,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	}
 	start := time.Now()
 
-	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion, buildID, "")
+	err := srv.InstallPackage(ctx, pkgName, pkgKind, "", desiredVersion, buildID, desiredHash)
 	elapsed := time.Since(start)
 
 	resp := &node_agentpb.RunWorkflowResponse{
