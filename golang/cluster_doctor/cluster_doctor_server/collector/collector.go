@@ -192,7 +192,40 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		}
 	}
 
-	// ── 3b. CAMetadata — CA fingerprint from etcd ────────────────────────────
+	// ── 3b. Per-node rendered generation + fingerprint — from etcd ──────────
+	// Collected for all nodes (not just MinIO pool) so invariants can check
+	// render readiness without needing a separate RPC hop.
+	if len(snap.Nodes) > 0 {
+		if etcdCli, err := config.GetEtcdClient(); err == nil {
+			renderCtx, renderCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+			defer renderCancel()
+			for _, node := range snap.Nodes {
+				nid := node.GetNodeId()
+				if nid == "" {
+					continue
+				}
+				// rendered_generation
+				genKey := config.EtcdKeyNodeRenderedGeneration(nid)
+				if genResp, err := etcdCli.Get(renderCtx, genKey); err == nil && len(genResp.Kvs) > 0 {
+					if gen, err := strconv.ParseInt(string(genResp.Kvs[0].Value), 10, 64); err == nil {
+						snap.mu.Lock()
+						snap.NodeRenderedGenerations[nid] = gen
+						snap.mu.Unlock()
+					}
+				}
+				// rendered_state_fingerprint
+				fpKey := config.EtcdKeyNodeRenderedStateFingerprint(nid)
+				if fpResp, err := etcdCli.Get(renderCtx, fpKey); err == nil && len(fpResp.Kvs) > 0 {
+					snap.mu.Lock()
+					snap.NodeRenderedFingerprints[nid] = string(fpResp.Kvs[0].Value)
+					snap.mu.Unlock()
+				}
+			}
+			snap.addSource("etcd.node_rendered_generations")
+		}
+	}
+
+	// ── 3d. CAMetadata — CA fingerprint from etcd ────────────────────────────
 	caCtx, caCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer caCancel()
 	if caMeta, err := config.LoadCAMetadata(caCtx); err != nil {

@@ -91,4 +91,5 @@ func init() {
 	rootCmd.AddCommand(namespaceCmd)
 	rootCmd.AddCommand(stateCmd)
 	rootCmd.AddCommand(repoCmd)
+	rootCmd.AddCommand(objectstoreCmd)
 }

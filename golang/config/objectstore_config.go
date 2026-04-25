@@ -93,6 +93,43 @@ func EtcdKeyNodeRenderedGeneration(nodeID string) string {
 	return "/globular/nodes/" + nodeID + "/objectstore/rendered_generation"
 }
 
+// EtcdKeyNodeRenderedStateFingerprint returns the etcd key where a node agent
+// records the state fingerprint for the last successfully rendered generation.
+// The workflow checks this alongside rendered_generation to confirm every node
+// rendered exactly the same topology (same mode, nodes, drives, volumes_hash) —
+// not merely the same generation number.
+func EtcdKeyNodeRenderedStateFingerprint(nodeID string) string {
+	return "/globular/nodes/" + nodeID + "/objectstore/rendered_state_fingerprint"
+}
+
+// RenderStateFingerprint returns a stable SHA256 hex string that encodes the
+// full topology parameters of an ObjectStoreDesiredState. Two states with the
+// same generation but different volumes_hash, mode, node list, or drives_per_node
+// will produce different fingerprints, allowing the controller to detect partial
+// or divergent renders across pool nodes.
+//
+// The fingerprint covers: generation, mode, sorted node list, drives_per_node,
+// volumes_hash. Endpoint/credentials are intentionally excluded — they don't
+// affect the distributed topology geometry.
+func RenderStateFingerprint(state *ObjectStoreDesiredState) string {
+	if state == nil {
+		return ""
+	}
+	nodes := make([]string, len(state.Nodes))
+	copy(nodes, state.Nodes)
+	sort.Strings(nodes)
+
+	parts := fmt.Sprintf("%d|%s|%s|%d|%s",
+		state.Generation,
+		string(state.Mode),
+		strings.Join(nodes, ","),
+		state.DrivesPerNode,
+		state.VolumesHash,
+	)
+	h := sha256.Sum256([]byte(parts))
+	return fmt.Sprintf("%x", h)
+}
+
 // Objectstore workflow/lock etcd keys.
 const (
 	// EtcdKeyObjectStoreAppliedGeneration records the last generation that was

@@ -65,6 +65,14 @@ func NewRegistry(cfg Config) *Registry {
 		// has not been applied via the objectstore.minio.apply_topology_generation
 		// workflow. Consumes ObjectStoreDesired + ObjectStoreAppliedGeneration.
 		objectstoreMinioTopologyConsistency{},
+		// Fingerprint divergence: CRITICAL when any pool node rendered a
+		// different topology than what the desired state specifies.
+		// Consumes ObjectStoreDesired + NodeRenderedFingerprints.
+		objectstoreMinioFingerprintDivergence{},
+		// Post-apply health: CRITICAL when applied_generation == desired but
+		// a pool node's globular-minio.service is not active.
+		// Detects post-workflow regressions (crash, stale standalone config).
+		objectstoreMinioPostApplyHealth{},
 		// PKI health invariants: CA metadata publishing, CA expiry, per-node
 		// cert-wrong-CA (issued by rotated CA). Consume CAMetadata populated
 		// from /globular/pki/ca and CertificateStatus per node.

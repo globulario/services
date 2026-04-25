@@ -12,12 +12,14 @@ import (
 // workflow steps that run on the cluster controller.
 type ObjectStoreControllerConfig struct {
 	// CheckAllNodesRendered returns nil when all pool nodes have written
-	// rendered_generation >= targetGeneration to etcd. Returns a non-nil
-	// error (suitable for retry) when any node has not yet rendered.
-	CheckAllNodesRendered func(ctx context.Context, targetGeneration int64, poolNodeIDs []string) error
+	// rendered_generation >= targetGeneration AND the expected state fingerprint
+	// to etcd. Returns a non-nil error (suitable for retry) when any node has
+	// not yet rendered or rendered a different topology.
+	CheckAllNodesRendered func(ctx context.Context, targetGeneration int64, expectedFingerprint string, poolNodeIDs []string) error
 
 	// AcquireTopologyLock acquires the distributed objectstore topology lock.
-	// Returns an error if the lock cannot be acquired (already held).
+	// Uses a lease-backed key so the lock auto-expires if the controller crashes.
+	// Also recovers stale locks older than lockStaleTTL.
 	AcquireTopologyLock func(ctx context.Context) error
 
 	// ReleaseTopologyLock releases the distributed objectstore topology lock.
@@ -30,8 +32,22 @@ type ObjectStoreControllerConfig struct {
 	ClearRestartInProgress func(ctx context.Context) error
 
 	// RecordAppliedGeneration writes the successfully applied topology
-	// generation to etcd and records a JSON summary.
+	// generation to etcd and records a JSON summary with status=succeeded.
 	RecordAppliedGeneration func(ctx context.Context, generation int64) error
+
+	// VerifyMinioClusterHealthy probes all pool nodes to confirm that:
+	//   - globular-minio.service is active on every pool node
+	//   - the MinIO health endpoint responds on the cluster endpoint
+	//   - desired generation still matches targetGeneration (no concurrent topology change)
+	//   - desired volumes_hash still matches expectedVolumesHash
+	//
+	// Returns a retriable error when any check fails (workflow retries).
+	VerifyMinioClusterHealthy func(ctx context.Context, targetGeneration int64, expectedVolumesHash string, poolNodeIDs []string) error
+
+	// FailureCleanup is called by onFailure to atomically clean up all
+	// in-progress state: release the topology lock, clear restart_in_progress,
+	// and write a last_restart_result record with status=failed.
+	FailureCleanup func(ctx context.Context, generation int64, reason string) error
 }
 
 // RegisterObjectStoreControllerActions registers all cluster-controller actor
@@ -43,6 +59,8 @@ func RegisterObjectStoreControllerActions(router *Router, cfg ObjectStoreControl
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.mark_restart_in_progress", objectstoreMarkRestartInProgress(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.clear_restart_in_progress", objectstoreClearRestartInProgress(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.record_applied_generation", objectstoreRecordAppliedGeneration(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.verify_minio_cluster_healthy", objectstoreVerifyMinioClusterHealthy(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.failure_cleanup", objectstoreFailureCleanup(cfg))
 }
 
 // ── action implementations ────────────────────────────────────────────────────
@@ -57,6 +75,11 @@ func objectstoreCheckAllNodesRendered(cfg ObjectStoreControllerConfig) ActionHan
 			return nil, fmt.Errorf("check_all_nodes_rendered: target_generation is required")
 		}
 
+		expectedFingerprint := extractString(req.With, "expected_state_fingerprint")
+		if expectedFingerprint == "" {
+			expectedFingerprint = extractString(req.Inputs, "expected_state_fingerprint")
+		}
+
 		poolNodeIDs := extractStringSlice(req.With, "pool_node_ids")
 		if len(poolNodeIDs) == 0 {
 			poolNodeIDs = extractStringSlice(req.Inputs, "pool_node_ids")
@@ -66,13 +89,72 @@ func objectstoreCheckAllNodesRendered(cfg ObjectStoreControllerConfig) ActionHan
 		}
 
 		if cfg.CheckAllNodesRendered != nil {
-			if err := cfg.CheckAllNodesRendered(ctx, gen, poolNodeIDs); err != nil {
+			if err := cfg.CheckAllNodesRendered(ctx, gen, expectedFingerprint, poolNodeIDs); err != nil {
 				return nil, fmt.Errorf("nodes have not rendered generation %d: %w", gen, err)
 			}
 		}
 
 		log.Printf("actor[controller/objectstore]: all pool nodes rendered generation %d", gen)
 		return &ActionResult{OK: true, Output: map[string]any{"generation": gen, "nodes_ready": len(poolNodeIDs)}}, nil
+	}
+}
+
+func objectstoreVerifyMinioClusterHealthy(cfg ObjectStoreControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		gen := extractInt64(req.With, "target_generation")
+		if gen == 0 {
+			gen = extractInt64(req.Inputs, "target_generation")
+		}
+		if gen == 0 {
+			return nil, fmt.Errorf("verify_minio_cluster_healthy: target_generation is required")
+		}
+
+		expectedHash := extractString(req.With, "expected_volumes_hash")
+		if expectedHash == "" {
+			expectedHash = extractString(req.Inputs, "expected_volumes_hash")
+		}
+
+		poolNodeIDs := extractStringSlice(req.With, "pool_node_ids")
+		if len(poolNodeIDs) == 0 {
+			poolNodeIDs = extractStringSlice(req.Inputs, "pool_node_ids")
+		}
+		if len(poolNodeIDs) == 0 {
+			return nil, fmt.Errorf("verify_minio_cluster_healthy: pool_node_ids is required")
+		}
+
+		if cfg.VerifyMinioClusterHealthy != nil {
+			if err := cfg.VerifyMinioClusterHealthy(ctx, gen, expectedHash, poolNodeIDs); err != nil {
+				return nil, fmt.Errorf("minio cluster not healthy after restart: %w", err)
+			}
+		}
+
+		log.Printf("actor[controller/objectstore]: minio cluster healthy, generation=%d", gen)
+		return &ActionResult{OK: true, Output: map[string]any{"generation": gen, "healthy": true}}, nil
+	}
+}
+
+func objectstoreFailureCleanup(cfg ObjectStoreControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		gen := extractInt64(req.With, "target_generation")
+		if gen == 0 {
+			gen = extractInt64(req.Inputs, "target_generation")
+		}
+		reason := extractString(req.With, "reason")
+		if reason == "" {
+			reason = extractString(req.Inputs, "reason")
+		}
+		if reason == "" {
+			reason = "workflow_failed"
+		}
+
+		if cfg.FailureCleanup != nil {
+			if err := cfg.FailureCleanup(ctx, gen, reason); err != nil {
+				return nil, fmt.Errorf("failure cleanup: %w", err)
+			}
+		}
+
+		log.Printf("actor[controller/objectstore]: failure cleanup done (gen=%d reason=%s)", gen, reason)
+		return &ActionResult{OK: true, Message: "failure cleanup complete"}, nil
 	}
 }
 
@@ -159,6 +241,15 @@ func extractInt64(m map[string]any, key string) int64 {
 		return int64(x)
 	}
 	return 0
+}
+
+func extractString(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
 }
 
 func extractStringSlice(m map[string]any, key string) []string {

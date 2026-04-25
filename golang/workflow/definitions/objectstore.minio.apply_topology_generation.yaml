@@ -5,11 +5,12 @@ metadata:
   displayName: Apply MinIO topology generation
   description: >-
     Coordinated MinIO topology transition: waits for all pool nodes to render the
-    desired ObjectStoreDesiredState generation, then performs a simultaneous
-    stop-then-start of globular-minio.service across all pool nodes under the
-    distributed topology lock. Records the applied_generation on success.
-    The node agent renders minio.env and distributed.conf independently; this
-    workflow only coordinates the restart once all nodes are ready.
+    desired ObjectStoreDesiredState generation (verified by both generation number
+    and state fingerprint), then performs a simultaneous stop-then-start of
+    globular-minio.service across all pool nodes under the distributed topology
+    lock. Verifies the cluster is healthy before recording the applied_generation.
+    Records applied_generation only after health verification succeeds.
+    Failed runs clean up all in-progress state via the failure_cleanup action.
 spec:
   inputSchema:
     type: object
@@ -21,6 +22,13 @@ spec:
     properties:
       cluster_id: { type: string }
       target_generation: { type: integer }
+      # expected_state_fingerprint is the SHA256 fingerprint of the desired state
+      # (generation|mode|sorted_nodes|drives_per_node|volumes_hash). Nodes must
+      # have rendered this exact fingerprint before restart is allowed.
+      expected_state_fingerprint: { type: string }
+      # expected_volumes_hash is the SHA256 of the MINIO_VOLUMES URL list.
+      # The verify step confirms this hasn't changed mid-workflow.
+      expected_volumes_hash: { type: string }
       # pool_node_ids is the flat list of node IDs used for generation checks.
       pool_node_ids:
         type: array
@@ -35,9 +43,11 @@ spec:
             agent_endpoint: { type: string }
       render_wait_timeout: { type: string, default: "10m" }
       restart_timeout: { type: string, default: "5m" }
+      health_check_timeout: { type: string, default: "3m" }
   defaults:
     render_wait_timeout: "10m"
     restart_timeout: "5m"
+    health_check_timeout: "3m"
   strategy:
     mode: single
 
@@ -48,6 +58,7 @@ spec:
       action: controller.objectstore.check_all_nodes_rendered
       with:
         target_generation: $.target_generation
+        expected_state_fingerprint: $.expected_state_fingerprint
         pool_node_ids: $.pool_node_ids
       retry:
         maxAttempts: 60
@@ -118,9 +129,26 @@ spec:
             idempotency: safe_retry
             resume_policy: retry
 
+    - id: verify_minio_cluster_healthy
+      title: Verify MinIO cluster is healthy after restart
+      dependsOn: [start_minio]
+      actor: cluster-controller
+      action: controller.objectstore.verify_minio_cluster_healthy
+      with:
+        target_generation: $.target_generation
+        expected_volumes_hash: $.expected_volumes_hash
+        pool_node_ids: $.pool_node_ids
+      retry:
+        maxAttempts: 24
+        backoff: 5s
+      timeout: $.health_check_timeout
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
     - id: record_generation
       title: Record applied topology generation
-      dependsOn: [start_minio]
+      dependsOn: [verify_minio_cluster_healthy]
       actor: cluster-controller
       action: controller.objectstore.record_applied_generation
       with:
@@ -138,9 +166,17 @@ spec:
         idempotency: safe_retry
         resume_policy: retry
 
+  # onFailure calls failure_cleanup which atomically:
+  #   1. Releases the topology lock
+  #   2. Clears restart_in_progress
+  #   3. Writes last_restart_result with status=failed
+  # This ensures failed workflows never permanently block future runs.
   onFailure:
     actor: cluster-controller
-    action: controller.objectstore.release_topology_lock
+    action: controller.objectstore.failure_cleanup
+    with:
+      target_generation: $.target_generation
+      reason: workflow_failed
 
   onSuccess:
     actor: cluster-controller

@@ -78,6 +78,19 @@ type Snapshot struct {
 	// Nil when the controller has not yet published (pre-bootstrap).
 	CAMetadata *config.CAMetadata
 
+	// NodeRenderedGenerations maps node ID → the objectstore generation that
+	// the node last successfully rendered to disk.
+	// Collected from /globular/nodes/{id}/objectstore/rendered_generation.
+	// Missing entries (zero) mean the node has not rendered any generation yet.
+	NodeRenderedGenerations map[string]int64
+
+	// NodeRenderedFingerprints maps node ID → the state fingerprint for the
+	// last rendered generation. The doctor compares these against the
+	// RenderStateFingerprint(desired) to detect nodes that rendered a
+	// different topology (wrong mode, wrong pool membership, etc.).
+	// Collected from /globular/nodes/{id}/objectstore/rendered_state_fingerprint.
+	NodeRenderedFingerprints map[string]string
+
 	mu sync.Mutex
 }
 
@@ -107,13 +120,15 @@ type IntegrityFinding struct {
 
 func newSnapshot(id string) *Snapshot {
 	return &Snapshot{
-		SnapshotID:       id,
-		GeneratedAt:      time.Now(),
-		NodeHealths:      make(map[string]*cluster_controllerpb.NodeHealth),
-		Inventories:      make(map[string]*node_agentpb.Inventory),
-		SubsystemHealth:   make(map[string]*node_agentpb.GetSubsystemHealthResponse),
-		CertificateStatus: make(map[string]*node_agentpb.GetCertificateStatusResponse),
-		IntegrityReports:  make(map[string]*IntegrityReport),
+		SnapshotID:               id,
+		GeneratedAt:              time.Now(),
+		NodeHealths:              make(map[string]*cluster_controllerpb.NodeHealth),
+		Inventories:              make(map[string]*node_agentpb.Inventory),
+		SubsystemHealth:          make(map[string]*node_agentpb.GetSubsystemHealthResponse),
+		CertificateStatus:        make(map[string]*node_agentpb.GetCertificateStatusResponse),
+		IntegrityReports:         make(map[string]*IntegrityReport),
+		NodeRenderedGenerations:  make(map[string]int64),
+		NodeRenderedFingerprints: make(map[string]string),
 	}
 }
 

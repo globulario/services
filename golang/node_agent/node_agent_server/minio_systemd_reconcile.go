@@ -106,7 +106,7 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// Only update the etcd record when the on-disk content now matches the desired
 	// generation (i.e. we wrote the right content, even if it was already present).
 
-	if err := srv.writeRenderedGeneration(ctx, state.Generation); err != nil {
+	if err := srv.writeRenderedGeneration(ctx, state); err != nil {
 		log.Printf("minio-systemd: record rendered generation %d: %v", state.Generation, err)
 	}
 
@@ -114,18 +114,25 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 }
 
 // writeRenderedGeneration records the last generation this node successfully
-// rendered to etcd. The topology workflow reads these to gate the coordinated
-// restart: it only restarts MinIO after all pool nodes have written the target
-// generation.
-func (srv *NodeAgentServer) writeRenderedGeneration(ctx context.Context, generation int64) error {
+// rendered to etcd, together with the state fingerprint. The topology workflow
+// reads both to gate the coordinated restart: all pool nodes must have rendered
+// the same generation AND the same topology fingerprint before MinIO is restarted.
+func (srv *NodeAgentServer) writeRenderedGeneration(ctx context.Context, state *config.ObjectStoreDesiredState) error {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return fmt.Errorf("etcd unavailable: %w", err)
 	}
-	key := config.EtcdKeyNodeRenderedGeneration(srv.nodeID)
-	val := strconv.FormatInt(generation, 10)
-	if _, err := cli.Put(ctx, key, val); err != nil {
-		return fmt.Errorf("put %s: %w", key, err)
+
+	genKey := config.EtcdKeyNodeRenderedGeneration(srv.nodeID)
+	genVal := strconv.FormatInt(state.Generation, 10)
+	if _, err := cli.Put(ctx, genKey, genVal); err != nil {
+		return fmt.Errorf("put %s: %w", genKey, err)
+	}
+
+	fpKey := config.EtcdKeyNodeRenderedStateFingerprint(srv.nodeID)
+	fpVal := config.RenderStateFingerprint(state)
+	if _, err := cli.Put(ctx, fpKey, fpVal); err != nil {
+		return fmt.Errorf("put %s: %w", fpKey, err)
 	}
 	return nil
 }
