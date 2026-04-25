@@ -190,6 +190,12 @@ type releaseHandle struct {
 	// Removing flag: when true, the release is being uninstalled.
 	Removing bool
 
+	// RepoKind is the authoritative artifact kind from the repository, set
+	// during reconcilePending. Used in reconcileResolved to correct the
+	// dispatch kind for SERVICE releases whose artifact is actually COMMAND
+	// (e.g. etcdctl, sha256sum, yt-dlp).
+	RepoKind string
+
 	// Type-specific callbacks
 	ComputeHash func(resolvedVersion string, buildNumber int64) string
 
@@ -355,6 +361,13 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		}
 	}
 
+	// Store the repository's authoritative kind so reconcileResolved can
+	// correct the dispatch kind for SERVICE releases whose artifact is
+	// actually COMMAND (e.g. etcdctl, sha256sum, yt-dlp).
+	if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+		h.RepoKind = strings.ToUpper(resolved.RepoKind.String())
+	}
+
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
 	h.PatchStatus(ctx, statusPatch{
 		Phase:                  cluster_controllerpb.ReleasePhaseResolved,
@@ -440,6 +453,14 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		pkgKind = "INFRASTRUCTURE"
 	case "ApplicationRelease":
 		pkgKind = "WORKLOAD"
+	}
+	// Auto-correct SERVICE→COMMAND when the repository's authoritative kind
+	// is COMMAND. ServiceDesiredVersion always labels entries as SERVICE
+	// regardless of actual artifact kind, but COMMAND packages (etcdctl,
+	// sha256sum, yt-dlp) must be installed without a systemd unit.
+	if pkgKind == "SERVICE" && h.RepoKind == "COMMAND" {
+		log.Printf("%s %s: corrected dispatch kind SERVICE→COMMAND (repo authoritative)", h.ResourceType, h.Name)
+		pkgKind = "COMMAND"
 	}
 
 	releaseID := fmt.Sprintf("%s/%s", h.ResourceType, h.Name)
