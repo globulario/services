@@ -203,21 +203,33 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			// Part 3: Validate desired kind matches repository manifest kind.
 			// A mismatch (e.g. INFRASTRUCTURE in repo but SERVICE in desired)
 			// creates an infinite apply loop — block dispatch and emit a finding.
+			// Exception: SERVICE→COMMAND mismatches are auto-corrected using the
+			// repo kind, because collectDesiredVersions always labels ServiceDesiredVersion
+			// entries as SERVICE regardless of actual artifact kind. COMMAND packages
+			// are safely installable via the standard install workflow; they just
+			// don't require a systemd unit.
 			if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 				repoKindStr := strings.ToUpper(resolved.RepoKind.String())
 				if repoKindStr != kind {
-					log.Printf("drift-reconciler: BLOCKED node=%s pkg=%s — desired kind mismatch: %s (desired) vs %s (repo); dispatch suppressed",
-						node.Identity.Hostname, name, kind, repoKindStr)
-					driftKindMismatchTotal.Inc()
-					r.srv.emitClusterEvent("desired.kind_mismatch", map[string]interface{}{
-						"severity":     "WARNING",
-						"node_id":      nodeID,
-						"package":      name,
-						"desired_kind": kind,
-						"repo_kind":    repoKindStr,
-						"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
-					})
-					continue
+					if kind == "SERVICE" && repoKindStr == "COMMAND" {
+						// Auto-correct: use the repository's authoritative kind.
+						log.Printf("drift-reconciler: corrected kind for node=%s pkg=%s: SERVICE→COMMAND (repo authoritative)",
+							node.Identity.Hostname, name)
+						kind = "COMMAND"
+					} else {
+						log.Printf("drift-reconciler: BLOCKED node=%s pkg=%s — desired kind mismatch: %s (desired) vs %s (repo); dispatch suppressed",
+							node.Identity.Hostname, name, kind, repoKindStr)
+						driftKindMismatchTotal.Inc()
+						r.srv.emitClusterEvent("desired.kind_mismatch", map[string]interface{}{
+							"severity":     "WARNING",
+							"node_id":      nodeID,
+							"package":      name,
+							"desired_kind": kind,
+							"repo_kind":    repoKindStr,
+							"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
+						})
+						continue
+					}
 				}
 			}
 
