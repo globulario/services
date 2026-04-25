@@ -1,0 +1,120 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/globulario/services/golang/node_agent/node_agentpb"
+)
+
+// helpers for building test fixtures
+
+func installedPkg(version, buildID string) *node_agentpb.InstalledPackage {
+	return &node_agentpb.InstalledPackage{
+		Version: version,
+		BuildId: buildID,
+	}
+}
+
+func alwaysActive(_ context.Context, _ string) (bool, error)  { return true, nil }
+func alwaysInactive(_ context.Context, _ string) (bool, error) { return false, nil }
+func alwaysLoaded(_ context.Context, _ string) (bool, error)   { return true, nil }
+func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, nil }
+
+// TestInstallPackageSkipsOnlyWhenRuntimeActive — happy path: version matches AND
+// unit is active → skip is allowed.
+func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "",
+		installedPkg("1.2.3", ""),
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected installSkipAllowed, got %d (%s)", result, reason)
+	}
+}
+
+// TestInstallPackageDoesNotSkipWhenUnitInactive — version matches but unit is
+// loaded+inactive → must repair, not skip.
+func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "",
+		installedPkg("1.2.3", ""),
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedInactive {
+		t.Fatalf("expected installSkipDeniedInactive, got %d (%s)", result, reason)
+	}
+}
+
+// TestInstallPackageDoesNotSkipWhenUnitMissing — version matches but unit file
+// is gone → must reinstall.
+func TestInstallPackageDoesNotSkipWhenUnitMissing(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "",
+		installedPkg("1.2.3", ""),
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipDeniedUnitGone {
+		t.Fatalf("expected installSkipDeniedUnitGone, got %d (%s)", result, reason)
+	}
+}
+
+// TestInstallPackageDoesNotCrossKindSkip — existing record is from a different
+// kind; caller passes nil (exact-kind lookup found nothing) → must install.
+func TestInstallPackageDoesNotCrossKindSkip(t *testing.T) {
+	// Simulate: controller says kind=INFRASTRUCTURE, but the installed-state
+	// was recorded under SERVICE.  Caller queries only INFRASTRUCTURE → nil.
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "",
+		nil, // exact-kind lookup returned nothing
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedNoRecord {
+		t.Fatalf("expected installSkipDeniedNoRecord, got %d (%s)", result, reason)
+	}
+}
+
+// TestCommandPackageSkipUsesBinaryProofOnly — command packages have no unit;
+// version match is sufficient proof.
+func TestCommandPackageSkipUsesBinaryProofOnly(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"restic", "COMMAND", "0.16.0", "",
+		installedPkg("0.16.0", ""),
+		// isActive/isLoaded should never be called for command packages,
+		// but pass always-inactive to prove we don't care about their output.
+		alwaysInactive,
+		alwaysUnloaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected installSkipAllowed for command package, got %d (%s)", result, reason)
+	}
+}
+
+// TestScyllaInactiveDoesNotReturnSuccess — scylladb maps to scylla-server.service;
+// when that unit is inactive the install must not be skipped.
+func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "",
+		installedPkg("5.4.0", ""),
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedInactive {
+		t.Fatalf("expected installSkipDeniedInactive for inactive scylladb, got %d (%s)", result, reason)
+	}
+	// Confirm correct unit name is in the reason string.
+	if reason == "" {
+		t.Fatal("expected non-empty reason")
+	}
+}

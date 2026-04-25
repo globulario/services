@@ -14,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -153,23 +154,48 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		}
 	}
 
-	// Check if already installed at the desired version — skip re-install.
+	// Check if already installed at the desired version with runtime proof.
 	desiredVersion := inputs["version"]
 	buildID := inputs["build_id"]
 	if desiredVersion != "" {
-		for _, k := range []string{pkgKind, "SERVICE", "INFRASTRUCTURE", "COMMAND"} {
-			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, pkgName)
-			if existing != nil && existing.GetVersion() == desiredVersion {
-				log.Printf("grpc-workflow: install-package %s already at %s, skipping", pkgName, desiredVersion)
-				return &node_agentpb.RunWorkflowResponse{
-					Status:         "SUCCEEDED",
-					StepsTotal:     1,
-					StepsSucceeded: 1,
-				}, nil
+		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
+		skipResult, reason := canSkipInstallPackage(
+			ctx, pkgName, pkgKind, desiredVersion, buildID, existing,
+			supervisor.IsActive, supervisor.IsLoaded,
+		)
+		switch skipResult {
+		case installSkipAllowed:
+			log.Printf("grpc-workflow: %s", reason)
+			return &node_agentpb.RunWorkflowResponse{
+				Status:         "SUCCEEDED",
+				StepsTotal:     1,
+				StepsSucceeded: 1,
+			}, nil
+
+		case installSkipDeniedInactive:
+			// Unit is loaded but inactive — try a Start before full reinstall.
+			log.Printf("grpc-workflow: %s", reason)
+			unit := packageUnit(pkgName)
+			if startErr := supervisor.Start(ctx, unit); startErr == nil {
+				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
+					log.Printf("grpc-workflow: install-package %s: repair via Start succeeded", pkgName)
+					srv.syncInstalledStateToEtcd(ctx)
+					return &node_agentpb.RunWorkflowResponse{
+						Status:         "SUCCEEDED",
+						StepsTotal:     1,
+						StepsSucceeded: 1,
+					}, nil
+				}
 			}
-			if existing != nil {
-				break // found at different version, need to re-install
-			}
+			log.Printf("grpc-workflow: install-package %s: repair via Start failed, proceeding with full reinstall", pkgName)
+
+		case installSkipDeniedUnitGone:
+			log.Printf("grpc-workflow: %s", reason)
+			// fall through to full reinstall
+
+		case installSkipDeniedNoRecord, installSkipDeniedVersion:
+			log.Printf("grpc-workflow: %s", reason)
+			// fall through to full reinstall
 		}
 	}
 
