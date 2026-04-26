@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -59,6 +60,9 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		return
 	}
 
+	// Read existing env BEFORE overwriting so we can detect a mode transition.
+	existingEnv, _ := os.ReadFile(minioEnvFile)
+
 	envChanged, err := atomicWriteIfChanged(minioEnvFile, []byte(wantEnv), 0o640)
 	if err != nil {
 		log.Printf("minio-systemd: write %s: %v", minioEnvFile, err)
@@ -66,6 +70,15 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	}
 	if envChanged {
 		log.Printf("minio-systemd: updated %s (generation=%d)", minioEnvFile, state.Generation)
+		// Detect standalone → distributed transition: old env had no https:// URLs,
+		// new env does. MinIO refuses to start when format.json was written by a
+		// standalone deployment (erasure-set size 1) and the new topology requires
+		// size ≥ 2. Wipe .minio.sys so MinIO reinitialises its erasure set.
+		wasStandalone := !strings.Contains(string(existingEnv), "https://")
+		isDistributed := strings.Contains(wantEnv, "https://")
+		if wasStandalone && isDistributed {
+			srv.clearMinioSysForModeChange(state, nodeIP)
+		}
 	}
 
 	// ── Render distributed.conf (systemd override) ────────────────────────────
@@ -204,6 +217,45 @@ func removeIfExists(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// clearMinioSysForModeChange removes the .minio.sys directory from every data
+// drive on this node. This is necessary when transitioning from standalone to
+// distributed mode: standalone MinIO writes format.json with erasure-set
+// size=1; distributed mode requires size≥2 and refuses to start on a mismatch.
+//
+// DATA LOSS NOTE: this wipes MinIO's internal metadata. All objects stored
+// while in standalone mode are lost. After a mode transition the operator
+// must re-publish all artifacts via `globular pkg publish`.
+func (srv *NodeAgentServer) clearMinioSysForModeChange(state *config.ObjectStoreDesiredState, nodeIP string) {
+	basePath := "/var/lib/globular/minio"
+	if state.NodePaths != nil {
+		if p, ok := state.NodePaths[nodeIP]; ok && p != "" {
+			basePath = strings.TrimRight(p, "/")
+		}
+	}
+
+	var dataDirs []string
+	if state.DrivesPerNode < 2 {
+		dataDirs = []string{filepath.Join(basePath, "data")}
+	} else {
+		for d := 1; d <= state.DrivesPerNode; d++ {
+			dataDirs = append(dataDirs, filepath.Join(basePath, fmt.Sprintf("data%d", d)))
+		}
+	}
+
+	for _, dir := range dataDirs {
+		minioSys := filepath.Join(dir, ".minio.sys")
+		if _, err := os.Stat(minioSys); os.IsNotExist(err) {
+			continue
+		}
+		log.Printf("minio-systemd: NOTICE: clearing %s — standalone→distributed mode transition (objects lost; re-publish required)", minioSys)
+		if err := os.RemoveAll(minioSys); err != nil {
+			log.Printf("minio-systemd: ERROR: failed to clear %s: %v", minioSys, err)
+		} else {
+			log.Printf("minio-systemd: cleared %s — MinIO will reinitialise on next start", minioSys)
+		}
+	}
 }
 
 // runDaemonReload runs systemctl daemon-reload to pick up the new override.
