@@ -40,6 +40,7 @@ var coreWorkflows = []string{
 	"release.apply.infrastructure",
 	"release.apply.controller",
 	"release.remove.package",
+	"objectstore.minio.apply_topology_generation",
 }
 
 // enforceAllInvariantsLocked runs all cluster invariants during the reconcile
