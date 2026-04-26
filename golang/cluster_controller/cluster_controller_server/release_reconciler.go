@@ -412,6 +412,12 @@ func (srv *server) serviceHealthyForRelease(node *nodeState, rel *cluster_contro
 	if node == nil || rel == nil || rel.Spec == nil {
 		return false
 	}
+	// Command-style packages (etcdctl, sha256sum, yt-dlp, restic, etc.) have no
+	// systemd unit. Searching node.Units for them always returns false, which would
+	// mark the node DEGRADED on every drift-check cycle. Treat them as healthy.
+	if skipRuntimeCheck(rel.Spec.ServiceName) {
+		return true
+	}
 	unit := serviceUnitForCanonical(canonicalServiceName(rel.Spec.ServiceName))
 	for _, u := range node.Units {
 		if strings.EqualFold(u.Name, unit) {
