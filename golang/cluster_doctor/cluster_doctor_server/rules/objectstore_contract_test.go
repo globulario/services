@@ -35,10 +35,76 @@ func TestContractMissing_DesiredStatePresent_NoFinding(t *testing.T) {
 	}
 }
 
-func TestContractMissing_NoDesiredState_MinIOActive_Critical(t *testing.T) {
-	// No desired state but MinIO is active → CRITICAL.
+func TestContractMissing_SingleNode_Gen0_MinIOActive_Silent(t *testing.T) {
+	// Single node, generation never applied, MinIO active → pre-formation, silent.
+	// This is normal Day-0 state before pool formation.
 	snap := &collector.Snapshot{
-		ObjectStoreDesired: nil,
+		ObjectStoreDesired:           nil,
+		ObjectStoreAppliedGeneration: 0,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			{NodeId: "node-1"},
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": minioActiveInventory(),
+		},
+	}
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for single-node pre-formation (Day-0), got %d: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+func TestContractMissing_TwoNodes_Gen0_MinIOActive_Warn(t *testing.T) {
+	// Two nodes, generation never applied, MinIO active → WARN (pool may still be forming).
+	snap := &collector.Snapshot{
+		ObjectStoreDesired:           nil,
+		ObjectStoreAppliedGeneration: 0,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			{NodeId: "node-1"},
+			{NodeId: "node-2"},
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": minioActiveInventory(),
+		},
+	}
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 WARN finding for 2-node cluster, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("expected WARN for 2-node pre-formation, got %v", findings[0].Severity)
+	}
+}
+
+func TestContractMissing_ThreeNodes_Gen0_MinIOActive_Critical(t *testing.T) {
+	// Three nodes, generation never applied, MinIO active → CRITICAL (pool should be formed).
+	snap := &collector.Snapshot{
+		ObjectStoreDesired:           nil,
+		ObjectStoreAppliedGeneration: 0,
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			{NodeId: "node-1"},
+			{NodeId: "node-2"},
+			{NodeId: "node-3"},
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": minioActiveInventory(),
+		},
+	}
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 CRITICAL finding for 3-node cluster, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL for 3-node cluster, got %v", findings[0].Severity)
+	}
+}
+
+func TestContractMissing_PreviouslyApplied_MinIOActive_Critical(t *testing.T) {
+	// Contract was previously applied (gen>0) but now missing → CRITICAL regression.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired:           nil,
+		ObjectStoreAppliedGeneration: 2,
 		Nodes: []*cluster_controllerpb.NodeRecord{
 			{NodeId: "node-1"},
 		},
@@ -48,10 +114,10 @@ func TestContractMissing_NoDesiredState_MinIOActive_Critical(t *testing.T) {
 	}
 	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
 	if len(findings) != 1 {
-		t.Fatalf("expected 1 CRITICAL finding, got %d", len(findings))
+		t.Fatalf("expected 1 CRITICAL finding for regression (contract deleted), got %d", len(findings))
 	}
 	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
-		t.Errorf("expected CRITICAL severity, got %v", findings[0].Severity)
+		t.Errorf("expected CRITICAL for regression, got %v", findings[0].Severity)
 	}
 	if findings[0].InvariantID != "objectstore.minio.contract_missing" {
 		t.Errorf("unexpected invariant ID: %s", findings[0].InvariantID)

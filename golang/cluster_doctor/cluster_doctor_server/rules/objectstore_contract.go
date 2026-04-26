@@ -50,6 +50,8 @@ func (objectstoreContractMissing) Evaluate(snap *collector.Snapshot, _ Config) [
 	// Distinguish transient etcd read error from confirmed key absence.
 	// A transient error (network glitch, leader election) must not fire CRITICAL
 	// and page the operator — it will self-heal on the next snapshot cycle.
+	// Check this before the pre-formation guard: if etcd is unreadable we cannot
+	// confirm whether a contract exists, so we must surface the error.
 	if snap.ObjectStoreDesiredLoadError != nil {
 		return []Finding{{
 			FindingID:   FindingID("objectstore.minio.contract_missing", "cluster", "etcd-read-error"),
@@ -75,23 +77,54 @@ func (objectstoreContractMissing) Evaluate(snap *collector.Snapshot, _ Config) [
 		}}
 	}
 
+	// Pre-formation guard: if the topology has never been applied (generation==0)
+	// and the cluster has only one node, MinIO starting before pool formation is
+	// normal Day-0 behaviour. Suppress entirely — the contract will be published
+	// once the pool is formed.
+	if snap.ObjectStoreAppliedGeneration == 0 && len(snap.Nodes) <= 1 {
+		return nil
+	}
+
+	// Severity tiers based on how certain we are a contract should exist:
+	//   CRITICAL — topology was previously applied (regression: contract deleted) OR
+	//              3+ nodes in cluster (pool should have been formed already).
+	//   WARN     — 2-node cluster, generation 0 (pool may still be forming).
+	nodeCount := len(snap.Nodes)
+	severity := cluster_doctorpb.Severity_SEVERITY_WARN
+	if snap.ObjectStoreAppliedGeneration > 0 || nodeCount >= 3 {
+		severity = cluster_doctorpb.Severity_SEVERITY_CRITICAL
+	}
+
+	var summaryDetail string
+	if snap.ObjectStoreAppliedGeneration > 0 {
+		summaryDetail = fmt.Sprintf(
+			"A topology was previously applied (applied_generation=%d) but the contract has disappeared. "+
+				"Fix: run 'globular objectstore apply' to republish, or investigate whether "+
+				"/globular/objectstore/config was accidentally deleted.",
+			snap.ObjectStoreAppliedGeneration)
+	} else {
+		summaryDetail = fmt.Sprintf(
+			"The node-agent cannot enforce topology without a contract (%d node(s) in cluster). "+
+				"Fix: run 'globular objectstore apply' to publish a desired topology.",
+			nodeCount)
+	}
+
 	return []Finding{{
 		FindingID:   FindingID("objectstore.minio.contract_missing", "cluster", "no-desired-state"),
 		InvariantID: "objectstore.minio.contract_missing",
-		Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+		Severity:    severity,
 		Category:    "objectstore",
 		EntityRef:   "cluster",
 		Summary: fmt.Sprintf(
-			"MinIO is running on %d node(s) (%s) but no ObjectStoreDesiredState exists in etcd. "+
-				"The node-agent cannot enforce topology without a contract. "+
-				"Fix: run 'globular objectstore apply' to publish a desired topology, "+
-				"or investigate whether /globular/objectstore/config was accidentally deleted.",
-			len(runningNodes), strings.Join(runningNodes, ", ")),
+			"MinIO is running on %d node(s) (%s) but no ObjectStoreDesiredState exists in etcd. %s",
+			len(runningNodes), strings.Join(runningNodes, ", "), summaryDetail),
 		Evidence: []*cluster_doctorpb.Evidence{
 			kvEvidence("etcd", "LoadObjectStoreDesiredState", map[string]string{
-				"key":           "/globular/objectstore/config",
-				"status":        "missing",
-				"running_nodes": strings.Join(runningNodes, ","),
+				"key":             "/globular/objectstore/config",
+				"status":          "missing",
+				"running_nodes":   strings.Join(runningNodes, ","),
+				"node_count":      fmt.Sprintf("%d", nodeCount),
+				"applied_gen":     fmt.Sprintf("%d", snap.ObjectStoreAppliedGeneration),
 			}),
 		},
 		Remediation: []*cluster_doctorpb.RemediationStep{
