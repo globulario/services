@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -221,11 +222,16 @@ func runObjectstoreTopologyStatus(cmd *cobra.Command, args []string) error {
 		if !strings.Contains(host, ":") {
 			host = host + ":9000"
 		}
-		healthURL := "http://" + host + "/minio/health/live"
+		healthURL := "https://" + host + "/minio/health/live"
 		report.Health.Endpoint = healthURL
 		hCtx, hCancel := context.WithTimeout(ctx, 10*time.Second)
 		req, _ := http.NewRequestWithContext(hCtx, http.MethodGet, healthURL, nil)
-		httpClient := &http.Client{Timeout: 10 * time.Second}
+		httpClient := &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // MinIO health probe; internal endpoint
+			},
+		}
 		if resp, err := httpClient.Do(req); err != nil {
 			report.Health.Error = err.Error()
 		} else {

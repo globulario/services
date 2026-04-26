@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -457,11 +458,16 @@ func (srv *server) verifyMinioClusterHealthy(ctx context.Context, targetGenerati
 			host = desired.Endpoint
 			port = "9000"
 		}
-		healthURL := fmt.Sprintf("http://%s:%s/minio/health/live", host, port)
+		healthURL := fmt.Sprintf("https://%s:%s/minio/health/live", host, port)
 		httpCtx, httpCancel := context.WithTimeout(ctx, 15*time.Second)
 		defer httpCancel()
 		req, _ := http.NewRequestWithContext(httpCtx, http.MethodGet, healthURL, nil)
-		httpClient := &http.Client{Timeout: 15 * time.Second}
+		httpClient := &http.Client{
+			Timeout: 15 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // MinIO health probe; endpoint is internal, no sensitive data
+			},
+		}
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("minio health endpoint %s unreachable: %w", healthURL, err)

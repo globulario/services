@@ -277,10 +277,10 @@ else
     if ! echo "$HEALTH_HOST" | grep -q ':'; then
         HEALTH_HOST="${HEALTH_HOST}:9000"
     fi
-    HEALTH_URL="http://${HEALTH_HOST}/minio/health/live"
+    HEALTH_URL="https://${HEALTH_HOST}/minio/health/live"
     info "probing $HEALTH_URL"
 
-    HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 15 "$HEALTH_URL" 2>/dev/null || echo 000)"
+    HTTP_CODE="$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 15 "$HEALTH_URL" 2>/dev/null || echo 000)"
     if [[ "$HTTP_CODE" == "200" ]]; then
         ok "MinIO health endpoint: HTTP 200 (healthy)"
     else
