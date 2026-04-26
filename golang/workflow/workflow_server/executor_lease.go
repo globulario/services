@@ -197,6 +197,10 @@ func (m *executorLeaseManager) scanAndClaimOrphans(ctx context.Context) {
 	if time.Now().Before(m.scanBackoffUntil) {
 		return
 	}
+	// Session may be nil if ScyllaDB was closed during shutdown.
+	if m.srv.session == nil {
+		return
+	}
 
 	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

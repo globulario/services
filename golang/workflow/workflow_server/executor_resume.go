@@ -78,7 +78,6 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 
 	// Build a map of step_key → terminal status for completed steps.
 	completedSteps := make(map[string]engine.StepStatus)
-	allTerminalSuccess := len(steps) > 0
 	for _, step := range steps {
 		switch step.Status {
 		case workflowpb.StepStatus_STEP_STATUS_SUCCEEDED:
@@ -87,31 +86,17 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 			completedSteps[step.StepKey] = engine.StepSkipped
 		case workflowpb.StepStatus_STEP_STATUS_FAILED:
 			completedSteps[step.StepKey] = engine.StepFailed
-			allTerminalSuccess = false
-		default:
-			// RUNNING or PENDING — not terminal-success.
-			allTerminalSuccess = false
 		}
 	}
 
-	// ── Guard: all steps already succeeded — finalize without re-execution ──
-	// This prevents the orphan scanner from poisoning a successful run.
-	// "Orphan recovery may continue unfinished work, but it must never
-	// rewrite finished truth."
-	if allTerminalSuccess {
-		slog.Info("resume: all steps already terminal-success, finalizing without re-execution",
-			"run_id", runID,
-			"workflow", run.WorkflowName,
-			"completed_steps", len(completedSteps))
-		srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
-			Id:        runID,
-			ClusterId: clusterID,
-			Status:    workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
-			Summary:   "orphan resume: all steps already succeeded, finalized",
-		})
-		return nil
-	}
-
+	// NOTE: we intentionally do NOT short-circuit when allTerminalSuccess is
+	// true. "All recorded steps succeeded" does not mean "workflow is complete":
+	// steps that never started have no ScyllaDB record, so they are absent from
+	// completedSteps. Bypassing the engine here would skip those steps AND the
+	// onSuccess hook, leaving etcd cleanup state (restart_in_progress, locks,
+	// applied_generation) un-written. The engine skips pre-completed steps
+	// safely via PreCompleted, so re-executing with a full engine is always
+	// correct and never double-applies idempotent effects.
 	slog.Info("resume: loading workflow for re-execution",
 		"run_id", runID,
 		"workflow", run.WorkflowName,
