@@ -454,12 +454,16 @@ func validateAdmissionsAgainstCandidates(
 			continue
 		}
 
-		// Find candidate whose MountPath matches the admitted path.
+		// Find candidate whose MountPath is the longest prefix of the admitted path.
+		// This allows admitted paths like /var/lib/globular/minio/data to match
+		// the containing mount point (e.g. / or /mnt/data).
 		var found *configpkg.DiskCandidate
 		for _, c := range candidates {
-			if c.MountPath == path {
-				found = c
-				break
+			if c.MountPath == path || strings.HasPrefix(path, strings.TrimRight(c.MountPath, "/")+"/") {
+				if found == nil || len(c.MountPath) > len(found.MountPath) {
+					cp := c
+					found = cp
+				}
 			}
 		}
 		if found == nil {

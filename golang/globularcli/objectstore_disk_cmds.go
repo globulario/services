@@ -482,7 +482,6 @@ func validateProposalLocally(p *config.TopologyProposal, admittedByIP map[string
 		return []string{"no pool nodes"}
 	}
 
-	seenPaths := make(map[string]string)
 	for _, ip := range p.Nodes {
 		path, ok := p.NodePaths[ip]
 		if !ok || path == "" {
@@ -495,17 +494,8 @@ func validateProposalLocally(p *config.TopologyProposal, admittedByIP map[string
 		if path == "/" && (ad == nil || !ad.ForceRoot) {
 			errs = append(errs, fmt.Sprintf("node %s: path / is root filesystem (admit with --force-root)", ip))
 		}
-
-		// Existing data guard.
-		if ad != nil && ad.ForceExistingData == false {
-			// We can't check HasExistingData without reading the candidate; skip here.
-		}
-
-		// Duplicate path.
-		if prev, dup := seenPaths[path]; dup {
-			errs = append(errs, fmt.Sprintf("duplicate path %q on nodes %s and %s", path, prev, ip))
-		}
-		seenPaths[path] = ip
+		// Note: same path name on different nodes is valid for distributed MinIO —
+		// each node has its own local filesystem at that path.
 	}
 
 	return errs
