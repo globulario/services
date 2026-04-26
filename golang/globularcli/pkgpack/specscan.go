@@ -739,7 +739,8 @@ func uniqueStrings(in []string) []string {
 	return out
 }
 
-// discoverScripts finds .sh files in ScriptsRoot/<serviceName>/.
+// discoverScripts finds .sh files in ScriptsRoot/<serviceName>/ or directly in
+// ScriptsRoot/ when --scripts-dir already points to a service-specific directory.
 func discoverScripts(roots AssetRoots, serviceName string) []ScriptFile {
 	if roots.ScriptsRoot == "" {
 		return nil
@@ -747,6 +748,7 @@ func discoverScripts(roots AssetRoots, serviceName string) []ScriptFile {
 	candidates := []string{
 		filepath.Join(roots.ScriptsRoot, serviceName),
 		filepath.Join(roots.ScriptsRoot, strings.ReplaceAll(serviceName, "-", "_")),
+		roots.ScriptsRoot, // fallback: scripts-dir already points to service-specific dir
 	}
 	seen := make(map[string]struct{})
 	var scripts []ScriptFile

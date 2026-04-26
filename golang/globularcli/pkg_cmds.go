@@ -129,6 +129,7 @@ var (
 	pkgBuildNumber        int64
 	pkgSkipMissingConfig  bool
 	pkgSkipMissingSystemd bool
+	pkgDebsDir            string
 
 	pkgVerifyFile string
 	pkgVerifySpec string // --spec flag for validating a raw spec YAML
@@ -178,6 +179,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgOutDir, "out", "", "output directory (required)")
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingConfig, "skip-missing-config", true, "skip missing config directories")
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingSystemd, "skip-missing-systemd", true, "skip missing systemd units")
+	pkgBuildCmd.Flags().StringVar(&pkgDebsDir, "debs-dir", "", "directory of pre-downloaded .deb files (skips apt-get download for bundle_debs)")
 
 	pkgVerifyCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
 	pkgValidateCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
@@ -249,6 +251,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		Publisher:          pkgPublisher,
 		Platform:           pkgPlatform,
 		OutDir:             pkgOutDir,
+		DebsDir:            pkgDebsDir,
 		SkipMissingConfig:  pkgSkipMissingConfig,
 		SkipMissingSystemd: pkgSkipMissingSystemd,
 	})

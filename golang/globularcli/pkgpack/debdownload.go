@@ -9,6 +9,25 @@ import (
 	"strings"
 )
 
+// collectPrebuiltDebs returns all .deb files found in dir.
+// Used when --debs-dir is provided to skip apt-get download.
+func collectPrebuiltDebs(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read debs dir: %w", err)
+	}
+	var paths []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".deb") {
+			paths = append(paths, filepath.Join(dir, e.Name()))
+		}
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no .deb files found in %s", dir)
+	}
+	return paths, nil
+}
+
 // DownloadDebs uses apt-get download to fetch .deb files for the listed
 // packages and all their dependencies into outDir. Returns the paths of
 // downloaded .deb files.

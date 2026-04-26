@@ -34,6 +34,7 @@ type BuildOptions struct {
 	OutDir             string
 	SkipMissingConfig  bool
 	SkipMissingSystemd bool
+	DebsDir            string // pre-downloaded .deb directory; skips apt-get download when set
 }
 
 type BuildResult struct {
@@ -155,26 +156,40 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		}
 		res.Service = info.ServiceName
 
-		// Download .deb packages if bundle_debs is set in the spec metadata.
+		// Resolve .deb packages if bundle_debs is set in the spec metadata.
 		if len(info.Metadata.BundleDebs) > 0 {
-			debDir, err := os.MkdirTemp("", "pkg-debs-")
-			if err != nil {
-				res.Err = fmt.Errorf("create debs temp dir: %w", err)
-				results = append(results, res)
-				hadErr = true
-				continue
+			if opts.DebsDir != "" {
+				// Use pre-downloaded debs; skip apt-get download.
+				debPaths, err := collectPrebuiltDebs(opts.DebsDir)
+				if err != nil {
+					res.Err = fmt.Errorf("collect prebuilt debs from %s: %w", opts.DebsDir, err)
+					results = append(results, res)
+					fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
+					hadErr = true
+					continue
+				}
+				log.Printf("  using %d pre-downloaded .deb files from %s", len(debPaths), opts.DebsDir)
+				info.DebPaths = debPaths
+			} else {
+				debDir, err := os.MkdirTemp("", "pkg-debs-")
+				if err != nil {
+					res.Err = fmt.Errorf("create debs temp dir: %w", err)
+					results = append(results, res)
+					hadErr = true
+					continue
+				}
+				debPaths, err := DownloadDebs(info.Metadata.BundleDebs, debDir)
+				if err != nil {
+					os.RemoveAll(debDir)
+					res.Err = fmt.Errorf("download debs: %w", err)
+					results = append(results, res)
+					fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
+					hadErr = true
+					continue
+				}
+				info.DebPaths = debPaths
+				defer os.RemoveAll(debDir)
 			}
-			debPaths, err := DownloadDebs(info.Metadata.BundleDebs, debDir)
-			if err != nil {
-				os.RemoveAll(debDir)
-				res.Err = fmt.Errorf("download debs: %w", err)
-				results = append(results, res)
-				fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
-				hadErr = true
-				continue
-			}
-			info.DebPaths = debPaths
-			defer os.RemoveAll(debDir)
 		}
 
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
