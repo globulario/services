@@ -16,6 +16,12 @@ import (
 // 2/2 for quorum, so this must be tight.
 const etcdJoinTimeout = 2 * time.Minute
 
+// etcdStuckJoinThreshold is how long a node must remain in BootstrapEtcdJoining
+// without joining before being classified as rejoin_required. Must be larger
+// than bootstrapPhaseTimeout (5 min) to avoid false positives, but short enough
+// to surface the problem quickly.
+const etcdStuckJoinThreshold = 10 * time.Minute
+
 // nodeHasEtcdUnit returns true if the node reports a globular-etcd.service
 // unit file (any state — active, inactive, or failed).
 func nodeHasEtcdUnit(node *nodeState) bool {
@@ -194,6 +200,64 @@ func (m *etcdMemberManager) existingPeerURLSet(ctx context.Context) (map[string]
 	return urls, nil
 }
 
+// namedMemberPeerURLSet returns the set of peer URLs for named (started) etcd
+// members only. Unlike existingPeerURLSet, it excludes ghost members — unnamed
+// entries added by MemberAdd that have not yet started etcd and joined raft.
+func (m *etcdMemberManager) namedMemberPeerURLSet(ctx context.Context) (map[string]bool, error) {
+	if m == nil || m.client == nil {
+		return nil, nil
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := m.client.MemberList(tctx)
+	if err != nil {
+		return nil, fmt.Errorf("etcd member list: %w", err)
+	}
+	urls := make(map[string]bool, len(resp.Members))
+	for _, member := range resp.Members {
+		if member.Name == "" {
+			continue // skip unnamed ghost members
+		}
+		for _, purl := range member.PeerURLs {
+			urls[purl] = true
+		}
+	}
+	return urls, nil
+}
+
+// classifyStuckEtcdJoin returns true if a node appears permanently stuck in
+// etcd_joining: it has been in BootstrapEtcdJoining for longer than
+// etcdStuckJoinThreshold, is not a named etcd member, and etcd is not running.
+//
+// namedURLs must contain only named (started) members so that ghost members
+// (unnamed entries from a prior MemberAdd) are also detected as stuck.
+// Use namedMemberPeerURLSet, NOT existingPeerURLSet.
+func classifyStuckEtcdJoin(node *nodeState, namedURLs map[string]bool, now time.Time) bool {
+	if node == nil {
+		return false
+	}
+	switch node.EtcdJoinPhase {
+	case EtcdJoinNone, EtcdJoinFailed:
+		// only classify from these base states
+	default:
+		return false
+	}
+	if node.BootstrapPhase != BootstrapEtcdJoining {
+		return false
+	}
+	if node.BootstrapStartedAt.IsZero() {
+		return false
+	}
+	if now.Sub(node.BootstrapStartedAt) < etcdStuckJoinThreshold {
+		return false
+	}
+	if nodeAnyIPIsEtcdMember(node, namedURLs) {
+		return false // already a healthy named member
+	}
+	return !nodeHasEtcdRunning(node)
+}
+
 // memberAdd calls etcd MemberAdd for the given peer URL.
 // Returns the new member's ID (for rollback) and any error.
 func (m *etcdMemberManager) memberAdd(ctx context.Context, peerURL string) (uint64, error) {
@@ -256,6 +320,15 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		return false
 	}
 
+	// namedURLs excludes ghost members (unnamed). Used for stuck detection and
+	// for the None→Verified shortcut, so that an unstarted ghost doesn't
+	// prematurely mark a node as verified.
+	namedURLs, err := m.namedMemberPeerURLSet(ctx)
+	if err != nil {
+		log.Printf("etcd join: cannot list named members (using all): %v", err)
+		namedURLs = existingURLs
+	}
+
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -275,15 +348,59 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// etcd cluster and marks it as verified. This avoids dangerous
 			// controller-initiated MemberAdd calls, especially during 1→2 expansion
 			// where quorum requires 2/2 members immediately.
-			if nodeAnyIPIsEtcdMember(node, existingURLs) {
+			if nodeAnyIPIsEtcdMember(node, namedURLs) {
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
 				log.Printf("etcd join: node %s (%s) detected as existing etcd member, marking verified", node.NodeID, node.Identity.Hostname)
 				continue
 			}
+			// Check for permanently stuck join: WAL "removed from cluster" or ghost
+			// member scenario. Transition to rejoin_required so the operator is
+			// alerted. No destructive action is taken automatically.
+			if classifyStuckEtcdJoin(node, namedURLs, now) {
+				node.EtcdJoinPhase = EtcdJoinRejoinRequired
+				node.EtcdJoinError = fmt.Sprintf(
+					"stuck in etcd_joining for %v: etcd not running and not in member list; "+
+						"run 'globular node repair-etcd --node %s --wipe-local-etcd'",
+					now.Sub(node.BootstrapStartedAt).Round(time.Second),
+					node.Identity.Hostname,
+				)
+				dirty = true
+				log.Printf("etcd join: node %s (%s) classified as rejoin_required: %s",
+					node.NodeID, node.Identity.Hostname, node.EtcdJoinError)
+				continue
+			}
 			// Node is not yet an etcd member — waiting for the join script to
 			// run MemberAdd + start etcd. Nothing to do here.
+
+		case EtcdJoinRejoinRequired:
+			// Operator repair needed. Detect if the node has manually recovered
+			// (e.g., by running the gateway join script directly).
+			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				node.EtcdJoinPhase = EtcdJoinVerified
+				node.EtcdJoinError = ""
+				dirty = true
+				log.Printf("etcd join: node %s (%s) recovered from rejoin_required, marking verified",
+					node.NodeID, node.Identity.Hostname)
+			}
+			// Otherwise stay in rejoin_required; bootstrap_phases.go resets the
+			// timeout clock so the node doesn't get failed while waiting for repair.
+
+		case EtcdJoinRejoinInProgress:
+			// A repair workflow is running — check for completion.
+			if nodeAnyIPIsEtcdMember(node, namedURLs) && nodeHasEtcdRunning(node) {
+				node.EtcdJoinPhase = EtcdJoinVerified
+				node.EtcdJoinError = ""
+				dirty = true
+				log.Printf("etcd join: node %s (%s) rejoin completed, marking verified",
+					node.NodeID, node.Identity.Hostname)
+			}
+			// rejoin_failed is set by the repair workflow handler, not here.
+
+		case EtcdJoinRejoinFailed:
+			// Terminal — stays until operator resets; bootstrap_phases.go reads
+			// this to fail bootstrap so the node auto-retries from admitted.
 
 		case EtcdJoinMemberAdded:
 			// Waiting for the node agent to start etcd with the rendered config.

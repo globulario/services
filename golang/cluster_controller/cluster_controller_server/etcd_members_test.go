@@ -117,6 +117,22 @@ func (fm *fakeEtcdMemberManager) memberRemove(ctx context.Context, memberID uint
 	return fmt.Errorf("member %d not found", memberID)
 }
 
+func (fm *fakeEtcdMemberManager) namedMemberPeerURLSet(ctx context.Context) (map[string]bool, error) {
+	if fm.fake.listErr != nil {
+		return nil, fm.fake.listErr
+	}
+	urls := make(map[string]bool)
+	for _, m := range fm.fake.listMembers() {
+		if m.Name == "" {
+			continue // skip unnamed ghost members
+		}
+		for _, u := range m.PeerURLs {
+			urls[u] = true
+		}
+	}
+	return urls, nil
+}
+
 func (fm *fakeEtcdMemberManager) memberIsHealthy(ctx context.Context, peerURL string) bool {
 	fm.fake.mu.Lock()
 	defer fm.fake.mu.Unlock()
@@ -538,12 +554,23 @@ func TestEtcdJoin_NoConcurrentJoins(t *testing.T) {
 // reconcileJoinWithFake drives the state machine using the fake manager's overridden methods.
 // Since we can't use polymorphism with the struct methods, we duplicate the core logic
 // using the fake's methods directly.
+//
+// Note: unlike the real reconcileEtcdJoinPhases (which is observer-only for MemberAdd),
+// this test helper still calls memberAdd directly for testing the join phase transitions.
+// The real join is driven by the gateway join script; this helper tests the state machine.
 func reconcileJoinWithFake(fm *fakeEtcdMemberManager, nodes []*nodeState) bool {
 	ctx := context.Background()
 
 	existingURLs, err := fm.existingPeerURLSet(ctx)
 	if err != nil {
 		return false
+	}
+
+	// namedURLs excludes ghost (unnamed) members — used for stuck detection
+	// and for the None→Verified shortcut, mirroring the real implementation.
+	namedURLs, err := fm.namedMemberPeerURLSet(ctx)
+	if err != nil {
+		namedURLs = existingURLs
 	}
 
 	now := time.Now()
@@ -559,16 +586,27 @@ func reconcileJoinWithFake(fm *fakeEtcdMemberManager, nodes []*nodeState) bool {
 
 		switch node.EtcdJoinPhase {
 		case EtcdJoinNone, EtcdJoinFailed:
-			// Check if already a member (before prepared check, which rejects existing members).
+			// Check if already a named member.
 			ip := nodeRoutableIP(node)
 			if ip != "" {
-				peerURL := fmt.Sprintf("https://%s:2380", ip)
-				if existingURLs[peerURL] {
+				if namedURLs[fmt.Sprintf("https://%s:2380", ip)] {
 					node.EtcdJoinPhase = EtcdJoinVerified
 					node.EtcdJoinError = ""
 					dirty = true
 					continue
 				}
+			}
+			// Check for permanently stuck join (WAL removed, ghost member, etc.)
+			if classifyStuckEtcdJoin(node, namedURLs, now) {
+				node.EtcdJoinPhase = EtcdJoinRejoinRequired
+				node.EtcdJoinError = fmt.Sprintf("stuck in etcd_joining for %v",
+					now.Sub(node.BootstrapStartedAt).Round(time.Second))
+				dirty = true
+				continue
+			}
+			// (test helper calls MemberAdd to exercise the join phase transitions)
+			if ip == "" {
+				continue
 			}
 			if !nodeIsPreparedForEtcdJoin(node, existingURLs) {
 				continue
@@ -638,6 +676,25 @@ func reconcileJoinWithFake(fm *fakeEtcdMemberManager, nodes []*nodeState) bool {
 
 		case EtcdJoinVerified:
 			// no-op
+
+		case EtcdJoinRejoinRequired:
+			// Detect manual recovery: operator ran the gateway join script.
+			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				node.EtcdJoinPhase = EtcdJoinVerified
+				node.EtcdJoinError = ""
+				dirty = true
+			}
+
+		case EtcdJoinRejoinInProgress:
+			// Repair workflow running — detect completion.
+			if nodeAnyIPIsEtcdMember(node, namedURLs) && nodeHasEtcdRunning(node) {
+				node.EtcdJoinPhase = EtcdJoinVerified
+				node.EtcdJoinError = ""
+				dirty = true
+			}
+
+		case EtcdJoinRejoinFailed:
+			// terminal — handled by bootstrap_phases.go
 		}
 	}
 	return dirty

@@ -247,12 +247,20 @@ const (
 type EtcdJoinPhase string
 
 const (
-	EtcdJoinNone       EtcdJoinPhase = ""            // not joining / not an etcd node
-	EtcdJoinPrepared   EtcdJoinPhase = "prepared"    // package installed, unit exists, ready for MemberAdd
-	EtcdJoinMemberAdded EtcdJoinPhase = "member_added" // MemberAdd called, config rendered, awaiting service start
-	EtcdJoinStarted    EtcdJoinPhase = "started"     // etcd service started, awaiting health verification
-	EtcdJoinVerified   EtcdJoinPhase = "verified"    // etcd member healthy and participating
-	EtcdJoinFailed     EtcdJoinPhase = "failed"      // join failed, rollback performed or needed
+	EtcdJoinNone        EtcdJoinPhase = ""               // not joining / not an etcd node
+	EtcdJoinPrepared    EtcdJoinPhase = "prepared"       // package installed, unit exists, ready for MemberAdd
+	EtcdJoinMemberAdded EtcdJoinPhase = "member_added"   // MemberAdd called, config rendered, awaiting service start
+	EtcdJoinStarted     EtcdJoinPhase = "started"        // etcd service started, awaiting health verification
+	EtcdJoinVerified    EtcdJoinPhase = "verified"       // etcd member healthy and participating
+	EtcdJoinFailed      EtcdJoinPhase = "failed"         // join failed, rollback performed or needed
+
+	// Rejoin states — set when a node is permanently stuck in etcd_joining
+	// (e.g. WAL records its own removal, or ghost member left from prior attempt).
+	// No automatic destructive action is taken; operator must run:
+	//   globular node repair-etcd --node <hostname> --wipe-local-etcd
+	EtcdJoinRejoinRequired   EtcdJoinPhase = "rejoin_required"    // stuck join detected; operator action required
+	EtcdJoinRejoinInProgress EtcdJoinPhase = "rejoin_in_progress" // node.etcd.rejoin workflow is running
+	EtcdJoinRejoinFailed     EtcdJoinPhase = "rejoin_failed"      // node.etcd.rejoin workflow failed
 )
 
 type nodeState struct {

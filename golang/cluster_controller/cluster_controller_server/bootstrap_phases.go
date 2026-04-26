@@ -102,6 +102,27 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			} else if node.EtcdJoinPhase == EtcdJoinFailed {
 				failBootstrap(node, "etcd join failed: "+node.EtcdJoinError)
 				dirty = true
+			} else if node.EtcdJoinPhase == EtcdJoinRejoinRequired || node.EtcdJoinPhase == EtcdJoinRejoinInProgress {
+				// Operator repair needed or in progress — suppress the bootstrap
+				// timeout so the node doesn't auto-fail while waiting for manual
+				// intervention. Surface the diagnostic via BootstrapError.
+				msg := node.EtcdJoinError
+				if node.EtcdJoinPhase == EtcdJoinRejoinInProgress {
+					msg = "etcd rejoin in progress"
+				}
+				if node.BootstrapError != msg {
+					node.BootstrapError = msg
+					dirty = true
+				}
+				// Reset the phase timer so bootstrapPhaseTimeout never fires
+				// while this node is waiting for repair.
+				node.BootstrapStartedAt = now
+				dirty = true
+			} else if node.EtcdJoinPhase == EtcdJoinRejoinFailed {
+				// Repair workflow finished with failure — fail bootstrap so the
+				// node auto-retries from admitted on the next cycle.
+				failBootstrap(node, "etcd rejoin failed: "+node.EtcdJoinError)
+				dirty = true
 			} else if phaseTimedOut(node, now) {
 				failBootstrap(node, "timeout waiting for etcd join")
 				dirty = true
