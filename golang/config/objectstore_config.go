@@ -82,6 +82,18 @@ type ObjectStoreDesiredState struct {
 	// in-memory state. Falls back to "/var/lib/globular/minio" when absent.
 	NodePaths map[string]string `json:"node_paths,omitempty"`
 
+	// CredentialsReady is true when AccessKey and SecretKey are fully populated.
+	// False during controller startup before credentials are loaded from disk.
+	// Old contracts without this field deserialise to false; callers must check
+	// whether AccessKey/SecretKey are non-empty before treating false as degraded.
+	CredentialsReady bool `json:"credentials_ready,omitempty"`
+
+	// EndpointReady is true when Endpoint has been resolved from the pool.
+	// False during controller startup before the pool is formed.
+	// Old contracts without this field deserialise to false; callers must check
+	// whether Endpoint is non-empty before treating false as degraded.
+	EndpointReady bool `json:"endpoint_ready,omitempty"`
+
 	// WrittenAt records when this state was last published by the controller.
 	WrittenAt time.Time `json:"written_at"`
 }
@@ -186,9 +198,10 @@ func ComputeVolumesHash(nodeVolumes map[string]string) string {
 
 // validateEndpoint checks that the endpoint is a bare IP:port (never a DNS hostname).
 // Called before any etcd write so bad state can never be persisted.
+// An empty endpoint is allowed when EndpointReady=false (degraded contract).
 func (s *ObjectStoreDesiredState) validateEndpoint() error {
 	if s.Endpoint == "" {
-		return fmt.Errorf("objectstore desired state: endpoint required")
+		return nil // degraded contract — endpoint not yet resolved
 	}
 	host := s.Endpoint
 	if h, _, err := net.SplitHostPort(s.Endpoint); err == nil {

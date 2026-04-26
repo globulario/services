@@ -60,7 +60,7 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing (immediate)
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty")
 	}
@@ -69,20 +69,20 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 	}
 
 	// infra_preparing: no etcd unit yet → stays
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — etcd unit not present")
 	}
 
 	// infra_preparing → etcd_joining: etcd unit appears
 	node.Units = []unitStatusRecord{{Name: "globular-etcd.service", State: "inactive"}}
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapEtcdJoining {
 		t.Fatalf("expected etcd_joining, got %s", node.BootstrapPhase)
 	}
 
 	// etcd_joining: wait for EtcdJoinPhase verified
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — etcd join not verified")
 	}
@@ -96,39 +96,39 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 			node.Units[i].State = "active"
 		}
 	}
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapEtcdReady {
 		t.Fatalf("expected etcd_ready, got %s", node.BootstrapPhase)
 	}
 
 	// etcd_ready: wait for xDS active
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — xds not active")
 	}
 
 	// etcd_ready → xds_ready
 	node.Units = append(node.Units, unitStatusRecord{Name: "globular-xds.service", State: "active"})
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapXdsReady {
 		t.Fatalf("expected xds_ready, got %s", node.BootstrapPhase)
 	}
 
 	// xds_ready: wait for envoy active
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — envoy not active")
 	}
 
 	// xds_ready → envoy_ready
 	node.Units = append(node.Units, unitStatusRecord{Name: "globular-envoy.service", State: "active"})
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapEnvoyReady {
 		t.Fatalf("expected envoy_ready, got %s", node.BootstrapPhase)
 	}
 
 	// envoy_ready → storage_joining (core profile includes MinIO)
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
@@ -136,7 +136,7 @@ func TestBootstrap_FullPath_CoreGateway(t *testing.T) {
 	// storage_joining → workload_ready: MinIO join verified
 	// (core+gateway has minio but NOT scylladb — scylladb is for control-plane/storage profiles)
 	node.MinioJoinPhase = MinioJoinVerified
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
@@ -162,14 +162,14 @@ func TestBootstrap_SkipEtcd(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapInfraPreparing {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
 	// infra_preparing: no etcd profile → skips etcd phases.
 	// Gateway has xds profile, so should land on etcd_ready (waiting for xds).
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapEtcdReady {
 		t.Fatalf("expected etcd_ready (skip etcd join), got %s", node.BootstrapPhase)
 	}
@@ -191,13 +191,13 @@ func TestBootstrap_SkipEnvoy(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapInfraPreparing {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
 	// infra_preparing: no etcd/xds/envoy profile → skip to storage_joining
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining (no etcd/xds/envoy), got %s", node.BootstrapPhase)
 	}
@@ -206,7 +206,7 @@ func TestBootstrap_SkipEnvoy(t *testing.T) {
 	// (storage profile has both minio and scylladb)
 	node.MinioJoinPhase = MinioJoinVerified
 	node.ScyllaJoinPhase = ScyllaJoinVerified
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
@@ -225,7 +225,7 @@ func TestBootstrap_Timeout(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// Should timeout and fail.
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty after timeout")
 	}
@@ -251,7 +251,7 @@ func TestBootstrap_EtcdJoinFailed(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty")
 	}
@@ -275,7 +275,7 @@ func TestBootstrap_LegacyNode(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change for legacy node")
 	}
@@ -294,7 +294,7 @@ func TestBootstrap_WorkloadReadyNode(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change for workload_ready node")
 	}
@@ -312,7 +312,7 @@ func TestBootstrap_FailedNodeAutoRetries(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty: failed nodes auto-retry by resetting to admitted")
 	}
@@ -349,7 +349,7 @@ func TestBootstrapDoesNotAdvanceOnInstalledOnly(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no phase change when required infra runtime is unhealthy")
 	}
@@ -370,7 +370,7 @@ func TestBootstrapDoesNotAdvanceOnInstalledOnly(t *testing.T) {
 		}
 	}
 	node.MinioJoinPhase = MinioJoinVerified
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected phase change after runtime converges")
 	}
@@ -397,20 +397,20 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapInfraPreparing {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
 
 	// infra_preparing: no etcd, no xds, no envoy → skips to storage_joining
 	// (storage profile has MinIO, which needs join verification)
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
 	// storage_joining: MinIO join not verified → stays
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — minio join not verified")
 	}
@@ -419,7 +419,7 @@ func TestBootstrap_StorageOnlyNode(t *testing.T) {
 	// (storage profile has both minio and scylladb)
 	node.MinioJoinPhase = MinioJoinVerified
 	node.ScyllaJoinPhase = ScyllaJoinVerified
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
@@ -440,7 +440,7 @@ func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// envoy_ready → storage_joining (core has MinIO)
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
@@ -448,7 +448,7 @@ func TestBootstrap_StorageJoin_CoreNode(t *testing.T) {
 	// MinIO join verified → workload_ready
 	// (core+gateway has minio but NOT scylladb — scylladb only for control-plane/storage/scylla)
 	node.MinioJoinPhase = MinioJoinVerified
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
@@ -469,24 +469,24 @@ func TestBootstrap_StorageJoin_ScyllaNode(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing → storage_joining (no etcd/xds/envoy, but has scylla)
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapInfraPreparing {
 		t.Fatalf("expected infra_preparing, got %s", node.BootstrapPhase)
 	}
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapStorageJoining {
 		t.Fatalf("expected storage_joining, got %s", node.BootstrapPhase)
 	}
 
 	// ScyllaDB join not verified → stays in storage_joining
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if dirty {
 		t.Fatal("expected no change — scylla join not verified")
 	}
 
 	// ScyllaDB join verified → workload_ready
 	node.ScyllaJoinPhase = ScyllaJoinVerified
-	dirty = reconcileBootstrapPhases(nodes, emitter)
+	dirty = reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty || node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready, got %s", node.BootstrapPhase)
 	}
@@ -504,7 +504,7 @@ func TestBootstrap_StorageJoin_Timeout(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := reconcileBootstrapPhases(nodes, emitter)
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
 	if !dirty {
 		t.Fatal("expected dirty after timeout")
 	}
@@ -531,7 +531,7 @@ func TestBootstrap_GatewayOnly_NoStorageJoin(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// envoy_ready → workload_ready (no storage profile, skip storage_joining)
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready (no storage), got %s", node.BootstrapPhase)
 	}
@@ -551,11 +551,145 @@ func TestBootstrap_DnsOnly_NoStorageJoin(t *testing.T) {
 	nodes := []*nodeState{node}
 
 	// admitted → infra_preparing
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	// infra_preparing: no etcd, no xds, no envoy, no storage → workload_ready
-	reconcileBootstrapPhases(nodes, emitter)
+	reconcileBootstrapPhases(nodes, nil, emitter)
 	if node.BootstrapPhase != BootstrapWorkloadReady {
 		t.Fatalf("expected workload_ready (dns-only, no storage), got %s", node.BootstrapPhase)
+	}
+}
+
+// TestBootstrap_MinioSkip_Day1NonMember tests that a Day-1 storage node whose IP
+// is not in the MinIO pool (pool non-empty) does not get blocked by the MinIO
+// runtime check, allowing bootstrap to advance past envoy_ready.
+func TestBootstrap_MinioSkip_Day1NonMember(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:             "n2",
+		Identity:           storedIdentity{Hostname: "day1-storage", Ips: []string{"10.0.0.99"}},
+		Profiles:           []string{"core", "storage"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+		LastSeen:           time.Now(),
+		EtcdJoinPhase:      EtcdJoinVerified,
+		MinioJoinPhase:     MinioJoinNone, // not yet classified
+		ScyllaJoinPhase:    ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			// minio is NOT active — node-agent topology gate is holding it
+			{Name: "globular-minio.service", State: "inactive"},
+			{Name: "scylla-server.service", State: "active"},
+			{Name: "globular-etcd.service", State: "active"},
+			{Name: "globular-xds.service", State: "active"},
+			{Name: "globular-envoy.service", State: "active"},
+		},
+	}
+	nodes := []*nodeState{node}
+	// Pool is non-empty; this node's IP (10.0.0.99) is not in it.
+	poolNodes := []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"}
+
+	dirty := reconcileBootstrapPhases(nodes, poolNodes, emitter)
+	if !dirty {
+		t.Fatal("expected dirty=true when minio skipped via pool membership check")
+	}
+	// Must advance to storage_joining (has scylla profile), not block at envoy_ready.
+	if node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
+	}
+}
+
+// TestBootstrap_MinioSkip_NonMemberPhase tests that MinioJoinNonMember phase
+// still skips the MinIO runtime check regardless of pool contents.
+func TestBootstrap_MinioSkip_NonMemberPhase(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:             "n3",
+		Identity:           storedIdentity{Hostname: "non-member", Ips: []string{"10.0.0.99"}},
+		Profiles:           []string{"core", "storage"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+		LastSeen:           time.Now(),
+		EtcdJoinPhase:      EtcdJoinVerified,
+		MinioJoinPhase:     MinioJoinNonMember,
+		ScyllaJoinPhase:    ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			{Name: "globular-minio.service", State: "inactive"},
+			{Name: "scylla-server.service", State: "active"},
+			{Name: "globular-etcd.service", State: "active"},
+			{Name: "globular-xds.service", State: "active"},
+			{Name: "globular-envoy.service", State: "active"},
+		},
+	}
+	nodes := []*nodeState{node}
+	// Even with an empty pool, MinioJoinNonMember should skip the check.
+	dirty := reconcileBootstrapPhases(nodes, nil, emitter)
+	if !dirty {
+		t.Fatal("expected dirty=true")
+	}
+	if node.BootstrapPhase != BootstrapStorageJoining {
+		t.Fatalf("expected storage_joining, got %s (blocked: %s)", node.BootstrapPhase, node.BlockedDetails)
+	}
+}
+
+// TestBootstrap_MinioRequired_PoolMember tests that a node whose IP IS in the
+// pool still requires MinIO to be active before advancing past envoy_ready.
+func TestBootstrap_MinioRequired_PoolMember(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "pool-member", Ips: []string{"10.0.0.63"}},
+		Profiles:           []string{"core", "storage"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+		EtcdJoinPhase:      EtcdJoinVerified,
+		MinioJoinPhase:     MinioJoinVerified,
+		ScyllaJoinPhase:    ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			{Name: "globular-minio.service", State: "inactive"}, // minio stopped
+			{Name: "scylla-server.service", State: "active"},
+			{Name: "globular-etcd.service", State: "active"},
+			{Name: "globular-xds.service", State: "active"},
+			{Name: "globular-envoy.service", State: "active"},
+		},
+	}
+	nodes := []*nodeState{node}
+	// This node IS in the pool — minio must be active.
+	poolNodes := []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"}
+
+	dirty := reconcileBootstrapPhases(nodes, poolNodes, emitter)
+	// Should be blocked: minio is inactive and node is a pool member.
+	if node.BootstrapPhase != BootstrapEnvoyReady {
+		t.Fatalf("expected to stay at envoy_ready (minio inactive), got %s", node.BootstrapPhase)
+	}
+	_ = dirty
+}
+
+// TestBootstrap_MinioRequired_Day0EmptyPool tests that on Day-0 (empty pool)
+// a storage node still requires MinIO active before advancing.
+func TestBootstrap_MinioRequired_Day0EmptyPool(t *testing.T) {
+	emitter := &mockEmitter{}
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "day0", Ips: []string{"10.0.0.63"}},
+		Profiles:           []string{"core", "storage"},
+		BootstrapPhase:     BootstrapEnvoyReady,
+		BootstrapStartedAt: time.Now(),
+		EtcdJoinPhase:      EtcdJoinVerified,
+		MinioJoinPhase:     MinioJoinNone,
+		ScyllaJoinPhase:    ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			{Name: "globular-minio.service", State: "inactive"},
+			{Name: "scylla-server.service", State: "active"},
+			{Name: "globular-etcd.service", State: "active"},
+			{Name: "globular-xds.service", State: "active"},
+			{Name: "globular-envoy.service", State: "active"},
+		},
+	}
+	nodes := []*nodeState{node}
+	// Day-0: pool is empty. MinIO is inactive and not a NonMember.
+	// Must be blocked until MinIO becomes active.
+	reconcileBootstrapPhases(nodes, nil, emitter)
+	if node.BootstrapPhase != BootstrapEnvoyReady {
+		t.Fatalf("expected to stay at envoy_ready on Day-0 with minio inactive, got %s", node.BootstrapPhase)
 	}
 }
 

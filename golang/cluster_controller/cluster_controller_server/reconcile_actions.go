@@ -88,9 +88,11 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 	}
 
 	// Drive MinIO pool join phases.
+	var poolNodes []string
 	if srv.minioPoolMgr != nil {
 		srv.lock("reconcileAdvanceInfraJoins:minio-snapshot")
 		state := srv.state
+		poolNodes = append([]string(nil), srv.state.MinioPoolNodes...)
 		srv.unlock()
 		if dirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, state); dirty {
 			srv.lock("reconcileAdvanceInfraJoins:minio-persist")
@@ -109,7 +111,7 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 	// reconcileBootstrapPhases is normally triggered by reconcileNodes (event-driven),
 	// but nodes in storage_joining bypass that trigger (bootstrapPhaseReady=true).
 	// Running it here ensures storage_joining → workload_ready fires promptly.
-	if bootDirty := reconcileBootstrapPhases(nodes, srv); bootDirty {
+	if bootDirty := reconcileBootstrapPhases(nodes, poolNodes, srv); bootDirty {
 		srv.lock("reconcileAdvanceInfraJoins:bootstrap-persist")
 		_ = srv.persistStateLocked(false)
 		srv.unlock()

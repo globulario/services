@@ -47,6 +47,34 @@ func (objectstoreContractMissing) Evaluate(snap *collector.Snapshot, _ Config) [
 		return nil
 	}
 
+	// Distinguish transient etcd read error from confirmed key absence.
+	// A transient error (network glitch, leader election) must not fire CRITICAL
+	// and page the operator — it will self-heal on the next snapshot cycle.
+	if snap.ObjectStoreDesiredLoadError != nil {
+		return []Finding{{
+			FindingID:   FindingID("objectstore.minio.contract_missing", "cluster", "etcd-read-error"),
+			InvariantID: "objectstore.minio.contract_missing",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "objectstore",
+			EntityRef:   "cluster",
+			Summary: fmt.Sprintf(
+				"MinIO is running on %d node(s) (%s) but ObjectStoreDesiredState could not be "+
+					"read from etcd (transient error: %v). This may self-heal on the next evaluation cycle.",
+				len(runningNodes), strings.Join(runningNodes, ", "), snap.ObjectStoreDesiredLoadError),
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("etcd", "LoadObjectStoreDesiredState", map[string]string{
+					"key":           "/globular/objectstore/config",
+					"status":        "read_error",
+					"error":         snap.ObjectStoreDesiredLoadError.Error(),
+					"running_nodes": strings.Join(runningNodes, ","),
+				}),
+			},
+			Remediation: []*cluster_doctorpb.RemediationStep{
+				step(1, "Wait for etcd to stabilise, then re-evaluate", "globular cluster doctor"),
+			},
+		}}
+	}
+
 	return []Finding{{
 		FindingID:   FindingID("objectstore.minio.contract_missing", "cluster", "no-desired-state"),
 		InvariantID: "objectstore.minio.contract_missing",
@@ -69,6 +97,120 @@ func (objectstoreContractMissing) Evaluate(snap *collector.Snapshot, _ Config) [
 		Remediation: []*cluster_doctorpb.RemediationStep{
 			step(1, "Publish the desired topology", "globular objectstore apply"),
 			step(2, "Verify desired state written", "globular config get /globular/objectstore/config | jq ."),
+		},
+	}}
+}
+
+// ─── objectstore.minio.credentials_missing ───────────────────────────────────
+//
+// Fires CRITICAL when ObjectStoreDesiredState exists in etcd but
+// CredentialsReady=false AND the AccessKey/SecretKey fields are empty.
+//
+// This is distinct from contract_missing: the topology contract is present
+// (node-agents know their pool membership and topology) but the controller
+// has not yet published usable credentials — typically a transient state during
+// controller startup before /var/lib/globular/minio/credentials is read.
+//
+// Backward compatibility: old contracts (published before the CredentialsReady
+// field was introduced) have the field as false but DO have AccessKey populated.
+// Those are treated as effectively ready and this rule does not fire.
+
+type objectstoreCredentialsMissing struct{}
+
+func (objectstoreCredentialsMissing) ID() string       { return "objectstore.minio.credentials_missing" }
+func (objectstoreCredentialsMissing) Category() string { return "objectstore" }
+func (objectstoreCredentialsMissing) Scope() string    { return "cluster" }
+
+func (objectstoreCredentialsMissing) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	d := snap.ObjectStoreDesired
+	if d == nil {
+		return nil // contract_missing handles nil desired
+	}
+	// Effectively ready: either the flag is set, or the credentials are present
+	// (old contract without the field still has usable credentials).
+	if d.CredentialsReady || (d.AccessKey != "" && d.SecretKey != "") {
+		return nil
+	}
+	return []Finding{{
+		FindingID:   FindingID("objectstore.minio.credentials_missing", "cluster", fmt.Sprintf("gen-%d", d.Generation)),
+		InvariantID: "objectstore.minio.credentials_missing",
+		Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+		Category:    "objectstore",
+		EntityRef:   "cluster",
+		Summary: fmt.Sprintf(
+			"ObjectStoreDesiredState (gen=%d) exists in etcd but credentials are not loaded "+
+				"(credentials_ready=false, access_key empty). "+
+				"MinIO clients and node-agents cannot authenticate. "+
+				"The controller will update this automatically once it reads "+
+				"/var/lib/globular/minio/credentials from disk.",
+			d.Generation),
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("etcd", "LoadObjectStoreDesiredState", map[string]string{
+				"key":               "/globular/objectstore/config",
+				"generation":        fmt.Sprintf("%d", d.Generation),
+				"credentials_ready": "false",
+				"access_key":        "(empty)",
+			}),
+		},
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			step(1, "Verify /var/lib/globular/minio/credentials exists on the controller node", "ls -l /var/lib/globular/minio/credentials"),
+			step(2, "If missing, restore from backup or re-initialise MinIO credentials", "globular objectstore credentials reset"),
+		},
+	}}
+}
+
+// ─── objectstore.minio.endpoint_unresolved ───────────────────────────────────
+//
+// Fires WARN when ObjectStoreDesiredState exists but EndpointReady=false AND
+// the Endpoint field is empty.
+//
+// This is a transient state during controller startup before pool formation or
+// when MinioPoolNodes[0] is a DNS hostname instead of a bare IP.
+// Node-agents can still render topology config but services cannot connect.
+//
+// Backward compatibility: old contracts that have Endpoint populated are treated
+// as effectively ready even if EndpointReady=false.
+
+type objectstoreEndpointUnresolved struct{}
+
+func (objectstoreEndpointUnresolved) ID() string       { return "objectstore.minio.endpoint_unresolved" }
+func (objectstoreEndpointUnresolved) Category() string { return "objectstore" }
+func (objectstoreEndpointUnresolved) Scope() string    { return "cluster" }
+
+func (objectstoreEndpointUnresolved) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	d := snap.ObjectStoreDesired
+	if d == nil {
+		return nil // contract_missing handles nil desired
+	}
+	// Effectively ready: either the flag is set, or the endpoint field is populated
+	// (old contract without the field still has a usable endpoint).
+	if d.EndpointReady || d.Endpoint != "" {
+		return nil
+	}
+	return []Finding{{
+		FindingID:   FindingID("objectstore.minio.endpoint_unresolved", "cluster", fmt.Sprintf("gen-%d", d.Generation)),
+		InvariantID: "objectstore.minio.endpoint_unresolved",
+		Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+		Category:    "objectstore",
+		EntityRef:   "cluster",
+		Summary: fmt.Sprintf(
+			"ObjectStoreDesiredState (gen=%d) exists but endpoint is unresolved "+
+				"(endpoint_ready=false, endpoint empty). "+
+				"Services cannot connect to MinIO. "+
+				"The controller will resolve this once MinioPoolNodes[0] contains a routable IP.",
+			d.Generation),
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("etcd", "LoadObjectStoreDesiredState", map[string]string{
+				"key":            "/globular/objectstore/config",
+				"generation":     fmt.Sprintf("%d", d.Generation),
+				"endpoint_ready": "false",
+				"endpoint":       "(empty)",
+				"pool_nodes":     strings.Join(d.Nodes, ","),
+			}),
+		},
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			step(1, "Verify MinioPoolNodes contains a bare IP (not a DNS hostname)", "globular objectstore topology status"),
+			step(2, "If pool nodes use hostnames, re-apply topology with IP addresses", "globular objectstore topology apply"),
 		},
 	}}
 }

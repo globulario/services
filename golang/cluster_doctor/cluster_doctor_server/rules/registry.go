@@ -88,11 +88,15 @@ func NewRegistry(cfg Config) *Registry {
 		objectstoreMinioQuorumShape{},
 		objectstoreMinioExistingDataGuard{},
 		// Topology contract invariants:
-		//   contract_missing     — MinIO running but no desired state in etcd.
-		//   destructive_guard    — destructive topology change pending without
-		//                         an approved TopologyTransition record.
+		//   contract_missing       — MinIO running but no desired state in etcd.
+		//   credentials_missing    — contract present but credentials_ready=false.
+		//   endpoint_unresolved    — contract present but endpoint_ready=false.
+		//   destructive_guard      — destructive topology change pending without
+		//                           an approved TopologyTransition record.
 		// Consume ObjectStoreDesired + DesiredTopologyTransition + Inventories.
 		objectstoreContractMissing{},
+		objectstoreCredentialsMissing{},
+		objectstoreEndpointUnresolved{},
 		objectstoreDestructiveGuard{},
 	}
 	// Append PENDING stubs

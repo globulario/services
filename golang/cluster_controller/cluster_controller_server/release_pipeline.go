@@ -113,7 +113,10 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
 			continue
 		}
-		if !bootstrapPhaseReady(node.BootstrapPhase) {
+		isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
+		if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
+			continue
+		} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
 			continue
 		}
 
@@ -419,10 +422,17 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				h.ResourceType, h.Name, id, node.BootstrapPhase)
 			continue
 		}
-		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
-			log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not ready for workloads)",
-				h.ResourceType, h.Name, id, node.BootstrapPhase)
-			continue
+		isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
+		if isWorkload {
+			if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
+				log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, infra mesh not ready for control-plane-critical workload)",
+					h.ResourceType, h.Name, id, node.BootstrapPhase)
+				continue
+			} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
+				log.Printf("%s %s: skipping node %s (bootstrap_phase=%s, not ready for workloads)",
+					h.ResourceType, h.Name, id, node.BootstrapPhase)
+				continue
+			}
 		}
 		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
 			expandedProfiles := normalizeProfiles(node.Profiles)
@@ -646,6 +656,11 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 	defer srv.unlock()
 
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
+	serviceName := h.Name
+	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
+		serviceName = serviceName[idx+1:]
+	}
+	catalogEntry := CatalogByName(serviceName)
 
 	// Convergence signal #1: per-node release status written by workflow callbacks.
 	served := make(map[string]bool)
@@ -665,8 +680,13 @@ func (srv *server) hasUnservedNodes(h *releaseHandle) bool {
 		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
 			continue
 		}
-		if isWorkload && !bootstrapPhaseReady(node.BootstrapPhase) {
-			continue
+		if isWorkload {
+			isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
+			if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
+				continue
+			} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
+				continue
+			}
 		}
 		if node.Status == "unreachable" || node.Status == "removed" {
 			continue

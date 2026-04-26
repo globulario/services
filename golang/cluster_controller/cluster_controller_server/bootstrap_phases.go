@@ -35,7 +35,7 @@ type eventEmitter interface {
 //
 // Phases are skipped when the node's profiles don't include the relevant service.
 // Returns true if any node state was modified.
-func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty bool) {
+func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter eventEmitter) (dirty bool) {
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -147,7 +147,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			// Envoy is active — but do not advance until required infra runtime is
 			// converged (active + fresh heartbeat). Installed-state alone is not
 			// sufficient.
-			if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now); !ok {
+			if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now, poolNodes); !ok {
 				node.BlockedReason = "day1_infra_runtime_blocked"
 				node.BlockedDetails = reason
 				node.BootstrapError = reason
@@ -190,7 +190,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			}
 
 			if allReady {
-				if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now); !ok {
+				if ok, reason := bootstrapRequiredInfraRuntimeConverged(node, now, poolNodes); !ok {
 					node.BlockedReason = "day1_infra_runtime_blocked"
 					node.BlockedDetails = reason
 					node.BootstrapError = reason
@@ -324,7 +324,7 @@ func nodeNeedsStorageJoin(node *nodeState) bool {
 	return nodeHasMinioProfile(node) || nodeHasScyllaProfile(node)
 }
 
-func requiredBootstrapInfraPackages(node *nodeState) []string {
+func requiredBootstrapInfraPackages(node *nodeState, poolNodes []string) []string {
 	var out []string
 	add := func(name string) {
 		for _, s := range out {
@@ -351,16 +351,25 @@ func requiredBootstrapInfraPackages(node *nodeState) []string {
 		}
 		// Non-pool-member nodes correctly hold MinIO inactive; skip the runtime
 		// check so bootstrap is not permanently blocked at envoy_ready.
-		if name == "minio" && node.MinioJoinPhase == MinioJoinNonMember {
-			continue
+		if name == "minio" {
+			if node.MinioJoinPhase == MinioJoinNonMember {
+				continue
+			}
+			// Pool is non-empty and this node's IP is not in it: it is an
+			// unregistered Day-1 node being held by the topology contract.
+			// Do not require MinIO active — it will stay stopped until
+			// apply-topology admits this node.
+			if ip := nodeRoutableIP(node); len(poolNodes) > 0 && ip != "" && !ipInPool(ip, poolNodes) {
+				continue
+			}
 		}
 		add(name)
 	}
 	return out
 }
 
-func bootstrapRequiredInfraRuntimeConverged(node *nodeState, now time.Time) (bool, string) {
-	for _, pkg := range requiredBootstrapInfraPackages(node) {
+func bootstrapRequiredInfraRuntimeConverged(node *nodeState, now time.Time, poolNodes []string) (bool, string) {
+	for _, pkg := range requiredBootstrapInfraPackages(node, poolNodes) {
 		pc := classifyPackageConvergence(
 			node,
 			pkg,

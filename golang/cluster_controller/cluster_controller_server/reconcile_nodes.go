@@ -57,6 +57,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
 	}
+	poolNodes := append([]string(nil), srv.state.MinioPoolNodes...)
 	stateDirty := srv.cleanupJoinStateLocked(time.Now())
 	// Re-seed the configured join token if it was cleaned up or never persisted.
 	// This makes the token durable across controller restarts and reconcile cycles.
@@ -94,7 +95,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	// Pre-reconcile phase 1: drive bootstrap phase state machine.
 	// Nodes progress through: admitted → infra_preparing → etcd_joining →
 	// etcd_ready → xds_ready → envoy_ready → workload_ready.
-	if bootDirty := reconcileBootstrapPhases(nodes, srv); bootDirty {
+	if bootDirty := reconcileBootstrapPhases(nodes, poolNodes, srv); bootDirty {
 		stateDirty = true
 	}
 

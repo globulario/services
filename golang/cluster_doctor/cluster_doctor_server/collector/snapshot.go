@@ -62,9 +62,15 @@ type Snapshot struct {
 
 	// ObjectStoreDesired is the authoritative objectstore topology read from
 	// etcd (/globular/objectstore/config) during snapshot collection.
-	// Nil when the key has not yet been published (pre-pool formation).
+	// Nil when the key has not yet been published (pre-pool formation) OR
+	// when ObjectStoreDesiredLoadError is non-nil (transient etcd error).
 	// Consumed by the "objectstore.*" invariant family.
 	ObjectStoreDesired *config.ObjectStoreDesiredState
+
+	// ObjectStoreDesiredLoadError is non-nil when the etcd read for
+	// ObjectStoreDesired failed. Rules must distinguish this from a
+	// confirmed key-absent case (nil desired + nil error = key not found).
+	ObjectStoreDesiredLoadError error
 
 	// ObjectStoreAppliedGeneration is the last topology generation that was
 	// successfully applied by the objectstore.minio.apply_topology_generation

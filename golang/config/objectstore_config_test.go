@@ -107,6 +107,66 @@ func TestSaveObjectStoreDesiredStateAcceptsIP(t *testing.T) {
 	}
 }
 
+// TestSaveObjectStoreDesiredStateAllowsEmptyEndpoint verifies that an empty
+// endpoint passes validateEndpoint — it is allowed in degraded contracts where
+// EndpointReady=false (controller startup before pool is formed).
+func TestSaveObjectStoreDesiredStateAllowsEmptyEndpoint(t *testing.T) {
+	state := &ObjectStoreDesiredState{
+		Endpoint:      "",
+		EndpointReady: false,
+		Mode:          ObjectStoreModeStandalone,
+	}
+	if err := state.validateEndpoint(); err != nil {
+		t.Fatalf("unexpected error for empty endpoint in degraded contract: %v", err)
+	}
+}
+
+// TestObjectStoreDesiredStateReadyFlagsRoundTrip verifies CredentialsReady and
+// EndpointReady survive a marshal/unmarshal cycle.
+func TestObjectStoreDesiredStateReadyFlagsRoundTrip(t *testing.T) {
+	orig := &ObjectStoreDesiredState{
+		Mode:             ObjectStoreModeStandalone,
+		Generation:       1,
+		Endpoint:         "",
+		CredentialsReady: false,
+		EndpointReady:    false,
+	}
+	data, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded ObjectStoreDesiredState
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.CredentialsReady != orig.CredentialsReady {
+		t.Errorf("CredentialsReady: got %v, want %v", decoded.CredentialsReady, orig.CredentialsReady)
+	}
+	if decoded.EndpointReady != orig.EndpointReady {
+		t.Errorf("EndpointReady: got %v, want %v", decoded.EndpointReady, orig.EndpointReady)
+	}
+
+	// Now with both flags true.
+	ready := &ObjectStoreDesiredState{
+		Mode:             ObjectStoreModeDistributed,
+		Generation:       5,
+		Endpoint:         "10.0.0.63:9000",
+		CredentialsReady: true,
+		EndpointReady:    true,
+	}
+	data2, _ := json.Marshal(ready)
+	var decoded2 ObjectStoreDesiredState
+	if err := json.Unmarshal(data2, &decoded2); err != nil {
+		t.Fatalf("unmarshal ready: %v", err)
+	}
+	if !decoded2.CredentialsReady {
+		t.Error("CredentialsReady should survive round-trip as true")
+	}
+	if !decoded2.EndpointReady {
+		t.Error("EndpointReady should survive round-trip as true")
+	}
+}
+
 // TestObjectStoreModeConstants verifies the mode constants have expected values.
 func TestObjectStoreModeConstants(t *testing.T) {
 	if ObjectStoreModeStandalone != "standalone" {

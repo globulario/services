@@ -1122,17 +1122,39 @@ func (srv *server) publishMinioConfigLocked() {
 	}
 }
 
-// publishObjectStoreDesiredStateLocked writes /globular/objectstore/config to etcd.
-// This is the authoritative topology that node agents read to render local MinIO
-// config files. Must be called with srv.mu held.
-func (srv *server) publishObjectStoreDesiredStateLocked() {
-	if srv.state == nil || srv.state.MinioCredentials == nil {
-		return
+// buildObjectStoreDesiredStateLocked constructs the ObjectStoreDesiredState
+// from the current controller state without writing to etcd. Returns (nil, true)
+// when the pool has no nodes yet and there is nothing meaningful to publish.
+// Must be called with srv.mu held.
+func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesiredState, bool) {
+	if srv.state == nil {
+		return nil, true
+	}
+	// Pre-formation: pool empty and no generation written — nothing to publish.
+	if len(srv.state.MinioPoolNodes) == 0 && srv.state.ObjectStoreGeneration == 0 {
+		return nil, true
 	}
 
+	credentialsReady := srv.state.MinioCredentials != nil &&
+		srv.state.MinioCredentials.RootUser != "" &&
+		srv.state.MinioCredentials.RootPassword != ""
+
 	endpoint := srv.resolveMinioEndpointLocked()
-	if endpoint == "" {
-		return
+	endpointReady := endpoint != ""
+
+	if !credentialsReady {
+		log.Printf("objectstore_desired_publish_failed reason=credentials_not_loaded pool=%v — publishing degraded contract (credentials_ready=false)",
+			srv.state.MinioPoolNodes)
+	}
+	if !endpointReady {
+		log.Printf("objectstore_desired_publish_failed reason=endpoint_unresolved pool=%v — publishing degraded contract (endpoint_ready=false)",
+			srv.state.MinioPoolNodes)
+	}
+
+	var accessKey, secretKey string
+	if credentialsReady {
+		accessKey = srv.state.MinioCredentials.RootUser
+		secretKey = srv.state.MinioCredentials.RootPassword
 	}
 
 	domain := ""
@@ -1164,24 +1186,41 @@ func (srv *server) publishObjectStoreDesiredStateLocked() {
 		nodePaths[k] = v
 	}
 
-	desired := &config.ObjectStoreDesiredState{
-		Mode:          mode,
-		Generation:    srv.state.ObjectStoreGeneration,
-		Endpoint:      endpoint,
-		AccessKey:     srv.state.MinioCredentials.RootUser,
-		SecretKey:     srv.state.MinioCredentials.RootPassword,
-		Bucket:        "globular",
-		Prefix:        domain,
-		Nodes:         append([]string(nil), srv.state.MinioPoolNodes...),
-		DrivesPerNode: srv.state.MinioDrivesPerNode,
-		VolumesHash:   config.ComputeVolumesHash(nodeVolumes),
-		NodePaths:     nodePaths,
-	}
+	return &config.ObjectStoreDesiredState{
+		Mode:             mode,
+		Generation:       srv.state.ObjectStoreGeneration,
+		Endpoint:         endpoint,
+		AccessKey:        accessKey,
+		SecretKey:        secretKey,
+		Bucket:           "globular",
+		Prefix:           domain,
+		Nodes:            append([]string(nil), srv.state.MinioPoolNodes...),
+		DrivesPerNode:    srv.state.MinioDrivesPerNode,
+		VolumesHash:      config.ComputeVolumesHash(nodeVolumes),
+		NodePaths:        nodePaths,
+		CredentialsReady: credentialsReady,
+		EndpointReady:    endpointReady,
+	}, false
+}
 
+// publishObjectStoreDesiredStateLocked writes /globular/objectstore/config to etcd.
+// This is the authoritative topology that node agents read to render local MinIO
+// config files. Must be called with srv.mu held.
+//
+// Never silently skips when topology data is available. If credentials or endpoint
+// are not yet resolved, publishes a degraded contract with credentials_ready=false
+// or endpoint_ready=false and logs a warning. The doctor reports these as
+// objectstore.minio.credentials_missing / objectstore.minio.endpoint_unresolved,
+// not as the more severe objectstore.minio.contract_missing.
+func (srv *server) publishObjectStoreDesiredStateLocked() {
+	desired, skip := srv.buildObjectStoreDesiredStateLocked()
+	if skip {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := config.SaveObjectStoreDesiredState(ctx, desired); err != nil {
-		log.Printf("publish objectstore desired state failed: %v", err)
+		log.Printf("objectstore_desired_publish_failed reason=etcd_write_error: %v", err)
 	}
 }
 

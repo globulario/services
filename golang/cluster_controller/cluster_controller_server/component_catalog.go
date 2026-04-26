@@ -118,6 +118,12 @@ type Component struct {
 	// "day0_join" = installed by Day 0 installer or Day 1 join logic.
 	InstallMode string
 
+	// ControlPlaneCritical marks a workload that must be able to deploy before
+	// workload_ready so it can unblock nodes stuck at envoy_ready.
+	// When true the release pipeline allows dispatch at envoy_ready and above
+	// (bootstrapInfraReady) instead of requiring workload_ready.
+	ControlPlaneCritical bool
+
 	// HealthCheck describes how to verify this component is healthy.
 	HealthCheck *HealthCheckHintC
 }
@@ -458,6 +464,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
+			ControlPlaneCritical:     true,
 		},
 		{
 			Name:                     "cluster-doctor",
@@ -466,6 +473,7 @@ func buildCatalog() []*Component {
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
+			ControlPlaneCritical:     true,
 		},
 		{
 			Name:                     "ai-memory",
@@ -508,6 +516,7 @@ func buildCatalog() []*Component {
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-workflow.service", Port: 10220},
+			ControlPlaneCritical:     true,
 		},
 		{
 			Name:                     "mcp",

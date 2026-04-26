@@ -887,9 +887,17 @@ func (srv *server) reconcileControllerSelfUpdate(ctx context.Context) {
 
 	currentVer := Version
 	currentBuild := parseBuildNumber()
-	cmp, err := versionutil.CompareFull(currentVer, currentBuild, target.Version, target.BuildNumber)
-	if err != nil {
-		return
+	var cmp int
+	if currentVer == "" || currentVer == "0.0.0-dev" {
+		// Dev/local build has no version tag — treat as always behind any real
+		// tagged release so self-update can proceed to unblock deadlocks.
+		cmp = -1
+	} else {
+		var compareErr error
+		cmp, compareErr = versionutil.CompareFull(currentVer, currentBuild, target.Version, target.BuildNumber)
+		if compareErr != nil {
+			return
+		}
 	}
 
 	targetLabel := fmt.Sprintf("%s+%d", target.Version, target.BuildNumber)

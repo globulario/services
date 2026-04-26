@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -71,6 +72,36 @@ func TestContractMissing_NoDesiredState_MinIOInactive_NoFinding(t *testing.T) {
 	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
 	if len(findings) != 0 {
 		t.Fatalf("expected 0 findings for inactive MinIO, got %d", len(findings))
+	}
+}
+
+func TestContractMissing_TransientEtcdError_Warn(t *testing.T) {
+	// etcd read error (transient) + MinIO active → WARN, not CRITICAL.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired:          nil,
+		ObjectStoreDesiredLoadError: errors.New("etcd: leader election in progress"),
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			{NodeId: "node-1"},
+		},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": minioActiveInventory(),
+		},
+	}
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("expected WARN for transient etcd error, got %v", findings[0].Severity)
+	}
+}
+
+func TestContractMissing_DesiredStatePresent_ClearsOnFreshSnap(t *testing.T) {
+	// Desired state present → 0 findings (stale CRITICAL clears on next evaluation).
+	snap := threeNodePoolSnap()
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when desired state present, got %d: %v", len(findings), findings[0].Summary)
 	}
 }
 
@@ -188,6 +219,155 @@ func TestDestructiveGuard_FirstDistributed_NoTransition_Critical(t *testing.T) {
 	}
 	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
 		t.Errorf("expected CRITICAL, got %v", findings[0].Severity)
+	}
+}
+
+// ── objectstoreCredentialsMissing ─────────────────────────────────────────────
+
+func TestCredentialsMissing_DesiredNil_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: nil,
+		Nodes:              []*cluster_controllerpb.NodeRecord{},
+		Inventories:        map[string]*node_agentpb.Inventory{},
+	}
+	findings := objectstoreCredentialsMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when desired is nil, got %d", len(findings))
+	}
+}
+
+func TestCredentialsMissing_FlagTrue_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:       1,
+			CredentialsReady: true,
+			AccessKey:        "ak",
+			SecretKey:        "sk",
+		},
+	}
+	findings := objectstoreCredentialsMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when credentials_ready=true, got %d", len(findings))
+	}
+}
+
+func TestCredentialsMissing_BackwardCompat_OldContract_NoFinding(t *testing.T) {
+	// Old contracts have CredentialsReady=false (zero) but AccessKey populated.
+	// Must NOT fire — backward compatibility.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:       1,
+			CredentialsReady: false, // old contract: field absent in JSON
+			AccessKey:        "ak",
+			SecretKey:        "sk",
+		},
+	}
+	findings := objectstoreCredentialsMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for backward-compat old contract (credentials present but flag false), got %d", len(findings))
+	}
+}
+
+func TestCredentialsMissing_FlagFalse_EmptyCredentials_Critical(t *testing.T) {
+	// New degraded contract: flag=false AND credentials empty.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:       2,
+			CredentialsReady: false,
+			AccessKey:        "",
+			SecretKey:        "",
+		},
+	}
+	findings := objectstoreCredentialsMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 CRITICAL finding for missing credentials, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Errorf("expected CRITICAL severity, got %v", findings[0].Severity)
+	}
+	if findings[0].InvariantID != "objectstore.minio.credentials_missing" {
+		t.Errorf("unexpected invariant ID: %s", findings[0].InvariantID)
+	}
+}
+
+func TestCredentialsMissing_ContractMissing_DoesNotFire(t *testing.T) {
+	// Ensure contract_missing does not fire when a degraded contract exists,
+	// even though MinIO is running.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:       1,
+			CredentialsReady: false,
+			AccessKey:        "",
+		},
+		Nodes: []*cluster_controllerpb.NodeRecord{{NodeId: "node-1"}},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": minioActiveInventory(),
+		},
+	}
+	findings := objectstoreContractMissing{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("contract_missing must not fire when degraded contract exists, got %d findings: %v",
+			len(findings), findings[0].Summary)
+	}
+}
+
+// ── objectstoreEndpointUnresolved ─────────────────────────────────────────────
+
+func TestEndpointUnresolved_DesiredNil_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{ObjectStoreDesired: nil}
+	findings := objectstoreEndpointUnresolved{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when desired is nil, got %d", len(findings))
+	}
+}
+
+func TestEndpointUnresolved_FlagTrue_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:    1,
+			EndpointReady: true,
+			Endpoint:      "10.0.0.63:9000",
+		},
+	}
+	findings := objectstoreEndpointUnresolved{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings when endpoint_ready=true, got %d", len(findings))
+	}
+}
+
+func TestEndpointUnresolved_BackwardCompat_OldContract_NoFinding(t *testing.T) {
+	// Old contracts: EndpointReady=false (zero) but Endpoint populated.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:    1,
+			EndpointReady: false, // old contract: field absent in JSON
+			Endpoint:      "10.0.0.63:9000",
+		},
+	}
+	findings := objectstoreEndpointUnresolved{}.Evaluate(snap, Config{})
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings for backward-compat old contract (endpoint present but flag false), got %d", len(findings))
+	}
+}
+
+func TestEndpointUnresolved_FlagFalse_EmptyEndpoint_Warn(t *testing.T) {
+	// New degraded contract: flag=false AND endpoint empty.
+	snap := &collector.Snapshot{
+		ObjectStoreDesired: &config.ObjectStoreDesiredState{
+			Generation:    2,
+			EndpointReady: false,
+			Endpoint:      "",
+		},
+	}
+	findings := objectstoreEndpointUnresolved{}.Evaluate(snap, Config{})
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 WARN finding for unresolved endpoint, got %d", len(findings))
+	}
+	if findings[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("expected WARN severity, got %v", findings[0].Severity)
+	}
+	if findings[0].InvariantID != "objectstore.minio.endpoint_unresolved" {
+		t.Errorf("unexpected invariant ID: %s", findings[0].InvariantID)
 	}
 }
 

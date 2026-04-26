@@ -471,9 +471,15 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		}
 		// Workload/service releases skip nodes not yet bootstrap-ready.
 		// Infrastructure releases target all nodes (they're what gets nodes ready).
-		if !isInfra && !bootstrapPhaseReady(node.BootstrapPhase) {
-			log.Printf("release-workflow: skip node %s (bootstrap_phase=%s)", nodeID, node.BootstrapPhase)
-			continue
+		if !isInfra {
+			isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
+			if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
+				log.Printf("release-workflow: skip node %s (bootstrap_phase=%s, infra not ready for control-plane-critical)", nodeID, node.BootstrapPhase)
+				continue
+			} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
+				log.Printf("release-workflow: skip node %s (bootstrap_phase=%s)", nodeID, node.BootstrapPhase)
+				continue
+			}
 		}
 
 		// Profile filter.

@@ -167,6 +167,18 @@ func bootstrapPhaseReady(phase BootstrapPhase) bool {
 	return phase == BootstrapNone || phase == BootstrapWorkloadReady || phase == BootstrapStorageJoining
 }
 
+// bootstrapInfraReady returns true if the node's infra mesh is up (Envoy is
+// active) and control-plane-critical workloads may be dispatched. This is a
+// wider gate than bootstrapPhaseReady — it allows deployment of services like
+// cluster-controller and workflow before workload_ready so they can unblock
+// nodes stuck at envoy_ready (e.g. due to the MinIO topology contract).
+func bootstrapInfraReady(phase BootstrapPhase) bool {
+	return phase == BootstrapNone ||
+		phase == BootstrapWorkloadReady ||
+		phase == BootstrapStorageJoining ||
+		phase == BootstrapEnvoyReady
+}
+
 // ---------------------------------------------------------------------------
 // Day 1 lifecycle phases — full lifecycle tracking on top of BootstrapPhase.
 // ---------------------------------------------------------------------------

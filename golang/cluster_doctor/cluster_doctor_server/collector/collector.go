@@ -175,6 +175,7 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	defer osCancel()
 	if desired, err := config.LoadObjectStoreDesiredState(osCtx); err != nil {
 		snap.addError("etcd", "LoadObjectStoreDesiredState", err)
+		snap.ObjectStoreDesiredLoadError = err
 	} else if desired != nil {
 		snap.ObjectStoreDesired = desired
 		snap.addSource("etcd.objectstore_desired_state")
