@@ -235,6 +235,49 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		snap.addSource("etcd.pki_ca_metadata")
 	}
 
+	// ── 3e. Admitted disks — operator-approved disk records from etcd ────────
+	admitCtx, admitCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer admitCancel()
+	if admitted, err := config.LoadAdmittedDisks(admitCtx); err != nil {
+		snap.addError("etcd", "LoadAdmittedDisks", err)
+	} else {
+		snap.AdmittedDisks = admitted
+		snap.addSource("etcd.admitted_disks")
+	}
+
+	// ── 3f. Disk candidates — per-node inventory from etcd ───────────────────
+	diskCtx, diskCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+	defer diskCancel()
+	if candidates, err := config.LoadAllDiskCandidates(diskCtx); err != nil {
+		snap.addError("etcd", "LoadAllDiskCandidates", err)
+	} else {
+		snap.DiskCandidates = candidates
+		snap.addSource("etcd.disk_candidates")
+	}
+
+	// ── 3g. Applied state fingerprint + volumes hash ──────────────────────────
+	if cli, err := config.GetEtcdClient(); err == nil {
+		fpCtx, fpCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer fpCancel()
+		if resp, err := cli.Get(fpCtx, config.EtcdKeyObjectStoreAppliedStateFingerprint); err == nil && len(resp.Kvs) > 0 {
+			snap.AppliedStateFingerprint = string(resp.Kvs[0].Value)
+			snap.addSource("etcd.objectstore_applied_state_fingerprint")
+		}
+		if resp, err := cli.Get(fpCtx, config.EtcdKeyObjectStoreAppliedVolumesHash); err == nil && len(resp.Kvs) > 0 {
+			snap.AppliedVolumesHash = string(resp.Kvs[0].Value)
+		}
+	}
+
+	// ── 3h. Desired topology transition record (destructive change guard) ─────
+	if snap.ObjectStoreDesired != nil {
+		tCtx, tCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
+		defer tCancel()
+		if transition, err := config.LoadTopologyTransition(tCtx, snap.ObjectStoreDesired.Generation); err == nil && transition != nil {
+			snap.DesiredTopologyTransition = transition
+			snap.addSource("etcd.topology_transition")
+		}
+	}
+
 	// ── 4. Per-node calls (concurrent, capped) ────────────────────────────────
 	if len(snap.Nodes) > 0 {
 		c.fetchPerNode(ctx, snap)

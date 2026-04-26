@@ -73,7 +73,9 @@ func TestNodeIsPreparedForMinioJoin(t *testing.T) {
 	}
 }
 
-// TestMinioJoin_HappyPath tests: none → prepared → pool_updated → started → verified.
+// TestMinioJoin_HappyPath tests Day-0 bootstrap: the first node (empty pool)
+// auto-creates the pool and progresses through the full state machine:
+// none → prepared → pool_updated → started → verified.
 func TestMinioJoin_HappyPath(t *testing.T) {
 	mgr := newMinioPoolManager()
 	state := &controllerState{MinioCredentials: generateMinioCredentials()}
@@ -123,59 +125,187 @@ func TestMinioJoin_HappyPath(t *testing.T) {
 	}
 }
 
-// TestMinioJoin_PoolOrderStable tests that pool order is append-only.
-func TestMinioJoin_PoolOrderStable(t *testing.T) {
+// TestMinioJoin_TopologyContract_Day1NodeNotAutoJoined verifies that a
+// storage-profile node joining an existing pool is NOT auto-appended to
+// MinioPoolNodes and does NOT bump ObjectStoreGeneration.
+//
+// This is the core topology contract invariant: ObjectStoreDesiredState.Nodes
+// changes only through an explicit apply-topology call.
+func TestMinioJoin_TopologyContract_Day1NodeNotAutoJoined(t *testing.T) {
 	mgr := newMinioPoolManager()
-	state := &controllerState{MinioCredentials: generateMinioCredentials()}
 
-	node1 := &nodeState{
-		NodeID:         "n1",
-		Identity:       storedIdentity{Hostname: "node-1", Ips: []string{"10.0.0.1"}},
-		Profiles:       []string{"core"},
-		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "active"}},
-		BootstrapPhase: BootstrapWorkloadReady,
+	// Simulate an existing pool established by Day-0 bootstrap.
+	// ObjectStoreGeneration=1 was set when the first node auto-joined.
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
 	}
-	node2 := &nodeState{
+
+	// Day-1: node-2 joins the cluster with a storage profile and has its
+	// globular-minio.service unit installed.
+	day1Node := &nodeState{
 		NodeID:         "n2",
 		Identity:       storedIdentity{Hostname: "node-2", Ips: []string{"10.0.0.2"}},
-		Profiles:       []string{"core"},
-		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
-		BootstrapPhase: BootstrapStorageJoining,
-	}
-	nodes := []*nodeState{node1, node2}
-
-	// First reconcile: both nodes get processed.
-	mgr.reconcileMinioJoinPhases(nodes, state)
-	mgr.reconcileMinioJoinPhases(nodes, state) // prepared → pool_updated
-
-	if len(state.MinioPoolNodes) != 2 {
-		t.Fatalf("expected 2 nodes in pool, got %d", len(state.MinioPoolNodes))
-	}
-	// Order should be stable (n1 first, n2 second — order of processing).
-	if state.MinioPoolNodes[0] != "10.0.0.1" {
-		t.Errorf("expected first pool entry 10.0.0.1, got %s", state.MinioPoolNodes[0])
-	}
-	if state.MinioPoolNodes[1] != "10.0.0.2" {
-		t.Errorf("expected second pool entry 10.0.0.2, got %s", state.MinioPoolNodes[1])
-	}
-
-	// Adding node3 should append, not reorder.
-	node3 := &nodeState{
-		NodeID:         "n3",
-		Identity:       storedIdentity{Hostname: "node-3", Ips: []string{"10.0.0.3"}},
 		Profiles:       []string{"storage"},
 		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
 		BootstrapPhase: BootstrapStorageJoining,
 	}
-	nodes = append(nodes, node3)
-	mgr.reconcileMinioJoinPhases(nodes, state)
-	mgr.reconcileMinioJoinPhases(nodes, state)
+	nodes := []*nodeState{day1Node}
 
-	if len(state.MinioPoolNodes) != 3 {
-		t.Fatalf("expected 3 nodes in pool, got %d", len(state.MinioPoolNodes))
+	// Run several reconcile cycles as the controller would.
+	for i := 0; i < 5; i++ {
+		mgr.reconcileMinioJoinPhases(nodes, state)
 	}
-	if state.MinioPoolNodes[2] != "10.0.0.3" {
-		t.Errorf("expected third pool entry 10.0.0.3, got %s", state.MinioPoolNodes[2])
+
+	// Pool must be unchanged.
+	if len(state.MinioPoolNodes) != 1 {
+		t.Fatalf("topology contract violated: pool grew to %d nodes; expected 1 (only Day-0 node)",
+			len(state.MinioPoolNodes))
+	}
+	if state.MinioPoolNodes[0] != "10.0.0.1" {
+		t.Errorf("pool entry changed: want 10.0.0.1, got %s", state.MinioPoolNodes[0])
+	}
+
+	// Generation must not have bumped.
+	if state.ObjectStoreGeneration != 1 {
+		t.Fatalf("topology contract violated: ObjectStoreGeneration bumped to %d; expected 1",
+			state.ObjectStoreGeneration)
+	}
+
+	// Day-1 node must remain at MinioJoinNone (held, not progressing).
+	if day1Node.MinioJoinPhase != MinioJoinNone {
+		t.Errorf("Day-1 node phase = %s; expected none (awaiting apply-topology)",
+			day1Node.MinioJoinPhase)
+	}
+}
+
+// TestMinioJoin_TopologyContract_MultipleDay1NodesHeld verifies that multiple
+// Day-1 storage-profile nodes joining simultaneously do not corrupt the pool.
+func TestMinioJoin_TopologyContract_MultipleDay1NodesHeld(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+	}
+
+	node2 := &nodeState{
+		NodeID: "n2", Identity: storedIdentity{Hostname: "node-2", Ips: []string{"10.0.0.2"}},
+		Profiles: []string{"core"}, Units: []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
+		BootstrapPhase: BootstrapStorageJoining,
+	}
+	node3 := &nodeState{
+		NodeID: "n3", Identity: storedIdentity{Hostname: "node-3", Ips: []string{"10.0.0.3"}},
+		Profiles: []string{"storage"}, Units: []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
+		BootstrapPhase: BootstrapWorkloadReady,
+	}
+	nodes := []*nodeState{node2, node3}
+
+	for i := 0; i < 4; i++ {
+		mgr.reconcileMinioJoinPhases(nodes, state)
+	}
+
+	if len(state.MinioPoolNodes) != 1 {
+		t.Fatalf("topology contract violated: pool = %v; expected [10.0.0.1] only", state.MinioPoolNodes)
+	}
+	if state.ObjectStoreGeneration != 1 {
+		t.Fatalf("generation bumped to %d; expected 1", state.ObjectStoreGeneration)
+	}
+}
+
+// TestMinioJoin_TopologyContract_AfterApplyTopology verifies that after
+// apply-topology explicitly adds a node to MinioPoolNodes, the pool manager
+// correctly fast-forwards that node's join phase.
+func TestMinioJoin_TopologyContract_AfterApplyTopology(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+	}
+
+	day1Node := &nodeState{
+		NodeID:         "n2",
+		Identity:       storedIdentity{Hostname: "node-2", Ips: []string{"10.0.0.2"}},
+		Profiles:       []string{"storage"},
+		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "active"}},
+		BootstrapPhase: BootstrapWorkloadReady,
+	}
+	nodes := []*nodeState{day1Node}
+
+	// Held before apply-topology.
+	mgr.reconcileMinioJoinPhases(nodes, state)
+	if day1Node.MinioJoinPhase != MinioJoinNone {
+		t.Fatalf("expected none before apply-topology, got %s", day1Node.MinioJoinPhase)
+	}
+
+	// Simulate apply-topology: controller explicitly adds n2 and bumps generation.
+	state.MinioPoolNodes = append(state.MinioPoolNodes, "10.0.0.2")
+	state.ObjectStoreGeneration = 2
+
+	// Pool manager should now fast-forward n2 to verified (minio is active).
+	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	if !dirty {
+		t.Fatal("expected dirty after apply-topology added node to pool")
+	}
+	if day1Node.MinioJoinPhase != MinioJoinVerified {
+		t.Errorf("expected verified after apply-topology, got %s", day1Node.MinioJoinPhase)
+	}
+	if len(state.MinioPoolNodes) != 2 {
+		t.Errorf("pool should have 2 nodes, got %d", len(state.MinioPoolNodes))
+	}
+}
+
+// TestMinioJoin_TopologyContract_PreparedStateResets verifies the defensive
+// guard: if a node is somehow in MinioJoinPrepared with a non-empty pool
+// (e.g., persisted state from before a code deploy), it is reset to None
+// without appending to the pool or bumping generation.
+func TestMinioJoin_TopologyContract_PreparedStateResets(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+	}
+
+	// Node somehow ended up in MinioJoinPrepared (stale persisted state).
+	staleNode := &nodeState{
+		NodeID:         "n2",
+		Identity:       storedIdentity{Hostname: "stale", Ips: []string{"10.0.0.2"}},
+		Profiles:       []string{"core"},
+		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
+		BootstrapPhase: BootstrapWorkloadReady,
+		MinioJoinPhase: MinioJoinPrepared, // stale state
+	}
+	nodes := []*nodeState{staleNode}
+
+	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	if !dirty {
+		t.Fatal("expected dirty (reset from stale Prepared state)")
+	}
+	if staleNode.MinioJoinPhase != MinioJoinNone {
+		t.Errorf("expected reset to none, got %s", staleNode.MinioJoinPhase)
+	}
+	if len(state.MinioPoolNodes) != 1 {
+		t.Fatalf("pool grew unexpectedly: %v", state.MinioPoolNodes)
+	}
+	if state.ObjectStoreGeneration != 1 {
+		t.Fatalf("generation bumped unexpectedly to %d", state.ObjectStoreGeneration)
+	}
+
+	// After reset, subsequent cycles must hold the node at None (not re-enter Prepared).
+	for i := 0; i < 3; i++ {
+		mgr.reconcileMinioJoinPhases(nodes, state)
+	}
+	if staleNode.MinioJoinPhase != MinioJoinNone {
+		t.Errorf("node re-entered non-None phase after reset: %s", staleNode.MinioJoinPhase)
+	}
+	if len(state.MinioPoolNodes) != 1 {
+		t.Fatalf("pool grew after stale-state reset: %v", state.MinioPoolNodes)
 	}
 }
 

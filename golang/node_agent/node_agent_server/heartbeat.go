@@ -149,6 +149,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
+			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||

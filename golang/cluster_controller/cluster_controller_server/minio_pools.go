@@ -79,9 +79,17 @@ func newMinioPoolManager() *minioPoolManager {
 
 // reconcileMinioJoinPhases drives the MinIO join state machine.
 //
-// The flow:
+// Topology contract:
+//   - The pool manager may only auto-create MinioPoolNodes when the pool is
+//     completely empty (Day-0 bootstrap of the first node).
+//   - Once a pool exists, ObjectStoreDesiredState.Nodes is owned by the
+//     topology contract: additions require an explicit apply-topology call.
+//     A Day-1 storage-profile node that is not yet in MinioPoolNodes is
+//     silently held at MinioJoinNone until apply-topology adds it.
+//
+// State flow (for nodes already admitted into the pool):
 //  1. prepared: preconditions met
-//  2. pool_updated: node IP appended to MinioPoolNodes (triggers config re-render for all nodes)
+//  2. pool_updated: node IP appended to MinioPoolNodes (bootstrap only)
 //  3. started: globular-minio.service active
 //  4. verified: service healthy (active for >30s)
 func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *controllerState) (dirty bool) {
@@ -117,7 +125,15 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 				continue
 			}
 
-			log.Printf("minio pool: node %s (%s) is prepared, marking for pool join",
+			// Topology contract: only allow auto-pool-creation during Day-0
+			// bootstrap (empty pool). Once a pool exists, ObjectStoreDesiredState
+			// is governed by apply-topology — this node must wait for explicit
+			// admission and must not auto-append or bump ObjectStoreGeneration.
+			if len(state.MinioPoolNodes) > 0 {
+				continue
+			}
+
+			log.Printf("minio pool: node %s (%s) is prepared, marking for pool join (Day-0 bootstrap)",
 				node.NodeID, node.Identity.Hostname)
 			node.MinioJoinPhase = MinioJoinPrepared
 			node.MinioJoinStartedAt = now
@@ -131,6 +147,15 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 				continue
 			}
 			if !ipInPool(ip, state.MinioPoolNodes) {
+				// Safety guard: if another node was appended first (or this node
+				// entered MinioJoinPrepared from persisted state before this code
+				// was deployed), the pool is now non-empty. Reset to None — the
+				// topology contract gate above will hold the node correctly.
+				if len(state.MinioPoolNodes) > 0 {
+					node.MinioJoinPhase = MinioJoinNone
+					dirty = true
+					continue
+				}
 				state.MinioPoolNodes = append(state.MinioPoolNodes, ip)
 				state.ObjectStoreGeneration++
 				log.Printf("minio pool: appended %s to pool (total %d nodes, gen=%d)",

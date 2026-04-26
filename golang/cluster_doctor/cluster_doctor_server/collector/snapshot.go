@@ -91,6 +91,35 @@ type Snapshot struct {
 	// Collected from /globular/nodes/{id}/objectstore/rendered_state_fingerprint.
 	NodeRenderedFingerprints map[string]string
 
+	// AdmittedDisks is the list of operator-approved disk records read from
+	// /globular/objectstore/disk/admitted/**. Consumed by the
+	// "objectstore.minio.unapproved_path" and "objectstore.minio.existing_data_guard"
+	// invariants. Empty when no disks have been admitted yet.
+	AdmittedDisks []*config.AdmittedDisk
+
+	// DiskCandidates is the per-node disk inventory reported by each node agent,
+	// keyed by node ID. Consumed by "objectstore.minio.existing_data_guard".
+	// Missing entries mean the node agent has not reported candidates yet.
+	DiskCandidates map[string][]*config.DiskCandidate
+
+	// AppliedStateFingerprint is the topology fingerprint recorded in etcd at
+	// /globular/objectstore/topology/applied_state_fingerprint after the last
+	// successful apply_topology_generation workflow run. Empty when no topology
+	// has been applied yet.
+	AppliedStateFingerprint string
+
+	// AppliedVolumesHash is the volumes hash recorded alongside the applied
+	// fingerprint. Used by the "objectstore.minio.splitbrain" invariant to
+	// detect drive/path changes that have not been reconciled.
+	AppliedVolumesHash string
+
+	// DesiredTopologyTransition is the pending destructive transition record for
+	// the current desired generation, read from
+	// /globular/objectstore/topology/transition/{generation}.
+	// Nil when the current generation is not destructive or no transition record
+	// has been written. Consumed by "objectstore.minio.destructive_guard".
+	DesiredTopologyTransition *config.TopologyTransition
+
 	mu sync.Mutex
 }
 
@@ -129,6 +158,7 @@ func newSnapshot(id string) *Snapshot {
 		IntegrityReports:         make(map[string]*IntegrityReport),
 		NodeRenderedGenerations:  make(map[string]int64),
 		NodeRenderedFingerprints: make(map[string]string),
+		DiskCandidates:           make(map[string][]*config.DiskCandidate),
 	}
 }
 

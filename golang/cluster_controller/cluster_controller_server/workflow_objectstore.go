@@ -40,33 +40,9 @@ const objectStoreLockStaleDur = 30 * time.Minute
 // The workflow is idempotent: if a run for the same correlationID is already
 // in progress the workflow service returns it immediately.
 func (srv *server) RunObjectStoreTopologyWorkflow(ctx context.Context, targetGeneration int64) (*workflowpb.ExecuteWorkflowResponse, error) {
-	// Snapshot pool nodes and their agent endpoints under lock.
-	srv.lock("RunObjectStoreTopologyWorkflow:snapshot")
-	poolNodeIDs := make([]string, 0)
-	poolNodes := make([]any, 0)
-	for _, node := range srv.state.Nodes {
-		if !nodeHasMinioProfile(node) {
-			continue
-		}
-		if nodeRoutableIP(node) == "" {
-			continue
-		}
-		poolNodeIDs = append(poolNodeIDs, node.NodeID)
-		poolNodes = append(poolNodes, map[string]any{
-			"node_id":        node.NodeID,
-			"agent_endpoint": node.AgentEndpoint,
-		})
-	}
-	poolNodeIDsAny := make([]any, len(poolNodeIDs))
-	for i, id := range poolNodeIDs {
-		poolNodeIDsAny[i] = id
-	}
-	clusterID := srv.cfg.ClusterDomain
-	srv.unlock()
-
-	// Compute the expected state fingerprint and volumes_hash from the
-	// currently-desired objectstore state so all render checks use the same
-	// reference value that was published to etcd.
+	// Load the authoritative desired state from etcd first. The pool node list
+	// comes from desired.Nodes — NOT from profile-based in-memory scanning.
+	// This ensures the workflow only operates on the nodes the operator approved.
 	desiredCtx, desiredCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer desiredCancel()
 	desired, err := configpkg.LoadObjectStoreDesiredState(desiredCtx)
@@ -81,6 +57,39 @@ func (srv *server) RunObjectStoreTopologyWorkflow(ctx context.Context, targetGen
 	}
 	expectedFingerprint := configpkg.RenderStateFingerprint(desired)
 	expectedVolumesHash := desired.VolumesHash
+
+	// Build pool from desired.Nodes: resolve each IP to a live node-agent endpoint.
+	// Fail fast if any desired node has no live endpoint — don't silently skip.
+	srv.lock("RunObjectStoreTopologyWorkflow:snapshot")
+	ipToNode := make(map[string]*nodeState, len(srv.state.Nodes))
+	for _, node := range srv.state.Nodes {
+		if ip := nodeRoutableIP(node); ip != "" {
+			ipToNode[ip] = node
+		}
+	}
+	clusterID := srv.cfg.ClusterDomain
+	srv.unlock()
+
+	poolNodeIDs := make([]string, 0, len(desired.Nodes))
+	poolNodes := make([]any, 0, len(desired.Nodes))
+	for _, poolIP := range desired.Nodes {
+		node, ok := ipToNode[poolIP]
+		if !ok || node.AgentEndpoint == "" {
+			return nil, fmt.Errorf("objectstore-workflow: desired pool node %s has no live agent endpoint — cannot proceed", poolIP)
+		}
+		poolNodeIDs = append(poolNodeIDs, node.NodeID)
+		poolNodes = append(poolNodes, map[string]any{
+			"node_id":        node.NodeID,
+			"agent_endpoint": node.AgentEndpoint,
+		})
+	}
+	if len(poolNodeIDs) == 0 {
+		return nil, fmt.Errorf("objectstore-workflow: desired topology has no nodes (generation=%d)", targetGeneration)
+	}
+	poolNodeIDsAny := make([]any, len(poolNodeIDs))
+	for i, id := range poolNodeIDs {
+		poolNodeIDsAny[i] = id
+	}
 
 	router := engine.NewRouter()
 
@@ -362,25 +371,58 @@ func (srv *server) setObjectStoreRestartInProgress(ctx context.Context, inProgre
 	return err
 }
 
-// recordObjectStoreAppliedGeneration writes the applied generation and a JSON
-// summary to etcd with status=succeeded.
+// recordObjectStoreAppliedGeneration atomically writes the applied generation,
+// state fingerprint, and volumes_hash to etcd in a single transaction.
+// All three are written together or not at all — they are the single source of
+// truth for "what topology is actually running". If the desired state cannot be
+// loaded or its generation doesn't match, the function fails hard (no partial write).
 func (srv *server) recordObjectStoreAppliedGeneration(ctx context.Context, gen int64) error {
 	cli, err := configpkg.GetEtcdClient()
 	if err != nil {
 		return fmt.Errorf("etcd unavailable: %w", err)
 	}
 
+	// Load desired state — must match gen (health verification just confirmed it).
+	desired, err := configpkg.LoadObjectStoreDesiredState(ctx)
+	if err != nil {
+		return fmt.Errorf("load desired state for recording: %w", err)
+	}
+	if desired == nil {
+		return fmt.Errorf("desired state missing from etcd — cannot record applied generation %d", gen)
+	}
+	if desired.Generation != gen {
+		return fmt.Errorf("desired generation changed to %d during recording (expected %d) — aborting", desired.Generation, gen)
+	}
+
+	fp := configpkg.RenderStateFingerprint(desired)
+	genStr := strconv.FormatInt(gen, 10)
+
+	// Atomic transaction: generation + fingerprint + volumes_hash committed together.
+	txnResp, err := cli.Txn(ctx).Then(
+		clientv3.OpPut(configpkg.EtcdKeyObjectStoreAppliedGeneration, genStr),
+		clientv3.OpPut(configpkg.EtcdKeyObjectStoreAppliedStateFingerprint, fp),
+		clientv3.OpPut(configpkg.EtcdKeyObjectStoreAppliedVolumesHash, desired.VolumesHash),
+	).Commit()
+	if err != nil {
+		return fmt.Errorf("etcd txn for applied generation %d: %w", gen, err)
+	}
+	if !txnResp.Succeeded {
+		return fmt.Errorf("etcd txn for applied generation %d did not succeed", gen)
+	}
+
+	log.Printf("objectstore: recorded applied generation=%d fingerprint=%s volumes_hash=%s",
+		gen, fp[:min8(fp)], desired.VolumesHash)
+
+	// Best-effort summary record (non-critical, no transaction needed).
 	summary, _ := json.Marshal(map[string]any{
 		"generation": gen,
 		"applied_at": time.Now().Format(time.RFC3339),
 		"status":     "succeeded",
 	})
-
-	if _, err := cli.Put(ctx, configpkg.EtcdKeyObjectStoreAppliedGeneration, strconv.FormatInt(gen, 10)); err != nil {
-		return err
+	if _, err := cli.Put(ctx, configpkg.EtcdKeyObjectStoreLastRestartResult, string(summary)); err != nil {
+		log.Printf("objectstore: WARNING: failed to write restart result summary: %v", err)
 	}
-	_, err = cli.Put(ctx, configpkg.EtcdKeyObjectStoreLastRestartResult, string(summary))
-	return err
+	return nil
 }
 
 // verifyMinioClusterHealthy checks that all pool nodes are running MinIO in the

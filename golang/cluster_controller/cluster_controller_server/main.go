@@ -375,6 +375,9 @@ func main() {
 	closeProjections, _ := srv.initProjections(ctx)
 	defer closeProjections()
 
+	// Start objectstore topology apply watcher (watches etcd for CLI apply requests).
+	srv.startObjectStoreApplyWatcher(ctx)
+
 	// Start DNS reconciler if cluster domain is configured
 	startDNSReconciler(srv, state)
 

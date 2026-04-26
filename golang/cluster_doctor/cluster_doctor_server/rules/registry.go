@@ -79,6 +79,20 @@ func NewRegistry(cfg Config) *Registry {
 		pkiCANotPublished{},
 		pkiCAExpiryWarning{},
 		pkiNodeCertWrongCA{},
+		// Disk admission invariants: split-brain standalone, unapproved paths,
+		// quorum shape, and existing-data destructive guard.
+		// Consume AdmittedDisks + DiskCandidates + ObjectStoreDesired.
+		objectstoreMinioStandaloneSplitbrain{},
+		objectstoreMinioUnapprovedPath{},
+		objectstoreMinioQuorumShape{},
+		objectstoreMinioExistingDataGuard{},
+		// Topology contract invariants:
+		//   contract_missing     — MinIO running but no desired state in etcd.
+		//   destructive_guard    — destructive topology change pending without
+		//                         an approved TopologyTransition record.
+		// Consume ObjectStoreDesired + DesiredTopologyTransition + Inventories.
+		objectstoreContractMissing{},
+		objectstoreDestructiveGuard{},
 	}
 	// Append PENDING stubs
 	r.invariants = append(r.invariants, pendingInvariants()...)

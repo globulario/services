@@ -53,6 +53,15 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		return
 	}
 
+	// ── Transition-driven wipe (BEFORE writing env) ───────────────────────────
+	// Always check for an approved TopologyTransition record for this generation.
+	// This covers ALL destructive topology changes:
+	//   - standalone → distributed
+	//   - distributed → distributed (node pool change, path change, drive count change)
+	// The wipe is idempotent — clearMinioSysForModeChange is a no-op when .minio.sys
+	// is already absent, so calling this on every reconcile cycle is safe.
+	srv.clearMinioSysIfTransitionApproved(ctx, state, nodeIP)
+
 	// ── Render minio.env ──────────────────────────────────────────────────────
 
 	wantEnv := config.RenderMinioEnv(state)
@@ -60,7 +69,7 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		return
 	}
 
-	// Read existing env BEFORE overwriting so we can detect a mode transition.
+	// Read existing env for drift detection (log only — etcd desired state wins).
 	existingEnv, _ := os.ReadFile(minioEnvFile)
 
 	envChanged, err := atomicWriteIfChanged(minioEnvFile, []byte(wantEnv), 0o640)
@@ -70,14 +79,21 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	}
 	if envChanged {
 		log.Printf("minio-systemd: updated %s (generation=%d)", minioEnvFile, state.Generation)
-		// Detect standalone → distributed transition: old env had no https:// URLs,
-		// new env does. MinIO refuses to start when format.json was written by a
-		// standalone deployment (erasure-set size 1) and the new topology requires
-		// size ≥ 2. Wipe .minio.sys so MinIO reinitialises its erasure set.
+		// Log a mode-transition hint for operator visibility, but do NOT gate
+		// the wipe on this — the transition record (written above) is the gate.
 		wasStandalone := !strings.Contains(string(existingEnv), "https://")
 		isDistributed := strings.Contains(wantEnv, "https://")
 		if wasStandalone && isDistributed {
-			srv.clearMinioSysForModeChange(state, nodeIP)
+			log.Printf("minio-systemd: standalone→distributed mode transition detected (gen=%d) — wipe governed by transition record", state.Generation)
+		}
+	} else if len(existingEnv) > 0 {
+		// On-disk content already matches desired — check for fingerprint drift
+		// caused by manual edits that were silently overwritten on a prior cycle.
+		desiredFP := config.RenderStateFingerprint(state)
+		renderedFP, _ := srv.readRenderedFingerprint()
+		if renderedFP != "" && renderedFP != desiredFP {
+			log.Printf("minio-systemd: DRIFT DETECTED node=%s: rendered fingerprint %s != desired %s (generation=%d); env already matches — checking rendered_generation",
+				srv.nodeID, renderedFP[:8], desiredFP[:8], state.Generation)
 		}
 	}
 
@@ -124,6 +140,24 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	}
 
 	_ = envChanged // used implicitly through log above
+}
+
+// readRenderedFingerprint reads the last rendered state fingerprint for this
+// node from etcd. Returns ("", nil) when no fingerprint has been written yet.
+func (srv *NodeAgentServer) readRenderedFingerprint() (string, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return "", err
+	}
+	key := config.EtcdKeyNodeRenderedStateFingerprint(srv.nodeID)
+	resp, err := cli.Get(context.Background(), key)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Kvs) == 0 {
+		return "", nil
+	}
+	return string(resp.Kvs[0].Value), nil
 }
 
 // writeRenderedGeneration records the last generation this node successfully
@@ -219,6 +253,67 @@ func removeIfExists(path string) (bool, error) {
 	return true, nil
 }
 
+// transitionAuthorizesWipe returns (true, reason) when the transition record
+// explicitly authorizes wiping .minio.sys on nodeIP for this desired state.
+// Returns (false, reason) when the wipe must be skipped.
+// This is a pure function (no etcd I/O) so it can be tested without a live cluster.
+func transitionAuthorizesWipe(transition *config.TopologyTransition, state *config.ObjectStoreDesiredState, nodeIP string) (bool, string) {
+	if transition == nil {
+		return false, fmt.Sprintf("no transition record for gen=%d", state.Generation)
+	}
+	if transition.Generation != state.Generation {
+		return false, fmt.Sprintf("transition gen=%d != desired gen=%d (stale record)", transition.Generation, state.Generation)
+	}
+	if !transition.IsDestructive {
+		return false, fmt.Sprintf("transition gen=%d is not destructive", state.Generation)
+	}
+	if !transition.Approved {
+		return false, fmt.Sprintf("transition gen=%d not approved by operator", state.Generation)
+	}
+
+	// Node must be in the affected-path wipe plan.
+	expectedPath, inPlan := transition.AffectedPaths[nodeIP]
+	if !inPlan {
+		return false, fmt.Sprintf("node %s not in wipe plan for gen=%d", nodeIP, state.Generation)
+	}
+
+	// Cross-check: transition path must match current desired state path.
+	if state.NodePaths != nil {
+		if desiredPath, ok := state.NodePaths[nodeIP]; ok && desiredPath != expectedPath {
+			return false, fmt.Sprintf("path mismatch for node %s: transition=%q desired=%q (stale record?)", nodeIP, expectedPath, desiredPath)
+		}
+	}
+
+	return true, fmt.Sprintf("approved destructive transition gen=%d node=%s path=%s", state.Generation, nodeIP, expectedPath)
+}
+
+// clearMinioSysIfTransitionApproved wipes .minio.sys only when the controller
+// has recorded an approved destructive TopologyTransition for the desired
+// generation AND this node/path is in the wipe plan. This prevents any local
+// inference from triggering a wipe without explicit operator approval.
+func (srv *NodeAgentServer) clearMinioSysIfTransitionApproved(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) {
+	tCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	transition, err := config.LoadTopologyTransition(tCtx, state.Generation)
+	if err != nil {
+		log.Printf("minio-transition: could not load transition record gen=%d: %v — skipping .minio.sys wipe", state.Generation, err)
+		return
+	}
+
+	authorized, reason := transitionAuthorizesWipe(transition, state, nodeIP)
+	if !authorized {
+		// Only log at non-trivial cases (nil transition on gen=0 is normal startup noise).
+		if transition != nil || state.Generation > 0 {
+			log.Printf("minio-transition: wipe not authorized — %s", reason)
+		}
+		return
+	}
+
+	log.Printf("minio-transition: %s — proceeding with .minio.sys wipe", reason)
+	srv.clearMinioSysForModeChange(state, nodeIP)
+}
+
 // clearMinioSysForModeChange removes the .minio.sys directory from every data
 // drive on this node. This is necessary when transitioning from standalone to
 // distributed mode: standalone MinIO writes format.json with erasure-set
@@ -249,7 +344,7 @@ func (srv *NodeAgentServer) clearMinioSysForModeChange(state *config.ObjectStore
 		if _, err := os.Stat(minioSys); os.IsNotExist(err) {
 			continue
 		}
-		log.Printf("minio-systemd: NOTICE: clearing %s — standalone→distributed mode transition (objects lost; re-publish required)", minioSys)
+		log.Printf("minio-systemd: NOTICE: clearing %s — approved destructive topology transition (objects lost; re-publish required)", minioSys)
 		if err := os.RemoveAll(minioSys); err != nil {
 			log.Printf("minio-systemd: ERROR: failed to clear %s: %v", minioSys, err)
 		} else {
