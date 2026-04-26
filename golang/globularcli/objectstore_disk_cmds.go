@@ -624,8 +624,11 @@ coordinate a rolling MinIO restart across all pool nodes.
 Destructive proposals (standalone→distributed transitions, path changes)
 require --i-understand-data-reset. Without this flag, the apply is rejected.
 
-CAUTION: Destructive applies wipe .minio.sys on affected nodes. All objects
-stored in standalone mode are LOST. Re-publish packages with 'globular pkg publish'.`,
+CAUTION: Destructive applies wipe .minio.sys AND ALL BUCKET DATA on affected
+nodes. This includes the 'globular' artifact repository — every published
+package will be lost and must be re-published with 'globular deploy --all'.
+Disk admission records are also wiped from etcd and must be re-created with
+'globular objectstore disk approve' before the next topology change.`,
 	RunE: runObjectstoreTopologyApply,
 }
 
@@ -664,6 +667,14 @@ func runObjectstoreTopologyApply(cmd *cobra.Command, args []string) error {
 		for _, r := range proposal.DestructiveReasons {
 			fmt.Fprintf(os.Stderr, "  ⚠ %s\n", r)
 		}
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  WARNING: this will permanently destroy:")
+		fmt.Fprintln(os.Stderr, "    • .minio.sys (MinIO internal state) on all pool nodes")
+		fmt.Fprintln(os.Stderr, "    • ALL bucket data including the 'globular' artifact repository")
+		fmt.Fprintln(os.Stderr, "  After apply you MUST:")
+		fmt.Fprintln(os.Stderr, "    1. Re-create the artifact bucket:  mc mb local/globular")
+		fmt.Fprintln(os.Stderr, "    2. Re-publish all services:        globular deploy --all --bump patch")
+		fmt.Fprintln(os.Stderr, "    3. Re-admit disks on next change:  globular objectstore disk approve ...")
 		return fmt.Errorf("destructive apply requires --i-understand-data-reset")
 	}
 

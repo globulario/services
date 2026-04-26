@@ -83,7 +83,36 @@ func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool
 		return true, nil
 	}
 
-	return false, nil // another executor owns it
+	// INSERT failed — another executor holds the lease.
+	// Check if that lease is stale (heartbeat older than orphanHeartbeatTimeout).
+	// If so, steal it immediately rather than waiting for the orphan scanner.
+	cutoff := time.Now().Add(-orphanHeartbeatTimeout).UnixMilli()
+	var existingExecutor string
+	var existingHeartbeat int64
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel()
+	if err := m.srv.session.Query(`
+		SELECT executor_id, heartbeat_at FROM workflow.executor_leases WHERE run_id = ?`,
+		runID,
+	).WithContext(readCtx).Scan(&existingExecutor, &existingHeartbeat); err != nil {
+		// Can't read the lease — treat as actively owned.
+		return false, nil
+	}
+	if existingHeartbeat >= cutoff {
+		// Lease is fresh — respect active ownership.
+		return false, nil
+	}
+
+	// Stale lease: steal it using the same LWT as the orphan scanner.
+	slog.Info("executor lease: stale lease on ClaimRun, stealing",
+		"run_id", runID,
+		"stale_executor", existingExecutor,
+		"heartbeat_age_ms", time.Now().UnixMilli()-existingHeartbeat)
+	stolen, err := m.claimOrphan(ctx, runID, existingHeartbeat)
+	if err != nil {
+		return false, fmt.Errorf("steal stale lease for run %s: %w", runID, err)
+	}
+	return stolen, nil
 }
 
 // ReleaseRun removes the lease for a completed run and stops its heartbeat.
