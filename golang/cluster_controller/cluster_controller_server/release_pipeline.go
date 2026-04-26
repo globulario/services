@@ -754,7 +754,7 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 }
 
 func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRelease) *releaseHandle {
-	return &releaseHandle{
+	h := &releaseHandle{
 		Name:                   rel.Meta.Name,
 		ResourceType:           "InfrastructureRelease",
 		Generation:             rel.Meta.Generation,
@@ -786,6 +786,11 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 			})
 		},
 	}
+	// DriftDetector: runtime health drift (unit went inactive after AVAILABLE).
+	h.DriftDetector = func(ctx context.Context, dh *releaseHandle) bool {
+		return srv.detectInfraDrift(ctx, rel, dh)
+	}
+	return h
 }
 
 // ── Status patch helpers ─────────────────────────────────────────────────────
@@ -1115,6 +1120,97 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		Nodes:                updatedNodes,
 		LastTransitionUnixMs: time.Now().UnixMilli(),
 		TransitionReason:     reason,
+		SetFields:            "nodes",
+	})
+	return true
+}
+
+// detectInfraDrift checks runtime health drift for an InfrastructureRelease.
+// For each per-node AVAILABLE entry, it verifies that the corresponding
+// systemd unit is still active. If any node's runtime is dead (and runtime
+// proof is required for the component), the node is downgraded to DEGRADED.
+//
+// On the next reconcile cycle, hasUnservedNodes will see the degraded node
+// is no longer AVAILABLE → returns true → triggers re-PENDING → re-dispatch.
+//
+// Returns true if drift was detected and a patch was written.
+func (srv *server) detectInfraDrift(ctx context.Context, rel *cluster_controllerpb.InfrastructureRelease, h *releaseHandle) bool {
+	nodes := h.Nodes
+	if len(nodes) == 0 {
+		return false
+	}
+	component := rel.Spec.Component
+	if !runtimeProofRequiredForKind("INFRASTRUCTURE", component) {
+		// Command-like infrastructure (restic, rclone, mc, etc.) has no
+		// systemd unit — nothing to check.
+		return false
+	}
+
+	degraded := 0
+	updatedNodes := make([]*cluster_controllerpb.NodeReleaseStatus, 0, len(nodes))
+
+	for _, n := range nodes {
+		if n == nil || strings.TrimSpace(n.NodeID) == "" {
+			continue
+		}
+		nodeID := strings.TrimSpace(n.NodeID)
+		nCopy := *n
+
+		if n.Phase != cluster_controllerpb.ReleasePhaseAvailable {
+			// Only re-evaluate nodes the release considers converged.
+			updatedNodes = append(updatedNodes, &nCopy)
+			continue
+		}
+
+		srv.lock("detectInfraDrift:snapshot")
+		node := srv.state.Nodes[nodeID]
+		srv.unlock()
+
+		// Skip nodes with stale heartbeats to avoid false degradation during
+		// network hiccups. Stale nodes are not authoritative about runtime state.
+		if node != nil && !node.LastSeen.IsZero() && time.Since(node.LastSeen) > unhealthyThreshold {
+			updatedNodes = append(updatedNodes, &nCopy)
+			continue
+		}
+
+		// MinIO topology contract: non-pool-member nodes intentionally hold
+		// MinIO inactive (enforceMinioRuntimeMembership stops it). Do not
+		// treat this as drift — enforcing runtime here would fight the
+		// topology controller in a restart loop.
+		if component == "minio" && node != nil {
+			if node.MinioJoinPhase == MinioJoinNonMember {
+				updatedNodes = append(updatedNodes, &nCopy)
+				continue
+			}
+			srv.lock("detectInfraDrift:pool")
+			poolNodes := append([]string(nil), srv.state.MinioPoolNodes...)
+			srv.unlock()
+			if ip := nodeRoutableIP(node); len(poolNodes) > 0 && ip != "" && !ipInPool(ip, poolNodes) {
+				updatedNodes = append(updatedNodes, &nCopy)
+				continue
+			}
+		}
+
+		healthy, reason := packageRuntimeHealthyOnNode(node, component, "INFRASTRUCTURE")
+		if !healthy {
+			log.Printf("infra drift: release=%s node=%s component=%s runtime unhealthy (%s), downgrading to DEGRADED",
+				h.Name, nodeID, component, reason)
+			nCopy.Phase = cluster_controllerpb.ReleasePhaseDegraded
+			nCopy.UpdatedUnixMs = time.Now().UnixMilli()
+			degraded++
+		}
+		updatedNodes = append(updatedNodes, &nCopy)
+	}
+
+	if degraded == 0 {
+		return false
+	}
+
+	h.PatchStatus(ctx, statusPatch{
+		Phase:                cluster_controllerpb.ReleasePhaseDegraded,
+		Nodes:                updatedNodes,
+		LastTransitionUnixMs: time.Now().UnixMilli(),
+		TransitionReason:     "runtime_drift",
 		SetFields:            "nodes",
 	})
 	return true
