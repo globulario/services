@@ -160,7 +160,7 @@ func (srv *server) waitBootstrapCondition(ctx context.Context, nodeID, condition
 			return nodeHasUnitActive(node, "globular-envoy.service")
 		case "storage_verified":
 			allOK := true
-			if nodeHasMinioProfile(node) && node.MinioJoinPhase != MinioJoinVerified {
+			if nodeHasMinioProfile(node) && node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
 				allOK = false
 			}
 			if nodeHasScyllaProfile(node) && node.ScyllaJoinPhase != ScyllaJoinVerified {

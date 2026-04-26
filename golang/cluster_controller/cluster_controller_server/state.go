@@ -222,7 +222,8 @@ const (
 type MinioJoinPhase string
 
 const (
-	MinioJoinNone        MinioJoinPhase = ""             // not a minio node
+	MinioJoinNone        MinioJoinPhase = ""             // not yet classified
+	MinioJoinNonMember   MinioJoinPhase = "non_member"   // confirmed non-pool-member; MinIO correctly held
 	MinioJoinPrepared    MinioJoinPhase = "prepared"     // unit exists, ready to join pool
 	MinioJoinPoolUpdated MinioJoinPhase = "pool_updated" // IP appended to MinioPoolNodes, config re-rendered
 	MinioJoinStarted     MinioJoinPhase = "started"      // globular-minio.service active

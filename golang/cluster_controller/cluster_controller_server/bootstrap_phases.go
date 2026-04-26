@@ -177,7 +177,7 @@ func reconcileBootstrapPhases(nodes []*nodeState, emitter eventEmitter) (dirty b
 			var waiting string
 
 			if nodeHasMinioProfile(node) {
-				if node.MinioJoinPhase != MinioJoinVerified {
+				if node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
 					allReady = false
 					waiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
 				}
@@ -346,9 +346,15 @@ func requiredBootstrapInfraPackages(node *nodeState) []string {
 		"node-exporter",
 		"sidekick",
 	} {
-		if nodeHasComponentProfile(node, name) {
-			add(name)
+		if !nodeHasComponentProfile(node, name) {
+			continue
 		}
+		// Non-pool-member nodes correctly hold MinIO inactive; skip the runtime
+		// check so bootstrap is not permanently blocked at envoy_ready.
+		if name == "minio" && node.MinioJoinPhase == MinioJoinNonMember {
+			continue
+		}
+		add(name)
 	}
 	return out
 }

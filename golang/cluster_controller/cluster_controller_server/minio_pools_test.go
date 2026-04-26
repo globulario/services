@@ -173,9 +173,11 @@ func TestMinioJoin_TopologyContract_Day1NodeNotAutoJoined(t *testing.T) {
 			state.ObjectStoreGeneration)
 	}
 
-	// Day-1 node must remain at MinioJoinNone (held, not progressing).
-	if day1Node.MinioJoinPhase != MinioJoinNone {
-		t.Errorf("Day-1 node phase = %s; expected none (awaiting apply-topology)",
+	// Day-1 node must be marked as a confirmed non-member (not None, not Prepared).
+	// MinioJoinNonMember lets bootstrap advance past envoy_ready without requiring
+	// minio to be active. The pool is still governed by apply-topology.
+	if day1Node.MinioJoinPhase != MinioJoinNonMember {
+		t.Errorf("Day-1 node phase = %s; expected non_member (confirmed non-pool-member)",
 			day1Node.MinioJoinPhase)
 	}
 }
@@ -236,10 +238,10 @@ func TestMinioJoin_TopologyContract_AfterApplyTopology(t *testing.T) {
 	}
 	nodes := []*nodeState{day1Node}
 
-	// Held before apply-topology.
+	// Held before apply-topology — node is classified as a confirmed non-member.
 	mgr.reconcileMinioJoinPhases(nodes, state)
-	if day1Node.MinioJoinPhase != MinioJoinNone {
-		t.Fatalf("expected none before apply-topology, got %s", day1Node.MinioJoinPhase)
+	if day1Node.MinioJoinPhase != MinioJoinNonMember {
+		t.Fatalf("expected non_member before apply-topology, got %s", day1Node.MinioJoinPhase)
 	}
 
 	// Simulate apply-topology: controller explicitly adds n2 and bumps generation.
@@ -297,12 +299,13 @@ func TestMinioJoin_TopologyContract_PreparedStateResets(t *testing.T) {
 		t.Fatalf("generation bumped unexpectedly to %d", state.ObjectStoreGeneration)
 	}
 
-	// After reset, subsequent cycles must hold the node at None (not re-enter Prepared).
+	// After reset, subsequent cycles classify the node as a confirmed non-member.
+	// It must not re-enter Prepared, and the pool must not grow.
 	for i := 0; i < 3; i++ {
 		mgr.reconcileMinioJoinPhases(nodes, state)
 	}
-	if staleNode.MinioJoinPhase != MinioJoinNone {
-		t.Errorf("node re-entered non-None phase after reset: %s", staleNode.MinioJoinPhase)
+	if staleNode.MinioJoinPhase != MinioJoinNonMember {
+		t.Errorf("expected non_member after stale-reset cycles, got %s", staleNode.MinioJoinPhase)
 	}
 	if len(state.MinioPoolNodes) != 1 {
 		t.Fatalf("pool grew after stale-state reset: %v", state.MinioPoolNodes)

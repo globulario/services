@@ -104,7 +104,7 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 		}
 
 		switch node.MinioJoinPhase {
-		case MinioJoinNone, MinioJoinFailed:
+		case MinioJoinNone, MinioJoinFailed, MinioJoinNonMember:
 			if !nodeIsPreparedForMinioJoin(node) {
 				continue
 			}
@@ -130,6 +130,13 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 			// is governed by apply-topology — this node must wait for explicit
 			// admission and must not auto-append or bump ObjectStoreGeneration.
 			if len(state.MinioPoolNodes) > 0 {
+				// Mark explicitly as non-member so bootstrap can skip the minio
+				// runtime check. Without this the node stays at envoy_ready
+				// forever because minio is correctly held on non-pool nodes.
+				if node.MinioJoinPhase != MinioJoinNonMember {
+					node.MinioJoinPhase = MinioJoinNonMember
+					dirty = true
+				}
 				continue
 			}
 
