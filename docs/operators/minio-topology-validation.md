@@ -267,3 +267,49 @@ The `fingerprint_divergence` invariant is the strongest proof — it fires even 
 | Lock held > 30 min | Controller crash before onFailure + lease not granted | Lock should auto-expire; if not, delete manually |
 | MinIO health unhealthy post-apply | MinIO failed to start in distributed mode | Check `journalctl -u globular-minio.service` on pool nodes |
 | `applied_generation` not advancing | `verify_minio_cluster_healthy` timed out | MinIO health check failed; see above |
+
+---
+
+## Live validation record — 2026-04-26
+
+**Tag**: `v1.0.81-minio-gate-validated`
+**Cluster**: globule-ryzen (10.0.0.63), globule-nuc (10.0.0.8), globule-dell (10.0.0.20)
+**Desired state**: standalone, generation=1, pool=`[10.0.0.63]`
+
+### Gate enforcement confirmed
+
+| Node | Pool member | Result |
+|------|-------------|--------|
+| globule-ryzen (10.0.0.63) | YES | MinIO active, 200 live/ready throughout |
+| globule-nuc (10.0.0.8) | NO | `enforceMinioHeld` stopped MinIO at 05:18:31 on first reconcile after deploy |
+| globule-dell (10.0.0.20) | NO | MinIO was not running (already held from prior reconcile) |
+
+**Nuc journal evidence**:
+```
+2026-04-26T05:18:31 globule-nuc minio[3470147]: INFO: Exiting on signal: TERMINATED
+2026-04-26T05:18:31 globule-nuc systemd[1]: Stopping globular-minio.service...
+2026-04-26T05:18:31 globule-nuc systemd[1]: globular-minio.service: Deactivated successfully.
+```
+
+MinIO on nuc had been running since 03:43:51 (started by the apply_topology_generation workflow
+coordinated restart — this is expected: the workflow restarts all pool nodes simultaneously,
+and nuc was briefly a restart target). The new node-agent (v1.0.81) deployed at ~05:18 fired
+`reconcileMinioSystemdConfig` on startup, detected nuc is not in `ObjectStoreDesiredState.Nodes`,
+and stopped it within seconds.
+
+### Paths validated
+
+| Path | Mechanism | Status |
+|------|-----------|--------|
+| A — ControlService RPC | `nodeIPInPool()` rejects `start`/`restart` | Validated by unit tests (12 cases) |
+| B — ApplyPackageRelease | Returns `installed_held` for non-members | Validated by unit tests |
+| C — workflow restart action | Only targets `$.pool_nodes` (derived from desired state) | Design-safe by construction |
+| reconcile — `enforceMinioHeld` | Stops active MinIO on non-member at every sync | **Live-validated** on nuc at 05:18:31 |
+
+### Root cause of earlier MinIO outage (same session)
+
+MinIO on ryzen was stopped manually by `unix-user:dave` at 04:40:14 (confirmed via polkit log),
+not by the apply_topology_generation workflow (which had already completed successfully at 03:43
+with `RUN_STATUS_SUCCEEDED`). The deadlock that followed (repo needs MinIO, node-agent needs repo
+to fetch MinIO) was broken by manually restarting MinIO on ryzen after confirming pre-flight:
+desired state present, ryzen in pool, no pending destructive transition, no active lock.
