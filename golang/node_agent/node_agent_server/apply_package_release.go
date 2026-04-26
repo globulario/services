@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
@@ -199,6 +200,42 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// This is the convergence truth boundary: OK=true means the service IS running.
 	unit := "globular-" + strings.ReplaceAll(name, "_", "-") + ".service"
 	log.Printf("apply-package: restarting %s", unit)
+
+	// ── MinIO topology gate ─────────────────────────────────────────────
+	// The minio binary may be installed on any storage-profile node, but
+	// globular-minio.service must not start until the node is admitted into
+	// ObjectStoreDesiredState.Nodes via apply-topology.
+	// Skip Enable+Restart here; reconcileMinioSystemdConfig (syncTicker)
+	// will start MinIO once the pool state admits this node.
+	// If etcd is unavailable (poolErr != nil), fall through: the topology
+	// gate in reconcileMinioSystemdConfig will stop MinIO on the next cycle.
+	if name == "minio" {
+		nodeIP := srv.nodeIP()
+		poolState, poolErr := config.LoadObjectStoreDesiredState(ctx)
+		if poolErr == nil && !nodeIPInPool(nodeIP, poolState) {
+			log.Printf("apply-package: minio installed on non-member node %s (ip=%s) — skipping service start (held_not_in_topology)", srv.nodeID, nodeIP)
+			_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+				NodeId:      srv.nodeID,
+				Name:        name,
+				Version:     version,
+				Kind:        kind,
+				Status:      "installed_held",
+				UpdatedUnix: time.Now().Unix(),
+				OperationId: operationID,
+				BuildNumber: req.GetBuildNumber(),
+				BuildId:     buildID,
+				Metadata:    map[string]string{"held_reason": "not_in_objectstore_pool"},
+			})
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          true,
+				Message:     fmt.Sprintf("minio installed on %s (ip=%s) but service held — not in ObjectStoreDesiredState.Nodes (run apply-topology to admit)", srv.nodeID, nodeIP),
+				PackageName: name,
+				Version:     version,
+				Status:      "installed_held",
+				OperationId: operationID,
+			}, nil
+		}
+	}
 
 	// ── Self-update edge case ───────────────────────────────────────────
 	// When the package being updated IS the node-agent, a synchronous restart

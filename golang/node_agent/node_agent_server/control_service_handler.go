@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,6 +48,29 @@ func (srv *NodeAgentServer) ControlService(ctx context.Context, req *node_agentp
 	// Safety: only allow control of Globular-managed units
 	if !isAllowedUnit(unit) {
 		return nil, status.Errorf(codes.PermissionDenied, "unit %q is not a managed service — only globular-* and scylla-* units are allowed", unit)
+	}
+
+	// ── MinIO topology gate ───────────────────────────────────────────────
+	// start/restart of globular-minio.service is only permitted on nodes that
+	// are admitted into ObjectStoreDesiredState.Nodes. Reject before touching
+	// systemctl so that no transient active window exists on non-members.
+	// stop/status are always allowed (stopping a non-member is the right thing).
+	if unit == "globular-minio.service" && (action == "start" || action == "restart") {
+		state, loadErr := config.LoadObjectStoreDesiredState(ctx)
+		if loadErr != nil {
+			return nil, status.Errorf(codes.Unavailable,
+				"minio topology gate: etcd unavailable — cannot verify pool membership before %s: %v", action, loadErr)
+		}
+		nodeIP := srv.nodeIP()
+		if !nodeIPInPool(nodeIP, state) {
+			return &node_agentpb.ControlServiceResponse{
+				Ok:      false,
+				Unit:    unit,
+				Action:  action,
+				State:   "held_not_in_topology",
+				Message: fmt.Sprintf("minio topology gate: node ip=%s is not in ObjectStoreDesiredState.Nodes — %s rejected (run apply-topology first)", nodeIP, action),
+			}, nil
+		}
 	}
 
 	systemctl, err := systemctlLookPath("systemctl")
