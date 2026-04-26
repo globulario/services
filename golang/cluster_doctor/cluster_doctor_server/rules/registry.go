@@ -83,6 +83,7 @@ func NewRegistry(cfg Config) *Registry {
 		// quorum shape, and existing-data destructive guard.
 		// Consume AdmittedDisks + DiskCandidates + ObjectStoreDesired.
 		objectstoreMinioStandaloneSplitbrain{},
+		objectstoreMinioActiveOnNonMember{},
 		objectstoreMinioUnapprovedPath{},
 		objectstoreMinioQuorumShape{},
 		objectstoreMinioExistingDataGuard{},

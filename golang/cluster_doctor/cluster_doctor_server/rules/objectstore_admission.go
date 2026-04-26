@@ -4,6 +4,7 @@ package rules
 //
 // Invariants:
 //   objectstore.minio.standalone_splitbrain    — CRITICAL: ≥2 nodes in cluster, all running standalone
+//   objectstore.minio.active_on_non_member     — CRITICAL: MinIO active on node not in ObjectStoreDesiredState.Nodes
 //   objectstore.minio.unapproved_path          — CRITICAL: MinIO running on a path not in admitted disks
 //   objectstore.minio.quorum_shape             — WARN/CRITICAL: pool below minimum node/drive count
 //   objectstore.minio.existing_data_guard      — CRITICAL: destructive apply would wipe non-MinIO data
@@ -90,6 +91,90 @@ func (objectstoreMinioStandaloneSplitbrain) Evaluate(snap *collector.Snapshot, _
 			step(3, "Plan topology", "globular objectstore topology plan"),
 			step(4, "Apply topology (if destructive add --i-understand-data-reset)",
 				"globular objectstore topology apply --proposal <id>"),
+		},
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+	}}
+}
+
+// ─── objectstore.minio.active_on_non_member ───────────────────────────────────
+//
+// CRITICAL when globular-minio.service is active on a node whose IP is NOT in
+// ObjectStoreDesiredState.Nodes. This means MinIO is running outside of the
+// admitted pool topology — a policy violation that must be remediated.
+//
+// Root causes:
+//   - Day-1 node installed the MinIO package (correct) and the service was started
+//     by the installer or a systemd preset before the topology gate took effect.
+//   - Node-agent binary predates the topology gate (pre-fix binary running on node).
+//   - Manual systemctl start was issued on the node outside the apply-topology path.
+//
+// The fix is applied by the node-agent automatically once it is running the
+// patched binary: reconcileMinioSystemdConfig stops the service on non-member
+// nodes. This finding surfaces the condition while the node-agent catches up.
+
+type objectstoreMinioActiveOnNonMember struct{}
+
+func (objectstoreMinioActiveOnNonMember) ID() string {
+	return "objectstore.minio.active_on_non_member"
+}
+func (objectstoreMinioActiveOnNonMember) Category() string { return "objectstore" }
+func (objectstoreMinioActiveOnNonMember) Scope() string    { return "cluster" }
+
+func (objectstoreMinioActiveOnNonMember) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	desired := snap.ObjectStoreDesired
+	if desired == nil {
+		// contract_missing fires for this case — don't double-report.
+		return nil
+	}
+
+	// Build the admitted pool IP set.
+	poolIPs := make(map[string]bool, len(desired.Nodes))
+	for _, ip := range desired.Nodes {
+		poolIPs[ip] = true
+	}
+
+	var violators []string
+	for _, n := range snap.Nodes {
+		nodeID := n.GetNodeId()
+		if minioServiceState(snap, nodeID) != "active" {
+			continue
+		}
+		nodeIP := n.GetIdentity().GetAdvertiseIp()
+		if nodeIP == "" {
+			continue // cannot determine IP — skip
+		}
+		if !poolIPs[nodeIP] {
+			violators = append(violators, fmt.Sprintf("%s(%s)", nodeID[:8], nodeIP))
+		}
+	}
+
+	if len(violators) == 0 {
+		return nil
+	}
+
+	return []Finding{{
+		FindingID:   FindingID("objectstore.minio.active_on_non_member", "cluster", strings.Join(violators, ",")),
+		InvariantID: "objectstore.minio.active_on_non_member",
+		Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+		Category:    "objectstore",
+		EntityRef:   "cluster",
+		Summary: fmt.Sprintf(
+			"MinIO is active on %d node(s) that are NOT in ObjectStoreDesiredState.Nodes (gen=%d): %v. "+
+				"These nodes are running unauthorized standalone MinIO outside the admitted pool topology. "+
+				"The node-agent topology gate (reconcileMinioSystemdConfig) will stop the service automatically. "+
+				"If this persists, upgrade node-agent or run 'systemctl stop globular-minio' on each violator.",
+			len(violators), desired.Generation, violators),
+		Evidence: []*cluster_doctorpb.Evidence{
+			kvEvidence("etcd+inventory", "objectstore_desired+minio_service_state", map[string]string{
+				"desired_generation": fmt.Sprintf("%d", desired.Generation),
+				"desired_nodes":      strings.Join(desired.Nodes, ","),
+				"violating_nodes":    strings.Join(violators, "; "),
+			}),
+		},
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			step(1, "Upgrade node-agent to a version with the topology gate (≥1.0.81)", "globular cluster deploy node-agent"),
+			step(2, "Or stop MinIO manually on each violating node", "systemctl stop globular-minio"),
+			step(3, "To admit the node into the pool, run apply-topology", "globular objectstore topology apply --proposal <id>"),
 		},
 		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 	}}

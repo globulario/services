@@ -53,6 +53,16 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		return
 	}
 
+	// ── Topology membership gate ─────────────────────────────────────────────
+	// MinIO may only run on nodes that are admitted into ObjectStoreDesiredState.Nodes.
+	// A Day-1 storage-profile node that has the MinIO package installed but is not
+	// yet in the pool must not run MinIO — that creates a standalone split-brain.
+	// Stop the service (no data wipe) and skip all config rendering.
+	if !nodeIPInPool(nodeIP, state) {
+		srv.enforceMinioHeld(ctx, nodeIP, state.Generation)
+		return
+	}
+
 	// ── Transition-driven wipe (BEFORE writing env) ───────────────────────────
 	// Always check for an approved TopologyTransition record for this generation.
 	// This covers ALL destructive topology changes:
