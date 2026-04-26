@@ -89,9 +89,20 @@ spec:
         idempotency: safe_retry
         resume_policy: retry
 
+    - id: verify_contract_runtime_scope
+      title: Verify no active MinIO on non-member nodes
+      dependsOn: [acquire_lock]
+      actor: cluster-controller
+      action: controller.objectstore.verify_runtime_scope
+      with:
+        pool_node_ids: $.pool_node_ids
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
     - id: stop_minio
       title: Stop MinIO on all pool nodes
-      dependsOn: [acquire_lock]
+      dependsOn: [verify_contract_runtime_scope]
       foreach: $.pool_nodes
       itemName: pool_node
       strategy:

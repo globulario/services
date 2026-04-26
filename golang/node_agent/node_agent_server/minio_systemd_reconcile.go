@@ -19,111 +19,158 @@ const (
 	minioOverrideFile = "/etc/systemd/system/globular-minio.service.d/distributed.conf"
 )
 
-// reconcileMinioSystemdConfig ensures that:
-//  1. /var/lib/globular/minio/minio.env reflects the current ObjectStoreDesiredState.
-//  2. /etc/systemd/system/globular-minio.service.d/distributed.conf is present and
-//     correct for distributed/multi-drive mode, or absent for standalone single-drive.
-//  3. systemd daemon-reload is run if the override changed.
-//  4. The per-node rendered generation is written to etcd so the topology workflow
-//     can verify all pool nodes have applied the config before restarting MinIO.
+// reconcileMinioSystemdConfig is the top-level MinIO local contract enforcer.
+// It runs at startup and on every syncTicker interval.
 //
-// The node agent NEVER restarts MinIO independently. Restart is coordinated by the
-// controller's objectstore.minio.apply_topology_generation workflow after all pool
-// nodes have written the correct generation.
-//
-// Called at startup and every syncTicker interval, just like reconcileMinioContract.
+// Separation of concerns:
+//   - Package installed != runtime authorized. ObjectStoreDesiredState.Nodes is
+//     the runtime allow-list; topology changes go through apply-topology workflow.
+//   - TopologyTransition authorizes destructive local cleanup (.minio.sys wipe).
+//   - Workflow coordinates cluster-level stop/start and health verification.
+//   - Node-agent owns local enforcement: hold non-members, wipe on transition,
+//     render files, reload daemon, report rendered state.
+//   - Node-agent NEVER restarts MinIO independently.
 func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
+	// 1. Load desired state — bail on transient etcd errors or pre-pool state.
+	state, ok := srv.loadMinioDesiredState(ctx)
+	if !ok {
+		return
+	}
+
+	// 2. Resolve this node's IP — required for pool check and file rendering.
+	nodeIP, err := srv.resolveMinioNodeIP()
+	if err != nil {
+		log.Printf("minio-systemd: %v — skipping", err)
+		return
+	}
+
+	// 3. Enforce runtime membership.
+	//    Non-members: stop the service (no data wipe), skip all rendering.
+	if allowed := srv.enforceMinioRuntimeMembership(ctx, state, nodeIP); !allowed {
+		return
+	}
+
+	// 4. Apply approved destructive transition before rendering new config.
+	//    TopologyTransition record gates .minio.sys wipe — no local inference.
+	srv.applyApprovedMinioTransition(ctx, state, nodeIP)
+
+	// 5. Render minio.env and distributed.conf; returns whether daemon-reload needed.
+	daemonReloadNeeded, err := srv.renderMinioSystemdFiles(ctx, state, nodeIP)
+	if err != nil {
+		log.Printf("minio-systemd: render files: %v", err)
+		return
+	}
+
+	// 6. Reload daemon when the systemd override changed.
+	if daemonReloadNeeded {
+		if err := runDaemonReload(); err != nil {
+			log.Printf("minio-systemd: daemon-reload failed: %v", err)
+			// Non-fatal: record generation anyway; workflow verifies MinIO health.
+		}
+	}
+
+	// 7. Report rendered generation + fingerprint to etcd.
+	//    Workflow reads both to gate the coordinated restart.
+	if err := srv.recordMinioRenderedState(ctx, state); err != nil {
+		log.Printf("minio-systemd: record rendered generation %d: %v", state.Generation, err)
+	}
+}
+
+// ── phase functions ───────────────────────────────────────────────────────────
+
+// loadMinioDesiredState returns the current desired state (ok=true) or signals
+// that reconciliation should be skipped (ok=false) without logging transient errors.
+func (srv *NodeAgentServer) loadMinioDesiredState(ctx context.Context) (*config.ObjectStoreDesiredState, bool) {
+	if srv.nodeID == "" {
+		return nil, false
+	}
 	state, err := config.LoadObjectStoreDesiredState(ctx)
 	if err != nil {
-		// etcd transient — leave whatever is on disk alone.
-		return
+		return nil, false // etcd transient — leave whatever is on disk alone
 	}
 	if state == nil {
-		// No objectstore config yet (pre-pool-formation) — nothing to do.
-		return
+		return nil, false // pre-pool-formation — nothing to do
 	}
-	if srv.nodeID == "" {
-		return
-	}
+	return state, true
+}
 
-	// Determine this node's IP for rendering the ExecStart line.
-	nodeIP := srv.nodeIP()
-	if nodeIP == "" {
-		log.Printf("minio-systemd: cannot determine node IP — skipping")
-		return
+// resolveMinioNodeIP returns the routable IP for this node.
+// Returns an error if the IP cannot be determined.
+func (srv *NodeAgentServer) resolveMinioNodeIP() (string, error) {
+	ip := srv.nodeIP()
+	if ip == "" {
+		return "", fmt.Errorf("cannot determine node IP")
 	}
+	return ip, nil
+}
 
-	// ── Topology membership gate ─────────────────────────────────────────────
-	// MinIO may only run on nodes that are admitted into ObjectStoreDesiredState.Nodes.
-	// A Day-1 storage-profile node that has the MinIO package installed but is not
-	// yet in the pool must not run MinIO — that creates a standalone split-brain.
-	// Stop the service (no data wipe) and skip all config rendering.
-	if !nodeIPInPool(nodeIP, state) {
-		srv.enforceMinioHeld(ctx, nodeIP, state.Generation)
-		return
+// enforceMinioRuntimeMembership checks pool admission and enforces the hold.
+//
+//   - Package installed != runtime authorized.
+//   - ObjectStoreDesiredState.Nodes is the runtime allow-list.
+//
+// Returns true when the node is admitted and rendering may proceed.
+// Returns false when the node is not in the pool; enforceMinioHeld is called
+// to stop the service if active (no data wipe).
+func (srv *NodeAgentServer) enforceMinioRuntimeMembership(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) bool {
+	if nodeIPInPool(nodeIP, state) {
+		return true
 	}
+	srv.enforceMinioHeld(ctx, nodeIP, state.Generation)
+	return false
+}
 
-	// ── Transition-driven wipe (BEFORE writing env) ───────────────────────────
-	// Always check for an approved TopologyTransition record for this generation.
-	// This covers ALL destructive topology changes:
-	//   - standalone → distributed
-	//   - distributed → distributed (node pool change, path change, drive count change)
-	// The wipe is idempotent — clearMinioSysForModeChange is a no-op when .minio.sys
-	// is already absent, so calling this on every reconcile cycle is safe.
+// applyApprovedMinioTransition executes an approved destructive topology cleanup.
+//
+// TopologyTransition authorizes destructive local cleanup (.minio.sys wipe).
+// No wipe happens without an explicit controller-written transition record.
+// The wipe is idempotent — a no-op when .minio.sys is already absent.
+func (srv *NodeAgentServer) applyApprovedMinioTransition(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) {
 	srv.clearMinioSysIfTransitionApproved(ctx, state, nodeIP)
+}
 
-	// ── Render minio.env ──────────────────────────────────────────────────────
-
+// renderMinioSystemdFiles writes minio.env and the distributed.conf override.
+// Returns (daemonReloadNeeded, error).
+//
+// Workflow coordinates cluster-level restart; node-agent owns local file rendering.
+func (srv *NodeAgentServer) renderMinioSystemdFiles(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) (bool, error) {
+	// ── minio.env ─────────────────────────────────────────────────────────────
 	wantEnv := config.RenderMinioEnv(state)
 	if wantEnv == "" {
-		return
+		return false, fmt.Errorf("RenderMinioEnv returned empty (state gen=%d)", state.Generation)
 	}
 
-	// Read existing env for drift detection (log only — etcd desired state wins).
 	existingEnv, _ := os.ReadFile(minioEnvFile)
 
 	envChanged, err := atomicWriteIfChanged(minioEnvFile, []byte(wantEnv), 0o640)
 	if err != nil {
-		log.Printf("minio-systemd: write %s: %v", minioEnvFile, err)
-		return
+		return false, fmt.Errorf("write %s: %w", minioEnvFile, err)
 	}
 	if envChanged {
 		log.Printf("minio-systemd: updated %s (generation=%d)", minioEnvFile, state.Generation)
-		// Log a mode-transition hint for operator visibility, but do NOT gate
-		// the wipe on this — the transition record (written above) is the gate.
 		wasStandalone := !strings.Contains(string(existingEnv), "https://")
 		isDistributed := strings.Contains(wantEnv, "https://")
 		if wasStandalone && isDistributed {
 			log.Printf("minio-systemd: standalone→distributed mode transition detected (gen=%d) — wipe governed by transition record", state.Generation)
 		}
 	} else if len(existingEnv) > 0 {
-		// On-disk content already matches desired — check for fingerprint drift
-		// caused by manual edits that were silently overwritten on a prior cycle.
-		desiredFP := config.RenderStateFingerprint(state)
-		renderedFP, _ := srv.readRenderedFingerprint()
-		if renderedFP != "" && renderedFP != desiredFP {
-			log.Printf("minio-systemd: DRIFT DETECTED node=%s: rendered fingerprint %s != desired %s (generation=%d); env already matches — checking rendered_generation",
-				srv.nodeID, renderedFP[:8], desiredFP[:8], state.Generation)
-		}
+		srv.logFingerprintDrift(state)
 	}
 
-	// ── Render distributed.conf (systemd override) ────────────────────────────
-
+	// ── distributed.conf (systemd override) ──────────────────────────────────
 	wantOverride, needsOverride := config.RenderMinioSystemdOverride(state, nodeIP)
-
 	var overrideChanged bool
+
 	if needsOverride {
 		overrideChanged, err = atomicWriteIfChanged(minioOverrideFile, []byte(wantOverride), 0o644)
 		if err != nil {
-			log.Printf("minio-systemd: write %s: %v", minioOverrideFile, err)
-			return
+			return false, fmt.Errorf("write %s: %w", minioOverrideFile, err)
 		}
 		if overrideChanged {
 			log.Printf("minio-systemd: updated %s (generation=%d)", minioOverrideFile, state.Generation)
 		}
 	} else {
-		// Standalone single-drive: remove any stale override left from a previous
-		// distributed topology so systemd uses the service's own ExecStart.
+		// Standalone: remove any stale override so systemd uses the service's own ExecStart.
 		if removed, err := removeIfExists(minioOverrideFile); err != nil {
 			log.Printf("minio-systemd: remove stale %s: %v", minioOverrideFile, err)
 		} else if removed {
@@ -132,24 +179,25 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 		}
 	}
 
-	// daemon-reload required when the systemd override changed.
-	if overrideChanged {
-		if err := runDaemonReload(); err != nil {
-			log.Printf("minio-systemd: daemon-reload failed: %v", err)
-			// Non-fatal: write the rendered generation anyway; the topology
-			// workflow will verify MinIO comes up correctly before completing.
-		}
+	return overrideChanged, nil
+}
+
+// recordMinioRenderedState writes rendered_generation and state_fingerprint to etcd.
+// Workflow reads both to gate the coordinated restart.
+func (srv *NodeAgentServer) recordMinioRenderedState(ctx context.Context, state *config.ObjectStoreDesiredState) error {
+	return srv.writeRenderedGeneration(ctx, state)
+}
+
+// logFingerprintDrift logs a DRIFT DETECTED warning when the in-etcd rendered
+// fingerprint diverges from the current desired state fingerprint while the
+// on-disk env file already matches. This detects silent overwrites from manual edits.
+func (srv *NodeAgentServer) logFingerprintDrift(state *config.ObjectStoreDesiredState) {
+	desiredFP := config.RenderStateFingerprint(state)
+	renderedFP, _ := srv.readRenderedFingerprint()
+	if renderedFP != "" && renderedFP != desiredFP {
+		log.Printf("minio-systemd: DRIFT DETECTED node=%s: rendered fingerprint %s != desired %s (generation=%d); env already matches — checking rendered_generation",
+			srv.nodeID, renderedFP[:8], desiredFP[:8], state.Generation)
 	}
-
-	// ── Report rendered generation to etcd ───────────────────────────────────
-	// Only update the etcd record when the on-disk content now matches the desired
-	// generation (i.e. we wrote the right content, even if it was already present).
-
-	if err := srv.writeRenderedGeneration(ctx, state); err != nil {
-		log.Printf("minio-systemd: record rendered generation %d: %v", state.Generation, err)
-	}
-
-	_ = envChanged // used implicitly through log above
 }
 
 // readRenderedFingerprint reads the last rendered state fingerprint for this

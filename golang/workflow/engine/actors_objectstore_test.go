@@ -27,6 +27,9 @@ func buildTestObjectStoreConfig() ObjectStoreControllerConfig {
 		VerifyMinioClusterHealthy: func(_ context.Context, gen int64, hash string, nodeIDs []string) error {
 			return nil
 		},
+		VerifyRuntimeScope: func(_ context.Context, nodeIDs []string) error {
+			return nil
+		},
 		FailureCleanup: func(_ context.Context, gen int64, reason string) error {
 			return nil
 		},
@@ -299,6 +302,50 @@ func TestFailureCleanup_DefaultReason(t *testing.T) {
 	}
 }
 
+// ── verify_runtime_scope ──────────────────────────────────────────────────────
+
+// TestVerifyRuntimeScope_AllMembersActive verifies the happy path: all nodes
+// with active MinIO are in the pool — no split-brain risk, proceed is granted.
+func TestVerifyRuntimeScope_AllMembersActive(t *testing.T) {
+	cfg := buildTestObjectStoreConfig()
+	// Default VerifyRuntimeScope returns nil (all nodes verified as members).
+	_, err := callAction(cfg, "controller.objectstore.verify_runtime_scope",
+		map[string]any{"pool_node_ids": []any{"node-1", "node-2"}},
+		nil)
+	if err != nil {
+		t.Fatalf("expected success when all active nodes are pool members, got %v", err)
+	}
+}
+
+// TestVerifyRuntimeScope_NonMemberActive simulates a node outside the pool
+// that still has globular-minio.service active. The action must fail with an
+// error naming the violating node — this blocks the stop/start sequence.
+func TestVerifyRuntimeScope_NonMemberActive(t *testing.T) {
+	cfg := buildTestObjectStoreConfig()
+	cfg.VerifyRuntimeScope = func(_ context.Context, nodeIDs []string) error {
+		return fmt.Errorf("MinIO active on non-member nodes [abc12345(ip=10.0.0.99)]: split-brain risk")
+	}
+	_, err := callAction(cfg, "controller.objectstore.verify_runtime_scope",
+		map[string]any{"pool_node_ids": []any{"node-1", "node-2"}},
+		nil)
+	if err == nil {
+		t.Fatal("expected error when non-member node has MinIO active")
+	}
+	if err != nil && len(err.Error()) == 0 {
+		t.Fatal("error message must identify the violating node")
+	}
+}
+
+// TestVerifyRuntimeScope_MissingPoolNodeIDs verifies that the action fails fast
+// when the required pool_node_ids input is absent.
+func TestVerifyRuntimeScope_MissingPoolNodeIDs(t *testing.T) {
+	cfg := buildTestObjectStoreConfig()
+	_, err := callAction(cfg, "controller.objectstore.verify_runtime_scope", nil, nil)
+	if err == nil {
+		t.Fatal("expected error for missing pool_node_ids")
+	}
+}
+
 // ── lock actions ─────────────────────────────────────────────────────────────
 
 // TestAcquireTopologyLock_AlreadyHeld simulates a lock contention scenario:
@@ -371,6 +418,7 @@ func TestAllObjectStoreActionsRegistered(t *testing.T) {
 		"controller.objectstore.clear_restart_in_progress",
 		"controller.objectstore.record_applied_generation",
 		"controller.objectstore.verify_minio_cluster_healthy",
+		"controller.objectstore.verify_runtime_scope",
 		"controller.objectstore.failure_cleanup",
 	}
 

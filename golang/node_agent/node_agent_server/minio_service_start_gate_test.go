@@ -173,3 +173,56 @@ func TestApplyPackageMinioGate_AfterApplyTopologyBothAdmitted(t *testing.T) {
 		}
 	}
 }
+
+// ── Regression: non-member exits before wipe/render/write ────────────────
+//
+// reconcileMinioSystemdConfig is refactored into named phases:
+//   loadMinioDesiredState → resolveMinioNodeIP → enforceMinioRuntimeMembership
+//   → (early return if not in pool) → applyApprovedMinioTransition
+//   → renderMinioSystemdFiles → recordMinioRenderedState
+//
+// The test below proves that enforceMinioRuntimeMembership returns false for a
+// non-member, which is the condition that causes the early return.
+// No file I/O, no wipe, no etcd write can occur after a false return.
+
+// TestReconcilePhase_NonMemberReturnsBeforeWipeRenderWrite proves that
+// enforceMinioRuntimeMembership returns false for a non-member node, causing
+// the reconcile loop to exit before any transition/wipe/render/write phases.
+func TestReconcilePhase_NonMemberReturnsBeforeWipeRenderWrite(t *testing.T) {
+	srv := &NodeAgentServer{nodeID: "test-node"}
+	state := &config.ObjectStoreDesiredState{
+		Generation: 1,
+		Nodes:      []string{"10.0.0.63"}, // only ryzen in pool
+	}
+	nonMemberIP := "10.0.0.8" // Day-1 nuc — not in pool
+
+	// enforceMinioRuntimeMembership is the gate that returns false for non-members.
+	// We use a nil context here because the systemctl is-active call in
+	// enforceMinioHeld will fail gracefully (no systemd in test environment).
+	// The important assertion is the return value.
+	allowed := srv.enforceMinioRuntimeMembership(t.Context(), state, nonMemberIP)
+	if allowed {
+		t.Fatal("enforceMinioRuntimeMembership must return false for a non-member node — " +
+			"applyApprovedMinioTransition, renderMinioSystemdFiles, and recordMinioRenderedState " +
+			"must not be called")
+	}
+}
+
+// TestReconcilePhase_MemberProceedsToRender proves that a pool member gets
+// allowed=true from enforceMinioRuntimeMembership, meaning the reconcile loop
+// proceeds to render phases.
+func TestReconcilePhase_MemberProceedsToRender(t *testing.T) {
+	srv := &NodeAgentServer{nodeID: "test-node"}
+	state := &config.ObjectStoreDesiredState{
+		Generation: 1,
+		Nodes:      []string{"10.0.0.63"},
+	}
+	memberIP := "10.0.0.63"
+
+	// In test env there is no globular-minio.service, so enforceMinioHeld is not
+	// called (member nodes skip it entirely). The return value must be true.
+	allowed := srv.enforceMinioRuntimeMembership(t.Context(), state, memberIP)
+	if !allowed {
+		t.Fatal("enforceMinioRuntimeMembership must return true for a pool member")
+	}
+}

@@ -115,6 +115,9 @@ func (srv *server) RunObjectStoreTopologyWorkflow(ctx context.Context, targetGen
 		VerifyMinioClusterHealthy: func(ctx context.Context, gen int64, hash string, nodeIDs []string) error {
 			return srv.verifyMinioClusterHealthy(ctx, gen, hash, nodeIDs)
 		},
+		VerifyRuntimeScope: func(ctx context.Context, nodeIDs []string) error {
+			return srv.verifyMinioRuntimeScope(ctx, nodeIDs)
+		},
 		FailureCleanup: func(ctx context.Context, gen int64, reason string) error {
 			return srv.objectStoreFailureCleanup(ctx, gen, reason)
 		},
@@ -520,6 +523,86 @@ func (srv *server) verifyMinioClusterHealthy(ctx context.Context, targetGenerati
 		}
 	}
 
+	return nil
+}
+
+// verifyMinioRuntimeScope is the controller-side implementation of
+// controller.objectstore.verify_runtime_scope.
+//
+// It checks two invariants before any stop/start of pool nodes:
+//
+//  1. No node outside poolNodeIDs has globular-minio.service active.
+//     An active non-member means a split-brain is already running or
+//     the node-agent topology gate has not yet enforced the hold.
+//     The workflow must refuse to proceed — stopping only pool members
+//     while a non-member stays running would create an asymmetric state.
+//
+//  2. All desired pool nodes have a reachable agent endpoint.
+//     A missing endpoint means the workflow cannot stop or start MinIO
+//     on that node; proceeding would leave the cluster in a partial state.
+//
+// Returns a non-nil, non-retriable error on violation.
+// Doctor invariant objectstore.minio.active_on_non_member remains as
+// continuous monitoring between workflow runs.
+func (srv *server) verifyMinioRuntimeScope(ctx context.Context, poolNodeIDs []string) error {
+	// Build set of admitted pool node IDs.
+	poolSet := make(map[string]bool, len(poolNodeIDs))
+	for _, id := range poolNodeIDs {
+		poolSet[id] = true
+	}
+
+	srv.lock("verifyMinioRuntimeScope:snapshot")
+	type nodeSnap struct {
+		nodeID   string
+		ip       string
+		endpoint string
+		units    []unitStatusRecord
+	}
+	snaps := make([]nodeSnap, 0, len(srv.state.Nodes))
+	for _, n := range srv.state.Nodes {
+		snaps = append(snaps, nodeSnap{
+			nodeID:   n.NodeID,
+			ip:       nodeRoutableIP(n),
+			endpoint: n.AgentEndpoint,
+			units:    append([]unitStatusRecord(nil), n.Units...),
+		})
+	}
+	srv.unlock()
+
+	// 1. Check for active MinIO on non-member nodes (heartbeat-based, no RPC).
+	var nonMemberActive []string
+	for _, s := range snaps {
+		if poolSet[s.nodeID] {
+			continue // pool member — allowed
+		}
+		for _, u := range s.units {
+			if u.Name == "globular-minio.service" && u.State == "active" {
+				nonMemberActive = append(nonMemberActive, fmt.Sprintf("%s(ip=%s)", s.nodeID[:8], s.ip))
+				break
+			}
+		}
+	}
+	if len(nonMemberActive) > 0 {
+		return fmt.Errorf("MinIO active on non-member nodes %v — cannot proceed with topology restart (enforce membership first via node-agent or stop service manually)", nonMemberActive)
+	}
+
+	// 2. Check all pool nodes have reachable endpoints.
+	nodeByID := make(map[string]nodeSnap, len(snaps))
+	for _, s := range snaps {
+		nodeByID[s.nodeID] = s
+	}
+	var unreachable []string
+	for _, id := range poolNodeIDs {
+		s, ok := nodeByID[id]
+		if !ok || s.endpoint == "" {
+			unreachable = append(unreachable, id)
+		}
+	}
+	if len(unreachable) > 0 {
+		return fmt.Errorf("desired pool nodes have no agent endpoint: %v — cannot proceed with topology restart", unreachable)
+	}
+
+	log.Printf("objectstore: runtime scope verified: %d pool nodes, no active non-member MinIO", len(poolNodeIDs))
 	return nil
 }
 

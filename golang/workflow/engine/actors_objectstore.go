@@ -44,6 +44,18 @@ type ObjectStoreControllerConfig struct {
 	// Returns a retriable error when any check fails (workflow retries).
 	VerifyMinioClusterHealthy func(ctx context.Context, targetGeneration int64, expectedVolumesHash string, poolNodeIDs []string) error
 
+	// VerifyRuntimeScope checks that the cluster is safe to proceed with a
+	// coordinated MinIO restart. It must run after the topology lock is held
+	// but before any stop/start actions, so that:
+	//   - no active globular-minio.service is found on nodes outside poolNodeIDs;
+	//   - all desired pool nodes have a reachable agent endpoint.
+	//
+	// Returns a non-nil error (blocking, not retriable) when:
+	//   - MinIO is active on a node not in poolNodeIDs (split-brain risk); or
+	//   - a desired pool node has no agent endpoint (topology apply cannot proceed).
+	// The error message includes violating node IDs and IPs.
+	VerifyRuntimeScope func(ctx context.Context, poolNodeIDs []string) error
+
 	// FailureCleanup is called by onFailure to atomically clean up all
 	// in-progress state: release the topology lock, clear restart_in_progress,
 	// and write a last_restart_result record with status=failed.
@@ -60,6 +72,7 @@ func RegisterObjectStoreControllerActions(router *Router, cfg ObjectStoreControl
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.clear_restart_in_progress", objectstoreClearRestartInProgress(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.record_applied_generation", objectstoreRecordAppliedGeneration(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.verify_minio_cluster_healthy", objectstoreVerifyMinioClusterHealthy(cfg))
+	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.verify_runtime_scope", objectstoreVerifyRuntimeScope(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.objectstore.failure_cleanup", objectstoreFailureCleanup(cfg))
 }
 
@@ -130,6 +143,27 @@ func objectstoreVerifyMinioClusterHealthy(cfg ObjectStoreControllerConfig) Actio
 
 		log.Printf("actor[controller/objectstore]: minio cluster healthy, generation=%d", gen)
 		return &ActionResult{OK: true, Output: map[string]any{"generation": gen, "healthy": true}}, nil
+	}
+}
+
+func objectstoreVerifyRuntimeScope(cfg ObjectStoreControllerConfig) ActionHandler {
+	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+		poolNodeIDs := extractStringSlice(req.With, "pool_node_ids")
+		if len(poolNodeIDs) == 0 {
+			poolNodeIDs = extractStringSlice(req.Inputs, "pool_node_ids")
+		}
+		if len(poolNodeIDs) == 0 {
+			return nil, fmt.Errorf("verify_runtime_scope: pool_node_ids is required")
+		}
+
+		if cfg.VerifyRuntimeScope != nil {
+			if err := cfg.VerifyRuntimeScope(ctx, poolNodeIDs); err != nil {
+				return nil, fmt.Errorf("runtime scope violation: %w", err)
+			}
+		}
+
+		log.Printf("actor[controller/objectstore]: runtime scope verified (%d pool nodes)", len(poolNodeIDs))
+		return &ActionResult{OK: true, Output: map[string]any{"pool_nodes_verified": len(poolNodeIDs)}}, nil
 	}
 }
 
