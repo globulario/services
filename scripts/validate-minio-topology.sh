@@ -100,7 +100,7 @@ DESIRED_GEN="$(echo "$DESIRED_JSON" | jq -r '.generation // 0')"
 DESIRED_MODE="$(echo "$DESIRED_JSON" | jq -r '.mode // "standalone"')"
 DESIRED_ENDPOINT="$(echo "$DESIRED_JSON" | jq -r '.endpoint // ""')"
 DESIRED_VOLUMES_HASH="$(echo "$DESIRED_JSON" | jq -r '.volumes_hash // ""')"
-DESIRED_DRIVES="$(echo "$DESIRED_JSON" | jq -r '.drives_per_node // 1')"
+DESIRED_DRIVES="$(echo "$DESIRED_JSON" | jq -r 'if .drives_per_node != null then .drives_per_node else 0 end')"
 POOL_NODES_JSON="$(echo "$DESIRED_JSON" | jq -c '.nodes // []')"
 POOL_COUNT="$(echo "$POOL_NODES_JSON" | jq 'length')"
 
