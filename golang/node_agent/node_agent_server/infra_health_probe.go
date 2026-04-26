@@ -37,10 +37,22 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 	localIPs := localIPv4Set()
 
 	// --- Strategy 1: nodetool status ---
+	// Pass -h <node_ip> explicitly: scylla.yaml binds api_address to the node's
+	// routable IP, not 127.0.0.1 (which is nodetool's default target).
 	if nodetool, err := exec.LookPath("nodetool"); err == nil {
 		cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(cmdCtx, nodetool, "status")
+		// Pick the first local IP to use as the API host.
+		var apiHost string
+		for ip := range localIPs {
+			apiHost = ip
+			break
+		}
+		args := []string{"status"}
+		if apiHost != "" {
+			args = []string{"-h", apiHost, "status"}
+		}
+		cmd := exec.CommandContext(cmdCtx, nodetool, args...)
 		out, err := cmd.CombinedOutput()
 		if err == nil {
 			scanner := bufio.NewScanner(strings.NewReader(string(out)))
