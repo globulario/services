@@ -670,11 +670,15 @@ func runObjectstoreTopologyApply(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "  WARNING: this will permanently destroy:")
 		fmt.Fprintln(os.Stderr, "    • .minio.sys (MinIO internal state) on all pool nodes")
-		fmt.Fprintln(os.Stderr, "    • ALL bucket data including the 'globular' artifact repository")
+		fmt.Fprintln(os.Stderr, "    • ALL bucket data including:")
+		fmt.Fprintln(os.Stderr, "        - the 'globular' artifact repository (all published packages)")
+		fmt.Fprintln(os.Stderr, "        - webroot (admin console static files)")
+		fmt.Fprintln(os.Stderr, "        - users/ (user file storage)")
 		fmt.Fprintln(os.Stderr, "  After apply you MUST:")
 		fmt.Fprintln(os.Stderr, "    1. Re-create the artifact bucket:  mc mb local/globular")
 		fmt.Fprintln(os.Stderr, "    2. Re-publish all services:        globular deploy --all --bump patch")
-		fmt.Fprintln(os.Stderr, "    3. Re-admit disks on next change:  globular objectstore disk approve ...")
+		fmt.Fprintln(os.Stderr, "    3. Re-upload webroot:              mc cp --recursive ./dist/ local/globular/globular.internal/webroot/")
+		fmt.Fprintln(os.Stderr, "    4. Re-admit disks on next change:  globular objectstore disk approve ...")
 		return fmt.Errorf("destructive apply requires --i-understand-data-reset")
 	}
 
