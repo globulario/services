@@ -388,6 +388,19 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 	_ = installed_state.WriteInstalledPackage(ctx, pkg)
 
+	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
+	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a
+	// legacy INFRASTRUCTURE record that never gets updated by the release pipeline.
+	// If left in place it silently overrides the correct SERVICE version in the
+	// heartbeat Phase 2 etcd scan (INFRA ran after SERVICE in the old loop order).
+	if kind == "SERVICE" {
+		if staleInfra, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); staleInfra != nil {
+			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
+				log.Printf("apply-package: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+			}
+		}
+	}
+
 	log.Printf("apply-package: completed %s/%s@%s (running and verified)", kind, name, version)
 
 	return &node_agentpb.ApplyPackageReleaseResponse{
