@@ -226,6 +226,13 @@ func (r *DNSReconciler) refreshEndpoints() {
 
 // reconcile performs a single reconciliation cycle
 func (r *DNSReconciler) reconcile() error {
+	// Only the leader applies DNS state. Non-leaders have a stale in-memory view
+	// of cluster state that differs from the leader, causing conflicting writes
+	// across DNS instances. The leader is the single source of truth.
+	if !r.srv.isLeader() {
+		return nil
+	}
+
 	startTime := time.Now()
 	atomic.AddUint64(&r.reconcileTotal, 1)
 
@@ -249,7 +256,8 @@ func (r *DNSReconciler) reconcile() error {
 		return nil // No DNS config yet
 	}
 
-	// Check if generation changed
+	// Check if generation changed. Also force a full re-apply if lastGeneration is
+	// stale (e.g., after DNS service restart wiped in-memory records).
 	if generation == r.lastGeneration {
 		// No log on unchanged generation (would spam logs every 30s)
 		return nil // No changes
@@ -697,8 +705,15 @@ func (r *DNSReconciler) healthCheckLoop() {
 
 // checkAllEndpoints checks health of all DNS endpoints (PR7)
 func (r *DNSReconciler) checkAllEndpoints() {
+	r.srv.lock("checkAllEndpoints:spec")
+	var clusterDomain string
+	if r.srv.state != nil && r.srv.state.ClusterNetworkSpec != nil {
+		clusterDomain = r.srv.state.ClusterNetworkSpec.ClusterDomain
+	}
+	r.srv.unlock()
+
 	for _, endpoint := range r.dnsEndpoints {
-		healthy := r.checkEndpointHealth(endpoint)
+		healthy, zoneLoaded := r.checkEndpointHealth(endpoint, clusterDomain)
 
 		// Update health status and log changes
 		previousHealth := r.healthStatus[endpoint]
@@ -707,31 +722,53 @@ func (r *DNSReconciler) checkAllEndpoints() {
 		if previousHealth != healthy {
 			if healthy {
 				log.Printf("dns reconciler: endpoint %s is now HEALTHY — forcing re-push", endpoint)
-				// Reset generation so the next reconcile cycle re-applies all records.
-				// This handles the case where a DNS node restarted and lost its records.
 				r.lastGeneration = 0
 			} else {
 				log.Printf("dns reconciler: endpoint %s is now UNHEALTHY", endpoint)
 			}
+		} else if healthy && !zoneLoaded {
+			// Endpoint is reachable but zone data is empty — DNS restarted fast
+			// enough that the health state never flipped. Force a re-push so
+			// records are restored without waiting for a generation change.
+			log.Printf("dns reconciler: endpoint %s healthy but zone %q missing — forcing re-push", endpoint, clusterDomain)
+			r.lastGeneration = 0
 		}
 	}
 }
 
-// checkEndpointHealth checks if a single DNS endpoint is healthy (PR7)
-func (r *DNSReconciler) checkEndpointHealth(endpoint string) bool {
+// checkEndpointHealth checks if a single DNS endpoint is healthy (PR7).
+// Returns (healthy, zoneLoaded): healthy=true means the service is reachable;
+// zoneLoaded=true means the expected cluster zone is present in memory.
+func (r *DNSReconciler) checkEndpointHealth(endpoint, clusterDomain string) (bool, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	cc, err := r.dialDNSDirect(ctx, endpoint)
 	if err != nil {
-		return false
+		return false, false
 	}
 	defer cc.Close()
 
 	dnsClient := dnspb.NewDnsServiceClient(cc)
 	authCtx := r.buildAuthContext(ctx)
-	_, err = dnsClient.GetDomains(authCtx, &dnspb.GetDomainsRequest{})
-	return err == nil
+	resp, err := dnsClient.GetDomains(authCtx, &dnspb.GetDomainsRequest{})
+	if err != nil {
+		return false, false
+	}
+
+	// If no cluster domain is set yet, treat zone as loaded.
+	if clusterDomain == "" {
+		return true, true
+	}
+	// Check whether the expected zone is loaded in the DNS service's memory.
+	want := strings.TrimSuffix(strings.TrimSpace(clusterDomain), ".") + "."
+	for _, d := range resp.GetDomains() {
+		got := strings.TrimSuffix(strings.TrimSpace(d), ".") + "."
+		if strings.EqualFold(got, want) {
+			return true, true
+		}
+	}
+	return true, false
 }
 
 // buildAuthContext creates a gRPC context with authentication metadata

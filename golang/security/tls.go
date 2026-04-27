@@ -420,8 +420,17 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("client creds: read CSR: %w", err)
 		}
-		// Use Gateway endpoint for certificate signing (captured from outer scope)
-		clientCRT, err := signCaCertificate(gatewayAddress, string(csr), gatewayPort)
+		// Route signing to the CA-holding node. On non-bootstrap nodes ca.key
+		// is absent, so read the CA gateway from etcd (written at controller startup).
+		signingAddress := gatewayAddress
+		if _, statErr := os.Stat("/var/lib/globular/pki/ca.key"); os.IsNotExist(statErr) {
+			if caHost := config_.GetCAGatewayHost(); caHost != "" {
+				signingAddress = caHost
+			} else if ctrlHost := config_.GetControllerGatewayHost(); ctrlHost != "" {
+				signingAddress = ctrlHost
+			}
+		}
+		clientCRT, err := signCaCertificate(signingAddress, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("client creds: sign via CA: %w", err)
 		}
@@ -510,8 +519,17 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("server creds: read CSR: %w", err)
 		}
-		// Use Gateway endpoint for certificate signing (captured from outer scope)
-		crt, err := signCaCertificate(gatewayAddress, string(csr), gatewayPort)
+		// Route signing to the CA-holding node. On non-bootstrap nodes ca.key
+		// is absent, so read the CA gateway from etcd (written at controller startup).
+		signingAddress := gatewayAddress
+		if _, statErr := os.Stat("/var/lib/globular/pki/ca.key"); os.IsNotExist(statErr) {
+			if caHost := config_.GetCAGatewayHost(); caHost != "" {
+				signingAddress = caHost
+			} else if ctrlHost := config_.GetControllerGatewayHost(); ctrlHost != "" {
+				signingAddress = ctrlHost
+			}
+		}
+		crt, err := signCaCertificate(signingAddress, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("server creds: sign via CA: %w", err)
 		}

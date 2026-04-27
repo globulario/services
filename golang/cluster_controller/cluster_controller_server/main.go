@@ -387,7 +387,7 @@ func main() {
 	startDNSReconciler(srv, state)
 
 	// Start domain reconciler for external domains (DNS providers + ACME)
-	startDomainReconciler(ctx, etcdClient)
+	startDomainReconciler(ctx, etcdClient, srv)
 
 	// Register in the Globular service registry so the xDS watcher creates an Envoy cluster.
 	// ClusterController is a standalone control-plane service that does not use the
@@ -506,10 +506,28 @@ func startDNSReconciler(srv *server, state *controllerState) {
 }
 
 // startDomainReconciler starts the external domain reconciler for DNS providers and ACME.
-func startDomainReconciler(ctx context.Context, etcdClient *clientv3.Client) {
+// Only the leader node runs actual reconciliation; non-leaders skip each pass silently.
+func startDomainReconciler(ctx context.Context, etcdClient *clientv3.Client, srv *server) {
 	if etcdClient == nil {
 		logger.Info("domain reconciler: DISABLED (no etcd client)")
 		return
+	}
+
+	// If this node holds the CA key, publish its gateway address so non-CA nodes
+	// can route sign_ca_certificate requests here instead of failing locally.
+	if _, err := os.Stat("/var/lib/globular/pki/ca.key"); err == nil {
+		if name, err := config.GetName(); err == nil {
+			if domain, err := config.GetDomain(); err == nil && domain != "" && domain != "localhost" {
+				caGateway := name + "." + domain
+				pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				if _, putErr := etcdClient.Put(pubCtx, config.CAGatewayKey, caGateway); putErr != nil {
+					logger.Warn("domain reconciler: failed to publish CA gateway", "fqdn", caGateway, "error", putErr)
+				} else {
+					logger.Info("domain reconciler: published CA gateway", "fqdn", caGateway)
+				}
+				cancel()
+			}
+		}
 	}
 
 	// Auto-detect certificate ownership from /var/lib/globular
@@ -521,15 +539,17 @@ func startDomainReconciler(ctx context.Context, etcdClient *clientv3.Client) {
 		}
 	}
 
-	// Create domain reconciler
+	// Create domain reconciler — leader-only to prevent race between
+	// control-plane nodes attempting concurrent ACME DNS-01 challenges.
 	reconciler, err := domain.NewReconciler(domain.ReconcilerConfig{
 		EtcdClient:  etcdClient,
 		Logger:      logger,
 		CertsDir:    "/var/lib/globular/domains",
 		CertUID:     certUID,
 		CertGID:     certGID,
-		Interval:    1 * time.Minute,       // Check every minute
-		RenewBefore: 30 * 24 * time.Hour,   // Renew 30 days before expiry
+		Interval:    1 * time.Minute,     // Check every minute
+		RenewBefore: 30 * 24 * time.Hour, // Renew 30 days before expiry
+		IsLeader:    srv.isLeader,
 	})
 	if err != nil {
 		logger.Error("domain reconciler: failed to create", "error", err)

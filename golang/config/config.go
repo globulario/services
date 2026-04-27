@@ -516,6 +516,14 @@ func GetGatewayEndpoint() (string, string, error) {
 	return localURL, protocol, nil
 }
 
+// GetControllerGatewayHost returns the host of the controller node's gateway
+// (e.g. "10.0.0.63") by reading the node-agent state file. Returns "" if
+// the state file is missing or unparseable. Used by security/tls.go to route
+// sign_ca_certificate requests to the CA-holding node.
+func GetControllerGatewayHost() string {
+	return controllerGatewayHost()
+}
+
 // controllerGatewayHost reads the controller endpoint from the node-agent
 // state file and returns the host portion (e.g. "10.0.0.63"). Returns ""
 // if the state file is missing or unparseable.
@@ -536,6 +544,27 @@ func controllerGatewayHost() string {
 		return ""
 	}
 	return host
+}
+
+// CAGatewayKey is the etcd key where the CA-holding node's gateway FQDN is stored.
+// Written at controller startup on the node that has /var/lib/globular/pki/ca.key.
+const CAGatewayKey = "/globular/bootstrap/ca_gateway_host"
+
+// GetCAGatewayHost returns the FQDN of the gateway on the CA-holding node
+// (the node with ca.key that can sign CSRs). Returns "" if not found.
+// Non-CA nodes use this to route sign_ca_certificate requests correctly.
+func GetCAGatewayHost() string {
+	cli, err := GetEtcdClient()
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := cli.Get(ctx, CAGatewayKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return ""
+	}
+	return string(resp.Kvs[0].Value)
 }
 
 func GetHostname() (string, error) {

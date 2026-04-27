@@ -66,6 +66,9 @@ type Reconciler struct {
 	providersMu sync.RWMutex
 	providers   map[string]*cachedProvider
 
+	// isLeader, if set, gates each reconciliation pass to leader-only.
+	isLeader func() bool
+
 	// Stop channel and lifecycle
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -81,6 +84,11 @@ type ReconcilerConfig struct {
 	CertGID     int // Certificate file owner GID (0 = auto-detect)
 	Interval    time.Duration
 	RenewBefore time.Duration
+	// IsLeader, when set, is called before each reconciliation pass.
+	// If it returns false the pass is skipped. Restricts ACME and DNS
+	// mutations to the cluster-controller leader so non-leader nodes do
+	// not race to set domain status or attempt DNS-01 challenges.
+	IsLeader func() bool
 }
 
 // NewReconciler creates a new domain reconciler.
@@ -133,6 +141,7 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 		interval:    interval,
 		renewBefore: renewBefore,
 		providers:   make(map[string]*cachedProvider),
+		isLeader:    cfg.IsLeader,
 		stopCh:      make(chan struct{}),
 	}, nil
 }
@@ -190,6 +199,10 @@ func (r *Reconciler) reconcileLoop(ctx context.Context) {
 
 // reconcileAll reconciles all domain specs in etcd.
 func (r *Reconciler) reconcileAll(ctx context.Context) {
+	if r.isLeader != nil && !r.isLeader() {
+		r.logger.Debug("domain reconciler: skipping pass (not leader)")
+		return
+	}
 	r.logger.Debug("starting reconciliation pass")
 
 	// Get all domain specs from store
