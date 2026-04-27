@@ -112,10 +112,22 @@
       background: #ca5a2e !important;
       color: #fff !important;
     }
+
+    /* Mascot in sidebar */
+    .sidebar-mascot {
+      display: flex;
+      justify-content: center;
+      padding: 1.2rem 1rem 0.4rem;
+    }
+    .sidebar-mascot img {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+    }
   </style>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">Loading...</div>
   <script>
     window.$docsify = {
       name: 'Globular',
@@ -145,6 +157,27 @@
     }
   </script>
   <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script>
+    // Inject mascot below the logo in the sidebar after Docsify renders
+    Docsify.plugins.push(function(hook) {
+      hook.doneEach(function() {
+        if (!document.querySelector('.sidebar-mascot')) {
+          var sidebar = document.querySelector('.sidebar');
+          if (sidebar) {
+            var wrap = document.createElement('div');
+            wrap.className = 'sidebar-mascot';
+            wrap.innerHTML = '<img src="/docs/mascot.png" alt="Globular mascot">';
+            var appName = sidebar.querySelector('.app-name');
+            if (appName && appName.nextSibling) {
+              sidebar.insertBefore(wrap, appName.nextSibling);
+            } else if (appName) {
+              sidebar.appendChild(wrap);
+            }
+          }
+        }
+      });
+    });
+  </script>
   <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2/dist/docsify-copy-code.min.js"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
