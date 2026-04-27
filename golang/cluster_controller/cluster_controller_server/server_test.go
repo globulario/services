@@ -25,6 +25,10 @@ func (m *recordingEtcdMembershipManager) reconcileEtcdJoinPhases(context.Context
 	return false
 }
 
+func (m *recordingEtcdMembershipManager) reconcileEtcdAutoRejoin(context.Context, []*nodeState) bool {
+	return false
+}
+
 func (m *recordingEtcdMembershipManager) removeStaleMembers(_ context.Context, desiredEtcdNodes []memberNode) error {
 	ids := make([]string, 0, len(desiredEtcdNodes))
 	m.lastDesired = append([]memberNode(nil), desiredEtcdNodes...)

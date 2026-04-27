@@ -85,6 +85,16 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
 		}
+		// Auto-rejoin nodes that were permanently removed: call MemberAdd and
+		// transition them to RejoinInProgress so the node agent wipes their
+		// data directory and restarts etcd.
+		if dirty := srv.etcdMembers.reconcileEtcdAutoRejoin(ctx, nodes); dirty {
+			srv.lock("reconcileAdvanceInfraJoins:etcd-rejoin-persist")
+			_ = srv.persistStateLocked(false)
+			srv.unlock()
+		}
+		// Dispatch wipe-etcd-and-rejoin to nodes in RejoinInProgress.
+		srv.dispatchEtcdWipeAndRejoin(ctx, nodes)
 	}
 
 	// Drive MinIO pool join phases.

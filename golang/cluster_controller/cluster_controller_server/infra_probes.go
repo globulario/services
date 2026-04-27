@@ -9,6 +9,7 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
+
 // probeInfraHealth calls a named probe workflow on the node agent at the given
 // endpoint via gRPC. The controller CANNOT use os/exec (security constraint),
 // so all probes are delegated to node agents.
@@ -59,6 +60,42 @@ func (srv *server) probeEtcdHealth(ctx context.Context, endpoint string) bool {
 // probeMinioHealth probes MinIO health on the given node agent endpoint.
 func (srv *server) probeMinioHealth(ctx context.Context, endpoint string) bool {
 	return srv.probeInfraHealth(ctx, endpoint, "probe-minio-health")
+}
+
+// dispatchEtcdWipeAndRejoin sends the "wipe-etcd-and-rejoin" workflow to every
+// node in EtcdJoinRejoinInProgress that has a reachable node agent. The node
+// agent stops globular-etcd, wipes /var/lib/globular/etcd/member, and restarts
+// globular-etcd so it joins the cluster with the fresh MemberAdd config.
+func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeState) {
+	for _, node := range nodes {
+		if node == nil || node.EtcdJoinPhase != EtcdJoinRejoinInProgress {
+			continue
+		}
+		endpoint := node.AgentEndpoint
+		if endpoint == "" {
+			continue
+		}
+		wCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		go func(ep, nodeID, hostname string) {
+			defer cancel()
+			conn, err := srv.dialNodeAgent(ep)
+			if err != nil {
+				log.Printf("etcd auto-rejoin: cannot dial agent %s (%s): %v", nodeID, hostname, err)
+				return
+			}
+			defer conn.Close()
+			client := node_agentpb.NewNodeAgentServiceClient(conn)
+			resp, err := client.RunWorkflow(wCtx, &node_agentpb.RunWorkflowRequest{
+				WorkflowName: "wipe-etcd-and-rejoin",
+			})
+			if err != nil {
+				log.Printf("etcd auto-rejoin: wipe-etcd-and-rejoin on %s (%s) RPC error: %v", nodeID, hostname, err)
+				return
+			}
+			log.Printf("etcd auto-rejoin: wipe-etcd-and-rejoin on %s (%s) status=%s error=%s",
+				nodeID, hostname, resp.GetStatus(), resp.GetError())
+		}(endpoint, node.NodeID, node.Identity.Hostname)
+	}
 }
 
 // isActiveInfraMember returns true if the node is an active member of the

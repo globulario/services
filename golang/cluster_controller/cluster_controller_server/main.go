@@ -172,6 +172,11 @@ func main() {
 		}
 	}
 
+	// Bootstrap: if the etcd_endpoints file is missing, derive it from the
+	// persisted cluster state so the controller can start even when its local
+	// etcd is down (e.g. after permanent removal from the cluster).
+	seedEtcdEndpointsFromState(state, logger)
+
 	// Create a DEDICATED etcd client for the cluster controller.
 	// This is independent of the config package's shared singleton so that
 	// health-probe reconnects in the config layer cannot destroy leader

@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -137,6 +141,7 @@ type etcdMemberManager struct {
 type etcdMembershipManager interface {
 	snapshotEtcdMembers(ctx context.Context) (*etcdMemberState, error)
 	reconcileEtcdJoinPhases(ctx context.Context, nodes []*nodeState) (dirty bool)
+	reconcileEtcdAutoRejoin(ctx context.Context, nodes []*nodeState) (dirty bool)
 	removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error
 }
 
@@ -450,11 +455,30 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
 			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {
-				// Member disappeared — reset to allow re-join.
-				node.EtcdJoinPhase = EtcdJoinNone
-				node.EtcdJoinError = ""
+				// Member disappeared from the live cluster and etcd is not running.
+				// Count remaining healthy peers to decide the recovery path.
+				healthyPeers := 0
+				for _, n := range nodes {
+					if n == nil || n.NodeID == node.NodeID {
+						continue
+					}
+					if n.EtcdJoinPhase == EtcdJoinVerified && nodeHasEtcdRunning(n) {
+						healthyPeers++
+					}
+				}
+				if healthyPeers > 0 {
+					// Other healthy members remain — safe to auto-rejoin.
+					node.EtcdJoinPhase = EtcdJoinRejoinRequired
+					node.EtcdJoinError = "member disappeared from live cluster while etcd was not running; auto-rejoin triggered"
+				} else {
+					// Sole surviving member or unknown state — reset to None
+					// to allow the normal join flow without risking quorum loss.
+					node.EtcdJoinPhase = EtcdJoinNone
+					node.EtcdJoinError = ""
+				}
 				dirty = true
-				log.Printf("etcd join: node %s member disappeared, resetting to none", node.NodeID)
+				log.Printf("etcd join: node %s (%s) member disappeared, transitioning to %s",
+					node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase)
 			}
 		}
 	}
@@ -580,4 +604,89 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	}
 
 	return nil
+}
+
+// seedEtcdEndpointsFromState writes /var/lib/globular/config/etcd_endpoints
+// from persisted cluster state when the file is absent. This lets the controller
+// bootstrap its etcd client after a restart even when its local etcd is down
+// (e.g. after being permanently removed from the cluster). Only remote endpoints
+// are included so the controller connects to a reachable peer first.
+func seedEtcdEndpointsFromState(state *controllerState, logger *slog.Logger) {
+	const endpointsFile = "/var/lib/globular/config/etcd_endpoints"
+	if _, err := os.Stat(endpointsFile); err == nil {
+		return // file exists — controller rendered it
+	}
+	if state == nil {
+		return
+	}
+
+	localIP, _ := config.GetRoutableIP()
+	var eps []string
+	for _, node := range state.Nodes {
+		ip := node.PrimaryIP()
+		if ip == "" || ip == localIP {
+			continue // skip missing and local (possibly down) endpoint
+		}
+		// Only include nodes that have a core or control-plane profile —
+		// those are guaranteed to run etcd.
+		for _, p := range node.Profiles {
+			if p == "core" || p == "control-plane" {
+				eps = append(eps, fmt.Sprintf("https://%s:2379", ip))
+				break
+			}
+		}
+	}
+	if len(eps) == 0 {
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(endpointsFile), 0o755); err != nil {
+		logger.Warn("etcd bootstrap: cannot create config dir", "error", err)
+		return
+	}
+	content := strings.Join(eps, "\n") + "\n"
+	if err := os.WriteFile(endpointsFile, []byte(content), 0o644); err != nil {
+		logger.Warn("etcd bootstrap: failed to seed endpoints file", "error", err)
+		return
+	}
+	logger.Info("etcd bootstrap: seeded endpoints from cluster state", "endpoints", eps)
+}
+
+// reconcileEtcdAutoRejoin automatically initiates the etcd rejoin workflow for
+// nodes that are in EtcdJoinRejoinRequired and satisfy all safety preconditions.
+// It calls MemberAdd and transitions the node to EtcdJoinRejoinInProgress.
+// Called from reconcileAdvanceInfraJoins after reconcileEtcdJoinPhases.
+func (m *etcdMemberManager) reconcileEtcdAutoRejoin(ctx context.Context, nodes []*nodeState) (dirty bool) {
+	if m == nil || m.client == nil {
+		return false
+	}
+	for _, node := range nodes {
+		if node == nil || node.EtcdJoinPhase != EtcdJoinRejoinRequired {
+			continue
+		}
+		ip := node.PrimaryIP()
+		if ip == "" {
+			continue // can't re-add without an IP
+		}
+		checks := validateEtcdRejoinPreconditions(node, nodes)
+		if !checks.Valid() {
+			log.Printf("etcd auto-rejoin: node %s (%s) preconditions not met: %v",
+				node.NodeID, node.Identity.Hostname, checks.Error)
+			continue
+		}
+		peerURL := fmt.Sprintf("https://%s:2380", ip)
+		memberID, err := m.memberAdd(ctx, peerURL)
+		if err != nil {
+			log.Printf("etcd auto-rejoin: MemberAdd for %s (%s) failed: %v",
+				node.NodeID, node.Identity.Hostname, err)
+			continue
+		}
+		node.EtcdJoinPhase = EtcdJoinRejoinInProgress
+		node.EtcdMemberID = memberID
+		node.EtcdJoinError = ""
+		dirty = true
+		log.Printf("etcd auto-rejoin: MemberAdd succeeded for %s (%s) peerURL=%s memberID=%d",
+			node.NodeID, node.Identity.Hostname, peerURL, memberID)
+	}
+	return dirty
 }

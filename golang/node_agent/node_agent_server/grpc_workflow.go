@@ -46,6 +46,8 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 		return srv.runProbeScyllaHealth(ctx, req)
 	case "probe-etcd-health":
 		return srv.runProbeEtcdHealth(ctx, req)
+	case "wipe-etcd-and-rejoin":
+		return srv.runWipeEtcdAndRejoin(ctx, req)
 	case "probe-minio-health":
 		return srv.runProbeMinioHealth(ctx, req)
 	case "day0.bootstrap":
