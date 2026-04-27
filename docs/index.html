@@ -11,24 +11,24 @@
   <link rel="icon" type="image/png" href="/logo.png">
   <style>
     :root {
-      --theme-color:        #ca5a2e;
-      --base-background-color: #f4efe6;
-      --sidebar-background: #ede8df;
-      --sidebar-border-color: rgba(20, 33, 43, 0.10);
-      --base-color:         #14212b;
-      --sidebar-nav-link-color: #14212b;
-      --sidebar-nav-link-color--active: #ca5a2e;
-      --sidebar-nav-link-border-color--active: #ca5a2e;
-      --link-color:         #ca5a2e;
-      --link-color--hover:  #a34422;
-      --heading-color:      #14212b;
-      --code-theme-background: rgba(20, 33, 43, 0.06);
-      --code-theme-text:    #14212b;
+      --theme-color:           #22d3ee;
+      --base-background-color: #0f1f35;
+      --sidebar-background:    #0b1929;
+      --sidebar-border-color:  rgba(255,255,255,0.08);
+      --base-color:            #e2eaf4;
+      --sidebar-nav-link-color:#8ba0b8;
+      --sidebar-nav-link-color--active: #22d3ee;
+      --sidebar-nav-link-border-color--active: #22d3ee;
+      --link-color:            #22d3ee;
+      --link-color--hover:     #06b6d4;
+      --heading-color:         #ffffff;
+      --code-theme-background: rgba(34,211,238,0.07);
+      --code-theme-text:       #e2eaf4;
     }
 
     body, .markdown-section {
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      color: #14212b;
+      color: #e2eaf4;
     }
 
     code, pre, .token {
@@ -41,76 +41,75 @@
       border-right: 1px solid var(--sidebar-border-color);
     }
     .sidebar .app-name-link {
-      color: #14212b !important;
+      color: #fff !important;
       font-weight: 700;
     }
 
     /* Active sidebar link */
     .sidebar-nav li.active > a {
-      color: #ca5a2e !important;
-      border-right: 3px solid #ca5a2e;
+      color: #22d3ee !important;
+      border-right: 3px solid #22d3ee;
       font-weight: 600;
     }
 
     /* Headings */
     .markdown-section h1,
     .markdown-section h2 {
-      border-bottom: 1px solid rgba(20, 33, 43, 0.10);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      color: #fff;
     }
-    .markdown-section h1 { color: #14212b; }
-    .markdown-section h2 { color: #14212b; }
 
     /* Inline code */
     .markdown-section code {
-      background: rgba(202, 90, 46, 0.08);
-      color: #a34422;
+      background: rgba(34,211,238,0.10);
+      color: #22d3ee;
       border-radius: 3px;
       padding: 0.1em 0.35em;
     }
 
     /* Code blocks */
     .markdown-section pre {
-      background: rgba(20, 33, 43, 0.05);
-      border: 1px solid rgba(20, 33, 43, 0.08);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 8px;
     }
     .markdown-section pre > code {
       background: transparent;
-      color: #14212b;
+      color: #e2eaf4;
     }
 
     /* Tables */
     .markdown-section table th {
-      background: rgba(202, 90, 46, 0.10);
-      color: #14212b;
+      background: rgba(34,211,238,0.10);
+      color: #fff;
     }
     .markdown-section table tr:nth-child(2n) {
-      background: rgba(20, 33, 43, 0.03);
+      background: rgba(255,255,255,0.03);
     }
 
     /* Search box */
     .search input {
-      background: rgba(255,255,255,0.7);
-      border: 1px solid rgba(20, 33, 43, 0.15);
-      color: #14212b;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #e2eaf4;
       border-radius: 6px;
     }
     .search input:focus {
-      border-color: #ca5a2e;
+      border-color: #22d3ee;
       outline: none;
     }
 
-    /* Blockquotes / tips */
+    /* Blockquotes */
     .markdown-section blockquote {
-      border-left: 4px solid #ca5a2e;
-      background: rgba(202, 90, 46, 0.05);
-      color: #14212b;
+      border-left: 4px solid #22d3ee;
+      background: rgba(34,211,238,0.05);
+      color: #8ba0b8;
     }
 
     /* Copy-code button */
     .docsify-copy-code-button {
-      background: #ca5a2e !important;
-      color: #fff !important;
+      background: #22d3ee !important;
+      color: #0b1929 !important;
     }
 
     /* Mascot in sidebar */
