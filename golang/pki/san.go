@@ -50,6 +50,43 @@ func ensurePKCS8Key(dir, name string) (string, crypto.Signer, error) {
 	return kf, signer, err
 }
 
+// csrCoversAllSANs returns true if the PEM-encoded CSR at csrFile already
+// contains every DNS name in dns and every IP in ips. Used to detect stale
+// CSRs that were generated before the VIP or other SANs were added.
+func csrCoversAllSANs(csrFile string, dns []string, ips []string) bool {
+	blk, _, err := readPEMBlock(csrFile)
+	if err != nil {
+		return false
+	}
+	csr, err := x509.ParseCertificateRequest(blk.Bytes)
+	if err != nil {
+		return false
+	}
+	dnsSet := make(map[string]struct{}, len(csr.DNSNames))
+	for _, d := range csr.DNSNames {
+		dnsSet[strings.ToLower(d)] = struct{}{}
+	}
+	for _, required := range dns {
+		if _, ok := dnsSet[strings.ToLower(required)]; !ok {
+			return false
+		}
+	}
+	ipSet := make(map[string]struct{}, len(csr.IPAddresses))
+	for _, ip := range csr.IPAddresses {
+		ipSet[ip.String()] = struct{}{}
+	}
+	for _, required := range ips {
+		ip := net.ParseIP(strings.TrimSpace(required))
+		if ip == nil {
+			continue
+		}
+		if _, ok := ipSet[ip.String()]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // ensureKeyAndCSRWithSANs writes <name>.csr for subject and SANs.
 func ensureKeyAndCSRWithSANs(dir, name, subjectCN string, dns []string, ips []string) (keyFile, csrFile string, err error) {
 	keyFile, signer, err := ensurePKCS8Key(dir, name)
@@ -67,7 +104,15 @@ func ensureKeyAndCSRWithSANs(dir, name, subjectCN string, dns []string, ips []st
 
 	cf := csrPath(dir, name)
 	if exists(cf) {
-		return keyFile, cf, nil
+		// If the existing CSR is missing any required SANs (e.g. VIP added
+		// after initial bootstrap), delete it and the signed cert so they are
+		// regenerated below with the full SAN set.
+		if !csrCoversAllSANs(cf, dns, ips) {
+			_ = os.Remove(cf)
+			_ = os.Remove(crtPath(dir, name))
+		} else {
+			return keyFile, cf, nil
+		}
 	}
 
 	var ipList []net.IP

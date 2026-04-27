@@ -534,11 +534,18 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 		return fmt.Errorf("etcd member list: %w", err)
 	}
 
-	// Build set of desired peer URLs.
+	// Build set of desired peer URLs and hostnames.
+	// Hostname matching is a safety net: if a node's IP is temporarily absent
+	// from controller state (e.g. after a restart before the heartbeat arrives),
+	// we must not remove it from the etcd cluster.
 	desiredPeerURLs := make(map[string]bool, len(desiredEtcdNodes))
+	desiredHostnames := make(map[string]bool, len(desiredEtcdNodes))
 	for _, node := range desiredEtcdNodes {
 		if node.IP != "" {
 			desiredPeerURLs[fmt.Sprintf("https://%s:2380", node.IP)] = true
+		}
+		if node.Hostname != "" {
+			desiredHostnames[sanitizeEtcdName(node.Hostname)] = true
 		}
 	}
 
@@ -552,6 +559,11 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 				isDesired = true
 				break
 			}
+		}
+		// Fallback: match by sanitized hostname in case IP is temporarily empty
+		// in controller state but the node is still a legitimate cluster member.
+		if !isDesired && desiredHostnames[member.Name] {
+			isDesired = true
 		}
 		if isDesired {
 			continue
