@@ -846,7 +846,11 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	// The repository is the source of truth for version numbers.
 	etcdReachable := isAnyEtcdEndpointReachable(300 * time.Millisecond)
 	if srv.nodeID != "" && etcdReachable {
-		for _, kind := range []string{"SERVICE", "APPLICATION", "INFRASTRUCTURE"} {
+		// Process INFRASTRUCTURE first so that SERVICE records (written by the
+		// release workflow) always take precedence for services that appear in both
+		// (e.g. gateway, mcp upgraded via ServiceRelease but still having a stale
+		// INFRASTRUCTURE record from Day-0).
+		for _, kind := range []string{"INFRASTRUCTURE", "APPLICATION", "SERVICE"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
 				continue
