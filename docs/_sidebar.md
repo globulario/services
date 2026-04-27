@@ -22,6 +22,7 @@
   - [Publishing Services](operators/publishing-services.md)
   - [Updating the Cluster](operators/updating-the-cluster.md)
   - [Deploying Applications](operators/deploying-applications.md)
+  - [Website Publishing](operators/website-publishing.md)
   - [Repository Repair](operators/repository-repair.md)
   - [Debugging Failures](operators/debugging-failures.md)
   - [Observability](operators/observability.md)
