@@ -6,10 +6,111 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
   <link rel="icon" type="image/png" href="/logo.png">
   <style>
     :root {
-      --theme-color: #4a90d9;
+      --theme-color:        #ca5a2e;
+      --base-background-color: #f4efe6;
+      --sidebar-background: #ede8df;
+      --sidebar-border-color: rgba(20, 33, 43, 0.10);
+      --base-color:         #14212b;
+      --sidebar-nav-link-color: #14212b;
+      --sidebar-nav-link-color--active: #ca5a2e;
+      --sidebar-nav-link-border-color--active: #ca5a2e;
+      --link-color:         #ca5a2e;
+      --link-color--hover:  #a34422;
+      --heading-color:      #14212b;
+      --code-theme-background: rgba(20, 33, 43, 0.06);
+      --code-theme-text:    #14212b;
+    }
+
+    body, .markdown-section {
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: #14212b;
+    }
+
+    code, pre, .token {
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--sidebar-background);
+      border-right: 1px solid var(--sidebar-border-color);
+    }
+    .sidebar .app-name-link {
+      color: #14212b !important;
+      font-weight: 700;
+    }
+
+    /* Active sidebar link */
+    .sidebar-nav li.active > a {
+      color: #ca5a2e !important;
+      border-right: 3px solid #ca5a2e;
+      font-weight: 600;
+    }
+
+    /* Headings */
+    .markdown-section h1,
+    .markdown-section h2 {
+      border-bottom: 1px solid rgba(20, 33, 43, 0.10);
+    }
+    .markdown-section h1 { color: #14212b; }
+    .markdown-section h2 { color: #14212b; }
+
+    /* Inline code */
+    .markdown-section code {
+      background: rgba(202, 90, 46, 0.08);
+      color: #a34422;
+      border-radius: 3px;
+      padding: 0.1em 0.35em;
+    }
+
+    /* Code blocks */
+    .markdown-section pre {
+      background: rgba(20, 33, 43, 0.05);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      border-radius: 8px;
+    }
+    .markdown-section pre > code {
+      background: transparent;
+      color: #14212b;
+    }
+
+    /* Tables */
+    .markdown-section table th {
+      background: rgba(202, 90, 46, 0.10);
+      color: #14212b;
+    }
+    .markdown-section table tr:nth-child(2n) {
+      background: rgba(20, 33, 43, 0.03);
+    }
+
+    /* Search box */
+    .search input {
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(20, 33, 43, 0.15);
+      color: #14212b;
+      border-radius: 6px;
+    }
+    .search input:focus {
+      border-color: #ca5a2e;
+      outline: none;
+    }
+
+    /* Blockquotes / tips */
+    .markdown-section blockquote {
+      border-left: 4px solid #ca5a2e;
+      background: rgba(202, 90, 46, 0.05);
+      color: #14212b;
+    }
+
+    /* Copy-code button */
+    .docsify-copy-code-button {
+      background: #ca5a2e !important;
+      color: #fff !important;
     }
   </style>
 </head>
@@ -40,7 +141,7 @@
         errorText: 'Error',
         successText: 'Copied',
       },
-      themeColor: '#4a90d9',
+      themeColor: '#ca5a2e',
     }
   </script>
   <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
