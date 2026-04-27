@@ -27,9 +27,13 @@
     </ul>
   </nav>
 
+  <!-- Network canvas background -->
+  <canvas id="network-bg"></canvas>
+
   <!-- Hero -->
   <header class="hero">
     <div class="hero-inner">
+      <img src="logo.png" alt="Globular" class="hero-logo">
       <p class="eyebrow">Open-Source &middot; Self-Hosted &middot; AI-Ready</p>
       <h1>Infrastructure for<br><em>Autonomous Operations</em></h1>
       <p class="hero-copy">
@@ -268,5 +272,49 @@
     </div>
   </footer>
 
+  <script>
+  (function(){
+    var c=document.getElementById('network-bg'),ctx=c.getContext('2d');
+    var W,H,nodes=[],N=90,LINK=140,RAF;
+    function resize(){
+      W=c.width=window.innerWidth;
+      H=c.height=document.querySelector('.hero').offsetHeight+56;
+    }
+    function Node(){
+      this.x=Math.random()*W; this.y=Math.random()*H;
+      this.vx=(Math.random()-.5)*.35; this.vy=(Math.random()-.5)*.35;
+      this.r=Math.random()*2+1.2;
+    }
+    function init(){
+      resize(); nodes=[];
+      for(var i=0;i<N;i++) nodes.push(new Node());
+    }
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      for(var i=0;i<N;i++){
+        var a=nodes[i]; a.x+=a.vx; a.y+=a.vy;
+        if(a.x<0||a.x>W) a.vx*=-1;
+        if(a.y<0||a.y>H) a.vy*=-1;
+        for(var j=i+1;j<N;j++){
+          var b=nodes[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
+          if(d<LINK){
+            var alpha=(1-d/LINK)*0.45;
+            ctx.beginPath();
+            ctx.strokeStyle='rgba(34,211,238,'+alpha+')';
+            ctx.lineWidth=.8;
+            ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+          }
+        }
+        ctx.beginPath();
+        ctx.arc(a.x,a.y,a.r,0,Math.PI*2);
+        ctx.fillStyle='rgba(34,211,238,0.65)';
+        ctx.fill();
+      }
+      RAF=requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize',function(){cancelAnimationFrame(RAF);init();draw();});
+    init(); draw();
+  })();
+  </script>
 </body>
 </html>
