@@ -232,6 +232,12 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v)", pkgName, elapsed)
 		// Sync installed state after successful install.
 		srv.syncInstalledStateToEtcd(ctx)
+		// Stamp build_id on the installed-state record so the controller
+		// doesn't re-dispatch the same version. Without this, Day-0 installs
+		// (which don't carry a build_id) trigger a reinstall loop every cycle.
+		if buildID != "" {
+			srv.stampBuildID(ctx, pkgName, pkgKind, buildID)
+		}
 
 		// Restart the systemd unit so the new binary takes effect.
 		// INFRASTRUCTURE and COMMAND packages manage their own lifecycle
@@ -254,6 +260,25 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		}
 	}
 	return resp, nil
+}
+
+// stampBuildID updates the installed-state record for a package with the
+// build_id so the controller knows this exact build is installed and stops
+// re-dispatching the same version.
+func (srv *NodeAgentServer) stampBuildID(ctx context.Context, pkgName, pkgKind, buildID string) {
+	existing, err := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
+	if err != nil || existing == nil {
+		return
+	}
+	if existing.GetBuildId() == buildID {
+		return // already stamped
+	}
+	existing.BuildId = buildID
+	if wErr := installed_state.WriteInstalledPackage(ctx, existing); wErr != nil {
+		log.Printf("grpc-workflow: stamp build_id for %s failed: %v", pkgName, wErr)
+	} else {
+		log.Printf("grpc-workflow: stamped build_id=%s on %s", buildID, pkgName)
+	}
 }
 
 // runUninstallPackage handles the synthetic "uninstall-package" workflow.
