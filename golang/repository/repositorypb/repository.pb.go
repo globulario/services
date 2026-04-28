@@ -294,6 +294,8 @@ const (
 	UpstreamSourceType_UPSTREAM_TYPE_UNSPECIFIED UpstreamSourceType = 0
 	UpstreamSourceType_GITHUB_RELEASE            UpstreamSourceType = 1 // GitHub Releases (public or token-authenticated)
 	UpstreamSourceType_HTTP_INDEX                UpstreamSourceType = 2 // Generic HTTPS index endpoint
+	UpstreamSourceType_GIT_INDEX                 UpstreamSourceType = 3 // Git repository with release index (Gitea, GitLab, bare)
+	UpstreamSourceType_LOCAL_DIR                 UpstreamSourceType = 4 // Local filesystem (air-gapped / USB / offline)
 )
 
 // Enum value maps for UpstreamSourceType.
@@ -302,11 +304,15 @@ var (
 		0: "UPSTREAM_TYPE_UNSPECIFIED",
 		1: "GITHUB_RELEASE",
 		2: "HTTP_INDEX",
+		3: "GIT_INDEX",
+		4: "LOCAL_DIR",
 	}
 	UpstreamSourceType_value = map[string]int32{
 		"UPSTREAM_TYPE_UNSPECIFIED": 0,
 		"GITHUB_RELEASE":            1,
 		"HTTP_INDEX":                2,
+		"GIT_INDEX":                 3,
+		"LOCAL_DIR":                 4,
 	}
 )
 
@@ -4124,9 +4130,16 @@ type UpstreamSource struct {
 	LastSyncUnix   int64  `protobuf:"varint,16,opt,name=last_sync_unix,json=lastSyncUnix,proto3" json:"last_sync_unix,omitempty"`      // unix timestamp of last sync attempt
 	LastSyncStatus string `protobuf:"bytes,17,opt,name=last_sync_status,json=lastSyncStatus,proto3" json:"last_sync_status,omitempty"` // "succeeded" | "failed" | "partial"
 	LastSyncError  string `protobuf:"bytes,18,opt,name=last_sync_error,json=lastSyncError,proto3" json:"last_sync_error,omitempty"`    // error message from last failed sync
-	// ── GitHub discovery (Phase 2) ────────────────────────────────────────
-	RepoUrl            string `protobuf:"bytes,20,opt,name=repo_url,json=repoUrl,proto3" json:"repo_url,omitempty"`                                   // "owner/repo" for GITHUB_RELEASE discovery
-	IncludePrereleases bool   `protobuf:"varint,21,opt,name=include_prereleases,json=includePrereleases,proto3" json:"include_prereleases,omitempty"` // include GitHub prerelease tags in --latest
+	// ── Provider-specific fields ────────────────────────────────────────────
+	// Not all fields apply to all types. Provider ignores irrelevant fields.
+	RepoUrl            string `protobuf:"bytes,20,opt,name=repo_url,json=repoUrl,proto3" json:"repo_url,omitempty"`                                   // Git repo URL or GitHub "owner/repo"
+	IncludePrereleases bool   `protobuf:"varint,21,opt,name=include_prereleases,json=includePrereleases,proto3" json:"include_prereleases,omitempty"` // include prerelease tags in --latest (GITHUB_RELEASE)
+	Owner              string `protobuf:"bytes,30,opt,name=owner,proto3" json:"owner,omitempty"`                                                      // GitHub owner (GITHUB_RELEASE)
+	Repo               string `protobuf:"bytes,31,opt,name=repo,proto3" json:"repo,omitempty"`                                                        // GitHub repo name (GITHUB_RELEASE)
+	Branch             string `protobuf:"bytes,32,opt,name=branch,proto3" json:"branch,omitempty"`                                                    // Git branch (GIT_INDEX)
+	IndexPathTemplate  string `protobuf:"bytes,33,opt,name=index_path_template,json=indexPathTemplate,proto3" json:"index_path_template,omitempty"`   // Path within repo/dir: "releases/{tag}/release-index.json"
+	ArtifactBaseUrl    string `protobuf:"bytes,34,opt,name=artifact_base_url,json=artifactBaseUrl,proto3" json:"artifact_base_url,omitempty"`         // Base URL for artifact downloads (HTTP_INDEX, GIT_INDEX)
+	LocalRoot          string `protobuf:"bytes,35,opt,name=local_root,json=localRoot,proto3" json:"local_root,omitempty"`                             // Filesystem root (LOCAL_DIR)
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -4292,6 +4305,48 @@ func (x *UpstreamSource) GetIncludePrereleases() bool {
 		return x.IncludePrereleases
 	}
 	return false
+}
+
+func (x *UpstreamSource) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetRepo() string {
+	if x != nil {
+		return x.Repo
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetIndexPathTemplate() string {
+	if x != nil {
+		return x.IndexPathTemplate
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetArtifactBaseUrl() string {
+	if x != nil {
+		return x.ArtifactBaseUrl
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetLocalRoot() string {
+	if x != nil {
+		return x.LocalRoot
+	}
+	return ""
 }
 
 type RegisterUpstreamRequest struct {
@@ -5547,7 +5602,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x12confirmed_build_id\x18\x02 \x01(\tR\x10confirmedBuildId\x12+\n" +
 	"\x11confirmed_version\x18\x03 \x01(\tR\x10confirmedVersion\x12\x14\n" +
 	"\x05state\x18\x04 \x01(\tR\x05state\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"\xd9\x05\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\x96\a\n" +
 	"\x0eUpstreamSource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x1e.repository.UpstreamSourceTypeR\x04type\x12\x1b\n" +
@@ -5568,7 +5623,14 @@ const file_repository_proto_rawDesc = "" +
 	"\x10last_sync_status\x18\x11 \x01(\tR\x0elastSyncStatus\x12&\n" +
 	"\x0flast_sync_error\x18\x12 \x01(\tR\rlastSyncError\x12\x19\n" +
 	"\brepo_url\x18\x14 \x01(\tR\arepoUrl\x12/\n" +
-	"\x13include_prereleases\x18\x15 \x01(\bR\x12includePrereleases\"M\n" +
+	"\x13include_prereleases\x18\x15 \x01(\bR\x12includePrereleases\x12\x14\n" +
+	"\x05owner\x18\x1e \x01(\tR\x05owner\x12\x12\n" +
+	"\x04repo\x18\x1f \x01(\tR\x04repo\x12\x16\n" +
+	"\x06branch\x18  \x01(\tR\x06branch\x12.\n" +
+	"\x13index_path_template\x18! \x01(\tR\x11indexPathTemplate\x12*\n" +
+	"\x11artifact_base_url\x18\" \x01(\tR\x0fartifactBaseUrl\x12\x1d\n" +
+	"\n" +
+	"local_root\x18# \x01(\tR\tlocalRoot\"M\n" +
 	"\x17RegisterUpstreamRequest\x122\n" +
 	"\x06source\x18\x01 \x01(\v2\x1a.repository.UpstreamSourceR\x06source\"N\n" +
 	"\x18RegisterUpstreamResponse\x122\n" +
@@ -5690,12 +5752,14 @@ const file_repository_proto_rawDesc = "" +
 	"BUMP_MINOR\x10\x02\x12\x0e\n" +
 	"\n" +
 	"BUMP_MAJOR\x10\x03\x12\t\n" +
-	"\x05EXACT\x10\x04*W\n" +
+	"\x05EXACT\x10\x04*u\n" +
 	"\x12UpstreamSourceType\x12\x1d\n" +
 	"\x19UPSTREAM_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eGITHUB_RELEASE\x10\x01\x12\x0e\n" +
 	"\n" +
-	"HTTP_INDEX\x10\x02*\xb5\x01\n" +
+	"HTTP_INDEX\x10\x02\x12\r\n" +
+	"\tGIT_INDEX\x10\x03\x12\r\n" +
+	"\tLOCAL_DIR\x10\x04*\xb5\x01\n" +
 	"\x12UpstreamSyncStatus\x12\x11\n" +
 	"\rSYNC_IMPORTED\x10\x00\x12\x10\n" +
 	"\fSYNC_SKIPPED\x10\x01\x12\x11\n" +

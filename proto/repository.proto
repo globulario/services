@@ -861,6 +861,8 @@ enum UpstreamSourceType {
   UPSTREAM_TYPE_UNSPECIFIED = 0;
   GITHUB_RELEASE = 1;   // GitHub Releases (public or token-authenticated)
   HTTP_INDEX     = 2;   // Generic HTTPS index endpoint
+  GIT_INDEX      = 3;   // Git repository with release index (Gitea, GitLab, bare)
+  LOCAL_DIR      = 4;   // Local filesystem (air-gapped / USB / offline)
 }
 
 message UpstreamSource {
@@ -886,9 +888,16 @@ message UpstreamSource {
   string last_sync_status = 17;  // "succeeded" | "failed" | "partial"
   string last_sync_error  = 18;  // error message from last failed sync
 
-  // ── GitHub discovery (Phase 2) ────────────────────────────────────────
-  string repo_url            = 20;  // "owner/repo" for GITHUB_RELEASE discovery
-  bool   include_prereleases = 21;  // include GitHub prerelease tags in --latest
+  // ── Provider-specific fields ────────────────────────────────────────────
+  // Not all fields apply to all types. Provider ignores irrelevant fields.
+  string repo_url            = 20;  // Git repo URL or GitHub "owner/repo"
+  bool   include_prereleases = 21;  // include prerelease tags in --latest (GITHUB_RELEASE)
+  string owner               = 30;  // GitHub owner (GITHUB_RELEASE)
+  string repo                = 31;  // GitHub repo name (GITHUB_RELEASE)
+  string branch              = 32;  // Git branch (GIT_INDEX)
+  string index_path_template = 33;  // Path within repo/dir: "releases/{tag}/release-index.json"
+  string artifact_base_url   = 34;  // Base URL for artifact downloads (HTTP_INDEX, GIT_INDEX)
+  string local_root          = 35;  // Filesystem root (LOCAL_DIR)
 }
 
 message RegisterUpstreamRequest  { UpstreamSource source = 1; }
