@@ -35,6 +35,9 @@ func (srv *server) callerIsAdmin(subject string) (bool, error) {
 		}
 		return false, err
 	}
+	if len(data) == 0 {
+		return false, nil
+	}
 	var roles []string
 	if err := json.Unmarshal(data, &roles); err != nil {
 		return false, err
@@ -159,13 +162,18 @@ func (srv *server) GetRoleBinding(ctx context.Context, rqst *rbacpb.GetRoleBindi
 	data, err := srv.getItem(roleBindingPrefix + rqst.GetSubject())
 	if err != nil {
 		if isNotFoundErr(err) {
-			// No binding stored — return empty (not an error)
 			return &rbacpb.GetRoleBindingRsp{
 				Binding: &rbacpb.RoleBinding{Subject: rqst.GetSubject(), Roles: []string{}},
 			}, nil
 		}
 		return nil, status.Errorf(codes.Internal, "%s",
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	// No binding stored — return empty (not an error).
+	if len(data) == 0 {
+		return &rbacpb.GetRoleBindingRsp{
+			Binding: &rbacpb.RoleBinding{Subject: rqst.GetSubject(), Roles: []string{}},
+		}, nil
 	}
 
 	var roles []string
