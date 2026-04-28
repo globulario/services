@@ -517,9 +517,20 @@ func (srv *server) updateLastSyncedTag(ctx context.Context, sourceName, tag stri
 	return err
 }
 
+// upstreamHTTPClient returns an http.Client with sensible timeouts for
+// upstream fetches. The 30s timeout covers connection + TLS + response.
+func upstreamHTTPClient() *http.Client {
+	return &http.Client{Timeout: 30 * time.Second}
+}
+
 // fetchReleaseIndex fetches and parses the release-index.json from indexURL.
+// Enforces a 30s timeout and 10 MiB size limit to prevent hangs and OOM.
 func fetchReleaseIndex(indexURL string) (*releaseIndex, error) {
-	resp, err := http.Get(indexURL) //nolint:noctx
+	req, err := http.NewRequest(http.MethodGet, indexURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request %s: %w", indexURL, err)
+	}
+	resp, err := upstreamHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", indexURL, err)
 	}
@@ -527,8 +538,20 @@ func fetchReleaseIndex(indexURL string) (*releaseIndex, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s returned %d", indexURL, resp.StatusCode)
 	}
+	// Content-Length pre-check when available.
+	if resp.ContentLength > int64(maxReleaseIndexBytes) {
+		return nil, fmt.Errorf("release index too large: %d bytes (max %d)", resp.ContentLength, maxReleaseIndexBytes)
+	}
+	limited := io.LimitReader(resp.Body, int64(maxReleaseIndexBytes)+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, fmt.Errorf("read index body: %w", err)
+	}
+	if len(data) > maxReleaseIndexBytes {
+		return nil, fmt.Errorf("release index exceeds %d bytes", maxReleaseIndexBytes)
+	}
 	var idx releaseIndex
-	if err := json.NewDecoder(resp.Body).Decode(&idx); err != nil {
+	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, fmt.Errorf("decode index JSON: %w", err)
 	}
 	return &idx, nil
@@ -536,9 +559,14 @@ func fetchReleaseIndex(indexURL string) (*releaseIndex, error) {
 
 // downloadAndVerify downloads the artifact from assetURL, computes its sha256,
 // and verifies it matches expectedDigest ("sha256:<hex>").
+// Enforces a 30s timeout and 500 MiB size limit.
 // Returns the raw bytes and the verified digest string.
 func downloadAndVerify(assetURL, expectedDigest string) ([]byte, string, error) {
-	resp, err := http.Get(assetURL) //nolint:noctx
+	req, err := http.NewRequest(http.MethodGet, assetURL, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("build request %s: %w", assetURL, err)
+	}
+	resp, err := upstreamHTTPClient().Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("GET %s: %w", assetURL, err)
 	}
@@ -546,11 +574,19 @@ func downloadAndVerify(assetURL, expectedDigest string) ([]byte, string, error) 
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("GET %s returned %d", assetURL, resp.StatusCode)
 	}
+	// Content-Length pre-check when available.
+	if resp.ContentLength > int64(maxArtifactBytes) {
+		return nil, "", fmt.Errorf("artifact too large: %d bytes (max %d)", resp.ContentLength, maxArtifactBytes)
+	}
 
+	limited := io.LimitReader(resp.Body, int64(maxArtifactBytes)+1)
 	h := sha256.New()
-	data, err := io.ReadAll(io.TeeReader(resp.Body, h))
+	data, err := io.ReadAll(io.TeeReader(limited, h))
 	if err != nil {
 		return nil, "", fmt.Errorf("read body: %w", err)
+	}
+	if len(data) > maxArtifactBytes {
+		return nil, "", fmt.Errorf("artifact exceeds %d bytes", maxArtifactBytes)
 	}
 
 	actual := "sha256:" + hex.EncodeToString(h.Sum(nil))
