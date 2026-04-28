@@ -1829,11 +1829,12 @@ func (x *UploadArtifactResponse) GetBuildId() string {
 }
 
 type DownloadArtifactRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
-	BuildNumber   int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"` // Build iteration to download (0 = legacy/latest)
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Ref                   *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	BuildNumber           int64                  `protobuf:"varint,2,opt,name=build_number,json=buildNumber,proto3" json:"build_number,omitempty"`                                 // Build iteration to download (0 = legacy/latest)
+	AllowUpstreamFallback bool                   `protobuf:"varint,3,opt,name=allow_upstream_fallback,json=allowUpstreamFallback,proto3" json:"allow_upstream_fallback,omitempty"` // if local blob missing, re-fetch from upstream (server policy decides)
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *DownloadArtifactRequest) Reset() {
@@ -1878,6 +1879,13 @@ func (x *DownloadArtifactRequest) GetBuildNumber() int64 {
 		return x.BuildNumber
 	}
 	return 0
+}
+
+func (x *DownloadArtifactRequest) GetAllowUpstreamFallback() bool {
+	if x != nil {
+		return x.AllowUpstreamFallback
+	}
+	return false
 }
 
 type DownloadArtifactResponse struct {
@@ -4101,10 +4109,21 @@ type UpstreamSource struct {
 	Type           UpstreamSourceType     `protobuf:"varint,2,opt,name=type,proto3,enum=repository.UpstreamSourceType" json:"type,omitempty"` // source system type
 	IndexUrl       string                 `protobuf:"bytes,3,opt,name=index_url,json=indexUrl,proto3" json:"index_url,omitempty"`             // URL or template; use {tag} for release tag substitution
 	Channel        string                 `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"`                               // "stable" (default)
-	Platform       string                 `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`                             // e.g. "linux-amd64"
+	Platform       string                 `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`                             // e.g. "linux_amd64"
 	Enabled        bool                   `protobuf:"varint,6,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	LastSyncedTag  string                 `protobuf:"bytes,7,opt,name=last_synced_tag,json=lastSyncedTag,proto3" json:"last_synced_tag,omitempty"`  // tag of the last fully successful sync (no rejected/failed)
 	CredentialsRef string                 `protobuf:"bytes,8,opt,name=credentials_ref,json=credentialsRef,proto3" json:"credentials_ref,omitempty"` // etcd key to a credential record; empty = public
+	// ── Import policy fields ──────────────────────────────────────────────
+	DefaultPublisherId string   `protobuf:"bytes,10,opt,name=default_publisher_id,json=defaultPublisherId,proto3" json:"default_publisher_id,omitempty"` // e.g. "core@globular.io"
+	AllowedPublishers  []string `protobuf:"bytes,11,rep,name=allowed_publishers,json=allowedPublishers,proto3" json:"allowed_publishers,omitempty"`
+	AllowedKinds       []string `protobuf:"bytes,12,rep,name=allowed_kinds,json=allowedKinds,proto3" json:"allowed_kinds,omitempty"`           // "SERVICE", "INFRASTRUCTURE", etc.
+	AllowedChannels    []string `protobuf:"bytes,13,rep,name=allowed_channels,json=allowedChannels,proto3" json:"allowed_channels,omitempty"`  // "stable", "candidate", etc.
+	RequireChecksum    bool     `protobuf:"varint,14,opt,name=require_checksum,json=requireChecksum,proto3" json:"require_checksum,omitempty"` // reject entries without sha256
+	TrustPolicy        string   `protobuf:"bytes,15,opt,name=trust_policy,json=trustPolicy,proto3" json:"trust_policy,omitempty"`              // "import" (default) | "quarantine"
+	// ── Sync status tracking ──────────────────────────────────────────────
+	LastSyncUnix   int64  `protobuf:"varint,16,opt,name=last_sync_unix,json=lastSyncUnix,proto3" json:"last_sync_unix,omitempty"`      // unix timestamp of last sync attempt
+	LastSyncStatus string `protobuf:"bytes,17,opt,name=last_sync_status,json=lastSyncStatus,proto3" json:"last_sync_status,omitempty"` // "succeeded" | "failed" | "partial"
+	LastSyncError  string `protobuf:"bytes,18,opt,name=last_sync_error,json=lastSyncError,proto3" json:"last_sync_error,omitempty"`    // error message from last failed sync
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -4191,6 +4210,69 @@ func (x *UpstreamSource) GetLastSyncedTag() string {
 func (x *UpstreamSource) GetCredentialsRef() string {
 	if x != nil {
 		return x.CredentialsRef
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetDefaultPublisherId() string {
+	if x != nil {
+		return x.DefaultPublisherId
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetAllowedPublishers() []string {
+	if x != nil {
+		return x.AllowedPublishers
+	}
+	return nil
+}
+
+func (x *UpstreamSource) GetAllowedKinds() []string {
+	if x != nil {
+		return x.AllowedKinds
+	}
+	return nil
+}
+
+func (x *UpstreamSource) GetAllowedChannels() []string {
+	if x != nil {
+		return x.AllowedChannels
+	}
+	return nil
+}
+
+func (x *UpstreamSource) GetRequireChecksum() bool {
+	if x != nil {
+		return x.RequireChecksum
+	}
+	return false
+}
+
+func (x *UpstreamSource) GetTrustPolicy() string {
+	if x != nil {
+		return x.TrustPolicy
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetLastSyncUnix() int64 {
+	if x != nil {
+		return x.LastSyncUnix
+	}
+	return 0
+}
+
+func (x *UpstreamSource) GetLastSyncStatus() string {
+	if x != nil {
+		return x.LastSyncStatus
+	}
+	return ""
+}
+
+func (x *UpstreamSource) GetLastSyncError() string {
+	if x != nil {
+		return x.LastSyncError
 	}
 	return ""
 }
@@ -5098,11 +5180,12 @@ const file_repository_proto_rawDesc = "" +
 	"\x0ereservation_id\x18\x06 \x01(\tR\rreservationId\"K\n" +
 	"\x16UploadArtifactResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\x12\x19\n" +
-	"\bbuild_id\x18\x02 \x01(\tR\abuildId\"y\n" +
+	"\bbuild_id\x18\x02 \x01(\tR\abuildId\"\xb1\x01\n" +
 	"\x17DownloadArtifactRequest\x12;\n" +
 	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefB\x10\x8a\xb5\x18\f\n" +
 	"\bartifact\x10\x01R\x03ref\x12!\n" +
-	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\".\n" +
+	"\fbuild_number\x18\x02 \x01(\x03R\vbuildNumber\x126\n" +
+	"\x17allow_upstream_fallback\x18\x03 \x01(\bR\x15allowUpstreamFallback\".\n" +
 	"\x18DownloadArtifactResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"|\n" +
 	"\x1aGetArtifactManifestRequest\x12;\n" +
@@ -5276,7 +5359,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x12confirmed_build_id\x18\x02 \x01(\tR\x10confirmedBuildId\x12+\n" +
 	"\x11confirmed_version\x18\x03 \x01(\tR\x10confirmedVersion\x12\x14\n" +
 	"\x05state\x18\x04 \x01(\tR\x05state\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"\x96\x02\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\x8d\x05\n" +
 	"\x0eUpstreamSource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x1e.repository.UpstreamSourceTypeR\x04type\x12\x1b\n" +
@@ -5285,7 +5368,17 @@ const file_repository_proto_rawDesc = "" +
 	"\bplatform\x18\x05 \x01(\tR\bplatform\x12\x18\n" +
 	"\aenabled\x18\x06 \x01(\bR\aenabled\x12&\n" +
 	"\x0flast_synced_tag\x18\a \x01(\tR\rlastSyncedTag\x12'\n" +
-	"\x0fcredentials_ref\x18\b \x01(\tR\x0ecredentialsRef\"M\n" +
+	"\x0fcredentials_ref\x18\b \x01(\tR\x0ecredentialsRef\x120\n" +
+	"\x14default_publisher_id\x18\n" +
+	" \x01(\tR\x12defaultPublisherId\x12-\n" +
+	"\x12allowed_publishers\x18\v \x03(\tR\x11allowedPublishers\x12#\n" +
+	"\rallowed_kinds\x18\f \x03(\tR\fallowedKinds\x12)\n" +
+	"\x10allowed_channels\x18\r \x03(\tR\x0fallowedChannels\x12)\n" +
+	"\x10require_checksum\x18\x0e \x01(\bR\x0frequireChecksum\x12!\n" +
+	"\ftrust_policy\x18\x0f \x01(\tR\vtrustPolicy\x12$\n" +
+	"\x0elast_sync_unix\x18\x10 \x01(\x03R\flastSyncUnix\x12(\n" +
+	"\x10last_sync_status\x18\x11 \x01(\tR\x0elastSyncStatus\x12&\n" +
+	"\x0flast_sync_error\x18\x12 \x01(\tR\rlastSyncError\"M\n" +
 	"\x17RegisterUpstreamRequest\x122\n" +
 	"\x06source\x18\x01 \x01(\v2\x1a.repository.UpstreamSourceR\x06source\"N\n" +
 	"\x18RegisterUpstreamResponse\x122\n" +
