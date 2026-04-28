@@ -479,9 +479,15 @@ func (srv *server) importUpstreamArtifact(
 		},
 	}
 
-	// Attempt to extract kind from the archive.
+	// Attempt to extract kind from the release index.
 	if kind, ok := kindFromArtifactKindString(entry.Kind); ok {
 		manifest.Ref.Kind = kind
+	}
+
+	// Enrich manifest from package.json inside the archive.
+	// Populates profiles, deps, provides/requires, health config, etc.
+	if pkg := extractPackageManifest(data); pkg != nil {
+		enrichManifestFromPackageJSON(manifest, pkg)
 	}
 
 	targetState := importTargetState(src)
