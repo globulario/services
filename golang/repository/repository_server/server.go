@@ -776,7 +776,9 @@ func main() {
 	}
 
 	// Register method→action mappings with the global resolver for interceptor use.
+	// Every RPC in repository.proto must have an entry here.
 	policy.GlobalResolver().Register([]policy.Permission{
+		// Read-only
 		{Method: "/repository.PackageRepository/DownloadBundle", Action: "repository.read"},
 		{Method: "/repository.PackageRepository/ListBundles", Action: "repository.read"},
 		{Method: "/repository.PackageRepository/ListArtifacts", Action: "repository.read"},
@@ -785,10 +787,25 @@ func main() {
 		{Method: "/repository.PackageRepository/SearchArtifacts", Action: "repository.read"},
 		{Method: "/repository.PackageRepository/GetArtifactVersions", Action: "repository.read"},
 		{Method: "/repository.PackageRepository/GetNamespace", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/DescribePackage", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/ResolveArtifact", Action: "repository.read"},
+		{Method: "/repository.PackageRepository/ResolveByEntrypointChecksum", Action: "repository.read"},
+		// Write
 		{Method: "/repository.PackageRepository/UploadBundle", Action: "repository.write"},
 		{Method: "/repository.PackageRepository/UploadArtifact", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/UpdateArtifactBinary", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/PromoteArtifact", Action: "repository.write"},
 		{Method: "/repository.PackageRepository/SetArtifactState", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/ImportProvisionalArtifact", Action: "repository.write"},
+		{Method: "/repository.PackageRepository/AllocateUpload", Action: "repository.write"},
+		// Delete / GC
 		{Method: "/repository.PackageRepository/DeleteArtifact", Action: "repository.delete"},
+		{Method: "/repository.PackageRepository/ArchiveUnreachableArtifacts", Action: "repository.delete"},
+		// Upstream (admin-only)
+		{Method: "/repository.PackageRepository/RegisterUpstream", Action: "repository.upstream.register"},
+		{Method: "/repository.PackageRepository/ListUpstreams", Action: "repository.upstream.list"},
+		{Method: "/repository.PackageRepository/RemoveUpstream", Action: "repository.upstream.remove"},
+		{Method: "/repository.PackageRepository/SyncFromUpstream", Action: "repository.upstream.sync"},
 	})
 
 	// 3. Handle informational flags (--describe, --health, --help, --version)
