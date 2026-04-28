@@ -1802,6 +1802,19 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		}
 		ref.Version = canonVer // restore
 	}
+
+	// Upstream refill: if local blob is missing but manifest has upstream_import,
+	// re-download from upstream, verify checksum, refill MinIO cache.
+	if err != nil && req.GetAllowUpstreamFallback() {
+		if refillReader, refillErr := srv.refillBlobFromUpstream(stream.Context(), key); refillErr == nil {
+			reader = refillReader
+			err = nil
+			slog.Info("download: upstream refill succeeded", "key", key)
+		} else {
+			slog.Warn("download: upstream refill failed", "key", key, "err", refillErr)
+		}
+	}
+
 	if err != nil {
 		key := artifactKeyWithBuild(ref, buildNumber)
 		return status.Errorf(codes.NotFound, "artifact %q not found: %v", key, err)
@@ -1824,6 +1837,54 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 		}
 	}
 	return nil
+}
+
+// refillBlobFromUpstream re-downloads an artifact from its upstream source
+// when the local MinIO blob is missing. It reads the manifest from Scylla/MinIO,
+// checks for upstream_import provenance, downloads, verifies checksum, writes to
+// MinIO, and returns an io.ReadCloser for the binary. If any step fails, returns
+// an error and the caller falls through to NotFound.
+func (srv *server) refillBlobFromUpstream(ctx context.Context, key string) (io.ReadCloser, error) {
+	// Read manifest to get upstream_import and checksum.
+	_, state, manifest, err := srv.readManifestAndStateByKey(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("no manifest for key %q: %w", key, err)
+	}
+	_ = state // state already checked by caller
+
+	ui := manifest.GetUpstreamImport()
+	if ui == nil || ui.GetAssetUrl() == "" {
+		return nil, fmt.Errorf("artifact %q has no upstream_import record", key)
+	}
+	expectedDigest := manifest.GetChecksum()
+	if expectedDigest == "" {
+		return nil, fmt.Errorf("artifact %q has no checksum for verification", key)
+	}
+
+	// Resolve credentials if the upstream source has credentials_ref.
+	var authToken string
+	if ui.GetSourceName() != "" {
+		if src, loadErr := srv.loadUpstreamSource(ctx, ui.GetSourceName()); loadErr == nil {
+			if credRef := src.GetCredentialsRef(); credRef != "" {
+				if tok, credErr := resolveCredentialFromEtcd(ctx, credRef); credErr == nil {
+					authToken = tok
+				}
+			}
+		}
+	}
+
+	// Download and verify.
+	data, _, err := downloadAndVerify(ui.GetAssetUrl(), expectedDigest, authToken)
+	if err != nil {
+		return nil, fmt.Errorf("upstream refill download: %w", err)
+	}
+
+	// Refill MinIO cache.
+	if writeErr := srv.Storage().WriteFile(ctx, binaryStorageKey(key), data, 0o644); writeErr != nil {
+		slog.Warn("upstream refill: MinIO write failed (serving from memory)", "key", key, "err", writeErr)
+	}
+
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 // UpdateArtifactBinary implements the delta-deploy RPC. It receives a new binary
